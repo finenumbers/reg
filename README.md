@@ -1,36 +1,140 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Reg Platform
 
-## Getting Started
+Internal telecom ops platform for monitoring SIP registrations on an operator softswitch via allowlisted SSH scripts under `/opt/scripts/`.
 
-First, run the development server:
+## Stack (approved)
+
+- Next.js App Router + TypeScript
+- PostgreSQL + Prisma
+- Better Auth (username login) + RBAC
+- shadcn/ui + Tailwind CSS + TanStack Table
+- ssh2 + p-queue
+- Docker Compose (external NPM reverse proxy)
+
+## Docs
+
+- [architecture](docs/architecture.md)
+- [security model](docs/security-model.md)
+- [data model](docs/data-model.md)
+- [implementation plan](docs/implementation-plan.md)
+- [open questions](docs/open-questions.md)
+- [current phase](docs/current-phase.md)
+- [next steps](docs/next-steps.md)
+- [remote softswitch setup](docs/remote-server-setup.md)
+- [production checklist](docs/production-checklist.md)
+- [backup and restore](docs/backup-and-restore.md)
+- [smoke tests](docs/smoke-tests.md)
+
+## Local development
 
 ```bash
+cp .env.example .env
+# edit secrets — set ADMIN_USERNAME / ADMIN_PASSWORD for first admin
+
+docker compose up -d db
+npm install
+npx prisma migrate dev   # or: npm run db:push (dev only)
+npm run db:seed          # RBAC seed + admin bootstrap (also runs on app start)
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Sign in at `/login` with the bootstrap username/password.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Health:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- `GET /api/healthz` — liveness
+- `GET /api/readyz` — env + database readiness
 
-## Learn More
+Tests / smoke:
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+npm test
+npm run smoke                    # requires app listening on BASE_URL
+BASE_URL=http://localhost:3000 npm run smoke
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Admin bootstrap
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Idempotent bootstrap creates the first admin from env when the users table is empty, and ensures the `admin` role if the username already exists:
 
-## Deploy on Vercel
+- `npm run db:seed`
+- `npm run bootstrap:admin`
+- automatic on Node app startup (`instrumentation.ts`), after platform baseline (RBAC + allowlist)
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Public sign-up is disabled. Do not log or commit `ADMIN_PASSWORD`.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Auth schema
+
+Better Auth Prisma models are **adapter/CLI-generated**:
+
+```bash
+npm run auth:generate
+```
+
+Do not hand-author conflicting auth table definitions. App RBAC (`roles` / `permissions` / `user_roles`) sits on top of Better Auth user ids.
+
+## Security notes
+
+- Remote execution: allowlisted action codes only → `/opt/scripts/...`
+- No arbitrary shell endpoints
+- PuTTYgen `.ppk` import is implemented via `ppk-to-openssh` + `sshpk` normalize; passphrase is import-time only and never stored
+- Private keys encrypted at rest with AES-256-GCM (`APP_ENCRYPTION_KEY`, 64 hex chars)
+- Settings UI/API mask keys (`hasPrivateKey` / fingerprint) — replace only, never export
+- SSH connection test is auth/session only; it does **not** run `check_regs.sh`
+- `regs.poll` runs only through the jobs allowlist path (`/opt/scripts/check_regs.sh`)
+- Auto-poll is Settings-only (`regsPollEnabled` + interval); in-process loop starts at boot; single `app` replica required
+- Admin/settings/audit routes require RBAC permissions; anonymous users are redirected or rejected
+- Mutating APIs require same-origin Origin/Referer; login/poll/SSH-test are rate-limited (in-memory; single replica)
+- Softswitch host hardening: see [remote-server-setup.md](docs/remote-server-setup.md)
+
+## Settings / SSH APIs
+
+- `GET /api/settings` — masked settings (`settings:write`)
+- `PUT /api/settings` — SSH host/port/username + poll/artifact settings
+- `PUT /api/settings/ssh/key` — replace private key (`.ppk` / PEM/OpenSSH)
+- `POST /api/settings/ssh/test` — connection test (`ssh:test`)
+
+## Registrations (Phase 4 APIs + Phase 5 UI)
+
+APIs:
+
+- `GET /api/regs` — list current states (`regs:read`); filters: `status`, `phone` prefix, paging
+- `GET /api/regs/[phone]` — current state + change history (`regs:read`)
+- `GET /api/regs/status` — last poll + counts for ops widgets (`regs:read`)
+- `POST /api/regs/poll` — enqueue manual poll (`regs:poll`)
+
+UI (`/regs`):
+
+- TanStack Table list with phone search, status filter, column sort, pagination
+- Row click opens a detail sheet (history); `/regs/[phone]` is also available
+- Manual **Run poll** when the user has `regs:poll` (disabled while in flight)
+
+## Jobs / Audit (Phase 6)
+
+- `GET /api/jobs` — job run history (`regs:read`); `/jobs` UI with status filter + expandable failure detail
+- `GET /api/audit` — audit events (`audit:read`); `/audit` UI with action/actor filters + sanitized meta expand
+- Dashboard: lightweight poll/count widgets + quick links when permitted
+
+## Production (Phase 7)
+
+Compose services: `db` → `migrate` (`prisma migrate deploy`) → **one** `app` replica.
+
+```bash
+cp .env.example .env
+# set BETTER_AUTH_SECRET, BETTER_AUTH_URL, APP_ENCRYPTION_KEY (not examples)
+docker compose up -d --build
+BASE_URL=http://localhost:3000 npm run smoke
+```
+
+- Attach `app` to existing NPM `proxy` network (see comments in `docker-compose.yml`)
+- NPM: forward `/` and `/api` to the same `app:3000` upstream; set `BETTER_AUTH_URL` to the public HTTPS origin
+- Auto-poll: enable via Settings `regsPollEnabled` after SSH readiness; keep a single `app` replica
+- Backups: `npm run backup:db` — also vault `APP_ENCRYPTION_KEY` ([backup-and-restore.md](docs/backup-and-restore.md))
+- Full go-live list: [production-checklist.md](docs/production-checklist.md)
+
+### Must not (production)
+
+- Scale `app` horizontally without leader election
+- Enable auto-poll with multiple replicas
+- Deploy with placeholder secrets / example encryption key
+- Lose `APP_ENCRYPTION_KEY` while expecting to reuse encrypted SSH keys

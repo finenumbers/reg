@@ -1,0 +1,9 @@
+# Install as /etc/sudoers.d/platform-reg (mode 0440).
+# Validate with: visudo -cf /etc/sudoers.d/platform-reg
+#
+# Replace PLATFORM_USER with the unix account used by Reg SSH
+# (e.g. dvpershin or a dedicated platform user).
+
+Defaults:PLATFORM_USER !requiretty
+PLATFORM_USER ALL=(root) NOPASSWD: /opt/scripts/check_regs.sh
+PLATFORM_USER ALL=(root) NOPASSWD: /opt/scripts/export.py

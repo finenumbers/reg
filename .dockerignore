@@ -1,0 +1,18 @@
+# Keep Docker build context small and deterministic
+node_modules
+.next
+.git
+.gitignore
+.cursor
+.agents
+.claude
+coverage
+backups
+*.md
+!README.md
+.env
+.env.*
+!.env.example
+tsconfig.tsbuildinfo
+npm-debug.log*
+.DS_Store

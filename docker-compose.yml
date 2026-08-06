@@ -1,0 +1,105 @@
+# Local / Portainer-oriented stack.
+#
+# Edge reverse proxy (Nginx Proxy Manager) is EXTERNAL — do not add another proxy here.
+# In production:
+#   1. Create/attach external Docker network named `proxy` (NPM already uses it).
+#   2. Uncomment the `networks` / `proxy` sections so `app` joins `proxy`.
+#   3. In NPM: Proxy Host → http://<app-container-or-service>:3000
+#      Forward `/` and `/api` to the same `app` service (single upstream).
+#   4. Run exactly ONE `app` replica (in-process scheduler + in-memory rate limits).
+#   5. Enable auto-poll only from Settings (regsPollEnabled) after SSH + softswitch are verified.
+#
+# Required in `.env` (no insecure production defaults for secrets):
+#   BETTER_AUTH_SECRET, BETTER_AUTH_URL, APP_ENCRYPTION_KEY
+# Copy .env.example → .env and fill values before `compose up`.
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-reg}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-reg}
+      POSTGRES_DB: ${POSTGRES_DB:-reg}
+    volumes:
+      - reg_pg_data:/var/lib/postgresql/data
+    # Publish only for local tooling. In production prefer leaving this closed
+    # and using `docker compose exec db pg_dump` / Portainer console.
+    ports:
+      - "${POSTGRES_PUBLISH_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - internal
+
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: migrator
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-reg}:${POSTGRES_PASSWORD:-reg}@db:5432/${POSTGRES_DB:-reg}?schema=public
+    networks:
+      - internal
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runner
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      # Always use the compose service hostname `db` inside the stack
+      # (ignore host-local DATABASE_URL from .env used for `npm run dev`).
+      DATABASE_URL: postgresql://${POSTGRES_USER:-reg}:${POSTGRES_PASSWORD:-reg}@db:5432/${POSTGRES_DB:-reg}?schema=public
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Set BETTER_AUTH_SECRET in .env}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:?Set BETTER_AUTH_URL to the public origin}
+      APP_ENCRYPTION_KEY: ${APP_ENCRYPTION_KEY:?Set APP_ENCRYPTION_KEY (64 hex chars)}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+    ports:
+      - "${APP_PUBLISH_PORT:-3000}:3000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/api/readyz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    # MUST remain 1 for v1 (scheduler + in-memory rate limits). Do not scale.
+    # deploy.replicas is honored under Docker Swarm; for Compose keep a single container.
+    deploy:
+      replicas: 1
+    networks:
+      - internal
+      # - proxy
+
+volumes:
+  reg_pg_data:
+
+networks:
+  internal:
+    driver: bridge
+  # Uncomment for Portainer + existing NPM:
+  # proxy:
+  #   external: true

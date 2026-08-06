@@ -1,0 +1,392 @@
+// Prisma schema — SIP Registration Platform
+//
+// AUTH MODELS: source of truth = Better Auth official adapter/CLI.
+// Generate / refresh with:
+//   npx @better-auth/cli@latest generate --yes
+// Do not invent custom auth table names. App domain models live below.
+// After generation, commit the merged schema.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Better Auth models are inserted by CLI generate (do not hand-author here).
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// RBAC (app-owned, layered on Better Auth user id)
+// ---------------------------------------------------------------------------
+
+model Role {
+  id          String           @id @default(cuid())
+  name        String           @unique
+  description String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  users       UserRole[]
+  permissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String           @id @default(cuid())
+  code        String           @unique
+  description String?
+  roles       RolePermission[]
+
+  @@map("permissions")
+}
+
+model UserRole {
+  id     String @id @default(cuid())
+  userId String
+  roleId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId])
+  @@index([userId])
+  @@map("user_roles")
+}
+
+model RolePermission {
+  id           String     @id @default(cuid())
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+// ---------------------------------------------------------------------------
+// Settings / SSH
+// ---------------------------------------------------------------------------
+
+model SshProfile {
+  id                   String              @id @default(cuid())
+  name                 String
+  host                 String
+  port                 Int                 @default(22)
+  username             String
+  /// AES-256-GCM ciphertext of normalized OpenSSH/PEM private key. Never plaintext.
+  privateKeyCiphertext String?
+  keyFingerprint       String?
+  keyAlgo              String?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  appSettings          AppSetting[]
+  connectionTests      SshConnectionTest[]
+
+  @@map("ssh_profiles")
+}
+
+model AppSetting {
+  id                    Int         @id @default(1)
+  activeSshProfileId    String?
+  activeSshProfile      SshProfile? @relation(fields: [activeSshProfileId], references: [id])
+  regsPollEnabled       Boolean     @default(false)
+  /// Technical floor enforced in validation (>= 30 recommended).
+  regsPollIntervalSec   Int         @default(60)
+  artifactRetentionDays Int         @default(14)
+  artifactKeepLastRuns  Int         @default(50)
+  artifactMaxBytes      Int         @default(1048576)
+  updatedAt             DateTime    @updatedAt
+
+  @@map("app_settings")
+}
+
+// ---------------------------------------------------------------------------
+// Allowed actions (code-owned allowlist reflection; remote_path not editable via API)
+// ---------------------------------------------------------------------------
+
+model AllowedAction {
+  code        String   @id
+  remotePath  String
+  description String?
+  enabled     Boolean  @default(true)
+  module      String
+  jobRuns     JobRun[]
+
+  @@map("allowed_actions")
+}
+
+// ---------------------------------------------------------------------------
+// Jobs
+// ---------------------------------------------------------------------------
+
+enum JobTrigger {
+  schedule
+  manual
+  test
+}
+
+enum JobStatus {
+  running
+  success
+  failed
+}
+
+model JobRun {
+  id              String                @id @default(cuid())
+  actionCode      String
+  action          AllowedAction         @relation(fields: [actionCode], references: [code])
+  trigger         JobTrigger
+  status          JobStatus
+  startedAt       DateTime              @default(now())
+  finishedAt      DateTime?
+  durationMs      Int?
+  errorMessage    String?
+  exitCode        Int?
+  phonesParsed    Int?
+  linesBad        Int?
+  changesCount    Int?
+  meta            Json?
+  actorUserId     String?
+  artifact        JobRunArtifact?
+  regCurrents     RegistrationCurrent[]
+  regEvents       RegistrationEvent[]
+  phoneEndpoints  PhoneEndpoint[]
+  phoneGateways   PhoneGateway[]
+  connectionTests SshConnectionTest[]
+
+  @@index([actionCode, startedAt(sort: Desc)])
+  @@index([status, startedAt(sort: Desc)])
+  @@map("job_runs")
+}
+
+model JobRunArtifact {
+  jobRunId String @id
+  jobRun   JobRun @relation(fields: [jobRunId], references: [id], onDelete: Cascade)
+  stdout   String
+  stderr   String
+
+  @@map("job_run_artifacts")
+}
+
+enum SshTestResult {
+  success
+  auth_error
+  timeout
+  error
+}
+
+model SshConnectionTest {
+  id          String        @id @default(cuid())
+  profileId   String
+  profile     SshProfile    @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  actorUserId String?
+  result      SshTestResult
+  detail      String?
+  exitCode    Int?
+  parsedCount Int?
+  jobRunId    String?
+  jobRun      JobRun?       @relation(fields: [jobRunId], references: [id])
+  createdAt   DateTime      @default(now())
+
+  @@index([profileId, createdAt(sort: Desc)])
+  @@map("ssh_connection_tests")
+}
+
+// ---------------------------------------------------------------------------
+// Audit
+// ---------------------------------------------------------------------------
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  actorUserId String?
+  action      String
+  entityType  String?
+  entityId    String?
+  meta        Json?
+  ip          String?
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt(sort: Desc)])
+  @@index([actorUserId, createdAt(sort: Desc)])
+  @@map("audit_logs")
+}
+
+// ---------------------------------------------------------------------------
+// Registrations module
+// ---------------------------------------------------------------------------
+
+enum RegStatus {
+  Registered
+  Unregistered
+}
+
+model RegistrationCurrent {
+  phone         String    @id
+  status        RegStatus
+  ip            String?
+  port          Int?
+  lastSeenAt    DateTime
+  lastChangedAt DateTime
+  lastJobRunId  String?
+  lastJobRun    JobRun?   @relation(fields: [lastJobRunId], references: [id])
+  updatedAt     DateTime  @updatedAt
+
+  @@index([status])
+  @@index([lastChangedAt(sort: Desc)])
+  @@map("reg_current")
+}
+
+model RegistrationEvent {
+  id        String     @id @default(cuid())
+  phone     String
+  oldStatus RegStatus?
+  newStatus RegStatus
+  oldIp     String?
+  newIp     String?
+  oldPort   Int?
+  newPort   Int?
+  changedAt DateTime   @default(now())
+  jobRunId  String?
+  jobRun    JobRun?    @relation(fields: [jobRunId], references: [id])
+
+  @@index([phone, changedAt(sort: Desc)])
+  @@map("reg_change_events")
+}
+
+/// Optional full snapshot per run — deferred for v1 unless needed.
+
+model RegistrationSnapshot {
+  id        String   @id @default(cuid())
+  jobRunId  String
+  payload   Json
+  createdAt DateTime @default(now())
+
+  @@index([jobRunId])
+  @@map("reg_snapshots")
+}
+
+// ---------------------------------------------------------------------------
+// Phones module (export.py JSON → local snapshot)
+// ---------------------------------------------------------------------------
+
+model PhoneEndpoint {
+  id             String   @id @default(cuid())
+  /// gateway_name from softswitch
+  name           String
+  endpointNumber String?
+  /// Full row keyed by Russian Excel headers (incl. plaintext password)
+  data           Json
+  lastSyncedAt   DateTime
+  lastJobRunId   String?
+  lastJobRun     JobRun?  @relation(fields: [lastJobRunId], references: [id], onDelete: SetNull)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([name])
+  @@index([endpointNumber])
+  @@index([lastSyncedAt(sort: Desc)])
+  @@map("phone_endpoints")
+}
+
+model PhoneGateway {
+  id           String   @id @default(cuid())
+  name         String
+  /// Full row keyed by Russian Excel headers
+  data         Json
+  lastSyncedAt DateTime
+  lastJobRunId String?
+  lastJobRun   JobRun?  @relation(fields: [lastJobRunId], references: [id], onDelete: SetNull)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([name])
+  @@index([lastSyncedAt(sort: Desc)])
+  @@map("phone_gateways")
+}
+
+model PhoneImportState {
+  id                Int       @id @default(1)
+  endpointCount     Int       @default(0)
+  gatewayCount      Int       @default(0)
+  /// string[] headers for endpoints table
+  headersEndpoints  Json      @default("[]")
+  /// string[] headers for gateways table
+  headersGateways   Json      @default("[]")
+  lastSyncedAt      DateTime?
+  lastJobRunId      String?
+  updatedAt         DateTime  @updatedAt
+
+  @@map("phone_import_state")
+}
+
+model User {
+  id              String    @id
+  name            String
+  email           String
+  emailVerified   Boolean   @default(false)
+  image           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  username        String?
+  displayUsername String?
+  isActive        Boolean?  @default(true)
+  sessions        Session[]
+  accounts        Account[]
+  roles           UserRole[]
+
+  @@unique([email])
+  @@unique([username])
+  @@map("user")
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([token])
+  @@index([userId])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verification")
+}
