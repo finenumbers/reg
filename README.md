@@ -17,9 +17,10 @@ Internal telecom ops platform for monitoring SIP registrations on an operator so
 
 | Image | Use |
 |-------|-----|
-| `ghcr.io/finenumbers/reg:1.0.0` | App |
-| `ghcr.io/finenumbers/reg:1.0.0-migrator` | `prisma migrate deploy` |
-| `:latest` / `:latest-migrator` | Same roles, rolling tags |
+| `ghcr.io/finenumbers/reg:latest` | App (Portainer redeploy) |
+| `ghcr.io/finenumbers/reg:latest-migrator` | `prisma migrate deploy` |
+
+Versioned tags (`:1.0.0`, …) are also published by CI; production compose uses **`latest` only**.
 
 ## Docs
 

@@ -1,13 +1,16 @@
 # Portainer / production stack using GHCR images (no local build).
 #
+# Redeploy uses ONLY rolling tags:
+#   ghcr.io/finenumbers/reg:latest
+#   ghcr.io/finenumbers/reg:latest-migrator
+#
 # Prerequisites:
 #   1. External Docker network `proxy` already used by Nginx Proxy Manager (NPM).
 #   2. `.env` next to this file (copy from `.env.example`) with real secrets.
-#   3. Images: ghcr.io/finenumbers/reg:<version> and :<version>-migrator
 #
 # Full guide: docs/deploy-portainer.md
-#
-# Pin REG_IMAGE_TAG when deploying a release (default 1.0.0).
+# On upgrade: pull latest images, then redeploy the stack (Portainer "Pull and redeploy"
+# or `docker compose -f docker-compose.portainer.yml pull && … up -d`).
 
 services:
   db:
@@ -29,7 +32,7 @@ services:
       - internal
 
   migrate:
-    image: ghcr.io/finenumbers/reg:${REG_IMAGE_TAG:-1.0.0}-migrator
+    image: ghcr.io/finenumbers/reg:latest-migrator
     restart: "no"
     depends_on:
       db:
@@ -40,7 +43,7 @@ services:
       - internal
 
   app:
-    image: ghcr.io/finenumbers/reg:${REG_IMAGE_TAG:-1.0.0}
+    image: ghcr.io/finenumbers/reg:latest
     restart: unless-stopped
     depends_on:
       db:

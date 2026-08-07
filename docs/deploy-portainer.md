@@ -4,12 +4,14 @@ Production path using **GHCR images** (linux/amd64) and the existing NPM `proxy`
 Compose file: [`docker-compose.portainer.yml`](../docker-compose.portainer.yml).  
 Related: [production-checklist.md](./production-checklist.md), [remote-server-setup.md](./remote-server-setup.md).
 
-## Images (v1.0.0)
+## Images (redeploy)
 
 | Role | Image |
 |------|--------|
-| App | `ghcr.io/finenumbers/reg:1.0.0` (also `:latest`) |
-| Migrate | `ghcr.io/finenumbers/reg:1.0.0-migrator` (also `:latest-migrator`) |
+| App | `ghcr.io/finenumbers/reg:latest` |
+| Migrate | `ghcr.io/finenumbers/reg:latest-migrator` |
+
+Versioned tags (`1.0.0`, …) are published by CI for reference only — **Portainer stack always uses `latest` / `latest-migrator`**.
 
 Package: [ghcr.io/finenumbers/reg](https://github.com/finenumbers/reg/pkgs/container/reg).
 
@@ -37,9 +39,8 @@ In Portainer (Stack → Environment variables) or a `.env` file next to the comp
 | `APP_ENCRYPTION_KEY` | `openssl rand -hex 32` — **back up offline** |
 | `ADMIN_USERNAME` / `ADMIN_PASSWORD` | First admin (password ≥8); only when users table empty |
 | `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | Strong DB password in production |
-| `REG_IMAGE_TAG` | Optional pin, default `1.0.0` |
 
-Do **not** commit real secrets. Use `.env.example` as a template only.
+Do **not** set an image tag override — compose pins `latest` / `latest-migrator` only.
 
 ## 3. Portainer stack
 
@@ -84,11 +85,12 @@ Set `BETTER_AUTH_URL` to the exact public origin (`https://regs.example.com`) an
 4. **Phones:** sync once after softswitch `export.py` is installed.
 5. Only then enable Settings auto-poll (`regsPollEnabled`) — still one replica.
 
-## 6. Upgrades
+## 6. Upgrades / redeploy
 
-1. Set `REG_IMAGE_TAG` to the new release (e.g. `1.1.0`) or pull `:latest` / `:latest-migrator`.
-2. Redeploy the stack (migrate runs before app).
-3. Smoke: `/api/readyz` + login.
+1. In Portainer: **Pull and redeploy** the stack (or `docker compose -f docker-compose.portainer.yml pull && docker compose -f docker-compose.portainer.yml up -d`).
+2. Images stay `latest` / `latest-migrator` — no tag changes in compose.
+3. Migrate runs before app on each redeploy.
+4. Smoke: `/api/readyz` + login.
 
 ## 7. Must not
 

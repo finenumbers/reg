@@ -32,7 +32,7 @@ Optional publish ports: `APP_PUBLISH_PORT`, `POSTGRES_PUBLISH_PORT`.
 
 ### Production (GHCR + Portainer)
 
-1. Follow [deploy-portainer.md](./deploy-portainer.md): stack from `docker-compose.portainer.yml`, images `ghcr.io/finenumbers/reg:1.0.0` + `:1.0.0-migrator`.
+1. Follow [deploy-portainer.md](./deploy-portainer.md): stack from `docker-compose.portainer.yml`, images `ghcr.io/finenumbers/reg:latest` + `:latest-migrator` only.
 2. External network `proxy` must already exist (NPM).
 3. Confirm: `db` healthy → `migrate` exits 0 → `app` healthy (`/api/readyz`).
 4. **Replicas:** keep a single `app` container (do not scale).
