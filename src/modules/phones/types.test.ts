@@ -14,7 +14,7 @@ describe("parsePhoneKind", () => {
     expect(parsePhoneKind("endpoints_error")).toBe("endpoints_error");
   });
 
-  it("maps legacy endpoints to registered and defaults unknown", () => {
+  it("defaults unknown and null to endpoints_registered", () => {
     expect(parsePhoneKind("endpoints")).toBe("endpoints_registered");
     expect(parsePhoneKind(null)).toBe("endpoints_registered");
     expect(parsePhoneKind("nope")).toBe("endpoints_registered");

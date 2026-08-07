@@ -49,10 +49,9 @@ describe("registrations UI format helpers", () => {
 
   it("builds list API URLs from search/filter/page state", () => {
     expect(buildRegsListUrl()).toBe("/api/regs");
-    expect(buildRegsListUrl({ phone: "738", status: "Registered", page: 2 })).toBe(
-      "/api/regs?phone=738&status=Registered&page=2",
+    expect(buildRegsListUrl({ phoneQ: "738", page: 2 })).toBe(
+      "/api/regs?phoneQ=738&page=2",
     );
-    expect(buildRegsListUrl({ status: "" })).toBe("/api/regs");
     expect(
       buildRegsListUrl({
         filters: { status: ["Registered"], phone: ["738"] },

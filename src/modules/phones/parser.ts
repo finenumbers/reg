@@ -1,19 +1,20 @@
 /**
  * Parse phones.sync stdout JSON from softswitch export.py.
+ * Fail-closed: any corrupt/invalid row throws — caller must not apply.
  */
 
+import { stripAnsi } from "@/lib/strip-ansi";
 import {
   ENDPOINT_HEADERS,
   GATEWAY_HEADERS,
+  REGISTRATION_FIELD,
+  REGISTRATION_NO,
+  REGISTRATION_YES,
   type ParsedPhoneEndpoint,
   type ParsedPhoneGateway,
   type ParsedPhonesPayload,
   type PhoneRowData,
 } from "@/modules/phones/types";
-
-function stripAnsi(text: string): string {
-  return text.replace(/\u001b\[[0-9;]*m/g, "");
-}
 
 function asString(value: unknown): string {
   if (value == null) return "";
@@ -34,6 +35,16 @@ function pickRow(
   for (const h of headers) {
     data[h] = asString(obj[h]);
   }
+  // Always pull critical fields from the raw object even if headers omit them.
+  for (const required of [
+    "Название",
+    "Номер оконечного оборудования",
+    REGISTRATION_FIELD,
+  ] as const) {
+    if (required in obj) {
+      data[required] = asString(obj[required]);
+    }
+  }
   return data;
 }
 
@@ -45,11 +56,35 @@ function headersOrDefault(
   const cleaned = raw
     .map((h) => (typeof h === "string" ? h.trim() : ""))
     .filter((h) => h.length > 0);
-  return cleaned.length > 0 ? cleaned : [...fallback];
+  if (cleaned.length === 0) return [...fallback];
+  const seen = new Set(cleaned);
+  const merged = [...cleaned];
+  for (const h of fallback) {
+    if (!seen.has(h)) {
+      merged.push(h);
+      seen.add(h);
+    }
+  }
+  return merged;
+}
+
+function assertNoReplacementChars(stdout: string): void {
+  if (stdout.includes("\uFFFD")) {
+    throw new Error(
+      "phones.sync stdout contains U+FFFD (UTF-8 corruption) — snapshot rejected",
+    );
+  }
+}
+
+function optionalCount(root: Record<string, unknown>, key: string): number | null {
+  const v = root[key];
+  if (typeof v === "number" && Number.isFinite(v) && v >= 0) return Math.floor(v);
+  if (typeof v === "string" && /^\d+$/.test(v)) return Number(v);
+  return null;
 }
 
 /**
- * Parse and validate export.py JSON. Throws on structural failures.
+ * Parse and validate export.py JSON. Throws on structural or row failures.
  * Empty endpoints+gateways arrays are allowed (valid empty snapshot).
  */
 export function parsePhonesStdout(stdout: string): ParsedPhonesPayload {
@@ -57,6 +92,8 @@ export function parsePhonesStdout(stdout: string): ParsedPhonesPayload {
   if (!cleaned) {
     throw new Error("Empty phones.sync stdout");
   }
+
+  assertNoReplacementChars(cleaned);
 
   let parsed: unknown;
   try {
@@ -99,11 +136,23 @@ export function parsePhonesStdout(stdout: string): ParsedPhonesPayload {
   }
 
   const endpoints: ParsedPhoneEndpoint[] = [];
-  for (const item of root.endpoints) {
+  for (let i = 0; i < root.endpoints.length; i++) {
+    const item = root.endpoints[i];
     const data = pickRow(item, endpointHeaders);
-    if (!data) continue;
+    if (!data) {
+      throw new Error(`phones.sync endpoints[${i}] is not an object`);
+    }
     const name = data["Название"]?.trim() ?? "";
-    if (!name) continue;
+    if (!name) {
+      throw new Error(`phones.sync endpoints[${i}] missing Название`);
+    }
+    const registration = data[REGISTRATION_FIELD]?.trim() ?? "";
+    if (registration !== REGISTRATION_YES && registration !== REGISTRATION_NO) {
+      throw new Error(
+        `phones.sync endpoints[${i}] (${name}): Регистрация must be «Да» or «Нет», got ${JSON.stringify(registration)}`,
+      );
+    }
+    data[REGISTRATION_FIELD] = registration;
     const endpointNumberRaw =
       data["Номер оконечного оборудования"]?.trim() ?? "";
     endpoints.push({
@@ -114,12 +163,30 @@ export function parsePhonesStdout(stdout: string): ParsedPhonesPayload {
   }
 
   const gateways: ParsedPhoneGateway[] = [];
-  for (const item of root.gateways) {
+  for (let i = 0; i < root.gateways.length; i++) {
+    const item = root.gateways[i];
     const data = pickRow(item, gatewayHeaders);
-    if (!data) continue;
+    if (!data) {
+      throw new Error(`phones.sync gateways[${i}] is not an object`);
+    }
     const name = data["Название"]?.trim() ?? "";
-    if (!name) continue;
+    if (!name) {
+      throw new Error(`phones.sync gateways[${i}] missing Название`);
+    }
     gateways.push({ name, data });
+  }
+
+  const declaredEndpoints = optionalCount(root, "endpointCount");
+  const declaredGateways = optionalCount(root, "gatewayCount");
+  if (declaredEndpoints != null && declaredEndpoints !== endpoints.length) {
+    throw new Error(
+      `phones.sync endpointCount mismatch: declared ${declaredEndpoints}, got ${endpoints.length}`,
+    );
+  }
+  if (declaredGateways != null && declaredGateways !== gateways.length) {
+    throw new Error(
+      `phones.sync gatewayCount mismatch: declared ${declaredGateways}, got ${gateways.length}`,
+    );
   }
 
   return {

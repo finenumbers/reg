@@ -74,6 +74,7 @@ describe("processRegsPoll", () => {
       unchanged: 0,
       changesCount: 2,
       eventsWritten: 2,
+      removed: 0,
     });
     const execute = vi.fn().mockResolvedValue({
       actionCode: "regs.poll",
@@ -177,6 +178,29 @@ describe("processRegsPoll", () => {
     expect(result.status).toBe("failed");
     expect(result.errorMessage).toContain("Permission denied");
     expect(result.errorMessage).toMatch(/stderr:/);
+    expect(apply).not.toHaveBeenCalled();
+  });
+
+  it("rejects all-bad dump without applying (fail-closed)", async () => {
+    const apply = vi.fn();
+    const execute = vi.fn().mockResolvedValue({
+      actionCode: "regs.poll",
+      remotePath: "/opt/scripts/check_regs.sh",
+      exitCode: 0,
+      stdout: "not-a-valid-line\n",
+      stderr: "",
+      durationMs: 5,
+      timedOut: false,
+    });
+
+    const result = await processRegsPoll(
+      { trigger: "manual" },
+      { execute, apply },
+    );
+
+    expect(result.status).toBe("failed");
+    expect(result.linesBad).toBeGreaterThan(0);
+    expect(result.errorMessage).toMatch(/некорректных строк/i);
     expect(apply).not.toHaveBeenCalled();
   });
 });

@@ -2,7 +2,6 @@ import { prisma } from "@/lib/db";
 import {
   type PermissionCode,
   type RoleName,
-  hasPermission,
   PERMISSIONS,
 } from "@/modules/rbac/permissions";
 
@@ -50,14 +49,6 @@ export async function getUserAuthz(userId: string): Promise<UserAuthz> {
     roles: [...roleNames],
     permissions: [...permissionCodes],
   };
-}
-
-export async function userHasPermission(
-  userId: string,
-  required: PermissionCode,
-): Promise<boolean> {
-  const authz = await getUserAuthz(userId);
-  return hasPermission(authz.permissions, required);
 }
 
 /**

@@ -42,7 +42,7 @@ export function RegsDetailSheet({
         className="w-full gap-0 overflow-y-auto sm:max-w-lg"
       >
         <SheetHeader className="border-b border-border">
-          <SheetTitle className="font-mono text-lg tabular-nums">
+          <SheetTitle className="text-lg tabular-nums">
             {phone ?? "Регистрация"}
           </SheetTitle>
           <SheetDescription>
@@ -72,7 +72,7 @@ export function RegsDetailSheet({
                   <RegStatusBadge status={current.status} />
                 </dd>
                 <dt className="text-muted-foreground">Endpoint</dt>
-                <dd className="font-mono text-sm">
+                <dd className="text-sm">
                   {formatEndpoint(current.ip, current.port)}
                 </dd>
                 <dt className="text-muted-foreground">Последнее изменение</dt>

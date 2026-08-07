@@ -8,12 +8,16 @@
  */
 
 import { Client, type ConnectConfig } from "ssh2";
+import { concatUtf8Chunks } from "@/lib/utf8-truncate";
 import type { RemoteExecutionResult } from "@/modules/actions/execution";
 import {
   assertOptScriptsPath,
   buildElevatedOptScriptsCommand,
   type AllowedActionDefinition,
 } from "@/modules/actions/registry";
+
+/** Wide PTY so check_regs.sh TTY lines are not hard-wrapped. */
+const REGS_PTY = { term: "xterm", cols: 1024, rows: 24 } as const;
 
 export type SshConnectionConfig = {
   host: string;
@@ -207,10 +211,13 @@ export class Ssh2Client implements SshClient {
     return new Promise((resolve) => {
       const client = new Client();
       let settled = false;
-      let stdout = "";
-      let stderr = "";
+      const stdoutChunks: Array<Buffer | string> = [];
+      const stderrChunks: Array<Buffer | string> = [];
       let exitCode: number | null = null;
       let timedOut = false;
+
+      const decodedStdout = () => concatUtf8Chunks(stdoutChunks);
+      const decodedStderr = () => concatUtf8Chunks(stderrChunks);
 
       const finish = (result: RemoteExecutionResult) => {
         if (settled) return;
@@ -224,11 +231,12 @@ export class Ssh2Client implements SshClient {
       };
 
       const failSafe = (detail: string, code: number | null = null) => {
+        const stderr = decodedStderr();
         finish({
           actionCode: options.action.code,
           remotePath: options.action.remotePath,
           exitCode: code,
-          stdout,
+          stdout: decodedStdout(),
           stderr: stderr || detail,
           durationMs: Date.now() - started,
           timedOut,
@@ -242,11 +250,12 @@ export class Ssh2Client implements SshClient {
         } catch {
           /* ignore */
         }
+        const stderr = decodedStderr();
         finish({
           actionCode: options.action.code,
           remotePath: options.action.remotePath,
           exitCode: null,
-          stdout,
+          stdout: decodedStdout(),
           stderr: stderr || "SSH exec timed out",
           durationMs: Date.now() - started,
           timedOut: true,
@@ -256,7 +265,10 @@ export class Ssh2Client implements SshClient {
       client.on("ready", () => {
         // PTY only when needed (check_regs.sh). Softswitch authorized_keys
         // must not set no-pty for the platform key when regs.poll is used.
-        const execOpts = options.action.needsPty ? { pty: true as const } : {};
+        // Wide cols avoid hard-wrapping long registration lines.
+        const execOpts = options.action.needsPty
+          ? { pty: { ...REGS_PTY } }
+          : {};
         client.exec(command, execOpts, (err, stream) => {
           if (err) {
             clearTimeout(timer);
@@ -265,12 +277,14 @@ export class Ssh2Client implements SshClient {
             return;
           }
 
+          // Accumulate raw buffers — decode once at close so multi-byte UTF-8
+          // (Cyrillic JSON keys) is never split across chunk boundaries.
           stream.on("data", (data: Buffer | string) => {
-            stdout += data.toString();
+            stdoutChunks.push(data);
           });
           // With PTY, stderr is usually merged into stdout; attach if present.
           stream.stderr?.on("data", (data: Buffer | string) => {
-            stderr += data.toString();
+            stderrChunks.push(data);
           });
           stream.on("close", (code: number | null) => {
             clearTimeout(timer);
@@ -279,8 +293,8 @@ export class Ssh2Client implements SshClient {
               actionCode: options.action.code,
               remotePath: options.action.remotePath,
               exitCode,
-              stdout,
-              stderr,
+              stdout: decodedStdout(),
+              stderr: decodedStderr(),
               durationMs: Date.now() - started,
               timedOut: false,
             });

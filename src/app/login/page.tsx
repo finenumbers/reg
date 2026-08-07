@@ -5,11 +5,12 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-muted/40 p-6">
       <div className="space-y-6">
-        <div className="text-center">
-          <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-            Softswitch Ops
-          </p>
-          <h1 className="text-2xl font-semibold tracking-tight">Reg Platform</h1>
+        <div className="flex justify-center">
+          <img
+            src="/brand/logo-full.png"
+            alt="fine numbers"
+            className="h-12 w-auto max-w-full bg-transparent object-contain"
+          />
         </div>
         <Suspense
           fallback={

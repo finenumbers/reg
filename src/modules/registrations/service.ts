@@ -26,13 +26,9 @@ import {
 
 export { REG_COLUMN_HEADERS };
 
-export const REG_FILTER_COLUMNS = Object.keys(REG_COLUMN_HEADERS);
-
 export type ListRegistrationsFilters = {
-  /** @deprecated prefer `filters` column map */
-  status?: RegStatus;
-  /** @deprecated prefer `filters` column map */
-  phone?: string;
+  /** Substring search over Телефон (toolbar) */
+  phoneQ?: string;
   filters?: ColumnFilters;
   page?: number;
   pageSize?: number;
@@ -156,7 +152,7 @@ function applyColumnFilters(
   );
 }
 
-async function loadAllRegistrationItems(): Promise<RegistrationListItem[]> {
+export async function loadAllRegistrationItems(): Promise<RegistrationListItem[]> {
   const rows = await prisma.registrationCurrent.findMany({
     orderBy: [{ phone: "asc" }],
   });
@@ -166,43 +162,9 @@ async function loadAllRegistrationItems(): Promise<RegistrationListItem[]> {
   );
 }
 
-/** Merge legacy phone/status params into ColumnFilters. */
-function normalizeFilters(filters: ListRegistrationsFilters): ColumnFilters {
-  const out: ColumnFilters = { ...(filters.filters ?? {}) };
-  if (filters.status && !out.status?.length) {
-    out.status = [filters.status];
-  }
-  if (filters.phone?.trim() && !out.phone?.length) {
-    // legacy substring → exact token list not available; keep as single contains via special handling
-    // Represent as filter value that list will match with includes for backward compat in tests
-    out.phone = [filters.phone.trim()];
-  }
-  return out;
-}
-
-function matchesWithLegacyPhoneContains(
-  row: RegistrationListItem,
-  filters: ColumnFilters,
-  opts: { excludeColumn?: string } = {},
-): boolean {
-  for (const [col, values] of Object.entries(filters)) {
-    if (opts.excludeColumn && col === opts.excludeColumn) continue;
-    if (!values?.length) continue;
-    if (col === "phone") {
-      // Multi-select exact OR legacy single substring (when one value and not full phone set from facets)
-      const token = cellToFilterToken(row.phone);
-      const ok = values.some(
-        (v) =>
-          v === token ||
-          (v !== EMPTY_FILTER_TOKEN &&
-            row.phone.toLowerCase().includes(v.toLowerCase())),
-      );
-      if (!ok) return false;
-      continue;
-    }
-    if (!matchesColumnFilter(row, col, values)) return false;
-  }
-  return true;
+function matchesPhoneQ(row: RegistrationListItem, phoneQ: string): boolean {
+  if (!phoneQ) return true;
+  return row.phone.toLowerCase().includes(phoneQ.toLowerCase());
 }
 
 export async function listRegistrations(
@@ -210,11 +172,12 @@ export async function listRegistrations(
 ): Promise<ListRegistrationsResult> {
   const page = Math.max(1, filters.page ?? 1);
   const pageSize = Math.min(200, Math.max(1, filters.pageSize ?? 100));
-  const columnFilters = normalizeFilters(filters);
+  const columnFilters = filters.filters ?? {};
+  const phoneQ = (filters.phoneQ ?? "").trim();
 
   const all = await loadAllRegistrationItems();
-  const filtered = all.filter((row) =>
-    matchesWithLegacyPhoneContains(row, columnFilters),
+  const filtered = applyColumnFilters(all, columnFilters).filter((row) =>
+    matchesPhoneQ(row, phoneQ),
   );
   const skip = (page - 1) * pageSize;
 
@@ -229,6 +192,7 @@ export async function listRegistrations(
 export async function listRegistrationFacets(opts: {
   column: string;
   filters?: ColumnFilters;
+  phoneQ?: string;
   q?: string;
   limit?: number;
 }): Promise<FacetResponse> {
@@ -237,10 +201,11 @@ export async function listRegistrationFacets(opts: {
     return { items: [], truncated: false };
   }
 
+  const phoneQ = opts.phoneQ?.trim() ?? "";
   const all = await loadAllRegistrationItems();
   const filtered = applyColumnFilters(all, opts.filters ?? {}, {
     excludeColumn: column,
-  });
+  }).filter((row) => matchesPhoneQ(row, phoneQ));
 
   const values = filtered.map((row) =>
     cellToFilterToken(columnCellValue(row, column)),

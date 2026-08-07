@@ -98,7 +98,7 @@ model AppSetting {
   regsPollIntervalSec   Int         @default(60)
   artifactRetentionDays Int         @default(14)
   artifactKeepLastRuns  Int         @default(50)
-  artifactMaxBytes      Int         @default(1048576)
+  artifactMaxBytes      Int         @default(50000000)
   updatedAt             DateTime    @updatedAt
 
   @@map("app_settings")

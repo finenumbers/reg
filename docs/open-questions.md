@@ -115,13 +115,14 @@
 | SSH | `ssh2` |
 | Jobs | `p-queue` in-process (v1: одна реплика `app`) |
 | UI kit | shadcn/ui + Tailwind CSS |
-| Tables UI | TanStack Table |
+| Tables UI | TanStack Table *(historical decision; implemented as custom tables + column filters)* |
 | Deploy | Docker Compose; внешний reverse proxy вне проекта |
 
 **Не в стеке v1:** NestJS, отдельный React+Vite frontend, Redis, BullMQ, кастомный JWT refresh stack, внутренний edge proxy.
 
 - Status: `DECIDED`
 - Answer: Next.js + Prisma + Better Auth + ssh2 + p-queue + TanStack Table + shadcn/ui + Compose
+- Note: tables shipped as custom UI + column filters (no `@tanstack/react-table` dependency)
 
 ---
 
@@ -130,7 +131,7 @@
 | Тема | Решение |
 |------|---------|
 | Primary login | **username** (Better Auth username plugin) |
-| UI kit | **shadcn/ui + Tailwind CSS**; таблицы — TanStack Table |
+| UI kit | **shadcn/ui + Tailwind CSS**; таблицы — TanStack Table *(implemented as custom tables + column filters)* |
 | Better Auth Prisma models | **adapter/CLI-generated source of truth**; не изобретать кастомную auth-схему до generate; app fields только поверх, если совместимо |
 | Scheduler startup | implementation detail Phase 1; preferred first option = `instrumentation.ts`; реальный poll не стартует до safe execution layer + settings gating + single-instance + poll locking; если `instrumentation.ts` не подойдёт — явно задокументировать альтернативу |
 

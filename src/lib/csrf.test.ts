@@ -39,4 +39,23 @@ describe("checkSameOrigin", () => {
     const result = checkSameOrigin(req);
     expect(result.ok).toBe(false);
   });
+
+  it("does not widen allowlist via forged X-Forwarded-Host", () => {
+    const prev = process.env.BETTER_AUTH_URL;
+    process.env.BETTER_AUTH_URL = "https://reg.example";
+    try {
+      const req = new Request("http://127.0.0.1:3000/api/regs/poll", {
+        method: "POST",
+        headers: {
+          Origin: "https://evil.example",
+          "X-Forwarded-Host": "evil.example",
+          "X-Forwarded-Proto": "https",
+        },
+      });
+      expect(checkSameOrigin(req).ok).toBe(false);
+    } finally {
+      if (prev === undefined) delete process.env.BETTER_AUTH_URL;
+      else process.env.BETTER_AUTH_URL = prev;
+    }
+  });
 });

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   ActiveFiltersBar,
   hasActiveFilters,
@@ -17,6 +18,7 @@ import {
 import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
 import { TABLE_PAGE_SIZE } from "@/lib/table-pagination";
 import {
+  downloadRegsExport,
   fetchRegsDetail,
   fetchRegsList,
   fetchRegsStatus,
@@ -43,6 +45,7 @@ import { RegsDetailSheet } from "@/modules/registrations/ui/regs-detail-sheet";
 import { RegsTable } from "@/modules/registrations/ui/regs-table";
 
 const PAGE_SIZE = TABLE_PAGE_SIZE;
+const PHONE_SEARCH_DEBOUNCE_MS = 300;
 
 type Props = {
   canPoll: boolean;
@@ -51,6 +54,8 @@ type Props = {
 
 export function RegistrationsView({ canPoll, initial }: Props) {
   const [filters, setFilters] = useState<ColumnFilters>({});
+  const [phoneInput, setPhoneInput] = useState("");
+  const [phoneQ, setPhoneQ] = useState("");
   const [openColumn, setOpenColumn] = useState<string | null>(null);
   const [page, setPage] = useState(initial.page);
   const [items, setItems] = useState(initial.items);
@@ -64,32 +69,42 @@ export function RegistrationsView({ canPoll, initial }: Props) {
   const [detailError, setDetailError] = useState<string | null>(null);
   const [detail, setDetail] = useState<RegistrationDetailResult | null>(null);
   const [pollState, setPollState] = useState<PollUiState>(IDLE_POLL_STATE);
+  const [exporting, setExporting] = useState(false);
   const pollInFlightRef = useRef(false);
   const detailAbortRef = useRef<AbortController | null>(null);
   const refreshSeq = useRef(0);
   const loadingMoreRef = useRef(false);
   const filtersRef = useRef(filters);
+  const phoneQRef = useRef(phoneQ);
+  const phoneSearchTimerRef = useRef<number | null>(null);
   const [scrollRoot, setScrollRoot] = useState<Element | null>(null);
 
   filtersRef.current = filters;
+  phoneQRef.current = phoneQ;
 
   const hasMore = items.length < total;
-  const filtersActive = hasActiveFilters(filters);
+  const filtersActive = hasActiveFilters(filters) || phoneQ.trim().length > 0;
 
   useEffect(() => {
     return () => {
+      if (phoneSearchTimerRef.current != null) {
+        window.clearTimeout(phoneSearchTimerRef.current);
+      }
       detailAbortRef.current?.abort();
     };
   }, []);
 
   async function loadList(opts: {
     filters?: ColumnFilters;
+    phoneQ?: string;
     page?: number;
     replace?: boolean;
     soft?: boolean;
   } = {}) {
     const replace = opts.replace ?? true;
     const nextFilters = opts.filters ?? filtersRef.current;
+    const nextPhoneQ =
+      opts.phoneQ !== undefined ? opts.phoneQ : phoneQRef.current;
     const nextPage = opts.page ?? (replace ? 1 : page);
     const seq = ++refreshSeq.current;
 
@@ -105,6 +120,7 @@ export function RegistrationsView({ canPoll, initial }: Props) {
 
     const result = await fetchRegsList({
       filters: nextFilters,
+      phoneQ: nextPhoneQ,
       page: nextPage,
       pageSize: PAGE_SIZE,
     });
@@ -138,7 +154,7 @@ export function RegistrationsView({ canPoll, initial }: Props) {
     if (!hasMore || loading || loadingMoreRef.current) return;
     void loadList({ page: page + 1, replace: false });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- loadList closes over latest filters
-  }, [hasMore, loading, page, filters]);
+  }, [hasMore, loading, page, filters, phoneQ]);
 
   const sentinelRef = useInfiniteScroll({
     enabled: hasMore && !loading && !loadingMore && !listError,
@@ -146,22 +162,56 @@ export function RegistrationsView({ canPoll, initial }: Props) {
     root: scrollRoot,
   });
 
-  function applyFilters(next: ColumnFilters) {
+  function applyFilters(
+    next: ColumnFilters,
+    opts: { closeDropdown?: boolean } = {},
+  ) {
     setFilters(next);
-    setOpenColumn(null);
+    if (opts.closeDropdown) setOpenColumn(null);
     void loadList({ filters: next, page: 1, replace: true });
   }
 
   function onColumnFilterChange(column: string, values: string[]) {
+    // Keep the open header menu while editing filters.
     applyFilters(setColumnFilterValues(filtersRef.current, column, values));
   }
 
   function onRemoveFacet(field: string, value: string) {
-    applyFilters(removeFacetValue(filtersRef.current, field, value));
+    applyFilters(removeFacetValue(filtersRef.current, field, value), {
+      closeDropdown: true,
+    });
+  }
+
+  function onPhoneInputChange(value: string) {
+    setPhoneInput(value);
+    if (phoneSearchTimerRef.current != null) {
+      window.clearTimeout(phoneSearchTimerRef.current);
+    }
+    phoneSearchTimerRef.current = window.setTimeout(() => {
+      const next = value.trim();
+      setPhoneQ(next);
+      void loadList({ phoneQ: next, page: 1, replace: true });
+    }, PHONE_SEARCH_DEBOUNCE_MS);
+  }
+
+  function onClearPhoneQuery() {
+    if (phoneSearchTimerRef.current != null) {
+      window.clearTimeout(phoneSearchTimerRef.current);
+    }
+    setPhoneInput("");
+    setPhoneQ("");
+    void loadList({ phoneQ: "", page: 1, replace: true });
   }
 
   function onResetFilters() {
-    applyFilters({});
+    if (phoneSearchTimerRef.current != null) {
+      window.clearTimeout(phoneSearchTimerRef.current);
+    }
+    setPhoneInput("");
+    setPhoneQ("");
+    setFilters({});
+    setOpenColumn(null);
+    void loadList({ filters: {}, phoneQ: "", page: 1, replace: true });
   }
 
   async function onManualPoll() {
@@ -277,6 +327,18 @@ export function RegistrationsView({ canPoll, initial }: Props) {
 
   const pollBusy = isPollInFlight(pollState);
 
+  async function onExportXlsx() {
+    if (exporting) return;
+    setExporting(true);
+    const result = await downloadRegsExport();
+    setExporting(false);
+    if (!result.ok) {
+      toast.error(result.message);
+      return;
+    }
+    toast.success("Файл экспорта скачан");
+  }
+
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
       <div className="flex shrink-0 flex-wrap items-start justify-between gap-4">
@@ -290,11 +352,11 @@ export function RegistrationsView({ canPoll, initial }: Props) {
         <div className="flex flex-wrap items-center gap-2">
           <Button
             type="button"
-            variant="outline"
-            disabled={!filtersActive}
-            onClick={onResetFilters}
+            className="border-transparent bg-amber-400 text-amber-950 hover:bg-amber-500 hover:text-amber-950 focus-visible:border-amber-500 focus-visible:ring-amber-400/40"
+            onClick={() => void onExportXlsx()}
+            disabled={exporting}
           >
-            Сбросить фильтры
+            {exporting ? "Экспорт…" : "Экспорт XLSX"}
           </Button>
           {canPoll ? (
             <Button type="button" onClick={onManualPoll} disabled={pollBusy}>
@@ -337,10 +399,33 @@ export function RegistrationsView({ canPoll, initial }: Props) {
         </div>
       ) : null}
 
+      <div className="flex shrink-0 flex-wrap items-center gap-3">
+        <Input
+          id="regs-phone-search"
+          value={phoneInput}
+          onChange={(e) => onPhoneInputChange(e.target.value)}
+          placeholder="Телефонный номер"
+          aria-label="Телефонный номер"
+          size={19}
+          className="w-[calc(17ch+1.25rem)] shrink-0"
+          autoComplete="off"
+        />
+        <Button
+          type="button"
+          variant="outline"
+          disabled={!filtersActive}
+          onClick={onResetFilters}
+        >
+          Сбросить фильтры
+        </Button>
+      </div>
+
       <ActiveFiltersBar
         filters={filters}
         headers={REG_COLUMN_HEADERS}
         formatValue={displayFacetForColumn}
+        phoneQuery={phoneQ}
+        onClearPhoneQuery={onClearPhoneQuery}
         onRemoveFacet={onRemoveFacet}
       />
 
@@ -356,6 +441,7 @@ export function RegistrationsView({ canPoll, initial }: Props) {
             emptyMessage={emptyMessage}
             selectedPhone={selectedPhone}
             filters={filters}
+            phoneQ={phoneQ}
             openColumn={openColumn}
             onOpenColumnChange={setOpenColumn}
             onColumnFilterChange={onColumnFilterChange}

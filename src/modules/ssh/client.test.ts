@@ -1,9 +1,27 @@
 import { describe, expect, it } from "vitest";
+import { concatUtf8Chunks } from "@/lib/utf8-truncate";
 import {
   buildAllowlistedExecCommand,
   Ssh2Client,
 } from "@/modules/ssh/client";
 import { ACTION_REGISTRY } from "@/modules/actions/registry";
+
+describe("SSH UTF-8 chunk reassembly", () => {
+  it("keeps Регистрация intact when «с» is split across buffers", () => {
+    const full = Buffer.from(
+      '{"Регистрация":"Нет","Название":"Finenumbers_78432121230"}',
+      "utf8",
+    );
+    const cyrS = Buffer.from("с", "utf8");
+    const splitAt = full.indexOf(cyrS);
+    const decoded = concatUtf8Chunks([
+      full.subarray(0, splitAt + 1),
+      full.subarray(splitAt + 1),
+    ]);
+    expect(decoded).toContain('"Регистрация":"Нет"');
+    expect(decoded).not.toContain("\uFFFD");
+  });
+});
 
 describe("buildAllowlistedExecCommand", () => {
   it("returns cd+/sudo ./script for regs.poll (elevateWithSudo)", () => {

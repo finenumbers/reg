@@ -78,10 +78,7 @@ export function describeHistoryEvent(event: RegistrationHistoryItem): string {
 
 export type RegsListQuery = {
   filters?: ColumnFilters;
-  /** @deprecated */
-  phone?: string;
-  /** @deprecated */
-  status?: "Registered" | "Unregistered" | "";
+  phoneQ?: string;
   page?: number;
   pageSize?: number;
 };
@@ -91,11 +88,8 @@ export function buildRegsListUrl(query: RegsListQuery = {}): string {
   const params = new URLSearchParams();
   const encoded = query.filters ? encodeFilters(query.filters) : null;
   if (encoded) params.set("filters", encoded);
-  const phone = query.phone?.trim();
-  if (phone) params.set("phone", phone);
-  if (query.status === "Registered" || query.status === "Unregistered") {
-    params.set("status", query.status);
-  }
+  const phoneQ = query.phoneQ?.trim();
+  if (phoneQ) params.set("phoneQ", phoneQ);
   if (query.page && query.page > 1) params.set("page", String(query.page));
   if (query.pageSize && query.pageSize !== 100) {
     params.set("pageSize", String(query.pageSize));
@@ -107,6 +101,7 @@ export function buildRegsListUrl(query: RegsListQuery = {}): string {
 export function buildRegsFacetsUrl(opts: {
   column: string;
   filters?: ColumnFilters;
+  phoneQ?: string;
   q?: string;
   limit?: number;
 }): string {
@@ -114,6 +109,7 @@ export function buildRegsFacetsUrl(opts: {
   params.set("column", opts.column);
   const encoded = opts.filters ? encodeFilters(opts.filters) : null;
   if (encoded) params.set("filters", encoded);
+  if (opts.phoneQ?.trim()) params.set("phoneQ", opts.phoneQ.trim());
   if (opts.q?.trim()) params.set("q", opts.q.trim());
   if (opts.limit != null) params.set("limit", String(opts.limit));
   return `/api/regs/facets?${params.toString()}`;

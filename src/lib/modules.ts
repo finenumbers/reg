@@ -68,14 +68,3 @@ export const FEATURE_MODULES: FeatureModuleDefinition[] = [
     status: "active",
   },
 ];
-
-export function moduleStatusLabel(status: FeatureModuleDefinition["status"]): string {
-  switch (status) {
-    case "active":
-      return "активно";
-    case "scaffold":
-      return "каркас";
-    default:
-      return status;
-  }
-}

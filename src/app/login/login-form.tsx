@@ -27,6 +27,7 @@ export function LoginForm() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const inactive = searchParams.get("reason") === "inactive";
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -55,6 +56,11 @@ export function LoginForm() {
       </CardHeader>
       <CardContent>
         <form onSubmit={onSubmit} className="space-y-4">
+          {inactive ? (
+            <p className="text-sm text-destructive" role="alert">
+              Учётная запись отключена. Обратитесь к администратору.
+            </p>
+          ) : null}
           <div className="space-y-2">
             <Label htmlFor="username">Имя пользователя</Label>
             <Input

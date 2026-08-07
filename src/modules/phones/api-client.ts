@@ -17,6 +17,10 @@ import {
   type PhonesSyncStatusSnapshot,
   type SyncApiResult,
 } from "@/modules/phones/request-action";
+import {
+  downloadXlsxFromUrl,
+  type DownloadXlsxResult,
+} from "@/lib/download-xlsx";
 
 export type FetchPhonesListResult =
   | { ok: true; data: ListPhonesResult }
@@ -49,6 +53,8 @@ function errorMessage(body: unknown, fallback: string): string {
 export function buildPhonesListUrl(opts: {
   kind: PhoneKind;
   filters?: ColumnFilters;
+  phoneQ?: string;
+  sipUnregisteredOnly?: boolean;
   page?: number;
   pageSize?: number;
 }): string {
@@ -56,6 +62,8 @@ export function buildPhonesListUrl(opts: {
   params.set("kind", opts.kind);
   const encoded = opts.filters ? encodeFilters(opts.filters) : null;
   if (encoded) params.set("filters", encoded);
+  if (opts.phoneQ?.trim()) params.set("phoneQ", opts.phoneQ.trim());
+  if (opts.sipUnregisteredOnly) params.set("sipUnregisteredOnly", "1");
   if (opts.page != null) params.set("page", String(opts.page));
   if (opts.pageSize != null) params.set("pageSize", String(opts.pageSize));
   return `/api/phones?${params.toString()}`;
@@ -65,6 +73,8 @@ export function buildPhonesFacetsUrl(opts: {
   kind: PhoneKind;
   column: string;
   filters?: ColumnFilters;
+  phoneQ?: string;
+  sipUnregisteredOnly?: boolean;
   q?: string;
   limit?: number;
 }): string {
@@ -73,6 +83,8 @@ export function buildPhonesFacetsUrl(opts: {
   params.set("column", opts.column);
   const encoded = opts.filters ? encodeFilters(opts.filters) : null;
   if (encoded) params.set("filters", encoded);
+  if (opts.phoneQ?.trim()) params.set("phoneQ", opts.phoneQ.trim());
+  if (opts.sipUnregisteredOnly) params.set("sipUnregisteredOnly", "1");
   if (opts.q?.trim()) params.set("q", opts.q.trim());
   if (opts.limit != null) params.set("limit", String(opts.limit));
   return `/api/phones/facets?${params.toString()}`;
@@ -82,6 +94,8 @@ export async function fetchPhonesList(
   opts: {
     kind: PhoneKind;
     filters?: ColumnFilters;
+    phoneQ?: string;
+    sipUnregisteredOnly?: boolean;
     page?: number;
     pageSize?: number;
   },
@@ -159,4 +173,8 @@ export function toSyncStatusSnapshot(
     runningCount: data.runningCount,
     lastFailedError: data.lastFailedError,
   };
+}
+
+export async function downloadPhonesExport(): Promise<DownloadXlsxResult> {
+  return downloadXlsxFromUrl("/api/phones/export", "phones-export.xlsx");
 }

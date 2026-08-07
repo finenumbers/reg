@@ -9,9 +9,20 @@ import { AUDIT_ACTIONS, auditService } from "@/modules/audit";
 
 function clientIp(headers: Headers | undefined): string | null {
   if (!headers) return null;
+  const realIp = headers.get("x-real-ip")?.trim();
+  if (realIp) return realIp;
+
   const forwarded = headers.get("x-forwarded-for");
-  if (forwarded) return forwarded.split(",")[0]?.trim() || null;
-  return headers.get("x-real-ip");
+  if (forwarded && process.env.BETTER_AUTH_URL?.startsWith("https://")) {
+    const hops = forwarded
+      .split(",")
+      .map((h) => h.trim())
+      .filter(Boolean);
+    // Prefer the hop closest to our edge (last), not the spoofable first.
+    if (hops.length > 0) return hops[hops.length - 1]!;
+  }
+
+  return null;
 }
 
 /**

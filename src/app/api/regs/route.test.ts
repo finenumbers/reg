@@ -52,17 +52,21 @@ describe("GET /api/regs", () => {
       pageSize: 100,
     });
 
+    const filters = encodeURIComponent(
+      JSON.stringify({ status: ["Registered"] }),
+    );
     const res = await listGet(
-      new Request("http://localhost/api/regs?status=Registered&phone=738"),
+      new Request(
+        `http://localhost/api/regs?phoneQ=738&filters=${filters}`,
+      ),
     );
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.total).toBe(1);
     expect(body.items[0].phone).toBe("73852222205");
     expect(listRegistrations).toHaveBeenCalledWith({
-      status: "Registered",
-      phone: "738",
-      filters: {},
+      phoneQ: "738",
+      filters: { status: ["Registered"] },
       page: 1,
       pageSize: 100,
     });

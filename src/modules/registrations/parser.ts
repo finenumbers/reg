@@ -9,7 +9,8 @@
  *   73912193303;Unregistered;
  *   78622606009;\x1b[32mRegistered\x1b[0m;\x1b[35m5.227.161.172:5060\x1b[0m
  *
- * Malformed lines are skipped (counted), not thrown.
+ * Malformed lines are skipped at parse time (counted as linesBad).
+ * Callers must refuse apply when linesBad > 0 (fail-closed).
  * Duplicate phones in one payload: last wins + counter.
  */
 
@@ -32,19 +33,9 @@ export type ParseRegsResult = {
   badLines: Array<{ line: string; reason: string }>;
 };
 
+import { stripAnsi } from "@/lib/strip-ansi";
+
 const STATUS_VALUES = new Set<string>(["Registered", "Unregistered"]);
-
-/** CSI / Fe escape sequences used by terminal colorizers. */
-const ANSI_ESCAPE_PATTERN =
-  // eslint-disable-next-line no-control-regex -- intentional: strip terminal control sequences
-  /\u001b(?:\[[0-9;?]*[ -/]*[@-~]|[\]PX^_][^\u0007\u001b]*(?:\u0007|\u001b\\)|[@-Z\\-_])/g;
-
-/**
- * Remove ANSI / terminal escape sequences from script stdout (TTY mode).
- */
-export function stripAnsi(input: string): string {
-  return input.replace(ANSI_ESCAPE_PATTERN, "");
-}
 
 /** IPv4:port — matches examples from softswitch output; no hostname inference. */
 const ENDPOINT_PATTERN =

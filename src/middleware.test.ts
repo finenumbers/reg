@@ -48,9 +48,8 @@ describe("middleware protected routes", () => {
     expect(res.status).toBe(200);
   });
 
-  it("redirects authenticated users away from /login", () => {
+  it("allows session cookie holders to stay on /login", () => {
     const res = middleware(makeRequest("/login", true));
-    expect(res.status).toBe(307);
-    expect(res.headers.get("location")).toBe("http://localhost:3000/");
+    expect(res.status).toBe(200);
   });
 });

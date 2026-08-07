@@ -7,6 +7,7 @@
 import type { JobTrigger } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
 import { logger } from "@/lib/logger";
+import { truncateUtf8 } from "@/lib/utf8-truncate";
 import {
   remoteExecutionService,
   type RemoteExecutionService,
@@ -41,11 +42,7 @@ const DEFAULT_DEPS: PhonesSyncProcessorDeps = {
   apply: applyPhonesSnapshot,
 };
 
-function truncateArtifact(text: string, maxBytes: number): string {
-  if (Buffer.byteLength(text, "utf8") <= maxBytes) return text;
-  const buf = Buffer.from(text, "utf8").subarray(0, Math.max(0, maxBytes - 64));
-  return `${buf.toString("utf8")}\n…[truncated]`;
-}
+const DEFAULT_ARTIFACT_MAX_BYTES = 50_000_000;
 
 function emptyStdoutErrorMessage(stderr: string): string {
   const snippet = sanitizeStderrSnippet(stderr);
@@ -64,7 +61,7 @@ async function loadArtifactLimits(): Promise<{
 }> {
   const settings = await prisma.appSetting.findUnique({ where: { id: 1 } });
   return {
-    maxBytes: settings?.artifactMaxBytes ?? 1_048_576,
+    maxBytes: settings?.artifactMaxBytes ?? DEFAULT_ARTIFACT_MAX_BYTES,
     retentionDays: settings?.artifactRetentionDays ?? 14,
     keepLastRuns: settings?.artifactKeepLastRuns ?? 50,
   };
@@ -155,12 +152,12 @@ export async function processPhonesSync(
         where: { jobRunId: jobRun.id },
         create: {
           jobRunId: jobRun.id,
-          stdout: truncateArtifact(extras.stdout ?? "", limits.maxBytes),
-          stderr: truncateArtifact(extras.stderr ?? "", limits.maxBytes),
+          stdout: truncateUtf8(extras.stdout ?? "", limits.maxBytes),
+          stderr: truncateUtf8(extras.stderr ?? "", limits.maxBytes),
         },
         update: {
-          stdout: truncateArtifact(extras.stdout ?? "", limits.maxBytes),
-          stderr: truncateArtifact(extras.stderr ?? "", limits.maxBytes),
+          stdout: truncateUtf8(extras.stdout ?? "", limits.maxBytes),
+          stderr: truncateUtf8(extras.stderr ?? "", limits.maxBytes),
         },
       });
     }
@@ -264,6 +261,30 @@ export async function processPhonesSync(
 
   const totalRows = parsed.endpoints.length + parsed.gateways.length;
 
+  if (totalRows === 0) {
+    const [endpointCount, gatewayCount, state] = await Promise.all([
+      prisma.phoneEndpoint.count(),
+      prisma.phoneGateway.count(),
+      prisma.phoneImportState.findUnique({ where: { id: 1 } }),
+    ]);
+    const previous =
+      endpointCount +
+      gatewayCount +
+      (state?.endpointCount ?? 0) +
+      (state?.gatewayCount ?? 0);
+    if (previous > 0) {
+      return fail(
+        "Пустой снимок отклонён — отказ от wipe непустой таблицы номеров",
+        {
+          exitCode: execResult.exitCode,
+          stdout: execResult.stdout,
+          stderr: execResult.stderr,
+          phonesParsed: 0,
+        },
+      );
+    }
+  }
+
   let applyResult;
   try {
     applyResult = await deps.apply(parsed, jobRun.id, new Date());
@@ -284,12 +305,12 @@ export async function processPhonesSync(
     where: { jobRunId: jobRun.id },
     create: {
       jobRunId: jobRun.id,
-      stdout: truncateArtifact(execResult.stdout, limits.maxBytes),
-      stderr: truncateArtifact(execResult.stderr, limits.maxBytes),
+      stdout: truncateUtf8(execResult.stdout, limits.maxBytes),
+      stderr: truncateUtf8(execResult.stderr, limits.maxBytes),
     },
     update: {
-      stdout: truncateArtifact(execResult.stdout, limits.maxBytes),
-      stderr: truncateArtifact(execResult.stderr, limits.maxBytes),
+      stdout: truncateUtf8(execResult.stdout, limits.maxBytes),
+      stderr: truncateUtf8(execResult.stderr, limits.maxBytes),
     },
   });
 

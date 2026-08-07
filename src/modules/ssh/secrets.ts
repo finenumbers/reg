@@ -97,8 +97,3 @@ export function getSecretEncryptionService(): SecretEncryptionService {
   }
   return cachedEncryption;
 }
-
-/** Test helper — clear cached singleton. */
-export function resetSecretEncryptionServiceForTests(): void {
-  cachedEncryption = null;
-}

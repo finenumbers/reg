@@ -18,14 +18,14 @@ Open questions **закрыты** — см. [open-questions.md](./open-questions
 - bootstrap admin из env;
 - внешний NPM, сеть `proxy`;
 - ключ только replace, без export;
-- стек: Next.js App Router + Prisma + PostgreSQL + Better Auth + ssh2 + p-queue + TanStack Table (Q11).
+- стек: Next.js App Router + Prisma + PostgreSQL + Better Auth + ssh2 + p-queue + shadcn/ui (Q11).
 
 ## 1. Target stack (напоминание)
 
 - Одно приложение Next.js (App Router): UI + Route Handlers
 - PostgreSQL 16 + Prisma
 - Better Auth (username + password sessions; Prisma schema from official adapter/CLI) + RBAC поверх
-- UI: shadcn/ui + Tailwind CSS; tables: TanStack Table
+- UI: shadcn/ui + Tailwind CSS; tables: custom tables + column filters
 - Job orchestration: `p-queue` in-process (одна реплика `app` в v1); bootstrap eval via `instrumentation.ts` (реальный poll позже)
 - SSH: `ssh2`, AES-GCM secrets, PPK import
 - Внешний NPM; compose без edge proxy и без Redis/BullMQ
@@ -90,8 +90,8 @@ Open questions **закрыты** — см. [open-questions.md](./open-questions
 **Сделать:**
 
 - dashboard counters + last poll status
-- table (TanStack Table): search, status filter, sort
-- detail drawer/page with history timeline
+- table (custom + column filters): search, status filter, sort
+- detail sheet with history timeline
 - manual poll button
 
 **Checkpoint:** операторский сценарий end-to-end через UI и локальную БД.
@@ -129,11 +129,19 @@ Open questions **закрыты** — см. [open-questions.md](./open-questions
 - `POST /api/settings/ssh/test`
 
 ### Registrations
-- `GET /api/regs?query&status&page&pageSize&sort`
-- `GET /api/regs/:phone`
-- `GET /api/regs/:phone/history`
+- `GET /api/regs?filters&phoneQ&page&pageSize`
+- `GET /api/regs/[phone]` (current + history)
+- `GET /api/regs/facets`
+- `GET /api/regs/export`
 - `POST /api/regs/poll`
 - `GET /api/regs/status` (summary)
+
+### Phones
+- `GET /api/phones?kind&filters&phoneQ&page&pageSize`
+- `GET /api/phones/facets`
+- `GET /api/phones/export`
+- `GET /api/phones/status`
+- `POST /api/phones/request`
 
 ### Jobs / Audit
 - `GET /api/jobs`
@@ -166,9 +174,9 @@ UI pages и Route Handlers вызывают модули; бизнес-логи�
 | Route | Purpose |
 |-------|---------|
 | `/login` | вход |
-| `/` | dashboard |
-| `/regs` | таблица |
-| `/regs/[phone]` | история (или drawer с `/regs`) |
+| `/` | redirect на первый доступный модуль |
+| `/regs` | таблица + detail sheet (история) |
+| `/phones` | таблица endpoints/gateways |
 | `/settings` | SSH + poll |
 | `/jobs` | execution history |
 | `/audit` | admin audit |
@@ -200,7 +208,7 @@ UI pages и Route Handlers вызывают модули; бизнес-логи�
 2. Auth (Better Auth) + shell  
 3. SSH/PPK/settings  
 4. Regs backend jobs (`p-queue`)  
-5. Regs UI (TanStack Table)  
+5. Regs UI (custom tables + sheet)  
 6. Hardening + remote runbook  
 7. Prod deploy notes  
 

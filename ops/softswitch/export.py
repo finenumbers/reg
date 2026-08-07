@@ -54,10 +54,20 @@ GATEWAY_HEADERS = [
 ]
 
 
+def as_intish(val):
+    """Normalize MySQL 0/1 that may arrive as int or digit-string."""
+    if val == 0 or val == 1:
+        return int(val)
+    if val == "0" or val == "1":
+        return int(val)
+    return None
+
+
 def decode_bool(val):
-    if val == 1:
+    n = as_intish(val)
+    if n == 1:
         return "Да"
-    if val == 0:
+    if n == 0:
         return "Нет"
     return "Ошибка"
 
@@ -121,6 +131,8 @@ def main() -> int:
         user=conf["user"],
         password=conf["passwd"],
         database=conf["dbName"],
+        charset="utf8mb4",
+        use_unicode=True,
     )
     try:
         query_gr = conn.cursor()
@@ -188,6 +200,7 @@ def main() -> int:
                 )
             else:
                 # Same zone placement rules as the original xlsx exporter.
+                reg_n = as_intish(r[5])
                 endpoints.append(
                     {
                         "Название": cell(gwname),
@@ -196,15 +209,15 @@ def main() -> int:
                         "Инициирующее устройство": is_originator,
                         "Терминирующее устройство": is_terminator,
                         "Регистрация": is_register,
-                        "Зона": cell(src_zone) if r[5] == 1 else "",
+                        "Зона": cell(src_zone) if reg_n == 1 else "",
                         "ИНИЦ. список адресов": cell(src_addr_list),
                         "ИНИЦ. порт": cell(src_port),
-                        "ИНИЦ. зона": cell(src_zone) if r[5] == 0 else "",
+                        "ИНИЦ. зона": cell(src_zone) if reg_n == 0 else "",
                         "ИНИЦ. емкость": cell(src_capacity),
                         "Входящие группы": src_groups,
                         "ТЕРМ. список адресов": cell(dst_addr),
                         "ТЕРМ. порт": cell(dst_port),
-                        "ТЕРМ. зона": cell(dst_zone) if r[5] == 0 else "",
+                        "ТЕРМ. зона": cell(dst_zone) if reg_n == 0 else "",
                         "ТЕРМ. емкость": cell(dst_capacity),
                         "Регистрационное имя": cell(reg_login),
                         "Регистрационный пароль": cell(reg_pass),
@@ -218,6 +231,8 @@ def main() -> int:
             "version": 1,
             "endpointHeaders": ENDPOINT_HEADERS,
             "gatewayHeaders": GATEWAY_HEADERS,
+            "endpointCount": len(endpoints),
+            "gatewayCount": len(gateways),
             "endpoints": endpoints,
             "gateways": gateways,
         }

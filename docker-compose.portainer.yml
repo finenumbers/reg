@@ -1,0 +1,87 @@
+# Portainer / production stack using GHCR images (no local build).
+#
+# Prerequisites:
+#   1. External Docker network `proxy` already used by Nginx Proxy Manager (NPM).
+#   2. `.env` next to this file (copy from `.env.example`) with real secrets.
+#   3. Images: ghcr.io/finenumbers/reg:<version> and :<version>-migrator
+#
+# Full guide: docs/deploy-portainer.md
+#
+# Pin REG_IMAGE_TAG when deploying a release (default 1.0.0).
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-reg}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-reg}
+    volumes:
+      - reg_pg_data:/var/lib/postgresql/data
+    # Do not publish Postgres to the host in production.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - internal
+
+  migrate:
+    image: ghcr.io/finenumbers/reg:${REG_IMAGE_TAG:-1.0.0}-migrator
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-reg}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-reg}?schema=public
+    networks:
+      - internal
+
+  app:
+    image: ghcr.io/finenumbers/reg:${REG_IMAGE_TAG:-1.0.0}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-reg}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-reg}?schema=public
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Set BETTER_AUTH_SECRET in .env}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:?Set BETTER_AUTH_URL to the public HTTPS origin}
+      APP_ENCRYPTION_KEY: ${APP_ENCRYPTION_KEY:?Set APP_ENCRYPTION_KEY (64 hex chars)}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+    # No host port — reach app only via NPM on the external `proxy` network.
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/api/readyz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    # MUST remain 1 (in-process scheduler + in-memory rate limits).
+    deploy:
+      replicas: 1
+    networks:
+      - internal
+      - proxy
+
+volumes:
+  reg_pg_data:
+
+networks:
+  internal:
+    driver: bridge
+  proxy:
+    external: true

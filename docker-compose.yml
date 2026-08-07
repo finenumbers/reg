@@ -1,13 +1,15 @@
-# Local / Portainer-oriented stack.
+# Local / build-from-source stack (`docker compose up -d --build`).
+#
+# Production / Portainer + GHCR images + external NPM `proxy` network:
+#   → use docker-compose.portainer.yml and docs/deploy-portainer.md
 #
 # Edge reverse proxy (Nginx Proxy Manager) is EXTERNAL — do not add another proxy here.
-# In production:
-#   1. Create/attach external Docker network named `proxy` (NPM already uses it).
-#   2. Uncomment the `networks` / `proxy` sections so `app` joins `proxy`.
-#   3. In NPM: Proxy Host → http://<app-container-or-service>:3000
+# For this file (local):
+#   1. Optionally uncomment `networks` / `proxy` so `app` joins NPM's network.
+#   2. In NPM: Proxy Host → http://<app-container-or-service>:3000
 #      Forward `/` and `/api` to the same `app` service (single upstream).
-#   4. Run exactly ONE `app` replica (in-process scheduler + in-memory rate limits).
-#   5. Enable auto-poll only from Settings (regsPollEnabled) after SSH + softswitch are verified.
+#   3. Run exactly ONE `app` replica (in-process scheduler + in-memory rate limits).
+#   4. Enable auto-poll only from Settings (regsPollEnabled) after SSH + softswitch are verified.
 #
 # Required in `.env` (no insecure production defaults for secrets):
 #   BETTER_AUTH_SECRET, BETTER_AUTH_URL, APP_ENCRYPTION_KEY

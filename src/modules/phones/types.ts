@@ -47,13 +47,6 @@ export type PhoneKind =
   | "endpoints_unregistered"
   | "endpoints_error";
 
-export const PHONE_KINDS: readonly PhoneKind[] = [
-  "gateways",
-  "endpoints_registered",
-  "endpoints_unregistered",
-  "endpoints_error",
-] as const;
-
 export function parsePhoneKind(value: string | null | undefined): PhoneKind {
   if (
     value === "gateways" ||
@@ -63,8 +56,6 @@ export function parsePhoneKind(value: string | null | undefined): PhoneKind {
   ) {
     return value;
   }
-  // Legacy alias from older UI/API
-  if (value === "endpoints") return "endpoints_registered";
   return "endpoints_registered";
 }
 
@@ -76,6 +67,7 @@ export function isEndpointPhoneKind(kind: PhoneKind): boolean {
 export const REGISTRATION_YES = "Да";
 export const REGISTRATION_NO = "Нет";
 export const REGISTRATION_FIELD = "Регистрация";
+export const ENDPOINT_NUMBER_FIELD = "Номер оконечного оборудования";
 
 export type PhoneRowData = Record<string, string>;
 

@@ -94,22 +94,41 @@ export function SettingsForm({ initial }: Props) {
   }
 
   async function saveProfileFields(): Promise<SettingsView | null> {
+    const body: Record<string, unknown> = {
+      regsPollEnabled,
+      regsPollIntervalSec: Number(regsPollIntervalSec),
+      artifactRetentionDays: Number(artifactRetentionDays),
+      artifactKeepLastRuns: Number(artifactKeepLastRuns),
+    };
+    const hostTrimmed = host.trim();
+    const usernameTrimmed = username.trim();
+    const portNum = Number(port);
+    if (hostTrimmed) body.host = hostTrimmed;
+    if (usernameTrimmed) body.username = usernameTrimmed;
+    if (Number.isInteger(portNum) && portNum >= 1 && portNum <= 65535) {
+      body.port = portNum;
+    }
+
     const res = await fetch("/api/settings", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        host: host.trim(),
-        port: Number(port),
-        username: username.trim(),
-        regsPollEnabled,
-        regsPollIntervalSec: Number(regsPollIntervalSec),
-        artifactRetentionDays: Number(artifactRetentionDays),
-        artifactKeepLastRuns: Number(artifactKeepLastRuns),
-      }),
+      body: JSON.stringify(body),
     });
     const data = await res.json();
     if (!res.ok) {
-      toast.error(data.error ?? "Не удалось сохранить настройки");
+      const issues = Array.isArray(data.issues)
+        ? data.issues
+            .slice(0, 3)
+            .map((i: { path?: unknown; message?: string }) => {
+              const path = Array.isArray(i.path) ? i.path.join(".") : "";
+              return path ? `${path}: ${i.message ?? ""}` : (i.message ?? "");
+            })
+            .filter(Boolean)
+            .join("; ")
+        : "";
+      toast.error(
+        issues || data.error || "Не удалось сохранить настройки",
+      );
       return null;
     }
     return data.settings as SettingsView;
@@ -321,7 +340,7 @@ export function SettingsForm({ initial }: Props) {
                 <Badge variant="outline">{settings.keyAlgo}</Badge>
               ) : null}
               {settings.keyFingerprint ? (
-                <span className="font-mono text-xs text-muted-foreground break-all">
+                <span className="text-xs text-muted-foreground break-all">
                   {settings.keyFingerprint}
                 </span>
               ) : null}

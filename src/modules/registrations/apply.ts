@@ -1,16 +1,19 @@
 /**
  * Apply parsed registration rows to reg_current + reg_change_events.
  *
- * Rules (data-model):
- * - insert new phone → write change event (old=null)
- * - unchanged status/ip/port → update lastSeenAt only
- * - changed → update current + write change event
- * - caller must NOT invoke this on failed / empty / exit≠0 polls
+ * Full-replace rules (successful poll only — caller must NOT invoke on
+ * failed / empty stdout / exit≠0 polls):
+ * - upsert every phone from the dump (insert / update / lastSeenAt)
+ * - delete from reg_current any phone absent from the dump
+ * - empty dump → empty reg_current
+ * - reg_change_events history is retained (no event on pure delete)
  */
 
 import type { Prisma, RegStatus } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
 import type { ParsedRegistrationRow } from "@/modules/registrations/parser";
+
+const APPLY_TX = { maxWait: 10_000, timeout: 180_000 } as const;
 
 export type RegistrationStateSnapshot = {
   phone: string;
@@ -32,6 +35,7 @@ export type ApplyRegistrationsResult = {
   unchanged: number;
   changesCount: number;
   eventsWritten: number;
+  removed: number;
 };
 
 /**
@@ -71,14 +75,14 @@ export function planRegistrationUpdates(
 type TxClient = Prisma.TransactionClient;
 
 /**
- * Apply planned changes inside an existing transaction (or prisma client).
+ * Apply planned upserts/events inside an existing transaction (or prisma client).
  */
 export async function applyPlannedRegistrationUpdates(
   db: TxClient,
   plans: PlannedRegistrationChange[],
   jobRunId: string,
   seenAt: Date,
-): Promise<ApplyRegistrationsResult> {
+): Promise<Omit<ApplyRegistrationsResult, "removed">> {
   let upserted = 0;
   let unchanged = 0;
   let changesCount = 0;
@@ -144,38 +148,49 @@ export async function applyPlannedRegistrationUpdates(
 }
 
 /**
- * Load current rows for phones in the payload, plan, and apply in one transaction.
+ * Full-replace reg_current from the poll dump inside one transaction.
  */
 export async function applyRegistrationPoll(
   rows: ParsedRegistrationRow[],
   jobRunId: string,
   seenAt: Date = new Date(),
 ): Promise<ApplyRegistrationsResult> {
-  if (rows.length === 0) {
-    return { upserted: 0, unchanged: 0, changesCount: 0, eventsWritten: 0 };
-  }
+  return prisma.$transaction(async (tx) => {
+    const existing = await tx.registrationCurrent.findMany({
+      select: { phone: true, status: true, ip: true, port: true },
+    });
 
-  const phones = rows.map((r) => r.phone);
-  const existing = await prisma.registrationCurrent.findMany({
-    where: { phone: { in: phones } },
-    select: { phone: true, status: true, ip: true, port: true },
-  });
+    const previousByPhone = new Map<string, RegistrationStateSnapshot>(
+      existing.map((row) => [
+        row.phone,
+        {
+          phone: row.phone,
+          status: row.status,
+          ip: row.ip,
+          port: row.port,
+        },
+      ]),
+    );
 
-  const previousByPhone = new Map<string, RegistrationStateSnapshot>(
-    existing.map((row) => [
-      row.phone,
-      {
-        phone: row.phone,
-        status: row.status,
-        ip: row.ip,
-        port: row.port,
-      },
-    ]),
-  );
+    const plans = planRegistrationUpdates(previousByPhone, rows);
+    const applied = await applyPlannedRegistrationUpdates(
+      tx,
+      plans,
+      jobRunId,
+      seenAt,
+    );
 
-  const plans = planRegistrationUpdates(previousByPhone, rows);
+    const keep = new Set(rows.map((r) => r.phone));
+    const toRemove = existing
+      .map((row) => row.phone)
+      .filter((phone) => !keep.has(phone));
 
-  return prisma.$transaction(async (tx) =>
-    applyPlannedRegistrationUpdates(tx, plans, jobRunId, seenAt),
-  );
+    if (toRemove.length > 0) {
+      await tx.registrationCurrent.deleteMany({
+        where: { phone: { in: toRemove } },
+      });
+    }
+
+    return { ...applied, removed: toRemove.length };
+  }, APPLY_TX);
 }

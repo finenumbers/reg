@@ -273,14 +273,14 @@ export function AuditView({ initial }: Props) {
                           <span className="text-sm font-medium">
                             {formatAuditAction(item.action)}
                           </span>
-                          <span className="mt-0.5 block font-mono text-[11px] text-muted-foreground">
+                          <span className="mt-0.5 block text-[11px] text-muted-foreground">
                             {item.action}
                           </span>
                         </TableCell>
-                        <TableCell className="max-w-[12rem] truncate font-mono text-xs">
+                        <TableCell className="max-w-[12rem] truncate text-xs">
                           {formatAuditTarget(item)}
                         </TableCell>
-                        <TableCell className="font-mono text-xs text-muted-foreground">
+                        <TableCell className="text-xs text-muted-foreground">
                           {item.ip ?? "—"}
                         </TableCell>
                         <TableCell className="max-w-xs truncate text-sm text-muted-foreground">
@@ -293,7 +293,7 @@ export function AuditView({ initial }: Props) {
                             <p className="mb-2 text-xs text-muted-foreground">
                               Санитизированная meta (секреты скрыты)
                             </p>
-                            <pre className="max-h-48 overflow-auto rounded-md border border-border bg-background p-3 font-mono text-xs whitespace-pre-wrap break-words">
+                            <pre className="max-h-48 overflow-auto rounded-md border border-border bg-background p-3 text-xs whitespace-pre-wrap break-words">
                               {JSON.stringify(item.meta, null, 2)}
                             </pre>
                           </TableCell>

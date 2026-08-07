@@ -3,7 +3,10 @@
  *
  * Better Auth sessions use httpOnly cookies. Browsers send Origin on
  * cross-site form/fetch POSTs; we require Origin (or Referer) to match
- * this app's expected origin derived from BETTER_AUTH_URL / Host.
+ * this app's expected origin derived from BETTER_AUTH_URL / request URL.
+ *
+ * Do not trust client-controlled X-Forwarded-Host / X-Forwarded-Proto for
+ * the allowlist — those can widen CSRF acceptance when :3000 is reachable.
  */
 
 import { NextResponse } from "next/server";
@@ -28,17 +31,20 @@ function originFromReferer(referer: string | null): URL | null {
 function expectedOrigins(request: Request): Set<string> {
   const origins = new Set<string>();
   const authUrl = process.env.BETTER_AUTH_URL;
+  let authHost: string | null = null;
   if (authUrl) {
     const parsed = parseOrigin(authUrl);
-    if (parsed) origins.add(`${parsed.protocol}//${parsed.host}`);
+    if (parsed) {
+      origins.add(`${parsed.protocol}//${parsed.host}`);
+      authHost = parsed.host;
+    }
   }
 
-  const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host");
-  const proto =
-    request.headers.get("x-forwarded-proto") ??
-    (parseOrigin(authUrl ?? null)?.protocol.replace(":", "") || "http");
-  if (host) {
-    origins.add(`${proto}://${host}`);
+  // Host only if it matches the configured public host (not arbitrary XFH).
+  const host = request.headers.get("host");
+  if (host && authHost && host === authHost && authUrl) {
+    const parsed = parseOrigin(authUrl);
+    if (parsed) origins.add(`${parsed.protocol}//${parsed.host}`);
   }
 
   // Always allow the request URL's own origin (covers local / relative base).

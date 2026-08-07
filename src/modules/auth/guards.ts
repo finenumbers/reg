@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 import { NextResponse } from "next/server";
 import { AuthError } from "@/modules/auth/errors";
 import {
-  getAuthzContext,
   type AuthzContext,
   requireAuthz,
   requirePermission,
@@ -20,7 +19,9 @@ export async function requirePagePermission(
   } catch (error) {
     if (error instanceof AuthError) {
       if (error.code === "UNAUTHORIZED" || error.code === "INACTIVE") {
-        redirect("/login");
+        redirect(
+          error.code === "INACTIVE" ? "/login?reason=inactive" : "/login",
+        );
       }
       redirect("/forbidden");
     }
@@ -36,7 +37,9 @@ export async function requirePageSession(): Promise<AuthzContext> {
     return await requireAuthz();
   } catch (error) {
     if (error instanceof AuthError) {
-      redirect("/login");
+      redirect(
+        error.code === "INACTIVE" ? "/login?reason=inactive" : "/login",
+      );
     }
     throw error;
   }
@@ -93,9 +96,4 @@ export async function requireApiSession(): Promise<ApiGuardOk | ApiGuardFail> {
     }
     throw error;
   }
-}
-
-/** Optional session for handlers that behave differently when logged in. */
-export async function getOptionalApiAuthz(): Promise<AuthzContext | null> {
-  return getAuthzContext();
 }

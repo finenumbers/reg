@@ -13,11 +13,11 @@
 - admin bootstrap из env; деплой за внешним NPM (сеть `proxy`);
 - SSH-ключ: только replace, без просмотра/скачивания.
 
-**Утверждённый стек (Q11):** Next.js App Router + TypeScript + PostgreSQL + Prisma + Better Auth + ssh2 + p-queue + TanStack Table + shadcn/ui + Tailwind CSS + Docker Compose. Внешний reverse proxy вне проекта. NestJS / React-Vite / Redis-BullMQ **не используются**.
+**Утверждённый стек (Q11):** Next.js App Router + TypeScript + PostgreSQL + Prisma + Better Auth + ssh2 + p-queue + shadcn/ui + Tailwind CSS + Docker Compose. Внешний reverse proxy вне проекта. NestJS / React-Vite / Redis-BullMQ **не используются**. *(Таблицы реализованы как custom UI + column filters, не TanStack Table.)*
 
 **Утверждённые UI/Auth детали (Q12):**
 - primary login identifier = **username** (Better Auth username plugin);
-- UI kit = **shadcn/ui + Tailwind CSS**; таблицы данных = **TanStack Table**;
+- UI kit = **shadcn/ui + Tailwind CSS**; таблицы данных = custom tables + column filters;
 - Prisma-модели Better Auth = **adapter/CLI-generated source of truth** (не изобретать кастомную auth-схему до генерации);
 - in-process scheduler bootstrap: `instrumentation.ts` (always starts timer loop); ticks enqueue only when Settings `regsPollEnabled=true`; single `app` replica assumed (no leader election in v1).
 
@@ -57,7 +57,7 @@ Core **не знает** бизнес-семантику регистраций 
 | Parser | Строки `phone;Registered\|Unregistered;ip:port\|` |
 | Storage | `reg_current`, `reg_change_events` |
 | API | Route Handlers: список, поиск, карточка истории, manual poll |
-| UI | Dashboard-виджеты модуля, таблица (TanStack Table), detail |
+| UI | Таблица + detail sheet |
 | Job processor | Обработчик очереди `p-queue` именно для `regs.poll` |
 
 Будущий модуль = новый `action` + parser + таблицы/API/UI + processor. Ядро не переписывается.
@@ -69,7 +69,7 @@ Core **не знает** бизнес-семантику регистраций 
 | Language | TypeScript end-to-end |
 | App | Next.js (App Router) — UI + Route Handlers в одном приложении |
 | UI kit | shadcn/ui + Tailwind CSS |
-| UI tables | TanStack Table |
+| UI tables | Custom tables + column filters (shadcn Table) |
 | Database | PostgreSQL 16 |
 | ORM | Prisma |
 | Job orchestration | `p-queue` (in-process; concurrency=1 для `regs.poll`); bootstrap eval via `instrumentation.ts` |
@@ -77,10 +77,10 @@ Core **не знает** бизнес-семантику регистраций 
 | RBAC | Роли `admin` / `operator` + permissions |
 | SSH client | `ssh2` (Node), только `exec` разрешённой команды |
 | Secrets at rest | AES-256-GCM, master key `APP_ENCRYPTION_KEY` из env |
-| Deploy | Docker Compose / Portainer |
+| Deploy | Docker Compose / Portainer: `db` → `migrate` → single `app` |
 | Edge proxy | Внешний NGINX Proxy Manager (уже есть) — **не дублировать** в compose |
 
-Compose-сервисы v1: `app` (Next.js), `db` (PostgreSQL), сеть `proxy` для NPM.  
+Compose-сервисы v1: `db` (PostgreSQL) → `migrate` (`prisma migrate deploy`) → `app` (Next.js, одна реплика), сеть `proxy` для NPM.  
 Redis **не** входит в v1 (BullMQ не используется). Отдельный worker-контейнер в v1 не обязателен: poll-цикл и manual jobs идут в процессе `app` через `p-queue` + timer/interval, синхронизированный с `app_settings`.
 
 > Примечание: in-process scheduler означает, что при горизонтальном масштабировании нескольких реплик `app` нужен механизм лидерства / single-runner. В v1 предполагается **одна** реплика `app` за NPM.

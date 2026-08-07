@@ -17,6 +17,10 @@ import {
   type RegsPollStatusSnapshot,
 } from "@/modules/registrations/poll-action";
 import type { RegistrationsOperationalStatus } from "@/modules/registrations/status";
+import {
+  downloadXlsxFromUrl,
+  type DownloadXlsxResult,
+} from "@/lib/download-xlsx";
 
 export type FetchRegsListResult =
   | { ok: true; data: ListRegistrationsResult }
@@ -147,4 +151,8 @@ export function toPollStatusSnapshot(
     runningCount: data.runningCount,
     lastFailedError: data.lastFailedError,
   };
+}
+
+export async function downloadRegsExport(): Promise<DownloadXlsxResult> {
+  return downloadXlsxFromUrl("/api/regs/export", "regs-export.xlsx");
 }

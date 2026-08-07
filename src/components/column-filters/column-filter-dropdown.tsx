@@ -131,8 +131,14 @@ export function ColumnFilterDropdown({
       if (dropdownRef.current?.contains(t)) return;
       onToggle();
     };
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
+    // Defer so the opening click does not immediately close the menu.
+    const timer = window.setTimeout(() => {
+      document.addEventListener("mousedown", onDoc);
+    }, 0);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener("mousedown", onDoc);
+    };
   }, [open, onToggle]);
 
   const selectedSet = useMemo(() => new Set(selected), [selected]);

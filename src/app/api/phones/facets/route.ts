@@ -22,6 +22,10 @@ export async function GET(request: Request) {
 
   const kind = parsePhoneKind(url.searchParams.get("kind"));
   const filters = parseFiltersParam(url.searchParams.get("filters"));
+  const phoneQ = url.searchParams.get("phoneQ") ?? undefined;
+  const sipUnregisteredOnly =
+    url.searchParams.get("sipUnregisteredOnly") === "1" ||
+    url.searchParams.get("sipUnregisteredOnly") === "true";
   const q = url.searchParams.get("q") ?? undefined;
   const limitRaw = Number(url.searchParams.get("limit") ?? "200");
   const limit = Number.isFinite(limitRaw) ? limitRaw : 200;
@@ -30,6 +34,8 @@ export async function GET(request: Request) {
     kind,
     column,
     filters,
+    phoneQ,
+    sipUnregisteredOnly,
     q,
     limit,
   });

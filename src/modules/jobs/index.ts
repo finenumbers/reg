@@ -3,8 +3,7 @@ export * from "@/modules/jobs/regs-poll-processor";
 export * from "@/modules/jobs/query";
 export * from "@/modules/jobs/ui-format";
 export {
-  evaluateSchedulerBootstrap as evaluateSchedulerBootstrapFromScheduler,
+  evaluateSchedulerBootstrap,
   isAutoSchedulerRunning,
   rescheduleAfterSettingsChange,
-  stopAutoScheduler,
 } from "@/modules/jobs/scheduler";

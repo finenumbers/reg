@@ -12,6 +12,7 @@ import {
   ColumnFilterDropdown,
   type ColumnFilters,
 } from "@/components/column-filters";
+import { HighlightText } from "@/components/highlight-text";
 import type { RegistrationListItem } from "@/modules/registrations/types";
 import {
   buildRegsFacetsUrl,
@@ -22,66 +23,13 @@ import {
 import { RegStatusBadge } from "@/modules/registrations/ui/reg-status-badge";
 import { cn } from "@/lib/utils";
 
-const COLUMNS: {
-  id: string;
-  header: string;
-  cell: (row: RegistrationListItem) => React.ReactNode;
-}[] = [
-  {
-    id: "phone",
-    header: "Телефон",
-    cell: (row) => (
-      <span className="font-mono text-sm tabular-nums">{row.phone}</span>
-    ),
-  },
-  {
-    id: "description",
-    header: "Описание",
-    cell: (row) =>
-      row.description ? (
-        <span className="block max-w-[16rem] truncate text-sm" title={row.description}>
-          {row.description}
-        </span>
-      ) : (
-        <span className="text-sm text-muted-foreground">—</span>
-      ),
-  },
-  {
-    id: "status",
-    header: "Статус",
-    cell: (row) => <RegStatusBadge status={row.status} />,
-  },
-  {
-    id: "endpoint",
-    header: "Endpoint",
-    cell: (row) => (
-      <span className="font-mono text-sm text-muted-foreground">
-        {formatEndpoint(row.ip, row.port)}
-      </span>
-    ),
-  },
-  {
-    id: "lastChangedAt",
-    header: "Последнее изменение",
-    cell: (row) => (
-      <span className="text-sm">{formatTimestamp(row.lastChangedAt)}</span>
-    ),
-  },
-  {
-    id: "lastSeenAt",
-    header: "Обновление",
-    cell: (row) => (
-      <span className="text-sm">{formatTimestamp(row.lastSeenAt)}</span>
-    ),
-  },
-];
-
 type Props = {
   data: RegistrationListItem[];
   loading?: boolean;
   emptyMessage?: string;
   selectedPhone?: string | null;
   filters: ColumnFilters;
+  phoneQ?: string;
   openColumn: string | null;
   onOpenColumnChange: (column: string | null) => void;
   onColumnFilterChange: (column: string, values: string[]) => void;
@@ -94,19 +42,29 @@ export function RegsTable({
   emptyMessage = "Регистрации не найдены.",
   selectedPhone = null,
   filters,
+  phoneQ = "",
   openColumn,
   onOpenColumnChange,
   onColumnFilterChange,
   onRowClick,
 }: Props) {
   const showEmpty = !loading && data.length === 0;
-  const colCount = COLUMNS.length;
+  const colCount = 6;
 
   return (
     <Table className="text-sm">
       <TableHeader>
         <TableRow>
-          {COLUMNS.map((col) => (
+          {(
+            [
+              { id: "phone", header: "Телефон" },
+              { id: "description", header: "Описание" },
+              { id: "status", header: "Статус" },
+              { id: "endpoint", header: "Endpoint" },
+              { id: "lastChangedAt", header: "Последнее изменение" },
+              { id: "lastSeenAt", header: "Обновление" },
+            ] as const
+          ).map((col) => (
             <TableHead key={col.id} className="text-sm font-medium">
               <ColumnFilterDropdown
                 column={col.id}
@@ -115,7 +73,7 @@ export function RegsTable({
                 selected={filters[col.id] ?? []}
                 filters={filters}
                 buildFacetsUrl={({ column, filters: f, q }) =>
-                  buildRegsFacetsUrl({ column, filters: f, q })
+                  buildRegsFacetsUrl({ column, filters: f, phoneQ, q })
                 }
                 formatValue={(value) => displayFacetForColumn(col.id, value)}
                 onToggle={() =>
@@ -131,13 +89,19 @@ export function RegsTable({
       <TableBody>
         {loading ? (
           <TableRow>
-            <TableCell colSpan={colCount} className="h-24 text-sm text-muted-foreground">
+            <TableCell
+              colSpan={colCount}
+              className="h-24 text-sm text-muted-foreground"
+            >
               Загрузка регистраций…
             </TableCell>
           </TableRow>
         ) : showEmpty ? (
           <TableRow>
-            <TableCell colSpan={colCount} className="h-24 text-sm text-muted-foreground">
+            <TableCell
+              colSpan={colCount}
+              className="h-24 text-sm text-muted-foreground"
+            >
               {emptyMessage}
             </TableCell>
           </TableRow>
@@ -154,11 +118,37 @@ export function RegsTable({
                 )}
                 onClick={() => onRowClick?.(row)}
               >
-                {COLUMNS.map((col) => (
-                  <TableCell key={col.id} className="text-sm">
-                    {col.cell(row)}
-                  </TableCell>
-                ))}
+                <TableCell className="text-sm">
+                  <span className="text-sm tabular-nums">
+                    <HighlightText text={row.phone} query={phoneQ} />
+                  </span>
+                </TableCell>
+                <TableCell className="text-sm">
+                  {row.description ? (
+                    <span
+                      className="block max-w-[16rem] truncate text-sm"
+                      title={row.description}
+                    >
+                      {row.description}
+                    </span>
+                  ) : (
+                    <span className="text-sm text-muted-foreground">—</span>
+                  )}
+                </TableCell>
+                <TableCell className="text-sm">
+                  <RegStatusBadge status={row.status} />
+                </TableCell>
+                <TableCell className="text-sm">
+                  <span className="text-sm text-muted-foreground">
+                    {formatEndpoint(row.ip, row.port)}
+                  </span>
+                </TableCell>
+                <TableCell className="text-sm">
+                  {formatTimestamp(row.lastChangedAt)}
+                </TableCell>
+                <TableCell className="text-sm">
+                  {formatTimestamp(row.lastSeenAt)}
+                </TableCell>
               </TableRow>
             );
           })

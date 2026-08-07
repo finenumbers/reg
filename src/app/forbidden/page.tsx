@@ -14,7 +14,7 @@ export default function ForbiddenPage() {
         </p>
       </div>
       <Button asChild variant="secondary">
-        <Link href="/phones">К телефонным номерам</Link>
+        <Link href="/">На главную</Link>
       </Button>
     </div>
   );

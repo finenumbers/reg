@@ -56,11 +56,8 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (sessionCookie && isAuthPage) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/";
-    return NextResponse.redirect(url);
-  }
+  // Do not bounce cookie holders off /login — inactive sessions must be
+  // able to land there without a /login ↔ / redirect loop.
 
   return NextResponse.next();
 }

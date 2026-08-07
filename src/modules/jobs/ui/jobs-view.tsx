@@ -232,7 +232,7 @@ export function JobsView({ initial }: Props) {
                         onClick={() => toggleExpand(job)}
                         data-state={open ? "selected" : undefined}
                       >
-                        <TableCell className="font-mono text-xs">
+                        <TableCell className="text-xs">
                           {job.actionCode}
                         </TableCell>
                         <TableCell>{formatJobTrigger(job.trigger)}</TableCell>

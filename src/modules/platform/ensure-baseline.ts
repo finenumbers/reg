@@ -109,8 +109,14 @@ export async function ensurePlatformBaseline(): Promise<{ ok: true }> {
 
   await prisma.appSetting.upsert({
     where: { id: 1 },
-    create: { id: 1 },
+    create: { id: 1, artifactMaxBytes: 50_000_000 },
     update: {},
+  });
+
+  // Bump legacy 1 MiB default so full softswitch dumps fit in job artifacts.
+  await prisma.appSetting.updateMany({
+    where: { id: 1, artifactMaxBytes: 1_048_576 },
+    data: { artifactMaxBytes: 50_000_000 },
   });
 
   await prisma.phoneImportState.upsert({

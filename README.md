@@ -2,17 +2,28 @@
 
 Internal telecom ops platform for monitoring SIP registrations on an operator softswitch via allowlisted SSH scripts under `/opt/scripts/`.
 
+**Repository:** [github.com/finenumbers/reg](https://github.com/finenumbers/reg) · **Release:** [v1.0.0](https://github.com/finenumbers/reg/releases/tag/v1.0.0)
+
 ## Stack (approved)
 
 - Next.js App Router + TypeScript
 - PostgreSQL + Prisma
 - Better Auth (username login) + RBAC
-- shadcn/ui + Tailwind CSS + TanStack Table
+- shadcn/ui + Tailwind CSS (custom tables + column filters)
 - ssh2 + p-queue
-- Docker Compose (external NPM reverse proxy)
+- Docker Compose `db` → `migrate` → `app` (external NPM reverse proxy)
+
+## GHCR images (linux/amd64)
+
+| Image | Use |
+|-------|-----|
+| `ghcr.io/finenumbers/reg:1.0.0` | App |
+| `ghcr.io/finenumbers/reg:1.0.0-migrator` | `prisma migrate deploy` |
+| `:latest` / `:latest-migrator` | Same roles, rolling tags |
 
 ## Docs
 
+- [**Portainer + NPM deploy**](docs/deploy-portainer.md) — production stack (`docker-compose.portainer.yml`)
 - [architecture](docs/architecture.md)
 - [security model](docs/security-model.md)
 - [data model](docs/data-model.md)
@@ -98,35 +109,53 @@ Do not hand-author conflicting auth table definitions. App RBAC (`roles` / `perm
 
 APIs:
 
-- `GET /api/regs` — list current states (`regs:read`); filters: `status`, `phone` prefix, paging
+- `GET /api/regs` — list current states (`regs:read`); filters: `filters` JSON, `phoneQ`, paging
 - `GET /api/regs/[phone]` — current state + change history (`regs:read`)
+- `GET /api/regs/facets` — column facet values (`regs:read`)
+- `GET /api/regs/export` — XLSX export (`regs:read`)
 - `GET /api/regs/status` — last poll + counts for ops widgets (`regs:read`)
 - `POST /api/regs/poll` — enqueue manual poll (`regs:poll`)
 
 UI (`/regs`):
 
-- TanStack Table list with phone search, status filter, column sort, pagination
-- Row click opens a detail sheet (history); `/regs/[phone]` is also available
+- List with phone search, column filters, pagination
+- Row click opens a detail sheet (history)
 - Manual **Run poll** when the user has `regs:poll` (disabled while in flight)
+
+## Phones
+
+APIs:
+
+- `GET /api/phones` — list endpoints/gateways by `kind` (`phones:read`); filters: `filters` JSON, `phoneQ`, paging
+- `GET /api/phones/facets` — column facet values (`phones:read`)
+- `GET /api/phones/export` — XLSX export from template (`phones:read`)
+- `GET /api/phones/status` — last sync status (`phones:read`)
+- `POST /api/phones/request` — enqueue softswitch sync (`phones:sync`)
+
+UI (`/phones`):
+
+- Kind select (gateways / registered / unregistered / error), phone search, column filters
+- SIP unregistered highlighting on registered trunks; XLSX export
 
 ## Jobs / Audit (Phase 6)
 
 - `GET /api/jobs` — job run history (`regs:read`); `/jobs` UI with status filter + expandable failure detail
 - `GET /api/audit` — audit events (`audit:read`); `/audit` UI with action/actor filters + sanitized meta expand
-- Dashboard: lightweight poll/count widgets + quick links when permitted
+- Home `/` redirects to the first module the user may open (no separate dashboard page)
 
 ## Production (Phase 7)
 
-Compose services: `db` → `migrate` (`prisma migrate deploy`) → **one** `app` replica.
+**Preferred:** Portainer + GHCR + external NPM — see [docs/deploy-portainer.md](docs/deploy-portainer.md) and [`docker-compose.portainer.yml`](docker-compose.portainer.yml).
 
 ```bash
+# Local build (dev/ops host)
 cp .env.example .env
 # set BETTER_AUTH_SECRET, BETTER_AUTH_URL, APP_ENCRYPTION_KEY (not examples)
 docker compose up -d --build
 BASE_URL=http://localhost:3000 npm run smoke
 ```
 
-- Attach `app` to existing NPM `proxy` network (see comments in `docker-compose.yml`)
+- Production compose attaches `app` to external NPM network `proxy` (no public `:3000`)
 - NPM: forward `/` and `/api` to the same `app:3000` upstream; set `BETTER_AUTH_URL` to the public HTTPS origin
 - Auto-poll: enable via Settings `regsPollEnabled` after SSH readiness; keep a single `app` replica
 - Backups: `npm run backup:db` — also vault `APP_ENCRYPTION_KEY` ([backup-and-restore.md](docs/backup-and-restore.md))

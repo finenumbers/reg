@@ -16,7 +16,11 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   output: "standalone",
-  serverExternalPackages: ["ssh2", "@prisma/client", "pg"],
+  serverExternalPackages: ["ssh2", "@prisma/client", "pg", "exceljs"],
+  outputFileTracingIncludes: {
+    "/api/phones/export": ["./ops/templates/**/*"],
+    "/api/regs/export": [],
+  },
   turbopack: {
     root: process.cwd(),
   },

@@ -3,9 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   ActiveFiltersBar,
-  ColumnFilterDropdown,
   hasActiveFilters,
   removeFacetValue,
   setColumnFilterValues,
@@ -18,7 +19,7 @@ import {
 import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
 import { TABLE_PAGE_SIZE } from "@/lib/table-pagination";
 import {
-  buildPhonesFacetsUrl,
+  downloadPhonesExport,
   fetchPhonesList,
   fetchPhonesStatus,
   postPhonesRequest,
@@ -33,8 +34,10 @@ import {
 } from "@/modules/phones/request-action";
 import type { ListPhonesResult } from "@/modules/phones/service";
 import type { PhoneKind } from "@/modules/phones/types";
+import { PhonesTable } from "@/modules/phones/ui/phones-table";
 
 const PAGE_SIZE = TABLE_PAGE_SIZE;
+const PHONE_SEARCH_DEBOUNCE_MS = 300;
 
 type Props = {
   canRequest: boolean;
@@ -58,6 +61,9 @@ function selectKind(next: PhoneKind, current: PhoneKind, load: (k: PhoneKind) =>
 export function PhonesView({ canRequest, initial }: Props) {
   const [kind, setKind] = useState<PhoneKind>(initial.kind);
   const [filters, setFilters] = useState<ColumnFilters>({});
+  const [phoneInput, setPhoneInput] = useState("");
+  const [phoneQ, setPhoneQ] = useState("");
+  const [sipUnregisteredOnly, setSipUnregisteredOnly] = useState(false);
   const [openColumn, setOpenColumn] = useState<string | null>(null);
   const [page, setPage] = useState(initial.page);
   const [items, setItems] = useState(initial.items);
@@ -77,16 +83,25 @@ export function PhonesView({ canRequest, initial }: Props) {
   const [loadingMore, setLoadingMore] = useState(false);
   const [listError, setListError] = useState<string | null>(null);
   const [syncState, setSyncState] = useState<SyncUiState>(IDLE_SYNC_STATE);
+  const [exporting, setExporting] = useState(false);
   const syncInFlightRef = useRef(false);
   const refreshSeq = useRef(0);
   const loadingMoreRef = useRef(false);
   const filtersRef = useRef(filters);
+  const phoneQRef = useRef(phoneQ);
+  const sipUnregisteredOnlyRef = useRef(sipUnregisteredOnly);
+  const phoneSearchTimerRef = useRef<number | null>(null);
   const [scrollRoot, setScrollRoot] = useState<Element | null>(null);
 
   filtersRef.current = filters;
+  phoneQRef.current = phoneQ;
+  sipUnregisteredOnlyRef.current = sipUnregisteredOnly;
 
   const hasMore = items.length < total;
-  const filtersActive = hasActiveFilters(filters);
+  const filtersActive =
+    hasActiveFilters(filters) ||
+    phoneQ.trim().length > 0 ||
+    sipUnregisteredOnly;
 
   const headerLabels = useMemo(() => {
     const map: Record<string, string> = {};
@@ -94,16 +109,25 @@ export function PhonesView({ canRequest, initial }: Props) {
     return map;
   }, [headers]);
 
-  const buildFacetsUrl = useCallback(
-    (opts: { column: string; filters: ColumnFilters; q: string }) =>
-      buildPhonesFacetsUrl({
-        kind,
-        column: opts.column,
-        filters: opts.filters,
-        q: opts.q,
-      }),
-    [kind],
-  );
+  const longestKindLabel = useMemo(() => {
+    const labels = [
+      "Шлюзы",
+      "Транки с регистрацией",
+      "Транки без регистрации",
+      ...(errorCount > 0 || kind === "endpoints_error"
+        ? [`Ошибка (${errorCount})`]
+        : []),
+    ];
+    return labels.reduce((a, b) => (b.length > a.length ? b : a));
+  }, [errorCount, kind]);
+
+  useEffect(() => {
+    return () => {
+      if (phoneSearchTimerRef.current != null) {
+        window.clearTimeout(phoneSearchTimerRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (kind === "endpoints_error" && errorCount === 0) {
@@ -116,12 +140,20 @@ export function PhonesView({ canRequest, initial }: Props) {
   async function loadList(opts: {
     kind?: PhoneKind;
     filters?: ColumnFilters;
+    phoneQ?: string;
+    sipUnregisteredOnly?: boolean;
     page?: number;
     replace?: boolean;
   }) {
     const replace = opts.replace ?? true;
     const nextKind = opts.kind ?? kind;
     const nextFilters = opts.filters ?? filtersRef.current;
+    const nextPhoneQ =
+      opts.phoneQ !== undefined ? opts.phoneQ : phoneQRef.current;
+    const nextSipOnly =
+      opts.sipUnregisteredOnly !== undefined
+        ? opts.sipUnregisteredOnly
+        : sipUnregisteredOnlyRef.current;
     const nextPage = opts.page ?? (replace ? 1 : page);
     const seq = ++refreshSeq.current;
 
@@ -138,6 +170,9 @@ export function PhonesView({ canRequest, initial }: Props) {
     const result = await fetchPhonesList({
       kind: nextKind,
       filters: nextFilters,
+      phoneQ: nextPhoneQ,
+      sipUnregisteredOnly:
+        nextKind === "endpoints_registered" ? nextSipOnly : false,
       page: nextPage,
       pageSize: PAGE_SIZE,
     });
@@ -178,7 +213,7 @@ export function PhonesView({ canRequest, initial }: Props) {
     if (!hasMore || loading || loadingMoreRef.current) return;
     void loadList({ page: page + 1, replace: false });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasMore, loading, page, kind, filters]);
+  }, [hasMore, loading, page, kind, filters, phoneQ, sipUnregisteredOnly]);
 
   const sentinelRef = useInfiniteScroll({
     enabled: hasMore && !loading && !loadingMore && !listError,
@@ -186,9 +221,12 @@ export function PhonesView({ canRequest, initial }: Props) {
     root: scrollRoot,
   });
 
-  function applyFilters(next: ColumnFilters) {
+  function applyFilters(
+    next: ColumnFilters,
+    opts: { closeDropdown?: boolean } = {},
+  ) {
     setFilters(next);
-    setOpenColumn(null);
+    if (opts.closeDropdown) setOpenColumn(null);
     void loadList({ filters: next, page: 1, replace: true });
   }
 
@@ -197,11 +235,57 @@ export function PhonesView({ canRequest, initial }: Props) {
   }
 
   function onRemoveFacet(field: string, value: string) {
-    applyFilters(removeFacetValue(filtersRef.current, field, value));
+    applyFilters(removeFacetValue(filtersRef.current, field, value), {
+      closeDropdown: true,
+    });
+  }
+
+  function onPhoneInputChange(value: string) {
+    setPhoneInput(value);
+    if (phoneSearchTimerRef.current != null) {
+      window.clearTimeout(phoneSearchTimerRef.current);
+    }
+    phoneSearchTimerRef.current = window.setTimeout(() => {
+      const next = value.trim();
+      setPhoneQ(next);
+      void loadList({ phoneQ: next, page: 1, replace: true });
+    }, PHONE_SEARCH_DEBOUNCE_MS);
+  }
+
+  function onClearPhoneQuery() {
+    if (phoneSearchTimerRef.current != null) {
+      window.clearTimeout(phoneSearchTimerRef.current);
+    }
+    setPhoneInput("");
+    setPhoneQ("");
+    void loadList({ phoneQ: "", page: 1, replace: true });
   }
 
   function onResetFilters() {
-    applyFilters({});
+    if (phoneSearchTimerRef.current != null) {
+      window.clearTimeout(phoneSearchTimerRef.current);
+    }
+    setPhoneInput("");
+    setPhoneQ("");
+    setSipUnregisteredOnly(false);
+    setFilters({});
+    setOpenColumn(null);
+    void loadList({
+      filters: {},
+      phoneQ: "",
+      sipUnregisteredOnly: false,
+      page: 1,
+      replace: true,
+    });
+  }
+
+  function onSipUnregisteredOnlyChange(checked: boolean) {
+    setSipUnregisteredOnly(checked);
+    void loadList({
+      sipUnregisteredOnly: checked,
+      page: 1,
+      replace: true,
+    });
   }
 
   async function onRequest() {
@@ -211,57 +295,72 @@ export function PhonesView({ canRequest, initial }: Props) {
     syncInFlightRef.current = true;
     setSyncState(reduceSyncUiState(syncState, { type: "START" }));
 
-    const before = await fetchPhonesStatus();
-    const beforeFinishedAt = before.ok ? before.data.lastFinishedAt : null;
+    try {
+      const before = await fetchPhonesStatus();
+      const beforeFinishedAt = before.ok ? before.data.lastFinishedAt : null;
 
-    const enqueued = await postPhonesRequest();
-    if (!enqueued.ok) {
-      const next = reduceSyncUiState(IDLE_SYNC_STATE, {
-        type: "ERROR",
-        message: enqueued.message,
-        conflict: enqueued.conflict,
+      const enqueued = await postPhonesRequest();
+      if (!enqueued.ok) {
+        const next = reduceSyncUiState(IDLE_SYNC_STATE, {
+          type: "ERROR",
+          message: enqueued.message,
+          conflict: enqueued.conflict,
+        });
+        setSyncState(next);
+        toast.error(enqueued.message);
+        return;
+      }
+
+      const outcome = await waitForPhonesSyncOutcome({
+        beforeFinishedAt,
+        fetchStatus: async () => {
+          const status = await fetchPhonesStatus();
+          if (!status.ok) {
+            throw new Error(status.message);
+          }
+          return toSyncStatusSnapshot(status.data);
+        },
       });
-      setSyncState(next);
-      toast.error(enqueued.message);
+
+      if (outcome.ok) {
+        setSyncState(
+          reduceSyncUiState(IDLE_SYNC_STATE, {
+            type: "SUCCESS",
+            message: outcome.message,
+          }),
+        );
+        toast.success(outcome.message);
+        await loadList({ page: 1, replace: true });
+      } else {
+        setSyncState(
+          reduceSyncUiState(IDLE_SYNC_STATE, {
+            type: "ERROR",
+            message: outcome.message,
+          }),
+        );
+        toast.error(outcome.message);
+      }
+    } catch {
+      const message = "Не удалось выполнить запрос";
+      setSyncState(
+        reduceSyncUiState(IDLE_SYNC_STATE, { type: "ERROR", message }),
+      );
+      toast.error(message);
+    } finally {
       syncInFlightRef.current = false;
+    }
+  }
+
+  async function onExportXlsx() {
+    if (exporting) return;
+    setExporting(true);
+    const result = await downloadPhonesExport();
+    setExporting(false);
+    if (!result.ok) {
+      toast.error(result.message);
       return;
     }
-
-    const outcome = await waitForPhonesSyncOutcome({
-      beforeFinishedAt,
-      fetchStatus: async () => {
-        const status = await fetchPhonesStatus();
-        if (!status.ok) {
-          return {
-            lastJobStatus: null,
-            lastError: status.message,
-            lastFinishedAt: beforeFinishedAt,
-            runningCount: 0,
-          };
-        }
-        return toSyncStatusSnapshot(status.data);
-      },
-    });
-
-    if (outcome.ok) {
-      setSyncState(
-        reduceSyncUiState(IDLE_SYNC_STATE, {
-          type: "SUCCESS",
-          message: outcome.message,
-        }),
-      );
-      toast.success(outcome.message);
-      await loadList({ page: 1, replace: true });
-    } else {
-      setSyncState(
-        reduceSyncUiState(IDLE_SYNC_STATE, {
-          type: "ERROR",
-          message: outcome.message,
-        }),
-      );
-      toast.error(outcome.message);
-    }
-    syncInFlightRef.current = false;
+    toast.success("Файл экспорта скачан");
   }
 
   const pending = isSyncInFlight(syncState);
@@ -270,8 +369,18 @@ export function PhonesView({ canRequest, initial }: Props) {
     selectKind(next, kind, (k) => {
       setKind(k);
       setFilters({});
+      setPhoneInput("");
+      setPhoneQ("");
+      setSipUnregisteredOnly(false);
       setOpenColumn(null);
-      void loadList({ kind: k, filters: {}, page: 1, replace: true });
+      void loadList({
+        kind: k,
+        filters: {},
+        phoneQ: "",
+        sipUnregisteredOnly: false,
+        page: 1,
+        replace: true,
+      });
     });
   }
 
@@ -293,11 +402,17 @@ export function PhonesView({ canRequest, initial }: Props) {
         <div className="flex flex-wrap items-center gap-2">
           <Button
             type="button"
-            variant="outline"
-            disabled={!filtersActive}
-            onClick={onResetFilters}
+            className="border-transparent bg-amber-400 text-amber-950 hover:bg-amber-500 hover:text-amber-950 focus-visible:border-amber-500 focus-visible:ring-amber-400/40"
+            onClick={() => void onExportXlsx()}
+            disabled={exporting}
           >
-            Сбросить фильтры
+            {exporting ? "Экспорт…" : "Экспорт XLSX"}
+          </Button>
+          <Button
+            type="button"
+            className="border-transparent bg-emerald-600 text-white hover:bg-emerald-700 hover:text-white focus-visible:border-emerald-700 focus-visible:ring-emerald-600/40"
+          >
+            Импорт в РТУ
           </Button>
           {canRequest ? (
             <Button
@@ -323,51 +438,76 @@ export function PhonesView({ canRequest, initial }: Props) {
         </p>
       ) : null}
 
-      <div className="flex shrink-0 flex-wrap items-center gap-2">
-        <Button
-          type="button"
-          variant={kind === "gateways" ? "default" : "outline"}
-          size="sm"
-          onClick={() => switchKind("gateways")}
-        >
-          Шлюзы
-        </Button>
-        <Button
-          type="button"
-          variant={kind === "endpoints_registered" ? "default" : "outline"}
-          size="sm"
-          onClick={() => switchKind("endpoints_registered")}
-        >
-          Оборудование с регистрацией
-        </Button>
-        <Button
-          type="button"
-          variant={kind === "endpoints_unregistered" ? "default" : "outline"}
-          size="sm"
-          onClick={() => switchKind("endpoints_unregistered")}
-        >
-          Оборудование без регистрации
-        </Button>
-        {errorCount > 0 ? (
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <Input
+            id="phones-phone-search"
+            value={phoneInput}
+            onChange={(e) => onPhoneInputChange(e.target.value)}
+            placeholder="Телефонный номер"
+            aria-label="Телефонный номер"
+            size={19}
+            className="w-[calc(17ch+1.25rem)] shrink-0"
+            autoComplete="off"
+          />
+          {kind === "endpoints_registered" ? (
+            <div className="flex items-center gap-2">
+              <input
+                id="phones-sip-unregistered-only"
+                type="checkbox"
+                className="size-4 rounded border"
+                checked={sipUnregisteredOnly}
+                onChange={(e) =>
+                  onSipUnregisteredOnlyChange(e.target.checked)
+                }
+              />
+              <Label htmlFor="phones-sip-unregistered-only">
+                Без регистрации
+              </Label>
+            </div>
+          ) : null}
           <Button
             type="button"
-            variant={kind === "endpoints_error" ? "default" : "outline"}
-            size="sm"
-            className={
-              kind !== "endpoints_error"
-                ? "border-destructive/50 text-destructive"
-                : undefined
-            }
-            onClick={() => switchKind("endpoints_error")}
+            variant="outline"
+            disabled={!filtersActive}
+            onClick={onResetFilters}
           >
-            Ошибка ({errorCount})
+            Сбросить фильтры
           </Button>
-        ) : null}
+        </div>
+        <div className="relative inline-grid">
+          <select
+            id="phones-kind"
+            value={kind}
+            onChange={(e) => switchKind(e.target.value as PhoneKind)}
+            aria-label="Раздел"
+            className="col-start-1 row-start-1 h-8 w-full rounded-lg border border-border bg-background py-0 pl-2.5 pr-8 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
+            <option value="gateways">Шлюзы</option>
+            <option value="endpoints_registered">
+              Транки с регистрацией
+            </option>
+            <option value="endpoints_unregistered">
+              Транки без регистрации
+            </option>
+            {errorCount > 0 || kind === "endpoints_error" ? (
+              <option value="endpoints_error">Ошибка ({errorCount})</option>
+            ) : null}
+          </select>
+          <span
+            aria-hidden
+            className="invisible col-start-1 row-start-1 h-8 whitespace-nowrap border border-transparent py-0 pl-2.5 pr-8 text-sm"
+          >
+            {longestKindLabel}
+          </span>
+        </div>
       </div>
 
       <ActiveFiltersBar
         filters={filters}
         headers={headerLabels}
+        phoneQuery={phoneQ}
+        onClearPhoneQuery={onClearPhoneQuery}
         onRemoveFacet={onRemoveFacet}
       />
 
@@ -381,69 +521,25 @@ export function PhonesView({ canRequest, initial }: Props) {
           sentinelRef={sentinelRef}
           loadingMore={loadingMore}
         >
-          <table className="w-full min-w-[960px] border-collapse text-left text-sm">
-            <thead className="sticky top-0 z-10 bg-muted/95 backdrop-blur-sm">
-              <tr>
-                {headers.map((h) => (
-                  <th
-                    key={h}
-                    className="whitespace-nowrap border-b px-3 py-1 font-medium"
-                  >
-                    <ColumnFilterDropdown
-                      column={h}
-                      header={h}
-                      open={openColumn === h}
-                      selected={filters[h] ?? []}
-                      filters={filters}
-                      buildFacetsUrl={buildFacetsUrl}
-                      onToggle={() =>
-                        setOpenColumn((c) => (c === h ? null : h))
-                      }
-                      onChange={(values) => onColumnChange(h, values)}
-                      onClear={() => onColumnChange(h, [])}
-                    />
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {loading && items.length === 0 ? (
-                <tr>
-                  <td
-                    className="px-3 py-2 text-sm text-muted-foreground"
-                    colSpan={Math.max(headers.length, 1)}
-                  >
-                    Загрузка…
-                  </td>
-                </tr>
-              ) : items.length === 0 ? (
-                <tr>
-                  <td
-                    className="px-3 py-2 text-sm text-muted-foreground"
-                    colSpan={Math.max(headers.length, 1)}
-                  >
-                    {filtersActive
-                      ? "Нет данных по текущим фильтрам. Сбросьте фильтры или уточните выбор."
-                      : "Нет данных. Нажмите «Загрузить данные», чтобы загрузить с softswitch."}
-                  </td>
-                </tr>
-              ) : (
-                items.map((row) => (
-                  <tr key={row.id} className="odd:bg-muted/20">
-                    {headers.map((h) => (
-                      <td
-                        key={`${row.id}-${h}`}
-                        className="max-w-[18rem] truncate whitespace-nowrap border-b px-3 py-1 align-top text-sm"
-                        title={row.data[h] ?? ""}
-                      >
-                        {row.data[h] ?? ""}
-                      </td>
-                    ))}
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+          <PhonesTable
+            kind={kind}
+            headers={headers}
+            data={items}
+            loading={loading && items.length === 0}
+            emptyMessage={
+              filtersActive
+                ? "Нет данных по текущим фильтрам. Сбросьте фильтры или уточните выбор."
+                : "Нет данных. Нажмите «Загрузить данные», чтобы загрузить с softswitch."
+            }
+            filters={filters}
+            phoneQ={phoneQ}
+            sipUnregisteredOnly={
+              kind === "endpoints_registered" && sipUnregisteredOnly
+            }
+            openColumn={openColumn}
+            onOpenColumnChange={setOpenColumn}
+            onColumnFilterChange={onColumnChange}
+          />
         </TableInfiniteBody>
         <TableCountFooter shown={items.length} total={total} />
       </div>

@@ -10,6 +10,8 @@ type Props = {
   /** optional value formatter per column */
   formatValue?: (field: string, value: string) => string;
   onRemoveFacet: (field: string, value: string) => void;
+  phoneQuery?: string;
+  onClearPhoneQuery?: () => void;
 };
 
 export function ActiveFiltersBar({
@@ -17,8 +19,19 @@ export function ActiveFiltersBar({
   headers,
   formatValue,
   onRemoveFacet,
+  phoneQuery,
+  onClearPhoneQuery,
 }: Props) {
   const chips: { key: string; label: string; onRemove: () => void }[] = [];
+
+  const phoneQ = phoneQuery?.trim() ?? "";
+  if (phoneQ && onClearPhoneQuery) {
+    chips.push({
+      key: "phone_q",
+      label: `Телефонный номер: ${phoneQ}`,
+      onRemove: onClearPhoneQuery,
+    });
+  }
 
   for (const [field, values] of Object.entries(filters)) {
     const header = headers[field] ?? field;

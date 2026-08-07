@@ -50,14 +50,6 @@ export async function getAuthzContext(): Promise<AuthzContext | null> {
   return { session, authz, username };
 }
 
-export async function requireSession(): Promise<AuthSession> {
-  const session = await getSession();
-  if (!session) {
-    throw new AuthError("UNAUTHORIZED");
-  }
-  return session;
-}
-
 export async function requireAuthz(): Promise<AuthzContext> {
   const ctx = await getAuthzContext();
   if (!ctx) {

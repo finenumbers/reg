@@ -13,7 +13,13 @@ import { prisma } from "@/lib/db";
 import { getJobRunSummary } from "@/modules/jobs/query";
 import { applyJsonColumnFilters } from "@/modules/phones/json-filters";
 import {
+  isSipUnregistered,
+  sipUnregisteredFilterPhones,
+  toUnregisteredPhoneSet,
+} from "@/modules/phones/sip-status";
+import {
   ENDPOINT_HEADERS,
+  ENDPOINT_NUMBER_FIELD,
   GATEWAY_HEADERS,
   REGISTRATION_FIELD,
   REGISTRATION_NO,
@@ -29,6 +35,8 @@ export type PhoneListItem = {
   endpointNumber: string | null;
   data: PhoneRowData;
   lastSyncedAt: string;
+  /** Live SIP Unregistered from last regs.poll (reg_current). */
+  sipUnregistered: boolean;
 };
 
 export type ListPhonesResult = {
@@ -133,15 +141,85 @@ function readCell(data: unknown, column: string): string {
   return record[column] ?? "";
 }
 
+function applyEndpointPhoneQ(
+  base: Prisma.PhoneEndpointWhereInput,
+  phoneQ: string,
+): Prisma.PhoneEndpointWhereInput {
+  const q = phoneQ.trim();
+  if (!q) return base;
+  return {
+    AND: [
+      base,
+      {
+        OR: [
+          { endpointNumber: { contains: q, mode: "insensitive" } },
+          {
+            data: {
+              path: [ENDPOINT_NUMBER_FIELD],
+              string_contains: q,
+            },
+          },
+        ],
+      },
+    ],
+  };
+}
+
+async function loadUnregisteredSipPhones(): Promise<string[]> {
+  const rows = await prisma.registrationCurrent.findMany({
+    where: { status: "Unregistered" },
+    select: { phone: true },
+  });
+  return rows.map((r) => r.phone);
+}
+
+/**
+ * Restrict endpoints to SIP-Unregistered numbers.
+ * Returns null when the Unregistered set is empty (caller should return empty).
+ */
+function applySipUnregisteredOnly(
+  base: Prisma.PhoneEndpointWhereInput,
+  unregisteredPhones: string[],
+): Prisma.PhoneEndpointWhereInput | null {
+  const phones = sipUnregisteredFilterPhones(unregisteredPhones);
+  if (!phones) return null;
+  return {
+    AND: [base, { endpointNumber: { in: phones } }],
+  };
+}
+
+async function unregisteredSetForEndpointRows(
+  rows: { endpointNumber: string | null }[],
+  knownSet: Set<string> | null,
+): Promise<Set<string>> {
+  if (knownSet) return knownSet;
+  const numbers = rows
+    .map((r) => r.endpointNumber)
+    .filter((n): n is string => Boolean(n));
+  if (numbers.length === 0) return new Set();
+  const found = await prisma.registrationCurrent.findMany({
+    where: { phone: { in: numbers }, status: "Unregistered" },
+    select: { phone: true },
+  });
+  return toUnregisteredPhoneSet(found.map((r) => r.phone));
+}
+
 export async function listPhones(opts: {
   kind: PhoneKind;
   filters?: ColumnFilters;
+  /** Substring search over «Номер оконечного оборудования» */
+  phoneQ?: string;
+  /** Only endpoints with live SIP Unregistered (endpoints_registered only). */
+  sipUnregisteredOnly?: boolean;
   page?: number;
   pageSize?: number;
 }): Promise<ListPhonesResult> {
   const page = Math.max(1, opts.page ?? 1);
   const pageSize = Math.min(200, Math.max(1, opts.pageSize ?? 100));
   const filters = opts.filters ?? {};
+  const phoneQ = opts.phoneQ?.trim() ?? "";
+  const sipUnregisteredOnly =
+    Boolean(opts.sipUnregisteredOnly) && opts.kind === "endpoints_registered";
   const skip = (page - 1) * pageSize;
 
   const [state, buckets] = await Promise.all([
@@ -149,11 +227,42 @@ export async function listPhones(opts: {
     countRegistrationBuckets(),
   ]);
 
+  const emptyMeta = {
+    lastSyncedAt: state?.lastSyncedAt?.toISOString() ?? null,
+    endpointCount: state?.endpointCount ?? 0,
+    gatewayCount: state?.gatewayCount ?? 0,
+    registeredCount: buckets.registeredCount,
+    unregisteredCount: buckets.unregisteredCount,
+    errorCount: buckets.errorCount,
+  };
+
   if (isEndpointPhoneKind(opts.kind)) {
-    const where = applyJsonColumnFilters(
-      endpointKindWhere(opts.kind),
-      filters,
-    ) as Prisma.PhoneEndpointWhereInput;
+    let where = applyEndpointPhoneQ(
+      applyJsonColumnFilters(
+        endpointKindWhere(opts.kind),
+        filters,
+      ) as Prisma.PhoneEndpointWhereInput,
+      phoneQ,
+    );
+
+    let knownUnregistered: Set<string> | null = null;
+    if (sipUnregisteredOnly) {
+      const unregisteredPhones = await loadUnregisteredSipPhones();
+      knownUnregistered = toUnregisteredPhoneSet(unregisteredPhones);
+      const filtered = applySipUnregisteredOnly(where, unregisteredPhones);
+      if (!filtered) {
+        return {
+          kind: opts.kind,
+          items: [],
+          headers: asStringArray(state?.headersEndpoints, ENDPOINT_HEADERS),
+          total: 0,
+          page,
+          pageSize,
+          ...emptyMeta,
+        };
+      }
+      where = filtered;
+    }
 
     const [total, rows] = await Promise.all([
       prisma.phoneEndpoint.count({ where }),
@@ -165,6 +274,11 @@ export async function listPhones(opts: {
       }),
     ]);
 
+    const unregSet =
+      opts.kind === "endpoints_registered"
+        ? await unregisteredSetForEndpointRows(rows, knownUnregistered)
+        : null;
+
     return {
       kind: opts.kind,
       items: rows.map((row) => ({
@@ -173,17 +287,28 @@ export async function listPhones(opts: {
         endpointNumber: row.endpointNumber,
         data: asStringRecord(row.data),
         lastSyncedAt: row.lastSyncedAt.toISOString(),
+        sipUnregistered: unregSet
+          ? isSipUnregistered(row.endpointNumber, unregSet)
+          : false,
       })),
       headers: asStringArray(state?.headersEndpoints, ENDPOINT_HEADERS),
       total,
       page,
       pageSize,
-      lastSyncedAt: state?.lastSyncedAt?.toISOString() ?? null,
-      endpointCount: state?.endpointCount ?? 0,
-      gatewayCount: state?.gatewayCount ?? 0,
-      registeredCount: buckets.registeredCount,
-      unregisteredCount: buckets.unregisteredCount,
-      errorCount: buckets.errorCount,
+      ...emptyMeta,
+    };
+  }
+
+  // Gateways have no endpoint number column — phone search yields empty set.
+  if (phoneQ) {
+    return {
+      kind: "gateways",
+      items: [],
+      headers: asStringArray(state?.headersGateways, GATEWAY_HEADERS),
+      total: 0,
+      page,
+      pageSize,
+      ...emptyMeta,
     };
   }
 
@@ -210,6 +335,7 @@ export async function listPhones(opts: {
       endpointNumber: null,
       data: asStringRecord(row.data),
       lastSyncedAt: row.lastSyncedAt.toISOString(),
+      sipUnregistered: false,
     })),
     headers: asStringArray(state?.headersGateways, GATEWAY_HEADERS),
     total,
@@ -228,6 +354,8 @@ export async function listPhoneFacets(opts: {
   kind: PhoneKind;
   column: string;
   filters?: ColumnFilters;
+  phoneQ?: string;
+  sipUnregisteredOnly?: boolean;
   q?: string;
   limit?: number;
 }): Promise<FacetResponse> {
@@ -237,11 +365,26 @@ export async function listPhoneFacets(opts: {
   }
 
   const filters = opts.filters ?? {};
+  const phoneQ = opts.phoneQ?.trim() ?? "";
+  const sipUnregisteredOnly =
+    Boolean(opts.sipUnregisteredOnly) && opts.kind === "endpoints_registered";
 
   if (isEndpointPhoneKind(opts.kind)) {
-    const where = applyJsonColumnFilters(endpointKindWhere(opts.kind), filters, {
-      excludeColumn: column,
-    }) as Prisma.PhoneEndpointWhereInput;
+    let where = applyEndpointPhoneQ(
+      applyJsonColumnFilters(endpointKindWhere(opts.kind), filters, {
+        excludeColumn: column,
+      }) as Prisma.PhoneEndpointWhereInput,
+      phoneQ,
+    );
+
+    if (sipUnregisteredOnly) {
+      const unregisteredPhones = await loadUnregisteredSipPhones();
+      const filtered = applySipUnregisteredOnly(where, unregisteredPhones);
+      if (!filtered) {
+        return { items: [], truncated: false };
+      }
+      where = filtered;
+    }
 
     const rows = await prisma.phoneEndpoint.findMany({
       where,
@@ -251,6 +394,10 @@ export async function listPhoneFacets(opts: {
       rows.map((r) => cellToFilterToken(readCell(r.data, column))),
       { q: opts.q, limit: opts.limit },
     );
+  }
+
+  if (phoneQ) {
+    return { items: [], truncated: false };
   }
 
   const where = applyJsonColumnFilters({}, filters, {

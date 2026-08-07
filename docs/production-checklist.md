@@ -1,6 +1,7 @@
 # Production go-live checklist
 
 Operator checklist for deploying Reg behind Docker/Portainer + Nginx Proxy Manager.  
+**Recommended production path:** GHCR images + [`docker-compose.portainer.yml`](../docker-compose.portainer.yml) — see [deploy-portainer.md](./deploy-portainer.md).  
 Related: [backup-and-restore.md](./backup-and-restore.md), [smoke-tests.md](./smoke-tests.md), [remote-server-setup.md](./remote-server-setup.md), [security-model.md](./security-model.md).
 
 ## Must not do (production)
@@ -29,15 +30,23 @@ Optional publish ports: `APP_PUBLISH_PORT`, `POSTGRES_PUBLISH_PORT`.
 
 ## 2. Docker / Portainer stack
 
-1. Ensure `.env` exists next to `docker-compose.yml` (compose requires secrets).
-2. Deploy stack: `docker compose up -d --build` (or Portainer stack from the same compose).
-3. Confirm services: `db` healthy → `migrate` exits 0 → `app` healthy (`/api/readyz`).
-4. **Replicas:** keep a single `app` container (`deploy.replicas: 1` / do not scale).
+### Production (GHCR + Portainer)
+
+1. Follow [deploy-portainer.md](./deploy-portainer.md): stack from `docker-compose.portainer.yml`, images `ghcr.io/finenumbers/reg:1.0.0` + `:1.0.0-migrator`.
+2. External network `proxy` must already exist (NPM).
+3. Confirm: `db` healthy → `migrate` exits 0 → `app` healthy (`/api/readyz`).
+4. **Replicas:** keep a single `app` container (do not scale).
+
+### Local build (optional)
+
+1. Ensure `.env` exists next to `docker-compose.yml`.
+2. `docker compose up -d --build`.
+3. Same health order as above.
 
 ### NPM (Nginx Proxy Manager)
 
-1. Attach `app` to the existing external `proxy` network (uncomment `networks` / `proxy` in compose).
-2. Create Proxy Host → forward to `http://<app-service-name>:3000`.
+1. `app` must be on the external `proxy` network (`docker-compose.portainer.yml` does this by default; local compose: uncomment `proxy`).
+2. Create Proxy Host → forward to `http://<app-service-or-container>:3000`.
 3. Route **both** `/` and `/api` to that **same** upstream (one Next.js service).
 4. Enable SSL on NPM; set `BETTER_AUTH_URL` to the HTTPS origin.
 5. Forward real client IP (`X-Forwarded-For` / `X-Real-IP`) — NPM usually does this; needed for login rate limits / audit IP.

@@ -200,15 +200,16 @@ Prisma model `RegistrationSnapshot` may exist as a placeholder; poll processor d
 
 ## 5. Правила записи регистраций
 
-На одном успешном poll:
+На одном **успешном** poll — **full replace** комплекта `reg_current`:
 
-1. Распарсить валидные строки.
-2. Для каждого phone:
+1. Распарсить валидные строки (дубликаты phone → last wins + counter warning).
+2. Для каждого phone из dump:
    - если нет в `reg_current` → insert + change_event (old=null);
    - если есть и поля равны → обновить только `last_seen_at`;
    - если есть и поля отличаются → update current + insert change_event.
-3. Дубликаты phone в одном stdout → last wins + counter warning.
-4. При failed SSH / empty stdout / exit≠0 → **не** менять `reg_current` и **не** писать change events; run = `failed` с текстом ошибки; UI показывает явный индикатор проблемы (последний цикл / баннер).
+3. Удалить из `reg_current` любые phone, которых **нет** в dump (история `reg_change_events` сохраняется; событие на delete не пишем).
+4. Пустой успешный dump (0 valid rows при непустом stdout) → пустой `reg_current`.
+5. При failed SSH / empty stdout / exit≠0 / timeout → **не** менять `reg_current` и **не** писать change events; run = `failed`; UI показывает проблему.
 
 ## 6. Пример формата источника
 

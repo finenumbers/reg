@@ -7,7 +7,7 @@ import {
 } from "@/modules/registrations/ui-format";
 
 /**
- * Detail panel projection — mirrors what RegsDetailSheet / detail page render
+ * Detail panel projection — mirrors what RegsDetailSheet renders
  * from a mocked GET /api/regs/[phone] payload.
  */
 function projectDetailPanel(detail: RegistrationDetailResult) {

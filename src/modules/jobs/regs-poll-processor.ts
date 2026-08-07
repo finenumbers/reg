@@ -7,6 +7,7 @@
 import type { JobTrigger } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
 import { logger } from "@/lib/logger";
+import { truncateUtf8 } from "@/lib/utf8-truncate";
 import {
   remoteExecutionService,
   type RemoteExecutionService,
@@ -43,12 +44,7 @@ const DEFAULT_DEPS: RegsPollProcessorDeps = {
   apply: applyRegistrationPoll,
 };
 
-function truncateArtifact(text: string, maxBytes: number): string {
-  if (Buffer.byteLength(text, "utf8") <= maxBytes) return text;
-  // Keep head of artifact for diagnostics; mark truncation.
-  const buf = Buffer.from(text, "utf8").subarray(0, Math.max(0, maxBytes - 64));
-  return `${buf.toString("utf8")}\n…[truncated]`;
-}
+const DEFAULT_ARTIFACT_MAX_BYTES = 50_000_000;
 
 /**
  * Sanitize stderr for inclusion in job errorMessage (UI/ops).
@@ -97,7 +93,7 @@ async function loadArtifactLimits(): Promise<{
 }> {
   const settings = await prisma.appSetting.findUnique({ where: { id: 1 } });
   return {
-    maxBytes: settings?.artifactMaxBytes ?? 1_048_576,
+    maxBytes: settings?.artifactMaxBytes ?? DEFAULT_ARTIFACT_MAX_BYTES,
     retentionDays: settings?.artifactRetentionDays ?? 14,
     keepLastRuns: settings?.artifactKeepLastRuns ?? 50,
   };
@@ -194,12 +190,12 @@ export async function processRegsPoll(
         where: { jobRunId: jobRun.id },
         create: {
           jobRunId: jobRun.id,
-          stdout: truncateArtifact(extras.stdout ?? "", limits.maxBytes),
-          stderr: truncateArtifact(extras.stderr ?? "", limits.maxBytes),
+          stdout: truncateUtf8(extras.stdout ?? "", limits.maxBytes),
+          stderr: truncateUtf8(extras.stderr ?? "", limits.maxBytes),
         },
         update: {
-          stdout: truncateArtifact(extras.stdout ?? "", limits.maxBytes),
-          stderr: truncateArtifact(extras.stderr ?? "", limits.maxBytes),
+          stdout: truncateUtf8(extras.stdout ?? "", limits.maxBytes),
+          stderr: truncateUtf8(extras.stderr ?? "", limits.maxBytes),
         },
       });
     }
@@ -290,17 +286,27 @@ export async function processRegsPoll(
 
   const parsed = parseRegsStdout(execResult.stdout);
 
-  if (parsed.badLines.length > 0) {
+  if (parsed.linesBad > 0) {
     logger.warn("regs.poll.parser_anomalies", {
       jobRunId: jobRun.id,
       linesBad: parsed.linesBad,
       sample: parsed.badLines.slice(0, 5),
     });
+    return fail(
+      `regs.poll отклонён: ${parsed.linesBad} некорректных строк — текущее состояние не обновлено`,
+      {
+        exitCode: execResult.exitCode,
+        stdout: execResult.stdout,
+        stderr: execResult.stderr,
+        phonesParsed: parsed.rows.length,
+        linesBad: parsed.linesBad,
+      },
+    );
   }
 
-  if (parsed.rows.length === 0) {
+  if (parsed.linesTotal > 0 && parsed.rows.length === 0) {
     return fail(
-      "No valid registration lines parsed — current state not updated",
+      "regs.poll отклонён: нет валидных строк при непустом stdout — текущее состояние не обновлено",
       {
         exitCode: execResult.exitCode,
         stdout: execResult.stdout,
@@ -332,12 +338,12 @@ export async function processRegsPoll(
     where: { jobRunId: jobRun.id },
     create: {
       jobRunId: jobRun.id,
-      stdout: truncateArtifact(execResult.stdout, limits.maxBytes),
-      stderr: truncateArtifact(execResult.stderr, limits.maxBytes),
+      stdout: truncateUtf8(execResult.stdout, limits.maxBytes),
+      stderr: truncateUtf8(execResult.stderr, limits.maxBytes),
     },
     update: {
-      stdout: truncateArtifact(execResult.stdout, limits.maxBytes),
-      stderr: truncateArtifact(execResult.stderr, limits.maxBytes),
+      stdout: truncateUtf8(execResult.stdout, limits.maxBytes),
+      stderr: truncateUtf8(execResult.stderr, limits.maxBytes),
     },
   });
 
@@ -357,6 +363,7 @@ export async function processRegsPoll(
         duplicatePhones: parsed.duplicatePhones,
         linesTotal: parsed.linesTotal,
         durationMsRemote: execResult.durationMs,
+        removed: applyResult.removed,
       },
     },
   });

@@ -90,14 +90,5 @@ export class SshAllowlistedRemoteExecutionService implements RemoteExecutionServ
   }
 }
 
-/** Kept for tests / fallbacks that need an explicit stub. */
-export class NotImplementedRemoteExecutionService implements RemoteExecutionService {
-  async execute(_request: RemoteExecutionRequest): Promise<RemoteExecutionResult> {
-    throw new Error(
-      "RemoteExecutionService stub — use SshAllowlistedRemoteExecutionService",
-    );
-  }
-}
-
 export const remoteExecutionService: RemoteExecutionService =
   new SshAllowlistedRemoteExecutionService();
