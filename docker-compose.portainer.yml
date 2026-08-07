@@ -6,7 +6,7 @@
 #
 # Prerequisites:
 #   1. External Docker network `proxy` already used by Nginx Proxy Manager (NPM).
-#   2. `.env` next to this file (copy from `.env.example`) with real secrets.
+#   2. Set secrets in Portainer → Stack → Environment variables (no .env file required).
 #
 # Full guide: docs/deploy-portainer.md
 # On upgrade: pull latest images, then redeploy the stack (Portainer "Pull and redeploy"
@@ -50,12 +50,12 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
-    env_file:
-      - .env
+    # Secrets come from Portainer stack Environment (compose interpolation).
+    # Do not use env_file: .env — Portainer Git stacks have no .env on disk.
     environment:
       NODE_ENV: production
       DATABASE_URL: postgresql://${POSTGRES_USER:-reg}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-reg}?schema=public
-      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Set BETTER_AUTH_SECRET in .env}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Set BETTER_AUTH_SECRET in Portainer stack env}
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:?Set BETTER_AUTH_URL to the public HTTPS origin}
       APP_ENCRYPTION_KEY: ${APP_ENCRYPTION_KEY:?Set APP_ENCRYPTION_KEY (64 hex chars)}
       ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
