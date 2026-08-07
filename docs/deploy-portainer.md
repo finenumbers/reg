@@ -41,6 +41,7 @@ In Portainer (Stack → Environment variables) or a `.env` file next to the comp
 | `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | Strong DB password in production |
 
 Do **not** set an image tag override — compose pins `latest` / `latest-migrator` only.
+Do **not** commit real secrets. Use `.env.example` as a template only.
 
 ## 3. Portainer stack
 
