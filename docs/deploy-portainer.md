@@ -28,9 +28,10 @@ Package: [ghcr.io/finenumbers/reg](https://github.com/finenumbers/reg/pkgs/conta
 
 3. Softswitch scripts installed per [remote-server-setup.md](./remote-server-setup.md) (`/opt/scripts/…`).
 
-## 2. Stack env
+## 2. Stack env (required)
 
-In Portainer (Stack → Environment variables) or a `.env` file next to the compose:
+In Portainer open the stack → **Environment variables** and add (Advanced mode / name=value).  
+**Do not** rely on a `.env` file — Git-based stacks have no `/data/compose/…/.env` on disk (that caused deploy failures).
 
 | Variable | Notes |
 |----------|--------|
@@ -41,14 +42,14 @@ In Portainer (Stack → Environment variables) or a `.env` file next to the comp
 | `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | Strong DB password in production |
 
 Do **not** set an image tag override — compose pins `latest` / `latest-migrator` only.
-Do **not** commit real secrets. Use `.env.example` as a template only.
+Do **not** commit real secrets. Use `.env.example` only as a checklist of names.
 
 ## 3. Portainer stack
 
 1. **Stacks → Add stack**.
 2. Name e.g. `reg`.
 3. Paste contents of `docker-compose.portainer.yml` (or pull from Git: repo `finenumbers/reg`, path `docker-compose.portainer.yml`, branch `main`).
-4. Set environment variables from the table above.
+4. Under **Environment variables**, set every key from the table in §2 (especially `POSTGRES_PASSWORD`, `BETTER_AUTH_*`, `APP_ENCRYPTION_KEY`).
 5. **Deploy the stack**.
 6. Wait: `db` healthy → `migrate` exits 0 → `app` healthy.
 
