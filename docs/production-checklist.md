@@ -71,7 +71,10 @@ Follow [remote-server-setup.md](./remote-server-setup.md): dedicated user, force
 1. Login at `/login` with bootstrap admin.
 2. **Settings:** SSH host/port/user; import key (PPK/PEM); **Test connection** (auth/session only).
 3. **Registrations:** manual **Run poll** once; confirm `/jobs` and data on `/regs`.
-4. Only then enable Settings **регулярный опрос** (`regsPollEnabled`) with a sane interval (still one replica).
+4. **Incoming groups / phones:** load groups once, then phones sync; spot-check XLSX «Группы» has no duplicate IDs.
+5. Only then enable Settings **регулярный опрос** (`regsPollEnabled`) with a sane interval (still one replica).
+
+**Sync data-loss note:** regs/phones/groups apply is full-replace. An empty dump is rejected when the table is non-empty, but a **truncated non-empty** softswitch dump (exit 0) can still wipe missing rows. After an anomalous sync, check `/jobs` (stderr/artifact) before trusting the snapshot.
 
 ## 6. Verify
 

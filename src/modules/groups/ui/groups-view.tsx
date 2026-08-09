@@ -72,7 +72,7 @@ export function GroupsView({ canRequest, initial }: Props) {
 
     try {
       const before = await fetchGroupsStatus();
-      const beforeFinishedAt = before.ok ? before.data.lastSyncedAt : null;
+      const beforeFinishedAt = before.ok ? before.data.lastFinishedAt : null;
 
       const enqueued = await postGroupsRequest();
       if (!enqueued.ok) {

@@ -50,7 +50,6 @@ export async function POST(request: Request) {
 
   return NextResponse.json({
     accepted: true,
-    jobRunId: result.jobRunId,
     message: "groups.sync поставлен в очередь",
   });
 }

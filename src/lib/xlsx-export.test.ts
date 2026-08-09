@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import path from "node:path";
 import ExcelJS from "exceljs";
 import {
   createSimpleWorkbook,
@@ -93,6 +94,35 @@ describe("xlsx-export helpers", () => {
     });
     expect(sheet.getRow(1).getCell(1).border?.top?.style).toBe("thin");
     expect(sheet.getRow(1).getCell(1).font?.bold).toBe(true);
+  });
+
+  it("clears template Groups rows without doubling (phones-export.xlsx)", async () => {
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.readFile(
+      path.join(process.cwd(), "ops/templates/phones-export.xlsx"),
+    );
+    const sheet = wb.getWorksheet("Группы");
+    expect(sheet).toBeTruthy();
+    if (!sheet) return;
+
+    const rows = Array.from({ length: 40 }, (_, i) => [
+      String(i + 1),
+      `Group_${i + 1}`,
+    ]);
+    replaceSheetData(sheet, ["ID", "Название"], rows);
+
+    const seen: string[] = [];
+    sheet.eachRow((row, rowNumber) => {
+      if (rowNumber === 1) return;
+      const id = String(row.getCell(1).value ?? "").trim();
+      const name = String(row.getCell(2).value ?? "").trim();
+      if (!id && !name) return;
+      seen.push(`${id}|${name}`);
+    });
+    expect(seen).toHaveLength(40);
+    expect(new Set(seen).size).toBe(40);
+    expect(seen[0]).toBe("1|Group_1");
+    expect(seen[39]).toBe("40|Group_40");
   });
 });
 

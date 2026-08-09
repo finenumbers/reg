@@ -25,6 +25,8 @@ export type GroupsOperationalStatus = {
   lastFailedError: string | null;
   runningCount: number;
   groupCount: number;
+  /** Last groups.sync job finishedAt (or startedAt) — UI wait uses this, not catalog sync time. */
+  lastFinishedAt: string | null;
   lastSyncedAt: string | null;
 };
 
@@ -74,6 +76,7 @@ export async function getGroupsOperationalStatus(): Promise<GroupsOperationalSta
     lastFailedError: summary.lastFailed?.errorMessage ?? null,
     runningCount: summary.runningCount,
     groupCount: state?.groupCount ?? groupCount,
+    lastFinishedAt: lastAny?.finishedAt ?? lastAny?.startedAt ?? null,
     lastSyncedAt: state?.lastSyncedAt?.toISOString() ?? null,
   };
 }

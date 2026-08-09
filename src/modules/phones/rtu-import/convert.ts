@@ -86,7 +86,7 @@ function resolveGroups(
     const id = groupIdByName.get(name);
     if (!id) {
       issues.push({
-        message: `Лист «${sheetLabel}», строка ${rowNumber}: входящая группа «${name}» не найдена в листе «Группы»`,
+        message: `Лист «${sheetLabel}», строка ${rowNumber}: входящая группа «${name}» не найдена в справочнике входящих групп (раздел «Входящие группы»)`,
       });
       continue;
     }

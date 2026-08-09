@@ -82,7 +82,7 @@ export function toGroupsSyncStatusSnapshot(
   return {
     lastJobStatus: data.lastJobStatus,
     lastError: data.lastError,
-    lastFinishedAt: data.lastSyncedAt,
+    lastFinishedAt: data.lastFinishedAt,
     runningCount: data.runningCount,
     lastFailedError: data.lastFailedError,
   };

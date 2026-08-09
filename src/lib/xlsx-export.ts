@@ -114,9 +114,11 @@ export function replaceSheetData(
     styleCell?: (ctx: ReplaceSheetStyleCellCtx) => void;
   },
 ): void {
-  const last = sheet.rowCount;
-  if (last > 1) {
-    sheet.spliceRows(2, last - 1);
+  // ExcelJS spliceRows(2, N) is unreliable on worksheets loaded from .xlsx
+  // templates (e.g. phones-export Groups sheet) — old rows survive and
+  // addRow appends duplicates. Delete from the end one row at a time.
+  for (let i = sheet.rowCount; i >= 2; i--) {
+    sheet.spliceRows(i, 1);
   }
 
   const headerRow = sheet.getRow(1);
