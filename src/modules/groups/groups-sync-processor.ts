@@ -50,6 +50,17 @@ function emptyStdoutErrorMessage(stderr: string): string {
   return `${base}. Проверьте NOPASSWD sudoers на /opt/scripts/export.py.`;
 }
 
+function remoteExitErrorMessage(
+  exitCode: number | null | undefined,
+  stderr: string,
+): string {
+  const code = exitCode ?? "unknown";
+  const snippet = sanitizeStderrSnippet(stderr);
+  const base = `Remote script exited with code ${code}`;
+  if (snippet) return `${base}. stderr: ${snippet}`;
+  return base;
+}
+
 async function loadArtifactLimits(): Promise<{
   maxBytes: number;
   retentionDays: number;
@@ -219,14 +230,11 @@ export async function processGroupsSync(
   }
 
   if (execResult.exitCode !== 0) {
-    return fail(
-      `Remote script exited with code ${execResult.exitCode ?? "unknown"}`,
-      {
-        exitCode: execResult.exitCode,
-        stdout: execResult.stdout,
-        stderr: execResult.stderr,
-      },
-    );
+    return fail(remoteExitErrorMessage(execResult.exitCode, execResult.stderr), {
+      exitCode: execResult.exitCode,
+      stdout: execResult.stdout,
+      stderr: execResult.stderr,
+    });
   }
 
   if (!execResult.stdout.trim() || !stripAnsi(execResult.stdout).trim()) {
