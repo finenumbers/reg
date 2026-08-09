@@ -469,10 +469,10 @@ export function PhonesView({ canRequest, initial }: Props) {
       {rtuError ? (
         <div
           role="alert"
-          className="shrink-0 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+          className="flex min-h-0 shrink-0 flex-col rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive"
         >
-          <p className="font-medium">{rtuError.error}</p>
-          <ul className="mt-1 list-disc space-y-0.5 pl-5">
+          <p className="shrink-0 font-medium">{rtuError.error}</p>
+          <ul className="mt-1 max-h-[min(40vh,20rem)] list-disc space-y-0.5 overflow-y-auto pl-5">
             {rtuError.details.map((d, i) => (
               <li key={`${i}-${d.slice(0, 48)}`}>{d}</li>
             ))}
