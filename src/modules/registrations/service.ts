@@ -13,6 +13,7 @@ import {
 } from "@/components/column-filters/types";
 import { prisma } from "@/lib/db";
 import { buildPhoneDescriptionMap } from "@/modules/registrations/phone-description";
+import { sortRegistrationItemsByPhone } from "@/modules/registrations/sort";
 import type {
   RegistrationHistoryItem,
   RegistrationListItem,
@@ -157,8 +158,8 @@ export async function loadAllRegistrationItems(): Promise<RegistrationListItem[]
     orderBy: [{ phone: "asc" }],
   });
   const descriptions = await descriptionsForPhones(rows.map((r) => r.phone));
-  return rows.map((row) =>
-    toListItem(row, descriptions.get(row.phone) ?? null),
+  return sortRegistrationItemsByPhone(
+    rows.map((row) => toListItem(row, descriptions.get(row.phone) ?? null)),
   );
 }
 
