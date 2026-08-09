@@ -65,7 +65,14 @@ export async function postGroupsRequest(): Promise<SyncApiResult> {
     method: "POST",
     cache: "no-store",
   });
-  const body = await readJson(res);
+  const body = (await readJson(res)) as {
+    accepted?: boolean;
+    message?: string;
+    reason?: string;
+    error?: string;
+    code?: string;
+    retryAfterSec?: number;
+  } | null;
   return interpretSyncResponse(res.status, body);
 }
 
