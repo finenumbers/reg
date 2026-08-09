@@ -1,9 +1,9 @@
 /**
- * Sort registration phones ascending (numeric-aware: 2 before 10).
+ * Sort registration phones ascending (lexicographic digit-string order).
  */
 
 export function compareRegistrationPhones(a: string, b: string): number {
-  return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
+  return a.localeCompare(b, "en", { sensitivity: "base" });
 }
 
 export function sortRegistrationItemsByPhone<T extends { phone: string }>(

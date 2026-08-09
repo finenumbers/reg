@@ -5,7 +5,7 @@ import {
 } from "@/modules/registrations/sort";
 
 describe("sortRegistrationItemsByPhone", () => {
-  it("orders phones numerically ascending", () => {
+  it("orders phones lexicographically ascending", () => {
     expect(
       sortRegistrationItemsByPhone([
         { phone: "73912193303" },
@@ -16,7 +16,9 @@ describe("sortRegistrationItemsByPhone", () => {
   });
 
   it("compareRegistrationPhones is ascending", () => {
-    expect(compareRegistrationPhones("9", "10")).toBeLessThan(0);
     expect(compareRegistrationPhones("738", "739")).toBeLessThan(0);
+    expect(compareRegistrationPhones("420910902600", "73852222205")).toBeLessThan(
+      0,
+    );
   });
 });
