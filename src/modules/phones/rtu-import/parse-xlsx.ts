@@ -130,10 +130,12 @@ export async function parseRtuXlsx(
   const issues: RtuConvertIssue[] = [];
   const wb = new ExcelJS.Workbook();
   try {
-    const buf = Buffer.isBuffer(data)
-      ? data
-      : Buffer.from(data instanceof ArrayBuffer ? data : data);
-    await wb.xlsx.load(buf);
+    const u8: Uint8Array = Buffer.isBuffer(data)
+      ? new Uint8Array(data)
+      : data instanceof ArrayBuffer
+        ? new Uint8Array(data)
+        : new Uint8Array(data);
+    await wb.xlsx.load(u8 as never);
   } catch {
     return {
       groupIdByName: new Map(),
