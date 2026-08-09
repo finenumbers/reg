@@ -179,6 +179,10 @@ export async function downloadPhonesExport(): Promise<DownloadXlsxResult> {
   return downloadXlsxFromUrl("/api/phones/export", "phones-export.xlsx");
 }
 
+export async function downloadPhonesUfwExport(): Promise<DownloadXlsxResult> {
+  return downloadXlsxFromUrl("/api/phones/ufw-export", "ufw-phones.xlsx");
+}
+
 export type RtuImportClientResult =
   | { ok: true; filename: string }
   | { ok: false; status: number; error: string; details: string[] };

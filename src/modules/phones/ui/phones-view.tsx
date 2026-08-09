@@ -21,6 +21,7 @@ import { TABLE_PAGE_SIZE } from "@/lib/table-pagination";
 import {
   convertPhonesRtuImport,
   downloadPhonesExport,
+  downloadPhonesUfwExport,
   fetchPhonesList,
   fetchPhonesStatus,
   postPhonesRequest,
@@ -86,6 +87,7 @@ export function PhonesView({ canRequest, initial }: Props) {
   const [syncState, setSyncState] = useState<SyncUiState>(IDLE_SYNC_STATE);
   const [exporting, setExporting] = useState(false);
   const [rtuConverting, setRtuConverting] = useState(false);
+  const [ufwExporting, setUfwExporting] = useState(false);
   const [rtuError, setRtuError] = useState<{
     error: string;
     details: string[];
@@ -394,6 +396,18 @@ export function PhonesView({ canRequest, initial }: Props) {
     toast.success("CSV для импорта в РТУ скачан");
   }
 
+  async function onUfwExport() {
+    if (ufwExporting) return;
+    setUfwExporting(true);
+    const result = await downloadPhonesUfwExport();
+    setUfwExporting(false);
+    if (!result.ok) {
+      toast.error(result.message);
+      return;
+    }
+    toast.success("Файл для импорта в UFW скачан");
+  }
+
   const pending = isSyncInFlight(syncState);
 
   function switchKind(next: PhoneKind) {
@@ -435,7 +449,7 @@ export function PhonesView({ canRequest, initial }: Props) {
             type="button"
             className="border-transparent bg-amber-400 text-amber-950 hover:bg-amber-500 hover:text-amber-950 focus-visible:border-amber-500 focus-visible:ring-amber-400/40"
             onClick={() => void onExportXlsx()}
-            disabled={exporting || rtuConverting}
+            disabled={exporting || rtuConverting || ufwExporting}
           >
             {exporting ? "Экспорт…" : "Экспорт XLSX"}
           </Button>
@@ -450,15 +464,23 @@ export function PhonesView({ canRequest, initial }: Props) {
             type="button"
             className="border-transparent bg-emerald-600 text-white hover:bg-emerald-700 hover:text-white focus-visible:border-emerald-700 focus-visible:ring-emerald-600/40"
             onClick={onRtuImportClick}
-            disabled={rtuConverting || exporting}
+            disabled={rtuConverting || exporting || ufwExporting}
           >
             {rtuConverting ? "Конвертация…" : "Импорт в РТУ"}
+          </Button>
+          <Button
+            type="button"
+            className="border-transparent bg-blue-700 text-white hover:bg-blue-800 hover:text-white focus-visible:border-blue-800 focus-visible:ring-blue-700/40"
+            onClick={() => void onUfwExport()}
+            disabled={ufwExporting || exporting || rtuConverting}
+          >
+            {ufwExporting ? "Формирование…" : "Импорт в UFW"}
           </Button>
           {canRequest ? (
             <Button
               type="button"
               onClick={() => void onRequest()}
-              disabled={pending}
+              disabled={pending || ufwExporting || rtuConverting || exporting}
             >
               {pending ? "Загрузка…" : "Загрузить данные"}
             </Button>

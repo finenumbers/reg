@@ -2,7 +2,7 @@
 
 Internal telecom ops platform for monitoring SIP registrations on an operator softswitch via allowlisted SSH scripts under `/opt/scripts/`.
 
-**Repository:** [github.com/finenumbers/reg](https://github.com/finenumbers/reg) · **Release:** [v1.1.2](https://github.com/finenumbers/reg/releases/tag/v1.1.2)
+**Repository:** [github.com/finenumbers/reg](https://github.com/finenumbers/reg) · **Release:** [v1.1.3](https://github.com/finenumbers/reg/releases/tag/v1.1.3)
 
 ## Stack (approved)
 
@@ -130,6 +130,7 @@ APIs:
 - `GET /api/phones` — list endpoints/gateways by `kind` (`phones:read`); filters: `filters` JSON, `phoneQ`, paging
 - `GET /api/phones/facets` — column facet values (`phones:read`)
 - `GET /api/phones/export` — XLSX export from template (`phones:read`)
+- `GET /api/phones/ufw-export` — UFW rules XLSX from DB snapshot (`phones:read`; nothing persisted)
 - `GET /api/phones/status` — last sync status (`phones:read`)
 - `POST /api/phones/request` — enqueue softswitch sync (`phones:sync`)
 
@@ -138,6 +139,7 @@ UI (`/phones`):
 - Kind select (gateways / registered / unregistered / error), phone search, column filters
 - SIP unregistered highlighting on registered trunks; XLSX export
 - **Импорт в РТУ** — выбор XLSX (экспорт + лист «Группы») → скачивание CSV для ручной загрузки в softswitch (ничего не сохраняется на сервере)
+- **Импорт в UFW** — XLSX с тремя листами правил (шлюзы / транки с рег. / без рег.) из IP-полей снимка БД
 
 ## Jobs / Audit (Phase 6)
 
