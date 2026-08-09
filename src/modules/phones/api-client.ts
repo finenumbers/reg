@@ -178,3 +178,63 @@ export function toSyncStatusSnapshot(
 export async function downloadPhonesExport(): Promise<DownloadXlsxResult> {
   return downloadXlsxFromUrl("/api/phones/export", "phones-export.xlsx");
 }
+
+export type RtuImportClientResult =
+  | { ok: true; filename: string }
+  | { ok: false; status: number; error: string; details: string[] };
+
+/**
+ * Upload XLSX, receive CSV download. Nothing is stored on the server.
+ */
+export async function convertPhonesRtuImport(
+  file: File,
+): Promise<RtuImportClientResult> {
+  const body = new FormData();
+  body.set("file", file);
+  const res = await fetch("/api/phones/rtu-import", {
+    method: "POST",
+    body,
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    let error = "Не удалось конвертировать файл";
+    let details: string[] = [];
+    try {
+      const json = (await res.json()) as {
+        error?: string;
+        details?: unknown;
+      };
+      if (typeof json.error === "string" && json.error.trim()) {
+        error = json.error.trim();
+      }
+      if (Array.isArray(json.details)) {
+        details = json.details
+          .filter((d): d is string => typeof d === "string" && d.trim().length > 0)
+          .map((d) => d.trim());
+      }
+    } catch {
+      /* ignore */
+    }
+    if (details.length === 0) details = [error];
+    return { ok: false, status: res.status, error, details };
+  }
+
+  const blob = await res.blob();
+  const filename =
+    /filename="([^"]+)"/i.exec(res.headers.get("Content-Disposition") ?? "")?.[1] ??
+    "import-rtu.csv";
+  const objectUrl = URL.createObjectURL(blob);
+  try {
+    const a = document.createElement("a");
+    a.href = objectUrl;
+    a.download = filename;
+    a.rel = "noopener";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+  return { ok: true, filename };
+}

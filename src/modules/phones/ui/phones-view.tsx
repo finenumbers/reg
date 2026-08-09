@@ -19,6 +19,7 @@ import {
 import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
 import { TABLE_PAGE_SIZE } from "@/lib/table-pagination";
 import {
+  convertPhonesRtuImport,
   downloadPhonesExport,
   fetchPhonesList,
   fetchPhonesStatus,
@@ -84,6 +85,12 @@ export function PhonesView({ canRequest, initial }: Props) {
   const [listError, setListError] = useState<string | null>(null);
   const [syncState, setSyncState] = useState<SyncUiState>(IDLE_SYNC_STATE);
   const [exporting, setExporting] = useState(false);
+  const [rtuConverting, setRtuConverting] = useState(false);
+  const [rtuError, setRtuError] = useState<{
+    error: string;
+    details: string[];
+  } | null>(null);
+  const rtuFileInputRef = useRef<HTMLInputElement | null>(null);
   const syncInFlightRef = useRef(false);
   const refreshSeq = useRef(0);
   const loadingMoreRef = useRef(false);
@@ -363,6 +370,30 @@ export function PhonesView({ canRequest, initial }: Props) {
     toast.success("Файл экспорта скачан");
   }
 
+  function onRtuImportClick() {
+    if (rtuConverting) return;
+    setRtuError(null);
+    rtuFileInputRef.current?.click();
+  }
+
+  async function onRtuFileSelected(fileList: FileList | null) {
+    const file = fileList?.[0];
+    if (rtuFileInputRef.current) rtuFileInputRef.current.value = "";
+    if (!file || rtuConverting) return;
+
+    setRtuConverting(true);
+    setRtuError(null);
+    const result = await convertPhonesRtuImport(file);
+    setRtuConverting(false);
+
+    if (!result.ok) {
+      setRtuError({ error: result.error, details: result.details });
+      toast.error(result.error);
+      return;
+    }
+    toast.success("CSV для импорта в РТУ скачан");
+  }
+
   const pending = isSyncInFlight(syncState);
 
   function switchKind(next: PhoneKind) {
@@ -404,15 +435,24 @@ export function PhonesView({ canRequest, initial }: Props) {
             type="button"
             className="border-transparent bg-amber-400 text-amber-950 hover:bg-amber-500 hover:text-amber-950 focus-visible:border-amber-500 focus-visible:ring-amber-400/40"
             onClick={() => void onExportXlsx()}
-            disabled={exporting}
+            disabled={exporting || rtuConverting}
           >
             {exporting ? "Экспорт…" : "Экспорт XLSX"}
           </Button>
+          <input
+            ref={rtuFileInputRef}
+            type="file"
+            accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            className="hidden"
+            onChange={(e) => void onRtuFileSelected(e.target.files)}
+          />
           <Button
             type="button"
             className="border-transparent bg-emerald-600 text-white hover:bg-emerald-700 hover:text-white focus-visible:border-emerald-700 focus-visible:ring-emerald-600/40"
+            onClick={onRtuImportClick}
+            disabled={rtuConverting || exporting}
           >
-            Импорт в РТУ
+            {rtuConverting ? "Конвертация…" : "Импорт в РТУ"}
           </Button>
           {canRequest ? (
             <Button
@@ -425,6 +465,20 @@ export function PhonesView({ canRequest, initial }: Props) {
           ) : null}
         </div>
       </div>
+
+      {rtuError ? (
+        <div
+          role="alert"
+          className="shrink-0 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+        >
+          <p className="font-medium">{rtuError.error}</p>
+          <ul className="mt-1 list-disc space-y-0.5 pl-5">
+            {rtuError.details.map((d, i) => (
+              <li key={`${i}-${d.slice(0, 48)}`}>{d}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       {syncState.message ? (
         <p

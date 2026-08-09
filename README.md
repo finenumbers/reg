@@ -2,7 +2,7 @@
 
 Internal telecom ops platform for monitoring SIP registrations on an operator softswitch via allowlisted SSH scripts under `/opt/scripts/`.
 
-**Repository:** [github.com/finenumbers/reg](https://github.com/finenumbers/reg) · **Release:** [v1.0.2](https://github.com/finenumbers/reg/releases/tag/v1.0.2)
+**Repository:** [github.com/finenumbers/reg](https://github.com/finenumbers/reg) · **Release:** [v1.1.0](https://github.com/finenumbers/reg/releases/tag/v1.1.0)
 
 ## Stack (approved)
 
@@ -137,6 +137,7 @@ UI (`/phones`):
 
 - Kind select (gateways / registered / unregistered / error), phone search, column filters
 - SIP unregistered highlighting on registered trunks; XLSX export
+- **Импорт в РТУ** — выбор XLSX (экспорт + лист «Группы») → скачивание CSV для ручной загрузки в softswitch (ничего не сохраняется на сервере)
 
 ## Jobs / Audit (Phase 6)
 

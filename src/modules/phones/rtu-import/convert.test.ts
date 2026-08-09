@@ -1,0 +1,74 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { describe, expect, it } from "vitest";
+import {
+  convertRtuXlsxToCsv,
+  resetRtuImportDefaultsCache,
+} from "@/modules/phones/rtu-import";
+
+const fixtureDir = path.join(process.cwd(), "ops/fixtures/rtu");
+
+function parseCsvLine(line: string): string[] {
+  const cleaned = line.replace(/\r$/, "");
+  const out: string[] = [];
+  let cur = "";
+  let inQ = false;
+  for (let i = 0; i < cleaned.length; i++) {
+    const ch = cleaned[i]!;
+    if (inQ) {
+      if (ch === '"') {
+        if (cleaned[i + 1] === '"') {
+          cur += '"';
+          i++;
+        } else inQ = false;
+      } else cur += ch;
+    } else if (ch === '"') inQ = true;
+    else if (ch === ";") {
+      out.push(cur);
+      cur = "";
+    } else cur += ch;
+  }
+  out.push(cur);
+  return out;
+}
+
+describe("convertRtuXlsxToCsv", () => {
+  it("matches golden import.csv for sample.xlsx", async () => {
+    resetRtuImportDefaultsCache();
+    const xlsx = readFileSync(path.join(fixtureDir, "sample.xlsx"));
+    const golden = readFileSync(path.join(fixtureDir, "import.csv"), "utf8")
+      .replace(/^\uFEFF/, "")
+      .trimEnd();
+    const result = await convertRtuXlsxToCsv(xlsx);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect(result.endpointCount).toBe(2);
+    expect(result.gatewayCount).toBe(3);
+
+    const gLines = golden.split("\n");
+    const oLines = result.csv.trimEnd().split("\n");
+    expect(oLines).toHaveLength(gLines.length);
+
+    for (let r = 0; r < gLines.length; r++) {
+      expect(parseCsvLine(oLines[r]!)).toEqual(parseCsvLine(gLines[r]!));
+    }
+  });
+
+  it("returns detailed errors for missing Groups sheet", async () => {
+    resetRtuImportDefaultsCache();
+    // minimal zip that is not a valid multi-sheet phones workbook
+    const result = await convertRtuXlsxToCsv(Buffer.from("not-xlsx"));
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.length).toBeGreaterThan(0);
+    expect(result.details.length).toBeGreaterThan(0);
+  });
+
+  it("rejects empty upload", async () => {
+    const result = await convertRtuXlsxToCsv(new Uint8Array());
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.details.some((d) => /пустой/i.test(d))).toBe(true);
+  });
+});
