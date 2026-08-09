@@ -39,6 +39,14 @@ export const XLSX_HEADER_ALIGNMENT: Partial<ExcelJS.Alignment> = {
   vertical: "middle",
 };
 
+export type ReplaceSheetStyleCellCtx = {
+  /** `-1` for header row, `0..` for data rows. */
+  rowIndex: number;
+  /** 0-based column index. */
+  colIndex: number;
+  cell: ExcelJS.Cell;
+};
+
 export function formatExportTimestamp(d = new Date()): string {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`;
@@ -61,8 +69,8 @@ export function columnWidthForValues(
     const len = [...String(value ?? "")].length;
     if (len > maxLen) maxLen = len;
   }
-  // Excel width ≈ character count; pad slightly, clamp
-  return Math.min(60, Math.max(8, maxLen + 2));
+  // Excel width ≈ character count; pad slightly; min 8; no tight upper clamp
+  return Math.max(8, maxLen + 2);
 }
 
 export function autofitSheetColumns(
@@ -103,6 +111,7 @@ export function replaceSheetData(
   opts?: {
     highlightRow?: (rowIndex: number, values: string[]) => boolean;
     highlightFill?: ExcelJS.Fill;
+    styleCell?: (ctx: ReplaceSheetStyleCellCtx) => void;
   },
 ): void {
   const last = sheet.rowCount;
@@ -112,7 +121,9 @@ export function replaceSheetData(
 
   const headerRow = sheet.getRow(1);
   for (let c = 1; c <= headers.length; c++) {
-    styleHeaderCell(headerRow.getCell(c), headers[c - 1]!);
+    const cell = headerRow.getCell(c);
+    styleHeaderCell(cell, headers[c - 1]!);
+    opts?.styleCell?.({ rowIndex: -1, colIndex: c - 1, cell });
   }
   headerRow.commit();
 
@@ -122,13 +133,23 @@ export function replaceSheetData(
     const highlight =
       Boolean(opts?.highlightRow?.(i, values)) && opts?.highlightFill;
     for (let c = 1; c <= headers.length; c++) {
-      styleBodyCell(excelRow.getCell(c), {
+      const cell = excelRow.getCell(c);
+      styleBodyCell(cell, {
         fill: highlight ? opts.highlightFill : undefined,
       });
+      opts?.styleCell?.({ rowIndex: i, colIndex: c - 1, cell });
     }
   }
 
   autofitSheetColumns(sheet, headers, rows);
+
+  sheet.autoFilter = {
+    from: { row: 1, column: 1 },
+    to: {
+      row: Math.max(1, rows.length + 1),
+      column: headers.length,
+    },
+  };
 }
 
 /** New workbook with the same table chrome as phones export. */
@@ -136,12 +157,15 @@ export function createSimpleWorkbook(opts: {
   sheetName: string;
   headers: readonly string[];
   rows: string[][];
+  styleCell?: (ctx: ReplaceSheetStyleCellCtx) => void;
 }): ExcelJS.Workbook {
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet(opts.sheetName);
   // Seed empty header row so replaceSheetData can rewrite it with styles.
   sheet.addRow(opts.headers.map(() => ""));
-  replaceSheetData(sheet, opts.headers, opts.rows);
+  replaceSheetData(sheet, opts.headers, opts.rows, {
+    styleCell: opts.styleCell,
+  });
   return workbook;
 }
 

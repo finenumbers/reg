@@ -108,6 +108,17 @@ export async function buildPhonesExportXlsx(): Promise<PhonesExportResult> {
   );
   replaceSheetData(gwSheet, GATEWAY_HEADERS, gwRows);
 
+  const groupHeaders = ["ID", "Название"] as const;
+  const groupRows: string[][] = [];
+  groups.eachRow((row, rowNumber) => {
+    if (rowNumber === 1) return;
+    const id = String(row.getCell(1).value ?? "").trim();
+    const name = String(row.getCell(2).value ?? "").trim();
+    if (!id && !name) return;
+    groupRows.push([id, name]);
+  });
+  replaceSheetData(groups, groupHeaders, groupRows);
+
   const buffer = await workbookToBuffer(workbook);
   const filename = `phones-${formatExportTimestamp()}.xlsx`;
   return { buffer, filename };

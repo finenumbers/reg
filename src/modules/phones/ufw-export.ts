@@ -3,11 +3,12 @@
  * Sheet layout matches ops sample: group | rtu | name | … with orange rtu column.
  */
 
-import ExcelJS from "exceljs";
 import { prisma } from "@/lib/db";
 import {
   formatExportTimestamp,
+  replaceSheetData,
   workbookToBuffer,
+  type ReplaceSheetStyleCellCtx,
 } from "@/lib/xlsx-export";
 import {
   REGISTRATION_FIELD,
@@ -15,6 +16,7 @@ import {
   REGISTRATION_YES,
   type PhoneRowData,
 } from "@/modules/phones/types";
+import ExcelJS from "exceljs";
 
 export const UFW_HEADERS = [
   "group",
@@ -51,10 +53,7 @@ export const UFW_RTU_FILL: ExcelJS.Fill = {
   fgColor: { argb: "FFFFC000" },
 };
 
-const UFW_RTU_FONT: Partial<ExcelJS.Font> = {
-  name: "Calibri",
-  size: 12,
-};
+const UFW_RTU_COL_INDEX = 1; // «rtu»
 
 const FIELD_NAME = "Название";
 const FIELD_DESC = "Описание";
@@ -164,9 +163,36 @@ export function buildUfwSheets(input: {
   return { gateways, registered, unregistered };
 }
 
-function applyRtuFill(cell: ExcelJS.Cell): void {
-  cell.fill = UFW_RTU_FILL;
-  cell.font = { ...UFW_RTU_FONT };
+function ufwRuleToRow(rule: UfwRuleRow): string[] {
+  return [
+    rule.group,
+    rule.rtu,
+    rule.name,
+    "ALLOW",
+    "IN",
+    "",
+    rule.fromAddress,
+    "",
+    "any",
+    "",
+    "",
+    "NONE",
+    "false",
+    "",
+    "",
+  ];
+}
+
+function styleRtuColumn(ctx: ReplaceSheetStyleCellCtx): void {
+  if (ctx.colIndex !== UFW_RTU_COL_INDEX) return;
+  ctx.cell.fill = UFW_RTU_FILL;
+  const prev = ctx.cell.font ?? {};
+  ctx.cell.font = {
+    ...prev,
+    name: "Calibri",
+    size: 12,
+    bold: ctx.rowIndex === -1 ? true : Boolean(prev.bold),
+  };
 }
 
 function writeSheet(
@@ -174,38 +200,10 @@ function writeSheet(
   sheetName: string,
   rows: UfwRuleRow[],
 ): void {
-  const ws = workbook.addWorksheet(sheetName);
-  const header = ws.getRow(1);
-  UFW_HEADERS.forEach((h, i) => {
-    const cell = header.getCell(i + 1);
-    cell.value = h;
-    if (h === "rtu") applyRtuFill(cell);
-  });
-
-  rows.forEach((rule, index) => {
-    const row = ws.getRow(index + 2);
-    const values: Record<UfwHeader, string | boolean> = {
-      group: rule.group,
-      rtu: rule.rtu,
-      name: rule.name,
-      action: "ALLOW",
-      direction: "IN",
-      interface: "",
-      fromAddress: rule.fromAddress,
-      fromPort: "",
-      toAddress: "any",
-      toPort: "",
-      protocol: "",
-      logMode: "NONE",
-      ipv6: false,
-      appName: "",
-      ruleComment: "",
-    };
-    UFW_HEADERS.forEach((h, i) => {
-      const cell = row.getCell(i + 1);
-      cell.value = values[h];
-      if (h === "rtu") applyRtuFill(cell);
-    });
+  const sheet = workbook.addWorksheet(sheetName);
+  sheet.addRow([...UFW_HEADERS].map(() => ""));
+  replaceSheetData(sheet, UFW_HEADERS, rows.map(ufwRuleToRow), {
+    styleCell: styleRtuColumn,
   });
 }
 

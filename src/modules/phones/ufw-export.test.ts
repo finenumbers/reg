@@ -94,7 +94,7 @@ describe("buildUfwSheets", () => {
 });
 
 describe("workbookFromUfwSheets", () => {
-  it("writes three sheets with orange rtu column fill", async () => {
+  it("writes three sheets with orange rtu column, chrome, and autoFilter", async () => {
     const wb = workbookFromUfwSheets({
       gateways: [
         {
@@ -125,8 +125,16 @@ describe("workbookFromUfwSheets", () => {
     expect(dataRtu.value).toBe("gw1");
     expect(headerRtu.fill).toMatchObject(UFW_RTU_FILL);
     expect(dataRtu.fill).toMatchObject(UFW_RTU_FILL);
+    expect(headerRtu.font?.bold).toBe(true);
+    expect(headerRtu.alignment?.horizontal).toBe("center");
+    expect(headerRtu.border?.top?.style).toBe("thin");
+    expect(dataRtu.border?.left?.style).toBe("thin");
     expect(sheet.getRow(2).getCell(7).value).toBe("1.2.3.4");
     expect(sheet.getRow(2).getCell(4).value).toBe("ALLOW");
-    expect(sheet.getRow(2).getCell(13).value).toBe(false);
+    expect(sheet.getRow(2).getCell(13).value).toBe("false");
+    expect(sheet.autoFilter).toMatchObject({
+      from: { row: 1, column: 1 },
+      to: { row: 2, column: UFW_HEADERS.length },
+    });
   });
 });

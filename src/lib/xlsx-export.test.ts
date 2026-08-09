@@ -21,16 +21,16 @@ describe("xlsx-export helpers", () => {
     expect(buf.subarray(0, 2).toString("utf8")).toBe("PK");
   });
 
-  it("columnWidthForValues uses max length", () => {
-    expect(columnWidthForValues("ID", ["1", "22"])).toBe(
-      Math.min(60, Math.max(8, 2 + 2)),
-    );
+  it("columnWidthForValues uses max length without tight upper clamp", () => {
+    expect(columnWidthForValues("ID", ["1", "22"])).toBe(Math.max(8, 2 + 2));
     expect(columnWidthForValues("Название", ["abc"])).toBe(
-      Math.min(60, Math.max(8, [..."Название"].length + 2)),
+      Math.max(8, [..."Название"].length + 2),
     );
+    const long = "x".repeat(80);
+    expect(columnWidthForValues("H", [long])).toBe(82);
   });
 
-  it("replaceSheetData applies borders, highlight, and column widths", async () => {
+  it("replaceSheetData applies borders, highlight, autofit, and autoFilter", async () => {
     const wb = new ExcelJS.Workbook();
     const sheet = wb.addWorksheet("Оконечное оборудование");
     sheet.addRow(["Название", "Номер"]);
@@ -64,7 +64,35 @@ describe("xlsx-export helpers", () => {
     expect(sheet.getRow(2).getCell(1).font?.bold).toBe(false);
     expect(sheet.getRow(2).getCell(2).border?.left?.style).toBe("thin");
     expect(sheet.getRow(3).getCell(1).border?.bottom?.style).toBe("thin");
-    expect(sheet.getColumn(1).width).toBeGreaterThanOrEqual(8);
+    expect(sheet.getColumn(1).width).toBeGreaterThanOrEqual(
+      [..."Название"].length + 2,
+    );
+    expect(sheet.autoFilter).toMatchObject({
+      from: { row: 1, column: 1 },
+      to: { row: 3, column: 2 },
+    });
+  });
+
+  it("styleCell runs after base styles", () => {
+    const wb = new ExcelJS.Workbook();
+    const sheet = wb.addWorksheet("T");
+    sheet.addRow(["A", "B"]);
+    replaceSheetData(sheet, ["A", "B"], [["1", "2"]], {
+      styleCell: ({ colIndex, cell }) => {
+        if (colIndex === 0) {
+          cell.fill = {
+            type: "pattern",
+            pattern: "solid",
+            fgColor: { argb: "FFFFC000" },
+          };
+        }
+      },
+    });
+    expect(sheet.getRow(1).getCell(1).fill).toMatchObject({
+      fgColor: { argb: "FFFFC000" },
+    });
+    expect(sheet.getRow(1).getCell(1).border?.top?.style).toBe("thin");
+    expect(sheet.getRow(1).getCell(1).font?.bold).toBe(true);
   });
 });
 
