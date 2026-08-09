@@ -3,7 +3,7 @@
 import type { ReactNode, Ref } from "react";
 import { cn } from "@/lib/utils";
 
-export function formatTableShownCount(shown: number, total: number): string {
+function formatTableShownCount(shown: number, total: number): string {
   if (total === 0) return "0 результатов";
   return `Показано ${shown} из ${total}`;
 }

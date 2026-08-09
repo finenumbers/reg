@@ -14,8 +14,6 @@ import { processGroupsSync } from "@/modules/groups/groups-sync-processor";
 import { processPhonesSync } from "@/modules/phones/phones-sync-processor";
 import {
   evaluateSchedulerBootstrap as evaluateSchedulerBootstrapImpl,
-  isAutoSchedulerRunning,
-  rescheduleAfterSettingsChange,
 } from "@/modules/jobs/scheduler";
 
 const SUPPORTED_JOB_ACTIONS = new Set<AllowedActionCode>([
@@ -130,5 +128,3 @@ export function evaluateSchedulerBootstrap(): {
 } {
   return evaluateSchedulerBootstrapImpl(jobRuntime);
 }
-
-export { isAutoSchedulerRunning, rescheduleAfterSettingsChange };

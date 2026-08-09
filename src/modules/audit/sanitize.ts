@@ -2,7 +2,7 @@
  * Shared audit meta redaction — used on write and again on read for defense in depth.
  */
 
-export const SECRET_META_KEYS = new Set([
+const SECRET_META_KEYS = new Set([
   "password",
   "passphrase",
   "privatekey",

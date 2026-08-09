@@ -34,8 +34,6 @@ import {
   type SettingsView,
 } from "@/modules/settings/schemas";
 
-export * from "@/modules/settings/schemas";
-
 async function ensureAppSettings() {
   return prisma.appSetting.upsert({
     where: { id: 1 },

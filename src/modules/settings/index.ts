@@ -3,5 +3,4 @@ export {
   getSettingsView,
   updateSettings,
   replaceSshPrivateKey,
-  loadActiveSshPrivateKeyPem,
 } from "@/modules/settings/service";

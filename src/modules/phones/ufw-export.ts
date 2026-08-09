@@ -123,12 +123,12 @@ function ruleFromData(
   };
 }
 
-export function mapGatewayToUfwRule(data: PhoneRowData): UfwRuleRow | null {
+function mapGatewayToUfwRule(data: PhoneRowData): UfwRuleRow | null {
   const address = mergeAddressLists(data[FIELD_INIT], data[FIELD_TERM]);
   return ruleFromData(UFW_GROUP_OPERATOR, data, address);
 }
 
-export function mapEndpointToUfwRule(data: PhoneRowData): UfwRuleRow | null {
+function mapEndpointToUfwRule(data: PhoneRowData): UfwRuleRow | null {
   const reg = (data[REGISTRATION_FIELD] ?? "").trim();
   if (reg === REGISTRATION_YES) {
     const address = mergeAddressLists(data[FIELD_REG_ADDR]);

@@ -5,7 +5,6 @@
 import {
   encodeFilters,
   type ColumnFilters,
-  type FacetResponse,
 } from "@/components/column-filters/types";
 import type {
   ListPhonesResult,
@@ -30,10 +29,6 @@ export type FetchPhonesStatusResult =
   | { ok: true; data: PhonesOperationalStatus }
   | { ok: false; status: number; message: string };
 
-export type FetchPhonesFacetsResult =
-  | { ok: true; data: FacetResponse }
-  | { ok: false; status: number; message: string };
-
 async function readJson(res: Response): Promise<unknown> {
   try {
     return await res.json();
@@ -50,7 +45,7 @@ function errorMessage(body: unknown, fallback: string): string {
   return fallback;
 }
 
-export function buildPhonesListUrl(opts: {
+function buildPhonesListUrl(opts: {
   kind: PhoneKind;
   filters?: ColumnFilters;
   phoneQ?: string;

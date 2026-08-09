@@ -81,7 +81,13 @@ export function summarizeJobResult(job: JobRunListItem): string {
   }
 
   const parts: string[] = [];
-  if (job.phonesParsed != null) parts.push(`${job.phonesParsed} номеров`);
+  if (job.phonesParsed != null) {
+    const countLabel =
+      job.actionCode === "groups.sync"
+        ? `${job.phonesParsed} групп`
+        : `${job.phonesParsed} номеров`;
+    parts.push(countLabel);
+  }
   if (job.linesBad != null && job.linesBad > 0) {
     parts.push(`${job.linesBad} плохих строк`);
   }

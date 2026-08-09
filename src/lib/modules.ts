@@ -18,13 +18,12 @@ export type FeatureModuleId =
   | "audit"
   | "health";
 
-export type FeatureModuleDefinition = {
+type FeatureModuleDefinition = {
   id: FeatureModuleId;
   title: string;
   description: string;
   href?: string;
   navPermission?: PermissionCode;
-  status: "scaffold" | "active";
 };
 
 export const FEATURE_MODULES: FeatureModuleDefinition[] = [
@@ -34,7 +33,6 @@ export const FEATURE_MODULES: FeatureModuleDefinition[] = [
     description: "Оконечное оборудование и шлюзы через phones.sync",
     href: "/phones",
     navPermission: "phones:read",
-    status: "active",
   },
   {
     id: "groups",
@@ -42,7 +40,6 @@ export const FEATURE_MODULES: FeatureModuleDefinition[] = [
     description: "Справочник routing groups с softswitch (только просмотр)",
     href: "/groups",
     navPermission: "phones:read",
-    status: "active",
   },
   {
     id: "registrations",
@@ -50,7 +47,6 @@ export const FEATURE_MODULES: FeatureModuleDefinition[] = [
     description: "Мониторинг SIP-регистраций через regs.poll",
     href: "/regs",
     navPermission: "regs:read",
-    status: "active",
   },
   {
     id: "settings",
@@ -58,7 +54,6 @@ export const FEATURE_MODULES: FeatureModuleDefinition[] = [
     description: "SSH-профиль, интервал опроса, хранение артефактов",
     href: "/settings",
     navPermission: "settings:write",
-    status: "active",
   },
   {
     id: "jobs",
@@ -66,7 +61,6 @@ export const FEATURE_MODULES: FeatureModuleDefinition[] = [
     description: "История запусков и диагностика",
     href: "/jobs",
     navPermission: "regs:read",
-    status: "active",
   },
   {
     id: "audit",
@@ -74,6 +68,5 @@ export const FEATURE_MODULES: FeatureModuleDefinition[] = [
     description: "Журнал действий администраторов и операторов",
     href: "/audit",
     navPermission: "audit:read",
-    status: "active",
   },
 ];

@@ -61,7 +61,7 @@ export function detectKeyFormat(raw: string): DetectedKeyFormat {
 }
 
 /** Read algorithm from PPK header only (no private material). */
-export function peekPpkAlgorithm(raw: string): string | null {
+function peekPpkAlgorithm(raw: string): string | null {
   const match = raw.trim().match(/^PuTTY-User-Key-File-[23]:\s*(\S+)/im);
   return match?.[1] ?? null;
 }

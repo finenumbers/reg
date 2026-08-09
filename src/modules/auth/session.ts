@@ -18,7 +18,7 @@ export type AuthzContext = {
   username: string | null;
 };
 
-export async function getSession(): Promise<AuthSession | null> {
+async function getSession(): Promise<AuthSession | null> {
   return auth.api.getSession({
     headers: await headers(),
   });
@@ -28,7 +28,7 @@ export async function getSession(): Promise<AuthSession | null> {
  * Session + RBAC + active-user check. Returns null when anonymous.
  * Throws AuthError("INACTIVE") when the account is disabled.
  */
-export async function getAuthzContext(): Promise<AuthzContext | null> {
+async function getAuthzContext(): Promise<AuthzContext | null> {
   const session = await getSession();
   if (!session) return null;
 

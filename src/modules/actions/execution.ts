@@ -45,7 +45,7 @@ export type RemoteExecutionDeps = {
 
 const DEFAULT_EXEC_TIMEOUT_MS = 60_000;
 
-export class SshAllowlistedRemoteExecutionService implements RemoteExecutionService {
+class SshAllowlistedRemoteExecutionService implements RemoteExecutionService {
   constructor(private readonly deps: RemoteExecutionDeps = {
     ssh: sshClient,
     loadCredentials: loadActiveSshPrivateKeyPem,

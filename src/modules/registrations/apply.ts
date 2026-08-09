@@ -77,7 +77,7 @@ type TxClient = Prisma.TransactionClient;
 /**
  * Apply planned upserts/events inside an existing transaction (or prisma client).
  */
-export async function applyPlannedRegistrationUpdates(
+async function applyPlannedRegistrationUpdates(
   db: TxClient,
   plans: PlannedRegistrationChange[],
   jobRunId: string,

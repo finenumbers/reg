@@ -14,7 +14,7 @@ import type {
 
 let cachedDefaults: RtuImportDefaults | null = null;
 
-export function loadRtuImportDefaults(
+function loadRtuImportDefaults(
   cwd: string = process.cwd(),
 ): RtuImportDefaults {
   if (cachedDefaults) return cachedDefaults;

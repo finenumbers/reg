@@ -43,6 +43,16 @@ describe("jobs ui-format", () => {
     expect(summarizeJobResult(sample())).toContain("есть артефакт");
     expect(
       summarizeJobResult(
+        sample({
+          actionCode: "groups.sync",
+          phonesParsed: 5,
+          linesBad: 0,
+          changesCount: 5,
+        }),
+      ),
+    ).toContain("5 групп");
+    expect(
+      summarizeJobResult(
         sample({ status: "failed", errorMessage: "SSH timeout" }),
       ),
     ).toBe("SSH timeout");

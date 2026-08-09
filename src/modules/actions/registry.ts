@@ -3,12 +3,12 @@
  * Clients may only pass action codes — never paths, argv, or shell commands.
  */
 
-export const OPT_SCRIPTS_PATH_PATTERN = /^\/opt\/scripts\/[A-Za-z0-9._-]+$/;
+const OPT_SCRIPTS_PATH_PATTERN = /^\/opt\/scripts\/[A-Za-z0-9._-]+$/;
 
 export type AllowedActionCode = "regs.poll" | "phones.sync" | "groups.sync";
 
 /** Absolute sudo binary used for non-interactive elevation (never from UI). */
-export const REMOTE_SUDO_BIN = "/usr/bin/sudo";
+const REMOTE_SUDO_BIN = "/usr/bin/sudo";
 
 /**
  * Fixed elevated exec — matches interactive
@@ -77,17 +77,6 @@ export const ACTION_REGISTRY: Record<AllowedActionCode, AllowedActionDefinition>
   },
 };
 
-export function getAllowedAction(code: string): AllowedActionDefinition | null {
-  if (!(code in ACTION_REGISTRY)) return null;
-  return ACTION_REGISTRY[code as AllowedActionCode];
-}
-
-export function assertOptScriptsPath(path: string): void {
-  if (!OPT_SCRIPTS_PATH_PATTERN.test(path)) {
-    throw new Error(`Remote path rejected: must match ${OPT_SCRIPTS_PATH_PATTERN}`);
-  }
-}
-
 export function resolveActionForExecution(code: string): AllowedActionDefinition {
   const action = getAllowedAction(code);
   if (!action) {
@@ -98,4 +87,15 @@ export function resolveActionForExecution(code: string): AllowedActionDefinition
   }
   assertOptScriptsPath(action.remotePath);
   return action;
+}
+
+function getAllowedAction(code: string): AllowedActionDefinition | null {
+  if (!(code in ACTION_REGISTRY)) return null;
+  return ACTION_REGISTRY[code as AllowedActionCode];
+}
+
+export function assertOptScriptsPath(path: string): void {
+  if (!OPT_SCRIPTS_PATH_PATTERN.test(path)) {
+    throw new Error(`Remote path rejected: must match ${OPT_SCRIPTS_PATH_PATTERN}`);
+  }
 }

@@ -25,8 +25,6 @@ import {
   REG_COLUMN_HEADERS,
 } from "@/modules/registrations/ui-format";
 
-export { REG_COLUMN_HEADERS };
-
 export type ListRegistrationsFilters = {
   /** Substring search over Телефон (toolbar) */
   phoneQ?: string;

@@ -10,19 +10,21 @@ App command (PTY + sudo -n + cwd):
 
 Requires NOPASSWD on `/opt/scripts/check_regs.sh`. Softswitch script is cwd-sensitive.
 
-## Phones (`export.py`)
+## Phones / groups (`export.py`)
 
-App command (no PTY required; sudo -n + cwd):
+App command (no PTY required; sudo -n + cwd) — used by both `phones.sync` and `groups.sync`:
 
 ```text
 /bin/bash -c 'cd /opt/scripts && exec /usr/bin/sudo -n -- ./export.py'
 ```
 
 Read-only: `SELECT` from MVTS MySQL via `/etc/mvts3g/access-db.conf`. Prints JSON to
-**stdout** (endpoints + gateways with the same decoded columns as the old Excel export).
-Does **not** write `export.xlsx` and does **not** mutate MySQL.
+**stdout** (`version` 2): endpoints, gateways, and `groups[]` (`ID` / `Название` from
+`mvts_routing_groups`, ordered by `routing_group_id`). Does **not** write `export.xlsx`
+and does **not** mutate MySQL.
 
 Requires NOPASSWD on `/opt/scripts/export.py` (config file is root-readable only).
+File must be executable (`chmod +x` / `install -m 0755`).
 
 ## Install
 
@@ -58,7 +60,7 @@ Do **not** set `no-pty` — Reg requests a PTY for `check_regs.sh`.
 ssh -tt -i <platform_key> PLATFORM_USER@softswitch \
   "/bin/bash -c 'cd /opt/scripts && exec /usr/bin/sudo -n -- ./check_regs.sh'"
 
-# phones — expect JSON on stdout (no xlsx file created)
+# phones / groups — expect JSON on stdout with "groups" (no xlsx file created)
 ssh -i <platform_key> PLATFORM_USER@softswitch \
   "/bin/bash -c 'cd /opt/scripts && exec /usr/bin/sudo -n -- ./export.py'" | head -c 200
 
@@ -71,5 +73,6 @@ ssh -i <platform_key> PLATFORM_USER@softswitch whoami
 | `sudo: a password is required` | NOPASSWD missing/wrong for this user/path |
 | `Permission denied` on `access-db.conf` | Command ran without sudo elevation |
 | All `Unregistered;` but interactive shows Registered | Missing `cd /opt/scripts` / wrong cwd / missing PTY |
+| `sudo: ./export.py: command not found` | Missing execute bit on `/opt/scripts/export.py` |
 | `platform_exec: denied command` | Wrapper allowlist not updated for `export.py` |
 | `whoami` returns a username interactively | Forced command not applied (if you intended to use it) |

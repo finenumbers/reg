@@ -12,7 +12,7 @@ export const XLSX_UNREGISTERED_FILL: ExcelJS.Fill = {
 };
 
 /** Same thin border as softswitch export header row. */
-export const XLSX_THIN_BORDER: Partial<ExcelJS.Borders> = {
+const XLSX_THIN_BORDER: Partial<ExcelJS.Borders> = {
   top: { style: "thin" },
   left: { style: "thin" },
   bottom: { style: "thin" },
@@ -20,21 +20,21 @@ export const XLSX_THIN_BORDER: Partial<ExcelJS.Borders> = {
 };
 
 /** Softswitch / phones export header style. */
-export const XLSX_HEADER_FONT: Partial<ExcelJS.Font> = {
+const XLSX_HEADER_FONT: Partial<ExcelJS.Font> = {
   name: "Calibri",
   size: 11,
   bold: true,
   color: { argb: "FF000000" },
 };
 
-export const XLSX_BODY_FONT: Partial<ExcelJS.Font> = {
+const XLSX_BODY_FONT: Partial<ExcelJS.Font> = {
   name: "Calibri",
   size: 11,
   bold: false,
   color: { argb: "FF000000" },
 };
 
-export const XLSX_HEADER_ALIGNMENT: Partial<ExcelJS.Alignment> = {
+const XLSX_HEADER_ALIGNMENT: Partial<ExcelJS.Alignment> = {
   horizontal: "center",
   vertical: "middle",
 };
@@ -73,7 +73,7 @@ export function columnWidthForValues(
   return Math.max(8, maxLen + 2);
 }
 
-export function autofitSheetColumns(
+function autofitSheetColumns(
   sheet: ExcelJS.Worksheet,
   headers: readonly string[],
   rows: string[][],

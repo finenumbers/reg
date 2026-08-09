@@ -27,8 +27,9 @@
 |-------------|-------------|------|--------------|
 | `regs.poll` | `/opt/scripts/check_regs.sh` | `[]` | `/bin/bash -c 'cd /opt/scripts && exec /usr/bin/sudo -n -- ./check_regs.sh'` (PTY) |
 | `phones.sync` | `/opt/scripts/export.py` | `[]` | `/bin/bash -c 'cd /opt/scripts && exec /usr/bin/sudo -n -- ./export.py'` (no PTY) |
+| `groups.sync` | `/opt/scripts/export.py` | `[]` | `/bin/bash -c 'cd /opt/scripts && exec /usr/bin/sudo -n -- ./export.py'` (no PTY) |
 
-`phones.sync` — read-only `SELECT` в MySQL softswitch; JSON в stdout; **без** записи `export.xlsx` и без SFTP.
+`phones.sync` / `groups.sync` — read-only `SELECT` в MySQL softswitch; JSON в stdout (`version` 2 включает `groups[]`); **без** записи `export.xlsx` и без SFTP. `groups.sync` применяет только каталог routing groups, таблицы телефонов не трогает.
 
 Правила:
 

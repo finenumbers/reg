@@ -15,7 +15,7 @@ export const PERMISSIONS = [
 
 export type PermissionCode = (typeof PERMISSIONS)[number];
 
-export const ROLES = ["admin", "operator"] as const;
+const ROLES = ["admin", "operator"] as const;
 export type RoleName = (typeof ROLES)[number];
 
 export const ROLE_PERMISSIONS: Record<RoleName, PermissionCode[]> = {

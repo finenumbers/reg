@@ -2,7 +2,7 @@
 
 Internal telecom ops platform for monitoring SIP registrations on an operator softswitch via allowlisted SSH scripts under `/opt/scripts/`.
 
-**Repository:** [github.com/finenumbers/reg](https://github.com/finenumbers/reg) · **Release:** [v1.2.5](https://github.com/finenumbers/reg/releases/tag/v1.2.5)
+**Repository:** [github.com/finenumbers/reg](https://github.com/finenumbers/reg) · **Release:** [v1.2.6](https://github.com/finenumbers/reg/releases/tag/v1.2.6)
 
 ## Stack (approved)
 
@@ -132,14 +132,27 @@ APIs:
 - `GET /api/phones/export` — XLSX export from template (`phones:read`)
 - `GET /api/phones/ufw-export` — UFW rules XLSX from DB snapshot (`phones:read`; nothing persisted)
 - `GET /api/phones/status` — last sync status (`phones:read`)
-- `POST /api/phones/request` — enqueue softswitch sync (`phones:sync`)
+- `POST /api/phones/request` — enqueue softswitch sync (`phones:request`)
 
 UI (`/phones`):
 
 - Kind select (gateways / registered / unregistered / error), phone search, column filters
 - SIP unregistered highlighting on registered trunks; XLSX export
-- **Импорт в РТУ** — выбор XLSX (экспорт + лист «Группы») → скачивание CSV для ручной загрузки в softswitch (ничего не сохраняется на сервере)
+- **Импорт в РТУ** — выбор XLSX → скачивание CSV; name→ID групп из БД (`routing_groups`, раздел «Входящие группы»)
 - **Импорт в UFW** — XLSX с тремя листами правил (шлюзы / транки с рег. / без рег.) из IP-полей снимка БД
+
+## Incoming groups
+
+APIs:
+
+- `GET /api/groups` — routing groups catalog (`phones:read`)
+- `GET /api/groups/status` — last `groups.sync` status (`phones:read`)
+- `POST /api/groups/request` — enqueue `groups.sync` (`phones:request`)
+
+UI (`/groups`):
+
+- Read-only ID / Name table (sorted by ID ascending)
+- **Загрузить данные** runs the same read-only `export.py`, applies only `groups[]`
 
 ## Jobs / Audit (Phase 6)
 

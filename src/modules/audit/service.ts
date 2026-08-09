@@ -31,7 +31,7 @@ export const AUDIT_ACTIONS = {
 export type AuditAction =
   (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS] | (string & {});
 
-export type AuditAppendInput = {
+type AuditAppendInput = {
   actorUserId?: string | null;
   action: AuditAction;
   entityType?: string;
@@ -40,11 +40,11 @@ export type AuditAppendInput = {
   ip?: string | null;
 };
 
-export interface AuditService {
+interface AuditService {
   append(input: AuditAppendInput): Promise<void>;
 }
 
-export class PrismaAuditService implements AuditService {
+class PrismaAuditService implements AuditService {
   async append(input: AuditAppendInput): Promise<void> {
     try {
       const meta = sanitizeAuditMeta(input.meta);
