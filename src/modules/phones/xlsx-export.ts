@@ -12,6 +12,7 @@ import {
   workbookToBuffer,
   XLSX_UNREGISTERED_FILL,
 } from "@/lib/xlsx-export";
+import { sortRoutingGroupsById } from "@/modules/groups/sort";
 import { isSipUnregistered, toUnregisteredPhoneSet } from "@/modules/phones/sip-status";
 import {
   ENDPOINT_HEADERS,
@@ -60,15 +61,14 @@ export async function buildPhonesExportXlsx(): Promise<PhonesExportResult> {
     await Promise.all([
       prisma.phoneEndpoint.findMany({ orderBy: { name: "asc" } }),
       prisma.phoneGateway.findMany({ orderBy: { name: "asc" } }),
-      prisma.routingGroup.findMany({
-        orderBy: [{ sortOrder: "asc" }, { externalId: "asc" }],
-      }),
+      prisma.routingGroup.findMany(),
       prisma.registrationCurrent.findMany({
         where: { status: "Unregistered" },
         select: { phone: true },
       }),
     ]);
 
+  const routingGroupsSorted = sortRoutingGroupsById(routingGroups);
   const unregisteredSet = toUnregisteredPhoneSet(
     unregisteredRows.map((r) => r.phone),
   );
@@ -108,7 +108,7 @@ export async function buildPhonesExportXlsx(): Promise<PhonesExportResult> {
   replaceSheetData(gwSheet, GATEWAY_HEADERS, gwRows);
 
   const groupHeaders = ["ID", "Название"] as const;
-  const groupRows = routingGroups.map((g) => [g.externalId, g.name]);
+  const groupRows = routingGroupsSorted.map((g) => [g.externalId, g.name]);
   replaceSheetData(groups, groupHeaders, groupRows);
 
   const buffer = await workbookToBuffer(workbook);

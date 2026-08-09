@@ -4,6 +4,7 @@
 
 import { prisma } from "@/lib/db";
 import { getJobRunSummary } from "@/modules/jobs/query";
+import { sortRoutingGroupsById } from "@/modules/groups/sort";
 
 export type RoutingGroupListItem = {
   id: string;
@@ -28,9 +29,8 @@ export type GroupsOperationalStatus = {
 };
 
 export async function listRoutingGroups(): Promise<ListRoutingGroupsResult> {
-  const [items, state] = await Promise.all([
+  const [rows, state] = await Promise.all([
     prisma.routingGroup.findMany({
-      orderBy: [{ sortOrder: "asc" }, { externalId: "asc" }],
       select: {
         id: true,
         externalId: true,
@@ -40,6 +40,8 @@ export async function listRoutingGroups(): Promise<ListRoutingGroupsResult> {
     }),
     prisma.routingGroupImportState.findUnique({ where: { id: 1 } }),
   ]);
+
+  const items = sortRoutingGroupsById(rows);
 
   return {
     items,

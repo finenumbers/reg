@@ -137,7 +137,8 @@ def main() -> int:
     try:
         query_gr = conn.cursor()
         query_gr.execute(
-            "select routing_group_id, routing_group_name from mvts_routing_groups"
+            "select routing_group_id, routing_group_name from mvts_routing_groups "
+            "order by routing_group_id"
         )
         groups = query_gr.fetchall()
         group_dict = {str(r[0]): r[1] for r in groups}

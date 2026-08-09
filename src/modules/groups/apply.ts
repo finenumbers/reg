@@ -4,6 +4,7 @@
 
 import { prisma } from "@/lib/db";
 import type { ParsedGroupsPayload } from "@/modules/groups/parse";
+import { sortRoutingGroupsById } from "@/modules/groups/sort";
 
 export type ApplyGroupsResult = {
   groupCount: number;
@@ -14,11 +15,13 @@ export async function applyGroupsSnapshot(
   jobRunId: string,
   syncedAt: Date = new Date(),
 ): Promise<ApplyGroupsResult> {
+  const groups = sortRoutingGroupsById(payload.groups);
+
   await prisma.$transaction(async (tx) => {
     await tx.routingGroup.deleteMany({});
-    if (payload.groups.length > 0) {
+    if (groups.length > 0) {
       await tx.routingGroup.createMany({
-        data: payload.groups.map((g, index) => ({
+        data: groups.map((g, index) => ({
           externalId: g.externalId,
           name: g.name,
           sortOrder: index,
@@ -31,17 +34,17 @@ export async function applyGroupsSnapshot(
       where: { id: 1 },
       create: {
         id: 1,
-        groupCount: payload.groups.length,
+        groupCount: groups.length,
         lastSyncedAt: syncedAt,
         lastJobRunId: jobRunId,
       },
       update: {
-        groupCount: payload.groups.length,
+        groupCount: groups.length,
         lastSyncedAt: syncedAt,
         lastJobRunId: jobRunId,
       },
     });
   });
 
-  return { groupCount: payload.groups.length };
+  return { groupCount: groups.length };
 }
