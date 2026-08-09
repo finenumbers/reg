@@ -4,6 +4,7 @@
 
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { loadGroupIdByNameMap } from "@/modules/groups/service";
 import { convertParsedToRtuCsv } from "@/modules/phones/rtu-import/convert";
 import { parseRtuXlsx } from "@/modules/phones/rtu-import/parse-xlsx";
 import type {
@@ -35,9 +36,15 @@ export function resetRtuImportDefaultsCache(): void {
   cachedDefaults = null;
 }
 
+export type ConvertRtuXlsxOptions = {
+  /** Override DB catalog (tests). When omitted, loads routing_groups. */
+  groupIdByName?: Map<string, string>;
+};
+
 export async function convertRtuXlsxToCsv(
   data: ArrayBuffer | Buffer | Uint8Array,
   defaults?: RtuImportDefaults,
+  options?: ConvertRtuXlsxOptions,
 ): Promise<RtuConvertResult> {
   if (!data || (data as ArrayBuffer).byteLength === 0) {
     return {
@@ -49,7 +56,23 @@ export async function convertRtuXlsxToCsv(
 
   const parsed = await parseRtuXlsx(data);
   const tpl = defaults ?? loadRtuImportDefaults();
-  return convertParsedToRtuCsv(parsed, tpl);
+  const groupIdByName =
+    options?.groupIdByName ?? (await loadGroupIdByNameMap());
+
+  if (groupIdByName.size === 0) {
+    return {
+      ok: false,
+      error: "Файл XLSX не подходит для импорта в РТУ",
+      details: [
+        "Справочник входящих групп пуст — сначала загрузите данные в разделе «Входящие группы»",
+      ],
+    };
+  }
+
+  return convertParsedToRtuCsv(
+    { ...parsed, groupIdByName },
+    tpl,
+  );
 }
 
 export type { RtuConvertResult } from "@/modules/phones/rtu-import/types";

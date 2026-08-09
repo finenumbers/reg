@@ -36,6 +36,12 @@ describe("buildAllowlistedExecCommand", () => {
     );
   });
 
+  it("returns cd+/sudo ./export.py for groups.sync", () => {
+    expect(buildAllowlistedExecCommand(ACTION_REGISTRY["groups.sync"])).toBe(
+      "/bin/bash -c 'cd /opt/scripts && exec /usr/bin/sudo -n -- ./export.py'",
+    );
+  });
+
   it("returns bare path when elevateWithSudo is false", () => {
     expect(
       buildAllowlistedExecCommand({
@@ -57,6 +63,7 @@ describe("buildAllowlistedExecCommand", () => {
   it("marks needsPty only for regs.poll", () => {
     expect(ACTION_REGISTRY["regs.poll"].needsPty).toBe(true);
     expect(ACTION_REGISTRY["phones.sync"].needsPty).toBe(false);
+    expect(ACTION_REGISTRY["groups.sync"].needsPty).toBe(false);
   });
 });
 

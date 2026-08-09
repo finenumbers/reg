@@ -23,6 +23,9 @@ export const AUDIT_ACTIONS = {
   PHONES_SYNC_MANUAL: "phones.sync_manual",
   PHONES_SYNC_START: "phones.sync_start",
   PHONES_SYNC_FINISH: "phones.sync_finish",
+  GROUPS_SYNC_MANUAL: "groups.sync_manual",
+  GROUPS_SYNC_START: "groups.sync_start",
+  GROUPS_SYNC_FINISH: "groups.sync_finish",
 } as const;
 
 export type AuditAction =

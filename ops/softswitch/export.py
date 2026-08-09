@@ -141,6 +141,10 @@ def main() -> int:
         )
         groups = query_gr.fetchall()
         group_dict = {str(r[0]): r[1] for r in groups}
+        groups_payload = [
+            {"ID": str(r[0]), "Название": cell(r[1])}
+            for r in groups
+        ]
 
         query = conn.cursor()
         query.execute(
@@ -228,13 +232,14 @@ def main() -> int:
                 )
 
         payload = {
-            "version": 1,
+            "version": 2,
             "endpointHeaders": ENDPOINT_HEADERS,
             "gatewayHeaders": GATEWAY_HEADERS,
             "endpointCount": len(endpoints),
             "gatewayCount": len(gateways),
             "endpoints": endpoints,
             "gateways": gateways,
+            "groups": groups_payload,
         }
         json.dump(payload, sys.stdout, ensure_ascii=False, separators=(",", ":"))
         sys.stdout.write("\n")

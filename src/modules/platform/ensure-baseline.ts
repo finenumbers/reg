@@ -107,6 +107,22 @@ export async function ensurePlatformBaseline(): Promise<{ ok: true }> {
     },
   });
 
+  await prisma.allowedAction.upsert({
+    where: { code: "groups.sync" },
+    create: {
+      code: "groups.sync",
+      remotePath: "/opt/scripts/export.py",
+      description: "Sync routing groups catalog (read-only JSON)",
+      enabled: true,
+      module: "groups",
+    },
+    update: {
+      remotePath: "/opt/scripts/export.py",
+      enabled: true,
+      module: "groups",
+    },
+  });
+
   await prisma.appSetting.upsert({
     where: { id: 1 },
     create: { id: 1, artifactMaxBytes: 50_000_000 },
@@ -120,6 +136,12 @@ export async function ensurePlatformBaseline(): Promise<{ ok: true }> {
   });
 
   await prisma.phoneImportState.upsert({
+    where: { id: 1 },
+    create: { id: 1 },
+    update: {},
+  });
+
+  await prisma.routingGroupImportState.upsert({
     where: { id: 1 },
     create: { id: 1 },
     update: {},

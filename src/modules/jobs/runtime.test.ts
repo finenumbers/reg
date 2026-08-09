@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const processRegsPoll = vi.fn();
 const processPhonesSync = vi.fn();
+const processGroupsSync = vi.fn();
 
 vi.mock("@/modules/jobs/regs-poll-processor", () => ({
   processRegsPoll: (...args: unknown[]) => processRegsPoll(...args),
@@ -9,6 +10,10 @@ vi.mock("@/modules/jobs/regs-poll-processor", () => ({
 
 vi.mock("@/modules/phones/phones-sync-processor", () => ({
   processPhonesSync: (...args: unknown[]) => processPhonesSync(...args),
+}));
+
+vi.mock("@/modules/groups/groups-sync-processor", () => ({
+  processGroupsSync: (...args: unknown[]) => processGroupsSync(...args),
 }));
 
 vi.mock("@/modules/jobs/scheduler", () => ({
@@ -70,6 +75,22 @@ describe("PQueueJobRuntime anti-overlap", () => {
           );
         }),
     );
+    processGroupsSync.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          setTimeout(
+            () =>
+              resolve({
+                jobRunId: "job_groups",
+                status: "success",
+                errorMessage: null,
+                groupCount: 3,
+                exitCode: 0,
+              }),
+            50,
+          );
+        }),
+    );
   });
 
   it("rejects overlapping regs.poll enqueue while in flight", async () => {
@@ -110,6 +131,25 @@ describe("PQueueJobRuntime anti-overlap", () => {
 
     expect(regs.accepted).toBe(true);
     expect(phones.accepted).toBe(true);
+
+    await new Promise((r) => setTimeout(r, 80));
+  });
+
+  it("allows groups.sync while phones.sync is in flight", async () => {
+    const runtime = new PQueueJobRuntime();
+
+    const phones = await runtime.enqueue({
+      actionCode: "phones.sync",
+      trigger: "manual",
+    });
+    const groups = await runtime.enqueue({
+      actionCode: "groups.sync",
+      trigger: "manual",
+    });
+
+    expect(phones.accepted).toBe(true);
+    expect(groups.accepted).toBe(true);
+    expect(processGroupsSync).toHaveBeenCalled();
 
     await new Promise((r) => setTimeout(r, 80));
   });

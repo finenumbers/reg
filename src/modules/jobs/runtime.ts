@@ -1,8 +1,8 @@
 /**
  * In-process job orchestration (p-queue).
  *
- * Anti-overlap per action code. concurrency=2 so regs.poll and phones.sync
- * can proceed independently when not overlapping themselves.
+ * Anti-overlap per action code. concurrency=3 so regs.poll, phones.sync,
+ * and groups.sync can proceed independently when not overlapping themselves.
  * Interval scheduling is Settings-gated (see scheduler.ts).
  */
 
@@ -10,12 +10,19 @@ import PQueue from "p-queue";
 import type { AllowedActionCode } from "@/modules/actions/registry";
 import { logger } from "@/lib/logger";
 import { processRegsPoll } from "@/modules/jobs/regs-poll-processor";
+import { processGroupsSync } from "@/modules/groups/groups-sync-processor";
 import { processPhonesSync } from "@/modules/phones/phones-sync-processor";
 import {
   evaluateSchedulerBootstrap as evaluateSchedulerBootstrapImpl,
   isAutoSchedulerRunning,
   rescheduleAfterSettingsChange,
 } from "@/modules/jobs/scheduler";
+
+const SUPPORTED_JOB_ACTIONS = new Set<AllowedActionCode>([
+  "regs.poll",
+  "phones.sync",
+  "groups.sync",
+]);
 
 export type JobEnqueueInput = {
   actionCode: AllowedActionCode;
@@ -36,14 +43,14 @@ export interface JobRuntime {
 
 export class PQueueJobRuntime implements JobRuntime {
   private readonly inFlight = new Set<AllowedActionCode>();
-  private readonly queue = new PQueue({ concurrency: 2 });
+  private readonly queue = new PQueue({ concurrency: 3 });
 
   isInFlight(actionCode: AllowedActionCode): boolean {
     return this.inFlight.has(actionCode);
   }
 
   async enqueue(input: JobEnqueueInput): Promise<JobEnqueueResult> {
-    if (input.actionCode !== "regs.poll" && input.actionCode !== "phones.sync") {
+    if (!SUPPORTED_JOB_ACTIONS.has(input.actionCode)) {
       return {
         accepted: false,
         reason: `Unsupported action code for job runtime: ${input.actionCode}`,
@@ -60,6 +67,12 @@ export class PQueueJobRuntime implements JobRuntime {
       try {
         if (input.actionCode === "phones.sync") {
           return await processPhonesSync({
+            trigger: input.trigger,
+            actorUserId: input.actorUserId,
+          });
+        }
+        if (input.actionCode === "groups.sync") {
+          return await processGroupsSync({
             trigger: input.trigger,
             actorUserId: input.actorUserId,
           });

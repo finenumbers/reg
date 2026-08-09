@@ -24,6 +24,12 @@ const ACTION_LABELS: Record<string, string> = {
   "regs.poll_manual": "Ручной опрос регистраций",
   "regs.poll_start": "Старт опроса регистраций",
   "regs.poll_finish": "Завершение опроса регистраций",
+  "phones.sync_manual": "Ручная синхронизация телефонов",
+  "phones.sync_start": "Старт синхронизации телефонов",
+  "phones.sync_finish": "Завершение синхронизации телефонов",
+  "groups.sync_manual": "Ручная загрузка входящих групп",
+  "groups.sync_start": "Старт загрузки входящих групп",
+  "groups.sync_finish": "Завершение загрузки входящих групп",
   "users.change": "Изменение пользователя",
 };
 

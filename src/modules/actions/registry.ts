@@ -5,7 +5,7 @@
 
 export const OPT_SCRIPTS_PATH_PATTERN = /^\/opt\/scripts\/[A-Za-z0-9._-]+$/;
 
-export type AllowedActionCode = "regs.poll" | "phones.sync";
+export type AllowedActionCode = "regs.poll" | "phones.sync" | "groups.sync";
 
 /** Absolute sudo binary used for non-interactive elevation (never from UI). */
 export const REMOTE_SUDO_BIN = "/usr/bin/sudo";
@@ -27,7 +27,7 @@ export type AllowedActionDefinition = {
   remotePath: string;
   /** Always empty in v1 — no user-controlled argv */
   argv: readonly string[];
-  module: "registrations" | "phones";
+  module: "registrations" | "phones" | "groups";
   description: string;
   /** Remote wrapper token channel uses the same absolute path */
   usesPlatformExecWrapper: true;
@@ -61,6 +61,16 @@ export const ACTION_REGISTRY: Record<AllowedActionCode, AllowedActionDefinition>
     argv: [],
     module: "phones",
     description: "Sync phone endpoints/gateways from softswitch (read-only JSON)",
+    usesPlatformExecWrapper: true,
+    elevateWithSudo: true,
+    needsPty: false,
+  },
+  "groups.sync": {
+    code: "groups.sync",
+    remotePath: "/opt/scripts/export.py",
+    argv: [],
+    module: "groups",
+    description: "Sync routing groups catalog from softswitch (read-only JSON)",
     usesPlatformExecWrapper: true,
     elevateWithSudo: true,
     needsPty: false,

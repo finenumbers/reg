@@ -56,14 +56,18 @@ export type PhonesExportResult = {
 };
 
 export async function buildPhonesExportXlsx(): Promise<PhonesExportResult> {
-  const [endpoints, gateways, unregisteredRows] = await Promise.all([
-    prisma.phoneEndpoint.findMany({ orderBy: { name: "asc" } }),
-    prisma.phoneGateway.findMany({ orderBy: { name: "asc" } }),
-    prisma.registrationCurrent.findMany({
-      where: { status: "Unregistered" },
-      select: { phone: true },
-    }),
-  ]);
+  const [endpoints, gateways, routingGroups, unregisteredRows] =
+    await Promise.all([
+      prisma.phoneEndpoint.findMany({ orderBy: { name: "asc" } }),
+      prisma.phoneGateway.findMany({ orderBy: { name: "asc" } }),
+      prisma.routingGroup.findMany({
+        orderBy: [{ sortOrder: "asc" }, { externalId: "asc" }],
+      }),
+      prisma.registrationCurrent.findMany({
+        where: { status: "Unregistered" },
+        select: { phone: true },
+      }),
+    ]);
 
   const unregisteredSet = toUnregisteredPhoneSet(
     unregisteredRows.map((r) => r.phone),
@@ -104,14 +108,7 @@ export async function buildPhonesExportXlsx(): Promise<PhonesExportResult> {
   replaceSheetData(gwSheet, GATEWAY_HEADERS, gwRows);
 
   const groupHeaders = ["ID", "Название"] as const;
-  const groupRows: string[][] = [];
-  groups.eachRow((row, rowNumber) => {
-    if (rowNumber === 1) return;
-    const id = String(row.getCell(1).value ?? "").trim();
-    const name = String(row.getCell(2).value ?? "").trim();
-    if (!id && !name) return;
-    groupRows.push([id, name]);
-  });
+  const groupRows = routingGroups.map((g) => [g.externalId, g.name]);
   replaceSheetData(groups, groupHeaders, groupRows);
 
   const buffer = await workbookToBuffer(workbook);

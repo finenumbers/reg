@@ -14,6 +14,7 @@ export type FeatureModuleId =
   | "jobs"
   | "registrations"
   | "phones"
+  | "groups"
   | "audit"
   | "health";
 
@@ -32,6 +33,14 @@ export const FEATURE_MODULES: FeatureModuleDefinition[] = [
     title: "Телефонные номера",
     description: "Оконечное оборудование и шлюзы через phones.sync",
     href: "/phones",
+    navPermission: "phones:read",
+    status: "active",
+  },
+  {
+    id: "groups",
+    title: "Входящие группы",
+    description: "Справочник routing groups с softswitch (только просмотр)",
+    href: "/groups",
     navPermission: "phones:read",
     status: "active",
   },

@@ -154,13 +154,9 @@ export async function parseRtuXlsx(
     issues.push({ message: "В книге нет ни одного листа" });
   }
 
-  const groupsWs = wb.getWorksheet(SHEET_GROUPS);
   const endpointsWs = wb.getWorksheet(SHEET_ENDPOINTS);
   const gatewaysWs = wb.getWorksheet(SHEET_GATEWAYS);
 
-  if (!groupsWs) {
-    issues.push({ message: `Нет листа «${SHEET_GROUPS}»` });
-  }
   if (!endpointsWs) {
     issues.push({ message: `Нет листа «${SHEET_ENDPOINTS}»` });
   }
@@ -168,41 +164,9 @@ export async function parseRtuXlsx(
     issues.push({ message: `Нет листа «${SHEET_GATEWAYS}»` });
   }
 
+  // Groups sheet in the uploaded XLSX is ignored for name→ID mapping;
+  // convertRtuXlsxToCsv injects the catalog from routing_groups (DB).
   const groupIdByName = new Map<string, string>();
-  if (groupsWs) {
-    const gHeaders = readHeaderMap(groupsWs);
-    if (!gHeaders.has("ID") || !gHeaders.has("Название")) {
-      if (!gHeaders.has("ID")) {
-        issues.push({ message: `На листе «${SHEET_GROUPS}» нет колонки «ID»` });
-      }
-      if (!gHeaders.has("Название")) {
-        issues.push({
-          message: `На листе «${SHEET_GROUPS}» нет колонки «Название»`,
-        });
-      }
-    } else {
-      const idCol = gHeaders.get("ID")!;
-      const nameCol = gHeaders.get("Название")!;
-      for (let r = 2; r <= groupsWs.rowCount; r++) {
-        const id = cellToString(groupsWs.getRow(r).getCell(idCol).value);
-        const name = cellToString(groupsWs.getRow(r).getCell(nameCol).value);
-        if (!id && !name) continue;
-        if (!id || !name) {
-          issues.push({
-            message: `Лист «${SHEET_GROUPS}», строка ${r}: нужны и ID, и Название`,
-          });
-          continue;
-        }
-        if (groupIdByName.has(name)) {
-          issues.push({
-            message: `Лист «${SHEET_GROUPS}», строка ${r}: дублируется название группы «${name}»`,
-          });
-          continue;
-        }
-        groupIdByName.set(name, id);
-      }
-    }
-  }
 
   const endpoints =
     endpointsWs != null
@@ -228,7 +192,6 @@ export async function parseRtuXlsx(
   if (
     endpointsWs &&
     gatewaysWs &&
-    groupsWs &&
     endpoints.length === 0 &&
     gateways.length === 0
   ) {
