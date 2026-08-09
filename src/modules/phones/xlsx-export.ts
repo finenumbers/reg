@@ -24,13 +24,8 @@ const SHEET_ENDPOINTS = "Оконечное оборудование";
 const SHEET_GATEWAYS = "Шлюзы";
 
 function phonesTemplatePath(): string {
-  const candidates = [
-    path.join(process.cwd(), "ops/templates/phones-export.xlsx"),
-    path.join(process.cwd(), "templates/phones-export.xlsx"),
-  ];
-  for (const candidate of candidates) {
-    if (existsSync(candidate)) return candidate;
-  }
+  const candidate = path.join(process.cwd(), "ops/templates/phones-export.xlsx");
+  if (existsSync(candidate)) return candidate;
   throw new Error(
     "Шаблон экспорта телефонов не найден (ops/templates/phones-export.xlsx)",
   );

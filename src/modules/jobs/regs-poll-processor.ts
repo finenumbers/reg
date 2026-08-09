@@ -7,6 +7,7 @@
 import type { JobTrigger } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
 import { logger } from "@/lib/logger";
+import { stripAnsi } from "@/lib/strip-ansi";
 import { truncateUtf8 } from "@/lib/utf8-truncate";
 import {
   remoteExecutionService,
@@ -284,6 +285,14 @@ export async function processRegsPoll(
     });
   }
 
+  if (!stripAnsi(execResult.stdout).trim()) {
+    return fail(emptyStdoutErrorMessage(execResult.stderr), {
+      exitCode: execResult.exitCode,
+      stdout: execResult.stdout,
+      stderr: execResult.stderr,
+    });
+  }
+
   const parsed = parseRegsStdout(execResult.stdout);
 
   if (parsed.linesBad > 0) {
@@ -317,6 +326,22 @@ export async function processRegsPoll(
     );
   }
 
+  if (parsed.rows.length === 0) {
+    const previousCount = await prisma.registrationCurrent.count();
+    if (previousCount > 0) {
+      return fail(
+        "Пустой снимок отклонён — отказ от wipe непустой таблицы регистраций",
+        {
+          exitCode: execResult.exitCode,
+          stdout: execResult.stdout,
+          stderr: execResult.stderr,
+          phonesParsed: 0,
+          linesBad: parsed.linesBad,
+        },
+      );
+    }
+  }
+
   let applyResult: ApplyRegistrationsResult;
   try {
     applyResult = await deps.apply(parsed.rows, jobRun.id, new Date());
@@ -333,57 +358,84 @@ export async function processRegsPoll(
     );
   }
 
-  const limits = await loadArtifactLimits();
-  await prisma.jobRunArtifact.upsert({
-    where: { jobRunId: jobRun.id },
-    create: {
-      jobRunId: jobRun.id,
-      stdout: truncateUtf8(execResult.stdout, limits.maxBytes),
-      stderr: truncateUtf8(execResult.stderr, limits.maxBytes),
-    },
-    update: {
-      stdout: truncateUtf8(execResult.stdout, limits.maxBytes),
-      stderr: truncateUtf8(execResult.stderr, limits.maxBytes),
-    },
-  });
-
   const finishedAt = new Date();
-  await prisma.jobRun.update({
-    where: { id: jobRun.id },
-    data: {
-      status: "success",
-      finishedAt,
-      durationMs: finishedAt.getTime() - startedAt.getTime(),
-      errorMessage: null,
-      exitCode: execResult.exitCode,
-      phonesParsed: parsed.rows.length,
-      linesBad: parsed.linesBad,
-      changesCount: applyResult.changesCount,
-      meta: {
-        duplicatePhones: parsed.duplicatePhones,
-        linesTotal: parsed.linesTotal,
-        durationMsRemote: execResult.durationMs,
-        removed: applyResult.removed,
+  try {
+    const limits = await loadArtifactLimits();
+    await prisma.jobRunArtifact.upsert({
+      where: { jobRunId: jobRun.id },
+      create: {
+        jobRunId: jobRun.id,
+        stdout: truncateUtf8(execResult.stdout, limits.maxBytes),
+        stderr: truncateUtf8(execResult.stderr, limits.maxBytes),
       },
-    },
-  });
+      update: {
+        stdout: truncateUtf8(execResult.stdout, limits.maxBytes),
+        stderr: truncateUtf8(execResult.stderr, limits.maxBytes),
+      },
+    });
 
-  await pruneArtifacts(limits);
+    await prisma.jobRun.update({
+      where: { id: jobRun.id },
+      data: {
+        status: "success",
+        finishedAt,
+        durationMs: finishedAt.getTime() - startedAt.getTime(),
+        errorMessage: null,
+        exitCode: execResult.exitCode,
+        phonesParsed: parsed.rows.length,
+        linesBad: parsed.linesBad,
+        changesCount: applyResult.changesCount,
+        meta: {
+          duplicatePhones: parsed.duplicatePhones,
+          linesTotal: parsed.linesTotal,
+          durationMsRemote: execResult.durationMs,
+          removed: applyResult.removed,
+        },
+      },
+    });
 
-  await auditService.append({
-    actorUserId: input.actorUserId,
-    action: AUDIT_ACTIONS.REGS_POLL_FINISH,
-    entityType: "job_run",
-    entityId: jobRun.id,
-    meta: {
-      trigger: input.trigger,
-      status: "success",
-      phonesParsed: parsed.rows.length,
-      linesBad: parsed.linesBad,
-      changesCount: applyResult.changesCount,
-      exitCode: execResult.exitCode,
-    },
-  });
+    await pruneArtifacts(limits);
+
+    await auditService.append({
+      actorUserId: input.actorUserId,
+      action: AUDIT_ACTIONS.REGS_POLL_FINISH,
+      entityType: "job_run",
+      entityId: jobRun.id,
+      meta: {
+        trigger: input.trigger,
+        status: "success",
+        phonesParsed: parsed.rows.length,
+        linesBad: parsed.linesBad,
+        changesCount: applyResult.changesCount,
+        exitCode: execResult.exitCode,
+      },
+    });
+  } catch (error) {
+    logger.warn("regs.poll.post_apply_finalize_failed", {
+      jobRunId: jobRun.id,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    try {
+      await prisma.jobRun.update({
+        where: { id: jobRun.id },
+        data: {
+          status: "success",
+          finishedAt,
+          durationMs: finishedAt.getTime() - startedAt.getTime(),
+          errorMessage: null,
+          exitCode: execResult.exitCode,
+          phonesParsed: parsed.rows.length,
+          linesBad: parsed.linesBad,
+          changesCount: applyResult.changesCount,
+        },
+      });
+    } catch (markError) {
+      logger.error("regs.poll.success_mark_failed", {
+        jobRunId: jobRun.id,
+        error: markError instanceof Error ? markError.message : String(markError),
+      });
+    }
+  }
 
   logger.info("regs.poll.finished", {
     jobRunId: jobRun.id,

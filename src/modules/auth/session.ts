@@ -37,13 +37,17 @@ export async function getAuthzContext(): Promise<AuthzContext | null> {
     select: { isActive: true, username: true },
   });
 
-  if (dbUser?.isActive === false) {
+  if (!dbUser) {
+    throw new AuthError("UNAUTHORIZED");
+  }
+
+  if (dbUser.isActive === false) {
     throw new AuthError("INACTIVE", "User account is inactive");
   }
 
   const authz = await getUserAuthz(session.user.id);
   const username =
-    dbUser?.username ??
+    dbUser.username ??
     (session.user as { username?: string | null }).username ??
     null;
 

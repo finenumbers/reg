@@ -44,10 +44,3 @@ export function hasPermission(
 ): boolean {
   return Boolean(granted?.includes(required));
 }
-
-export function hasAnyPermission(
-  granted: readonly string[] | undefined,
-  required: readonly PermissionCode[],
-): boolean {
-  return required.some((code) => hasPermission(granted, code));
-}

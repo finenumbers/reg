@@ -431,7 +431,9 @@ export async function getPhonesOperationalStatus(): Promise<PhonesOperationalSta
     lastError:
       lastAny?.status === "failed"
         ? (lastAny.errorMessage ?? "Sync failed")
-        : (summary.lastFailed?.errorMessage ?? null),
+        : lastAny?.status === "success"
+          ? null
+          : (summary.lastFailed?.errorMessage ?? null),
     lastFinishedAt: lastAny?.finishedAt ?? lastAny?.startedAt ?? null,
     lastFailedError: summary.lastFailed?.errorMessage ?? null,
     runningCount: summary.runningCount,

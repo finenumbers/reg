@@ -7,6 +7,7 @@ const findUniqueSettings = vi.fn();
 const findManyJobRuns = vi.fn();
 const deleteManyArtifacts = vi.fn();
 const appendAudit = vi.fn();
+const countRegistrations = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   prisma: {
@@ -21,6 +22,9 @@ vi.mock("@/lib/db", () => ({
     },
     appSetting: {
       findUnique: (...args: unknown[]) => findUniqueSettings(...args),
+    },
+    registrationCurrent: {
+      count: (...args: unknown[]) => countRegistrations(...args),
     },
   },
 }));
@@ -66,6 +70,7 @@ describe("processRegsPoll", () => {
     findManyJobRuns.mockResolvedValue([{ id: "job_1" }]);
     deleteManyArtifacts.mockResolvedValue({ count: 0 });
     appendAudit.mockResolvedValue(undefined);
+    countRegistrations.mockResolvedValue(0);
   });
 
   it("applies parsed rows on successful synthetic SSH output", async () => {
@@ -201,6 +206,28 @@ describe("processRegsPoll", () => {
     expect(result.status).toBe("failed");
     expect(result.linesBad).toBeGreaterThan(0);
     expect(result.errorMessage).toMatch(/некорректных строк/i);
+    expect(apply).not.toHaveBeenCalled();
+  });
+
+  it("rejects ANSI-only stdout without applying (fail-closed)", async () => {
+    const apply = vi.fn();
+    const execute = vi.fn().mockResolvedValue({
+      actionCode: "regs.poll",
+      remotePath: "/opt/scripts/check_regs.sh",
+      exitCode: 0,
+      stdout: "\u001b[0m\n\u001b[32m\u001b[0m\n",
+      stderr: "",
+      durationMs: 5,
+      timedOut: false,
+    });
+
+    const result = await processRegsPoll(
+      { trigger: "manual" },
+      { execute, apply },
+    );
+
+    expect(result.status).toBe("failed");
+    expect(result.errorMessage).toMatch(/пустой stdout/i);
     expect(apply).not.toHaveBeenCalled();
   });
 });

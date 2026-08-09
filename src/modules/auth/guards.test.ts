@@ -41,4 +41,9 @@ describe("protected route status mapping", () => {
     expect(mapAuthErrorToPage(new AuthError("UNAUTHORIZED"))).toBe("/login");
     expect(mapAuthErrorToPage(new AuthError("FORBIDDEN"))).toBe("/forbidden");
   });
+
+  it("treats missing db user like anonymous (UNAUTHORIZED → 401)", () => {
+    // getAuthzContext throws UNAUTHORIZED when session.user has no DB row.
+    expect(mapAuthErrorToStatus(new AuthError("UNAUTHORIZED"))).toBe(401);
+  });
 });

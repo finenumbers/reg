@@ -300,57 +300,90 @@ export async function processPhonesSync(
     );
   }
 
-  const limits = await loadArtifactLimits();
-  await prisma.jobRunArtifact.upsert({
-    where: { jobRunId: jobRun.id },
-    create: {
-      jobRunId: jobRun.id,
-      stdout: truncateUtf8(execResult.stdout, limits.maxBytes),
-      stderr: truncateUtf8(execResult.stderr, limits.maxBytes),
-    },
-    update: {
-      stdout: truncateUtf8(execResult.stdout, limits.maxBytes),
-      stderr: truncateUtf8(execResult.stderr, limits.maxBytes),
-    },
-  });
-
   const finishedAt = new Date();
-  await prisma.jobRun.update({
-    where: { id: jobRun.id },
-    data: {
-      status: "success",
-      finishedAt,
-      durationMs: finishedAt.getTime() - startedAt.getTime(),
-      errorMessage: null,
-      exitCode: execResult.exitCode,
-      phonesParsed: totalRows,
-      linesBad: 0,
-      changesCount: totalRows,
+  try {
+    const limits = await loadArtifactLimits();
+    await prisma.jobRunArtifact.upsert({
+      where: { jobRunId: jobRun.id },
+      create: {
+        jobRunId: jobRun.id,
+        stdout: truncateUtf8(execResult.stdout, limits.maxBytes),
+        stderr: truncateUtf8(execResult.stderr, limits.maxBytes),
+      },
+      update: {
+        stdout: truncateUtf8(execResult.stdout, limits.maxBytes),
+        stderr: truncateUtf8(execResult.stderr, limits.maxBytes),
+      },
+    });
+
+    await prisma.jobRun.update({
+      where: { id: jobRun.id },
+      data: {
+        status: "success",
+        finishedAt,
+        durationMs: finishedAt.getTime() - startedAt.getTime(),
+        errorMessage: null,
+        exitCode: execResult.exitCode,
+        phonesParsed: totalRows,
+        linesBad: 0,
+        changesCount: totalRows,
+        meta: {
+          endpointCount: applyResult.endpointCount,
+          gatewayCount: applyResult.gatewayCount,
+          version: parsed.version,
+          durationMsRemote: execResult.durationMs,
+        },
+      },
+    });
+
+    await pruneArtifacts(limits);
+
+    await auditService.append({
+      actorUserId: input.actorUserId,
+      action: AUDIT_ACTIONS.PHONES_SYNC_FINISH,
+      entityType: "job_run",
+      entityId: jobRun.id,
       meta: {
+        trigger: input.trigger,
+        status: "success",
         endpointCount: applyResult.endpointCount,
         gatewayCount: applyResult.gatewayCount,
-        version: parsed.version,
-        durationMsRemote: execResult.durationMs,
+        phonesParsed: totalRows,
+        exitCode: execResult.exitCode,
       },
-    },
-  });
-
-  await pruneArtifacts(limits);
-
-  await auditService.append({
-    actorUserId: input.actorUserId,
-    action: AUDIT_ACTIONS.PHONES_SYNC_FINISH,
-    entityType: "job_run",
-    entityId: jobRun.id,
-    meta: {
-      trigger: input.trigger,
-      status: "success",
-      endpointCount: applyResult.endpointCount,
-      gatewayCount: applyResult.gatewayCount,
-      phonesParsed: totalRows,
-      exitCode: execResult.exitCode,
-    },
-  });
+    });
+  } catch (error) {
+    logger.warn("phones.sync.post_apply_finalize_failed", {
+      jobRunId: jobRun.id,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    try {
+      await prisma.jobRun.update({
+        where: { id: jobRun.id },
+        data: {
+          status: "success",
+          finishedAt,
+          durationMs: finishedAt.getTime() - startedAt.getTime(),
+          errorMessage: null,
+          exitCode: execResult.exitCode,
+          phonesParsed: totalRows,
+          linesBad: 0,
+          changesCount: totalRows,
+          meta: {
+            endpointCount: applyResult.endpointCount,
+            gatewayCount: applyResult.gatewayCount,
+            version: parsed.version,
+            durationMsRemote: execResult.durationMs,
+          },
+        },
+      });
+    } catch (markError) {
+      logger.error("phones.sync.success_mark_failed", {
+        jobRunId: jobRun.id,
+        error: markError instanceof Error ? markError.message : String(markError),
+      });
+    }
+  }
 
   logger.info("phones.sync.finished", {
     jobRunId: jobRun.id,

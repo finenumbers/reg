@@ -21,6 +21,15 @@ import {
   type PhoneKind,
 } from "@/modules/phones/types";
 
+const REG_PASSWORD_FIELD = "Регистрационный пароль";
+const MASKED_SECRET = "••••••";
+
+/** Display value for phones table cells (masks SIP registration password). */
+export function displayPhoneCellValue(header: string, value: string): string {
+  if (header === REG_PASSWORD_FIELD && value.trim()) return MASKED_SECRET;
+  return value;
+}
+
 type Props = {
   kind: PhoneKind;
   headers: string[];
@@ -112,15 +121,16 @@ export function PhonesTable({
               )}
             >
               {headers.map((h) => {
-                const value = row.data[h] ?? "";
+                const raw = row.data[h] ?? "";
+                const value = displayPhoneCellValue(h, raw);
                 return (
                   <TableCell
                     key={`${row.id}-${h}`}
                     className="max-w-[18rem] truncate text-sm"
-                    title={value}
+                    title={value || undefined}
                   >
                     {h === ENDPOINT_NUMBER_FIELD ? (
-                      <HighlightText text={value} query={phoneQ} />
+                      <HighlightText text={raw} query={phoneQ} />
                     ) : (
                       value
                     )}

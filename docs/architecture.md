@@ -30,7 +30,7 @@
 3. Парсит stdout, сохраняет данные в PostgreSQL.
 4. Показывает операторам UI на основе **локальной БД** (не live-SSH для таблиц).
 
-Первый продуктовый модуль — **мониторинг SIP-регистраций** (`check_regs.sh`). Архитектура с самого начала рассчитана на несколько будущих модулей вокруг других скриптов и логики.
+Первый продуктовый модуль — **мониторинг SIP-регистраций** (`check_regs.sh`). Второй — **телефонные номера / шлюзы** (`export.py`). Архитектура рассчитана на дополнительные модули вокруг других скриптов.
 
 ## 2. Разделение Platform Core и Module
 
@@ -59,6 +59,15 @@ Core **не знает** бизнес-семантику регистраций 
 | API | Route Handlers: список, поиск, карточка истории, manual poll |
 | UI | Таблица + detail sheet |
 | Job processor | Обработчик очереди `p-queue` именно для `regs.poll` |
+
+### Module: Phones
+
+| Область | Ответственность |
+|---------|-----------------|
+| Action | `phones.sync` → allowlisted `export.py` на softswitch |
+| Storage | `phone_endpoints`, `phone_gateways` (полный replace snapshot) |
+| API | list/facets/status/request; XLSX export; RTU CSV convert; UFW XLSX export |
+| UI | `/phones` — фильтры, экспорт, импорт в РТУ/UFW |
 
 Будущий модуль = новый `action` + parser + таблицы/API/UI + processor. Ядро не переписывается.
 

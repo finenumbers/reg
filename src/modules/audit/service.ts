@@ -23,7 +23,6 @@ export const AUDIT_ACTIONS = {
   PHONES_SYNC_MANUAL: "phones.sync_manual",
   PHONES_SYNC_START: "phones.sync_start",
   PHONES_SYNC_FINISH: "phones.sync_finish",
-  USERS_CHANGE: "users.change",
 } as const;
 
 export type AuditAction =

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { assertSameOrigin } from "@/lib/csrf";
 import { requireApiPermission } from "@/modules/auth/guards";
 import { convertRtuXlsxToCsv } from "@/modules/phones/rtu-import";
 
@@ -11,6 +12,9 @@ const MAX_BYTES = 20 * 1024 * 1024; // 20 MiB
  * Ephemeral: multipart file → CSV download. Nothing persisted.
  */
 export async function POST(request: Request) {
+  const origin = assertSameOrigin(request);
+  if (!origin.ok) return origin.response;
+
   const gate = await requireApiPermission("phones:read");
   if (!gate.ok) return gate.response;
 
