@@ -21,12 +21,8 @@ import {
   type PhoneKind,
 } from "@/modules/phones/types";
 
-const REG_PASSWORD_FIELD = "Регистрационный пароль";
-const MASKED_SECRET = "••••••";
-
-/** Display value for phones table cells (masks SIP registration password). */
-export function displayPhoneCellValue(header: string, value: string): string {
-  if (header === REG_PASSWORD_FIELD && value.trim()) return MASKED_SECRET;
+/** Display value for phones table cells (plaintext, including SIP password). */
+export function displayPhoneCellValue(_header: string, value: string): string {
   return value;
 }
 
