@@ -55,3 +55,6 @@ export const pollRateLimiter = new SlidingWindowRateLimiter(6, 60 * 1000);
 
 /** SSH test triggers per user: 10 / minute */
 export const sshTestRateLimiter = new SlidingWindowRateLimiter(10, 60 * 1000);
+
+/** Machine API key reads: 10_000 / minute per key (single-replica) */
+export const apiKeyRateLimiter = new SlidingWindowRateLimiter(10_000, 60 * 1000);

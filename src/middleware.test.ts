@@ -38,6 +38,20 @@ describe("middleware protected routes", () => {
     expect(body.code).toBe("UNAUTHORIZED");
   });
 
+  it("allows Bearer API key without session cookie on /api/regs", () => {
+    const url = "http://localhost:3000/api/regs";
+    const headers = new Headers({ authorization: "Bearer reg_testkey" });
+    const res = middleware(new NextRequest(url, { headers }));
+    expect(res.status).toBe(200);
+  });
+
+  it("allows X-Api-Key without session cookie on /api/phones", () => {
+    const url = "http://localhost:3000/api/phones";
+    const headers = new Headers({ "x-api-key": "reg_testkey" });
+    const res = middleware(new NextRequest(url, { headers }));
+    expect(res.status).toBe(200);
+  });
+
   it("allows Better Auth public API without session", () => {
     const res = middleware(makeRequest("/api/auth/sign-in/username"));
     expect(res.status).toBe(200);

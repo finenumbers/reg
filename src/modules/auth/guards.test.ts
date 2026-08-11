@@ -6,6 +6,7 @@ describe("AuthError", () => {
     expect(new AuthError("UNAUTHORIZED").code).toBe("UNAUTHORIZED");
     expect(new AuthError("FORBIDDEN").code).toBe("FORBIDDEN");
     expect(new AuthError("INACTIVE").code).toBe("INACTIVE");
+    expect(new AuthError("RATE_LIMITED").code).toBe("RATE_LIMITED");
   });
 
   it("isAuthError narrows correctly", () => {

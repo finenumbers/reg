@@ -3,6 +3,7 @@ import { requireApiPermission } from "@/modules/auth/guards";
 import { assertSameOrigin } from "@/lib/csrf";
 import { pollRateLimiter } from "@/lib/rate-limit";
 import { jobRuntime } from "@/modules/jobs/runtime";
+import { requireSessionUserId } from "@/modules/auth/session";
 
 /**
  * POST /api/regs/poll — enqueue a manual regs.poll job (backend only).
@@ -16,7 +17,15 @@ export async function POST(request: Request) {
   const gate = await requireApiPermission("regs:poll");
   if (!gate.ok) return gate.response;
 
-  const userId = gate.ctx.session.user.id;
+  let userId: string;
+  try {
+    userId = requireSessionUserId(gate.ctx);
+  } catch {
+    return NextResponse.json(
+      { error: "Forbidden", code: "FORBIDDEN" },
+      { status: 403 },
+    );
+  }
   const limited = pollRateLimiter.check(`poll:${userId}`);
   if (!limited.allowed) {
     return NextResponse.json(

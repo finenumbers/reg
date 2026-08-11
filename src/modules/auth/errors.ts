@@ -4,9 +4,12 @@
  */
 
 export class AuthError extends Error {
-  readonly code: "UNAUTHORIZED" | "FORBIDDEN" | "INACTIVE";
+  readonly code: "UNAUTHORIZED" | "FORBIDDEN" | "INACTIVE" | "RATE_LIMITED";
 
-  constructor(code: "UNAUTHORIZED" | "FORBIDDEN" | "INACTIVE", message?: string) {
+  constructor(
+    code: "UNAUTHORIZED" | "FORBIDDEN" | "INACTIVE" | "RATE_LIMITED",
+    message?: string,
+  ) {
     super(message ?? code);
     this.name = "AuthError";
     this.code = code;

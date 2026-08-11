@@ -2,7 +2,7 @@
 
 Internal telecom ops platform for monitoring SIP registrations on an operator softswitch via allowlisted SSH scripts under `/opt/scripts/`.
 
-**Repository:** [github.com/finenumbers/reg](https://github.com/finenumbers/reg) · **Release:** [v1.2.8](https://github.com/finenumbers/reg/releases/tag/v1.2.8)
+**Repository:** [github.com/finenumbers/reg](https://github.com/finenumbers/reg) · **Release:** [v1.3.0](https://github.com/finenumbers/reg/releases/tag/v1.3.0)
 
 ## Stack (approved)
 
@@ -97,6 +97,7 @@ Do not hand-author conflicting auth table definitions. App RBAC (`roles` / `perm
 - Auto-poll is Settings-only (`regsPollEnabled` + interval); in-process loop starts at boot; single `app` replica required
 - Admin/settings/audit routes require RBAC permissions; anonymous users are redirected or rejected
 - Mutating APIs require same-origin Origin/Referer; login/poll/SSH-test are rate-limited (in-memory; single replica)
+- Machine API keys (Settings → API-ключи): read-only `regs:read` + `phones:read`; `Authorization: Bearer` / `X-Api-Key`; 10 000 req/min per key; no poll/sync/settings/SSH/RTU-import
 - Softswitch host hardening: see [remote-server-setup.md](docs/remote-server-setup.md)
 
 ## Settings / SSH APIs
@@ -105,8 +106,16 @@ Do not hand-author conflicting auth table definitions. App RBAC (`roles` / `perm
 - `PUT /api/settings` — SSH host/port/username + poll/artifact settings
 - `PUT /api/settings/ssh/key` — replace private key (`.ppk` / PEM/OpenSSH)
 - `POST /api/settings/ssh/test` — connection test (`ssh:test`)
+- `GET|POST /api/settings/api-keys` — list / create machine keys (`settings:write`; secret shown once on create)
+- `DELETE /api/settings/api-keys/[id]` — revoke key
 
-## Registrations (Phase 4 APIs + Phase 5 UI)
+### Machine read API (API key)
+
+```http
+Authorization: Bearer reg_<secret>
+```
+
+Allowed with `regs:read` / `phones:read`: `GET /api/regs*`, `GET /api/phones*` (except RTU POST), `GET /api/groups*`, `GET /api/jobs`.
 
 APIs:
 

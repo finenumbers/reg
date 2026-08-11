@@ -1,10 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionCookie } from "better-auth/cookies";
 
+function hasMachineApiKey(request: NextRequest): boolean {
+  const auth = request.headers.get("authorization");
+  if (auth && /^Bearer\s+\S+/i.test(auth.trim())) return true;
+  const x = request.headers.get("x-api-key");
+  return Boolean(x?.trim());
+}
+
 /**
  * Lightweight edge gate:
  * - Unauthenticated browser hits on protected app routes → redirect /login
  * - Unauthenticated API (non-public) → 401 JSON
+ * - API with Bearer / X-Api-Key passes through (validated in route handlers)
  * Full permission checks happen in server layouts / route handlers.
  */
 export function middleware(request: NextRequest) {
@@ -24,7 +32,7 @@ export function middleware(request: NextRequest) {
 
   const isApi = pathname.startsWith("/api/");
   if (isApi) {
-    if (!sessionCookie) {
+    if (!sessionCookie && !hasMachineApiKey(request)) {
       return NextResponse.json(
         { error: "Unauthorized", code: "UNAUTHORIZED" },
         { status: 401 },

@@ -5,6 +5,7 @@ import { getRequestIp } from "@/lib/request-ip";
 import { sshTestRateLimiter } from "@/lib/rate-limit";
 import { isSshTestError } from "@/modules/ssh/errors";
 import { runSshConnectionTest } from "@/modules/ssh/test-connection";
+import { requireSessionUserId } from "@/modules/auth/session";
 
 /**
  * POST /api/settings/ssh/test — SSH auth/session connection test (ssh:test).
@@ -20,7 +21,17 @@ export async function POST(request: Request) {
   const gate = await requireApiPermission("ssh:test");
   if (!gate.ok) return gate.response;
 
-  const limited = sshTestRateLimiter.check(`ssh-test:${gate.ctx.session.user.id}`);
+  let userId: string;
+  try {
+    userId = requireSessionUserId(gate.ctx);
+  } catch {
+    return NextResponse.json(
+      { error: "Forbidden", code: "FORBIDDEN" },
+      { status: 403 },
+    );
+  }
+
+  const limited = sshTestRateLimiter.check(`ssh-test:${userId}`);
   if (!limited.allowed) {
     return NextResponse.json(
       {
@@ -38,7 +49,7 @@ export async function POST(request: Request) {
   try {
     const ip = await getRequestIp();
     const test = await runSshConnectionTest({
-      userId: gate.ctx.session.user.id,
+      userId,
       ip,
     });
 

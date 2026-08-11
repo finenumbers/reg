@@ -53,7 +53,7 @@ describe("POST /api/regs/poll hardening", () => {
   it("rate limits repeated polls", async () => {
     requireApiPermission.mockResolvedValue({
       ok: true,
-      ctx: { session: { user: { id: "u1" } } },
+      ctx: { authKind: "session", session: { user: { id: "u1" } } },
     });
     pollRateLimiterCheck.mockReturnValue({
       allowed: false,
@@ -71,7 +71,7 @@ describe("POST /api/regs/poll hardening", () => {
   it("enqueues when allowed", async () => {
     requireApiPermission.mockResolvedValue({
       ok: true,
-      ctx: { session: { user: { id: "u1" } } },
+      ctx: { authKind: "session", session: { user: { id: "u1" } } },
     });
     enqueue.mockResolvedValue({ accepted: true });
 

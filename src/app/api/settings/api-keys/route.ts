@@ -1,28 +1,28 @@
 import { NextResponse } from "next/server";
-import { ZodError } from "zod";
+import { ZodError, z } from "zod";
 import { requireApiPermission } from "@/modules/auth/guards";
 import { assertSameOrigin } from "@/lib/csrf";
 import { getRequestIp } from "@/lib/request-ip";
-import {
-  getSettingsView,
-  settingsUpdateSchema,
-  updateSettings,
-} from "@/modules/settings";
 import { requireSessionUserId } from "@/modules/auth/session";
+import { createApiKey, listApiKeys } from "@/modules/api-keys/service";
+
+const createSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+});
 
 /**
- * GET /api/settings — masked settings state (settings:write).
- * PUT /api/settings — update non-secret settings + SSH host/port/username.
+ * GET /api/settings/api-keys — list keys (no secrets).
+ * POST /api/settings/api-keys — create key; returns plaintext secret once.
  */
 export async function GET() {
   const gate = await requireApiPermission("settings:write");
   if (!gate.ok) return gate.response;
 
-  const settings = await getSettingsView();
-  return NextResponse.json({ settings });
+  const keys = await listApiKeys();
+  return NextResponse.json({ keys });
 }
 
-export async function PUT(request: Request) {
+export async function POST(request: Request) {
   const origin = assertSameOrigin(request);
   if (!origin.ok) return origin.response;
 
@@ -49,41 +49,21 @@ export async function PUT(request: Request) {
     );
   }
 
-  // Reject any attempt to smuggle key/command fields through settings update.
-  if (body && typeof body === "object") {
-    const banned = [
-      "command",
-      "scriptPath",
-      "remoteArgs",
-      "privateKey",
-      "privateKeyCiphertext",
-      "rawKeyMaterial",
-      "passphrase",
-    ] as const;
-    for (const key of banned) {
-      if (key in (body as Record<string, unknown>)) {
-        return NextResponse.json(
-          {
-            error: `Field '${key}' is not allowed on settings update — use the key replace endpoint for key material`,
-            code: "BAD_REQUEST",
-          },
-          { status: 400 },
-        );
-      }
-    }
-  }
-
   try {
-    const input = settingsUpdateSchema.parse(body);
+    const input = createSchema.parse(body);
     const ip = await getRequestIp();
-    const result = await updateSettings(input, {
-      userId,
+    const created = await createApiKey({
+      name: input.name,
+      createdByUserId: userId,
       ip,
     });
-    return NextResponse.json({
-      settings: result.settings,
-      createdProfile: result.createdProfile,
-    });
+    return NextResponse.json(
+      {
+        key: created.key,
+        apiKey: created.apiKey,
+      },
+      { status: 201 },
+    );
   } catch (error) {
     if (error instanceof ZodError) {
       return NextResponse.json(
@@ -95,6 +75,12 @@ export async function PUT(request: Request) {
             message: i.message,
           })),
         },
+        { status: 400 },
+      );
+    }
+    if (error instanceof Error && error.message === "INVALID_NAME") {
+      return NextResponse.json(
+        { error: "Invalid name", code: "BAD_REQUEST" },
         { status: 400 },
       );
     }

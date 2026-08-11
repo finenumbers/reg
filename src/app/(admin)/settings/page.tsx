@@ -1,6 +1,7 @@
 import { requirePagePermission } from "@/modules/auth/guards";
 import { getSettingsView } from "@/modules/settings";
 import { SettingsForm } from "./settings-form";
+import { ApiKeysPanel } from "./api-keys-panel";
 
 export default async function SettingsPage() {
   await requirePagePermission("settings:write");
@@ -16,6 +17,7 @@ export default async function SettingsPage() {
         </p>
       </div>
       <SettingsForm initial={settings} />
+      <ApiKeysPanel />
     </div>
   );
 }

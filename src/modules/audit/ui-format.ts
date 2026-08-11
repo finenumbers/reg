@@ -30,6 +30,8 @@ const ACTION_LABELS: Record<string, string> = {
   "groups.sync_manual": "Ручная загрузка входящих групп",
   "groups.sync_start": "Старт загрузки входящих групп",
   "groups.sync_finish": "Завершение загрузки входящих групп",
+  "api_key.create": "Создание API-ключа",
+  "api_key.revoke": "Отзыв API-ключа",
   "users.change": "Изменение пользователя",
 };
 

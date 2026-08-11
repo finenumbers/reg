@@ -18,6 +18,16 @@ export async function POST(request: Request) {
   const gate = await requireApiPermission("phones:read");
   if (!gate.ok) return gate.response;
 
+  if (gate.ctx.authKind === "api_key") {
+    return NextResponse.json(
+      {
+        error: "API keys cannot use RTU import",
+        code: "FORBIDDEN",
+      },
+      { status: 403 },
+    );
+  }
+
   let form: FormData;
   try {
     form = await request.formData();

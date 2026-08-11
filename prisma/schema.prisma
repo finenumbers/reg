@@ -352,6 +352,29 @@ model RoutingGroupImportState {
   @@map("routing_group_import_state")
 }
 
+// ---------------------------------------------------------------------------
+// Machine API keys (read-only integrations)
+// ---------------------------------------------------------------------------
+
+model ApiKey {
+  id              String    @id @default(cuid())
+  name            String
+  /// First characters of the secret (e.g. reg_xxxx…) for UI + lookup.
+  keyPrefix       String    @unique
+  /// SHA-256 hex of the full secret. Plaintext is never stored.
+  keyHash         String
+  /// Fixed permission codes JSON array, e.g. ["regs:read","phones:read"].
+  permissions     Json
+  enabled         Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  revokedAt       DateTime?
+  lastUsedAt      DateTime?
+  createdByUserId String?
+
+  @@index([enabled])
+  @@map("api_keys")
+}
+
 model User {
   id              String    @id
   name            String

@@ -26,6 +26,8 @@ export const AUDIT_ACTIONS = {
   GROUPS_SYNC_MANUAL: "groups.sync_manual",
   GROUPS_SYNC_START: "groups.sync_start",
   GROUPS_SYNC_FINISH: "groups.sync_finish",
+  API_KEY_CREATE: "api_key.create",
+  API_KEY_REVOKE: "api_key.revoke",
 } as const;
 
 export type AuditAction =

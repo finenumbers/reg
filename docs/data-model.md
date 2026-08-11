@@ -15,6 +15,7 @@ Auth: **Better Auth Prisma adapter / CLI — source of truth**.
 ssh_profiles
 app_settings ── active_ssh_profile_id → ssh_profiles
 allowed_actions   (seed/code-owned)
+api_keys          (machine read-only; hash only)
 
 job_runs ── job_run_artifacts
 ssh_connection_tests

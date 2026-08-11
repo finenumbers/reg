@@ -5,6 +5,7 @@ import { assertSameOrigin } from "@/lib/csrf";
 import { getRequestIp } from "@/lib/request-ip";
 import { keyReplaceSchema, replaceSshPrivateKey } from "@/modules/settings";
 import { isKeyImportError } from "@/modules/ssh/errors";
+import { requireSessionUserId } from "@/modules/auth/session";
 
 /**
  * PUT /api/settings/ssh/key — replace SSH private key (settings:write).
@@ -17,6 +18,16 @@ export async function PUT(request: Request) {
 
   const gate = await requireApiPermission("settings:write");
   if (!gate.ok) return gate.response;
+
+  let userId: string;
+  try {
+    userId = requireSessionUserId(gate.ctx);
+  } catch {
+    return NextResponse.json(
+      { error: "Forbidden", code: "FORBIDDEN" },
+      { status: 403 },
+    );
+  }
 
   let rawKeyMaterial: string | undefined;
   let passphrase: string | undefined;
@@ -76,7 +87,7 @@ export async function PUT(request: Request) {
     const ip = await getRequestIp();
     const settings = await replaceSshPrivateKey(
       { rawKeyMaterial, passphrase },
-      { userId: gate.ctx.session.user.id, ip },
+      { userId, ip },
     );
     return NextResponse.json({ settings });
   } catch (error) {
