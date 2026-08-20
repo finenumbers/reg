@@ -82,19 +82,41 @@ Set `BETTER_AUTH_URL` to the exact public origin (`https://regs.example.com`) an
 ## 5. After first boot
 
 1. Open `https://regs.example.com/login` with bootstrap admin.
-2. **Settings:** SSH host/user/key → **Test connection**.
+2. **Settings:** SSH host/user/key → **Test connection**. If GeoIP Analytics runs on **this same Docker host**, set the GeoIP URL per [§6](#6-geoip-on-the-same-docker-host) before relying on country/city/ISP columns.
 3. **Registrations:** manual poll once; check `/jobs` and `/regs`.
 4. **Phones:** sync once after softswitch `export.py` is installed.
 5. Only then enable Settings auto-poll (`regsPollEnabled`) — still one replica.
 
-## 6. Upgrades / redeploy
+## 6. GeoIP on the same Docker host
+
+The `app` container must not call the **public** GeoIP HTTPS origin (`https://geoip.finenumbers.com`). That resolves to the host’s public IP (`5.227.161.190:443` here). Docker hairpin NAT typically fails: Node `fetch` waits ~10s then `UND_ERR_CONNECT_TIMEOUT` / UI «fetch failed». The same URL works from a laptop (different path).
+
+Lookup is **`geoip_api`** (internal port **3000**), not `geoip_web` (published `8080→80`). Those GeoIP containers are **not** on `proxy` until you attach the API.
+
+One-shot (lost on container recreate unless the **GeoIP** compose also lists `proxy`):
+
+```bash
+docker network connect proxy geoip_api
+```
+
+Settings → GeoIP → URL: **`http://geoip_api:3000`**. Save, then **Check connection**.
+
+Do **not** clear the URL field. An empty save stores the default `https://geoip.finenumbers.com` and the timeout comes back.
+
+Probe from `reg-app-1` (no curl in the image). `401` without a key means the path works:
+
+```bash
+node -e 'fetch("http://geoip_api:3000/api/v1/lookup",{method:"POST",headers:{"content-type":"application/json"},body:"{}"}).then(async r=>console.log("status",r.status,await r.text())).catch(e=>console.error(e.cause||e))'
+```
+
+## 7. Upgrades / redeploy
 
 1. In Portainer: **Pull and redeploy** the stack (or `docker compose -f docker-compose.portainer.yml pull && docker compose -f docker-compose.portainer.yml up -d`).
 2. Images stay `latest` / `latest-migrator` — no tag changes in compose.
 3. Migrate runs before app on each redeploy.
 4. Smoke: `/api/readyz` + login.
 
-## 7. Must not
+## 8. Must not
 
 - Publish `app:3000` or Postgres to the public internet (this compose does not map host ports).
 - Run multiple `app` replicas.
