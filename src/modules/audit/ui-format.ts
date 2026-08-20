@@ -21,6 +21,8 @@ const ACTION_LABELS: Record<string, string> = {
   "settings.update": "Изменение настроек",
   "ssh.key_replace": "Замена SSH-ключа",
   "ssh.test": "Тест SSH-соединения",
+  "geoip.key_replace": "Замена ключа GeoIP",
+  "geoip.test": "Тест GeoIP",
   "regs.poll_manual": "Ручной опрос регистраций",
   "regs.poll_start": "Старт опроса регистраций",
   "regs.poll_finish": "Завершение опроса регистраций",

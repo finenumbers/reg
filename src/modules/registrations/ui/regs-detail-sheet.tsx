@@ -66,7 +66,7 @@ export function RegsDetailSheet({
 
           {!loading && !error && current ? (
             <>
-              <dl className="grid grid-cols-[7rem_1fr] gap-x-3 gap-y-2 text-sm">
+              <dl className="grid grid-cols-[9rem_1fr] gap-x-3 gap-y-2 text-sm">
                 <dt className="text-muted-foreground">Статус</dt>
                 <dd>
                   <RegStatusBadge status={current.status} />
@@ -75,6 +75,12 @@ export function RegsDetailSheet({
                 <dd className="text-sm">
                   {formatEndpoint(current.ip, current.port)}
                 </dd>
+                <dt className="text-muted-foreground">Страна</dt>
+                <dd>{current.country ?? "—"}</dd>
+                <dt className="text-muted-foreground">Город</dt>
+                <dd>{current.city ?? "—"}</dd>
+                <dt className="text-muted-foreground">Оператор связи</dt>
+                <dd>{current.isp ?? "—"}</dd>
                 <dt className="text-muted-foreground">Последнее изменение</dt>
                 <dd>{formatTimestamp(current.lastChangedAt)}</dd>
                 <dt className="text-muted-foreground">Обновление</dt>

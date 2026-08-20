@@ -99,6 +99,10 @@ model AppSetting {
   artifactRetentionDays Int         @default(14)
   artifactKeepLastRuns  Int         @default(50)
   artifactMaxBytes      Int         @default(50000000)
+  /// Origin of GeoIP Analytics (no trailing slash), e.g. https://geoip.example.com
+  geoipBaseUrl          String?
+  /// AES-256-GCM ciphertext of External IP Lookup API key. Never plaintext.
+  geoipApiKeyCiphertext String?
   updatedAt             DateTime    @updatedAt
 
   @@map("app_settings")
@@ -256,6 +260,20 @@ model RegistrationEvent {
 
   @@index([phone, changedAt(sort: Desc)])
   @@map("reg_change_events")
+}
+
+/// Cached GRCHC lookup (country / city / ASN org) keyed by registration IPv4.
+model IpGeoCache {
+  ip          String   @id
+  country     String?
+  city        String?
+  isp         String?
+  datasetDate String?
+  lookedUpAt  DateTime
+  updatedAt   DateTime @updatedAt
+
+  @@index([lookedUpAt])
+  @@map("ip_geo_cache")
 }
 
 /// Optional full snapshot per run — deferred for v1 unless needed.

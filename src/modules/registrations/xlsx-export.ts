@@ -21,6 +21,9 @@ const REG_EXPORT_COLUMNS = [
   "description",
   "status",
   "endpoint",
+  "country",
+  "city",
+  "isp",
   "lastChangedAt",
   "lastSeenAt",
 ] as const;
@@ -31,6 +34,9 @@ function registrationExportRow(row: RegistrationListItem): string[] {
     row.description ?? "",
     formatRegStatus(row.status),
     formatEndpoint(row.ip, row.port),
+    row.country ?? "",
+    row.city ?? "",
+    row.isp ?? "",
     formatTimestamp(row.lastChangedAt),
     formatTimestamp(row.lastSeenAt),
   ];
@@ -42,7 +48,7 @@ export type RegsExportResult = {
 };
 
 export async function buildRegsExportXlsx(): Promise<RegsExportResult> {
-  const items = await loadAllRegistrationItems();
+  const items = await loadAllRegistrationItems({ waitGeo: true });
   const headers = REG_EXPORT_COLUMNS.map((key) => REG_COLUMN_HEADERS[key]!);
   const rows = items.map(registrationExportRow);
   const workbook = createSimpleWorkbook({

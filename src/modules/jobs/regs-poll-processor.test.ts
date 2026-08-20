@@ -81,6 +81,7 @@ describe("processRegsPoll", () => {
       eventsWritten: 2,
       removed: 0,
     });
+    const enqueueGeoEnrich = vi.fn();
     const execute = vi.fn().mockResolvedValue({
       actionCode: "regs.poll",
       remotePath: "/opt/scripts/check_regs.sh",
@@ -93,12 +94,13 @@ describe("processRegsPoll", () => {
 
     const result = await processRegsPoll(
       { trigger: "manual", actorUserId: "user_1" },
-      { execute, apply },
+      { execute, apply, enqueueGeoEnrich },
     );
 
     expect(result.status).toBe("success");
     expect(result.phonesParsed).toBe(2);
     expect(result.changesCount).toBe(2);
+    expect(enqueueGeoEnrich).toHaveBeenCalledWith(["46.20.69.189"]);
     expect(execute).toHaveBeenCalledWith({
       actionCode: "regs.poll",
       timeoutMs: 60_000,
@@ -115,6 +117,7 @@ describe("processRegsPoll", () => {
 
   it("does not apply when exit code is non-zero", async () => {
     const apply = vi.fn();
+    const enqueueGeoEnrich = vi.fn();
     const execute = vi.fn().mockResolvedValue({
       actionCode: "regs.poll",
       remotePath: "/opt/scripts/check_regs.sh",
@@ -127,11 +130,12 @@ describe("processRegsPoll", () => {
 
     const result = await processRegsPoll(
       { trigger: "schedule" },
-      { execute, apply },
+      { execute, apply, enqueueGeoEnrich },
     );
 
     expect(result.status).toBe("failed");
     expect(apply).not.toHaveBeenCalled();
+    expect(enqueueGeoEnrich).not.toHaveBeenCalled();
     expect(updateJobRun).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ status: "failed", changesCount: 0 }),

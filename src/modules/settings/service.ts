@@ -26,13 +26,16 @@ import {
 import { isKeyImportError, KeyImportError } from "@/modules/ssh/errors";
 import {
   DEFAULT_SSH_PROFILE_NAME,
+  geoipKeyReplaceSchema,
   keyReplaceSchema,
   settingsUpdateSchema,
+  type GeoipKeyReplaceInput,
   type KeyReplaceInput,
   type SettingsUpdateInput,
   type SettingsUpdateResult,
   type SettingsView,
 } from "@/modules/settings/schemas";
+import { normalizeGeoipBaseUrl } from "@/modules/geoip/types";
 
 async function ensureAppSettings() {
   return prisma.appSetting.upsert({
@@ -61,6 +64,8 @@ function toSettingsView(
     artifactKeepLastRuns: settings.artifactKeepLastRuns,
     artifactMaxBytes: settings.artifactMaxBytes,
     schedulerLoopActive: isAutoSchedulerRunning(),
+    geoipBaseUrl: settings.geoipBaseUrl ?? null,
+    hasGeoipApiKey: Boolean(settings.geoipApiKeyCiphertext),
   };
 }
 
@@ -140,6 +145,7 @@ export async function updateSettings(
     artifactRetentionDays?: number;
     artifactKeepLastRuns?: number;
     artifactMaxBytes?: number;
+    geoipBaseUrl?: string | null;
   } = {};
 
   if (parsed.regsPollEnabled !== undefined) {
@@ -156,6 +162,12 @@ export async function updateSettings(
   }
   if (parsed.artifactMaxBytes !== undefined) {
     settingsData.artifactMaxBytes = parsed.artifactMaxBytes;
+  }
+  if (parsed.geoipBaseUrl !== undefined) {
+    const trimmed = parsed.geoipBaseUrl.trim();
+    settingsData.geoipBaseUrl = trimmed
+      ? normalizeGeoipBaseUrl(trimmed)
+      : null;
   }
 
   if (Object.keys(settingsData).length > 0 || sshFieldsProvided) {
@@ -193,6 +205,8 @@ export async function updateSettings(
       artifactKeepLastRuns: view.artifactKeepLastRuns,
       artifactMaxBytes: view.artifactMaxBytes,
       schedulerLoopActive: view.schedulerLoopActive,
+      geoipBaseUrl: view.geoipBaseUrl,
+      hasGeoipApiKey: view.hasGeoipApiKey,
     },
   });
 
@@ -299,4 +313,41 @@ export async function loadActiveSshPrivateKeyPem(): Promise<{
     username: profile.username,
     privateKeyPem,
   };
+}
+
+/**
+ * Replace GeoIP External IP Lookup API key. Never returns plaintext.
+ */
+export async function replaceGeoipApiKey(
+  input: GeoipKeyReplaceInput,
+  actor: { userId: string; ip?: string | null },
+): Promise<SettingsView> {
+  const parsed = geoipKeyReplaceSchema.parse(input);
+  const encryption = getSecretEncryptionService();
+  const ciphertext = serializeEncryptedSecret(
+    encryption.encrypt(parsed.apiKey.trim()),
+  );
+
+  await prisma.appSetting.upsert({
+    where: { id: 1 },
+    create: { id: 1, geoipApiKeyCiphertext: ciphertext },
+    update: { geoipApiKeyCiphertext: ciphertext },
+  });
+
+  const view = await getSettingsView();
+
+  await auditService.append({
+    actorUserId: actor.userId,
+    action: AUDIT_ACTIONS.GEOIP_KEY_REPLACE,
+    entityType: "app_settings",
+    entityId: "1",
+    ip: actor.ip,
+    meta: {
+      replacedExisting: true,
+      hasGeoipApiKey: true,
+      geoipBaseUrl: view.geoipBaseUrl,
+    },
+  });
+
+  return view;
 }

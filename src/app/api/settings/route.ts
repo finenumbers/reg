@@ -59,6 +59,9 @@ export async function PUT(request: Request) {
       "privateKeyCiphertext",
       "rawKeyMaterial",
       "passphrase",
+      "geoipApiKey",
+      "geoipApiKeyCiphertext",
+      "apiKey",
     ] as const;
     for (const key of banned) {
       if (key in (body as Record<string, unknown>)) {

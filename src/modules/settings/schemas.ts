@@ -4,6 +4,20 @@
 
 import { z } from "zod";
 
+const geoipBaseUrlSchema = z
+  .string()
+  .max(2048)
+  .refine((value) => {
+    const trimmed = value.trim();
+    if (trimmed.length === 0) return true;
+    try {
+      const url = new URL(trimmed);
+      return url.protocol === "http:" || url.protocol === "https:";
+    } catch {
+      return false;
+    }
+  }, "GeoIP URL must be a valid http(s) origin");
+
 export const settingsUpdateSchema = z.object({
   host: z.string().min(1).max(255).optional(),
   port: z.number().int().min(1).max(65535).optional(),
@@ -13,6 +27,7 @@ export const settingsUpdateSchema = z.object({
   artifactRetentionDays: z.number().int().min(1).max(365).optional(),
   artifactKeepLastRuns: z.number().int().min(1).max(1000).optional(),
   artifactMaxBytes: z.number().int().min(1024).max(50_000_000).optional(),
+  geoipBaseUrl: geoipBaseUrlSchema.optional(),
 });
 
 export type SettingsUpdateInput = z.infer<typeof settingsUpdateSchema>;
@@ -23,6 +38,12 @@ export const keyReplaceSchema = z.object({
 });
 
 export type KeyReplaceInput = z.infer<typeof keyReplaceSchema>;
+
+export const geoipKeyReplaceSchema = z.object({
+  apiKey: z.string().min(1).max(4096),
+});
+
+export type GeoipKeyReplaceInput = z.infer<typeof geoipKeyReplaceSchema>;
 
 export type SettingsView = {
   host: string | null;
@@ -40,6 +61,9 @@ export type SettingsView = {
   artifactMaxBytes: number;
   /** True when the in-process scheduler timer loop is running */
   schedulerLoopActive: boolean;
+  geoipBaseUrl: string | null;
+  /** Never expose the GeoIP API key — only whether it is stored */
+  hasGeoipApiKey: boolean;
 };
 
 export type SettingsUpdateResult = {

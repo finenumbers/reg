@@ -12,6 +12,12 @@ import {
   type FacetResponse,
 } from "@/components/column-filters/types";
 import { prisma } from "@/lib/db";
+import {
+  enqueueStaleGeoLookups,
+  awaitStaleGeoLookups,
+  loadGeoCacheByIps,
+  uniqueLookupIps,
+} from "@/modules/geoip";
 import { buildPhoneDescriptionMap } from "@/modules/registrations/phone-description";
 import { sortRegistrationItemsByPhone } from "@/modules/registrations/sort";
 import type {
@@ -55,6 +61,7 @@ function toListItem(
     lastChangedAt: Date;
   },
   description: string | null = null,
+  geo: { country: string | null; city: string | null; isp: string | null } | null = null,
 ): RegistrationListItem {
   return {
     phone: row.phone,
@@ -62,9 +69,39 @@ function toListItem(
     status: row.status,
     ip: row.ip,
     port: row.port,
+    country: geo?.country ?? null,
+    city: geo?.city ?? null,
+    isp: geo?.isp ?? null,
     lastSeenAt: row.lastSeenAt.toISOString(),
     lastChangedAt: row.lastChangedAt.toISOString(),
   };
+}
+
+async function attachGeoFields(
+  items: RegistrationListItem[],
+  opts: { enqueueMissing?: boolean; wait?: boolean } = {},
+): Promise<RegistrationListItem[]> {
+  const ips = uniqueLookupIps(items.map((row) => row.ip));
+  if (ips.length === 0) return items;
+
+  if (opts.wait) {
+    await awaitStaleGeoLookups(ips);
+  } else if (opts.enqueueMissing) {
+    enqueueStaleGeoLookups(ips);
+  }
+
+  const cache = await loadGeoCacheByIps(ips);
+  return items.map((row) => {
+    if (!row.ip) return row;
+    const geo = cache.get(row.ip);
+    if (!geo) return row;
+    return {
+      ...row,
+      country: geo.country,
+      city: geo.city,
+      isp: geo.isp,
+    };
+  });
 }
 
 function toHistoryItem(row: {
@@ -116,6 +153,12 @@ function columnCellValue(
       return row.status;
     case "endpoint":
       return formatEndpoint(row.ip, row.port);
+    case "country":
+      return row.country ?? "";
+    case "city":
+      return row.city ?? "";
+    case "isp":
+      return row.isp ?? "";
     case "lastChangedAt":
       return row.lastChangedAt ?? "";
     case "lastSeenAt":
@@ -151,14 +194,17 @@ function applyColumnFilters(
   );
 }
 
-export async function loadAllRegistrationItems(): Promise<RegistrationListItem[]> {
+export async function loadAllRegistrationItems(
+  opts: { waitGeo?: boolean } = {},
+): Promise<RegistrationListItem[]> {
   const rows = await prisma.registrationCurrent.findMany({
     orderBy: [{ phone: "asc" }],
   });
   const descriptions = await descriptionsForPhones(rows.map((r) => r.phone));
-  return sortRegistrationItemsByPhone(
+  const items = sortRegistrationItemsByPhone(
     rows.map((row) => toListItem(row, descriptions.get(row.phone) ?? null)),
   );
+  return attachGeoFields(items, { wait: opts.waitGeo });
 }
 
 function matchesPhoneQ(row: RegistrationListItem, phoneQ: string): boolean {
@@ -179,9 +225,12 @@ export async function listRegistrations(
     matchesPhoneQ(row, phoneQ),
   );
   const skip = (page - 1) * pageSize;
+  const pageItems = await attachGeoFields(filtered.slice(skip, skip + pageSize), {
+    enqueueMissing: true,
+  });
 
   return {
-    items: filtered.slice(skip, skip + pageSize),
+    items: pageItems,
     total: filtered.length,
     page,
     pageSize,
@@ -259,7 +308,12 @@ export async function getRegistrationDetail(
   ]);
 
   return {
-    current: toListItem(current, descriptions.get(normalized) ?? null),
+    current: (
+      await attachGeoFields(
+        [toListItem(current, descriptions.get(normalized) ?? null)],
+        { wait: true },
+      )
+    )[0]!,
     events: events.map(toHistoryItem),
   };
 }

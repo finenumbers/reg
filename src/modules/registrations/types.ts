@@ -9,6 +9,9 @@ export type RegistrationListItem = {
   status: "Registered" | "Unregistered";
   ip: string | null;
   port: number | null;
+  country: string | null;
+  city: string | null;
+  isp: string | null;
   lastSeenAt: string | null;
   lastChangedAt: string | null;
 };

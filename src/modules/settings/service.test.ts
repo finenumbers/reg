@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  geoipKeyReplaceSchema,
   keyReplaceSchema,
   settingsUpdateSchema,
   type SettingsView,
@@ -13,9 +14,12 @@ function assertMaskedSettings(view: SettingsView) {
   expect(json).not.toMatch(/PRIVATE KEY/i);
   expect(json).not.toMatch(/privateKeyCiphertext/i);
   expect(json).not.toMatch(/passphrase/i);
+  expect(json).not.toMatch(/geoipApiKeyCiphertext/i);
   expect(typeof view.hasPrivateKey).toBe("boolean");
+  expect(typeof view.hasGeoipApiKey).toBe("boolean");
   expect(view).toHaveProperty("keyFingerprint");
   expect(view).toHaveProperty("keyAlgo");
+  expect(view).toHaveProperty("geoipBaseUrl");
   expect(view.schedulerLoopActive).toBe(false);
 }
 
@@ -28,8 +32,13 @@ describe("settings schemas and masked view contract", () => {
         username: "platform",
         regsPollEnabled: true,
         regsPollIntervalSec: 60,
+        geoipBaseUrl: "http://localhost:8080/",
       }),
-    ).toMatchObject({ host: "softswitch.example", regsPollIntervalSec: 60 });
+    ).toMatchObject({
+      host: "softswitch.example",
+      regsPollIntervalSec: 60,
+      geoipBaseUrl: "http://localhost:8080/",
+    });
 
     expect(() =>
       settingsUpdateSchema.parse({ regsPollIntervalSec: 10 }),
@@ -51,6 +60,13 @@ describe("settings schemas and masked view contract", () => {
     ).toMatchObject({ passphrase: "x" });
   });
 
+  it("requires a non-empty GeoIP API key for replace", () => {
+    expect(() => geoipKeyReplaceSchema.parse({ apiKey: "" })).toThrow();
+    expect(geoipKeyReplaceSchema.parse({ apiKey: "geoip-secret" })).toEqual({
+      apiKey: "geoip-secret",
+    });
+  });
+
   it("masked settings view never exposes secrets", () => {
     const view: SettingsView = {
       host: "10.0.0.1",
@@ -66,6 +82,8 @@ describe("settings schemas and masked view contract", () => {
       artifactKeepLastRuns: 50,
       artifactMaxBytes: 1_048_576,
       schedulerLoopActive: false,
+      geoipBaseUrl: null,
+      hasGeoipApiKey: false,
     };
     assertMaskedSettings(view);
   });

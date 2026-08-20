@@ -49,7 +49,7 @@ export function RegsTable({
   onRowClick,
 }: Props) {
   const showEmpty = !loading && data.length === 0;
-  const colCount = 6;
+  const colCount = 9;
 
   return (
     <Table className="text-sm">
@@ -61,6 +61,9 @@ export function RegsTable({
               { id: "description", header: "Описание" },
               { id: "status", header: "Статус" },
               { id: "endpoint", header: "Endpoint" },
+              { id: "country", header: "Страна" },
+              { id: "city", header: "Город" },
+              { id: "isp", header: "Оператор связи" },
               { id: "lastChangedAt", header: "Последнее изменение" },
               { id: "lastSeenAt", header: "Обновление" },
             ] as const
@@ -137,6 +140,27 @@ export function RegsTable({
                   <span className="text-sm text-muted-foreground">
                     {formatEndpoint(row.ip, row.port)}
                   </span>
+                </TableCell>
+                <TableCell className="text-sm">
+                  {row.country ? (
+                    row.country
+                  ) : (
+                    <span className="text-sm text-muted-foreground">—</span>
+                  )}
+                </TableCell>
+                <TableCell className="text-sm">
+                  {row.city ? (
+                    row.city
+                  ) : (
+                    <span className="text-sm text-muted-foreground">—</span>
+                  )}
+                </TableCell>
+                <TableCell className="text-sm">
+                  {row.isp ? (
+                    row.isp
+                  ) : (
+                    <span className="text-sm text-muted-foreground">—</span>
+                  )}
                 </TableCell>
                 <TableCell className="text-sm">
                   {formatTimestamp(row.lastChangedAt)}

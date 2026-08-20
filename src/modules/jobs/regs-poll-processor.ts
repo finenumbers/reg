@@ -19,6 +19,7 @@ import {
   type ApplyRegistrationsResult,
 } from "@/modules/registrations/apply";
 import { parseRegsStdout } from "@/modules/registrations/parser";
+import { enqueueStaleGeoLookups, uniqueLookupIps } from "@/modules/geoip";
 
 export type RegsPollProcessorInput = {
   trigger: JobTrigger;
@@ -38,6 +39,7 @@ export type RegsPollProcessorResult = {
 export type RegsPollProcessorDeps = {
   execute: RemoteExecutionService["execute"];
   apply: typeof applyRegistrationPoll;
+  enqueueGeoEnrich?: (ips: string[]) => void;
 };
 
 const DEFAULT_DEPS: RegsPollProcessorDeps = {
@@ -443,6 +445,16 @@ export async function processRegsPoll(
     linesBad: parsed.linesBad,
     changesCount: applyResult.changesCount,
   });
+
+  const uniqueIps = uniqueLookupIps(parsed.rows.map((row) => row.ip));
+  try {
+    (deps.enqueueGeoEnrich ?? enqueueStaleGeoLookups)(uniqueIps);
+  } catch (error) {
+    logger.warn("regs.poll.geoip_enqueue_failed", {
+      jobRunId: jobRun.id,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
 
   return {
     jobRunId: jobRun.id,

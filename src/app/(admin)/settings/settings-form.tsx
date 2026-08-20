@@ -42,6 +42,11 @@ export function SettingsForm({ initial }: Props) {
   const [artifactKeepLastRuns, setArtifactKeepLastRuns] = useState(
     String(initial.artifactKeepLastRuns),
   );
+  const [geoipBaseUrl, setGeoipBaseUrl] = useState(initial.geoipBaseUrl ?? "");
+  const [geoipApiKey, setGeoipApiKey] = useState("");
+  const [geoipTestResult, setGeoipTestResult] = useState<TestResultView | null>(
+    null,
+  );
   const [passphrase, setPassphrase] = useState("");
   const [keyPaste, setKeyPaste] = useState("");
   const [keyFileLabel, setKeyFileLabel] = useState<string | null>(null);
@@ -91,6 +96,7 @@ export function SettingsForm({ initial }: Props) {
     setRegsPollIntervalSec(String(next.regsPollIntervalSec));
     setArtifactRetentionDays(String(next.artifactRetentionDays));
     setArtifactKeepLastRuns(String(next.artifactKeepLastRuns));
+    setGeoipBaseUrl(next.geoipBaseUrl ?? "");
   }
 
   async function saveProfileFields(): Promise<SettingsView | null> {
@@ -253,6 +259,98 @@ export function SettingsForm({ initial }: Props) {
     });
   }
 
+  async function saveGeoipUrl(): Promise<SettingsView | null> {
+    const res = await fetch("/api/settings", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ geoipBaseUrl: geoipBaseUrl.trim() }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      toast.error(data.error ?? "Не удалось сохранить URL GeoIP");
+      return null;
+    }
+    return data.settings as SettingsView;
+  }
+
+  async function replaceGeoipKeyIfPresent(
+    current: SettingsView,
+  ): Promise<SettingsView | null> {
+    const key = geoipApiKey.trim();
+    if (!key) return current;
+    const res = await fetch("/api/settings/geoip/key", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ apiKey: key }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      toast.error(data.error ?? "Не удалось сохранить API-ключ GeoIP");
+      applySettings(current);
+      return null;
+    }
+    setGeoipApiKey("");
+    return data.settings as SettingsView;
+  }
+
+  function onSaveGeoip() {
+    startTransition(async () => {
+      try {
+        const hadKey = Boolean(geoipApiKey.trim());
+        const saved = await saveGeoipUrl();
+        if (!saved) return;
+        const withKey = await replaceGeoipKeyIfPresent(saved);
+        if (!withKey) return;
+        applySettings(withKey);
+        if (hadKey) {
+          toast.success("URL и API-ключ GeoIP сохранены");
+        } else if (withKey.hasGeoipApiKey) {
+          toast.success("Настройки GeoIP сохранены");
+        } else {
+          toast.success(
+            "URL сохранён — ещё нужен API-ключ перед «Проверить соединение»",
+          );
+        }
+      } catch {
+        toast.error("Не удалось сохранить GeoIP");
+      }
+    });
+  }
+
+  function onTestGeoip() {
+    if (!settings.hasGeoipApiKey || !settings.geoipBaseUrl) {
+      toast.error(
+        "Сначала сохраните URL сервиса и API-ключ GeoIP, затем проверьте соединение",
+      );
+      return;
+    }
+    startTransition(async () => {
+      setGeoipTestResult(null);
+      try {
+        const res = await fetch("/api/settings/geoip/test", { method: "POST" });
+        const data = await res.json();
+        if (data.test) {
+          setGeoipTestResult(data.test);
+          if (data.test.result === "success") {
+            toast.success("Тест GeoIP успешен");
+          } else {
+            toast.error(data.test.detail ?? "Тест GeoIP не удался");
+          }
+          return;
+        }
+        const message = data.detail ?? data.error ?? "Тест GeoIP не удался";
+        toast.error(message);
+        setGeoipTestResult({
+          result: "error",
+          detail: message,
+          durationMs: null,
+        });
+      } catch {
+        toast.error("Тест GeoIP не удался");
+      }
+    });
+  }
+
   function onTestConnection() {
     if (!settings.hasPrivateKey) {
       toast.error(
@@ -293,7 +391,7 @@ export function SettingsForm({ initial }: Props) {
     <div className="space-y-6">
       <section className="space-y-4">
         <h2 className="text-base font-semibold">SSH-профиль</h2>
-        <div className="grid max-w-xl gap-4">
+        <div className="grid gap-4">
           <div className="space-y-2">
             <Label htmlFor="host">Хост</Label>
             <Input
@@ -494,7 +592,7 @@ export function SettingsForm({ initial }: Props) {
 
       <section className="space-y-4">
         <h2 className="text-base font-semibold">Опрос и артефакты</h2>
-        <div className="grid max-w-xl gap-4">
+        <div className="grid gap-4">
           <div className="flex items-center gap-3">
             <input
               id="poll-enabled"
@@ -555,6 +653,89 @@ export function SettingsForm({ initial }: Props) {
           <Button type="button" disabled={pending} onClick={onSaveSettings}>
             Сохранить настройки
           </Button>
+        </div>
+      </section>
+
+      <section className="space-y-4">
+        <h2 className="text-base font-semibold">GeoIP</h2>
+        <p className="text-sm text-muted-foreground">
+          Внешний сервис аналитики ГРЧЦ: lookup страны, города и оператора связи
+          по IP регистрации. Ключ хранится в зашифрованном виде и в UI не
+          показывается — только замена.
+        </p>
+        <div className="grid gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="geoip-url">URL сервиса</Label>
+            <Input
+              id="geoip-url"
+              value={geoipBaseUrl}
+              onChange={(e) => setGeoipBaseUrl(e.target.value)}
+              placeholder="http://localhost:8080"
+              autoComplete="off"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="geoip-key">API-ключ External IP Lookup</Label>
+            <Input
+              id="geoip-key"
+              type="password"
+              value={geoipApiKey}
+              onChange={(e) => setGeoipApiKey(e.target.value)}
+              placeholder={
+                settings.hasGeoipApiKey
+                  ? "Ключ сохранён — вставьте новый, чтобы заменить"
+                  : "Вставьте ключ из Admin GeoIP"
+              }
+              autoComplete="new-password"
+            />
+            <p className="text-xs text-muted-foreground">
+              {settings.hasGeoipApiKey ? (
+                <Badge variant="secondary">ключ сохранён</Badge>
+              ) : (
+                "Ключ ещё не задан"
+              )}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" disabled={pending} onClick={onSaveGeoip}>
+              Сохранить GeoIP
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={
+                pending || !settings.hasGeoipApiKey || !settings.geoipBaseUrl
+              }
+              onClick={onTestGeoip}
+            >
+              Проверить соединение
+            </Button>
+          </div>
+          {geoipTestResult ? (
+            <div className="rounded-md border p-3 text-sm">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge
+                  variant={
+                    geoipTestResult.result === "success"
+                      ? "default"
+                      : "destructive"
+                  }
+                >
+                  {formatTestResultLabel(geoipTestResult.result)}
+                </Badge>
+                {geoipTestResult.durationMs != null ? (
+                  <span className="text-xs text-muted-foreground">
+                    {geoipTestResult.durationMs} мс
+                  </span>
+                ) : null}
+              </div>
+              {geoipTestResult.detail ? (
+                <p className="mt-2 text-muted-foreground">
+                  {geoipTestResult.detail}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       </section>
     </div>

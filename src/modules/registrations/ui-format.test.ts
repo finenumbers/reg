@@ -4,6 +4,7 @@ import {
   describeHistoryEvent,
   formatEndpoint,
   formatTimestamp,
+  REG_COLUMN_HEADERS,
   statusBadgeVariant,
 } from "@/modules/registrations/ui-format";
 import type { RegistrationHistoryItem, RegistrationListItem } from "@/modules/registrations/types";
@@ -15,6 +16,9 @@ const sampleRows: RegistrationListItem[] = [
     status: "Registered",
     ip: "46.20.69.189",
     port: 5060,
+    country: null,
+    city: null,
+    isp: null,
     lastSeenAt: "2026-08-06T12:00:00.000Z",
     lastChangedAt: "2026-08-06T10:00:00.000Z",
   },
@@ -24,12 +28,22 @@ const sampleRows: RegistrationListItem[] = [
     status: "Unregistered",
     ip: null,
     port: null,
+    country: null,
+    city: null,
+    isp: null,
     lastSeenAt: "2026-08-06T12:00:00.000Z",
     lastChangedAt: "2026-08-06T11:00:00.000Z",
   },
 ];
 
 describe("registrations UI format helpers", () => {
+  it("exposes GeoIP column headers used by table and XLSX", () => {
+    expect(REG_COLUMN_HEADERS).toMatchObject({
+      country: "Страна",
+      city: "Город",
+      isp: "Оператор связи",
+    });
+  });
   it("formats endpoints for table rendering", () => {
     expect(formatEndpoint("46.20.69.189", 5060)).toBe("46.20.69.189:5060");
     expect(formatEndpoint(null, null)).toBe("—");
@@ -39,7 +53,9 @@ describe("registrations UI format helpers", () => {
   it("formats timestamps and handles invalid values", () => {
     expect(formatTimestamp(null)).toBe("—");
     expect(formatTimestamp("not-a-date")).toBe("—");
-    expect(formatTimestamp("2026-08-06T12:00:00.000Z")).not.toBe("—");
+    expect(formatTimestamp("2026-08-20T15:50:05.000Z")).toBe(
+      "20.08.2026, 18:50:05",
+    );
   });
 
   it("distinguishes Registered vs Unregistered badge variants", () => {
