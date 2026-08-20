@@ -12,6 +12,7 @@ import {
   type FacetResponse,
 } from "@/components/column-filters/types";
 import { prisma } from "@/lib/db";
+import { getDisplayTimezone } from "@/modules/settings";
 import {
   enqueueStaleGeoLookups,
   awaitStaleGeoLookups,
@@ -267,12 +268,13 @@ export async function listRegistrationFacets(opts: {
   const q = opts.q?.trim().toLowerCase() ?? "";
   if (!q) return response;
 
+  const timeZone = await getDisplayTimezone();
   const items = response.items.filter((item) => {
     const raw = (() => {
       if (item.value === EMPTY_FILTER_TOKEN || item.value === "") return "(пусто)";
       if (column === "status") return formatRegStatus(item.value);
       if (column === "lastChangedAt" || column === "lastSeenAt") {
-        return formatTimestamp(item.value);
+        return formatTimestamp(item.value, timeZone);
       }
       return item.value;
     })().toLowerCase();

@@ -16,6 +16,7 @@ import {
   TableInfiniteBody,
 } from "@/components/table-infinite-body";
 import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
+import { useDisplayTimezone } from "@/components/display-timezone-provider";
 import { TABLE_PAGE_SIZE } from "@/lib/table-pagination";
 import {
   downloadRegsExport,
@@ -53,6 +54,7 @@ type Props = {
 };
 
 export function RegistrationsView({ canPoll, initial }: Props) {
+  const { timeZone } = useDisplayTimezone();
   const [filters, setFilters] = useState<ColumnFilters>({});
   const [phoneInput, setPhoneInput] = useState("");
   const [phoneQ, setPhoneQ] = useState("");
@@ -423,7 +425,9 @@ export function RegistrationsView({ canPoll, initial }: Props) {
       <ActiveFiltersBar
         filters={filters}
         headers={REG_COLUMN_HEADERS}
-        formatValue={displayFacetForColumn}
+        formatValue={(field, value) =>
+          displayFacetForColumn(field, value, timeZone)
+        }
         phoneQuery={phoneQ}
         onClearPhoneQuery={onClearPhoneQuery}
         onRemoveFacet={onRemoveFacet}

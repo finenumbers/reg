@@ -4,6 +4,8 @@
 
 import ExcelJS from "exceljs";
 
+export { formatExportTimestamp } from "@/lib/format-display-time";
+
 /** Light red close to UI destructive/10. */
 export const XLSX_UNREGISTERED_FILL: ExcelJS.Fill = {
   type: "pattern",
@@ -46,11 +48,6 @@ export type ReplaceSheetStyleCellCtx = {
   colIndex: number;
   cell: ExcelJS.Cell;
 };
-
-export function formatExportTimestamp(d = new Date()): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`;
-}
 
 export async function workbookToBuffer(
   workbook: ExcelJS.Workbook,

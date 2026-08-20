@@ -3,6 +3,8 @@
  */
 
 import { z } from "zod";
+import { isDisplayTimezoneId } from "@/lib/display-timezone";
+import { DEFAULT_GEOIP_BASE_URL } from "@/modules/geoip/types";
 
 const geoipBaseUrlSchema = z
   .string()
@@ -28,6 +30,10 @@ export const settingsUpdateSchema = z.object({
   artifactKeepLastRuns: z.number().int().min(1).max(1000).optional(),
   artifactMaxBytes: z.number().int().min(1024).max(50_000_000).optional(),
   geoipBaseUrl: geoipBaseUrlSchema.optional(),
+  displayTimezone: z
+    .string()
+    .refine(isDisplayTimezoneId, "Unsupported display timezone")
+    .optional(),
 });
 
 export type SettingsUpdateInput = z.infer<typeof settingsUpdateSchema>;
@@ -64,6 +70,7 @@ export type SettingsView = {
   geoipBaseUrl: string | null;
   /** Never expose the GeoIP API key — only whether it is stored */
   hasGeoipApiKey: boolean;
+  displayTimezone: string;
 };
 
 export type SettingsUpdateResult = {
@@ -72,3 +79,4 @@ export type SettingsUpdateResult = {
 };
 
 export const DEFAULT_SSH_PROFILE_NAME = "softswitch";
+export { DEFAULT_GEOIP_BASE_URL };

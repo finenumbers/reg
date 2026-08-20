@@ -1,6 +1,8 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { useDisplayTimezone } from "@/components/display-timezone-provider";
+import { formatDisplayTimestamp } from "@/lib/format-display-time";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,16 +33,13 @@ type Props = {
   initial: ListRoutingGroupsResult;
 };
 
-function formatSyncedAt(iso: string | null): string {
+function formatSyncedAt(iso: string | null, timeZone: string): string {
   if (!iso) return "ещё не загружалось";
-  try {
-    return new Date(iso).toLocaleString("ru-RU");
-  } catch {
-    return iso;
-  }
+  return formatDisplayTimestamp(iso, timeZone);
 }
 
 export function GroupsView({ canRequest, initial }: Props) {
+  const { timeZone } = useDisplayTimezone();
   const [items, setItems] = useState(initial.items);
   const [total, setTotal] = useState(initial.total);
   const [lastSyncedAt, setLastSyncedAt] = useState(initial.lastSyncedAt);
@@ -136,7 +135,7 @@ export function GroupsView({ canRequest, initial }: Props) {
             Входящие группы
           </h1>
           <p className="text-sm text-muted-foreground">
-            Последняя загрузка: {formatSyncedAt(lastSyncedAt)}. Всего: {total}.
+            Последняя загрузка: {formatSyncedAt(lastSyncedAt, timeZone)}. Всего: {total}.
           </p>
         </div>
         {canRequest ? (

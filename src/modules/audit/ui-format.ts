@@ -3,6 +3,8 @@
  * Avoid importing Prisma-backed modules so unit tests stay DB-free.
  */
 
+import { formatDisplayTimestamp } from "@/lib/format-display-time";
+
 export type AuditLogDisplayItem = {
   action: string;
   actorUserId: string | null;
@@ -37,18 +39,11 @@ const ACTION_LABELS: Record<string, string> = {
   "users.change": "Изменение пользователя",
 };
 
-export function formatAuditTimestamp(value: string | null | undefined): string {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleString("ru-RU", {
-    year: "numeric",
-    month: "short",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
+export function formatAuditTimestamp(
+  value: string | null | undefined,
+  timeZone: string,
+): string {
+  return formatDisplayTimestamp(value, timeZone);
 }
 
 export function formatAuditAction(action: string): string {

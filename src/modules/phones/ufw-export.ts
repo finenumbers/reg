@@ -4,6 +4,7 @@
  */
 
 import { prisma } from "@/lib/db";
+import { getDisplayTimezone } from "@/modules/settings";
 import {
   formatExportTimestamp,
   replaceSheetData,
@@ -216,9 +217,10 @@ export function workbookFromUfwSheets(sheets: UfwExportSheets): ExcelJS.Workbook
 }
 
 export async function buildUfwExportXlsx(): Promise<UfwExportResult> {
-  const [endpoints, gateways] = await Promise.all([
+  const [endpoints, gateways, timeZone] = await Promise.all([
     prisma.phoneEndpoint.findMany({ orderBy: { name: "asc" } }),
     prisma.phoneGateway.findMany({ orderBy: { name: "asc" } }),
+    getDisplayTimezone(),
   ]);
 
   const sheets = buildUfwSheets({
@@ -228,6 +230,6 @@ export async function buildUfwExportXlsx(): Promise<UfwExportResult> {
 
   const workbook = workbookFromUfwSheets(sheets);
   const buffer = await workbookToBuffer(workbook);
-  const filename = `ufw-phones-${formatExportTimestamp()}.xlsx`;
+  const filename = `ufw-phones-${formatExportTimestamp(new Date(), timeZone)}.xlsx`;
   return { buffer, filename };
 }

@@ -13,6 +13,7 @@ import {
   type ColumnFilters,
 } from "@/components/column-filters";
 import { HighlightText } from "@/components/highlight-text";
+import { useDisplayTimezone } from "@/components/display-timezone-provider";
 import type { RegistrationListItem } from "@/modules/registrations/types";
 import {
   buildRegsFacetsUrl,
@@ -48,6 +49,7 @@ export function RegsTable({
   onColumnFilterChange,
   onRowClick,
 }: Props) {
+  const { timeZone } = useDisplayTimezone();
   const showEmpty = !loading && data.length === 0;
   const colCount = 9;
 
@@ -64,7 +66,7 @@ export function RegsTable({
               { id: "country", header: "Страна" },
               { id: "city", header: "Город" },
               { id: "isp", header: "Оператор связи" },
-              { id: "lastChangedAt", header: "Последнее изменение" },
+              { id: "lastChangedAt", header: "Изменение" },
               { id: "lastSeenAt", header: "Обновление" },
             ] as const
           ).map((col) => (
@@ -78,7 +80,9 @@ export function RegsTable({
                 buildFacetsUrl={({ column, filters: f, q }) =>
                   buildRegsFacetsUrl({ column, filters: f, phoneQ, q })
                 }
-                formatValue={(value) => displayFacetForColumn(col.id, value)}
+                formatValue={(value) =>
+                  displayFacetForColumn(col.id, value, timeZone)
+                }
                 onToggle={() =>
                   onOpenColumnChange(openColumn === col.id ? null : col.id)
                 }
@@ -163,10 +167,10 @@ export function RegsTable({
                   )}
                 </TableCell>
                 <TableCell className="text-sm">
-                  {formatTimestamp(row.lastChangedAt)}
+                  {formatTimestamp(row.lastChangedAt, timeZone)}
                 </TableCell>
                 <TableCell className="text-sm">
-                  {formatTimestamp(row.lastSeenAt)}
+                  {formatTimestamp(row.lastSeenAt, timeZone)}
                 </TableCell>
               </TableRow>
             );

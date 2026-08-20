@@ -8,6 +8,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
+import { useDisplayTimezone } from "@/components/display-timezone-provider";
 import type { RegistrationDetailResult } from "@/modules/registrations/service";
 import {
   describeHistoryEvent,
@@ -33,6 +34,7 @@ export function RegsDetailSheet({
   error,
   detail,
 }: Props) {
+  const { timeZone } = useDisplayTimezone();
   const current = detail?.current;
 
   return (
@@ -81,10 +83,10 @@ export function RegsDetailSheet({
                 <dd>{current.city ?? "—"}</dd>
                 <dt className="text-muted-foreground">Оператор связи</dt>
                 <dd>{current.isp ?? "—"}</dd>
-                <dt className="text-muted-foreground">Последнее изменение</dt>
-                <dd>{formatTimestamp(current.lastChangedAt)}</dd>
+                <dt className="text-muted-foreground">Изменение</dt>
+                <dd>{formatTimestamp(current.lastChangedAt, timeZone)}</dd>
                 <dt className="text-muted-foreground">Обновление</dt>
-                <dd>{formatTimestamp(current.lastSeenAt)}</dd>
+                <dd>{formatTimestamp(current.lastSeenAt, timeZone)}</dd>
               </dl>
 
               <Separator />
@@ -111,7 +113,7 @@ export function RegsDetailSheet({
                             }
                           />
                           <time className="text-xs text-muted-foreground">
-                            {formatTimestamp(event.changedAt)}
+                            {formatTimestamp(event.changedAt, timeZone)}
                           </time>
                         </div>
                         <p className="mt-1.5 text-sm text-muted-foreground">

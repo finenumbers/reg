@@ -6,6 +6,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import ExcelJS from "exceljs";
 import { prisma } from "@/lib/db";
+import { getDisplayTimezone } from "@/modules/settings";
 import {
   formatExportTimestamp,
   replaceSheetData,
@@ -57,7 +58,7 @@ export type PhonesExportResult = {
 };
 
 export async function buildPhonesExportXlsx(): Promise<PhonesExportResult> {
-  const [endpoints, gateways, routingGroups, unregisteredRows] =
+  const [endpoints, gateways, routingGroups, unregisteredRows, timeZone] =
     await Promise.all([
       prisma.phoneEndpoint.findMany({ orderBy: { name: "asc" } }),
       prisma.phoneGateway.findMany({ orderBy: { name: "asc" } }),
@@ -66,6 +67,7 @@ export async function buildPhonesExportXlsx(): Promise<PhonesExportResult> {
         where: { status: "Unregistered" },
         select: { phone: true },
       }),
+      getDisplayTimezone(),
     ]);
 
   const routingGroupsSorted = sortRoutingGroupsById(routingGroups);
@@ -112,6 +114,6 @@ export async function buildPhonesExportXlsx(): Promise<PhonesExportResult> {
   replaceSheetData(groups, groupHeaders, groupRows);
 
   const buffer = await workbookToBuffer(workbook);
-  const filename = `phones-${formatExportTimestamp()}.xlsx`;
+  const filename = `phones-${formatExportTimestamp(new Date(), timeZone)}.xlsx`;
   return { buffer, filename };
 }

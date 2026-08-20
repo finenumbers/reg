@@ -37,6 +37,8 @@ import {
 import type { ListPhonesResult } from "@/modules/phones/service";
 import type { PhoneKind } from "@/modules/phones/types";
 import { PhonesTable } from "@/modules/phones/ui/phones-table";
+import { useDisplayTimezone } from "@/components/display-timezone-provider";
+import { formatDisplayTimestamp } from "@/lib/format-display-time";
 
 const PAGE_SIZE = TABLE_PAGE_SIZE;
 const PHONE_SEARCH_DEBOUNCE_MS = 300;
@@ -46,13 +48,9 @@ type Props = {
   initial: ListPhonesResult;
 };
 
-function formatSyncedAt(iso: string | null): string {
+function formatSyncedAt(iso: string | null, timeZone: string): string {
   if (!iso) return "ещё не загружалось";
-  try {
-    return new Date(iso).toLocaleString("ru-RU");
-  } catch {
-    return iso;
-  }
+  return formatDisplayTimestamp(iso, timeZone);
 }
 
 function selectKind(next: PhoneKind, current: PhoneKind, load: (k: PhoneKind) => void) {
@@ -61,6 +59,7 @@ function selectKind(next: PhoneKind, current: PhoneKind, load: (k: PhoneKind) =>
 }
 
 export function PhonesView({ canRequest, initial }: Props) {
+  const { timeZone } = useDisplayTimezone();
   const [kind, setKind] = useState<PhoneKind>(initial.kind);
   const [filters, setFilters] = useState<ColumnFilters>({});
   const [phoneInput, setPhoneInput] = useState("");
@@ -437,7 +436,7 @@ export function PhonesView({ canRequest, initial }: Props) {
             Телефонные номера
           </h1>
           <p className="text-sm text-muted-foreground">
-            Последняя синхронизация: {formatSyncedAt(lastSyncedAt)}. Шлюзы:{" "}
+            Последняя синхронизация: {formatSyncedAt(lastSyncedAt, timeZone)}. Шлюзы:{" "}
             {gatewayCount}
             , с рег.: {registeredCount}, без рег.: {unregisteredCount}
             {errorCount > 0 ? `, ошибка: ${errorCount}` : ""}

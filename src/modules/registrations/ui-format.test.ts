@@ -42,6 +42,7 @@ describe("registrations UI format helpers", () => {
       country: "Страна",
       city: "Город",
       isp: "Оператор связи",
+      lastChangedAt: "Изменение",
     });
   });
   it("formats endpoints for table rendering", () => {
@@ -51,9 +52,9 @@ describe("registrations UI format helpers", () => {
   });
 
   it("formats timestamps and handles invalid values", () => {
-    expect(formatTimestamp(null)).toBe("—");
-    expect(formatTimestamp("not-a-date")).toBe("—");
-    expect(formatTimestamp("2026-08-20T15:50:05.000Z")).toBe(
+    expect(formatTimestamp(null, "Europe/Moscow")).toBe("—");
+    expect(formatTimestamp("not-a-date", "Europe/Moscow")).toBe("—");
+    expect(formatTimestamp("2026-08-20T15:50:05.000Z", "Europe/Moscow")).toBe(
       "20.08.2026, 18:50:05",
     );
   });

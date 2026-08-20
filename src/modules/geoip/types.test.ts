@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  DEFAULT_GEOIP_BASE_URL,
   geoipLookupUrl,
   isGeoCacheFresh,
   isLookupIpv4,
   mapLookupResponse,
   normalizeGeoipBaseUrl,
+  resolveGeoipBaseUrl,
   uniqueLookupIps,
 } from "@/modules/geoip/types";
 
@@ -18,6 +20,14 @@ describe("geoip types and mapping", () => {
     );
     expect(geoipLookupUrl("http://localhost:8080")).toBe(
       "http://localhost:8080/api/v1/lookup",
+    );
+  });
+
+  it("uses Fine Numbers GeoIP origin when URL is empty", () => {
+    expect(resolveGeoipBaseUrl(null)).toBe(DEFAULT_GEOIP_BASE_URL);
+    expect(resolveGeoipBaseUrl("")).toBe(DEFAULT_GEOIP_BASE_URL);
+    expect(resolveGeoipBaseUrl("https://geoip.finenumbers.com/")).toBe(
+      DEFAULT_GEOIP_BASE_URL,
     );
   });
 

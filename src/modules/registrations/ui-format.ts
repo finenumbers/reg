@@ -3,6 +3,7 @@
  */
 
 import { encodeFilters, type ColumnFilters } from "@/components/column-filters/types";
+import { formatDisplayTimestamp } from "@/lib/format-display-time";
 import type { RegistrationHistoryItem, RegistrationListItem } from "@/modules/registrations/types";
 
 export function formatEndpoint(ip: string | null, port: number | null): string {
@@ -11,23 +12,11 @@ export function formatEndpoint(ip: string | null, port: number | null): string {
   return `${ip}:${port}`;
 }
 
-export function formatTimestamp(value: string | null | undefined): string {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
-  const parts = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Europe/Moscow",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hourCycle: "h23",
-  }).formatToParts(date);
-  const get = (type: Intl.DateTimeFormatPartTypes) =>
-    parts.find((part) => part.type === type)?.value ?? "";
-  return `${get("day")}.${get("month")}.${get("year")}, ${get("hour")}:${get("minute")}:${get("second")}`;
+export function formatTimestamp(
+  value: string | null | undefined,
+  timeZone: string,
+): string {
+  return formatDisplayTimestamp(value, timeZone);
 }
 
 export function statusBadgeVariant(
@@ -42,11 +31,15 @@ export function formatRegStatus(status: string): string {
   return status;
 }
 
-export function displayFacetForColumn(column: string, value: string): string {
+export function displayFacetForColumn(
+  column: string,
+  value: string,
+  timeZone: string,
+): string {
   if (value === "" || value === "__empty__") return "(пусто)";
   if (column === "status") return formatRegStatus(value);
   if (column === "lastChangedAt" || column === "lastSeenAt") {
-    return formatTimestamp(value);
+    return formatTimestamp(value, timeZone);
   }
   return value;
 }
@@ -59,7 +52,7 @@ export const REG_COLUMN_HEADERS: Record<string, string> = {
   country: "Страна",
   city: "Город",
   isp: "Оператор связи",
-  lastChangedAt: "Последнее изменение",
+  lastChangedAt: "Изменение",
   lastSeenAt: "Обновление",
 };
 

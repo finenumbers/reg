@@ -15,12 +15,12 @@ function projectDetailPanel(detail: RegistrationDetailResult) {
     phone: detail.current.phone,
     status: detail.current.status,
     endpoint: formatEndpoint(detail.current.ip, detail.current.port),
-    lastChangedAt: formatTimestamp(detail.current.lastChangedAt),
-    lastSeenAt: formatTimestamp(detail.current.lastSeenAt),
+    lastChangedAt: formatTimestamp(detail.current.lastChangedAt, "Europe/Moscow"),
+    lastSeenAt: formatTimestamp(detail.current.lastSeenAt, "Europe/Moscow"),
     history: detail.events.map((event) => ({
       id: event.id,
       summary: describeHistoryEvent(event),
-      changedAt: formatTimestamp(event.changedAt),
+      changedAt: formatTimestamp(event.changedAt, "Europe/Moscow"),
       newStatus: event.newStatus,
     })),
   };

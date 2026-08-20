@@ -16,6 +16,7 @@ import {
   TableInfiniteBody,
 } from "@/components/table-infinite-body";
 import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
+import { useDisplayTimezone } from "@/components/display-timezone-provider";
 import { TABLE_PAGE_SIZE } from "@/lib/table-pagination";
 import { fetchAuditList } from "@/modules/audit/api-client";
 import type {
@@ -39,6 +40,7 @@ type Props = {
 };
 
 export function AuditView({ initial }: Props) {
+  const { timeZone } = useDisplayTimezone();
   const [actionInput, setActionInput] = useState("");
   const [actorInput, setActorInput] = useState("");
   const [actionQuery, setActionQuery] = useState("");
@@ -264,7 +266,7 @@ export function AuditView({ initial }: Props) {
                         data-state={open ? "selected" : undefined}
                       >
                         <TableCell className="whitespace-nowrap text-sm">
-                          {formatAuditTimestamp(item.createdAt)}
+                          {formatAuditTimestamp(item.createdAt, timeZone)}
                         </TableCell>
                         <TableCell className="text-sm">
                           {formatAuditActor(item)}

@@ -2,22 +2,16 @@
  * Presentation helpers for Jobs UI — pure, testable, no React.
  */
 
+import { formatDisplayTimestamp } from "@/lib/format-display-time";
 import type { JobRunListItem } from "@/modules/jobs/query";
 
 export type JobStatusFilter = "" | "running" | "success" | "failed";
 
-export function formatJobTimestamp(value: string | null | undefined): string {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleString("ru-RU", {
-    year: "numeric",
-    month: "short",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
+export function formatJobTimestamp(
+  value: string | null | undefined,
+  timeZone: string,
+): string {
+  return formatDisplayTimestamp(value, timeZone);
 }
 
 export function formatDurationMs(ms: number | null | undefined): string {

@@ -1,13 +1,19 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import type { SettingsView } from "@/modules/settings";
+import { useDisplayTimezone } from "@/components/display-timezone-provider";
+import { DISPLAY_TIMEZONES } from "@/lib/display-timezone";
+import {
+  DEFAULT_GEOIP_BASE_URL,
+  type SettingsView,
+} from "@/modules/settings/schemas";
 import { inspectKeyMaterial } from "@/modules/ssh/key-material-hint";
 
 type Props = {
@@ -28,10 +34,13 @@ function formatTestResultLabel(result: string): string {
 }
 
 export function SettingsForm({ initial }: Props) {
+  const router = useRouter();
+  const { setTimeZone } = useDisplayTimezone();
   const [settings, setSettings] = useState(initial);
   const [host, setHost] = useState(initial.host ?? "");
   const [port, setPort] = useState(String(initial.port ?? 22));
   const [username, setUsername] = useState(initial.username ?? "");
+  const [displayTimezone, setDisplayTimezone] = useState(initial.displayTimezone);
   const [regsPollEnabled, setRegsPollEnabled] = useState(initial.regsPollEnabled);
   const [regsPollIntervalSec, setRegsPollIntervalSec] = useState(
     String(initial.regsPollIntervalSec),
@@ -42,7 +51,9 @@ export function SettingsForm({ initial }: Props) {
   const [artifactKeepLastRuns, setArtifactKeepLastRuns] = useState(
     String(initial.artifactKeepLastRuns),
   );
-  const [geoipBaseUrl, setGeoipBaseUrl] = useState(initial.geoipBaseUrl ?? "");
+  const [geoipBaseUrl, setGeoipBaseUrl] = useState(
+    initial.geoipBaseUrl ?? DEFAULT_GEOIP_BASE_URL,
+  );
   const [geoipApiKey, setGeoipApiKey] = useState("");
   const [geoipTestResult, setGeoipTestResult] = useState<TestResultView | null>(
     null,
@@ -96,7 +107,10 @@ export function SettingsForm({ initial }: Props) {
     setRegsPollIntervalSec(String(next.regsPollIntervalSec));
     setArtifactRetentionDays(String(next.artifactRetentionDays));
     setArtifactKeepLastRuns(String(next.artifactKeepLastRuns));
-    setGeoipBaseUrl(next.geoipBaseUrl ?? "");
+    setGeoipBaseUrl(next.geoipBaseUrl ?? DEFAULT_GEOIP_BASE_URL);
+    setDisplayTimezone(next.displayTimezone);
+    setTimeZone(next.displayTimezone);
+    router.refresh();
   }
 
   async function saveProfileFields(): Promise<SettingsView | null> {
@@ -105,6 +119,7 @@ export function SettingsForm({ initial }: Props) {
       regsPollIntervalSec: Number(regsPollIntervalSec),
       artifactRetentionDays: Number(artifactRetentionDays),
       artifactKeepLastRuns: Number(artifactKeepLastRuns),
+      displayTimezone,
     };
     const hostTrimmed = host.trim();
     const usernameTrimmed = username.trim();
@@ -263,7 +278,10 @@ export function SettingsForm({ initial }: Props) {
     const res = await fetch("/api/settings", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ geoipBaseUrl: geoipBaseUrl.trim() }),
+      body: JSON.stringify({
+        geoipBaseUrl: geoipBaseUrl.trim(),
+        displayTimezone,
+      }),
     });
     const data = await res.json();
     if (!res.ok) {
@@ -318,9 +336,9 @@ export function SettingsForm({ initial }: Props) {
   }
 
   function onTestGeoip() {
-    if (!settings.hasGeoipApiKey || !settings.geoipBaseUrl) {
+    if (!settings.hasGeoipApiKey) {
       toast.error(
-        "Сначала сохраните URL сервиса и API-ключ GeoIP, затем проверьте соединение",
+        "Сначала сохраните API-ключ GeoIP, затем проверьте соединение",
       );
       return;
     }
@@ -389,6 +407,29 @@ export function SettingsForm({ initial }: Props) {
 
   return (
     <div className="space-y-6">
+      <section className="space-y-4">
+        <h2 className="text-base font-semibold">Отображение</h2>
+        <div className="space-y-2">
+          <Label htmlFor="display-timezone">Часовой пояс дат</Label>
+          <select
+            id="display-timezone"
+            value={displayTimezone}
+            onChange={(e) => setDisplayTimezone(e.target.value)}
+            className="flex h-8 w-full max-w-md rounded-lg border border-border bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
+            {DISPLAY_TIMEZONES.map((zone) => (
+              <option key={zone.id} value={zone.id}>
+                {zone.label}
+              </option>
+            ))}
+          </select>
+          <p className="text-xs text-muted-foreground">
+            Все даты в интерфейсе и именах XLSX. Сохраняется вместе с SSH,
+            опросом или GeoIP.
+          </p>
+        </div>
+      </section>
+
       <section className="space-y-4">
         <h2 className="text-base font-semibold">SSH-профиль</h2>
         <div className="grid gap-4">
@@ -670,7 +711,7 @@ export function SettingsForm({ initial }: Props) {
               id="geoip-url"
               value={geoipBaseUrl}
               onChange={(e) => setGeoipBaseUrl(e.target.value)}
-              placeholder="http://localhost:8080"
+              placeholder={DEFAULT_GEOIP_BASE_URL}
               autoComplete="off"
             />
           </div>
@@ -704,7 +745,7 @@ export function SettingsForm({ initial }: Props) {
               type="button"
               variant="outline"
               disabled={
-                pending || !settings.hasGeoipApiKey || !settings.geoipBaseUrl
+                pending || !settings.hasGeoipApiKey
               }
               onClick={onTestGeoip}
             >

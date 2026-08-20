@@ -37,6 +37,20 @@ export function normalizeGeoipBaseUrl(raw: string): string {
   return `${url.protocol}//${url.host}`;
 }
 
+export const DEFAULT_GEOIP_BASE_URL = "https://geoip.finenumbers.com";
+
+export function resolveGeoipBaseUrl(
+  raw: string | null | undefined,
+): string {
+  const trimmed = raw?.trim() ?? "";
+  if (!trimmed) return DEFAULT_GEOIP_BASE_URL;
+  try {
+    return normalizeGeoipBaseUrl(trimmed);
+  } catch {
+    return DEFAULT_GEOIP_BASE_URL;
+  }
+}
+
 export type GeoFields = {
   country: string | null;
   city: string | null;

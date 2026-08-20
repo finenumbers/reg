@@ -45,6 +45,21 @@ describe("settings schemas and masked view contract", () => {
     ).toThrow();
   });
 
+  it("accepts display timezones from the curated list", () => {
+    expect(
+      settingsUpdateSchema.parse({ displayTimezone: "Asia/Krasnoyarsk" }),
+    ).toMatchObject({ displayTimezone: "Asia/Krasnoyarsk" });
+    expect(() =>
+      settingsUpdateSchema.parse({ displayTimezone: "Europe/Paris" }),
+    ).toThrow();
+  });
+
+  it("allows empty GeoIP URL (server stores the default origin)", () => {
+    expect(settingsUpdateSchema.parse({ geoipBaseUrl: "" })).toMatchObject({
+      geoipBaseUrl: "",
+    });
+  });
+
   it("rejects empty host/username when provided", () => {
     expect(() => settingsUpdateSchema.parse({ host: "" })).toThrow();
     expect(() => settingsUpdateSchema.parse({ username: "" })).toThrow();
@@ -84,6 +99,7 @@ describe("settings schemas and masked view contract", () => {
       schedulerLoopActive: false,
       geoipBaseUrl: null,
       hasGeoipApiKey: false,
+      displayTimezone: "Europe/Moscow",
     };
     assertMaskedSettings(view);
   });

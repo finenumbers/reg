@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useDisplayTimezone } from "@/components/display-timezone-provider";
+import { formatDisplayTimestamp } from "@/lib/format-display-time";
 
 type ApiKeyRow = {
   id: string;
@@ -19,6 +21,7 @@ type ApiKeyRow = {
 };
 
 export function ApiKeysPanel() {
+  const { timeZone } = useDisplayTimezone();
   const [keys, setKeys] = useState<ApiKeyRow[]>([]);
   const [name, setName] = useState("");
   const [createdSecret, setCreatedSecret] = useState<string | null>(null);
@@ -185,9 +188,7 @@ export function ApiKeysPanel() {
                     )}
                   </td>
                   <td className="px-3 py-2 text-muted-foreground">
-                    {k.lastUsedAt
-                      ? new Date(k.lastUsedAt).toLocaleString("ru-RU")
-                      : "—"}
+                    {formatDisplayTimestamp(k.lastUsedAt, timeZone)}
                   </td>
                   <td className="px-3 py-2 text-right">
                     {k.enabled ? (

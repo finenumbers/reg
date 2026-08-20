@@ -35,7 +35,11 @@ import {
   type SettingsUpdateResult,
   type SettingsView,
 } from "@/modules/settings/schemas";
-import { normalizeGeoipBaseUrl } from "@/modules/geoip/types";
+import { resolveDisplayTimezone } from "@/lib/display-timezone";
+import {
+  DEFAULT_GEOIP_BASE_URL,
+  resolveGeoipBaseUrl,
+} from "@/modules/geoip/types";
 
 async function ensureAppSettings() {
   return prisma.appSetting.upsert({
@@ -64,8 +68,9 @@ function toSettingsView(
     artifactKeepLastRuns: settings.artifactKeepLastRuns,
     artifactMaxBytes: settings.artifactMaxBytes,
     schedulerLoopActive: isAutoSchedulerRunning(),
-    geoipBaseUrl: settings.geoipBaseUrl ?? null,
+    geoipBaseUrl: resolveGeoipBaseUrl(settings.geoipBaseUrl),
     hasGeoipApiKey: Boolean(settings.geoipApiKeyCiphertext),
+    displayTimezone: resolveDisplayTimezone(settings.displayTimezone),
   };
 }
 
@@ -75,6 +80,15 @@ function toSettingsView(
 export async function getSettingsView(): Promise<SettingsView> {
   const settings = await ensureAppSettings();
   return toSettingsView(settings);
+}
+
+/** Display IANA zone for any authenticated UI (no settings:write required). */
+export async function getDisplayTimezone(): Promise<string> {
+  const settings = await prisma.appSetting.findUnique({
+    where: { id: 1 },
+    select: { displayTimezone: true },
+  });
+  return resolveDisplayTimezone(settings?.displayTimezone);
 }
 
 /**
@@ -146,6 +160,7 @@ export async function updateSettings(
     artifactKeepLastRuns?: number;
     artifactMaxBytes?: number;
     geoipBaseUrl?: string | null;
+    displayTimezone?: string;
   } = {};
 
   if (parsed.regsPollEnabled !== undefined) {
@@ -166,8 +181,13 @@ export async function updateSettings(
   if (parsed.geoipBaseUrl !== undefined) {
     const trimmed = parsed.geoipBaseUrl.trim();
     settingsData.geoipBaseUrl = trimmed
-      ? normalizeGeoipBaseUrl(trimmed)
-      : null;
+      ? resolveGeoipBaseUrl(trimmed)
+      : DEFAULT_GEOIP_BASE_URL;
+  }
+  if (parsed.displayTimezone !== undefined) {
+    settingsData.displayTimezone = resolveDisplayTimezone(
+      parsed.displayTimezone,
+    );
   }
 
   if (Object.keys(settingsData).length > 0 || sshFieldsProvided) {
@@ -207,6 +227,7 @@ export async function updateSettings(
       schedulerLoopActive: view.schedulerLoopActive,
       geoipBaseUrl: view.geoipBaseUrl,
       hasGeoipApiKey: view.hasGeoipApiKey,
+      displayTimezone: view.displayTimezone,
     },
   });
 

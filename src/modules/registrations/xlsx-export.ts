@@ -8,6 +8,7 @@ import {
   workbookToBuffer,
 } from "@/lib/xlsx-export";
 import { loadAllRegistrationItems } from "@/modules/registrations/service";
+import { getDisplayTimezone } from "@/modules/settings";
 import type { RegistrationListItem } from "@/modules/registrations/types";
 import {
   formatEndpoint,
@@ -28,7 +29,10 @@ const REG_EXPORT_COLUMNS = [
   "lastSeenAt",
 ] as const;
 
-function registrationExportRow(row: RegistrationListItem): string[] {
+function registrationExportRow(
+  row: RegistrationListItem,
+  timeZone: string,
+): string[] {
   return [
     row.phone,
     row.description ?? "",
@@ -37,8 +41,8 @@ function registrationExportRow(row: RegistrationListItem): string[] {
     row.country ?? "",
     row.city ?? "",
     row.isp ?? "",
-    formatTimestamp(row.lastChangedAt),
-    formatTimestamp(row.lastSeenAt),
+    formatTimestamp(row.lastChangedAt, timeZone),
+    formatTimestamp(row.lastSeenAt, timeZone),
   ];
 }
 
@@ -48,9 +52,12 @@ export type RegsExportResult = {
 };
 
 export async function buildRegsExportXlsx(): Promise<RegsExportResult> {
-  const items = await loadAllRegistrationItems({ waitGeo: true });
+  const [items, timeZone] = await Promise.all([
+    loadAllRegistrationItems({ waitGeo: true }),
+    getDisplayTimezone(),
+  ]);
   const headers = REG_EXPORT_COLUMNS.map((key) => REG_COLUMN_HEADERS[key]!);
-  const rows = items.map(registrationExportRow);
+  const rows = items.map((row) => registrationExportRow(row, timeZone));
   const workbook = createSimpleWorkbook({
     sheetName: "Регистрации",
     headers,
@@ -59,6 +66,6 @@ export async function buildRegsExportXlsx(): Promise<RegsExportResult> {
   const buffer = await workbookToBuffer(workbook);
   return {
     buffer,
-    filename: `regs-${formatExportTimestamp()}.xlsx`,
+    filename: `regs-${formatExportTimestamp(new Date(), timeZone)}.xlsx`,
   };
 }

@@ -17,6 +17,7 @@ import {
   TableInfiniteBody,
 } from "@/components/table-infinite-body";
 import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
+import { useDisplayTimezone } from "@/components/display-timezone-provider";
 import { TABLE_PAGE_SIZE } from "@/lib/table-pagination";
 import { fetchJobsList } from "@/modules/jobs/api-client";
 import type { JobRunListItem, ListJobRunsResult } from "@/modules/jobs/query";
@@ -37,6 +38,7 @@ type Props = {
 };
 
 export function JobsView({ initial }: Props) {
+  const { timeZone } = useDisplayTimezone();
   const [status, setStatus] = useState<JobStatusFilter>("");
   const [page, setPage] = useState(initial.page);
   const [items, setItems] = useState(initial.items);
@@ -242,10 +244,10 @@ export function JobsView({ initial }: Props) {
                           </Badge>
                         </TableCell>
                         <TableCell className="whitespace-nowrap text-sm">
-                          {formatJobTimestamp(job.startedAt)}
+                          {formatJobTimestamp(job.startedAt, timeZone)}
                         </TableCell>
                         <TableCell className="whitespace-nowrap text-sm">
-                          {formatJobTimestamp(job.finishedAt)}
+                          {formatJobTimestamp(job.finishedAt, timeZone)}
                         </TableCell>
                         <TableCell className="tabular-nums text-sm">
                           {formatDurationMs(job.durationMs)}

@@ -99,10 +99,12 @@ model AppSetting {
   artifactRetentionDays Int         @default(14)
   artifactKeepLastRuns  Int         @default(50)
   artifactMaxBytes      Int         @default(50000000)
-  /// Origin of GeoIP Analytics (no trailing slash), e.g. https://geoip.example.com
-  geoipBaseUrl          String?
+  /// Origin of GeoIP Analytics (no trailing slash). Empty → DEFAULT_GEOIP_BASE_URL.
+  geoipBaseUrl          String?     @default("https://geoip.finenumbers.com")
   /// AES-256-GCM ciphertext of External IP Lookup API key. Never plaintext.
   geoipApiKeyCiphertext String?
+  /// IANA zone for all operator-facing clocks (UI + XLSX).
+  displayTimezone       String      @default("Europe/Moscow")
   updatedAt             DateTime    @updatedAt
 
   @@map("app_settings")
