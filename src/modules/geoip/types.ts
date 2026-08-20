@@ -3,7 +3,10 @@
  */
 
 export const GEOIP_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
-export const GEOIP_LOOKUP_TIMEOUT_MS = 2500;
+/** Background enrich: GRCHC lookup over HTTPS is often slower than 2.5s. */
+export const GEOIP_LOOKUP_TIMEOUT_MS = 10_000;
+/** Settings «Проверить соединение» — cold TLS + first dataset hit. */
+export const GEOIP_TEST_TIMEOUT_MS = 15_000;
 export const GEOIP_LOOKUP_CONCURRENCY = 4;
 export const GEOIP_TEST_IP = "8.8.8.8";
 

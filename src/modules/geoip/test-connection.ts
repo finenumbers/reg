@@ -1,6 +1,6 @@
 import { lookupIpGeo, GeoipLookupError } from "@/modules/geoip/client";
 import { loadGeoipCredentials } from "@/modules/geoip/credentials";
-import { GEOIP_TEST_IP } from "@/modules/geoip/types";
+import { GEOIP_TEST_IP, GEOIP_TEST_TIMEOUT_MS } from "@/modules/geoip/types";
 
 export type GeoipTestResultView = {
   result: "success" | "error";
@@ -21,7 +21,7 @@ export async function runGeoipConnectionTest(): Promise<GeoipTestResultView> {
   }
 
   try {
-    const fields = await lookupIpGeo(GEOIP_TEST_IP, creds);
+    const fields = await lookupIpGeo(GEOIP_TEST_IP, creds, GEOIP_TEST_TIMEOUT_MS);
     const bits = [
       fields.country,
       fields.city,
