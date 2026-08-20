@@ -10,28 +10,14 @@ import { SHEET_GROUPS } from "@/modules/phones/rtu-import/parse-xlsx";
 
 const fixtureDir = path.join(process.cwd(), "ops/fixtures/rtu");
 
-function parseCsvLine(line: string): string[] {
-  const cleaned = line.replace(/\r$/, "");
-  const out: string[] = [];
-  let cur = "";
-  let inQ = false;
-  for (let i = 0; i < cleaned.length; i++) {
-    const ch = cleaned[i]!;
-    if (inQ) {
-      if (ch === '"') {
-        if (cleaned[i + 1] === '"') {
-          cur += '"';
-          i++;
-        } else inQ = false;
-      } else cur += ch;
-    } else if (ch === '"') inQ = true;
-    else if (ch === ";") {
-      out.push(cur);
-      cur = "";
-    } else cur += ch;
-  }
-  out.push(cur);
-  return out;
+/** Normalize to CRLF so git autocrlf cannot hide wire-format regressions. */
+function canonicalizeCrlf(text: string): string {
+  const stripped = text
+    .replace(/^\uFEFF/, "")
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n");
+  const withNl = stripped.endsWith("\n") ? stripped : `${stripped}\n`;
+  return withNl.replace(/\n/g, "\r\n");
 }
 
 async function groupIdByNameFromFixture(
@@ -55,9 +41,9 @@ describe("convertRtuXlsxToCsv", () => {
   it("matches golden import.csv for sample.xlsx", async () => {
     resetRtuImportDefaultsCache();
     const xlsx = readFileSync(path.join(fixtureDir, "sample.xlsx"));
-    const golden = readFileSync(path.join(fixtureDir, "import.csv"), "utf8")
-      .replace(/^\uFEFF/, "")
-      .trimEnd();
+    const golden = canonicalizeCrlf(
+      readFileSync(path.join(fixtureDir, "import.csv"), "utf8"),
+    );
     const groupIdByName = await groupIdByNameFromFixture(xlsx);
     const result = await convertRtuXlsxToCsv(xlsx, undefined, {
       groupIdByName,
@@ -67,14 +53,8 @@ describe("convertRtuXlsxToCsv", () => {
 
     expect(result.endpointCount).toBe(2);
     expect(result.gatewayCount).toBe(3);
-
-    const gLines = golden.split("\n");
-    const oLines = result.csv.trimEnd().split("\n");
-    expect(oLines).toHaveLength(gLines.length);
-
-    for (let r = 0; r < gLines.length; r++) {
-      expect(parseCsvLine(oLines[r]!)).toEqual(parseCsvLine(gLines[r]!));
-    }
+    expect(result.csv.includes("\r\n")).toBe(true);
+    expect(canonicalizeCrlf(result.csv)).toBe(golden);
   });
 
   it("returns detailed errors for invalid workbook", async () => {
