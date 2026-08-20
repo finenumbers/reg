@@ -125,12 +125,7 @@ export function RegsTable({
                 </TableCell>
                 <TableCell className="text-sm">
                   {row.description ? (
-                    <span
-                      className="block max-w-[16rem] truncate text-sm"
-                      title={row.description}
-                    >
-                      {row.description}
-                    </span>
+                    row.description
                   ) : (
                     <span className="text-sm text-muted-foreground">—</span>
                   )}

@@ -172,7 +172,7 @@ export function GroupsView({ canRequest, initial }: Props) {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[8rem]">ID</TableHead>
+              <TableHead>ID</TableHead>
               <TableHead>Название</TableHead>
             </TableRow>
           </TableHeader>

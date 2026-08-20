@@ -57,7 +57,7 @@ export function PhonesTable({
   const colCount = Math.max(headers.length, 1);
 
   return (
-    <Table className="min-w-[960px] text-sm">
+    <Table className="text-sm">
       <TableHeader>
         <TableRow>
           {headers.map((h) => (
@@ -122,8 +122,7 @@ export function PhonesTable({
                 return (
                   <TableCell
                     key={`${row.id}-${h}`}
-                    className="max-w-[18rem] truncate text-sm"
-                    title={value || undefined}
+                    className="text-sm"
                   >
                     {h === ENDPOINT_NUMBER_FIELD ? (
                       <HighlightText text={raw} query={phoneQ} />

@@ -235,9 +235,10 @@ export function ColumnFilterDropdown({
         className="col-filter-trigger"
         onClick={onToggle}
       >
-        <span className="col-header-label">
-          {active ? `${selected.length} выбрано` : header}
-        </span>
+        <span className="col-header-label">{header}</span>
+        {active ? (
+          <span className="col-filter-count">{selected.length}</span>
+        ) : null}
         <span className="col-filter-chevron" aria-hidden>
           ▾
         </span>

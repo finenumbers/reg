@@ -277,7 +277,7 @@ export function AuditView({ initial }: Props) {
                             {item.action}
                           </span>
                         </TableCell>
-                        <TableCell className="max-w-[12rem] truncate text-xs">
+                        <TableCell className="text-sm">
                           {formatAuditTarget(item)}
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground">
