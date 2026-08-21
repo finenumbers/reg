@@ -41,13 +41,13 @@ export function AppShell({
 
   return (
     <div className="flex h-screen overflow-hidden bg-background text-foreground">
-      {/* 11.2rem + 10% ≈ 12.32rem; sticky + h-screen: панель не скроллится */}
-      <aside className="sticky top-0 flex h-screen w-[12.32rem] shrink-0 flex-col overflow-hidden border-r border-border bg-card px-3 py-4">
-        <Link href="/" className="block shrink-0 px-2 pb-4">
+      {/* Equal 20px inset around the longest label «Телефонные номера» (141.25px). */}
+      <aside className="sticky top-0 flex h-screen w-[calc(2.5rem+141.25px+1px)] shrink-0 flex-col overflow-hidden border-r border-border bg-card px-3 py-4">
+        <Link href="/" className="flex shrink-0 justify-center pb-4">
           <img
             src="/brand/logo-full.png"
             alt="fine numbers"
-            className="h-auto w-full bg-transparent object-contain object-left"
+            className="h-auto w-[140px] bg-transparent object-contain"
           />
         </Link>
         <Separator className="mb-3 shrink-0" />
@@ -59,7 +59,7 @@ export function AppShell({
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "rounded-md px-2 py-1.5 text-sm font-bold transition-colors",
+                  "whitespace-nowrap rounded-md px-2 py-1.5 text-sm font-bold transition-colors",
                   active
                     ? "bg-black text-white hover:bg-black hover:text-white"
                     : "text-black hover:bg-muted",
