@@ -17,7 +17,7 @@ export type FeatureModuleId =
   | "audit"
   | "enrich";
 
-export type FeatureNavGroup = "primary" | "cdr";
+export type FeatureNavGroup = "primary" | "cdr" | "admin";
 
 type FeatureModuleDefinition = {
   id: FeatureModuleId;
@@ -58,27 +58,6 @@ export const FEATURE_MODULES: FeatureModuleDefinition[] = [
     navPermission: "phones:read",
   },
   {
-    id: "settings",
-    title: "Настройки",
-    description: "SSH-профиль, интервал опроса, хранение артефактов",
-    href: "/settings",
-    navPermission: "settings:write",
-  },
-  {
-    id: "jobs",
-    title: "Задачи",
-    description: "История запусков и диагностика",
-    href: "/jobs",
-    navPermission: "regs:read",
-  },
-  {
-    id: "audit",
-    title: "Аудит",
-    description: "Журнал действий администраторов и операторов",
-    href: "/audit",
-    navPermission: "audit:read",
-  },
-  {
     id: "traffic",
     title: "Телефонный трафик",
     description: "Сокращённая таблица CDR из локальной БД",
@@ -109,5 +88,29 @@ export const FEATURE_MODULES: FeatureModuleDefinition[] = [
     href: "/raw",
     navPermission: "phones:read",
     navGroup: "cdr",
+  },
+  {
+    id: "settings",
+    title: "Настройки",
+    description: "SSH-профиль, интервал опроса, хранение артефактов",
+    href: "/settings",
+    navPermission: "settings:write",
+    navGroup: "admin",
+  },
+  {
+    id: "jobs",
+    title: "Задачи",
+    description: "История запусков и диагностика",
+    href: "/jobs",
+    navPermission: "regs:read",
+    navGroup: "admin",
+  },
+  {
+    id: "audit",
+    title: "Аудит",
+    description: "Журнал действий администраторов и операторов",
+    href: "/audit",
+    navPermission: "audit:read",
+    navGroup: "admin",
   },
 ];

@@ -167,35 +167,37 @@ export function GroupsView({ canRequest, initial }: Props) {
         </p>
       ) : null}
 
-      <div className="min-h-0 flex-1 overflow-auto rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>ID</TableHead>
-              <TableHead>Название</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {items.length === 0 ? (
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div className="min-h-0 flex-1 overflow-auto">
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={2} className="text-muted-foreground">
-                  {loading
-                    ? "Загрузка…"
-                    : "Нет данных. Нажмите «Загрузить данные», чтобы загрузить с softswitch."}
-                </TableCell>
+                <TableHead>ID</TableHead>
+                <TableHead>Название</TableHead>
               </TableRow>
-            ) : (
-              items.map((row) => (
-                <TableRow key={row.id}>
-                  <TableCell className="font-mono tabular-nums">
-                    {row.externalId}
+            </TableHeader>
+            <TableBody>
+              {items.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={2} className="text-muted-foreground">
+                    {loading
+                      ? "Загрузка…"
+                      : "Нет данных. Нажмите «Загрузить данные», чтобы загрузить с softswitch."}
                   </TableCell>
-                  <TableCell>{row.name}</TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+              ) : (
+                items.map((row) => (
+                  <TableRow key={row.id}>
+                    <TableCell className="font-mono tabular-nums">
+                      {row.externalId}
+                    </TableCell>
+                    <TableCell>{row.name}</TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-# Current Phase — production (v1.10)
+# Current Phase — production (v1.11)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators.  
 **Date:** 2026-08-28

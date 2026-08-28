@@ -139,7 +139,7 @@ export function EnrichView({
   const blocked = !ready.ready;
 
   return (
-    <div className="mx-auto flex h-full max-w-xl flex-col gap-6">
+    <div className="h-full space-y-6 overflow-y-auto">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">
           Обогатить данные
