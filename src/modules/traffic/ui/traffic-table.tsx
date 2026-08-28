@@ -16,6 +16,10 @@ import { HighlightText } from "@/components/highlight-text";
 import { CDR_PHONE_COLUMNS } from "@/modules/traffic/columns";
 import { buildTrafficFacetsUrl } from "@/modules/traffic/api-client";
 import type { TrafficListItem } from "@/modules/traffic/service";
+import {
+  displayTrafficFacet,
+  formatTrafficCell,
+} from "@/modules/traffic/ui-format";
 
 const DEFAULT_HIGHLIGHT = new Set<string>(CDR_PHONE_COLUMNS);
 
@@ -72,6 +76,7 @@ export function TrafficTable({
                     q,
                   })
                 }
+                formatValue={(value) => displayTrafficFacet(h, value)}
                 onToggle={() =>
                   onOpenColumnChange(openColumn === h ? null : h)
                 }
@@ -106,12 +111,13 @@ export function TrafficTable({
             <TableRow key={row.id}>
               {headers.map((h) => {
                 const raw = row.data[h] ?? "";
+                const shown = formatTrafficCell(h, raw);
                 return (
                   <TableCell key={h} className="whitespace-nowrap">
                     {highlightSet.has(h) ? (
-                      <HighlightText text={raw} query={phoneQ} />
+                      <HighlightText text={shown} query={phoneQ} />
                     ) : (
-                      raw
+                      shown
                     )}
                   </TableCell>
                 );

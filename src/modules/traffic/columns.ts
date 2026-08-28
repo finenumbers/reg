@@ -144,8 +144,11 @@ export const CDR_PHONE_COLUMNS = [
 
 /** Short traffic table — subset of the full CDR dump, display labels in UI. */
 export const TRAFFIC_SUMMARY_COLUMNS = [
+  "cdr_date",
   "bill_ani",
+  "side_a",
   "bill_dnis",
+  "side_b",
   "out_orig_dnis",
   "src_name",
   "dst_name",
@@ -158,14 +161,17 @@ export const TRAFFIC_SUMMARY_LABELS: Record<
   (typeof TRAFFIC_SUMMARY_COLUMNS)[number],
   string
 > = {
-  bill_ani: "bill_ani",
-  bill_dnis: "bill_dnis",
-  out_orig_dnis: "Out orig DNIS",
-  src_name: "Src маршрут",
-  dst_name: "Dst маршрут",
-  dp_name: "DP маршрут",
+  cdr_date: "Время звонка",
+  bill_ani: "А-номер",
+  side_a: "Сторона A",
+  bill_dnis: "В-номер",
+  side_b: "Сторона B",
+  out_orig_dnis: "Переадресация",
+  src_name: "Инициирующее устройство",
+  dst_name: "Терминирующее устройство",
+  dp_name: "Объект набора",
   elapsed_time: "Длительность",
-  disconnect_code_string: "Разъединение",
+  disconnect_code_string: "Код завершения",
 };
 
 export const CDR_ENRICH_COLUMNS = [

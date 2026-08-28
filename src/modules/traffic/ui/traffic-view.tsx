@@ -31,6 +31,7 @@ import {
 } from "@/modules/phones/request-action";
 import type { ListTrafficResult, TrafficListItem } from "@/modules/traffic/service";
 import { TrafficTable } from "@/modules/traffic/ui/traffic-table";
+import { displayTrafficFacet } from "@/modules/traffic/ui-format";
 
 const PAGE_SIZE = TABLE_PAGE_SIZE;
 const PHONE_SEARCH_DEBOUNCE_MS = 300;
@@ -345,6 +346,7 @@ export function TrafficView({
       <ActiveFiltersBar
         filters={filters}
         headers={headerLabels}
+        formatValue={displayTrafficFacet}
         phoneQuery={phoneQ}
         onClearPhoneQuery={onClearPhoneQuery}
         onRemoveFacet={onRemoveFacet}

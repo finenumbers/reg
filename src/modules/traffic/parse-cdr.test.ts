@@ -5,6 +5,7 @@ import {
   CDR_ENRICH_COLUMNS,
   RAW_TABLE_COLUMNS,
   TRAFFIC_SUMMARY_COLUMNS,
+  TRAFFIC_SUMMARY_LABELS,
   headersMatchCanonical,
 } from "@/modules/traffic/columns";
 import {
@@ -38,10 +39,32 @@ describe("CDR column contract", () => {
     expect(() => assertCanonicalCdrHeader(headers)).not.toThrow();
   });
 
-  it("keeps traffic summary columns inside the canonical dump", () => {
-    expect(TRAFFIC_SUMMARY_COLUMNS).toHaveLength(8);
+  it("keeps traffic summary columns inside the dump or enrich set", () => {
+    expect(TRAFFIC_SUMMARY_COLUMNS).toEqual([
+      "cdr_date",
+      "bill_ani",
+      "side_a",
+      "bill_dnis",
+      "side_b",
+      "out_orig_dnis",
+      "src_name",
+      "dst_name",
+      "dp_name",
+      "elapsed_time",
+      "disconnect_code_string",
+    ]);
+    expect(TRAFFIC_SUMMARY_LABELS.cdr_date).toBe("Время звонка");
+    expect(TRAFFIC_SUMMARY_LABELS.side_a).toBe("Сторона A");
+    expect(TRAFFIC_SUMMARY_LABELS.disconnect_code_string).toBe(
+      "Код завершения",
+    );
     for (const col of TRAFFIC_SUMMARY_COLUMNS) {
-      expect(CDR_COLUMNS).toContain(col);
+      if (col === "side_a" || col === "side_b") {
+        expect(CDR_ENRICH_COLUMNS).toContain(col);
+        expect(CDR_COLUMNS).not.toContain(col);
+      } else {
+        expect(CDR_COLUMNS).toContain(col);
+      }
     }
   });
 
