@@ -136,7 +136,7 @@ node -e 'fetch("http://pstn_app:5555/api/v1/lookup?phone=4996660000").then(async
 3. Migrate runs before app on each redeploy.
 4. Smoke: `/api/readyz` + login.
 
-Large CDR enrich uploads (tens of MiB) were silently truncated to **10 MiB** by Next.js middleware body clone, not by NPM (`client_max_body_size` default is 2000m). v1.5.2 excludes `/api/enrich` from the matcher and rejects an incomplete multipart. After redeploy, re-upload the full CSV.
+Large CDR enrich uploads (tens of MiB) were silently truncated to **10 MiB** by Next.js middleware body clone, not by NPM (`client_max_body_size` default is 2000m). v1.5.3 excludes `/api/enrich` from the matcher and rejects an incomplete multipart. After redeploy, re-upload the full CSV.
 
 ## 9. Must not
 

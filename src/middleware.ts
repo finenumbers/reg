@@ -70,15 +70,14 @@ export function middleware(request: NextRequest) {
   return NextResponse.next();
 }
 
-/** Shared with tests. Do not run middleware on enrich upload (Next clones the body at 10MiB). */
-export const MIDDLEWARE_MATCHER =
-  "/((?!_next/static|_next/image|favicon.ico|api/enrich(?:/|$)|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)";
+/** Static matcher string — Next 16.3 cannot parse a referenced constant. Skip enrich upload (body clone). */
+export const config = {
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|api/enrich(?:/|$)|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+  ],
+};
 
 export function middlewareMatcherHits(pathname: string): boolean {
-  const re = new RegExp(`^${MIDDLEWARE_MATCHER}$`);
+  const re = new RegExp(`^${config.matcher[0]}$`);
   return re.test(pathname);
 }
-
-export const config = {
-  matcher: [MIDDLEWARE_MATCHER],
-};
