@@ -4,9 +4,14 @@ import {
   CDR_COLUMN_COUNT,
   CDR_ENRICH_COLUMNS,
   RAW_TABLE_COLUMNS,
+  TRAFFIC_GEOGRAPHY_COLUMNS,
+  TRAFFIC_GEOGRAPHY_LABELS,
+  TRAFFIC_OPERATORS_COLUMNS,
+  TRAFFIC_OPERATORS_LABELS,
   TRAFFIC_SUMMARY_COLUMNS,
   TRAFFIC_SUMMARY_LABELS,
   headersMatchCanonical,
+  isTrafficColumn,
 } from "@/modules/traffic/columns";
 import {
   assertCanonicalCdrHeader,
@@ -59,12 +64,67 @@ describe("CDR column contract", () => {
       "Код завершения",
     );
     for (const col of TRAFFIC_SUMMARY_COLUMNS) {
-      if (col === "side_a" || col === "side_b") {
-        expect(CDR_ENRICH_COLUMNS).toContain(col);
-        expect(CDR_COLUMNS).not.toContain(col);
-      } else {
-        expect(CDR_COLUMNS).toContain(col);
-      }
+      expect(isTrafficColumn(col)).toBe(true);
+    }
+  });
+
+  it("keeps geography view columns inside the dump or enrich set", () => {
+    expect(TRAFFIC_GEOGRAPHY_COLUMNS).toEqual([
+      "cdr_date",
+      "bill_ani",
+      "side_a",
+      "operator_a",
+      "geography_a",
+      "bill_dnis",
+      "side_b",
+      "operator_b",
+      "geography_b",
+      "out_orig_dnis",
+      "src_name",
+      "dst_name",
+      "dp_name",
+      "elapsed_time",
+      "disconnect_code_string",
+    ]);
+    expect(TRAFFIC_GEOGRAPHY_LABELS.operator_a).toBe("Оператор А");
+    expect(TRAFFIC_GEOGRAPHY_LABELS.geography_a).toBe("География A");
+    expect(TRAFFIC_GEOGRAPHY_LABELS.disconnect_code_string).toBe(
+      "Код завершения",
+    );
+    for (const col of TRAFFIC_GEOGRAPHY_COLUMNS) {
+      expect(isTrafficColumn(col)).toBe(true);
+    }
+  });
+
+  it("keeps operators view columns inside the dump or enrich set", () => {
+    expect(TRAFFIC_OPERATORS_COLUMNS).toEqual([
+      "cdr_date",
+      "bill_ani",
+      "side_a",
+      "bill_dnis",
+      "side_b",
+      "out_orig_dnis",
+      "remote_src_sig_address",
+      "country_a",
+      "city_a",
+      "provider_a",
+      "remote_dst_sig_address",
+      "country_b",
+      "city_b",
+      "provider_b",
+      "src_name",
+      "dst_name",
+      "dp_name",
+      "elapsed_time",
+      "disconnect_code_string",
+    ]);
+    expect(TRAFFIC_OPERATORS_LABELS.remote_src_sig_address).toBe(
+      "Инициирование",
+    );
+    expect(TRAFFIC_OPERATORS_LABELS.remote_dst_sig_address).toBe("Терминация");
+    expect(TRAFFIC_OPERATORS_LABELS.country_a).toBe("Страна А");
+    for (const col of TRAFFIC_OPERATORS_COLUMNS) {
+      expect(isTrafficColumn(col)).toBe(true);
     }
   });
 

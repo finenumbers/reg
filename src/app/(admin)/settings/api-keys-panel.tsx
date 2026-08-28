@@ -155,11 +155,19 @@ export function ApiKeysPanel() {
         <table className="w-full text-left text-sm">
           <thead className="border-b bg-muted/40 text-muted-foreground">
             <tr>
-              <th className="px-3 py-2 font-medium">Имя</th>
-              <th className="px-3 py-2 font-medium">Prefix</th>
-              <th className="px-3 py-2 font-medium">Статус</th>
-              <th className="px-3 py-2 font-medium">Последнее использование</th>
-              <th className="px-3 py-2 font-medium" />
+              <th className="border-r px-3 py-2 font-medium last:border-r-0">
+                Имя
+              </th>
+              <th className="border-r px-3 py-2 font-medium last:border-r-0">
+                Prefix
+              </th>
+              <th className="border-r px-3 py-2 font-medium last:border-r-0">
+                Статус
+              </th>
+              <th className="border-r px-3 py-2 font-medium last:border-r-0">
+                Последнее использование
+              </th>
+              <th className="border-r px-3 py-2 font-medium last:border-r-0" />
             </tr>
           </thead>
           <tbody>
@@ -178,19 +186,21 @@ export function ApiKeysPanel() {
             ) : (
               keys.map((k) => (
                 <tr key={k.id} className="border-b last:border-0">
-                  <td className="px-3 py-2">{k.name}</td>
-                  <td className="px-3 py-2 font-mono text-xs">{k.keyPrefix}…</td>
-                  <td className="px-3 py-2">
+                  <td className="border-r px-3 py-2 last:border-r-0">{k.name}</td>
+                  <td className="border-r px-3 py-2 font-mono text-xs last:border-r-0">
+                    {k.keyPrefix}…
+                  </td>
+                  <td className="border-r px-3 py-2 last:border-r-0">
                     {k.enabled ? (
                       <Badge variant="secondary">активен</Badge>
                     ) : (
                       <Badge variant="outline">отозван</Badge>
                     )}
                   </td>
-                  <td className="px-3 py-2 text-muted-foreground">
+                  <td className="border-r px-3 py-2 text-muted-foreground last:border-r-0">
                     {formatDisplayTimestamp(k.lastUsedAt, timeZone)}
                   </td>
-                  <td className="px-3 py-2 text-right">
+                  <td className="border-r px-3 py-2 text-right last:border-r-0">
                     {k.enabled ? (
                       <Button
                         type="button"

@@ -13,7 +13,10 @@ import {
   type ColumnFilters,
 } from "@/components/column-filters";
 import { HighlightText } from "@/components/highlight-text";
-import { CDR_PHONE_COLUMNS } from "@/modules/traffic/columns";
+import {
+  CDR_PHONE_COLUMNS,
+  TRAFFIC_BOLD_COLUMNS,
+} from "@/modules/traffic/columns";
 import { buildTrafficFacetsUrl } from "@/modules/traffic/api-client";
 import type { TrafficListItem } from "@/modules/traffic/service";
 import {
@@ -22,6 +25,7 @@ import {
 } from "@/modules/traffic/ui-format";
 
 const DEFAULT_HIGHLIGHT = new Set<string>(CDR_PHONE_COLUMNS);
+const DEFAULT_BOLD = new Set<string>(TRAFFIC_BOLD_COLUMNS);
 
 type Props = {
   headers: string[];
@@ -113,7 +117,14 @@ export function TrafficTable({
                 const raw = row.data[h] ?? "";
                 const shown = formatTrafficCell(h, raw);
                 return (
-                  <TableCell key={h} className="whitespace-nowrap">
+                  <TableCell
+                    key={h}
+                    className={
+                      DEFAULT_BOLD.has(h)
+                        ? "whitespace-nowrap font-bold"
+                        : "whitespace-nowrap"
+                    }
+                  >
                     {highlightSet.has(h) ? (
                       <HighlightText text={shown} query={phoneQ} />
                     ) : (

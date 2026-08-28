@@ -13,6 +13,30 @@ function isNavActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
+function NavLink({
+  href,
+  label,
+  active,
+}: {
+  href: string;
+  label: string;
+  active: boolean;
+}) {
+  return (
+    <Link
+      href={href}
+      className={cn(
+        "whitespace-nowrap rounded-md px-2 py-1.5 text-sm font-bold transition-colors",
+        active
+          ? "bg-black text-white hover:bg-black hover:text-white"
+          : "text-black hover:bg-muted",
+      )}
+    >
+      {label}
+    </Link>
+  );
+}
+
 export function AppShell({
   children,
   username,
@@ -26,12 +50,11 @@ export function AppShell({
   const pathname = usePathname() ?? "";
   const granted = new Set(permissions);
 
-  const nav = FEATURE_MODULES.filter((m) => m.href)
-    .filter((m) => !m.navPermission || granted.has(m.navPermission))
-    .map((m) => ({
-      href: m.href!,
-      label: m.title,
-    }));
+  const visible = FEATURE_MODULES.filter((m) => m.href).filter(
+    (m) => !m.navPermission || granted.has(m.navPermission),
+  );
+  const primaryNav = visible.filter((m) => (m.navGroup ?? "primary") === "primary");
+  const cdrNav = visible.filter((m) => m.navGroup === "cdr");
 
   async function onLogout() {
     await authClient.signOut();
@@ -51,24 +74,28 @@ export function AppShell({
           />
         </Link>
         <Separator className="mb-3 shrink-0" />
-        <nav className="flex min-h-0 flex-1 flex-col gap-1 overflow-hidden">
-          {nav.map((item) => {
-            const active = isNavActive(pathname, item.href);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  "whitespace-nowrap rounded-md px-2 py-1.5 text-sm font-bold transition-colors",
-                  active
-                    ? "bg-black text-white hover:bg-black hover:text-white"
-                    : "text-black hover:bg-muted",
-                )}
-              >
-                {item.label}
-              </Link>
-            );
-          })}
+        <nav className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
+          {primaryNav.map((item) => (
+            <NavLink
+              key={item.href}
+              href={item.href!}
+              label={item.title}
+              active={isNavActive(pathname, item.href!)}
+            />
+          ))}
+          {cdrNav.length > 0 ? (
+            <>
+              <Separator className="my-3 shrink-0" />
+              {cdrNav.map((item) => (
+                <NavLink
+                  key={item.href}
+                  href={item.href!}
+                  label={item.title}
+                  active={isNavActive(pathname, item.href!)}
+                />
+              ))}
+            </>
+          ) : null}
         </nav>
         <div className="mt-auto shrink-0 space-y-2 px-2 pt-4">
           <p className="text-xs text-muted-foreground">

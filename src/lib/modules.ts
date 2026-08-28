@@ -17,9 +17,13 @@ export type FeatureModuleId =
   | "groups"
   | "raw"
   | "traffic"
+  | "geography"
+  | "operators"
   | "audit"
   | "health"
   | "enrich";
+
+export type FeatureNavGroup = "primary" | "cdr";
 
 type FeatureModuleDefinition = {
   id: FeatureModuleId;
@@ -27,6 +31,7 @@ type FeatureModuleDefinition = {
   description: string;
   href?: string;
   navPermission?: PermissionCode;
+  navGroup?: FeatureNavGroup;
 };
 
 export const FEATURE_MODULES: FeatureModuleDefinition[] = [
@@ -49,20 +54,6 @@ export const FEATURE_MODULES: FeatureModuleDefinition[] = [
     title: "Входящие группы",
     description: "Справочник routing groups с softswitch (только просмотр)",
     href: "/groups",
-    navPermission: "phones:read",
-  },
-  {
-    id: "raw",
-    title: "Сырые данные",
-    description: "Полный дамп CDR софтсвитча из локальной БД",
-    href: "/raw",
-    navPermission: "phones:read",
-  },
-  {
-    id: "traffic",
-    title: "Телефонный трафик",
-    description: "Сокращённая таблица CDR из локальной БД",
-    href: "/traffic",
     navPermission: "phones:read",
   },
   {
@@ -92,5 +83,37 @@ export const FEATURE_MODULES: FeatureModuleDefinition[] = [
     description: "Журнал действий администраторов и операторов",
     href: "/audit",
     navPermission: "audit:read",
+  },
+  {
+    id: "traffic",
+    title: "Телефонный трафик",
+    description: "Сокращённая таблица CDR из локальной БД",
+    href: "/traffic",
+    navPermission: "phones:read",
+    navGroup: "cdr",
+  },
+  {
+    id: "operators",
+    title: "Операторы связи",
+    description: "Сигнальные адреса и провайдеры из сырых CDR",
+    href: "/operators",
+    navPermission: "phones:read",
+    navGroup: "cdr",
+  },
+  {
+    id: "geography",
+    title: "География звонков",
+    description: "Стороны, операторы и география номеров из сырых CDR",
+    href: "/geography",
+    navPermission: "phones:read",
+    navGroup: "cdr",
+  },
+  {
+    id: "raw",
+    title: "Сырые данные",
+    description: "Полный дамп CDR софтсвитча из локальной БД",
+    href: "/raw",
+    navPermission: "phones:read",
+    navGroup: "cdr",
   },
 ];

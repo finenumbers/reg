@@ -174,6 +174,94 @@ export const TRAFFIC_SUMMARY_LABELS: Record<
   disconnect_code_string: "Код завершения",
 };
 
+export const TRAFFIC_GEOGRAPHY_COLUMNS = [
+  "cdr_date",
+  "bill_ani",
+  "side_a",
+  "operator_a",
+  "geography_a",
+  "bill_dnis",
+  "side_b",
+  "operator_b",
+  "geography_b",
+  "out_orig_dnis",
+  "src_name",
+  "dst_name",
+  "dp_name",
+  "elapsed_time",
+  "disconnect_code_string",
+] as const;
+
+export const TRAFFIC_GEOGRAPHY_LABELS: Record<
+  (typeof TRAFFIC_GEOGRAPHY_COLUMNS)[number],
+  string
+> = {
+  cdr_date: "Время звонка",
+  bill_ani: "А-номер",
+  side_a: "Сторона A",
+  operator_a: "Оператор А",
+  geography_a: "География A",
+  bill_dnis: "В-номер",
+  side_b: "Сторона B",
+  operator_b: "Оператор B",
+  geography_b: "География B",
+  out_orig_dnis: "Переадресация",
+  src_name: "Инициирующее устройство",
+  dst_name: "Терминирующее устройство",
+  dp_name: "Объект набора",
+  elapsed_time: "Длительность",
+  disconnect_code_string: "Код завершения",
+};
+
+export const TRAFFIC_OPERATORS_COLUMNS = [
+  "cdr_date",
+  "bill_ani",
+  "side_a",
+  "bill_dnis",
+  "side_b",
+  "out_orig_dnis",
+  "remote_src_sig_address",
+  "country_a",
+  "city_a",
+  "provider_a",
+  "remote_dst_sig_address",
+  "country_b",
+  "city_b",
+  "provider_b",
+  "src_name",
+  "dst_name",
+  "dp_name",
+  "elapsed_time",
+  "disconnect_code_string",
+] as const;
+
+export const TRAFFIC_OPERATORS_LABELS: Record<
+  (typeof TRAFFIC_OPERATORS_COLUMNS)[number],
+  string
+> = {
+  cdr_date: "Время звонка",
+  bill_ani: "А-номер",
+  side_a: "Сторона A",
+  bill_dnis: "В-номер",
+  side_b: "Сторона B",
+  out_orig_dnis: "Переадресация",
+  remote_src_sig_address: "Инициирование",
+  country_a: "Страна А",
+  city_a: "Город A",
+  provider_a: "Провайдер A",
+  remote_dst_sig_address: "Терминация",
+  country_b: "Страна B",
+  city_b: "Город B",
+  provider_b: "Провайдер B",
+  src_name: "Инициирующее устройство",
+  dst_name: "Терминирующее устройство",
+  dp_name: "Объект набора",
+  elapsed_time: "Длительность",
+  disconnect_code_string: "Код завершения",
+};
+
+export const TRAFFIC_BOLD_COLUMNS = ["bill_ani", "bill_dnis"] as const;
+
 export const CDR_ENRICH_COLUMNS = [
   "side_a",
   "operator_a",
