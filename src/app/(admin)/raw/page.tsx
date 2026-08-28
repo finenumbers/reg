@@ -1,12 +1,17 @@
 import { requirePagePermission } from "@/modules/auth/guards";
 import { hasPermission } from "@/modules/rbac/permissions";
-import { CDR_COLUMNS } from "@/modules/traffic/columns";
+import {
+  CDR_COLUMNS,
+  CDR_ENRICH_LABELS,
+  RAW_TABLE_COLUMNS,
+} from "@/modules/traffic/columns";
 import { listTraffic } from "@/modules/traffic/service";
 import { TrafficView } from "@/modules/traffic/ui/traffic-view";
 
-const HEADER_LABELS: Record<string, string> = Object.fromEntries(
-  CDR_COLUMNS.map((col) => [col, col]),
-);
+const HEADER_LABELS: Record<string, string> = {
+  ...Object.fromEntries(CDR_COLUMNS.map((col) => [col, col])),
+  ...CDR_ENRICH_LABELS,
+};
 
 export default async function RawCdrPage() {
   const ctx = await requirePagePermission("phones:read");
@@ -18,7 +23,7 @@ export default async function RawCdrPage() {
       title="Сырые данные"
       subtitle="CDR софтсвитча из локальной базы после успешной загрузки по FTP."
       searchInputId="raw-phone-search"
-      columns={CDR_COLUMNS}
+      columns={RAW_TABLE_COLUMNS}
       headerLabels={HEADER_LABELS}
       showOps
       canRetry={canRetry}

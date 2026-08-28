@@ -13,9 +13,10 @@ import { prisma } from "@/lib/db";
 import { getJobRunSummary } from "@/modules/jobs/query";
 import {
   CDR_COLUMNS,
+  CDR_ENRICH_COLUMNS,
   CDR_PHONE_COLUMNS,
   csvHeaderToCamel,
-  isCdrColumn,
+  isTrafficColumn,
 } from "@/modules/traffic/columns";
 
 export type TrafficListItem = {
@@ -47,6 +48,10 @@ function rowToData(row: Record<string, unknown>): Record<string, string> {
     const value = row[csvHeaderToCamel(col)];
     data[col] = value == null ? "" : String(value);
   }
+  for (const col of CDR_ENRICH_COLUMNS) {
+    const value = row[csvHeaderToCamel(col)];
+    data[col] = value == null ? "" : String(value);
+  }
   return data;
 }
 
@@ -58,7 +63,7 @@ function applyColumnFilters(
   const extras: Prisma.CdrRecordWhereInput[] = [];
   for (const [column, values] of Object.entries(filters)) {
     if (opts.excludeColumn && column === opts.excludeColumn) continue;
-    if (!values?.length || !isCdrColumn(column)) continue;
+    if (!values?.length || !isTrafficColumn(column)) continue;
     const field = csvHeaderToCamel(column);
     extras.push({
       OR: values.map((raw) => ({
@@ -140,7 +145,7 @@ export async function listTrafficFacets(opts: {
   limit?: number;
 }): Promise<FacetResponse> {
   const column = opts.column.trim();
-  if (!isCdrColumn(column)) {
+  if (!isTrafficColumn(column)) {
     return { items: [], truncated: false };
   }
   const field = csvHeaderToCamel(column);

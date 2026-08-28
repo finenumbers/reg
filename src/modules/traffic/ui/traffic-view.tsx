@@ -154,8 +154,8 @@ export function TrafficView({
     if (!showOps) return;
     void (async () => {
       const status = await fetchTrafficStatus();
-      if (status.ok && status.data.lastFailedError) {
-        setBannerError(status.data.lastFailedError);
+      if (status.ok && status.data.lastError) {
+        setBannerError(status.data.lastError);
       }
     })();
   }, [showOps]);

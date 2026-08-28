@@ -168,7 +168,58 @@ export const TRAFFIC_SUMMARY_LABELS: Record<
   disconnect_code_string: "Разъединение",
 };
 
+export const CDR_ENRICH_COLUMNS = [
+  "side_a",
+  "operator_a",
+  "geography_a",
+  "side_b",
+  "operator_b",
+  "geography_b",
+  "country_a",
+  "city_a",
+  "provider_a",
+  "country_b",
+  "city_b",
+  "provider_b",
+] as const;
+
+export type CdrEnrichColumn = (typeof CDR_ENRICH_COLUMNS)[number];
+
+export const CDR_ENRICH_LABELS: Record<CdrEnrichColumn, string> = {
+  side_a: "Сторона А",
+  operator_a: "Оператор А",
+  geography_a: "География A",
+  side_b: "Сторона B",
+  operator_b: "Оператор B",
+  geography_b: "География B",
+  country_a: "Страна А",
+  city_a: "Город A",
+  provider_a: "Провайдер A",
+  country_b: "Страна B",
+  city_b: "Город B",
+  provider_b: "Провайдер B",
+};
+
+const ENRICH_AFTER: Record<string, readonly CdrEnrichColumn[]> = {
+  bill_ani: ["side_a", "operator_a", "geography_a"],
+  bill_dnis: ["side_b", "operator_b", "geography_b"],
+  remote_src_sig_address: ["country_a", "city_a", "provider_a"],
+  remote_dst_sig_address: ["country_b", "city_b", "provider_b"],
+};
+
+export const RAW_TABLE_COLUMNS: readonly string[] = CDR_COLUMNS.flatMap((col) => [
+  col,
+  ...(ENRICH_AFTER[col] ?? []),
+]);
+
+const TRAFFIC_COLUMN_SET = new Set<string>([
+  ...CDR_COLUMNS,
+  ...CDR_ENRICH_COLUMNS,
+]);
+
 export const CDR_INSERT_BATCH_SIZE = 400;
+export const CDR_ENRICH_BACKFILL_MAX_ROWS = 2000;
+export const CDR_ENRICH_BACKFILL_PAGE_SIZE = 400;
 
 /** Full-day dumps are hundreds of MB; import streams line-by-line. */
 export const CDR_MAX_FILE_BYTES = 1_000_000_000;
@@ -183,6 +234,10 @@ const PRISMA_FIELD_SET = new Set(CDR_PRISMA_FIELDS);
 
 export function isCdrColumn(value: string): value is CdrColumn {
   return CDR_COLUMN_SET.has(value);
+}
+
+export function isTrafficColumn(value: string): boolean {
+  return TRAFFIC_COLUMN_SET.has(value);
 }
 
 export function isCdrPrismaField(value: string): boolean {

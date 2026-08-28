@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   CDR_COLUMNS,
   CDR_COLUMN_COUNT,
+  CDR_ENRICH_COLUMNS,
+  RAW_TABLE_COLUMNS,
   TRAFFIC_SUMMARY_COLUMNS,
   headersMatchCanonical,
 } from "@/modules/traffic/columns";
@@ -41,6 +43,24 @@ describe("CDR column contract", () => {
     for (const col of TRAFFIC_SUMMARY_COLUMNS) {
       expect(CDR_COLUMNS).toContain(col);
     }
+  });
+
+  it("places enrich columns next to source fields without changing the dump contract", () => {
+    expect(CDR_ENRICH_COLUMNS).toHaveLength(12);
+    expect(RAW_TABLE_COLUMNS).toHaveLength(132);
+    for (const col of CDR_COLUMNS) {
+      expect(RAW_TABLE_COLUMNS).toContain(col);
+    }
+    for (const col of CDR_ENRICH_COLUMNS) {
+      expect(RAW_TABLE_COLUMNS).toContain(col);
+      expect(CDR_COLUMNS).not.toContain(col);
+    }
+    expect(RAW_TABLE_COLUMNS.indexOf("side_a")).toBe(
+      RAW_TABLE_COLUMNS.indexOf("bill_ani") + 1,
+    );
+    expect(RAW_TABLE_COLUMNS.indexOf("country_a")).toBe(
+      RAW_TABLE_COLUMNS.indexOf("remote_src_sig_address") + 1,
+    );
   });
 
   it("rejects the 11-column slice header", () => {
