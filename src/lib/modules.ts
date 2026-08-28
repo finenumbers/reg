@@ -16,7 +16,8 @@ export type FeatureModuleId =
   | "phones"
   | "groups"
   | "audit"
-  | "health";
+  | "health"
+  | "enrich";
 
 type FeatureModuleDefinition = {
   id: FeatureModuleId;
@@ -47,6 +48,13 @@ export const FEATURE_MODULES: FeatureModuleDefinition[] = [
     description: "Мониторинг SIP-регистраций через regs.poll",
     href: "/regs",
     navPermission: "regs:read",
+  },
+  {
+    id: "enrich",
+    title: "Обогатить данные",
+    description: "Обогащение CDR: описания, PSTN и GeoIP → XLSX",
+    href: "/enrich",
+    navPermission: "phones:read",
   },
   {
     id: "settings",

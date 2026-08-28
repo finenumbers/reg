@@ -61,6 +61,8 @@ export async function PUT(request: Request) {
       "passphrase",
       "geoipApiKey",
       "geoipApiKeyCiphertext",
+      "pstnApiKey",
+      "pstnApiKeyCiphertext",
       "apiKey",
     ] as const;
     for (const key of banned) {

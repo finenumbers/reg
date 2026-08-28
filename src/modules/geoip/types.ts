@@ -3,6 +3,7 @@
  */
 
 export const GEOIP_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+export const GEOIP_CACHE_PRUNE_AFTER_MS = 30 * 24 * 60 * 60 * 1000;
 /** Background enrich: GRCHC lookup over HTTPS is often slower than 2.5s. */
 export const GEOIP_LOOKUP_TIMEOUT_MS = 10_000;
 /** Settings «Проверить соединение» — cold TLS + first dataset hit. */
@@ -56,6 +57,7 @@ export function resolveGeoipBaseUrl(
 
 export type GeoFields = {
   country: string | null;
+  countryIso: string | null;
   city: string | null;
   isp: string | null;
   datasetDate: string | null;
@@ -89,6 +91,9 @@ export function mapLookupResponse(body: unknown): GeoFields {
     country:
       asNullableString(country?.countryName) ??
       asNullableString(city?.countryName),
+    countryIso:
+      asNullableString(country?.countryIsoCode) ??
+      asNullableString(city?.countryIsoCode),
     city: asNullableString(city?.cityName),
     isp: asNullableString(asn?.organization),
     datasetDate: asNullableString(meta?.datasetDate),

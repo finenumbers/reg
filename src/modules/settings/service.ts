@@ -28,9 +28,11 @@ import {
   DEFAULT_SSH_PROFILE_NAME,
   geoipKeyReplaceSchema,
   keyReplaceSchema,
+  pstnKeyReplaceSchema,
   settingsUpdateSchema,
   type GeoipKeyReplaceInput,
   type KeyReplaceInput,
+  type PstnKeyReplaceInput,
   type SettingsUpdateInput,
   type SettingsUpdateResult,
   type SettingsView,
@@ -40,6 +42,10 @@ import {
   DEFAULT_GEOIP_BASE_URL,
   resolveGeoipBaseUrl,
 } from "@/modules/geoip/types";
+import {
+  DEFAULT_PSTN_BASE_URL,
+  resolvePstnBaseUrl,
+} from "@/modules/pstn/types";
 
 async function ensureAppSettings() {
   return prisma.appSetting.upsert({
@@ -70,6 +76,8 @@ function toSettingsView(
     schedulerLoopActive: isAutoSchedulerRunning(),
     geoipBaseUrl: resolveGeoipBaseUrl(settings.geoipBaseUrl),
     hasGeoipApiKey: Boolean(settings.geoipApiKeyCiphertext),
+    pstnBaseUrl: resolvePstnBaseUrl(settings.pstnBaseUrl),
+    hasPstnApiKey: Boolean(settings.pstnApiKeyCiphertext),
     displayTimezone: resolveDisplayTimezone(settings.displayTimezone),
   };
 }
@@ -160,6 +168,7 @@ export async function updateSettings(
     artifactKeepLastRuns?: number;
     artifactMaxBytes?: number;
     geoipBaseUrl?: string | null;
+    pstnBaseUrl?: string | null;
     displayTimezone?: string;
   } = {};
 
@@ -183,6 +192,12 @@ export async function updateSettings(
     settingsData.geoipBaseUrl = trimmed
       ? resolveGeoipBaseUrl(trimmed)
       : DEFAULT_GEOIP_BASE_URL;
+  }
+  if (parsed.pstnBaseUrl !== undefined) {
+    const trimmed = parsed.pstnBaseUrl.trim();
+    settingsData.pstnBaseUrl = trimmed
+      ? resolvePstnBaseUrl(trimmed)
+      : DEFAULT_PSTN_BASE_URL;
   }
   if (parsed.displayTimezone !== undefined) {
     settingsData.displayTimezone = resolveDisplayTimezone(
@@ -227,6 +242,8 @@ export async function updateSettings(
       schedulerLoopActive: view.schedulerLoopActive,
       geoipBaseUrl: view.geoipBaseUrl,
       hasGeoipApiKey: view.hasGeoipApiKey,
+      pstnBaseUrl: view.pstnBaseUrl,
+      hasPstnApiKey: view.hasPstnApiKey,
       displayTimezone: view.displayTimezone,
     },
   });
@@ -367,6 +384,43 @@ export async function replaceGeoipApiKey(
       replacedExisting: true,
       hasGeoipApiKey: true,
       geoipBaseUrl: view.geoipBaseUrl,
+    },
+  });
+
+  return view;
+}
+
+/**
+ * Replace PSTN External Lookup API key. Never returns plaintext.
+ */
+export async function replacePstnApiKey(
+  input: PstnKeyReplaceInput,
+  actor: { userId: string; ip?: string | null },
+): Promise<SettingsView> {
+  const parsed = pstnKeyReplaceSchema.parse(input);
+  const encryption = getSecretEncryptionService();
+  const ciphertext = serializeEncryptedSecret(
+    encryption.encrypt(parsed.apiKey.trim()),
+  );
+
+  await prisma.appSetting.upsert({
+    where: { id: 1 },
+    create: { id: 1, pstnApiKeyCiphertext: ciphertext },
+    update: { pstnApiKeyCiphertext: ciphertext },
+  });
+
+  const view = await getSettingsView();
+
+  await auditService.append({
+    actorUserId: actor.userId,
+    action: AUDIT_ACTIONS.PSTN_KEY_REPLACE,
+    entityType: "app_settings",
+    entityId: "1",
+    ip: actor.ip,
+    meta: {
+      replacedExisting: true,
+      hasPstnApiKey: true,
+      pstnBaseUrl: view.pstnBaseUrl,
     },
   });
 

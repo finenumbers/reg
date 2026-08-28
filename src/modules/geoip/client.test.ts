@@ -27,6 +27,7 @@ describe("geoip HTTP client", () => {
 
     expect(fields).toEqual({
       country: "United States",
+      countryIso: null,
       city: "Mountain View",
       isp: "GOOGLE",
       datasetDate: "20260801",

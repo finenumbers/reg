@@ -5,4 +5,5 @@ export {
   updateSettings,
   replaceSshPrivateKey,
   replaceGeoipApiKey,
+  replacePstnApiKey,
 } from "@/modules/settings/service";

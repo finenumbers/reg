@@ -63,6 +63,7 @@ describe("geoip types and mapping", () => {
       }),
     ).toEqual({
       country: "Российская Федерация",
+      countryIso: "RU",
       city: "Москва",
       isp: "Ростелеком",
       datasetDate: "20260801",
@@ -80,6 +81,7 @@ describe("geoip types and mapping", () => {
       }),
     ).toEqual({
       country: "United States",
+      countryIso: null,
       city: null,
       isp: null,
       datasetDate: null,

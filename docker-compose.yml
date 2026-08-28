@@ -74,6 +74,8 @@ services:
       APP_ENCRYPTION_KEY: ${APP_ENCRYPTION_KEY:?Set APP_ENCRYPTION_KEY (64 hex chars)}
       ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+    volumes:
+      - reg_enrich_data:/app/data/enrich
     ports:
       - "${APP_PUBLISH_PORT:-3000}:3000"
     healthcheck:
@@ -98,6 +100,7 @@ services:
 
 volumes:
   reg_pg_data:
+  reg_enrich_data:
 
 networks:
   internal:

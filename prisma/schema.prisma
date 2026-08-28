@@ -105,6 +105,10 @@ model AppSetting {
   geoipApiKeyCiphertext String?
   /// IANA zone for all operator-facing clocks (UI + XLSX).
   displayTimezone       String      @default("Europe/Moscow")
+  /// Origin of PSTN Analytics lookup (no trailing slash). Empty → DEFAULT_PSTN_BASE_URL.
+  pstnBaseUrl           String?     @default("https://pstn.finenumbers.com")
+  /// AES-256-GCM ciphertext of PSTN External Lookup API key. Never plaintext.
+  pstnApiKeyCiphertext  String?
   updatedAt             DateTime    @updatedAt
 
   @@map("app_settings")
@@ -268,6 +272,8 @@ model RegistrationEvent {
 model IpGeoCache {
   ip          String   @id
   country     String?
+  /// ISO 3166-1 alpha-2 from GeoIP country.countryIsoCode (enrich).
+  countryIso  String?
   city        String?
   isp         String?
   datasetDate String?
@@ -276,6 +282,45 @@ model IpGeoCache {
 
   @@index([lookedUpAt])
   @@map("ip_geo_cache")
+}
+
+/// Cached PSTN Analytics lookup (operator / GAR territory) keyed by 10-digit phone.
+model PstnPhoneCache {
+  phone        String   @id
+  found        Boolean
+  operator     String?
+  garTerritory String?
+  lookedUpAt   DateTime
+  updatedAt    DateTime @updatedAt
+
+  @@index([lookedUpAt])
+  @@map("pstn_phone_cache")
+}
+
+enum EnrichJobStatus {
+  queued
+  running
+  completed
+  failed
+}
+
+/// Ephemeral CDR enrich run. Artifact paths are derived from id, not stored.
+model EnrichJob {
+  id             String          @id @default(cuid())
+  status         EnrichJobStatus
+  actorUserId    String?
+  sourceFilename String
+  stages         Json
+  summary        Json?
+  errorMessage   String?
+  createdAt      DateTime        @default(now())
+  startedAt      DateTime?
+  finishedAt     DateTime?
+  updatedAt      DateTime        @updatedAt
+
+  @@index([status, createdAt(sort: Desc)])
+  @@index([actorUserId, createdAt(sort: Desc)])
+  @@map("enrich_jobs")
 }
 
 /// Optional full snapshot per run — deferred for v1 unless needed.

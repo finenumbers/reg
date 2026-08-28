@@ -74,6 +74,8 @@ services:
       retries: 10
       start_period: 60s
     # MUST remain 1 (in-process scheduler + in-memory rate limits).
+    volumes:
+      - reg_enrich_data:/app/data/enrich
     deploy:
       replicas: 1
     networks:
@@ -82,6 +84,7 @@ services:
 
 volumes:
   reg_pg_data:
+  reg_enrich_data:
 
 networks:
   internal:

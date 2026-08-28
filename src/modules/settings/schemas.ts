@@ -5,20 +5,26 @@
 import { z } from "zod";
 import { isDisplayTimezoneId } from "@/lib/display-timezone";
 import { DEFAULT_GEOIP_BASE_URL } from "@/modules/geoip/types";
+import { DEFAULT_PSTN_BASE_URL } from "@/modules/pstn/types";
 
-const geoipBaseUrlSchema = z
-  .string()
-  .max(2048)
-  .refine((value) => {
-    const trimmed = value.trim();
-    if (trimmed.length === 0) return true;
-    try {
-      const url = new URL(trimmed);
-      return url.protocol === "http:" || url.protocol === "https:";
-    } catch {
-      return false;
-    }
-  }, "GeoIP URL must be a valid http(s) origin");
+function httpOriginSchema(label: string) {
+  return z
+    .string()
+    .max(2048)
+    .refine((value) => {
+      const trimmed = value.trim();
+      if (trimmed.length === 0) return true;
+      try {
+        const url = new URL(trimmed);
+        return url.protocol === "http:" || url.protocol === "https:";
+      } catch {
+        return false;
+      }
+    }, `${label} URL must be a valid http(s) origin`);
+}
+
+const geoipBaseUrlSchema = httpOriginSchema("GeoIP");
+const pstnBaseUrlSchema = httpOriginSchema("PSTN");
 
 export const settingsUpdateSchema = z.object({
   host: z.string().min(1).max(255).optional(),
@@ -30,6 +36,7 @@ export const settingsUpdateSchema = z.object({
   artifactKeepLastRuns: z.number().int().min(1).max(1000).optional(),
   artifactMaxBytes: z.number().int().min(1024).max(50_000_000).optional(),
   geoipBaseUrl: geoipBaseUrlSchema.optional(),
+  pstnBaseUrl: pstnBaseUrlSchema.optional(),
   displayTimezone: z
     .string()
     .refine(isDisplayTimezoneId, "Unsupported display timezone")
@@ -51,6 +58,12 @@ export const geoipKeyReplaceSchema = z.object({
 
 export type GeoipKeyReplaceInput = z.infer<typeof geoipKeyReplaceSchema>;
 
+export const pstnKeyReplaceSchema = z.object({
+  apiKey: z.string().min(1).max(4096),
+});
+
+export type PstnKeyReplaceInput = z.infer<typeof pstnKeyReplaceSchema>;
+
 export type SettingsView = {
   host: string | null;
   port: number | null;
@@ -70,6 +83,9 @@ export type SettingsView = {
   geoipBaseUrl: string | null;
   /** Never expose the GeoIP API key — only whether it is stored */
   hasGeoipApiKey: boolean;
+  pstnBaseUrl: string | null;
+  /** Never expose the PSTN API key — only whether it is stored */
+  hasPstnApiKey: boolean;
   displayTimezone: string;
 };
 
@@ -79,4 +95,4 @@ export type SettingsUpdateResult = {
 };
 
 export const DEFAULT_SSH_PROFILE_NAME = "softswitch";
-export { DEFAULT_GEOIP_BASE_URL };
+export { DEFAULT_GEOIP_BASE_URL, DEFAULT_PSTN_BASE_URL };

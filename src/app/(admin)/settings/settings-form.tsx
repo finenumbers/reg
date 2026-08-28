@@ -12,6 +12,7 @@ import { useDisplayTimezone } from "@/components/display-timezone-provider";
 import { DISPLAY_TIMEZONES } from "@/lib/display-timezone";
 import {
   DEFAULT_GEOIP_BASE_URL,
+  DEFAULT_PSTN_BASE_URL,
   type SettingsView,
 } from "@/modules/settings/schemas";
 import { inspectKeyMaterial } from "@/modules/ssh/key-material-hint";
@@ -56,6 +57,13 @@ export function SettingsForm({ initial }: Props) {
   );
   const [geoipApiKey, setGeoipApiKey] = useState("");
   const [geoipTestResult, setGeoipTestResult] = useState<TestResultView | null>(
+    null,
+  );
+  const [pstnBaseUrl, setPstnBaseUrl] = useState(
+    initial.pstnBaseUrl ?? DEFAULT_PSTN_BASE_URL,
+  );
+  const [pstnApiKey, setPstnApiKey] = useState("");
+  const [pstnTestResult, setPstnTestResult] = useState<TestResultView | null>(
     null,
   );
   const [passphrase, setPassphrase] = useState("");
@@ -108,6 +116,7 @@ export function SettingsForm({ initial }: Props) {
     setArtifactRetentionDays(String(next.artifactRetentionDays));
     setArtifactKeepLastRuns(String(next.artifactKeepLastRuns));
     setGeoipBaseUrl(next.geoipBaseUrl ?? DEFAULT_GEOIP_BASE_URL);
+    setPstnBaseUrl(next.pstnBaseUrl ?? DEFAULT_PSTN_BASE_URL);
     setDisplayTimezone(next.displayTimezone);
     setTimeZone(next.displayTimezone);
     router.refresh();
@@ -365,6 +374,101 @@ export function SettingsForm({ initial }: Props) {
         });
       } catch {
         toast.error("Тест GeoIP не удался");
+      }
+    });
+  }
+
+  async function savePstnUrl(): Promise<SettingsView | null> {
+    const res = await fetch("/api/settings", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        pstnBaseUrl: pstnBaseUrl.trim(),
+        displayTimezone,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      toast.error(data.error ?? "Не удалось сохранить URL PSTN");
+      return null;
+    }
+    return data.settings as SettingsView;
+  }
+
+  async function replacePstnKeyIfPresent(
+    current: SettingsView,
+  ): Promise<SettingsView | null> {
+    const key = pstnApiKey.trim();
+    if (!key) return current;
+    const res = await fetch("/api/settings/pstn/key", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ apiKey: key }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      toast.error(data.error ?? "Не удалось сохранить API-ключ PSTN");
+      applySettings(current);
+      return null;
+    }
+    setPstnApiKey("");
+    return data.settings as SettingsView;
+  }
+
+  function onSavePstn() {
+    startTransition(async () => {
+      try {
+        const hadKey = Boolean(pstnApiKey.trim());
+        const saved = await savePstnUrl();
+        if (!saved) return;
+        const withKey = await replacePstnKeyIfPresent(saved);
+        if (!withKey) return;
+        applySettings(withKey);
+        if (hadKey) {
+          toast.success("URL и API-ключ PSTN сохранены");
+        } else if (withKey.hasPstnApiKey) {
+          toast.success("Настройки PSTN сохранены");
+        } else {
+          toast.success(
+            "URL сохранён — ещё нужен API-ключ перед «Проверить соединение»",
+          );
+        }
+      } catch {
+        toast.error("Не удалось сохранить PSTN");
+      }
+    });
+  }
+
+  function onTestPstn() {
+    if (!settings.hasPstnApiKey) {
+      toast.error(
+        "Сначала сохраните API-ключ PSTN, затем проверьте соединение",
+      );
+      return;
+    }
+    startTransition(async () => {
+      setPstnTestResult(null);
+      try {
+        const res = await fetch("/api/settings/pstn/test", { method: "POST" });
+        const data = await res.json();
+        if (data.test) {
+          setPstnTestResult(data.test);
+          if (data.test.result === "success") {
+            toast.success("Тест PSTN успешен");
+          } else {
+            toast.error(data.test.detail ?? "Тест PSTN не удался");
+          }
+          return;
+        }
+        const message = data.detail ?? data.error ?? "Тест PSTN не удался";
+        toast.error(message);
+        setPstnTestResult({
+          result: "error",
+          detail: message,
+          durationMs: null,
+        });
+      } catch {
+        toast.error("Тест PSTN не удался");
       }
     });
   }
@@ -773,6 +877,87 @@ export function SettingsForm({ initial }: Props) {
               {geoipTestResult.detail ? (
                 <p className="mt-2 text-muted-foreground">
                   {geoipTestResult.detail}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      </section>
+
+      <section className="space-y-4">
+        <h2 className="text-base font-semibold">PSTN</h2>
+        <p className="text-sm text-muted-foreground">
+          Внешний сервис нумерации: оператор связи и территория ГАР по номеру
+          телефона. Ключ хранится в зашифрованном виде и в UI не показывается —
+          только замена.
+        </p>
+        <div className="grid gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="pstn-url">URL сервиса</Label>
+            <Input
+              id="pstn-url"
+              value={pstnBaseUrl}
+              onChange={(e) => setPstnBaseUrl(e.target.value)}
+              placeholder={DEFAULT_PSTN_BASE_URL}
+              autoComplete="off"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="pstn-key">API-ключ External Lookup</Label>
+            <Input
+              id="pstn-key"
+              type="password"
+              value={pstnApiKey}
+              onChange={(e) => setPstnApiKey(e.target.value)}
+              placeholder={
+                settings.hasPstnApiKey
+                  ? "Ключ сохранён — вставьте новый, чтобы заменить"
+                  : "Вставьте ключ из Admin PSTN"
+              }
+              autoComplete="new-password"
+            />
+            <p className="text-xs text-muted-foreground">
+              {settings.hasPstnApiKey ? (
+                <Badge variant="secondary">ключ сохранён</Badge>
+              ) : (
+                "Ключ ещё не задан"
+              )}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" disabled={pending} onClick={onSavePstn}>
+              Сохранить PSTN
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={pending || !settings.hasPstnApiKey}
+              onClick={onTestPstn}
+            >
+              Проверить соединение
+            </Button>
+          </div>
+          {pstnTestResult ? (
+            <div className="rounded-md border p-3 text-sm">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge
+                  variant={
+                    pstnTestResult.result === "success"
+                      ? "default"
+                      : "destructive"
+                  }
+                >
+                  {formatTestResultLabel(pstnTestResult.result)}
+                </Badge>
+                {pstnTestResult.durationMs != null ? (
+                  <span className="text-xs text-muted-foreground">
+                    {pstnTestResult.durationMs} мс
+                  </span>
+                ) : null}
+              </div>
+              {pstnTestResult.detail ? (
+                <p className="mt-2 text-muted-foreground">
+                  {pstnTestResult.detail}
                 </p>
               ) : null}
             </div>

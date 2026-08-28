@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   geoipKeyReplaceSchema,
   keyReplaceSchema,
+  pstnKeyReplaceSchema,
   settingsUpdateSchema,
   type SettingsView,
 } from "@/modules/settings/schemas";
@@ -15,11 +16,14 @@ function assertMaskedSettings(view: SettingsView) {
   expect(json).not.toMatch(/privateKeyCiphertext/i);
   expect(json).not.toMatch(/passphrase/i);
   expect(json).not.toMatch(/geoipApiKeyCiphertext/i);
+  expect(json).not.toMatch(/pstnApiKeyCiphertext/i);
   expect(typeof view.hasPrivateKey).toBe("boolean");
   expect(typeof view.hasGeoipApiKey).toBe("boolean");
+  expect(typeof view.hasPstnApiKey).toBe("boolean");
   expect(view).toHaveProperty("keyFingerprint");
   expect(view).toHaveProperty("keyAlgo");
   expect(view).toHaveProperty("geoipBaseUrl");
+  expect(view).toHaveProperty("pstnBaseUrl");
   expect(view.schedulerLoopActive).toBe(false);
 }
 
@@ -33,11 +37,13 @@ describe("settings schemas and masked view contract", () => {
         regsPollEnabled: true,
         regsPollIntervalSec: 60,
         geoipBaseUrl: "http://localhost:8080/",
+        pstnBaseUrl: "http://localhost:5555/",
       }),
     ).toMatchObject({
       host: "softswitch.example",
       regsPollIntervalSec: 60,
       geoipBaseUrl: "http://localhost:8080/",
+      pstnBaseUrl: "http://localhost:5555/",
     });
 
     expect(() =>
@@ -75,6 +81,13 @@ describe("settings schemas and masked view contract", () => {
     ).toMatchObject({ passphrase: "x" });
   });
 
+  it("requires a non-empty PSTN API key for replace", () => {
+    expect(() => pstnKeyReplaceSchema.parse({ apiKey: "" })).toThrow();
+    expect(pstnKeyReplaceSchema.parse({ apiKey: "pstn-secret" })).toEqual({
+      apiKey: "pstn-secret",
+    });
+  });
+
   it("requires a non-empty GeoIP API key for replace", () => {
     expect(() => geoipKeyReplaceSchema.parse({ apiKey: "" })).toThrow();
     expect(geoipKeyReplaceSchema.parse({ apiKey: "geoip-secret" })).toEqual({
@@ -99,6 +112,8 @@ describe("settings schemas and masked view contract", () => {
       schedulerLoopActive: false,
       geoipBaseUrl: null,
       hasGeoipApiKey: false,
+      pstnBaseUrl: null,
+      hasPstnApiKey: false,
       displayTimezone: "Europe/Moscow",
     };
     assertMaskedSettings(view);
