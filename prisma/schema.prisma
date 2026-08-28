@@ -119,6 +119,12 @@ model AppSetting {
   ftpPasvMaxPort        Int         @default(50109)
   /// Optional PASV advertise address — unused when the softswitch uses active FTP.
   ftpPasvAddress        String?
+  /// VoIPmonitor WEB API correlation (independent of Collector).
+  voipmonitorEnabled              Boolean @default(false)
+  voipmonitorApiUrl               String?
+  voipmonitorUser                 String?
+  voipmonitorPasswordCiphertext   String?
+  voipmonitorGuiUrl               String?
   updatedAt             DateTime    @updatedAt
 
   @@map("app_settings")
@@ -561,6 +567,7 @@ model CdrRecord {
   importedAt                 DateTime  @default(now())
   lastJobRunId               String?
   lastJobRun                 JobRun?   @relation(fields: [lastJobRunId], references: [id], onDelete: SetNull)
+  voipmonitorLink            CdrVoipmonitorLink?
 
   @@index([cdrAt(sort: Desc)])
   @@index([inAni])
@@ -571,6 +578,25 @@ model CdrRecord {
   @@index([dstName])
   @@index([disconnectCodeString])
   @@map("cdr_records")
+}
+
+model CdrVoipmonitorLink {
+  cdrRecordId        String    @id @map("cdr_record_id")
+  cdrRecord          CdrRecord @relation(fields: [cdrRecordId], references: [id], onDelete: Cascade)
+  voipmonitorUrl     String    @default("") @map("voipmonitor_url")
+  voipmonitorCdrId   String    @default("") @map("voipmonitor_cdr_id")
+  voipmonitorCallId  String    @default("") @map("voipmonitor_call_id")
+  matchStatus        String    @default("") @map("match_status")
+  matchMethod        String    @default("") @map("match_method")
+  matchScore         Int       @default(0) @map("match_score")
+  matchedAt          DateTime? @map("matched_at")
+  attemptCount       Int       @default(0) @map("attempt_count")
+  nextAttemptAt      DateTime? @map("next_attempt_at")
+  evidenceJson       String    @default("") @map("evidence_json")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  @@index([matchStatus, nextAttemptAt])
+  @@map("cdr_voipmonitor_links")
 }
 
 // ---------------------------------------------------------------------------

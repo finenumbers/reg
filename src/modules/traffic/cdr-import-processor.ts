@@ -22,6 +22,7 @@ import {
 import { consumeCdrInboxDirty } from "@/modules/traffic/drain-flag";
 import { failJobRunIfStillRunning } from "@/modules/jobs/finalize";
 import { requestCdrImportDrain } from "@/modules/traffic/enqueue";
+import { requestVoipmonitorMatch } from "@/modules/voipmonitor/enqueue";
 import { markPoisoned } from "@/modules/traffic/poison";
 import {
   assertCanonicalCdrHeader,
@@ -500,6 +501,10 @@ export async function processCdrImport(
     linesBad,
     fileCount: fileResults.length,
   });
+
+  if (!failed && phonesParsed > 0) {
+    requestVoipmonitorMatch("schedule");
+  }
 
   return {
     status: failed ? "failed" : "success",

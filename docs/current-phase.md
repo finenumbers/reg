@@ -1,7 +1,11 @@
-# Current Phase — production (v1.11)
+# Current Phase — production (v1.12)
 
-**Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators.  
-**Date:** 2026-08-28
+**Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links.  
+**Date:** 2026-08-29
+
+## v1.12 — VoIPmonitor links
+
+Isolated matcher in Reg (no Collector runtime). Settings credentials → job `voipmonitor.match` → `cdr_voipmonitor_links` → column **VoIPmonitor** on `/raw` (after `cdr_id`) and `/traffic` (after «Код завершения»). `/jobs` shows unenriched count while backlog remains. Official `fcallid` URL only after confirmed match; archive backfill + retry.
 
 ## Goals delivered
 

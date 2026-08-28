@@ -7,4 +7,5 @@ export {
   replaceGeoipApiKey,
   replacePstnApiKey,
   replaceFtpPassword,
+  replaceVoipmonitorPassword,
 } from "@/modules/settings/service";

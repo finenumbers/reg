@@ -18,6 +18,8 @@ function assertMaskedSettings(view: SettingsView) {
   expect(json).not.toMatch(/geoipApiKeyCiphertext/i);
   expect(json).not.toMatch(/pstnApiKeyCiphertext/i);
   expect(json).not.toMatch(/ftpPasswordCiphertext/i);
+  expect(json).not.toMatch(/voipmonitorPasswordCiphertext/i);
+  expect(typeof view.hasVoipmonitorPassword).toBe("boolean");
   expect(typeof view.hasPrivateKey).toBe("boolean");
   expect(typeof view.hasGeoipApiKey).toBe("boolean");
   expect(typeof view.hasPstnApiKey).toBe("boolean");
@@ -125,6 +127,11 @@ describe("settings schemas and masked view contract", () => {
       ftpPasvMaxPort: 50109,
       ftpPasvAddress: null,
       ftpListenerActive: false,
+      voipmonitorEnabled: false,
+      voipmonitorApiUrl: null,
+      voipmonitorUser: null,
+      hasVoipmonitorPassword: false,
+      voipmonitorGuiUrl: null,
     };
     assertMaskedSettings(view);
   });

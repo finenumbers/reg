@@ -139,6 +139,22 @@ export async function ensurePlatformBaseline(): Promise<{ ok: true }> {
     },
   });
 
+  await prisma.allowedAction.upsert({
+    where: { code: "voipmonitor.match" },
+    create: {
+      code: "voipmonitor.match",
+      remotePath: "/opt/scripts/voipmonitor_match",
+      description: "Correlate CDR rows with VoIPmonitor",
+      enabled: true,
+      module: "traffic",
+    },
+    update: {
+      remotePath: "/opt/scripts/voipmonitor_match",
+      enabled: true,
+      module: "traffic",
+    },
+  });
+
   await prisma.appSetting.upsert({
     where: { id: 1 },
     create: { id: 1, artifactMaxBytes: 50_000_000 },

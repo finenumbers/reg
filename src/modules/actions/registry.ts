@@ -9,7 +9,8 @@ export type AllowedActionCode =
   | "regs.poll"
   | "phones.sync"
   | "groups.sync"
-  | "cdr.import";
+  | "cdr.import"
+  | "voipmonitor.match";
 
 /** Absolute sudo binary used for non-interactive elevation (never from UI). */
 const REMOTE_SUDO_BIN = "/usr/bin/sudo";
@@ -90,6 +91,17 @@ export const ACTION_REGISTRY: Record<AllowedActionCode, AllowedActionDefinition>
     argv: [],
     module: "traffic",
     description: "Import softswitch CDR files from the local FTP inbox",
+    usesPlatformExecWrapper: true,
+    elevateWithSudo: false,
+    needsPty: false,
+  },
+  "voipmonitor.match": {
+    code: "voipmonitor.match",
+    kind: "local",
+    remotePath: "/opt/scripts/voipmonitor_match",
+    argv: [],
+    module: "traffic",
+    description: "Correlate CDR rows with VoIPmonitor and store deep-links",
     usesPlatformExecWrapper: true,
     elevateWithSudo: false,
     needsPty: false,

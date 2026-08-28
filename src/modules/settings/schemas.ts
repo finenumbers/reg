@@ -50,6 +50,10 @@ export const settingsUpdateSchema = z.object({
   ftpPasvMinPort: z.number().int().min(1024).max(65535).optional(),
   ftpPasvMaxPort: z.number().int().min(1024).max(65535).optional(),
   ftpPasvAddress: z.string().max(255).optional(),
+  voipmonitorEnabled: z.boolean().optional(),
+  voipmonitorApiUrl: httpOriginSchema("VoIPmonitor API").optional(),
+  voipmonitorUser: z.string().max(255).optional(),
+  voipmonitorGuiUrl: httpOriginSchema("VoIPmonitor GUI").optional(),
 });
 
 export type SettingsUpdateInput = z.infer<typeof settingsUpdateSchema>;
@@ -76,6 +80,14 @@ export type PstnKeyReplaceInput = z.infer<typeof pstnKeyReplaceSchema>;
 export const ftpPasswordReplaceSchema = z.object({
   password: z.string().min(1).max(1024),
 });
+
+export const voipmonitorPasswordReplaceSchema = z.object({
+  password: z.string().min(1).max(1024),
+});
+
+export type VoipmonitorPasswordReplaceInput = z.infer<
+  typeof voipmonitorPasswordReplaceSchema
+>;
 
 export type FtpPasswordReplaceInput = z.infer<typeof ftpPasswordReplaceSchema>;
 
@@ -110,6 +122,11 @@ export type SettingsView = {
   ftpPasvMaxPort: number;
   ftpPasvAddress: string | null;
   ftpListenerActive: boolean;
+  voipmonitorEnabled: boolean;
+  voipmonitorApiUrl: string | null;
+  voipmonitorUser: string | null;
+  hasVoipmonitorPassword: boolean;
+  voipmonitorGuiUrl: string | null;
 };
 
 export type SettingsUpdateResult = {

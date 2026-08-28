@@ -16,6 +16,7 @@ import { HighlightText } from "@/components/highlight-text";
 import {
   CDR_PHONE_COLUMNS,
   TRAFFIC_BOLD_COLUMNS,
+  VOIPMONITOR_COLUMN,
 } from "@/modules/traffic/columns";
 import { buildTrafficFacetsUrl } from "@/modules/traffic/api-client";
 import type { TrafficListItem } from "@/modules/traffic/service";
@@ -68,27 +69,31 @@ export function TrafficTable({
         <TableRow>
           {headers.map((h) => (
             <TableHead key={h} className="text-sm font-medium">
-              <ColumnFilterDropdown
-                column={h}
-                header={headerLabels?.[h] ?? h}
-                open={openColumn === h}
-                selected={filters[h] ?? []}
-                filters={filters}
-                buildFacetsUrl={({ column, filters: f, q }) =>
-                  buildTrafficFacetsUrl({
-                    column,
-                    filters: f,
-                    phoneQ,
-                    q,
-                  })
-                }
-                formatValue={(value) => displayTrafficFacet(h, value)}
-                onToggle={() =>
-                  onOpenColumnChange(openColumn === h ? null : h)
-                }
-                onChange={(values) => onColumnFilterChange(h, values)}
-                onClear={() => onColumnFilterChange(h, [])}
-              />
+              {h === VOIPMONITOR_COLUMN ? (
+                (headerLabels?.[h] ?? h)
+              ) : (
+                <ColumnFilterDropdown
+                  column={h}
+                  header={headerLabels?.[h] ?? h}
+                  open={openColumn === h}
+                  selected={filters[h] ?? []}
+                  filters={filters}
+                  buildFacetsUrl={({ column, filters: f, q }) =>
+                    buildTrafficFacetsUrl({
+                      column,
+                      filters: f,
+                      phoneQ,
+                      q,
+                    })
+                  }
+                  formatValue={(value) => displayTrafficFacet(h, value)}
+                  onToggle={() =>
+                    onOpenColumnChange(openColumn === h ? null : h)
+                  }
+                  onChange={(values) => onColumnFilterChange(h, values)}
+                  onClear={() => onColumnFilterChange(h, [])}
+                />
+              )}
             </TableHead>
           ))}
         </TableRow>
@@ -127,7 +132,18 @@ export function TrafficTable({
                       trafficMissingLabelClass(shown),
                     )}
                   >
-                    {highlightSet.has(h) ? (
+                    {h === VOIPMONITOR_COLUMN ? (
+                      raw ? (
+                        <a
+                          href={raw}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-primary underline-offset-2 hover:underline"
+                        >
+                          {row.data.voipmonitor_cdr_id || "открыть"}
+                        </a>
+                      ) : null
+                    ) : highlightSet.has(h) ? (
                       <HighlightText text={shown} query={phoneQ} />
                     ) : (
                       shown

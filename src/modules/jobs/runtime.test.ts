@@ -20,6 +20,10 @@ vi.mock("@/modules/traffic/cdr-import-processor", () => ({
   processCdrImport: vi.fn(),
 }));
 
+vi.mock("@/modules/voipmonitor/processor", () => ({
+  processVoipmonitorMatch: vi.fn(),
+}));
+
 vi.mock("@/modules/jobs/scheduler", () => ({
   evaluateSchedulerBootstrap: () => ({
     started: true,

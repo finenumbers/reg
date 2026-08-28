@@ -5,6 +5,7 @@
 
 import type { JobStatus, Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
+import { countUnenrichedVoipmonitor } from "@/modules/voipmonitor/count";
 
 export type ListJobRunsFilters = {
   status?: JobStatus;
@@ -36,6 +37,8 @@ export type ListJobRunsResult = {
   total: number;
   page: number;
   pageSize: number;
+  voipmonitorUnenrichedCount: number;
+  voipmonitorEnabled: boolean;
 };
 
 function toListItem(
@@ -90,18 +93,24 @@ export async function listJobRuns(
     where.actionCode = filters.actionCode.trim();
   }
 
-  const [total, rows] = await Promise.all([
-    prisma.jobRun.count({ where }),
-    prisma.jobRun.findMany({
-      where,
-      orderBy: { startedAt: "desc" },
-      skip: (page - 1) * pageSize,
-      take: pageSize,
-      include: {
-        artifact: { select: { jobRunId: true } },
-      },
-    }),
-  ]);
+  const [total, rows, voipmonitorUnenrichedCount, voipmonitorSettings] =
+    await Promise.all([
+      prisma.jobRun.count({ where }),
+      prisma.jobRun.findMany({
+        where,
+        orderBy: { startedAt: "desc" },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        include: {
+          artifact: { select: { jobRunId: true } },
+        },
+      }),
+      countUnenrichedVoipmonitor(),
+      prisma.appSetting.findUnique({
+        where: { id: 1 },
+        select: { voipmonitorEnabled: true },
+      }),
+    ]);
 
   const actorIds = [
     ...new Set(
@@ -130,6 +139,8 @@ export async function listJobRuns(
     total,
     page,
     pageSize,
+    voipmonitorUnenrichedCount,
+    voipmonitorEnabled: Boolean(voipmonitorSettings?.voipmonitorEnabled),
   };
 }
 

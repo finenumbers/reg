@@ -67,6 +67,21 @@ export function SettingsForm({ initial }: Props) {
   const [pstnTestResult, setPstnTestResult] = useState<TestResultView | null>(
     null,
   );
+  const [voipmonitorEnabled, setVoipmonitorEnabled] = useState(
+    initial.voipmonitorEnabled,
+  );
+  const [voipmonitorApiUrl, setVoipmonitorApiUrl] = useState(
+    initial.voipmonitorApiUrl ?? "",
+  );
+  const [voipmonitorUser, setVoipmonitorUser] = useState(
+    initial.voipmonitorUser ?? "",
+  );
+  const [voipmonitorPassword, setVoipmonitorPassword] = useState("");
+  const [voipmonitorGuiUrl, setVoipmonitorGuiUrl] = useState(
+    initial.voipmonitorGuiUrl ?? "",
+  );
+  const [voipmonitorTestResult, setVoipmonitorTestResult] =
+    useState<TestResultView | null>(null);
   const [ftpEnabled, setFtpEnabled] = useState(initial.ftpEnabled);
   const [ftpUsername, setFtpUsername] = useState(initial.ftpUsername ?? "");
   const [ftpPassword, setFtpPassword] = useState("");
@@ -127,6 +142,10 @@ export function SettingsForm({ initial }: Props) {
     setArtifactKeepLastRuns(String(next.artifactKeepLastRuns));
     setGeoipBaseUrl(next.geoipBaseUrl ?? DEFAULT_GEOIP_BASE_URL);
     setPstnBaseUrl(next.pstnBaseUrl ?? DEFAULT_PSTN_BASE_URL);
+    setVoipmonitorEnabled(next.voipmonitorEnabled);
+    setVoipmonitorApiUrl(next.voipmonitorApiUrl ?? "");
+    setVoipmonitorUser(next.voipmonitorUser ?? "");
+    setVoipmonitorGuiUrl(next.voipmonitorGuiUrl ?? "");
     setDisplayTimezone(next.displayTimezone);
     setTimeZone(next.displayTimezone);
     setFtpEnabled(next.ftpEnabled);
@@ -482,6 +501,84 @@ export function SettingsForm({ initial }: Props) {
         });
       } catch {
         toast.error("Тест PSTN не удался");
+      }
+    });
+  }
+
+  function onSaveVoipmonitor() {
+    startTransition(async () => {
+      try {
+        const res = await fetch("/api/settings", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            voipmonitorEnabled,
+            voipmonitorApiUrl: voipmonitorApiUrl.trim(),
+            voipmonitorUser: voipmonitorUser.trim(),
+            voipmonitorGuiUrl: voipmonitorGuiUrl.trim(),
+            displayTimezone,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          toast.error(data.error ?? "Не удалось сохранить VoIPmonitor");
+          return;
+        }
+        let next = data.settings as SettingsView;
+        const password = voipmonitorPassword.trim();
+        if (password) {
+          const keyRes = await fetch("/api/settings/voipmonitor/key", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ password }),
+          });
+          const keyData = await keyRes.json();
+          if (!keyRes.ok) {
+            toast.error(keyData.error ?? "Не удалось сохранить пароль VoIPmonitor");
+            applySettings(next);
+            return;
+          }
+          setVoipmonitorPassword("");
+          next = keyData.settings as SettingsView;
+        }
+        applySettings(next);
+        toast.success("Настройки VoIPmonitor сохранены");
+      } catch {
+        toast.error("Не удалось сохранить VoIPmonitor");
+      }
+    });
+  }
+
+  function onTestVoipmonitor() {
+    if (!settings.hasVoipmonitorPassword) {
+      toast.error("Сначала сохраните пароль VoIPmonitor");
+      return;
+    }
+    startTransition(async () => {
+      setVoipmonitorTestResult(null);
+      try {
+        const res = await fetch("/api/settings/voipmonitor/test", {
+          method: "POST",
+        });
+        const data = await res.json();
+        if (data.test) {
+          setVoipmonitorTestResult(data.test);
+          if (data.test.result === "success") {
+            toast.success("Тест VoIPmonitor успешен");
+          } else {
+            toast.error(data.test.detail ?? "Тест VoIPmonitor не удался");
+          }
+          return;
+        }
+        const message = data.detail ?? data.error ?? "Тест VoIPmonitor не удался";
+        toast.error(message);
+        setVoipmonitorTestResult({
+          result: "error",
+          detail: message,
+          durationMs: null,
+        });
+      } catch {
+        toast.error("Тест VoIPmonitor не удался");
       }
     });
   }
@@ -1048,6 +1145,109 @@ export function SettingsForm({ initial }: Props) {
               {pstnTestResult.detail ? (
                 <p className="mt-2 text-muted-foreground">
                   {pstnTestResult.detail}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      </section>
+
+      <section className="space-y-4">
+        <h2 className="text-base font-semibold">VoIPmonitor</h2>
+        <p className="text-sm text-muted-foreground">
+          Фоновая корреляция CDR со звонками в VoIPmonitor. Ссылка пишется
+          только после подтверждённого совпадения. Пароль API хранится
+          зашифрованным и в UI не показывается.
+        </p>
+        <div className="grid gap-4">
+          <div className="flex items-center gap-2">
+            <input
+              id="voipmonitor-enabled"
+              type="checkbox"
+              className="size-4 rounded border"
+              checked={voipmonitorEnabled}
+              onChange={(e) => setVoipmonitorEnabled(e.target.checked)}
+            />
+            <Label htmlFor="voipmonitor-enabled">Включить обогащение</Label>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="voipmonitor-api">API URL</Label>
+            <Input
+              id="voipmonitor-api"
+              value={voipmonitorApiUrl}
+              onChange={(e) => setVoipmonitorApiUrl(e.target.value)}
+              placeholder="https://vm.example"
+              autoComplete="off"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="voipmonitor-user">Пользователь</Label>
+            <Input
+              id="voipmonitor-user"
+              value={voipmonitorUser}
+              onChange={(e) => setVoipmonitorUser(e.target.value)}
+              autoComplete="off"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="voipmonitor-password">Пароль API</Label>
+            <Input
+              id="voipmonitor-password"
+              type="password"
+              value={voipmonitorPassword}
+              onChange={(e) => setVoipmonitorPassword(e.target.value)}
+              placeholder={
+                settings.hasVoipmonitorPassword
+                  ? "Пароль сохранён — вставьте новый, чтобы заменить"
+                  : "Пароль пользователя VoIPmonitor"
+              }
+              autoComplete="new-password"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="voipmonitor-gui">GUI URL</Label>
+            <Input
+              id="voipmonitor-gui"
+              value={voipmonitorGuiUrl}
+              onChange={(e) => setVoipmonitorGuiUrl(e.target.value)}
+              placeholder="https://vm.example"
+              autoComplete="off"
+            />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" disabled={pending} onClick={onSaveVoipmonitor}>
+              Сохранить VoIPmonitor
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={pending || !settings.hasVoipmonitorPassword}
+              onClick={onTestVoipmonitor}
+            >
+              Проверить соединение
+            </Button>
+          </div>
+          {voipmonitorTestResult ? (
+            <div className="rounded-md border p-3 text-sm">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge
+                  variant={
+                    voipmonitorTestResult.result === "success"
+                      ? "default"
+                      : "destructive"
+                  }
+                >
+                  {formatTestResultLabel(voipmonitorTestResult.result)}
+                </Badge>
+                {voipmonitorTestResult.durationMs != null ? (
+                  <span className="text-xs text-muted-foreground">
+                    {voipmonitorTestResult.durationMs} мс
+                  </span>
+                ) : null}
+              </div>
+              {voipmonitorTestResult.detail ? (
+                <p className="mt-2 text-muted-foreground">
+                  {voipmonitorTestResult.detail}
                 </p>
               ) : null}
             </div>

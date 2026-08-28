@@ -12,6 +12,7 @@ import {
 import { prisma } from "@/lib/db";
 import { getJobRunSummary } from "@/modules/jobs/query";
 import { countInboxFiles } from "@/modules/traffic/inbox";
+import { isSafeVoipmonitorHref } from "@/modules/voipmonitor/url";
 import {
   CDR_COLUMNS,
   CDR_ENRICH_COLUMNS,
@@ -45,7 +46,10 @@ export type TrafficOperationalStatus = {
   poisonedCount: number;
 };
 
-function rowToData(row: Record<string, unknown>): Record<string, string> {
+function rowToData(
+  row: Record<string, unknown>,
+  link?: { voipmonitorUrl: string; voipmonitorCdrId: string } | null,
+): Record<string, string> {
   const data: Record<string, string> = {};
   for (const col of CDR_COLUMNS) {
     const value = row[csvHeaderToCamel(col)];
@@ -55,6 +59,8 @@ function rowToData(row: Record<string, unknown>): Record<string, string> {
     const value = row[csvHeaderToCamel(col)];
     data[col] = value == null ? "" : String(value);
   }
+  data.voipmonitor_url = link?.voipmonitorUrl ?? "";
+  data.voipmonitor_cdr_id = link?.voipmonitorCdrId ?? "";
   return data;
 }
 
@@ -127,11 +133,45 @@ export async function listTraffic(opts: {
     }),
   ]);
 
+  const [links, guiSetting] =
+    rows.length === 0
+      ? [[], null]
+      : await Promise.all([
+          prisma.cdrVoipmonitorLink.findMany({
+            where: { cdrRecordId: { in: rows.map((row) => row.id) } },
+            select: {
+              cdrRecordId: true,
+              voipmonitorUrl: true,
+              voipmonitorCdrId: true,
+            },
+          }),
+          prisma.appSetting.findUnique({
+            where: { id: 1 },
+            select: { voipmonitorGuiUrl: true },
+          }),
+        ]);
+  const guiUrl = guiSetting?.voipmonitorGuiUrl?.trim() ?? "";
+  const linkById = new Map(
+    links.map((link) => [
+      link.cdrRecordId,
+      {
+        ...link,
+        voipmonitorUrl:
+          guiUrl && isSafeVoipmonitorHref(link.voipmonitorUrl, guiUrl)
+            ? link.voipmonitorUrl
+            : "",
+      },
+    ]),
+  );
+
   return {
     items: rows.map((row) => ({
       id: row.id,
       cdrAt: row.cdrAt?.toISOString() ?? null,
-      data: rowToData(row as unknown as Record<string, unknown>),
+      data: rowToData(
+        row as unknown as Record<string, unknown>,
+        linkById.get(row.id),
+      ),
     })),
     headers: [...CDR_COLUMNS],
     total,

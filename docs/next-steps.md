@@ -16,7 +16,13 @@ Phase 7 (production readiness) is complete. Recommended follow-ups are **ops ena
 3. Settings → enable `regsPollEnabled` + set interval (≥30s) → Save
 4. Watch `/jobs` for `trigger=schedule`; disable the checkbox to stop new ticks
 
-## 3. Optional later enhancements (out of v1 critical path)
+## 3. Enable VoIPmonitor links (optional)
+
+1. Dedicated VoIPmonitor GUI API user (do not share Collector credentials if avoidable)
+2. Settings → VoIPmonitor: API URL, user, password, GUI URL → Test → enable → Save
+3. Watch `/jobs` for `voipmonitor.match` and the unenriched banner; `/raw` and `/traffic` should fill the VoIPmonitor column
+
+## 4. Optional later enhancements (out of v1 critical path)
 
 - Shared rate-limit store + leader election (only if multi-replica becomes a hard requirement)
 - Controlled artifact peek UI (still never expose key material)

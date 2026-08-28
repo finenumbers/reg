@@ -57,13 +57,19 @@ describe("CDR column contract", () => {
       "dp_name",
       "elapsed_time",
       "disconnect_code_string",
+      "voipmonitor_url",
     ]);
     expect(TRAFFIC_SUMMARY_LABELS.cdr_date).toBe("Время звонка");
     expect(TRAFFIC_SUMMARY_LABELS.side_a).toBe("Сторона A");
     expect(TRAFFIC_SUMMARY_LABELS.disconnect_code_string).toBe(
       "Код завершения",
     );
+    expect(TRAFFIC_SUMMARY_LABELS.voipmonitor_url).toBe("VoIPmonitor");
     for (const col of TRAFFIC_SUMMARY_COLUMNS) {
+      if (col === "voipmonitor_url") {
+        expect(isTrafficColumn(col)).toBe(false);
+        continue;
+      }
       expect(isTrafficColumn(col)).toBe(true);
     }
   });
@@ -130,7 +136,8 @@ describe("CDR column contract", () => {
 
   it("places enrich columns next to source fields without changing the dump contract", () => {
     expect(CDR_ENRICH_COLUMNS).toHaveLength(12);
-    expect(RAW_TABLE_COLUMNS).toHaveLength(132);
+    expect(RAW_TABLE_COLUMNS).toHaveLength(133);
+    expect(RAW_TABLE_COLUMNS[1]).toBe("voipmonitor_url");
     for (const col of CDR_COLUMNS) {
       expect(RAW_TABLE_COLUMNS).toContain(col);
     }

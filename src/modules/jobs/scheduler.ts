@@ -18,6 +18,10 @@ import { prisma } from "@/lib/db";
 import { logger } from "@/lib/logger";
 import { listInboxFiles } from "@/modules/traffic/inbox";
 import { requestCdrImportDrain } from "@/modules/traffic/enqueue";
+import {
+  hasVoipmonitorWork,
+  requestVoipmonitorMatch,
+} from "@/modules/voipmonitor";
 
 /** Minimal runtime surface — avoids circular import with jobs/runtime.ts */
 export type SchedulerJobRuntime = {
@@ -76,6 +80,38 @@ async function readPollSettings(): Promise<{
   }
 }
 
+async function drainVoipmonitorMatch(): Promise<void> {
+  try {
+    const settings = await prisma.appSetting.findUnique({
+      where: { id: 1 },
+      select: {
+        voipmonitorEnabled: true,
+        voipmonitorApiUrl: true,
+        voipmonitorUser: true,
+        voipmonitorPasswordCiphertext: true,
+        voipmonitorGuiUrl: true,
+      },
+    });
+    if (
+      !settings?.voipmonitorEnabled ||
+      !settings.voipmonitorApiUrl?.trim() ||
+      !settings.voipmonitorUser?.trim() ||
+      !settings.voipmonitorPasswordCiphertext ||
+      !settings.voipmonitorGuiUrl?.trim()
+    ) {
+      return;
+    }
+    const state = schedulerState();
+    if (state.runtimeRef?.isInFlight("voipmonitor.match")) return;
+    if (!(await hasVoipmonitorWork())) return;
+    requestVoipmonitorMatch("schedule");
+  } catch (error) {
+    logger.warn("scheduler.voipmonitor_scan_failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
 async function drainPendingInbox(): Promise<void> {
   try {
     const pending = await listInboxFiles();
@@ -95,6 +131,7 @@ async function tick(): Promise<void> {
   let intervalSec = 60;
   try {
     await drainPendingInbox();
+    await drainVoipmonitorMatch();
 
     const settings = await readPollSettings();
     if (!settings) {

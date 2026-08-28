@@ -219,6 +219,10 @@ Full snapshot всех номеров на каждый run **не хранит�
 - Poison **не** автоимпортируется. Leftover без poison подхватывает scheduler tick и хвост `cdr.import`.
 - `enrichedAt` ставится только после завершённого PSTN/GeoIP lookup (включая cached not-found). Live-ошибка → `enrichedAt` null, backfill повторит.
 
+### VoIPmonitor (`cdr_voipmonitor_links`)
+
+Отдельная 1:1 проекция на `cdr_records`. URL пишется **только** после match (`matched_exact` / `matched_fallback`). Аксиома: каждый загруженный CDR есть в VoIPmonitor — пустая ячейка после успокоения очереди = дефект matcher. Job `voipmonitor.match` обрабатывает по одному часу, ретраит miss с backoff. Ссылки не читаются из Collector.
+
 ### Enrich (`enrich_jobs`)
 
 Эфемерный прогон CSV→XLSX. Не больше одного `queued|running` (partial unique index). Артефакты на диске по id, TTL 24h. Full per-run snapshot регистраций **не** хранится.

@@ -32,7 +32,9 @@ import {
   keyReplaceSchema,
   pstnKeyReplaceSchema,
   settingsUpdateSchema,
+  voipmonitorPasswordReplaceSchema,
   type FtpPasswordReplaceInput,
+  type VoipmonitorPasswordReplaceInput,
   type GeoipKeyReplaceInput,
   type KeyReplaceInput,
   type PstnKeyReplaceInput,
@@ -90,6 +92,11 @@ function toSettingsView(
     ftpPasvMaxPort: settings.ftpPasvMaxPort,
     ftpPasvAddress: settings.ftpPasvAddress ?? null,
     ftpListenerActive: isFtpListenerActive(),
+    voipmonitorEnabled: settings.voipmonitorEnabled,
+    voipmonitorApiUrl: settings.voipmonitorApiUrl ?? null,
+    voipmonitorUser: settings.voipmonitorUser ?? null,
+    hasVoipmonitorPassword: Boolean(settings.voipmonitorPasswordCiphertext),
+    voipmonitorGuiUrl: settings.voipmonitorGuiUrl ?? null,
   };
 }
 
@@ -187,6 +194,10 @@ export async function updateSettings(
     ftpPasvMinPort?: number;
     ftpPasvMaxPort?: number;
     ftpPasvAddress?: string | null;
+    voipmonitorEnabled?: boolean;
+    voipmonitorApiUrl?: string | null;
+    voipmonitorUser?: string | null;
+    voipmonitorGuiUrl?: string | null;
   } = {};
 
   if (parsed.regsPollEnabled !== undefined) {
@@ -239,6 +250,20 @@ export async function updateSettings(
   if (parsed.ftpPasvAddress !== undefined) {
     const trimmed = parsed.ftpPasvAddress.trim();
     settingsData.ftpPasvAddress = trimmed.length > 0 ? trimmed : null;
+  }
+  if (parsed.voipmonitorEnabled !== undefined) {
+    settingsData.voipmonitorEnabled = parsed.voipmonitorEnabled;
+  }
+  if (parsed.voipmonitorApiUrl !== undefined) {
+    const trimmed = parsed.voipmonitorApiUrl.trim();
+    settingsData.voipmonitorApiUrl = trimmed || null;
+  }
+  if (parsed.voipmonitorUser !== undefined) {
+    settingsData.voipmonitorUser = parsed.voipmonitorUser.trim() || null;
+  }
+  if (parsed.voipmonitorGuiUrl !== undefined) {
+    const trimmed = parsed.voipmonitorGuiUrl.trim();
+    settingsData.voipmonitorGuiUrl = trimmed || null;
   }
 
   const ftpChanged =
@@ -300,8 +325,18 @@ export async function updateSettings(
       ftpUsername: view.ftpUsername,
       ftpListenPort: view.ftpListenPort,
       ftpListenerActive: view.ftpListenerActive,
+      voipmonitorEnabled: view.voipmonitorEnabled,
+      voipmonitorApiUrl: view.voipmonitorApiUrl,
+      voipmonitorGuiUrl: view.voipmonitorGuiUrl,
     },
   });
+
+  if (view.voipmonitorEnabled) {
+    const { requestVoipmonitorMatch } = await import(
+      "@/modules/voipmonitor/enqueue"
+    );
+    requestVoipmonitorMatch("schedule");
+  }
 
   return { settings: view, createdProfile };
 }
@@ -511,6 +546,42 @@ export async function replaceFtpPassword(
     entityId: "1",
     ip: actor.ip,
     meta: { hasFtpPassword: true, ftpEnabled: view.ftpEnabled },
+  });
+
+  return view;
+}
+
+/**
+ * Replace VoIPmonitor API password. Never returns plaintext.
+ */
+export async function replaceVoipmonitorPassword(
+  input: VoipmonitorPasswordReplaceInput,
+  actor: { userId: string; ip?: string | null },
+): Promise<SettingsView> {
+  const parsed = voipmonitorPasswordReplaceSchema.parse(input);
+  const encryption = getSecretEncryptionService();
+  const ciphertext = serializeEncryptedSecret(
+    encryption.encrypt(parsed.password),
+  );
+
+  await prisma.appSetting.upsert({
+    where: { id: 1 },
+    create: { id: 1, voipmonitorPasswordCiphertext: ciphertext },
+    update: { voipmonitorPasswordCiphertext: ciphertext },
+  });
+
+  const view = await getSettingsView();
+
+  await auditService.append({
+    actorUserId: actor.userId,
+    action: AUDIT_ACTIONS.VOIPMONITOR_KEY_REPLACE,
+    entityType: "app_settings",
+    entityId: "1",
+    ip: actor.ip,
+    meta: {
+      hasVoipmonitorPassword: true,
+      voipmonitorEnabled: view.voipmonitorEnabled,
+    },
   });
 
   return view;

@@ -30,6 +30,7 @@ import {
   summarizeJobResult,
   type JobStatusFilter,
 } from "@/modules/jobs/ui-format";
+import { composeVoipmonitorJobsBanner } from "@/modules/voipmonitor/jobs-banner";
 
 const PAGE_SIZE = TABLE_PAGE_SIZE;
 
@@ -43,6 +44,12 @@ export function JobsView({ initial }: Props) {
   const [page, setPage] = useState(initial.page);
   const [items, setItems] = useState(initial.items);
   const [total, setTotal] = useState(initial.total);
+  const [unenriched, setUnenriched] = useState(
+    initial.voipmonitorUnenrichedCount,
+  );
+  const [voipmonitorEnabled, setVoipmonitorEnabled] = useState(
+    initial.voipmonitorEnabled,
+  );
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [listError, setListError] = useState<string | null>(null);
@@ -97,6 +104,8 @@ export function JobsView({ initial }: Props) {
     }
 
     setTotal(result.data.total);
+    setUnenriched(result.data.voipmonitorUnenrichedCount);
+    setVoipmonitorEnabled(result.data.voipmonitorEnabled);
     setPage(result.data.page);
     setItems((prev) =>
       replace ? result.data.items : [...prev, ...result.data.items],
@@ -132,6 +141,11 @@ export function JobsView({ initial }: Props) {
   function toggleExpand(job: JobRunListItem) {
     setExpandedId((cur) => (cur === job.id ? null : job.id));
   }
+
+  const voipmonitorBanner = composeVoipmonitorJobsBanner(
+    unenriched,
+    voipmonitorEnabled,
+  );
 
   const emptyMessage = status
     ? "Нет запусков по текущему фильтру статуса."
@@ -192,6 +206,14 @@ export function JobsView({ initial }: Props) {
             Обновить
           </Button>
         </div>
+        {voipmonitorBanner ? (
+          <div
+            role="status"
+            className="shrink-0 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm"
+          >
+            {voipmonitorBanner}
+          </div>
+        ) : null}
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           <TableInfiniteBody
             scrollRef={setScrollRoot}

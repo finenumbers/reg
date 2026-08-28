@@ -65,5 +65,11 @@ export const pstnTestRateLimiter = new SlidingWindowRateLimiter(10, 60 * 1000);
 /** Enrich uploads per user: 6 / minute */
 export const enrichStartRateLimiter = new SlidingWindowRateLimiter(6, 60 * 1000);
 
+/** VoIPmonitor connection test per user: 10 / minute */
+export const voipmonitorTestRateLimiter = new SlidingWindowRateLimiter(
+  10,
+  60 * 1000,
+);
+
 /** Machine API key reads: 10_000 / minute per key (single-replica) */
 export const apiKeyRateLimiter = new SlidingWindowRateLimiter(10_000, 60 * 1000);

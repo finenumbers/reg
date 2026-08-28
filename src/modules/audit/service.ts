@@ -37,6 +37,11 @@ export const AUDIT_ACTIONS = {
   CDR_IMPORT_MANUAL: "cdr.import_manual",
   CDR_IMPORT_START: "cdr.import_start",
   CDR_IMPORT_FINISH: "cdr.import_finish",
+  VOIPMONITOR_MATCH_MANUAL: "voipmonitor.match_manual",
+  VOIPMONITOR_MATCH_START: "voipmonitor.match_start",
+  VOIPMONITOR_MATCH_FINISH: "voipmonitor.match_finish",
+  VOIPMONITOR_KEY_REPLACE: "voipmonitor.key_replace",
+  VOIPMONITOR_TEST: "voipmonitor.test",
   API_KEY_CREATE: "api_key.create",
   API_KEY_REVOKE: "api_key.revoke",
 } as const;

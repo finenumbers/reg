@@ -4,6 +4,8 @@ import {
   CDR_COLUMNS,
   CDR_ENRICH_LABELS,
   RAW_TABLE_COLUMNS,
+  VOIPMONITOR_COLUMN,
+  VOIPMONITOR_LABEL,
 } from "@/modules/traffic/columns";
 import { listTraffic } from "@/modules/traffic/service";
 import { TrafficView } from "@/modules/traffic/ui/traffic-view";
@@ -11,6 +13,7 @@ import { TrafficView } from "@/modules/traffic/ui/traffic-view";
 const HEADER_LABELS: Record<string, string> = {
   ...Object.fromEntries(CDR_COLUMNS.map((col) => [col, col])),
   ...CDR_ENRICH_LABELS,
+  [VOIPMONITOR_COLUMN]: VOIPMONITOR_LABEL,
 };
 
 export default async function RawCdrPage() {

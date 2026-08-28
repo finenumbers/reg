@@ -66,6 +66,8 @@ export async function PUT(request: Request) {
       "apiKey",
       "ftpPassword",
       "ftpPasswordCiphertext",
+      "voipmonitorPassword",
+      "voipmonitorPasswordCiphertext",
     ] as const;
     for (const key of banned) {
       if (key in (body as Record<string, unknown>)) {

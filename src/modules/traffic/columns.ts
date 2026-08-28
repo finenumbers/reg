@@ -143,6 +143,9 @@ export const CDR_PHONE_COLUMNS = [
 ] as const;
 
 /** Short traffic table — subset of the full CDR dump, display labels in UI. */
+export const VOIPMONITOR_COLUMN = "voipmonitor_url";
+export const VOIPMONITOR_LABEL = "VoIPmonitor";
+
 export const TRAFFIC_SUMMARY_COLUMNS = [
   "cdr_date",
   "bill_ani",
@@ -155,6 +158,7 @@ export const TRAFFIC_SUMMARY_COLUMNS = [
   "dp_name",
   "elapsed_time",
   "disconnect_code_string",
+  VOIPMONITOR_COLUMN,
 ] as const;
 
 export const TRAFFIC_SUMMARY_LABELS: Record<
@@ -172,6 +176,7 @@ export const TRAFFIC_SUMMARY_LABELS: Record<
   dp_name: "Объект набора",
   elapsed_time: "Длительность",
   disconnect_code_string: "Код завершения",
+  voipmonitor_url: VOIPMONITOR_LABEL,
 };
 
 export const TRAFFIC_GEOGRAPHY_COLUMNS = [
@@ -303,6 +308,7 @@ const ENRICH_AFTER: Record<string, readonly CdrEnrichColumn[]> = {
 
 export const RAW_TABLE_COLUMNS: readonly string[] = CDR_COLUMNS.flatMap((col) => [
   col,
+  ...(col === "cdr_id" ? [VOIPMONITOR_COLUMN] : []),
   ...(ENRICH_AFTER[col] ?? []),
 ]);
 

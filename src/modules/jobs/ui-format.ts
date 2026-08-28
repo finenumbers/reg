@@ -81,7 +81,9 @@ export function summarizeJobResult(job: JobRunListItem): string {
         ? `${job.phonesParsed} групп`
         : job.actionCode === "cdr.import"
           ? `${job.phonesParsed} записей`
-          : `${job.phonesParsed} номеров`;
+          : job.actionCode === "voipmonitor.match"
+            ? `${job.phonesParsed} ссылок`
+            : `${job.phonesParsed} номеров`;
     parts.push(countLabel);
   }
   if (job.linesBad != null && job.linesBad > 0) {

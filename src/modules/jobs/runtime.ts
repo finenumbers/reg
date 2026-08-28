@@ -13,6 +13,7 @@ import { processRegsPoll } from "@/modules/jobs/regs-poll-processor";
 import { processGroupsSync } from "@/modules/groups/groups-sync-processor";
 import { processPhonesSync } from "@/modules/phones/phones-sync-processor";
 import { processCdrImport } from "@/modules/traffic/cdr-import-processor";
+import { processVoipmonitorMatch } from "@/modules/voipmonitor/processor";
 import {
   evaluateSchedulerBootstrap as evaluateSchedulerBootstrapImpl,
 } from "@/modules/jobs/scheduler";
@@ -22,6 +23,7 @@ const SUPPORTED_JOB_ACTIONS = new Set<AllowedActionCode>([
   "phones.sync",
   "groups.sync",
   "cdr.import",
+  "voipmonitor.match",
 ]);
 
 export type JobEnqueueInput = {
@@ -79,6 +81,12 @@ export class PQueueJobRuntime implements JobRuntime {
         }
         if (input.actionCode === "cdr.import") {
           return await processCdrImport({
+            trigger: input.trigger,
+            actorUserId: input.actorUserId,
+          });
+        }
+        if (input.actionCode === "voipmonitor.match") {
+          return await processVoipmonitorMatch({
             trigger: input.trigger,
             actorUserId: input.actorUserId,
           });
