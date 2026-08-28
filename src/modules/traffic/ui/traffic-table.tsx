@@ -17,10 +17,12 @@ import { CDR_PHONE_COLUMNS } from "@/modules/traffic/columns";
 import { buildTrafficFacetsUrl } from "@/modules/traffic/api-client";
 import type { TrafficListItem } from "@/modules/traffic/service";
 
-const PHONE_SET = new Set<string>(CDR_PHONE_COLUMNS);
+const DEFAULT_HIGHLIGHT = new Set<string>(CDR_PHONE_COLUMNS);
 
 type Props = {
   headers: string[];
+  headerLabels?: Record<string, string>;
+  highlightColumns?: readonly string[];
   data: TrafficListItem[];
   loading?: boolean;
   emptyMessage?: string;
@@ -33,6 +35,8 @@ type Props = {
 
 export function TrafficTable({
   headers,
+  headerLabels,
+  highlightColumns,
   data,
   loading = false,
   emptyMessage = "Нет данных.",
@@ -44,6 +48,9 @@ export function TrafficTable({
 }: Props) {
   const showEmpty = !loading && data.length === 0;
   const colCount = Math.max(headers.length, 1);
+  const highlightSet = highlightColumns
+    ? new Set(highlightColumns)
+    : DEFAULT_HIGHLIGHT;
 
   return (
     <Table className="text-sm">
@@ -53,7 +60,7 @@ export function TrafficTable({
             <TableHead key={h} className="text-sm font-medium">
               <ColumnFilterDropdown
                 column={h}
-                header={h}
+                header={headerLabels?.[h] ?? h}
                 open={openColumn === h}
                 selected={filters[h] ?? []}
                 filters={filters}
@@ -101,7 +108,7 @@ export function TrafficTable({
                 const raw = row.data[h] ?? "";
                 return (
                   <TableCell key={h} className="whitespace-nowrap">
-                    {PHONE_SET.has(h) ? (
+                    {highlightSet.has(h) ? (
                       <HighlightText text={raw} query={phoneQ} />
                     ) : (
                       raw

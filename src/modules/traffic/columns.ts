@@ -142,6 +142,32 @@ export const CDR_PHONE_COLUMNS = [
   "bill_dnis",
 ] as const;
 
+/** Short traffic table — subset of the full CDR dump, display labels in UI. */
+export const TRAFFIC_SUMMARY_COLUMNS = [
+  "bill_ani",
+  "bill_dnis",
+  "out_orig_dnis",
+  "src_name",
+  "dst_name",
+  "dp_name",
+  "elapsed_time",
+  "disconnect_code_string",
+] as const;
+
+export const TRAFFIC_SUMMARY_LABELS: Record<
+  (typeof TRAFFIC_SUMMARY_COLUMNS)[number],
+  string
+> = {
+  bill_ani: "bill_ani",
+  bill_dnis: "bill_dnis",
+  out_orig_dnis: "Out orig DNIS",
+  src_name: "Src маршрут",
+  dst_name: "Dst маршрут",
+  dp_name: "DP маршрут",
+  elapsed_time: "Длительность",
+  disconnect_code_string: "Разъединение",
+};
+
 export const CDR_INSERT_BATCH_SIZE = 400;
 
 /** Full-day dumps are hundreds of MB; import streams line-by-line. */

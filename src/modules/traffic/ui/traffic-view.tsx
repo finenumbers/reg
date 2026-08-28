@@ -17,7 +17,6 @@ import {
 } from "@/components/table-infinite-body";
 import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
 import { TABLE_PAGE_SIZE } from "@/lib/table-pagination";
-import { CDR_COLUMNS } from "@/modules/traffic/columns";
 import {
   fetchTrafficList,
   fetchTrafficStatus,
@@ -36,16 +35,34 @@ import { TrafficTable } from "@/modules/traffic/ui/traffic-table";
 const PAGE_SIZE = TABLE_PAGE_SIZE;
 const PHONE_SEARCH_DEBOUNCE_MS = 300;
 
-const HEADER_LABELS: Record<string, string> = Object.fromEntries(
-  CDR_COLUMNS.map((col) => [col, col]),
-);
+const FILTERED_EMPTY =
+  "Нет данных по текущим фильтрам. Сбросьте фильтры или уточните выбор.";
 
 type Props = {
+  title: string;
+  subtitle: string;
+  searchInputId: string;
+  columns: readonly string[];
+  headerLabels: Record<string, string>;
+  highlightColumns?: readonly string[];
+  showOps: boolean;
   canRetry: boolean;
+  emptyUnfiltered: string;
   initial: ListTrafficResult;
 };
 
-export function TrafficView({ canRetry, initial }: Props) {
+export function TrafficView({
+  title,
+  subtitle,
+  searchInputId,
+  columns,
+  headerLabels,
+  highlightColumns,
+  showOps,
+  canRetry,
+  emptyUnfiltered,
+  initial,
+}: Props) {
   const [filters, setFilters] = useState<ColumnFilters>({});
   const [phoneInput, setPhoneInput] = useState("");
   const [phoneQ, setPhoneQ] = useState("");
@@ -134,13 +151,14 @@ export function TrafficView({ canRetry, initial }: Props) {
   }, [phoneInput, phoneQ, loadList]);
 
   useEffect(() => {
+    if (!showOps) return;
     void (async () => {
       const status = await fetchTrafficStatus();
       if (status.ok && status.data.lastFailedError) {
         setBannerError(status.data.lastFailedError);
       }
     })();
-  }, []);
+  }, [showOps]);
 
   const onLoadMore = useCallback(() => {
     if (!hasMore || loading || loadingMoreRef.current) return;
@@ -179,7 +197,7 @@ export function TrafficView({ canRetry, initial }: Props) {
   }
 
   async function onRetry() {
-    if (!canRetry || syncInFlightRef.current || isSyncInFlight(syncState)) {
+    if (!showOps || !canRetry || syncInFlightRef.current || isSyncInFlight(syncState)) {
       return;
     }
     syncInFlightRef.current = true;
@@ -242,26 +260,28 @@ export function TrafficView({ canRetry, initial }: Props) {
   }
 
   const pending = isSyncInFlight(syncState);
+  const showRetry = showOps && canRetry;
+  const showSyncBanner =
+    showOps &&
+    (syncState.status === "success" ||
+      syncState.status === "error" ||
+      syncState.status === "conflict");
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
       <div className="flex shrink-0 flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">
-            Телефонный трафик
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            CDR софтсвитча из локальной базы после успешной загрузки по FTP.
-          </p>
+          <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+          <p className="text-sm text-muted-foreground">{subtitle}</p>
         </div>
-        {canRetry ? (
+        {showRetry ? (
           <Button type="button" onClick={() => void onRetry()} disabled={pending}>
             {pending ? "Импорт…" : "Повторить импорт"}
           </Button>
         ) : null}
       </div>
 
-      {bannerError ? (
+      {showOps && bannerError ? (
         <div
           role="alert"
           className="shrink-0 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
@@ -288,9 +308,7 @@ export function TrafficView({ canRetry, initial }: Props) {
         </div>
       ) : null}
 
-      {syncState.status === "success" ||
-      syncState.status === "error" ||
-      syncState.status === "conflict" ? (
+      {showSyncBanner ? (
         <div
           role="status"
           className={
@@ -305,7 +323,7 @@ export function TrafficView({ canRetry, initial }: Props) {
 
       <div className="flex shrink-0 flex-wrap items-center gap-3">
         <Input
-          id="traffic-phone-search"
+          id={searchInputId}
           value={phoneInput}
           onChange={(e) => setPhoneInput(e.target.value)}
           placeholder="Телефонный номер"
@@ -326,7 +344,7 @@ export function TrafficView({ canRetry, initial }: Props) {
 
       <ActiveFiltersBar
         filters={filters}
-        headers={HEADER_LABELS}
+        headers={headerLabels}
         phoneQuery={phoneQ}
         onClearPhoneQuery={onClearPhoneQuery}
         onRemoveFacet={onRemoveFacet}
@@ -339,14 +357,12 @@ export function TrafficView({ canRetry, initial }: Props) {
           loadingMore={loadingMore}
         >
           <TrafficTable
-            headers={[...CDR_COLUMNS]}
+            headers={[...columns]}
+            headerLabels={headerLabels}
+            highlightColumns={highlightColumns}
             data={items}
             loading={loading && items.length === 0}
-            emptyMessage={
-              filtersActive
-                ? "Нет данных по текущим фильтрам. Сбросьте фильтры или уточните выбор."
-                : "Нет данных. Дождитесь загрузки CDR по FTP или нажмите «Повторить импорт»."
-            }
+            emptyMessage={filtersActive ? FILTERED_EMPTY : emptyUnfiltered}
             filters={filters}
             phoneQ={phoneQ}
             openColumn={openColumn}

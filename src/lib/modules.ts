@@ -15,6 +15,7 @@ export type FeatureModuleId =
   | "registrations"
   | "phones"
   | "groups"
+  | "raw"
   | "traffic"
   | "audit"
   | "health"
@@ -51,9 +52,16 @@ export const FEATURE_MODULES: FeatureModuleDefinition[] = [
     navPermission: "phones:read",
   },
   {
+    id: "raw",
+    title: "Сырые данные",
+    description: "Полный дамп CDR софтсвитча из локальной БД",
+    href: "/raw",
+    navPermission: "phones:read",
+  },
+  {
     id: "traffic",
     title: "Телефонный трафик",
-    description: "CDR софтсвитча: FTP-приём и таблица из локальной БД",
+    description: "Сокращённая таблица CDR из локальной БД",
     href: "/traffic",
     navPermission: "phones:read",
   },

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { CDR_COLUMNS, CDR_COLUMN_COUNT, headersMatchCanonical } from "@/modules/traffic/columns";
+import {
+  CDR_COLUMNS,
+  CDR_COLUMN_COUNT,
+  TRAFFIC_SUMMARY_COLUMNS,
+  headersMatchCanonical,
+} from "@/modules/traffic/columns";
 import {
   assertCanonicalCdrHeader,
   parseCdrDataLine,
@@ -29,6 +34,13 @@ describe("CDR column contract", () => {
     expect(headers).toHaveLength(120);
     expect(headersMatchCanonical(headers)).toBe(true);
     expect(() => assertCanonicalCdrHeader(headers)).not.toThrow();
+  });
+
+  it("keeps traffic summary columns inside the canonical dump", () => {
+    expect(TRAFFIC_SUMMARY_COLUMNS).toHaveLength(8);
+    for (const col of TRAFFIC_SUMMARY_COLUMNS) {
+      expect(CDR_COLUMNS).toContain(col);
+    }
   });
 
   it("rejects the 11-column slice header", () => {

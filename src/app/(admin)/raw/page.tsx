@@ -1,0 +1,29 @@
+import { requirePagePermission } from "@/modules/auth/guards";
+import { hasPermission } from "@/modules/rbac/permissions";
+import { CDR_COLUMNS } from "@/modules/traffic/columns";
+import { listTraffic } from "@/modules/traffic/service";
+import { TrafficView } from "@/modules/traffic/ui/traffic-view";
+
+const HEADER_LABELS: Record<string, string> = Object.fromEntries(
+  CDR_COLUMNS.map((col) => [col, col]),
+);
+
+export default async function RawCdrPage() {
+  const ctx = await requirePagePermission("phones:read");
+  const canRetry = hasPermission(ctx.authz.permissions, "phones:request");
+  const initial = await listTraffic({ page: 1, pageSize: 100 });
+
+  return (
+    <TrafficView
+      title="Сырые данные"
+      subtitle="CDR софтсвитча из локальной базы после успешной загрузки по FTP."
+      searchInputId="raw-phone-search"
+      columns={CDR_COLUMNS}
+      headerLabels={HEADER_LABELS}
+      showOps
+      canRetry={canRetry}
+      emptyUnfiltered="Нет данных. Дождитесь загрузки CDR по FTP или нажмите «Повторить импорт»."
+      initial={initial}
+    />
+  );
+}
