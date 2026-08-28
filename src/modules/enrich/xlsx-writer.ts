@@ -16,12 +16,14 @@ import {
   DETAIL_HEADERS,
   DETAIL_WIDTHS,
   MISSING_BILLING_LABEL,
+  MISSING_PSTN_LABEL,
   TRAFFIC_HEADERS,
   TRAFFIC_WIDTHS,
   billableMinutes,
   descriptionOrMissing,
   pstnOrMissing,
   type CdrJsonlRow,
+  type ResolvedEnrichedRow,
 } from "@/modules/enrich/types";
 import type { PstnFields } from "@/modules/pstn/types";
 import type { GeoFields } from "@/modules/geoip/types";
@@ -122,27 +124,80 @@ function geoBits(
   };
 }
 
-async function eachJsonlRow(
+export type XlsxSheetProgress = {
+  sheet: "traffic" | "detail";
+  current: number;
+  total: number;
+};
+
+async function eachJsonlRow<T>(
   jsonlPath: string,
-  visit: (row: CdrJsonlRow, index: number) => void,
+  visit: (row: T, index: number) => void,
 ): Promise<void> {
   const input = createReadStream(jsonlPath, { encoding: "utf8" });
   const rl = createInterface({ input, crlfDelay: Infinity });
   let index = 0;
   for await (const line of rl) {
     if (!line.trim()) continue;
-    visit(JSON.parse(line) as CdrJsonlRow, index);
+    visit(JSON.parse(line) as T, index);
     index += 1;
   }
 }
 
-export async function writeEnrichedXlsx(opts: {
-  jsonlPath: string;
+function resolveFromMaps(
+  row: CdrJsonlRow,
+  maps: {
+    descriptions: Map<string, string>;
+    pstn: Map<string, PstnFields>;
+    geo: Map<string, GeoFields>;
+  },
+): ResolvedEnrichedRow {
+  const sideA = descriptionOrMissing(maps.descriptions.get(row.aNumber));
+  const sideB = descriptionOrMissing(maps.descriptions.get(row.bNumber));
+  const pstnA = pstnOrMissing(maps.pstn.get(row.aNumber));
+  const pstnB = pstnOrMissing(maps.pstn.get(row.bNumber));
+  const geoA = geoBits(row.initIp ? maps.geo.get(row.initIp) : undefined);
+  const geoB = geoBits(row.termIp ? maps.geo.get(row.termIp) : undefined);
+  return {
+    time: row.time,
+    aNumber: row.aNumber,
+    bNumber: row.bNumber,
+    seconds: row.seconds,
+    initDevice: row.initDevice,
+    termDevice: row.termDevice,
+    dialObject: row.dialObject,
+    cause: row.cause,
+    initEndpoint: row.initEndpoint,
+    termEndpoint: row.termEndpoint,
+    sideA,
+    sideB,
+    operatorA: pstnA.operator,
+    geographyA: pstnA.geography,
+    operatorB: pstnB.operator,
+    geographyB: pstnB.geography,
+    countryA: geoA.country,
+    cityA: geoA.city,
+    providerA: geoA.isp,
+    countryB: geoB.country,
+    cityB: geoB.city,
+    providerB: geoB.isp,
+  };
+}
+
+function pstnMissing(operator: string, geography: string): boolean {
+  return operator === MISSING_PSTN_LABEL || geography === MISSING_PSTN_LABEL;
+}
+
+const PROGRESS_EVERY = 250;
+
+async function writeResolvedSheets(opts: {
+  trafficSheetName: string;
   outputPath: string;
   rowCount: number;
-  descriptions: Map<string, string>;
-  pstn: Map<string, PstnFields>;
-  geo: Map<string, GeoFields>;
+  onProgress?: (info: XlsxSheetProgress) => void;
+  eachRow: (
+    visit: (row: ResolvedEnrichedRow, index: number) => void,
+  ) => Promise<void>;
 }): Promise<void> {
   const workbook = new ExcelJS.stream.xlsx.WorkbookWriter({
     filename: opts.outputPath,
@@ -150,7 +205,18 @@ export async function writeEnrichedXlsx(opts: {
     useSharedStrings: false,
   });
 
-  const traffic = workbook.addWorksheet("Трафик");
+  const report = (
+    sheet: XlsxSheetProgress["sheet"],
+    current: number,
+    last: boolean,
+  ) => {
+    if (!opts.onProgress) return;
+    if (last || current === 0 || current % PROGRESS_EVERY === 0) {
+      opts.onProgress({ sheet, current, total: opts.rowCount });
+    }
+  };
+
+  const traffic = workbook.addWorksheet(opts.trafficSheetName);
   TRAFFIC_WIDTHS.forEach((width, i) => {
     traffic.getColumn(i + 1).width = width;
   });
@@ -160,20 +226,16 @@ export async function writeEnrichedXlsx(opts: {
   });
   trafficHeader.commit();
 
-  await eachJsonlRow(opts.jsonlPath, (row, index) => {
+  await opts.eachRow((row, index) => {
     const last = index === opts.rowCount - 1;
-    const sideA = descriptionOrMissing(opts.descriptions.get(row.aNumber));
-    const sideB = descriptionOrMissing(opts.descriptions.get(row.bNumber));
-    const pstnA = pstnOrMissing(opts.pstn.get(row.aNumber));
-    const pstnB = pstnOrMissing(opts.pstn.get(row.bNumber));
     const aPhone = excelPhoneValue(row.aNumber);
     const bPhone = excelPhoneValue(row.bNumber);
     const values: Array<string | number> = [
       text(csvTimeToDisplay(row.time)),
       aPhone,
-      text(sideA),
+      text(row.sideA),
       bPhone,
-      text(sideB),
+      text(row.sideB),
       row.seconds,
       billableMinutes(row.seconds),
       "",
@@ -190,14 +252,15 @@ export async function writeEnrichedXlsx(opts: {
           (colNumber === 2 || colNumber === 4) && typeof cell.value === "number",
         fill: trafficFill(
           colNumber - 1,
-          sideA === MISSING_BILLING_LABEL,
-          sideB === MISSING_BILLING_LABEL,
-          pstnA.missing,
-          pstnB.missing,
+          row.sideA === MISSING_BILLING_LABEL,
+          row.sideB === MISSING_BILLING_LABEL,
+          pstnMissing(row.operatorA, row.geographyA),
+          pstnMissing(row.operatorB, row.geographyB),
         ),
       });
     });
     excelRow.commit();
+    report("traffic", index + 1, last);
   });
   traffic.autoFilter = {
     from: { row: 1, column: 1 },
@@ -215,39 +278,33 @@ export async function writeEnrichedXlsx(opts: {
   });
   detailHeader.commit();
 
-  await eachJsonlRow(opts.jsonlPath, (row, index) => {
+  await opts.eachRow((row, index) => {
     const last = index === opts.rowCount - 1;
-    const sideA = descriptionOrMissing(opts.descriptions.get(row.aNumber));
-    const sideB = descriptionOrMissing(opts.descriptions.get(row.bNumber));
-    const pstnA = pstnOrMissing(opts.pstn.get(row.aNumber));
-    const pstnB = pstnOrMissing(opts.pstn.get(row.bNumber));
-    const geoA = geoBits(row.initIp ? opts.geo.get(row.initIp) : undefined);
-    const geoB = geoBits(row.termIp ? opts.geo.get(row.termIp) : undefined);
     const aPhone = excelPhoneValue(row.aNumber);
     const bPhone = excelPhoneValue(row.bNumber);
     const values: Array<string | number> = [
       text(csvTimeToDisplay(row.time)),
       aPhone,
-      text(sideA),
-      text(pstnA.operator),
-      text(pstnA.geography),
+      text(row.sideA),
+      text(row.operatorA),
+      text(row.geographyA),
       bPhone,
-      text(sideB),
-      text(pstnB.operator),
-      text(pstnB.geography),
+      text(row.sideB),
+      text(row.operatorB),
+      text(row.geographyB),
       row.seconds,
       text(row.initDevice),
       text(row.termDevice),
       text(row.dialObject),
       text(row.cause),
       text(row.initEndpoint),
-      text(geoA.country),
-      text(geoA.city),
-      text(geoA.isp),
+      text(row.countryA),
+      text(row.cityA),
+      text(row.providerA),
       text(row.termEndpoint),
-      text(geoB.country),
-      text(geoB.city),
-      text(geoB.isp),
+      text(row.countryB),
+      text(row.cityB),
+      text(row.providerB),
     ];
     const excelRow = detail.addRow(values);
     excelRow.eachCell((cell, colNumber) => {
@@ -256,14 +313,15 @@ export async function writeEnrichedXlsx(opts: {
           (colNumber === 2 || colNumber === 6) && typeof cell.value === "number",
         fill: detailFill(
           colNumber - 1,
-          sideA === MISSING_BILLING_LABEL,
-          sideB === MISSING_BILLING_LABEL,
-          pstnA.missing,
-          pstnB.missing,
+          row.sideA === MISSING_BILLING_LABEL,
+          row.sideB === MISSING_BILLING_LABEL,
+          pstnMissing(row.operatorA, row.geographyA),
+          pstnMissing(row.operatorB, row.geographyB),
         ),
       });
     });
     excelRow.commit();
+    report("detail", index + 1, last);
   });
   detail.autoFilter = {
     from: { row: 1, column: 1 },
@@ -271,4 +329,42 @@ export async function writeEnrichedXlsx(opts: {
   };
   await detail.commit();
   await workbook.commit();
+}
+
+export async function writeEnrichedXlsx(opts: {
+  jsonlPath: string;
+  outputPath: string;
+  rowCount: number;
+  descriptions: Map<string, string>;
+  pstn: Map<string, PstnFields>;
+  geo: Map<string, GeoFields>;
+  trafficSheetName?: string;
+  onProgress?: (info: XlsxSheetProgress) => void;
+}): Promise<void> {
+  await writeResolvedSheets({
+    trafficSheetName: opts.trafficSheetName ?? "Трафик",
+    outputPath: opts.outputPath,
+    rowCount: opts.rowCount,
+    onProgress: opts.onProgress,
+    eachRow: (visit) =>
+      eachJsonlRow<CdrJsonlRow>(opts.jsonlPath, (row, index) => {
+        visit(resolveFromMaps(row, opts), index);
+      }),
+  });
+}
+
+export async function writeResolvedEnrichedXlsx(opts: {
+  jsonlPath: string;
+  outputPath: string;
+  rowCount: number;
+  trafficSheetName: string;
+  onProgress?: (info: XlsxSheetProgress) => void;
+}): Promise<void> {
+  await writeResolvedSheets({
+    trafficSheetName: opts.trafficSheetName,
+    outputPath: opts.outputPath,
+    rowCount: opts.rowCount,
+    onProgress: opts.onProgress,
+    eachRow: (visit) => eachJsonlRow<ResolvedEnrichedRow>(opts.jsonlPath, visit),
+  });
 }

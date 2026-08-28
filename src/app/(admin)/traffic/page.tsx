@@ -5,6 +5,7 @@ import {
   TRAFFIC_SUMMARY_LABELS,
 } from "@/modules/traffic/columns";
 import { listTraffic } from "@/modules/traffic/service";
+import { MonthExportButtons } from "@/modules/traffic/ui/month-export-buttons";
 import { TrafficView } from "@/modules/traffic/ui/traffic-view";
 
 const HIGHLIGHT_COLUMNS = [...CDR_PHONE_COLUMNS, "out_orig_dnis"] as const;
@@ -24,6 +25,7 @@ export default async function TrafficPage() {
       showOps={false}
       canRetry={false}
       emptyUnfiltered="Нет данных."
+      headerActions={<MonthExportButtons />}
       initial={initial}
     />
   );

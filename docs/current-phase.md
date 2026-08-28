@@ -1,7 +1,11 @@
-# Current Phase — production (v1.13)
+# Current Phase — production (v1.14)
 
-**Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links.  
+**Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export.  
 **Date:** 2026-08-29
+
+## v1.14 — month traffic XLSX export
+
+On «Телефонный трафик»: two buttons export the previous full month or the current incomplete month (Settings timezone) as the same two-sheet XLSX as «Обогащение данных». Live `cdr_records`; PSTN/GeoIP gaps filled from cache/API without overwriting stored fields. Progress modal with stages; sheet named after the month.
 
 ## v1.13 — operator counts, duration, live loops
 

@@ -48,3 +48,4 @@ next-env.d.ts
 
 # Ephemeral CDR enrich artifacts
 /data/enrich/
+/data/traffic-export/

@@ -85,6 +85,18 @@ export async function register() {
       });
     }
 
+    try {
+      const { pruneMonthExportArtifacts } = await import(
+        "@/modules/traffic/month-export-reclaim"
+      );
+      const pruned = await pruneMonthExportArtifacts();
+      logger.info("traffic.export.artifacts_pruned", pruned);
+    } catch (error) {
+      logger.error("traffic.export.reclaim_failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
     const { evaluateSchedulerBootstrap } = await import("@/modules/jobs/runtime");
     const result = evaluateSchedulerBootstrap();
     logger.warn("scheduler.bootstrap.evaluate", result);

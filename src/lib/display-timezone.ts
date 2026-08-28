@@ -22,6 +22,22 @@ export const DISPLAY_TIMEZONES = [
 
 export type DisplayTimezoneId = (typeof DISPLAY_TIMEZONES)[number]["id"];
 
+/** Fixed offsets — curated display zones have no DST. */
+export const TZ_OFFSET_HOURS: Record<DisplayTimezoneId, number> = {
+  "Europe/Kaliningrad": 2,
+  "Europe/Moscow": 3,
+  "Europe/Samara": 4,
+  "Asia/Yekaterinburg": 5,
+  "Asia/Omsk": 6,
+  "Asia/Krasnoyarsk": 7,
+  "Asia/Irkutsk": 8,
+  "Asia/Yakutsk": 9,
+  "Asia/Vladivostok": 10,
+  "Asia/Magadan": 11,
+  "Asia/Kamchatka": 12,
+  UTC: 0,
+};
+
 const ALLOWED = new Set<string>(DISPLAY_TIMEZONES.map((z) => z.id));
 
 export function isDisplayTimezoneId(value: string): value is DisplayTimezoneId {

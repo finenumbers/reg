@@ -13,27 +13,11 @@ import {
 import {
   DEFAULT_DISPLAY_TIMEZONE,
   resolveDisplayTimezone,
-  type DisplayTimezoneId,
+  TZ_OFFSET_HOURS,
 } from "@/lib/display-timezone";
 
 const CDR_DATE_RE =
   /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})$/;
-
-/** Fixed offsets — curated display zones have no DST. */
-const TZ_OFFSET_HOURS: Record<DisplayTimezoneId, number> = {
-  "Europe/Kaliningrad": 2,
-  "Europe/Moscow": 3,
-  "Europe/Samara": 4,
-  "Asia/Yekaterinburg": 5,
-  "Asia/Omsk": 6,
-  "Asia/Krasnoyarsk": 7,
-  "Asia/Irkutsk": 8,
-  "Asia/Yakutsk": 9,
-  "Asia/Vladivostok": 10,
-  "Asia/Magadan": 11,
-  "Asia/Kamchatka": 12,
-  UTC: 0,
-};
 
 export function stripBom(line: string): string {
   return line.charCodeAt(0) === 0xfeff ? line.slice(1) : line;

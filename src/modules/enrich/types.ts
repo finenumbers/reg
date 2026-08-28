@@ -126,6 +126,32 @@ export type CdrJsonlRow = {
   termIp: string | null;
 };
 
+/** Per-row values already resolved (month export snapshot). */
+export type ResolvedEnrichedRow = {
+  time: string;
+  aNumber: string;
+  bNumber: string;
+  seconds: number;
+  initDevice: string;
+  termDevice: string;
+  dialObject: string;
+  cause: string;
+  initEndpoint: string;
+  termEndpoint: string;
+  sideA: string;
+  sideB: string;
+  operatorA: string;
+  geographyA: string;
+  operatorB: string;
+  geographyB: string;
+  countryA: string;
+  cityA: string;
+  providerA: string;
+  countryB: string;
+  cityB: string;
+  providerB: string;
+};
+
 export type EnrichJobView = {
   id: string;
   status: "queued" | "running" | "completed" | "failed";

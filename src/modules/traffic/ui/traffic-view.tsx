@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -52,6 +52,7 @@ type Props = {
   showOps: boolean;
   canRetry: boolean;
   emptyUnfiltered: string;
+  headerActions?: ReactNode;
   initial: ListTrafficResult;
 };
 
@@ -65,6 +66,7 @@ export function TrafficView({
   showOps,
   canRetry,
   emptyUnfiltered,
+  headerActions,
   initial,
 }: Props) {
   const [filters, setFilters] = useState<ColumnFilters>({});
@@ -356,11 +358,14 @@ export function TrafficView({
           <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
           <p className="text-sm text-muted-foreground">{subtitle}</p>
         </div>
-        {showRetry ? (
-          <Button type="button" onClick={() => void onRetry()} disabled={pending}>
-            {pending ? "Импорт…" : "Повторить импорт"}
-          </Button>
-        ) : null}
+        <div className="flex flex-wrap items-center gap-2">
+          {headerActions}
+          {showRetry ? (
+            <Button type="button" onClick={() => void onRetry()} disabled={pending}>
+              {pending ? "Импорт…" : "Повторить импорт"}
+            </Button>
+          ) : null}
+        </div>
       </div>
 
       {bannerError ? (

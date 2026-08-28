@@ -65,6 +65,12 @@ export const pstnTestRateLimiter = new SlidingWindowRateLimiter(10, 60 * 1000);
 /** Enrich uploads per user: 6 / minute */
 export const enrichStartRateLimiter = new SlidingWindowRateLimiter(6, 60 * 1000);
 
+/** Month traffic XLSX export starts per user: 6 / minute */
+export const trafficExportStartRateLimiter = new SlidingWindowRateLimiter(
+  6,
+  60 * 1000,
+);
+
 /** VoIPmonitor connection test per user: 10 / minute */
 export const voipmonitorTestRateLimiter = new SlidingWindowRateLimiter(
   10,
