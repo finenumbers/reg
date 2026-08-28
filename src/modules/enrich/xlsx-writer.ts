@@ -10,6 +10,7 @@ import {
   XLSX_UNREGISTERED_FILL,
 } from "@/lib/xlsx-export";
 import { csvTimeToDisplay } from "@/modules/enrich/dates";
+import { excelPhoneValue } from "@/modules/enrich/excel-phone";
 import { guardExcelText } from "@/modules/enrich/formula-guard";
 import {
   DETAIL_HEADERS,
@@ -90,12 +91,15 @@ function bordersFor(role: BorderRole): Partial<ExcelJS.Borders> {
 function applyStyle(
   cell: ExcelJS.Cell,
   role: BorderRole,
-  opts: { header?: boolean; fill?: FillRole },
+  opts: { header?: boolean; fill?: FillRole; phone?: boolean },
 ): void {
   cell.border = bordersFor(role);
   if (opts.header) {
     cell.font = HEADER_FONT;
     cell.alignment = { horizontal: "center", vertical: "middle" };
+  }
+  if (opts.phone) {
+    cell.numFmt = "0";
   }
   if (opts.fill === "red") {
     cell.fill = XLSX_UNREGISTERED_FILL;
@@ -162,11 +166,13 @@ export async function writeEnrichedXlsx(opts: {
     const sideB = descriptionOrMissing(opts.descriptions.get(row.bNumber));
     const pstnA = pstnOrMissing(opts.pstn.get(row.aNumber));
     const pstnB = pstnOrMissing(opts.pstn.get(row.bNumber));
+    const aPhone = excelPhoneValue(row.aNumber);
+    const bPhone = excelPhoneValue(row.bNumber);
     const values: Array<string | number> = [
       text(csvTimeToDisplay(row.time)),
-      text(row.aNumber),
+      aPhone,
       text(sideA),
-      text(row.bNumber),
+      bPhone,
       text(sideB),
       row.seconds,
       billableMinutes(row.seconds),
@@ -180,6 +186,8 @@ export async function writeEnrichedXlsx(opts: {
     const excelRow = traffic.addRow(values);
     excelRow.eachCell((cell, colNumber) => {
       applyStyle(cell, trafficBodyRole(colNumber - 1, last), {
+        phone:
+          (colNumber === 2 || colNumber === 4) && typeof cell.value === "number",
         fill: trafficFill(
           colNumber - 1,
           sideA === MISSING_BILLING_LABEL,
@@ -215,13 +223,15 @@ export async function writeEnrichedXlsx(opts: {
     const pstnB = pstnOrMissing(opts.pstn.get(row.bNumber));
     const geoA = geoBits(row.initIp ? opts.geo.get(row.initIp) : undefined);
     const geoB = geoBits(row.termIp ? opts.geo.get(row.termIp) : undefined);
+    const aPhone = excelPhoneValue(row.aNumber);
+    const bPhone = excelPhoneValue(row.bNumber);
     const values: Array<string | number> = [
       text(csvTimeToDisplay(row.time)),
-      text(row.aNumber),
+      aPhone,
       text(sideA),
       text(pstnA.operator),
       text(pstnA.geography),
-      text(row.bNumber),
+      bPhone,
       text(sideB),
       text(pstnB.operator),
       text(pstnB.geography),
@@ -242,6 +252,8 @@ export async function writeEnrichedXlsx(opts: {
     const excelRow = detail.addRow(values);
     excelRow.eachCell((cell, colNumber) => {
       applyStyle(cell, detailBodyRole(colNumber - 1, last), {
+        phone:
+          (colNumber === 2 || colNumber === 6) && typeof cell.value === "number",
         fill: detailFill(
           colNumber - 1,
           sideA === MISSING_BILLING_LABEL,

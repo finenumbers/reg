@@ -29,6 +29,13 @@ type FeatureModuleDefinition = {
 
 export const FEATURE_MODULES: FeatureModuleDefinition[] = [
   {
+    id: "registrations",
+    title: "Регистрации",
+    description: "Мониторинг SIP-регистраций через regs.poll",
+    href: "/regs",
+    navPermission: "regs:read",
+  },
+  {
     id: "phones",
     title: "Телефонные номера",
     description: "Оконечное оборудование и шлюзы через phones.sync",
@@ -41,13 +48,6 @@ export const FEATURE_MODULES: FeatureModuleDefinition[] = [
     description: "Справочник routing groups с softswitch (только просмотр)",
     href: "/groups",
     navPermission: "phones:read",
-  },
-  {
-    id: "registrations",
-    title: "Регистрации",
-    description: "Мониторинг SIP-регистраций через regs.poll",
-    href: "/regs",
-    navPermission: "regs:read",
   },
   {
     id: "enrich",

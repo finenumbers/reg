@@ -9,8 +9,8 @@ import {
   isResumableEnrichJob,
   type EnrichJobView,
   type EnrichStageView,
-  type EnrichSummary,
 } from "@/modules/enrich/types";
+import { formatEnrichSummary } from "@/modules/enrich/summary-format";
 
 type ReadyState = {
   ready: boolean;
@@ -29,28 +29,6 @@ function stageBadge(status: EnrichStageView["status"]) {
   if (status === "running") return <Badge>идёт</Badge>;
   if (status === "error") return <Badge variant="destructive">ошибка</Badge>;
   return <Badge variant="outline">ожидание</Badge>;
-}
-
-function formatSummary(summary: EnrichSummary): { label: string; value: string }[] {
-  return [
-    { label: "Строк", value: String(summary.rows) },
-    { label: "Пропущено строк", value: String(summary.badLines) },
-    { label: "Уникальных номеров", value: String(summary.uniquePhones) },
-    { label: "Уникальных IP", value: String(summary.uniqueIps) },
-    {
-      label: "Описания",
-      value: `${summary.descriptionFound} найдено / ${summary.descriptionMissing} нет данных`,
-    },
-    {
-      label: "PSTN",
-      value: `${summary.pstnFound} найдено / ${summary.pstnMissing} нет данных (кэш ${summary.pstnCacheHits}, API ${summary.pstnLiveLookups})`,
-    },
-    {
-      label: "GeoIP",
-      value: `${summary.geoipLookedUp} IP (кэш ${summary.geoipCacheHits}, API ${summary.geoipLiveLookups})`,
-    },
-    { label: "Файл", value: summary.outputFilename },
-  ];
 }
 
 function dismissFinishedJob(job: EnrichJobView | null) {
@@ -253,7 +231,7 @@ export function EnrichView({
               ) : null}
               {showSummary ? (
                 <div className="space-y-1.5 rounded-md border p-3 text-sm">
-                  {formatSummary(job.summary!).map((row) => (
+                  {formatEnrichSummary(job.summary!).map((row) => (
                     <div key={row.label} className="flex justify-between gap-3">
                       <span className="text-muted-foreground">{row.label}</span>
                       <span className="text-right font-medium">{row.value}</span>

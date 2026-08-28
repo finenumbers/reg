@@ -82,10 +82,10 @@ export const INITIAL_STAGES: EnrichStageView[] = [
   { id: "parse", label: "Загрузка и разбор CSV", status: "pending" },
   {
     id: "phones",
-    label: "Сопоставление описаний из «Телефонные номера»",
+    label: "Сторона А/B из «Телефонные номера»",
     status: "pending",
   },
-  { id: "pstn", label: "PSTN: оператор и территория ГАР", status: "pending" },
+  { id: "pstn", label: "PSTN: оператор и география", status: "pending" },
   {
     id: "geoip",
     label: "GeoIP: страна / город / провайдер",

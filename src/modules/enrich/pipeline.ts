@@ -3,9 +3,11 @@ import { AUDIT_ACTIONS, auditService } from "@/modules/audit";
 import {
   INITIAL_STAGES,
   MISSING_LABEL,
+  MISSING_PSTN_LABEL,
   type EnrichStageView,
   type EnrichSummary,
 } from "@/modules/enrich/types";
+import { asMissPhrase } from "@/modules/enrich/summary-format";
 import { parseCsvToJsonl } from "@/modules/enrich/parse-csv";
 import {
   enrichGeoIps,
@@ -52,10 +54,9 @@ export async function runEnrichPipeline(input: {
       status: "done",
       current: parsed.rows,
       total: parsed.rows,
-      detail:
-        parsed.badLines > 0
-          ? `${parsed.rows} строк, пропущено ${parsed.badLines}`
-          : `${parsed.rows} строк`,
+      ...(parsed.badLines > 0
+        ? { detail: `пропущено ${parsed.badLines}` }
+        : {}),
     });
     await persist({ stages, throttle: false });
 
@@ -88,7 +89,7 @@ export async function runEnrichPipeline(input: {
       status: "done",
       current: parsed.uniquePhones.length,
       total: parsed.uniquePhones.length,
-      detail: `найдено ${pstn.found}, нет данных ${pstn.missing}`,
+      detail: `найдено ${pstn.found}, ${asMissPhrase(MISSING_PSTN_LABEL)} ${pstn.missing}`,
     });
     await persist({ stages });
 
