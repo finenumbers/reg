@@ -1058,9 +1058,9 @@ export function SettingsForm({ initial }: Props) {
       <section className="space-y-4">
         <h2 className="text-base font-semibold">FTP — телефонный трафик</h2>
         <p className="text-sm text-muted-foreground">
-          Софтсвитч — FTP-клиент на своём реальном IP, активный режим, порт 21
-          на хосте Docker (не через NPM). Пароль хранится зашифрованным и в UI
-          не показывается.
+          Софтсвитч — FTP-клиент на своём реальном IP, активный режим, порт
+          2121 на хосте Docker (не через NPM). Пароль хранится зашифрованным и
+          в UI не показывается.
         </p>
         <div className="grid gap-4">
           <div className="flex items-center gap-2">
@@ -1118,7 +1118,7 @@ export function SettingsForm({ initial }: Props) {
               autoComplete="off"
             />
             <p className="text-xs text-muted-foreground">
-              Софтсвитч подключается на IP хоста и этот порт. По умолчанию 21.
+              Софтсвитч подключается на IP хоста и этот порт. По умолчанию 2121.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">

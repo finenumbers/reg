@@ -114,7 +114,7 @@ model AppSetting {
   ftpUsername           String?
   /// AES-256-GCM ciphertext of FTP password. Never plaintext.
   ftpPasswordCiphertext String?
-  ftpListenPort         Int         @default(21)
+  ftpListenPort         Int         @default(2121)
   ftpPasvMinPort        Int         @default(50100)
   ftpPasvMaxPort        Int         @default(50109)
   /// Optional PASV advertise address — unused when the softswitch uses active FTP.

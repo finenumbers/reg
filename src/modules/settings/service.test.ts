@@ -120,7 +120,7 @@ describe("settings schemas and masked view contract", () => {
       ftpEnabled: false,
       ftpUsername: null,
       hasFtpPassword: false,
-      ftpListenPort: 21,
+      ftpListenPort: 2121,
       ftpPasvMinPort: 50100,
       ftpPasvMaxPort: 50109,
       ftpPasvAddress: null,

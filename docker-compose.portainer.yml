@@ -77,12 +77,9 @@ services:
     volumes:
       - reg_enrich_data:/app/data/enrich
       - reg_cdr_inbox:/app/data/cdr-inbox
-    # Softswitch uses active FTP to the host IP:21. No PASV range.
-    # NET_BIND_SERVICE: process runs as nextjs and listens on TCP 21.
-    cap_add:
-      - NET_BIND_SERVICE
+    # Softswitch uses active FTP to the host IP:2121. No PASV range.
     ports:
-      - "${FTP_PUBLISH_PORT:-21}:21"
+      - "${FTP_PUBLISH_PORT:-2121}:2121"
     deploy:
       replicas: 1
     networks:
