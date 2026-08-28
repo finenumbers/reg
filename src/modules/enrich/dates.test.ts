@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  civilToExcelSerial,
-  csvTimeToExcelSerial,
+  csvTimeToDisplay,
+  formatCivilDisplay,
   parseCivilDateTime,
 } from "@/modules/enrich/dates";
 
@@ -21,20 +21,22 @@ describe("naive civil datetime", () => {
     expect(parseCivilDateTime("not-a-date")).toBeNull();
   });
 
-  it("converts to Excel serial without TZ shift", () => {
-    const serial = civilToExcelSerial({
-      year: 2026,
-      month: 8,
-      day: 1,
-      hour: 0,
-      minute: 0,
-      second: 19,
-    });
-    expect(Math.floor(serial)).toBe(46235);
-    expect(serial).toBeCloseTo(46235.0002199074, 8);
-    expect(csvTimeToExcelSerial("2026-08-01 00:00:19")).toBeCloseTo(
-      46235.0002199074,
-      8,
-    );
+  it("formats as dd.MM.yyyy, HH:mm:ss without TZ shift", () => {
+    expect(csvTimeToDisplay("2026-08-28 01:43:25")).toBe("28.08.2026, 01:43:25");
+    expect(csvTimeToDisplay("2026-08-01 23:55:54")).toBe("01.08.2026, 23:55:54");
+    expect(
+      formatCivilDisplay({
+        year: 2026,
+        month: 8,
+        day: 1,
+        hour: 0,
+        minute: 0,
+        second: 19,
+      }),
+    ).toBe("01.08.2026, 00:00:19");
+  });
+
+  it("keeps the raw string when parsing fails", () => {
+    expect(csvTimeToDisplay("not-a-date")).toBe("not-a-date");
   });
 });

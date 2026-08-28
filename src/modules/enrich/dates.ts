@@ -1,7 +1,5 @@
 /**
- * Parse naive CSV datetime and convert to Excel serial without TZ shift.
- * Excel 1900 date system: serial 1 = 1899-12-31; we use the common
- * 1899-12-30 epoch so 2026-08-01 00:00:19 → 46235.0002199…
+ * Parse naive CSV datetime and format for XLSX without TZ shift.
  */
 
 const CIVIL =
@@ -39,22 +37,16 @@ export function parseCivilDateTime(raw: string): CivilDateTime | null {
   return { year, month, day, hour, minute, second };
 }
 
-/** Excel serial (1900 date system) from civil components treated as naive UTC. */
-export function civilToExcelSerial(civil: CivilDateTime): number {
-  const utc = Date.UTC(
-    civil.year,
-    civil.month - 1,
-    civil.day,
-    civil.hour,
-    civil.minute,
-    civil.second,
-  );
-  const epoch = Date.UTC(1899, 11, 30, 0, 0, 0);
-  return (utc - epoch) / 86_400_000;
+function pad2(n: number): string {
+  return String(n).padStart(2, "0");
 }
 
-export function csvTimeToExcelSerial(raw: string): number | null {
+export function formatCivilDisplay(civil: CivilDateTime): string {
+  return `${pad2(civil.day)}.${pad2(civil.month)}.${civil.year}, ${pad2(civil.hour)}:${pad2(civil.minute)}:${pad2(civil.second)}`;
+}
+
+export function csvTimeToDisplay(raw: string): string {
   const civil = parseCivilDateTime(raw);
-  if (!civil) return null;
-  return civilToExcelSerial(civil);
+  if (!civil) return raw;
+  return formatCivilDisplay(civil);
 }

@@ -9,7 +9,7 @@ import {
   XLSX_BILLING_MISS_FILL,
   XLSX_UNREGISTERED_FILL,
 } from "@/lib/xlsx-export";
-import { csvTimeToExcelSerial } from "@/modules/enrich/dates";
+import { csvTimeToDisplay } from "@/modules/enrich/dates";
 import { guardExcelText } from "@/modules/enrich/formula-guard";
 import {
   DETAIL_HEADERS,
@@ -90,15 +90,12 @@ function bordersFor(role: BorderRole): Partial<ExcelJS.Borders> {
 function applyStyle(
   cell: ExcelJS.Cell,
   role: BorderRole,
-  opts: { header?: boolean; date?: boolean; fill?: FillRole },
+  opts: { header?: boolean; fill?: FillRole },
 ): void {
   cell.border = bordersFor(role);
   if (opts.header) {
     cell.font = HEADER_FONT;
     cell.alignment = { horizontal: "center", vertical: "middle" };
-  }
-  if (opts.date) {
-    cell.numFmt = "m/d/yy h:mm";
   }
   if (opts.fill === "red") {
     cell.fill = XLSX_UNREGISTERED_FILL;
@@ -165,9 +162,8 @@ export async function writeEnrichedXlsx(opts: {
     const sideB = descriptionOrMissing(opts.descriptions.get(row.bNumber));
     const pstnA = pstnOrMissing(opts.pstn.get(row.aNumber));
     const pstnB = pstnOrMissing(opts.pstn.get(row.bNumber));
-    const serial = csvTimeToExcelSerial(row.time);
     const values: Array<string | number> = [
-      serial ?? text(row.time),
+      text(csvTimeToDisplay(row.time)),
       text(row.aNumber),
       text(sideA),
       text(row.bNumber),
@@ -184,7 +180,6 @@ export async function writeEnrichedXlsx(opts: {
     const excelRow = traffic.addRow(values);
     excelRow.eachCell((cell, colNumber) => {
       applyStyle(cell, trafficBodyRole(colNumber - 1, last), {
-        date: colNumber === 1 && serial != null,
         fill: trafficFill(
           colNumber - 1,
           sideA === MISSING_BILLING_LABEL,
@@ -220,9 +215,8 @@ export async function writeEnrichedXlsx(opts: {
     const pstnB = pstnOrMissing(opts.pstn.get(row.bNumber));
     const geoA = geoBits(row.initIp ? opts.geo.get(row.initIp) : undefined);
     const geoB = geoBits(row.termIp ? opts.geo.get(row.termIp) : undefined);
-    const serial = csvTimeToExcelSerial(row.time);
     const values: Array<string | number> = [
-      serial ?? text(row.time),
+      text(csvTimeToDisplay(row.time)),
       text(row.aNumber),
       text(sideA),
       text(pstnA.operator),
@@ -248,7 +242,6 @@ export async function writeEnrichedXlsx(opts: {
     const excelRow = detail.addRow(values);
     excelRow.eachCell((cell, colNumber) => {
       applyStyle(cell, detailBodyRole(colNumber - 1, last), {
-        date: colNumber === 1 && serial != null,
         fill: detailFill(
           colNumber - 1,
           sideA === MISSING_BILLING_LABEL,
