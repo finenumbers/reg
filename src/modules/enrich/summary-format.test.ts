@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { formatCount } from "@/lib/format-count";
 import { formatEnrichSummary } from "@/modules/enrich/summary-format";
 import type { EnrichSummary } from "@/modules/enrich/types";
 
@@ -23,19 +24,19 @@ describe("formatEnrichSummary", () => {
   it("uses XLSX miss phrases and omits cache/API", () => {
     const rows = formatEnrichSummary(sample);
     expect(rows).toEqual([
-      { label: "Строк", value: "168995" },
-      { label: "Пропущено строк", value: "0" },
-      { label: "Уникальных номеров", value: "63188" },
-      { label: "Уникальных IP", value: "12" },
+      { label: "Строк", value: formatCount(168995) },
+      { label: "Пропущено строк", value: formatCount(0) },
+      { label: "Уникальных номеров", value: formatCount(63188) },
+      { label: "Уникальных IP", value: formatCount(12) },
       {
         label: "Описания",
-        value: "415 найдено / 62773 нет в биллинге",
+        value: `${formatCount(415)} найдено / ${formatCount(62773)} нет в биллинге`,
       },
       {
         label: "PSTN",
-        value: "62546 найдено / 642 нет в реестре МинЦифры",
+        value: `${formatCount(62546)} найдено / ${formatCount(642)} нет в реестре МинЦифры`,
       },
-      { label: "GeoIP", value: "12 IP" },
+      { label: "GeoIP", value: `${formatCount(12)} IP` },
       { label: "Файл", value: "20260801_000019-enriched.xlsx" },
     ]);
   });

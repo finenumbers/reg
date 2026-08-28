@@ -1,5 +1,6 @@
 import { AppShell } from "@/components/app-shell";
 import { DisplayTimezoneProvider } from "@/components/display-timezone-provider";
+import { APP_RELEASE } from "@/lib/release";
 import { requirePageSession } from "@/modules/auth/guards";
 import { getDisplayTimezone } from "@/modules/settings";
 
@@ -14,7 +15,7 @@ export default async function AdminLayout({
   return (
     <DisplayTimezoneProvider initial={displayTimezone}>
       <AppShell
-        username={ctx.username ?? ctx.session.user.name}
+        releaseLabel={APP_RELEASE}
         permissions={ctx.authz.permissions}
       >
         {children}

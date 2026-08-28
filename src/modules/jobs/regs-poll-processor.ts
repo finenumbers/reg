@@ -6,6 +6,7 @@
 
 import type { JobTrigger } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
+import { formatCount } from "@/lib/format-count";
 import { logger } from "@/lib/logger";
 import { stripAnsi } from "@/lib/strip-ansi";
 import { truncateUtf8 } from "@/lib/utf8-truncate";
@@ -306,7 +307,7 @@ export async function processRegsPoll(
       sample: parsed.badLines.slice(0, 5),
     });
     return fail(
-      `regs.poll отклонён: ${parsed.linesBad} некорректных строк — текущее состояние не обновлено`,
+      `regs.poll отклонён: ${formatCount(parsed.linesBad)} некорректных строк — текущее состояние не обновлено`,
       {
         exitCode: execResult.exitCode,
         stdout: execResult.stdout,

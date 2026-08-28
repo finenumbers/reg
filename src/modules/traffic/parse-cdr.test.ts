@@ -52,10 +52,10 @@ describe("CDR column contract", () => {
       "bill_dnis",
       "side_b",
       "out_orig_dnis",
+      "elapsed_time",
       "src_name",
       "dst_name",
       "dp_name",
-      "elapsed_time",
       "disconnect_code_string",
       "voipmonitor_url",
     ]);
@@ -86,10 +86,10 @@ describe("CDR column contract", () => {
       "operator_b",
       "geography_b",
       "out_orig_dnis",
+      "elapsed_time",
       "src_name",
       "dst_name",
       "dp_name",
-      "elapsed_time",
       "disconnect_code_string",
     ]);
     expect(TRAFFIC_GEOGRAPHY_LABELS.operator_a).toBe("Оператор А");
@@ -110,6 +110,7 @@ describe("CDR column contract", () => {
       "bill_dnis",
       "side_b",
       "out_orig_dnis",
+      "elapsed_time",
       "remote_src_sig_address",
       "country_a",
       "city_a",
@@ -121,7 +122,6 @@ describe("CDR column contract", () => {
       "src_name",
       "dst_name",
       "dp_name",
-      "elapsed_time",
       "disconnect_code_string",
     ]);
     expect(TRAFFIC_OPERATORS_LABELS.remote_src_sig_address).toBe(

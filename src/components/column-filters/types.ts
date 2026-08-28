@@ -2,6 +2,8 @@
  * Shared multi-select column facet filters (DID-compatible semantics).
  */
 
+import { formatCount } from "@/lib/format-count";
+
 export const EMPTY_FILTER_TOKEN = "__empty__";
 
 /** field → selected values (`__empty__` for blank/NULL). */
@@ -57,7 +59,7 @@ export function displayFacetValue(value: string): string {
 }
 
 export function formatFacetCount(n: number): string {
-  return new Intl.NumberFormat("ru-RU").format(n);
+  return formatCount(n);
 }
 
 export function hasActiveFilters(filters: ColumnFilters): boolean {

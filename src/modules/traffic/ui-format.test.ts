@@ -32,16 +32,16 @@ describe("traffic UI date display", () => {
     expect(formatTrafficCell("bill_ani", "79001234567")).toBe("79001234567");
   });
 
-  it("rounds duration columns to whole seconds", () => {
-    expect(formatDurationSeconds("22.4")).toBe("23");
-    expect(formatDurationSeconds("22,6")).toBe("23");
-    expect(formatDurationSeconds("22")).toBe("22");
+  it("converts millisecond duration columns to ceiled seconds", () => {
+    expect(formatDurationSeconds("24383")).toBe("25");
+    expect(formatDurationSeconds("926")).toBe("1");
+    expect(formatDurationSeconds("111745")).toBe("112");
     expect(formatDurationSeconds("0")).toBe("0");
     expect(formatDurationSeconds("")).toBe("");
     expect(formatDurationSeconds("n/a")).toBe("n/a");
-    expect(formatTrafficCell("elapsed_time", "12.2")).toBe("13");
-    expect(formatTrafficCell("term_elapsed_time", "1.5")).toBe("2");
-    expect(displayTrafficFacet("elapsed_time", "9.9")).toBe("10");
+    expect(formatTrafficCell("elapsed_time", "24383")).toBe("25");
+    expect(formatTrafficCell("term_elapsed_time", "1500")).toBe("2");
+    expect(displayTrafficFacet("elapsed_time", "9900")).toBe("10");
   });
 
   it("shows empty facet token as (пусто) and formats cdr_date facets", () => {

@@ -593,6 +593,7 @@ export function SettingsForm({ initial }: Props) {
             ftpEnabled,
             ftpUsername: ftpUsername.trim() || undefined,
             ftpListenPort: Number(ftpListenPort),
+            displayTimezone,
           }),
         });
         const data = (await res.json()) as {

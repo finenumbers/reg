@@ -1,3 +1,4 @@
+import { formatCount } from "@/lib/format-count";
 import { logger } from "@/lib/logger";
 import { AUDIT_ACTIONS, auditService } from "@/modules/audit";
 import {
@@ -55,7 +56,7 @@ export async function runEnrichPipeline(input: {
       current: parsed.rows,
       total: parsed.rows,
       ...(parsed.badLines > 0
-        ? { detail: `пропущено ${parsed.badLines}` }
+        ? { detail: `пропущено ${formatCount(parsed.badLines)}` }
         : {}),
     });
     await persist({ stages, throttle: false });
@@ -71,7 +72,7 @@ export async function runEnrichPipeline(input: {
       status: "done",
       current: parsed.uniquePhones.length,
       total: parsed.uniquePhones.length,
-      detail: `найдено ${descriptionFound} из ${parsed.uniquePhones.length}`,
+      detail: `найдено ${formatCount(descriptionFound)} из ${formatCount(parsed.uniquePhones.length)}`,
     });
     await persist({ stages });
 
@@ -89,7 +90,7 @@ export async function runEnrichPipeline(input: {
       status: "done",
       current: parsed.uniquePhones.length,
       total: parsed.uniquePhones.length,
-      detail: `найдено ${pstn.found}, ${asMissPhrase(MISSING_PSTN_LABEL)} ${pstn.missing}`,
+      detail: `найдено ${formatCount(pstn.found)}, ${asMissPhrase(MISSING_PSTN_LABEL)} ${formatCount(pstn.missing)}`,
     });
     await persist({ stages });
 
@@ -107,7 +108,7 @@ export async function runEnrichPipeline(input: {
       status: "done",
       current: parsed.uniqueIps.length,
       total: parsed.uniqueIps.length,
-      detail: `${geo.lookedUp} IP`,
+      detail: `${formatCount(geo.lookedUp)} IP`,
     });
     await persist({ stages });
 

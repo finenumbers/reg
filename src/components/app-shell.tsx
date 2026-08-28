@@ -39,11 +39,11 @@ function NavLink({
 
 export function AppShell({
   children,
-  username,
+  releaseLabel,
   permissions = [],
 }: {
   children: React.ReactNode;
-  username?: string | null;
+  releaseLabel: string;
   permissions?: readonly string[];
 }) {
   const router = useRouter();
@@ -113,7 +113,7 @@ export function AppShell({
         </nav>
         <div className="mt-auto shrink-0 space-y-2 px-2 pt-4">
           <p className="text-xs text-muted-foreground">
-            {username ? `Вы вошли как ${username}` : "Не авторизован"}
+            {releaseLabel}
           </p>
           <Button
             type="button"

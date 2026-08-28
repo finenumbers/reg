@@ -86,11 +86,12 @@ export function interpretSyncResponse(
     };
   }
   if (status === 409 || (body?.accepted === false && status !== 429)) {
+    const detail = body?.reason ?? body?.error;
     return {
       ok: false,
       conflict: true,
-      message: body?.reason
-        ? `Запрос не принят: ${body.reason}`
+      message: detail
+        ? `Запрос не принят: ${detail}`
         : "Запрос уже выполняется",
     };
   }

@@ -153,10 +153,10 @@ export const TRAFFIC_SUMMARY_COLUMNS = [
   "bill_dnis",
   "side_b",
   "out_orig_dnis",
+  "elapsed_time",
   "src_name",
   "dst_name",
   "dp_name",
-  "elapsed_time",
   "disconnect_code_string",
   VOIPMONITOR_COLUMN,
 ] as const;
@@ -190,10 +190,10 @@ export const TRAFFIC_GEOGRAPHY_COLUMNS = [
   "operator_b",
   "geography_b",
   "out_orig_dnis",
+  "elapsed_time",
   "src_name",
   "dst_name",
   "dp_name",
-  "elapsed_time",
   "disconnect_code_string",
 ] as const;
 
@@ -225,6 +225,7 @@ export const TRAFFIC_OPERATORS_COLUMNS = [
   "bill_dnis",
   "side_b",
   "out_orig_dnis",
+  "elapsed_time",
   "remote_src_sig_address",
   "country_a",
   "city_a",
@@ -236,7 +237,6 @@ export const TRAFFIC_OPERATORS_COLUMNS = [
   "src_name",
   "dst_name",
   "dp_name",
-  "elapsed_time",
   "disconnect_code_string",
 ] as const;
 

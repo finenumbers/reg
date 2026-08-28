@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useDisplayTimezone } from "@/components/display-timezone-provider";
+import { formatCount } from "@/lib/format-count";
 import { formatDisplayTimestamp } from "@/lib/format-display-time";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -135,7 +136,8 @@ export function GroupsView({ canRequest, initial }: Props) {
             Входящие группы
           </h1>
           <p className="text-sm text-muted-foreground">
-            Последняя загрузка: {formatSyncedAt(lastSyncedAt, timeZone)}. Всего: {total}.
+            Последняя загрузка: {formatSyncedAt(lastSyncedAt, timeZone)}. Всего:{" "}
+            {formatCount(total)}.
           </p>
         </div>
         {canRequest ? (

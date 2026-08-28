@@ -1,11 +1,12 @@
 "use client";
 
 import type { ReactNode, Ref } from "react";
+import { formatCount } from "@/lib/format-count";
 import { cn } from "@/lib/utils";
 
 function formatTableShownCount(shown: number, total: number): string {
   if (total === 0) return "0 результатов";
-  return `Показано ${shown} из ${total}`;
+  return `Показано ${formatCount(shown)} из ${formatCount(total)}`;
 }
 
 type TableInfiniteBodyProps = {

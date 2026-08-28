@@ -272,17 +272,12 @@ export async function processPhonesSync(
   const totalRows = parsed.endpoints.length + parsed.gateways.length;
 
   if (totalRows === 0) {
-    const [endpointCount, gatewayCount, state] = await Promise.all([
+    const [endpointCount, gatewayCount] = await Promise.all([
       prisma.phoneEndpoint.count(),
       prisma.phoneGateway.count(),
-      prisma.phoneImportState.findUnique({ where: { id: 1 } }),
     ]);
-    const previous =
-      endpointCount +
-      gatewayCount +
-      (state?.endpointCount ?? 0) +
-      (state?.gatewayCount ?? 0);
-    if (previous > 0) {
+    const liveCount = endpointCount + gatewayCount;
+    if (liveCount > 0) {
       return fail(
         "Пустой снимок отклонён — отказ от wipe непустой таблицы номеров",
         {

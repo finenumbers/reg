@@ -2,6 +2,7 @@
  * Presentation helpers for Jobs UI — pure, testable, no React.
  */
 
+import { formatCount } from "@/lib/format-count";
 import { formatDisplayTimestamp } from "@/lib/format-display-time";
 import type { JobRunListItem } from "@/modules/jobs/query";
 
@@ -69,27 +70,30 @@ export function summarizeJobResult(job: JobRunListItem): string {
     const err = job.errorMessage?.trim();
     if (err) return err;
     if (job.actionCode === "cdr.import" && (job.linesBad ?? 0) > 0) {
-      return `Частичная загрузка CDR: ${job.linesBad} битых строк`;
+      return `Частичная загрузка CDR: ${formatCount(job.linesBad)} битых строк`;
     }
     return "Ошибка (без деталей)";
   }
 
   const parts: string[] = [];
   if (job.phonesParsed != null) {
+    const n = formatCount(job.phonesParsed);
     const countLabel =
       job.actionCode === "groups.sync"
-        ? `${job.phonesParsed} групп`
+        ? `${n} групп`
         : job.actionCode === "cdr.import"
-          ? `${job.phonesParsed} записей`
+          ? `${n} записей`
           : job.actionCode === "voipmonitor.match"
-            ? `${job.phonesParsed} ссылок`
-            : `${job.phonesParsed} номеров`;
+            ? `${n} ссылок`
+            : `${n} номеров`;
     parts.push(countLabel);
   }
   if (job.linesBad != null && job.linesBad > 0) {
-    parts.push(`${job.linesBad} плохих строк`);
+    parts.push(`${formatCount(job.linesBad)} плохих строк`);
   }
-  if (job.changesCount != null) parts.push(`${job.changesCount} изменений`);
+  if (job.changesCount != null) {
+    parts.push(`${formatCount(job.changesCount)} изменений`);
+  }
   if (job.exitCode != null) parts.push(`код ${job.exitCode}`);
   if (job.hasArtifact) parts.push("есть артефакт");
   return parts.length > 0 ? parts.join(" · ") : "Успех";

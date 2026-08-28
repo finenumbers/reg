@@ -7,6 +7,7 @@ import { unlink } from "node:fs/promises";
 import { createInterface } from "node:readline";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
+import { formatCount } from "@/lib/format-count";
 import { logger } from "@/lib/logger";
 import { AUDIT_ACTIONS, auditService } from "@/modules/audit";
 import { resolveDisplayTimezone } from "@/lib/display-timezone";
@@ -293,7 +294,7 @@ async function importOneFile(
       skipped,
       linesBad,
       firstBadLine,
-      error: `Частичная загрузка: вставлено ${inserted} записей, ${linesBad} битых строк${first} в ${file.filename}. Файл оставлен в FTP-папке — «Повторить импорт» на Сырых данных.`,
+      error: `Частичная загрузка: вставлено ${formatCount(inserted)} записей, ${formatCount(linesBad)} битых строк${first} в ${file.filename}. Файл оставлен в FTP-папке — «Повторить импорт» на Сырых данных.`,
       enrichStats: maps.stats,
     };
   }

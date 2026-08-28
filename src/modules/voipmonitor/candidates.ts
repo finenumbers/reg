@@ -27,12 +27,13 @@ export type SatelCdrRow = {
   confId: string;
 };
 
+/** Softswitch elapsed_time is milliseconds. */
 function parseSeconds(raw: string): number | null {
   const trimmed = raw.trim().replace(",", ".");
   if (!trimmed) return null;
   const n = Number(trimmed);
   if (!Number.isFinite(n) || n < 0) return null;
-  return Math.round(n);
+  return Math.ceil(n / 1000);
 }
 
 function parseConnectDuration(connect: string, disconnect: string): number | null {

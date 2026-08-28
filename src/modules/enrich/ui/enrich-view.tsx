@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +11,7 @@ import {
   type EnrichJobView,
   type EnrichStageView,
 } from "@/modules/enrich/types";
+import { formatCount } from "@/lib/format-count";
 import { formatEnrichSummary } from "@/modules/enrich/summary-format";
 
 type ReadyState = {
@@ -41,10 +43,11 @@ export function EnrichView({
   initialReady,
   initialJob,
 }: Props) {
+  const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const downloadedFor = useRef<string | null>(null);
   const jobRef = useRef<EnrichJobView | null>(null);
-  const [ready] = useState<ReadyState>(initialReady);
+  const [ready, setReady] = useState<ReadyState>(initialReady);
   const [job, setJob] = useState<EnrichJobView | null>(
     isResumableEnrichJob(initialJob) ? initialJob : null,
   );
@@ -52,6 +55,10 @@ export function EnrichView({
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   jobRef.current = job;
+
+  useEffect(() => {
+    setReady(initialReady);
+  }, [initialReady]);
 
   const pollJob = useCallback(async (id: string) => {
     const res = await fetch(`/api/enrich/${id}`, { cache: "no-store" });
@@ -82,21 +89,30 @@ export function EnrichView({
   }, [job]);
 
   useEffect(() => {
+    const refreshReady = () => {
+      router.refresh();
+    };
     const onPageHide = () => dismissFinishedJob(jobRef.current);
     const onPageShow = (event: PageTransitionEvent) => {
       if (!event.persisted) return;
+      refreshReady();
       if (!isFinishedEnrichJob(jobRef.current)) return;
       setJob(null);
       setOpen(false);
     };
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") refreshReady();
+    };
     window.addEventListener("pagehide", onPageHide);
     window.addEventListener("pageshow", onPageShow);
+    document.addEventListener("visibilitychange", onVisibility);
     return () => {
       window.removeEventListener("pagehide", onPageHide);
       window.removeEventListener("pageshow", onPageShow);
+      document.removeEventListener("visibilitychange", onVisibility);
       dismissFinishedJob(jobRef.current);
     };
-  }, []);
+  }, [router]);
 
   function closeResult() {
     dismissFinishedJob(job);
@@ -118,8 +134,29 @@ export function EnrichView({
       const body = new FormData();
       body.append("file", file);
       const res = await fetch("/api/enrich", { method: "POST", body });
-      const data = await res.json();
+      const data = (await res.json()) as {
+        error?: string;
+        jobId?: string | null;
+        hasPstnApiKey?: boolean;
+        hasGeoipApiKey?: boolean;
+      };
       if (!res.ok) {
+        if (res.status === 412) {
+          const hasPstnApiKey = Boolean(data.hasPstnApiKey);
+          const hasGeoipApiKey = Boolean(data.hasGeoipApiKey);
+          setReady({
+            hasPstnApiKey,
+            hasGeoipApiKey,
+            ready: hasPstnApiKey && hasGeoipApiKey,
+          });
+        }
+        if (res.status === 409 && typeof data.jobId === "string" && data.jobId) {
+          const existing = await pollJob(data.jobId);
+          if (existing) {
+            toast.error(data.error ?? "Уже выполняется другое обогащение");
+            return;
+          }
+        }
         toast.error(data.error ?? "Не удалось начать обогащение");
         setOpen(false);
         return;
@@ -218,7 +255,7 @@ export function EnrichView({
                     <p className="text-sm font-medium">{stage.label}</p>
                     <p className="text-xs text-muted-foreground">
                       {stage.total != null
-                        ? `${stage.current ?? 0} / ${stage.total}`
+                        ? `${formatCount(stage.current ?? 0)} / ${formatCount(stage.total)}`
                         : stage.detail ?? ""}
                       {stage.detail && stage.total != null ? ` · ${stage.detail}` : ""}
                     </p>

@@ -262,12 +262,8 @@ export async function processGroupsSync(
   }
 
   if (parsed.groups.length === 0) {
-    const [currentCount, state] = await Promise.all([
-      prisma.routingGroup.count(),
-      prisma.routingGroupImportState.findUnique({ where: { id: 1 } }),
-    ]);
-    const previous = currentCount + (state?.groupCount ?? 0);
-    if (previous > 0) {
+    const liveCount = await prisma.routingGroup.count();
+    if (liveCount > 0) {
       return fail(
         "Пустой справочник групп отклонён — отказ от wipe непустой таблицы",
         {

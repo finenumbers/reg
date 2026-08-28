@@ -6,6 +6,7 @@ import { createReadStream } from "node:fs";
 import { createInterface } from "node:readline";
 import { createWriteStream } from "node:fs";
 import { finished } from "node:stream/promises";
+import { formatCount } from "@/lib/format-count";
 import {
   EXCEL_MAX_ROWS,
   type CdrJsonlRow,
@@ -105,7 +106,7 @@ export async function parseCsvToJsonl(
       rows += 1;
       if (rows > EXCEL_MAX_ROWS) {
         throw new Error(
-          `Слишком много строк (${rows}). Максимум листа Excel — ${EXCEL_MAX_ROWS}`,
+          `Слишком много строк (${formatCount(rows)}). Максимум листа Excel — ${formatCount(EXCEL_MAX_ROWS)}`,
         );
       }
       if (row.aNumber) phones.add(row.aNumber);

@@ -1,7 +1,11 @@
-# Current Phase — production (v1.12)
+# Current Phase — production (v1.13)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links.  
 **Date:** 2026-08-29
+
+## v1.13 — operator counts, duration, live loops
+
+Grouped integer counts with U+202F. Softswitch `elapsed_time` is milliseconds: traffic / geography / operators show ceiled seconds after «Переадресация»; VoIPmonitor matcher uses the same conversion. Nav footer shows `v{package.json}`. Isolated live-loop fixes: groups 409 `reason`, empty snapshot vs live table only, FTP save keeps timezone, traffic poll while the tab is visible, enrich resume on 409/412.
 
 ## v1.12 — VoIPmonitor links
 

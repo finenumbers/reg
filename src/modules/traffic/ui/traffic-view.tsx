@@ -84,6 +84,14 @@ export function TrafficView({
   const loadingMoreRef = useRef(false);
   const filtersRef = useRef(filters);
   const phoneQRef = useRef(phoneQ);
+  const loadListRef = useRef<(opts?: {
+    page?: number;
+    replace?: boolean;
+    filters?: ColumnFilters;
+    phoneQ?: string;
+  }) => Promise<void>>(async () => {});
+  const wasBusyRef = useRef(false);
+  const lastFinishedAtRef = useRef<string | null | undefined>(undefined);
   const [scrollRoot, setScrollRoot] = useState<Element | null>(null);
 
   filtersRef.current = filters;
@@ -144,6 +152,7 @@ export function TrafficView({
     },
     [page],
   );
+  loadListRef.current = loadList;
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -175,26 +184,59 @@ export function TrafficView({
 
   useEffect(() => {
     let cancelled = false;
+    let timer: number | null = null;
+
+    const isBusy = (data: {
+      pendingInboxCount?: number;
+      runningCount: number;
+    }) => (data.pendingInboxCount ?? 0) > 0 || data.runningCount > 0;
+
     const pull = async () => {
       const status = await fetchTrafficStatus();
       if (cancelled || !status.ok) return;
       applyStatusBanner(status.data);
-      return status.data;
+      const busy = isBusy(status.data);
+      const finishedAt = status.data.lastFinishedAt ?? null;
+      const finishedChanged =
+        lastFinishedAtRef.current !== undefined &&
+        lastFinishedAtRef.current !== finishedAt;
+      if ((wasBusyRef.current && !busy) || finishedChanged) {
+        void loadListRef.current({ page: 1, replace: true });
+      }
+      wasBusyRef.current = busy;
+      lastFinishedAtRef.current = finishedAt;
     };
+
+    const stop = () => {
+      if (timer != null) {
+        window.clearInterval(timer);
+        timer = null;
+      }
+    };
+
+    const start = () => {
+      if (cancelled || timer != null) return;
+      timer = window.setInterval(() => {
+        void pull();
+      }, 4000);
+    };
+
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        stop();
+        return;
+      }
+      void pull();
+      start();
+    };
+
     void pull();
-    const timer = window.setInterval(() => {
-      void (async () => {
-        const data = await pull();
-        if (!data) return;
-        const pending = (data.pendingInboxCount ?? 0) > 0;
-        if (!pending && data.runningCount === 0) {
-          window.clearInterval(timer);
-        }
-      })();
-    }, 4000);
+    if (document.visibilityState !== "hidden") start();
+    document.addEventListener("visibilitychange", onVisibility);
     return () => {
       cancelled = true;
-      window.clearInterval(timer);
+      stop();
+      document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [applyStatusBanner]);
 

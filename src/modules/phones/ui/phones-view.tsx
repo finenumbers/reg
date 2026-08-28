@@ -17,6 +17,7 @@ import {
   TableInfiniteBody,
 } from "@/components/table-infinite-body";
 import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
+import { formatCount } from "@/lib/format-count";
 import { TABLE_PAGE_SIZE } from "@/lib/table-pagination";
 import {
   convertPhonesRtuImport,
@@ -123,7 +124,7 @@ export function PhonesView({ canRequest, initial }: Props) {
       "Транки с регистрацией",
       "Транки без регистрации",
       ...(errorCount > 0 || kind === "endpoints_error"
-        ? [`Ошибка (${errorCount})`]
+        ? [`Ошибка (${formatCount(errorCount)})`]
         : []),
     ];
     return labels.reduce((a, b) => (b.length > a.length ? b : a));
@@ -437,10 +438,14 @@ export function PhonesView({ canRequest, initial }: Props) {
           </h1>
           <p className="text-sm text-muted-foreground">
             Последняя синхронизация: {formatSyncedAt(lastSyncedAt, timeZone)}. Шлюзы:{" "}
-            {gatewayCount}
-            , с рег.: {registeredCount}, без рег.: {unregisteredCount}
-            {errorCount > 0 ? `, ошибка: ${errorCount}` : ""}
-            {endpointCount > 0 ? ` (всего EP: ${endpointCount})` : ""}.
+            {formatCount(gatewayCount)}
+            , с рег.: {formatCount(registeredCount)}, без рег.:{" "}
+            {formatCount(unregisteredCount)}
+            {errorCount > 0 ? `, ошибка: ${formatCount(errorCount)}` : ""}
+            {endpointCount > 0
+              ? ` (всего EP: ${formatCount(endpointCount)})`
+              : ""}
+            .
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -566,7 +571,9 @@ export function PhonesView({ canRequest, initial }: Props) {
               Транки без регистрации
             </option>
             {errorCount > 0 || kind === "endpoints_error" ? (
-              <option value="endpoints_error">Ошибка ({errorCount})</option>
+              <option value="endpoints_error">
+                Ошибка ({formatCount(errorCount)})
+              </option>
             ) : null}
           </select>
           <span

@@ -47,10 +47,12 @@ export async function POST(request: Request) {
   });
 
   if (!result.accepted) {
+    const reason = result.reason ?? "rejected";
     return NextResponse.json(
       {
         accepted: false,
-        error: result.reason ?? "Sync already in progress",
+        reason,
+        error: reason,
         code: "ALREADY_RUNNING",
       },
       { status: 409 },

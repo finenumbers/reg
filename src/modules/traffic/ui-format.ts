@@ -3,6 +3,7 @@
  * Dates stay civil-clock from the CDR string; no timezone conversion.
  */
 
+import { formatCount } from "@/lib/format-count";
 import { EMPTY_FILTER_TOKEN } from "@/components/column-filters/types";
 import { csvTimeToDisplay } from "@/modules/enrich/dates";
 import {
@@ -16,13 +17,13 @@ export function formatCdrDateDisplay(raw: string): string {
 
 const DURATION_COLUMNS = new Set(["elapsed_time", "term_elapsed_time"]);
 
-/** CDR duration is already in seconds; ceil to a whole second. */
+/** Softswitch `elapsed_time` is milliseconds; display whole seconds (ceil). */
 export function formatDurationSeconds(raw: string): string {
   const trimmed = raw.trim().replace(",", ".");
   if (!trimmed) return raw;
   const n = Number(trimmed);
-  if (!Number.isFinite(n)) return raw;
-  return String(Math.ceil(n));
+  if (!Number.isFinite(n) || n < 0) return raw;
+  return formatCount(Math.ceil(n / 1000));
 }
 
 export function displayTrafficFacet(column: string, value: string): string {
@@ -60,7 +61,9 @@ export function composeTrafficBanner(
   if (status.pendingInboxCount > 0) {
     const n = status.pendingInboxCount;
     const files =
-      n === 1 ? "1 необработанный файл" : `${n} необработанных файлов`;
+      n === 1
+        ? "1 необработанный файл"
+        : `${formatCount(n)} необработанных файлов`;
     parts.push(
       status.runningCount > 0
         ? `В FTP-папке ${files}, импорт выполняется.`
@@ -71,7 +74,7 @@ export function composeTrafficBanner(
     parts.push(status.lastError.trim());
   } else if (status.poisonedCount > 0) {
     const n = status.poisonedCount;
-    const files = n === 1 ? "1 файл" : `${n} файлов`;
+    const files = n === 1 ? "1 файл" : `${formatCount(n)} файлов`;
     parts.push(
       `В FTP-папке ${files} с ошибкой импорта. Повторите импорт на странице «Сырые данные».`,
     );
