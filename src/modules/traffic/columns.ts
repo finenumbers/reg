@@ -144,7 +144,8 @@ export const CDR_PHONE_COLUMNS = [
 
 export const CDR_INSERT_BATCH_SIZE = 400;
 
-export const CDR_MAX_FILE_BYTES = 50_000_000;
+/** Full-day dumps are hundreds of MB; import streams line-by-line. */
+export const CDR_MAX_FILE_BYTES = 1_000_000_000;
 
 export function csvHeaderToCamel(header: string): string {
   return header.replace(/_([a-z0-9])/g, (_, ch: string) => ch.toUpperCase());
