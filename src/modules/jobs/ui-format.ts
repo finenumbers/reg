@@ -70,7 +70,7 @@ export function summarizeJobResult(job: JobRunListItem): string {
     const err = job.errorMessage?.trim();
     if (err) return err;
     if (job.actionCode === "cdr.import" && (job.linesBad ?? 0) > 0) {
-      return `Частичная загрузка CDR: ${formatCount(job.linesBad)} битых строк`;
+      return `Частичная загрузка CDR: ${formatCount(job.linesBad ?? 0)} битых строк`;
     }
     return "Ошибка (без деталей)";
   }

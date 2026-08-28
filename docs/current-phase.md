@@ -1,7 +1,11 @@
-# Current Phase — production (v1.14)
+# Current Phase — production (v1.14.1)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export.  
 **Date:** 2026-08-29
+
+## v1.14.1 — GHCR typecheck
+
+`formatCount` rejects `null`; CDR import summary now passes a number so Docker/GHCR build succeeds.
 
 ## v1.14 — month traffic XLSX export
 
