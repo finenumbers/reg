@@ -5,18 +5,12 @@
 import { createReadStream } from "node:fs";
 import { createInterface } from "node:readline";
 import ExcelJS from "exceljs";
-import {
-  XLSX_BILLING_MISS_FILL,
-  XLSX_UNREGISTERED_FILL,
-} from "@/lib/xlsx-export";
 import { csvTimeToDisplay } from "@/modules/enrich/dates";
 import { excelPhoneValue } from "@/modules/enrich/excel-phone";
 import { guardExcelText } from "@/modules/enrich/formula-guard";
 import {
   DETAIL_HEADERS,
   DETAIL_WIDTHS,
-  MISSING_BILLING_LABEL,
-  MISSING_PSTN_LABEL,
   TRAFFIC_HEADERS,
   TRAFFIC_WIDTHS,
   billableMinutes,
@@ -29,13 +23,13 @@ import type { PstnFields } from "@/modules/pstn/types";
 import type { GeoFields } from "@/modules/geoip/types";
 import {
   detailBodyRole,
-  detailFill,
   detailHeaderRole,
   trafficBodyRole,
-  trafficFill,
   trafficHeaderRole,
+  xlsxMissFontRole,
+  XLSX_BILLING_FONT_ARGB,
+  XLSX_PSTN_FONT_ARGB,
   type BorderRole,
-  type FillRole,
 } from "@/modules/enrich/xlsx-styles";
 
 const THIN: Partial<ExcelJS.Border> = {
@@ -90,10 +84,25 @@ function bordersFor(role: BorderRole): Partial<ExcelJS.Borders> {
   }
 }
 
+const BODY_FONT: Partial<ExcelJS.Font> = {
+  name: "Calibri",
+  size: 11,
+};
+
+function applyMissFont(cell: ExcelJS.Cell): void {
+  if (typeof cell.value !== "string") return;
+  const role = xlsxMissFontRole(cell.value);
+  if (role === "yellow") {
+    cell.font = { ...BODY_FONT, color: { argb: XLSX_BILLING_FONT_ARGB } };
+  } else if (role === "red") {
+    cell.font = { ...BODY_FONT, color: { argb: XLSX_PSTN_FONT_ARGB } };
+  }
+}
+
 function applyStyle(
   cell: ExcelJS.Cell,
   role: BorderRole,
-  opts: { header?: boolean; fill?: FillRole; phone?: boolean },
+  opts: { header?: boolean; phone?: boolean },
 ): void {
   cell.border = bordersFor(role);
   if (opts.header) {
@@ -103,11 +112,7 @@ function applyStyle(
   if (opts.phone) {
     cell.numFmt = "0";
   }
-  if (opts.fill === "red") {
-    cell.fill = XLSX_UNREGISTERED_FILL;
-  } else if (opts.fill === "yellow") {
-    cell.fill = XLSX_BILLING_MISS_FILL;
-  }
+  if (!opts.header) applyMissFont(cell);
 }
 
 function text(value: string): string {
@@ -184,10 +189,6 @@ function resolveFromMaps(
   };
 }
 
-function pstnMissing(operator: string, geography: string): boolean {
-  return operator === MISSING_PSTN_LABEL || geography === MISSING_PSTN_LABEL;
-}
-
 const PROGRESS_EVERY = 250;
 
 async function writeResolvedSheets(opts: {
@@ -250,13 +251,6 @@ async function writeResolvedSheets(opts: {
       applyStyle(cell, trafficBodyRole(colNumber - 1, last), {
         phone:
           (colNumber === 2 || colNumber === 4) && typeof cell.value === "number",
-        fill: trafficFill(
-          colNumber - 1,
-          row.sideA === MISSING_BILLING_LABEL,
-          row.sideB === MISSING_BILLING_LABEL,
-          pstnMissing(row.operatorA, row.geographyA),
-          pstnMissing(row.operatorB, row.geographyB),
-        ),
       });
     });
     excelRow.commit();
@@ -311,13 +305,6 @@ async function writeResolvedSheets(opts: {
       applyStyle(cell, detailBodyRole(colNumber - 1, last), {
         phone:
           (colNumber === 2 || colNumber === 6) && typeof cell.value === "number",
-        fill: detailFill(
-          colNumber - 1,
-          row.sideA === MISSING_BILLING_LABEL,
-          row.sideB === MISSING_BILLING_LABEL,
-          pstnMissing(row.operatorA, row.geographyA),
-          pstnMissing(row.operatorB, row.geographyB),
-        ),
       });
     });
     excelRow.commit();

@@ -13,6 +13,11 @@ import { processRegsPoll } from "@/modules/jobs/regs-poll-processor";
 import { processGroupsSync } from "@/modules/groups/groups-sync-processor";
 import { processPhonesSync } from "@/modules/phones/phones-sync-processor";
 import { processCdrImport } from "@/modules/traffic/cdr-import-processor";
+import {
+  canEnqueueVoipmonitorMatch,
+  shouldChainVoipmonitorMatch,
+} from "@/modules/voipmonitor/continue";
+import { requestVoipmonitorMatch } from "@/modules/voipmonitor/enqueue";
 import { processVoipmonitorMatch } from "@/modules/voipmonitor/processor";
 import {
   evaluateSchedulerBootstrap as evaluateSchedulerBootstrapImpl,
@@ -108,6 +113,16 @@ export class PQueueJobRuntime implements JobRuntime {
           status: result?.status,
           jobRunId: result?.jobRunId,
         });
+        if (
+          input.actionCode === "voipmonitor.match" &&
+          shouldChainVoipmonitorMatch(result)
+        ) {
+          void canEnqueueVoipmonitorMatch(() =>
+            this.isInFlight("voipmonitor.match"),
+          ).then((allowed) => {
+            if (allowed) requestVoipmonitorMatch("schedule");
+          });
+        }
       },
       (error) => {
         this.inFlight.delete(input.actionCode);

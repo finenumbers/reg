@@ -71,6 +71,41 @@ export function civilNow(
   };
 }
 
+export function utcCalendarMonth(now: Date = new Date()): {
+  year: number;
+  month: number;
+} {
+  return { year: now.getUTCFullYear(), month: now.getUTCMonth() + 1 };
+}
+
+export function previousUtcMonth(
+  year: number,
+  month: number,
+): { year: number; month: number } {
+  if (month < 1 || month > 12) {
+    throw new Error(`Некорректный месяц: ${month}`);
+  }
+  if (month === 1) return { year: year - 1, month: 12 };
+  return { year, month: month - 1 };
+}
+
+export function utcExportMonth(
+  period: MonthPeriod,
+  now: Date = new Date(),
+): { year: number; month: number } {
+  const current = utcCalendarMonth(now);
+  return period === "current"
+    ? current
+    : previousUtcMonth(current.year, current.month);
+}
+
+export function cdrMonthPrefix(year: number, month: number): string {
+  if (month < 1 || month > 12) {
+    throw new Error(`Некорректный месяц: ${month}`);
+  }
+  return `${year}-${String(month).padStart(2, "0")}-`;
+}
+
 export function monthWindow(
   period: MonthPeriod,
   timeZone: string,

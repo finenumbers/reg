@@ -1,3 +1,4 @@
+import { parseNaiveDateTime } from "@/modules/enrich/dates";
 import { SATEL_CALL_ID_FIELDS } from "@/modules/voipmonitor/constants";
 import { firstNonEmpty, uniqueNonEmpty } from "@/modules/voipmonitor/normalize";
 import { SOURCE_SATEL, type CdrCandidate } from "@/modules/voipmonitor/types";
@@ -37,12 +38,12 @@ function parseSeconds(raw: string): number | null {
 }
 
 function parseConnectDuration(connect: string, disconnect: string): number | null {
-  const start = Date.parse(connect.trim());
-  const end = Date.parse(disconnect.trim());
-  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) {
+  const start = parseNaiveDateTime(connect);
+  const end = parseNaiveDateTime(disconnect);
+  if (!start || !end || end.getTime() <= start.getTime()) {
     return null;
   }
-  return Math.round((end - start) / 1000);
+  return Math.round((end.getTime() - start.getTime()) / 1000);
 }
 
 function stripHostPort(raw: string): string {

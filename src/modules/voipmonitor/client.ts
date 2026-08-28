@@ -1,9 +1,14 @@
+import { parseNaiveDateTime } from "@/modules/enrich/dates";
 import {
   HTTP_TIMEOUT_MS,
   MAX_RESPONSE_BYTES,
+  RANGE_FETCH_CONCURRENCY,
+  RANGE_MIN_SLICE_MS,
+  RANGE_SLICE_MS,
   RATE_LIMIT_PER_SEC,
 } from "@/modules/voipmonitor/constants";
-import type { VmCall } from "@/modules/voipmonitor/types";
+import { looksLikeResultCap } from "@/modules/voipmonitor/probe-budget";
+import type { RangeFetchMeta, VmCall } from "@/modules/voipmonitor/types";
 
 export type VoipmonitorClientConfig = {
   apiUrl: string;
@@ -11,6 +16,7 @@ export type VoipmonitorClientConfig = {
   password: string;
   timeoutMs?: number;
   rateLimitPerSec?: number;
+  maxResponseBytes?: number;
   fetchImpl?: typeof fetch;
 };
 
@@ -56,9 +62,6 @@ function firstInt(row: Record<string, unknown>, ...keys: string[]): number {
   return 0;
 }
 
-const TIME_RE =
-  /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})/;
-
 function firstTime(
   row: Record<string, unknown>,
   ...keys: string[]
@@ -66,21 +69,8 @@ function firstTime(
   for (const key of keys) {
     const text = firstString(row, key);
     if (!text) continue;
-    const iso = Date.parse(text);
-    if (Number.isFinite(iso)) return new Date(iso);
-    const match = TIME_RE.exec(text);
-    if (match) {
-      return new Date(
-        Date.UTC(
-          Number(match[1]),
-          Number(match[2]) - 1,
-          Number(match[3]),
-          Number(match[4]),
-          Number(match[5]),
-          Number(match[6]),
-        ),
-      );
-    }
+    const parsed = parseNaiveDateTime(text);
+    if (parsed) return parsed;
   }
   return null;
 }
@@ -159,7 +149,8 @@ function formatApiTime(value: Date): string {
 }
 
 export class VoipmonitorClient {
-  private lastRequest = 0;
+  private nextSlot = 0;
+  lastRangeMeta: RangeFetchMeta | null = null;
 
   constructor(private readonly config: VoipmonitorClientConfig) {}
 
@@ -167,16 +158,21 @@ export class VoipmonitorClient {
     const perSec = this.config.rateLimitPerSec ?? RATE_LIMIT_PER_SEC;
     if (perSec <= 0) return;
     const minGap = 1000 / perSec;
-    const wait = minGap - (Date.now() - this.lastRequest);
-    if (this.lastRequest && wait > 0) {
+    const now = Date.now();
+    const start = Math.max(now, this.nextSlot);
+    this.nextSlot = start + minGap;
+    const wait = start - now;
+    if (wait > 0) {
       await new Promise((resolve) => setTimeout(resolve, wait));
     }
-    this.lastRequest = Date.now();
   }
 
   async getVoipCalls(params: Record<string, unknown>): Promise<VmCall[]> {
-    const payload = await this.postTask("getVoipCalls", params);
-    return parseVoipCallsResponse(payload);
+    const { calls, clipped } = await this.fetchCalls(params);
+    if (clipped) {
+      throw new Error("voipmonitor API response truncated");
+    }
+    return calls;
   }
 
   async listVoipCallsRange(from: Date, to: Date): Promise<VmCall[]> {
@@ -185,15 +181,27 @@ export class VoipmonitorClient {
     if (end.getTime() <= start.getTime()) {
       end = new Date(start.getTime() + 1000);
     }
-    const slice = 15 * 60 * 1000;
+    const slices: Array<{ from: number; to: number }> = [];
+    for (let cursor = start.getTime(); cursor < end.getTime(); ) {
+      const next = Math.min(cursor + RANGE_SLICE_MS, end.getTime());
+      slices.push({ from: cursor, to: next });
+      if (next === end.getTime()) break;
+      cursor = next;
+    }
+    const meta: RangeFetchMeta = {
+      sliceSplits: 0,
+      clipped: false,
+      suspectedCap: false,
+    };
+    const limit = new Semaphore(RANGE_FETCH_CONCURRENCY);
+    const parts = await Promise.all(
+      slices.map((slice) =>
+        this.fetchSliceAdaptive(slice.from, slice.to, meta, limit),
+      ),
+    );
     const seen = new Set<string>();
     const out: VmCall[] = [];
-    for (let cursor = start.getTime(); cursor < end.getTime(); ) {
-      const next = Math.min(cursor + slice, end.getTime());
-      const hits = await this.getVoipCalls({
-        startTime: formatApiTime(new Date(cursor)),
-        startTimeTo: formatApiTime(new Date(next)),
-      });
+    for (const hits of parts) {
       for (const hit of hits) {
         const key =
           hit.cdrId ||
@@ -202,16 +210,56 @@ export class VoipmonitorClient {
         seen.add(key);
         out.push(hit);
       }
-      if (next === end.getTime()) break;
-      cursor = next;
     }
+    this.lastRangeMeta = meta;
     return out;
+  }
+
+  private async fetchSliceAdaptive(
+    fromMs: number,
+    toMs: number,
+    meta: RangeFetchMeta,
+    limit: Semaphore,
+  ): Promise<VmCall[]> {
+    const { calls, clipped } = await limit.run(() =>
+      this.fetchCalls({
+        startTime: formatApiTime(new Date(fromMs)),
+        startTimeTo: formatApiTime(new Date(toMs)),
+      }),
+    );
+    const capped = looksLikeResultCap(calls.length);
+    const shouldSplit =
+      (clipped || capped) && toMs - fromMs > RANGE_MIN_SLICE_MS;
+    if (shouldSplit) {
+      meta.sliceSplits += 1;
+      if (clipped) meta.clipped = true;
+      if (capped) meta.suspectedCap = true;
+      const mid = fromMs + Math.floor((toMs - fromMs) / 2);
+      const [left, right] = await Promise.all([
+        this.fetchSliceAdaptive(fromMs, mid, meta, limit),
+        this.fetchSliceAdaptive(mid, toMs, meta, limit),
+      ]);
+      return [...left, ...right];
+    }
+    if (clipped) {
+      throw new Error("voipmonitor API response truncated");
+    }
+    if (capped) meta.suspectedCap = true;
+    return calls;
+  }
+
+  private async fetchCalls(
+    params: Record<string, unknown>,
+  ): Promise<{ calls: VmCall[]; clipped: boolean }> {
+    const { text, clipped } = await this.postTask("getVoipCalls", params);
+    if (clipped) return { calls: [], clipped: true };
+    return { calls: parseVoipCallsResponse(text), clipped: false };
   }
 
   private async postTask(
     task: string,
     params: Record<string, unknown>,
-  ): Promise<string> {
+  ): Promise<{ text: string; clipped: boolean }> {
     if (!this.config.apiUrl.trim()) {
       throw new Error("voipmonitor API URL is not configured");
     }
@@ -236,18 +284,39 @@ export class VoipmonitorClient {
         signal: controller.signal,
       });
       const text = await res.text();
-      const clipped =
-        text.length > MAX_RESPONSE_BYTES
-          ? text.slice(0, MAX_RESPONSE_BYTES)
-          : text;
+      const maxBytes = this.config.maxResponseBytes ?? MAX_RESPONSE_BYTES;
+      const clipped = text.length > maxBytes;
+      const bodyText = clipped ? text.slice(0, maxBytes) : text;
       if (res.status >= 300) {
         throw new Error(
-          `voipmonitor API HTTP ${res.status}: ${clipped.slice(0, 200)}`,
+          `voipmonitor API HTTP ${res.status}: ${bodyText.slice(0, 200)}`,
         );
       }
-      return clipped;
+      return { text: bodyText, clipped };
     } finally {
       clearTimeout(timeout);
+    }
+  }
+}
+
+class Semaphore {
+  private active = 0;
+  private readonly waiters: Array<() => void> = [];
+
+  constructor(private readonly max: number) {}
+
+  async run<T>(fn: () => Promise<T>): Promise<T> {
+    if (this.active >= this.max) {
+      await new Promise<void>((resolve) => {
+        this.waiters.push(resolve);
+      });
+    }
+    this.active += 1;
+    try {
+      return await fn();
+    } finally {
+      this.active -= 1;
+      this.waiters.shift()?.();
     }
   }
 }

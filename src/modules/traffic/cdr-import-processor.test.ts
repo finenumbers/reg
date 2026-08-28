@@ -42,6 +42,10 @@ vi.mock("@/modules/traffic/enrich-import", async (importOriginal) => {
   };
 });
 
+vi.mock("@/modules/traffic/sync-cdr-at", () => ({
+  syncCdrAtFromCdrDate: vi.fn().mockResolvedValue(0),
+}));
+
 vi.mock("@/modules/audit", () => ({
   AUDIT_ACTIONS: {
     CDR_IMPORT_MANUAL: "cdr.import_manual",

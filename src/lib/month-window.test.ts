@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { civilNow, monthWindow, zonedCivilToUtc } from "@/lib/month-window";
+import {
+  cdrMonthPrefix,
+  civilNow,
+  monthWindow,
+  utcExportMonth,
+  zonedCivilToUtc,
+} from "@/lib/month-window";
 
 describe("zonedCivilToUtc", () => {
   it("maps Moscow midnight to 21:00 UTC previous day", () => {
@@ -43,5 +49,15 @@ describe("monthWindow", () => {
     const utc = civilNow("UTC", now);
     expect(utc.month).toBe(7);
     expect(utc.day).toBe(31);
+  });
+});
+
+describe("utcExportMonth", () => {
+  it("labels previous July and current August on 29 Aug UTC", () => {
+    const now = new Date("2026-08-29T03:00:00.000Z");
+    expect(utcExportMonth("previous", now)).toEqual({ year: 2026, month: 7 });
+    expect(utcExportMonth("current", now)).toEqual({ year: 2026, month: 8 });
+    expect(cdrMonthPrefix(2026, 6)).toBe("2026-06-");
+    expect(cdrMonthPrefix(2026, 7)).toBe("2026-07-");
   });
 });

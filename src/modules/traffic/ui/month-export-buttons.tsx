@@ -4,9 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { useDisplayTimezone } from "@/components/display-timezone-provider";
 import { formatCount } from "@/lib/format-count";
-import { monthWindow, type MonthPeriod } from "@/lib/month-window";
+import { utcExportMonth, type MonthPeriod } from "@/lib/month-window";
 import { monthExportButtonLabel } from "@/modules/traffic/month-labels";
 import {
   isActiveMonthExport,
@@ -28,10 +27,9 @@ function dismissFinishedJob(job: MonthExportJobView | null) {
 }
 
 export function MonthExportButtons() {
-  const { timeZone } = useDisplayTimezone();
   const now = new Date();
-  const previous = monthWindow("previous", timeZone, now);
-  const current = monthWindow("current", timeZone, now);
+  const previous = utcExportMonth("previous", now);
+  const current = utcExportMonth("current", now);
   const previousLabel = monthExportButtonLabel(
     "previous",
     previous.year,
@@ -134,7 +132,6 @@ export function MonthExportButtons() {
     <>
       <Button
         type="button"
-        variant="outline"
         disabled={busy}
         onClick={() => void start("previous")}
       >
@@ -142,7 +139,6 @@ export function MonthExportButtons() {
       </Button>
       <Button
         type="button"
-        variant="outline"
         disabled={busy}
         onClick={() => void start("current")}
       >

@@ -570,6 +570,7 @@ model CdrRecord {
   voipmonitorLink            CdrVoipmonitorLink?
 
   @@index([cdrAt(sort: Desc)])
+  @@index([cdrDate, cdrId])
   @@index([inAni])
   @@index([inDnis])
   @@index([outAni])

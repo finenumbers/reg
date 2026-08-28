@@ -72,7 +72,25 @@ export type CardUrlParts = {
   callDate?: Date | null;
 };
 
+export type RangeFetchMeta = {
+  sliceSplits: number;
+  clipped: boolean;
+  suspectedCap: boolean;
+};
+
+export type MatchBucketStats = {
+  hourFetchCount: number;
+  probes: number;
+  probeBudget: number;
+  sliceSplits: number;
+  clipped: boolean;
+  suspectedCap: boolean;
+  fetchMs: number;
+  matchMs: number;
+};
+
 export type VoipmonitorClientLike = {
   listVoipCallsRange(from: Date, to: Date): Promise<VmCall[]>;
   getVoipCalls(params: Record<string, unknown>): Promise<VmCall[]>;
+  lastRangeMeta?: RangeFetchMeta | null;
 };

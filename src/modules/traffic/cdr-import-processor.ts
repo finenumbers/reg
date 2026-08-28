@@ -10,7 +10,6 @@ import { prisma } from "@/lib/db";
 import { formatCount } from "@/lib/format-count";
 import { logger } from "@/lib/logger";
 import { AUDIT_ACTIONS, auditService } from "@/modules/audit";
-import { resolveDisplayTimezone } from "@/lib/display-timezone";
 import {
   CDR_ENRICH_BACKFILL_MAX_ROWS,
   CDR_INSERT_BATCH_SIZE,
@@ -30,6 +29,7 @@ import {
   parseCdrDataLine,
   parseCdrHeaderLine,
 } from "@/modules/traffic/parse-cdr";
+import { syncCdrAtFromCdrDate } from "@/modules/traffic/sync-cdr-at";
 import {
   addCdrEnrichKeysFromFields,
   backfillUnenrichedCdrRecords,
@@ -98,7 +98,6 @@ function truncateUtf8(value: string, maxBytes: number): string {
 async function importOneFile(
   file: InboxFile,
   jobRunId: string,
-  timeZone: string,
 ): Promise<FileImportResult> {
   const sizeError = inboxFileError(file);
   if (sizeError) {
@@ -137,7 +136,7 @@ async function importOneFile(
         continue;
       }
       if (!raw.trim()) continue;
-      const parsed = parseCdrDataLine(raw, timeZone);
+      const parsed = parseCdrDataLine(raw);
       if (!parsed) {
         linesBad += 1;
         if (firstBadLine == null) firstBadLine = lineNo;
@@ -237,7 +236,7 @@ async function importOneFile(
         continue;
       }
       if (!raw.trim()) continue;
-      const parsed = parseCdrDataLine(raw, timeZone);
+      const parsed = parseCdrDataLine(raw);
       if (!parsed) continue;
       const enrich = enrichFieldsForRow(
         parsed.fields.bill_ani ?? "",
@@ -341,11 +340,6 @@ export async function processCdrImport(
     trigger: input.trigger,
   });
 
-  const tzRow = await prisma.appSetting.findUnique({
-    where: { id: 1 },
-    select: { displayTimezone: true },
-  });
-  const timeZone = resolveDisplayTimezone(tzRow?.displayTimezone);
   const fileResults: FileImportResult[] = [];
   let phonesParsed = 0;
   let linesBad = 0;
@@ -356,6 +350,7 @@ export async function processCdrImport(
   let backfillRemaining = 0;
 
   try {
+    await syncCdrAtFromCdrDate();
     for (let pass = 0; pass < 16; pass += 1) {
       consumeCdrInboxDirty();
       const files = await listInboxFiles();
@@ -363,7 +358,7 @@ export async function processCdrImport(
       if (fresh.length > 0) {
         for (const file of fresh) {
           seen.add(`${file.filename}:${file.mtimeMs}`);
-          const result = await importOneFile(file, jobRun.id, timeZone);
+          const result = await importOneFile(file, jobRun.id);
           fileResults.push(result);
           phonesParsed += result.inserted;
           linesBad += result.linesBad;

@@ -1,7 +1,11 @@
-# Current Phase — production (v1.14.2)
+# Current Phase — production (v1.15.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export.  
 **Date:** 2026-08-29
+
+## v1.15.0 — VoIPmonitor match throughput
+
+Hour fetch runs 10 parallel `getVoipCalls` slices; archive first pass skips Call-ID probes; fallback no longer verifies via extra API; links are written in one SQL upsert per chunk. One live hour, then archive hours until the 2-minute job budget. Job meta records fetch/probe/match timings.
 
 ## v1.14.2 — traffic export directory
 

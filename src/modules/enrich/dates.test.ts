@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  civilToUtcDate,
   csvTimeToDisplay,
   formatCivilDisplay,
   parseCivilDateTime,
+  parseNaiveDateTime,
 } from "@/modules/enrich/dates";
 
 describe("naive civil datetime", () => {
@@ -38,5 +40,24 @@ describe("naive civil datetime", () => {
 
   it("keeps the raw string when parsing fails", () => {
     expect(csvTimeToDisplay("not-a-date")).toBe("not-a-date");
+  });
+
+  it("packs civil digits as UTC without shifting", () => {
+    expect(
+      civilToUtcDate({
+        year: 2026,
+        month: 8,
+        day: 27,
+        hour: 20,
+        minute: 4,
+        second: 19,
+      }).toISOString(),
+    ).toBe("2026-08-27T20:04:19.000Z");
+    expect(parseNaiveDateTime("2026-08-27 20:04:19")?.toISOString()).toBe(
+      "2026-08-27T20:04:19.000Z",
+    );
+    expect(parseNaiveDateTime("2026-08-27T20:04:19.000Z")?.toISOString()).toBe(
+      "2026-08-27T20:04:19.000Z",
+    );
   });
 });

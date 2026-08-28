@@ -711,8 +711,8 @@ export function SettingsForm({ initial }: Props) {
             ))}
           </select>
           <p className="text-xs text-muted-foreground">
-            Все даты в интерфейсе и именах XLSX. Сохраняется вместе с SSH,
-            опросом или GeoIP.
+            Даты в Регистрациях, Телефонных номерах, Входящих группах и Аудите.
+            В телефонном трафике и выгрузке CDR — время как в файле звонка.
           </p>
         </div>
       </section>

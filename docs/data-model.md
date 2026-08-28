@@ -221,7 +221,7 @@ Full snapshot всех номеров на каждый run **не хранит�
 
 ### VoIPmonitor (`cdr_voipmonitor_links`)
 
-Отдельная 1:1 проекция на `cdr_records`. URL пишется **только** после match (`matched_exact` / `matched_fallback`). Аксиома: каждый загруженный CDR есть в VoIPmonitor — пустая ячейка после успокоения очереди = дефект matcher. Job `voipmonitor.match` обрабатывает по одному часу, ретраит miss с backoff. Ссылки не читаются из Collector.
+Отдельная 1:1 проекция на `cdr_records`. URL пишется **только** после match (`matched_exact` / `matched_fallback`). Аксиома: каждый загруженный CDR есть в VoIPmonitor — пустая ячейка после успокоения очереди = дефект matcher. Job `voipmonitor.match` берёт час live, затем archive-часы до бюджета, ретраит miss с backoff. Ссылки не читаются из Collector.
 
 ### Enrich (`enrich_jobs`)
 

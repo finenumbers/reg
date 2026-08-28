@@ -163,7 +163,7 @@ describe("CDR column contract", () => {
 });
 
 describe("parseCdrDataLine", () => {
-  it("maps quoted fields and parses cdr_date in Moscow", () => {
+  it("maps quoted fields and keeps cdr_date digits as civil UTC", () => {
     const row = parseCdrDataLine(
       quotedRow({
         cdr_id: "202608270000007910",
@@ -173,13 +173,12 @@ describe("parseCdrDataLine", () => {
         elapsed_time: "126109",
         src_name: "PSTN_Sochi_MTS_Local",
       }),
-      "Europe/Moscow",
     );
     expect(row).not.toBeNull();
     expect(row!.cdrId).toBe("202608270000007910");
     expect(row!.prisma.inAni).toBe("79528752577");
     expect(row!.prisma.elapsedTime).toBe("126109");
-    expect(row!.cdrAt?.toISOString()).toBe("2026-08-27T17:04:19.000Z");
+    expect(row!.cdrAt?.toISOString()).toBe("2026-08-27T20:04:19.000Z");
   });
 
   it("rejects empty cdr_id and wrong width", () => {
@@ -199,5 +198,14 @@ describe("parseCdrDataLine", () => {
 describe("parseCdrDate", () => {
   it("returns null for garbage", () => {
     expect(parseCdrDate("not-a-date")).toBeNull();
+  });
+
+  it("does not subtract a display timezone", () => {
+    expect(parseCdrDate("2026-06-30 23:59:59")?.toISOString()).toBe(
+      "2026-06-30T23:59:59.000Z",
+    );
+    expect(parseCdrDate("2026-07-01T00:30:00")?.toISOString()).toBe(
+      "2026-07-01T00:30:00.000Z",
+    );
   });
 });

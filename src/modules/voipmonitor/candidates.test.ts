@@ -37,4 +37,15 @@ describe("candidateFromSatelRow duration", () => {
     );
     expect(candidateFromSatelRow(row({ elapsedTime: "" }))?.durationSec).toBeNull();
   });
+
+  it("reads connect/disconnect as civil digits", () => {
+    expect(
+      candidateFromSatelRow(
+        row({
+          connectTime: "2026-08-27 20:04:19",
+          disconnectTime: "2026-08-27 20:05:19",
+        }),
+      )?.connectDurationSec,
+    ).toBe(60);
+  });
 });

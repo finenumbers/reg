@@ -20,8 +20,28 @@ vi.mock("@/modules/traffic/cdr-import-processor", () => ({
   processCdrImport: vi.fn(),
 }));
 
+const processVoipmonitorMatch = vi.fn();
+const canEnqueueVoipmonitorMatch = vi.fn();
+const requestVoipmonitorMatch = vi.fn();
+
 vi.mock("@/modules/voipmonitor/processor", () => ({
-  processVoipmonitorMatch: vi.fn(),
+  processVoipmonitorMatch: (...args: unknown[]) =>
+    processVoipmonitorMatch(...args),
+}));
+
+vi.mock("@/modules/voipmonitor/continue", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@/modules/voipmonitor/continue")>();
+  return {
+    ...actual,
+    canEnqueueVoipmonitorMatch: (...args: unknown[]) =>
+      canEnqueueVoipmonitorMatch(...args),
+  };
+});
+
+vi.mock("@/modules/voipmonitor/enqueue", () => ({
+  requestVoipmonitorMatch: (...args: unknown[]) =>
+    requestVoipmonitorMatch(...args),
 }));
 
 vi.mock("@/modules/jobs/scheduler", () => ({
@@ -83,6 +103,14 @@ describe("PQueueJobRuntime anti-overlap", () => {
           );
         }),
     );
+    canEnqueueVoipmonitorMatch.mockResolvedValue(false);
+    processVoipmonitorMatch.mockResolvedValue({
+      status: "success",
+      jobRunId: "vm-default",
+      phonesParsed: 0,
+      changesCount: 0,
+      hoursProcessed: 0,
+    });
     processGroupsSync.mockImplementation(
       () =>
         new Promise((resolve) => {
@@ -160,5 +188,59 @@ describe("PQueueJobRuntime anti-overlap", () => {
     expect(processGroupsSync).toHaveBeenCalled();
 
     await new Promise((r) => setTimeout(r, 80));
+  });
+
+  it("chains voipmonitor.match after a successful hour when drain allows", async () => {
+    processVoipmonitorMatch.mockResolvedValue({
+      status: "success",
+      jobRunId: "vm-1",
+      phonesParsed: 2,
+      changesCount: 2,
+      hoursProcessed: 2,
+    });
+    canEnqueueVoipmonitorMatch.mockResolvedValue(true);
+
+    const runtime = new PQueueJobRuntime();
+    await runtime.enqueue({
+      actionCode: "voipmonitor.match",
+      trigger: "schedule",
+    });
+    await new Promise((r) => setTimeout(r, 40));
+
+    expect(requestVoipmonitorMatch).toHaveBeenCalledWith("schedule");
+  });
+
+  it("does not chain skip or failed voipmonitor.match", async () => {
+    canEnqueueVoipmonitorMatch.mockResolvedValue(true);
+    processVoipmonitorMatch.mockResolvedValueOnce({
+      status: "success",
+      jobRunId: "vm-skip",
+      phonesParsed: 0,
+      changesCount: 0,
+      skipped: true,
+      hoursProcessed: 0,
+    });
+
+    const runtime = new PQueueJobRuntime();
+    await runtime.enqueue({
+      actionCode: "voipmonitor.match",
+      trigger: "schedule",
+    });
+    await new Promise((r) => setTimeout(r, 40));
+    expect(requestVoipmonitorMatch).not.toHaveBeenCalled();
+
+    processVoipmonitorMatch.mockResolvedValueOnce({
+      status: "failed",
+      jobRunId: "vm-fail",
+      phonesParsed: 0,
+      changesCount: 0,
+      hoursProcessed: 1,
+    });
+    await runtime.enqueue({
+      actionCode: "voipmonitor.match",
+      trigger: "schedule",
+    });
+    await new Promise((r) => setTimeout(r, 40));
+    expect(requestVoipmonitorMatch).not.toHaveBeenCalled();
   });
 });

@@ -1,11 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
+  MISSING_BILLING_LABEL,
+  MISSING_PSTN_LABEL,
+  DETAIL_WIDTHS,
+  TRAFFIC_WIDTHS,
+} from "@/modules/enrich/types";
+import {
   detailBodyRole,
-  detailFill,
   detailHeaderRole,
   trafficBodyRole,
-  trafficFill,
   trafficHeaderRole,
+  xlsxMissFontRole,
 } from "@/modules/enrich/xlsx-styles";
 
 describe("traffic border roles", () => {
@@ -29,24 +34,26 @@ describe("detail border roles", () => {
   });
 });
 
-describe("fills", () => {
-  it("traffic: billing miss is yellow on number and side", () => {
-    expect(trafficFill(1, true, false, false, false)).toBe("yellow");
-    expect(trafficFill(2, true, false, false, false)).toBe("yellow");
-    expect(trafficFill(3, true, false, false, false)).toBe("none");
+describe("miss font", () => {
+  it("colors only the miss phrases", () => {
+    expect(xlsxMissFontRole(MISSING_BILLING_LABEL)).toBe("yellow");
+    expect(xlsxMissFontRole(MISSING_PSTN_LABEL)).toBe("red");
+    expect(xlsxMissFontRole("79501112233")).toBeNull();
+    expect(xlsxMissFontRole("МТС")).toBeNull();
   });
+});
 
-  it("traffic: PSTN miss is red on number; red wins over yellow", () => {
-    expect(trafficFill(1, false, false, true, false)).toBe("red");
-    expect(trafficFill(1, true, false, true, false)).toBe("red");
-    expect(trafficFill(2, true, false, true, false)).toBe("yellow");
-  });
-
-  it("detail: PSTN miss paints operator/geo red", () => {
-    expect(detailFill(1, false, false, true, false)).toBe("red");
-    expect(detailFill(3, false, false, true, false)).toBe("red");
-    expect(detailFill(4, false, false, true, false)).toBe("red");
-    expect(detailFill(2, true, false, true, false)).toBe("yellow");
-    expect(detailFill(1, true, false, true, false)).toBe("red");
+describe("column widths", () => {
+  it("matches the August 2026 sample", () => {
+    expect(TRAFFIC_WIDTHS).toEqual([
+      18.5, 15.1640625, 41.1640625, 15.1640625, 41.1640625, 13.83203125,
+      13.1640625, 11.33203125, 15.33203125, 31.5, 32.5, 33.5, 37.5,
+    ]);
+    expect(DETAIL_WIDTHS).toEqual([
+      18.5, 15.1640625, 41.1640625, 29.83203125, 29.83203125, 15.1640625,
+      41.1640625, 29.83203125, 29.83203125, 13.83203125, 31.5, 32.5, 33.5,
+      37.5, 20.5, 13.5, 21.1640625, 32.33203125, 18.5, 13.5, 21.1640625,
+      32.33203125,
+    ]);
   });
 });

@@ -1,7 +1,9 @@
 import type { MonthPeriod } from "@/lib/month-window";
 
 export const MONTH_EXPORT_ARTIFACT_TTL_MS = 24 * 60 * 60 * 1000;
-export const MONTH_EXPORT_PAGE_SIZE = 400;
+export const MONTH_EXPORT_PAGE_SIZE = 2000;
+export const MONTH_EXPORT_UPDATE_BATCH = 300;
+export const MONTH_EXPORT_PROGRESS_MS = 500;
 
 export type MonthExportStageId =
   | "period"

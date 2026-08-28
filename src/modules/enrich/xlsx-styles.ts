@@ -2,6 +2,11 @@
  * Border roles matching the updated sample.xlsx group boxes.
  */
 
+import {
+  MISSING_BILLING_LABEL,
+  MISSING_PSTN_LABEL,
+} from "@/modules/enrich/types";
+
 export type BorderRole =
   | "plain"
   | "noRight"
@@ -141,47 +146,14 @@ export function detailHeaderRole(col: number): BorderRole {
   }
 }
 
-export type FillRole = "none" | "yellow" | "red";
+export type MissFontRole = "yellow" | "red" | null;
 
-/** Red wins over yellow on the number cell. */
-export function trafficFill(
-  col: number,
-  billingMissA: boolean,
-  billingMissB: boolean,
-  pstnMissA: boolean,
-  pstnMissB: boolean,
-): FillRole {
-  if (col === 1) {
-    if (pstnMissA) return "red";
-    if (billingMissA) return "yellow";
-  }
-  if (col === 2 && billingMissA) return "yellow";
-  if (col === 3) {
-    if (pstnMissB) return "red";
-    if (billingMissB) return "yellow";
-  }
-  if (col === 4 && billingMissB) return "yellow";
-  return "none";
-}
+/** Same hues as trafficMissingLabelClass (yellow-600 / red-600). */
+export const XLSX_BILLING_FONT_ARGB = "FFCA8A04";
+export const XLSX_PSTN_FONT_ARGB = "FFDC2626";
 
-export function detailFill(
-  col: number,
-  billingMissA: boolean,
-  billingMissB: boolean,
-  pstnMissA: boolean,
-  pstnMissB: boolean,
-): FillRole {
-  if (col === 1) {
-    if (pstnMissA) return "red";
-    if (billingMissA) return "yellow";
-  }
-  if (col === 2 && billingMissA) return "yellow";
-  if ((col === 3 || col === 4) && pstnMissA) return "red";
-  if (col === 5) {
-    if (pstnMissB) return "red";
-    if (billingMissB) return "yellow";
-  }
-  if (col === 6 && billingMissB) return "yellow";
-  if ((col === 7 || col === 8) && pstnMissB) return "red";
-  return "none";
+export function xlsxMissFontRole(value: string): MissFontRole {
+  if (value === MISSING_BILLING_LABEL) return "yellow";
+  if (value === MISSING_PSTN_LABEL) return "red";
+  return null;
 }

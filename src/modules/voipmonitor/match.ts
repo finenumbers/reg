@@ -10,6 +10,7 @@ import {
   MIN_SCORE,
   NUMBER_SUFFIX_LEN,
 } from "@/modules/voipmonitor/constants";
+import { effectiveProbeBudget } from "@/modules/voipmonitor/probe-budget";
 import {
   callIdQueryVariants,
   callIdVariants,
@@ -35,6 +36,7 @@ import {
   STATUS_MATCHED_FALLBACK,
   STATUS_UNMATCHED,
   type CdrCandidate,
+  type MatchBucketStats,
   type MatchResult,
   type VmCall,
   type VoipmonitorClientLike,
@@ -52,6 +54,8 @@ export type MatcherOptions = {
   disambiguityMargin?: number;
   numberSuffixLen?: number;
   now?: () => Date;
+  /** Unique Call-IDs to probe after the hour index miss. 0 = none. */
+  probeBudget?: number;
 };
 
 type MatchOpts = {
@@ -472,14 +476,13 @@ function stageExact(
   };
 }
 
-async function stageFallback(
-  client: VoipmonitorClientLike,
+function stageFallback(
   cdr: CdrCandidate,
   idx: CallIndex,
   opts: MatchOpts,
   used: Map<string, number>,
   fetchMeta: Record<string, unknown>,
-): Promise<{ pending: PendingMatch | null; miss: MatchResult | null }> {
+): { pending: PendingMatch | null; miss: MatchResult | null } {
   const norms = sourceCallIdNorms(cdr);
   const evidence: Record<string, unknown> = {
     stage: "fallback",
@@ -576,46 +579,21 @@ async function stageFallback(
     };
   }
 
-  let chosen = best.call;
-  if (chosen.cdrId) {
-    const center = chosen.callDate ?? cdr.setupTime;
-    try {
-      const verified = await client.getVoipCalls({
-        cdrId: chosen.cdrId,
-        startTime: formatApiTime(new Date(center.getTime() - 60 * 60 * 1000)),
-        startTimeTo: formatApiTime(
-          new Date(center.getTime() + 60 * 60 * 1000),
-        ),
-      });
-      const hit = verified.find((v) => v.cdrId === chosen.cdrId);
-      if (hit) {
-        chosen = hit;
-        evidence.verified_cdr_id = true;
-      } else {
-        evidence.verify_empty = true;
-      }
-    } catch (error) {
-      evidence.verify_error =
-        error instanceof Error ? error.message : String(error);
-      return { pending: null, miss: missResult(MISS_API_ERROR, evidence) };
-    }
-  }
-
   return {
     pending: {
       candIdx: 0,
-      call: chosen,
+      call: best.call,
       score: best.score,
       method: "fallback_numbers_ip_time",
       status: STATUS_MATCHED_FALLBACK,
       evidence,
-      legs: [chosen],
+      legs: [best.call],
     },
     miss: null,
   };
 }
 
-async function assignBucket(
+function assignBucket(
   options: MatcherOptions,
   candidates: CdrCandidate[],
   idx: CallIndex,
@@ -623,7 +601,7 @@ async function assignBucket(
   now: Date,
   fetchMeta: Record<string, unknown>,
   probeAttempts: unknown[],
-): Promise<MatchResult[]> {
+): MatchResult[] {
   const results: MatchResult[] = Array.from({ length: candidates.length }, () =>
     missResult(MISS_NO_CANDIDATES_IN_WINDOW, {}),
   );
@@ -682,8 +660,7 @@ async function assignBucket(
   const fallback: PendingMatch[] = [];
   for (let i = 0; i < candidates.length; i++) {
     if (assigned[i]) continue;
-    const { pending, miss } = await stageFallback(
-      options.client,
+    const { pending, miss } = stageFallback(
       candidates[i]!,
       idx,
       opts,
@@ -741,13 +718,19 @@ async function assignBucket(
 export async function matchBucket(
   options: MatcherOptions,
   candidates: CdrCandidate[],
-): Promise<{ results: MatchResult[]; error?: Error }> {
+): Promise<{ results: MatchResult[]; error?: Error; stats?: MatchBucketStats }> {
   const opts = resolveOpts(options);
   const now = options.now ? options.now() : new Date();
-  if (candidates.length === 0) return { results: [] };
+  if (candidates.length === 0) {
+    return {
+      results: [],
+      stats: emptyStats(0, options.probeBudget ?? 0),
+    };
+  }
   const { from, to } = bucketBounds(candidates);
   const fetchFrom = new Date(from.getTime() - opts.callIdWindowMs);
   const fetchTo = new Date(to.getTime() + opts.callIdWindowMs);
+  const fetchStarted = Date.now();
   let hourCalls: VmCall[];
   try {
     hourCalls = await options.client.listVoipCallsRange(fetchFrom, fetchTo);
@@ -763,13 +746,27 @@ export async function matchBucket(
         }),
       ),
       error: err,
+      stats: emptyStats(0, 0, Date.now() - fetchStarted),
     };
   }
+  const fetchMs = Date.now() - fetchStarted;
+  const rangeMeta = options.client.lastRangeMeta;
+  const fetchLooksIncomplete = Boolean(
+    rangeMeta?.clipped || rangeMeta?.suspectedCap,
+  );
+  const budget = effectiveProbeBudget(
+    options.probeBudget ?? 0,
+    hourCalls.length,
+    fetchLooksIncomplete,
+  );
   const idx = buildCallIndex(hourCalls);
   const fetchMeta: Record<string, unknown> = {
     hour_fetch_count: hourCalls.length,
     fetch_from: fetchFrom.toISOString(),
     fetch_to: fetchTo.toISOString(),
+    probe_budget: budget,
+    slice_splits: rangeMeta?.sliceSplits ?? 0,
+    suspected_cap: fetchLooksIncomplete,
   };
 
   const missCandidates = candidates.filter(
@@ -777,8 +774,11 @@ export async function matchBucket(
   );
   const probeAttempts: unknown[] = [];
   const seenProbe = new Set<string>();
+  const matchStarted = Date.now();
   for (const cdr of missCandidates) {
+    if (seenProbe.size >= budget) break;
     for (const raw of cdr.sipCallIds) {
+      if (seenProbe.size >= budget) break;
       const trimmed = raw.trim();
       if (!trimmed) continue;
       const norm = normalizeCallId(trimmed);
@@ -807,7 +807,7 @@ export async function matchBucket(
     }
   }
   fetchMeta.call_id_probes = probeAttempts.length;
-  const results = await assignBucket(
+  const results = assignBucket(
     options,
     candidates,
     idx,
@@ -816,7 +816,36 @@ export async function matchBucket(
     fetchMeta,
     probeAttempts,
   );
-  return { results };
+  return {
+    results,
+    stats: {
+      hourFetchCount: hourCalls.length,
+      probes: probeAttempts.length,
+      probeBudget: budget,
+      sliceSplits: rangeMeta?.sliceSplits ?? 0,
+      clipped: Boolean(rangeMeta?.clipped),
+      suspectedCap: Boolean(rangeMeta?.suspectedCap),
+      fetchMs,
+      matchMs: Date.now() - matchStarted,
+    },
+  };
+}
+
+function emptyStats(
+  hourFetchCount: number,
+  probeBudget: number,
+  fetchMs = 0,
+): MatchBucketStats {
+  return {
+    hourFetchCount,
+    probes: 0,
+    probeBudget,
+    sliceSplits: 0,
+    clipped: false,
+    suspectedCap: false,
+    fetchMs,
+    matchMs: 0,
+  };
 }
 
 export async function matchOne(

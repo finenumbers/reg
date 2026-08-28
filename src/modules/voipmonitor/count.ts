@@ -1,4 +1,9 @@
 import { prisma } from "@/lib/db";
+import {
+  graceCutoffAt,
+  liveCutoffAt,
+  type MatchLane,
+} from "@/modules/voipmonitor/lanes";
 
 /** CDR rows that still have no confirmed VoIPmonitor URL. */
 export async function countUnenrichedVoipmonitor(): Promise<number> {
@@ -11,11 +16,22 @@ export async function countUnenrichedVoipmonitor(): Promise<number> {
   return Math.max(0, total - withUrl);
 }
 
-export async function hasVoipmonitorWork(now = new Date()): Promise<boolean> {
-  const graceCutoff = new Date(now.getTime() - 15_000);
+export async function hasVoipmonitorWork(
+  now = new Date(),
+  lane?: MatchLane,
+): Promise<boolean> {
+  const graceCutoff = graceCutoffAt(now);
+  const liveCutoff = liveCutoffAt(now);
+  const cdrAt =
+    lane === "live"
+      ? { gte: liveCutoff }
+      : lane === "archive"
+        ? { lt: liveCutoff }
+        : {};
   const open = await prisma.cdrRecord.findFirst({
     where: {
-      cdrAt: { lte: graceCutoff },
+      importedAt: { lte: graceCutoff },
+      ...(Object.keys(cdrAt).length > 0 ? { cdrAt } : {}),
       OR: [
         { voipmonitorLink: { is: null } },
         {

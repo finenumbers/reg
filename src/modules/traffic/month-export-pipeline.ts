@@ -1,15 +1,15 @@
 import { createWriteStream } from "node:fs";
 import { finished } from "node:stream/promises";
 import type { Prisma } from "@/generated/prisma/client";
+import { chunkArray } from "@/lib/chunk";
 import { prisma } from "@/lib/db";
 import { formatCount } from "@/lib/format-count";
 import { formatExportTimestamp } from "@/lib/format-display-time";
 import { logger } from "@/lib/logger";
-import { monthWindow, type MonthPeriod } from "@/lib/month-window";
+import { cdrMonthPrefix, utcExportMonth } from "@/lib/month-window";
 import { EXCEL_MAX_ROWS, type ResolvedEnrichedRow } from "@/modules/enrich/types";
 import { writeResolvedEnrichedXlsx } from "@/modules/enrich/xlsx-writer";
 import { getEnrichReadyFlags } from "@/modules/pstn/credentials";
-import { getDisplayTimezone } from "@/modules/settings";
 import { loadCdrImportEnrichment } from "@/modules/traffic/enrich-import";
 import {
   applyPatchToRow,
@@ -24,9 +24,11 @@ import {
   setMonthExportStage,
 } from "@/modules/traffic/month-export-job";
 import {
+  formatMonthGenitive,
   monthExportButtonLabel,
   monthExportSheetName,
 } from "@/modules/traffic/month-labels";
+import { syncCdrAtFromCdrDate } from "@/modules/traffic/sync-cdr-at";
 import {
   ensureMonthExportJobDir,
   monthExportJsonlPath,
@@ -35,6 +37,8 @@ import {
 import {
   elapsedMsToSeconds,
   MONTH_EXPORT_PAGE_SIZE,
+  MONTH_EXPORT_PROGRESS_MS,
+  MONTH_EXPORT_UPDATE_BATCH,
   type MonthExportStageView,
 } from "@/modules/traffic/month-export-types";
 
@@ -68,19 +72,26 @@ const CDR_SELECT = {
 
 type CdrExportRow = Prisma.CdrRecordGetPayload<{ select: typeof CDR_SELECT }>;
 
-function windowWhere(
-  period: MonthPeriod,
-  start: Date,
-  end: Date,
+export function windowWhere(
+  year: number,
+  month: number,
   importedAt: Date,
 ): Prisma.CdrRecordWhereInput {
-  const cdrAt =
-    period === "previous"
-      ? { gte: start, lt: end }
-      : { gte: start, lte: end };
   return {
-    cdrAt,
+    cdrDate: { startsWith: cdrMonthPrefix(year, month) },
     importedAt: { lte: importedAt },
+  };
+}
+
+function keysetAfter(
+  lastDate: string,
+  lastId: string,
+): Prisma.CdrRecordWhereInput {
+  return {
+    OR: [
+      { cdrDate: { gt: lastDate } },
+      { AND: [{ cdrDate: lastDate }, { cdrId: { gt: lastId } }] },
+    ],
   };
 }
 
@@ -135,15 +146,18 @@ function toResolved(row: CdrExportRow, stored: StoredEnrichRow): ResolvedEnriche
 
 export async function runMonthExportPipeline(jobId: string): Promise<void> {
   let stages: MonthExportStageView[] = [];
-  const persist = (next: MonthExportStageView[]) => {
+  let lastPersist = 0;
+  const persist = (next: MonthExportStageView[], force = false) => {
     stages = next;
+    const now = Date.now();
+    if (!force && now - lastPersist < MONTH_EXPORT_PROGRESS_MS) return;
+    lastPersist = now;
     patchMonthExportJob(jobId, { stages });
   };
 
   try {
     patchMonthExportJob(jobId, { status: "running" });
     const jobStartedAt = new Date();
-    const timeZone = await getDisplayTimezone();
     const existing = getMonthExportById(jobId);
     if (!existing) {
       throw new Error("Задача выгрузки не найдена");
@@ -155,26 +169,31 @@ export async function runMonthExportPipeline(jobId: string): Promise<void> {
       "period",
       { status: "running" },
     );
-    persist(stages);
+    persist(stages, true);
 
-    const win = monthWindow(periodValue, timeZone, jobStartedAt);
+    await syncCdrAtFromCdrDate();
+    const win = utcExportMonth(periodValue, jobStartedAt);
     const title = monthExportButtonLabel(periodValue, win.year, win.month);
     const trafficSheetName = monthExportSheetName(periodValue, win.year, win.month);
-    const filename = `${trafficSheetName}-${formatExportTimestamp(jobStartedAt, timeZone)}.xlsx`;
+    const filename = `${trafficSheetName}-${formatExportTimestamp(jobStartedAt, "UTC")}.xlsx`;
     patchMonthExportJob(jobId, { title, trafficSheetName, filename });
 
     stages = setMonthExportStage(stages, "period", {
       status: "done",
-      detail: `${trafficSheetName} · ${timeZone}`,
+      detail: trafficSheetName,
     });
-    persist(stages);
+    persist(stages, true);
 
-    const where = windowWhere(periodValue, win.start, win.end, jobStartedAt);
+    const where = windowWhere(win.year, win.month, jobStartedAt);
     const total = await prisma.cdrRecord.count({ where });
     if (total > EXCEL_MAX_ROWS) {
       throw new Error(
         `Слишком много строк (${formatCount(total)}). Максимум листа Excel — ${formatCount(EXCEL_MAX_ROWS)}`,
       );
+    }
+    if (total === 0) {
+      const month = formatMonthGenitive(win.year, win.month);
+      throw new Error(`Нет звонков за ${month}`);
     }
 
     stages = setMonthExportStage(stages, "read", {
@@ -183,7 +202,7 @@ export async function runMonthExportPipeline(jobId: string): Promise<void> {
       total,
     });
     stages = setMonthExportStage(stages, "fill", { status: "running" });
-    persist(stages);
+    persist(stages, true);
 
     ensureMonthExportJobDir(jobId);
     const jsonlPath = monthExportJsonlPath(jobId);
@@ -196,20 +215,24 @@ export async function runMonthExportPipeline(jobId: string): Promise<void> {
     let pstnLive = 0;
     let geoCacheHits = 0;
     let geoLive = 0;
+    let cursorDate: string | undefined;
     let cursorCdrId: string | undefined;
 
     while (true) {
+      const pageWhere: Prisma.CdrRecordWhereInput =
+        cursorDate && cursorCdrId
+          ? { AND: [where, keysetAfter(cursorDate, cursorCdrId)] }
+          : where;
       const page = await prisma.cdrRecord.findMany({
-        where,
-        orderBy: [{ cdrAt: "asc" }, { cdrId: "asc" }],
+        where: pageWhere,
+        orderBy: [{ cdrDate: "asc" }, { cdrId: "asc" }],
         take: MONTH_EXPORT_PAGE_SIZE,
-        ...(cursorCdrId
-          ? { cursor: { cdrId: cursorCdrId }, skip: 1 }
-          : {}),
         select: CDR_SELECT,
       });
       if (page.length === 0) break;
-      cursorCdrId = page[page.length - 1]!.cdrId;
+      const last = page[page.length - 1]!;
+      cursorDate = last.cdrDate;
+      cursorCdrId = last.cdrId;
 
       const phones = new Set<string>();
       const ips = new Set<string>();
@@ -232,20 +255,31 @@ export async function runMonthExportPipeline(jobId: string): Promise<void> {
         geoLive += maps.stats.geoLiveLookups;
       }
 
+      const pendingUpdates: Array<{
+        id: string;
+        data: ReturnType<typeof mergeEnrichGaps>["patch"];
+      }> = [];
       for (const item of storedRows) {
         let stored = item.stored;
         if (maps) {
           const { patch, changed } = mergeEnrichGaps(stored, maps);
           if (changed) {
             stored = applyPatchToRow(stored, patch);
-            await prisma.cdrRecord.update({
-              where: { id: item.row.id },
-              data: patch,
-            });
+            pendingUpdates.push({ id: item.row.id, data: patch });
           }
         }
         stream.write(`${JSON.stringify(toResolved(item.row, stored))}\n`);
         processed += 1;
+      }
+      for (const batch of chunkArray(pendingUpdates, MONTH_EXPORT_UPDATE_BATCH)) {
+        await prisma.$transaction(
+          batch.map((item) =>
+            prisma.cdrRecord.update({
+              where: { id: item.id },
+              data: item.data,
+            }),
+          ),
+        );
       }
 
       stages = setMonthExportStage(stages, "read", {
@@ -270,10 +304,7 @@ export async function runMonthExportPipeline(jobId: string): Promise<void> {
       status: "done",
       current: processed,
       total,
-      detail:
-        total === 0
-          ? "нет записей — будут только заголовки"
-          : `дыр: ${formatCount(gapRows)}`,
+      detail: `дыр: ${formatCount(gapRows)}`,
     });
     if (gapRows === 0) {
       stages = setMonthExportStage(stages, "fill", {
@@ -288,7 +319,7 @@ export async function runMonthExportPipeline(jobId: string): Promise<void> {
         detail: `${noKeys ? "нет ключа API, только кэш · " : ""}кэш ${formatCount(pstnCacheHits + geoCacheHits)} · API ${formatCount(pstnLive + geoLive)}`,
       });
     }
-    persist(stages);
+    persist(stages, true);
 
     stages = setMonthExportStage(stages, "traffic", {
       status: "running",
@@ -340,7 +371,7 @@ export async function runMonthExportPipeline(jobId: string): Promise<void> {
       total: processed,
     });
     stages = setMonthExportStage(stages, "download", { status: "done" });
-    persist(stages);
+    persist(stages, true);
     patchMonthExportJob(jobId, { status: "completed" });
     logger.info("traffic.export.completed", {
       jobId,

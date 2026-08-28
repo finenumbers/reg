@@ -50,3 +50,35 @@ export function csvTimeToDisplay(raw: string): string {
   if (!civil) return raw;
   return formatCivilDisplay(civil);
 }
+
+/** Pack civil Y-M-D H:M:S as a UTC instant (digits unchanged). */
+export function civilToUtcDate(civil: CivilDateTime): Date {
+  return new Date(
+    Date.UTC(
+      civil.year,
+      civil.month - 1,
+      civil.day,
+      civil.hour,
+      civil.minute,
+      civil.second,
+    ),
+  );
+}
+
+const HAS_OFFSET = /(?:[zZ]|[+-]\d{2}:?\d{2})$/;
+
+/**
+ * Naive `YYYY-MM-DD HH:MM:SS` → civil-as-UTC.
+ * Strings with Z / numeric offset stay real instants.
+ */
+export function parseNaiveDateTime(raw: string): Date | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  if (HAS_OFFSET.test(trimmed)) {
+    const instant = Date.parse(trimmed);
+    return Number.isFinite(instant) ? new Date(instant) : null;
+  }
+  const civil = parseCivilDateTime(trimmed);
+  if (!civil) return null;
+  return civilToUtcDate(civil);
+}

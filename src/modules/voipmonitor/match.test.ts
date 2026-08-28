@@ -249,6 +249,125 @@ describe("matchOne", () => {
     );
   });
 
+  it("does not probe misses when probeBudget is 0", async () => {
+    let probes = 0;
+    const client: VoipmonitorClientLike = {
+      async listVoipCallsRange() {
+        return [];
+      },
+      async getVoipCalls() {
+        probes += 1;
+        return [];
+      },
+    };
+    const { results, error, stats } = await matchBucket(
+      {
+        client,
+        guiBase: "https://vm.example",
+        probeBudget: 0,
+      },
+      [satel({ sipCallIds: ["missing-id"] })],
+    );
+    expect(error).toBeUndefined();
+    expect(probes).toBe(0);
+    expect(stats?.probes).toBe(0);
+    expect(results[0]?.status).not.toBe(STATUS_MATCHED_EXACT);
+  });
+
+  it("caps unique Call-ID probes to the budget", async () => {
+    let probes = 0;
+    const client: VoipmonitorClientLike = {
+      async listVoipCallsRange() {
+        return [
+          vm({
+            cdrId: "keep-index-nonempty",
+            callId: "other",
+            caller: "1",
+            called: "2",
+          }),
+        ];
+      },
+      async getVoipCalls() {
+        probes += 1;
+        return [];
+      },
+    };
+    await matchBucket(
+      {
+        client,
+        guiBase: "https://vm.example",
+        probeBudget: 1,
+      },
+      [
+        satel({ sourceRecordId: "a", sipCallIds: ["id-a"] }),
+        satel({ sourceRecordId: "b", sipCallIds: ["id-b"] }),
+      ],
+    );
+    expect(probes).toBeGreaterThanOrEqual(1);
+    expect(probes).toBeLessThanOrEqual(4);
+  });
+
+  it("does not verify fallback matches with an extra cdrId lookup", async () => {
+    let lookups = 0;
+    const catalog = [
+      vm({
+        cdrId: "77",
+        callId: "vm-regenerated",
+        caller: "79001112233",
+        called: "79005556677",
+        duration: 30,
+        callDate: new Date("2026-07-27T12:00:02Z"),
+        sipCallerIp: "10.0.0.1",
+        sipCalledIp: "10.0.0.2",
+      }),
+    ];
+    const client: VoipmonitorClientLike = {
+      async listVoipCallsRange() {
+        return catalog;
+      },
+      async getVoipCalls() {
+        lookups += 1;
+        return catalog;
+      },
+    };
+    const { result, error } = await matchOne(
+      { client, guiBase: "https://vm.example", probeBudget: 0 },
+      satel({
+        caller: "79001112233",
+        called: "79005556677",
+        callerNumbers: ["79001112233"],
+        calledNumbers: ["79005556677"],
+        callerIp: "10.0.0.1",
+        calledIp: "10.0.0.2",
+        durationSec: 30,
+        sipCallIds: ["smg-only-call-id"],
+      }),
+    );
+    expect(error).toBeUndefined();
+    expect(result.status).toBe(STATUS_MATCHED_FALLBACK);
+    expect(lookups).toBe(0);
+  });
+
+  it("raises a zero archive budget when the range fetch looks capped", async () => {
+    let probes = 0;
+    const client: VoipmonitorClientLike = {
+      lastRangeMeta: { sliceSplits: 1, clipped: false, suspectedCap: true },
+      async listVoipCallsRange() {
+        return [vm({ cdrId: "1", callId: "present" })];
+      },
+      async getVoipCalls() {
+        probes += 1;
+        return [];
+      },
+    };
+    const { stats } = await matchBucket(
+      { client, guiBase: "https://vm.example", probeBudget: 0 },
+      [satel({ sipCallIds: ["missing-id"] })],
+    );
+    expect(stats?.probeBudget).toBeGreaterThan(0);
+    expect(probes).toBeGreaterThan(0);
+  });
+
   it("does not persist-style unmatched when hour fetch fails", async () => {
     const client: VoipmonitorClientLike = {
       async listVoipCallsRange() {
