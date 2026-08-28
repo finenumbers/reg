@@ -137,6 +137,18 @@ export type EnrichJobView = {
   downloadUrl: string | null;
 };
 
+export function isResumableEnrichJob(
+  job: Pick<EnrichJobView, "status"> | null,
+): boolean {
+  return job != null && (job.status === "queued" || job.status === "running");
+}
+
+export function isFinishedEnrichJob(
+  job: Pick<EnrichJobView, "status"> | null,
+): boolean {
+  return job != null && (job.status === "completed" || job.status === "failed");
+}
+
 export function billableMinutes(seconds: number): number {
   if (!Number.isFinite(seconds) || seconds <= 0) return 0;
   return Math.ceil(seconds / 60);

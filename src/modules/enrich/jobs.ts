@@ -2,12 +2,14 @@ import { prisma } from "@/lib/db";
 import type { EnrichJobStatus, Prisma } from "@/generated/prisma/client";
 import {
   INITIAL_STAGES,
+  isFinishedEnrichJob,
   type EnrichJobView,
   type EnrichStageId,
   type EnrichStageView,
   type EnrichSummary,
 } from "@/modules/enrich/types";
 import { enrichedDownloadName } from "@/modules/enrich/paths";
+import { removeJobDir } from "@/modules/enrich/reclaim";
 
 export function toJobView(row: {
   id: string;
@@ -65,15 +67,28 @@ export async function getEnrichJob(
   return toJobView(row);
 }
 
+/** In-progress job only — finished results are dismissed and not restored. */
 export async function getCurrentEnrichJob(
   actorUserId: string,
 ): Promise<EnrichJobView | null> {
   const row = await prisma.enrichJob.findFirst({
-    where: { actorUserId },
+    where: { actorUserId, status: { in: ["queued", "running"] } },
     orderBy: { createdAt: "desc" },
   });
   if (!row) return null;
   return toJobView(row);
+}
+
+export async function dismissFinishedEnrichJob(
+  id: string,
+  actorUserId: string,
+): Promise<"dismissed" | "not_found" | "active"> {
+  const row = await prisma.enrichJob.findUnique({ where: { id } });
+  if (!row || row.actorUserId !== actorUserId) return "not_found";
+  if (!isFinishedEnrichJob(row)) return "active";
+  await removeJobDir(id);
+  await prisma.enrichJob.delete({ where: { id } });
+  return "dismissed";
 }
 
 export async function assertJobOwner(

@@ -4,7 +4,7 @@ import { requireSessionUserId } from "@/modules/auth/session";
 import { getCurrentEnrichJob } from "@/modules/enrich/jobs";
 
 /**
- * GET /api/enrich/current — latest job for the signed-in user.
+ * GET /api/enrich/current — in-progress job for the signed-in user.
  */
 export async function GET() {
   const gate = await requireApiPermission("phones:read");

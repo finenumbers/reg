@@ -4,10 +4,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import type {
-  EnrichJobView,
-  EnrichStageView,
-  EnrichSummary,
+import {
+  isFinishedEnrichJob,
+  isResumableEnrichJob,
+  type EnrichJobView,
+  type EnrichStageView,
+  type EnrichSummary,
 } from "@/modules/enrich/types";
 
 type ReadyState = {
@@ -51,13 +53,9 @@ function formatSummary(summary: EnrichSummary): { label: string; value: string }
   ];
 }
 
-function shouldResumeJob(job: EnrichJobView | null): boolean {
-  return (
-    job != null &&
-    (job.status === "queued" ||
-      job.status === "running" ||
-      job.status === "completed")
-  );
+function dismissFinishedJob(job: EnrichJobView | null) {
+  if (!isFinishedEnrichJob(job) || !job) return;
+  void fetch(`/api/enrich/${job.id}`, { method: "DELETE", keepalive: true });
 }
 
 export function EnrichView({
@@ -67,13 +65,15 @@ export function EnrichView({
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const downloadedFor = useRef<string | null>(null);
+  const jobRef = useRef<EnrichJobView | null>(null);
   const [ready] = useState<ReadyState>(initialReady);
   const [job, setJob] = useState<EnrichJobView | null>(
-    shouldResumeJob(initialJob) ? initialJob : null,
+    isResumableEnrichJob(initialJob) ? initialJob : null,
   );
-  const [open, setOpen] = useState(shouldResumeJob(initialJob));
+  const [open, setOpen] = useState(isResumableEnrichJob(initialJob));
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  jobRef.current = job;
 
   const pollJob = useCallback(async (id: string) => {
     const res = await fetch(`/api/enrich/${id}`, { cache: "no-store" });
@@ -103,12 +103,37 @@ export function EnrichView({
     a.remove();
   }, [job]);
 
+  useEffect(() => {
+    const onPageHide = () => dismissFinishedJob(jobRef.current);
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (!event.persisted) return;
+      if (!isFinishedEnrichJob(jobRef.current)) return;
+      setJob(null);
+      setOpen(false);
+    };
+    window.addEventListener("pagehide", onPageHide);
+    window.addEventListener("pageshow", onPageShow);
+    return () => {
+      window.removeEventListener("pagehide", onPageHide);
+      window.removeEventListener("pageshow", onPageShow);
+      dismissFinishedJob(jobRef.current);
+    };
+  }, []);
+
+  function closeResult() {
+    dismissFinishedJob(job);
+    downloadedFor.current = null;
+    setJob(null);
+    setOpen(false);
+  }
+
   async function onFile(file: File | undefined) {
     if (!file) return;
     if (!ready.ready) {
       toast.error("Сначала сохраните ключи PSTN и GeoIP в Настройках");
       return;
     }
+    dismissFinishedJob(job);
     setUploading(true);
     setOpen(true);
     try {
@@ -246,7 +271,7 @@ export function EnrichView({
               <Button
                 size="sm"
                 disabled={job.status === "queued" || job.status === "running"}
-                onClick={() => setOpen(false)}
+                onClick={closeResult}
               >
                 Закрыть
               </Button>
