@@ -42,15 +42,15 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder /app/src/generated ./src/generated
 COPY --from=builder /app/scripts/docker-entrypoint.sh ./docker-entrypoint.sh
 COPY --from=builder --chown=nextjs:nodejs /app/ops/templates ./ops/templates
-RUN mkdir -p /app/data/enrich && chown nextjs:nodejs /app/data/enrich
+RUN mkdir -p /app/data/enrich /app/data/cdr-inbox && chown nextjs:nodejs /app/data/enrich /app/data/cdr-inbox
 COPY --from=builder /app/scripts/copy-module-tree.js /tmp/copy-module-tree.js
 COPY --from=deps /app/node_modules /tmp/all_modules
-RUN node /tmp/copy-module-tree.js /tmp/all_modules /app/node_modules exceljs \
+RUN node /tmp/copy-module-tree.js /tmp/all_modules /app/node_modules exceljs ftp-srv \
   && rm -rf /tmp/all_modules /tmp/copy-module-tree.js \
   && chown -R nextjs:nodejs /app/node_modules/exceljs /app/node_modules \
   && chmod +x ./docker-entrypoint.sh && chown nextjs:nodejs ./docker-entrypoint.sh
 USER nextjs
-EXPOSE 3000
+EXPOSE 3000 2121 50100-50109
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 # Liveness — process accepts HTTP (compose readiness uses /api/readyz)

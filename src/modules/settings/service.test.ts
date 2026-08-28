@@ -17,9 +17,11 @@ function assertMaskedSettings(view: SettingsView) {
   expect(json).not.toMatch(/passphrase/i);
   expect(json).not.toMatch(/geoipApiKeyCiphertext/i);
   expect(json).not.toMatch(/pstnApiKeyCiphertext/i);
+  expect(json).not.toMatch(/ftpPasswordCiphertext/i);
   expect(typeof view.hasPrivateKey).toBe("boolean");
   expect(typeof view.hasGeoipApiKey).toBe("boolean");
   expect(typeof view.hasPstnApiKey).toBe("boolean");
+  expect(typeof view.hasFtpPassword).toBe("boolean");
   expect(view).toHaveProperty("keyFingerprint");
   expect(view).toHaveProperty("keyAlgo");
   expect(view).toHaveProperty("geoipBaseUrl");
@@ -115,6 +117,14 @@ describe("settings schemas and masked view contract", () => {
       pstnBaseUrl: null,
       hasPstnApiKey: false,
       displayTimezone: "Europe/Moscow",
+      ftpEnabled: false,
+      ftpUsername: null,
+      hasFtpPassword: false,
+      ftpListenPort: 2121,
+      ftpPasvMinPort: 50100,
+      ftpPasvMaxPort: 50109,
+      ftpPasvAddress: null,
+      ftpListenerActive: false,
     };
     assertMaskedSettings(view);
   });

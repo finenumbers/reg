@@ -2,7 +2,7 @@
  * In-process job orchestration (p-queue).
  *
  * Anti-overlap per action code. concurrency=3 so regs.poll, phones.sync,
- * and groups.sync can proceed independently when not overlapping themselves.
+ * groups.sync, and cdr.import can proceed independently when not overlapping themselves.
  * Interval scheduling is Settings-gated (see scheduler.ts).
  */
 
@@ -12,6 +12,7 @@ import { logger } from "@/lib/logger";
 import { processRegsPoll } from "@/modules/jobs/regs-poll-processor";
 import { processGroupsSync } from "@/modules/groups/groups-sync-processor";
 import { processPhonesSync } from "@/modules/phones/phones-sync-processor";
+import { processCdrImport } from "@/modules/traffic/cdr-import-processor";
 import {
   evaluateSchedulerBootstrap as evaluateSchedulerBootstrapImpl,
 } from "@/modules/jobs/scheduler";
@@ -20,6 +21,7 @@ const SUPPORTED_JOB_ACTIONS = new Set<AllowedActionCode>([
   "regs.poll",
   "phones.sync",
   "groups.sync",
+  "cdr.import",
 ]);
 
 export type JobEnqueueInput = {
@@ -71,6 +73,12 @@ export class PQueueJobRuntime implements JobRuntime {
         }
         if (input.actionCode === "groups.sync") {
           return await processGroupsSync({
+            trigger: input.trigger,
+            actorUserId: input.actorUserId,
+          });
+        }
+        if (input.actionCode === "cdr.import") {
+          return await processCdrImport({
             trigger: input.trigger,
             actorUserId: input.actorUserId,
           });

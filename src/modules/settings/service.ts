@@ -24,12 +24,15 @@ import {
   type ImportedPrivateKey,
 } from "@/modules/ssh/import-key";
 import { isKeyImportError, KeyImportError } from "@/modules/ssh/errors";
+import { isFtpListenerActive, restartFtpServer } from "@/modules/traffic/ftp-server";
 import {
   DEFAULT_SSH_PROFILE_NAME,
+  ftpPasswordReplaceSchema,
   geoipKeyReplaceSchema,
   keyReplaceSchema,
   pstnKeyReplaceSchema,
   settingsUpdateSchema,
+  type FtpPasswordReplaceInput,
   type GeoipKeyReplaceInput,
   type KeyReplaceInput,
   type PstnKeyReplaceInput,
@@ -79,6 +82,14 @@ function toSettingsView(
     pstnBaseUrl: resolvePstnBaseUrl(settings.pstnBaseUrl),
     hasPstnApiKey: Boolean(settings.pstnApiKeyCiphertext),
     displayTimezone: resolveDisplayTimezone(settings.displayTimezone),
+    ftpEnabled: settings.ftpEnabled,
+    ftpUsername: settings.ftpUsername ?? null,
+    hasFtpPassword: Boolean(settings.ftpPasswordCiphertext),
+    ftpListenPort: settings.ftpListenPort,
+    ftpPasvMinPort: settings.ftpPasvMinPort,
+    ftpPasvMaxPort: settings.ftpPasvMaxPort,
+    ftpPasvAddress: settings.ftpPasvAddress ?? null,
+    ftpListenerActive: isFtpListenerActive(),
   };
 }
 
@@ -170,6 +181,12 @@ export async function updateSettings(
     geoipBaseUrl?: string | null;
     pstnBaseUrl?: string | null;
     displayTimezone?: string;
+    ftpEnabled?: boolean;
+    ftpUsername?: string | null;
+    ftpListenPort?: number;
+    ftpPasvMinPort?: number;
+    ftpPasvMaxPort?: number;
+    ftpPasvAddress?: string | null;
   } = {};
 
   if (parsed.regsPollEnabled !== undefined) {
@@ -204,6 +221,33 @@ export async function updateSettings(
       parsed.displayTimezone,
     );
   }
+  if (parsed.ftpEnabled !== undefined) {
+    settingsData.ftpEnabled = parsed.ftpEnabled;
+  }
+  if (parsed.ftpUsername !== undefined) {
+    settingsData.ftpUsername = parsed.ftpUsername.trim();
+  }
+  if (parsed.ftpListenPort !== undefined) {
+    settingsData.ftpListenPort = parsed.ftpListenPort;
+  }
+  if (parsed.ftpPasvMinPort !== undefined) {
+    settingsData.ftpPasvMinPort = parsed.ftpPasvMinPort;
+  }
+  if (parsed.ftpPasvMaxPort !== undefined) {
+    settingsData.ftpPasvMaxPort = parsed.ftpPasvMaxPort;
+  }
+  if (parsed.ftpPasvAddress !== undefined) {
+    const trimmed = parsed.ftpPasvAddress.trim();
+    settingsData.ftpPasvAddress = trimmed.length > 0 ? trimmed : null;
+  }
+
+  const ftpChanged =
+    parsed.ftpEnabled !== undefined ||
+    parsed.ftpUsername !== undefined ||
+    parsed.ftpListenPort !== undefined ||
+    parsed.ftpPasvMinPort !== undefined ||
+    parsed.ftpPasvMaxPort !== undefined ||
+    parsed.ftpPasvAddress !== undefined;
 
   if (Object.keys(settingsData).length > 0 || sshFieldsProvided) {
     await prisma.appSetting.update({
@@ -219,6 +263,13 @@ export async function updateSettings(
 
   if (pollScheduleChanged) {
     await rescheduleAfterSettingsChange();
+  }
+  if (ftpChanged) {
+    await restartFtpServer();
+    settings = await prisma.appSetting.findUniqueOrThrow({
+      where: { id: 1 },
+      include: { activeSshProfile: true },
+    });
   }
 
   const view = toSettingsView(settings);
@@ -245,6 +296,10 @@ export async function updateSettings(
       pstnBaseUrl: view.pstnBaseUrl,
       hasPstnApiKey: view.hasPstnApiKey,
       displayTimezone: view.displayTimezone,
+      ftpEnabled: view.ftpEnabled,
+      ftpUsername: view.ftpUsername,
+      ftpListenPort: view.ftpListenPort,
+      ftpListenerActive: view.ftpListenerActive,
     },
   });
 
@@ -422,6 +477,40 @@ export async function replacePstnApiKey(
       hasPstnApiKey: true,
       pstnBaseUrl: view.pstnBaseUrl,
     },
+  });
+
+  return view;
+}
+
+/**
+ * Replace FTP inbox password. Never returns plaintext.
+ */
+export async function replaceFtpPassword(
+  input: FtpPasswordReplaceInput,
+  actor: { userId: string; ip?: string | null },
+): Promise<SettingsView> {
+  const parsed = ftpPasswordReplaceSchema.parse(input);
+  const encryption = getSecretEncryptionService();
+  const ciphertext = serializeEncryptedSecret(
+    encryption.encrypt(parsed.password),
+  );
+
+  await prisma.appSetting.upsert({
+    where: { id: 1 },
+    create: { id: 1, ftpPasswordCiphertext: ciphertext },
+    update: { ftpPasswordCiphertext: ciphertext },
+  });
+
+  await restartFtpServer();
+  const view = await getSettingsView();
+
+  await auditService.append({
+    actorUserId: actor.userId,
+    action: AUDIT_ACTIONS.FTP_PASSWORD_REPLACE,
+    entityType: "app_settings",
+    entityId: "1",
+    ip: actor.ip,
+    meta: { hasFtpPassword: true, ftpEnabled: view.ftpEnabled },
   });
 
   return view;

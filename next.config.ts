@@ -20,7 +20,7 @@ const nextConfig: NextConfig = {
     // Next clones the request body when proxy/middleware runs (default 10MB, silent truncate).
     proxyClientMaxBodySize: "200mb",
   },
-  serverExternalPackages: ["ssh2", "@prisma/client", "pg", "exceljs"],
+  serverExternalPackages: ["ssh2", "@prisma/client", "pg", "exceljs", "ftp-srv"],
   outputFileTracingIncludes: {
     "/api/phones/export": ["./ops/templates/**/*"],
   },

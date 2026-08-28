@@ -86,6 +86,11 @@ Set `BETTER_AUTH_URL` to the exact public origin (`https://regs.example.com`) an
 3. **Registrations:** manual poll once; check `/jobs` and `/regs`.
 4. **Phones:** sync once after softswitch `export.py` is installed.
 5. Only then enable Settings auto-poll (`regsPollEnabled`) — still one replica.
+6. **Телефонный трафик:** в Настройках задайте FTP логин/пароль, PASV-адрес = **IP Docker-хоста, который видит софтсвитч** (не HTTPS-домен NPM). Откройте на хосте `2121` и `50100–50109`. Софтсвитч заливает CDR на этот IP. NPM FTP не проксирует.
+
+## 5a. FTP ports (CDR inbox)
+
+The `app` service now publishes host ports `2121` (control) and `50100-50109` (PASV). Override with `FTP_PUBLISH_PORT` / `FTP_PASV_PORT_RANGE` if needed. Open the same range on the host firewall toward the softswitch. Set Settings → FTP → PASV-адрес to that reachable IP.
 
 ## 6. GeoIP on the same Docker host
 

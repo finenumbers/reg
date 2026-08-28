@@ -44,6 +44,12 @@ export const settingsUpdateSchema = z.object({
     .string()
     .refine(isDisplayTimezoneId, "Unsupported display timezone")
     .optional(),
+  ftpEnabled: z.boolean().optional(),
+  ftpUsername: z.string().min(1).max(128).optional(),
+  ftpListenPort: z.number().int().min(1024).max(65535).optional(),
+  ftpPasvMinPort: z.number().int().min(1024).max(65535).optional(),
+  ftpPasvMaxPort: z.number().int().min(1024).max(65535).optional(),
+  ftpPasvAddress: z.string().max(255).optional(),
 });
 
 export type SettingsUpdateInput = z.infer<typeof settingsUpdateSchema>;
@@ -66,6 +72,12 @@ export const pstnKeyReplaceSchema = z.object({
 });
 
 export type PstnKeyReplaceInput = z.infer<typeof pstnKeyReplaceSchema>;
+
+export const ftpPasswordReplaceSchema = z.object({
+  password: z.string().min(1).max(1024),
+});
+
+export type FtpPasswordReplaceInput = z.infer<typeof ftpPasswordReplaceSchema>;
 
 export type SettingsView = {
   host: string | null;
@@ -90,6 +102,14 @@ export type SettingsView = {
   /** Never expose the PSTN API key — only whether it is stored */
   hasPstnApiKey: boolean;
   displayTimezone: string;
+  ftpEnabled: boolean;
+  ftpUsername: string | null;
+  hasFtpPassword: boolean;
+  ftpListenPort: number;
+  ftpPasvMinPort: number;
+  ftpPasvMaxPort: number;
+  ftpPasvAddress: string | null;
+  ftpListenerActive: boolean;
 };
 
 export type SettingsUpdateResult = {

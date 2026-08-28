@@ -15,6 +15,7 @@ export type FeatureModuleId =
   | "registrations"
   | "phones"
   | "groups"
+  | "traffic"
   | "audit"
   | "health"
   | "enrich";
@@ -47,6 +48,13 @@ export const FEATURE_MODULES: FeatureModuleDefinition[] = [
     title: "Входящие группы",
     description: "Справочник routing groups с softswitch (только просмотр)",
     href: "/groups",
+    navPermission: "phones:read",
+  },
+  {
+    id: "traffic",
+    title: "Телефонный трафик",
+    description: "CDR софтсвитча: FTP-приём и таблица из локальной БД",
+    href: "/traffic",
     navPermission: "phones:read",
   },
   {

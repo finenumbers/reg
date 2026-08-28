@@ -67,6 +67,24 @@ export function SettingsForm({ initial }: Props) {
   const [pstnTestResult, setPstnTestResult] = useState<TestResultView | null>(
     null,
   );
+  const [ftpEnabled, setFtpEnabled] = useState(initial.ftpEnabled);
+  const [ftpUsername, setFtpUsername] = useState(initial.ftpUsername ?? "");
+  const [ftpPassword, setFtpPassword] = useState("");
+  const [ftpListenPort, setFtpListenPort] = useState(
+    String(initial.ftpListenPort),
+  );
+  const [ftpPasvMinPort, setFtpPasvMinPort] = useState(
+    String(initial.ftpPasvMinPort),
+  );
+  const [ftpPasvMaxPort, setFtpPasvMaxPort] = useState(
+    String(initial.ftpPasvMaxPort),
+  );
+  const [ftpPasvAddress, setFtpPasvAddress] = useState(
+    initial.ftpPasvAddress ?? "",
+  );
+  const [ftpTestResult, setFtpTestResult] = useState<TestResultView | null>(
+    null,
+  );
   const [passphrase, setPassphrase] = useState("");
   const [keyPaste, setKeyPaste] = useState("");
   const [keyFileLabel, setKeyFileLabel] = useState<string | null>(null);
@@ -120,6 +138,12 @@ export function SettingsForm({ initial }: Props) {
     setPstnBaseUrl(next.pstnBaseUrl ?? DEFAULT_PSTN_BASE_URL);
     setDisplayTimezone(next.displayTimezone);
     setTimeZone(next.displayTimezone);
+    setFtpEnabled(next.ftpEnabled);
+    setFtpUsername(next.ftpUsername ?? "");
+    setFtpListenPort(String(next.ftpListenPort));
+    setFtpPasvMinPort(String(next.ftpPasvMinPort));
+    setFtpPasvMaxPort(String(next.ftpPasvMaxPort));
+    setFtpPasvAddress(next.ftpPasvAddress ?? "");
     router.refresh();
   }
 
@@ -470,6 +494,81 @@ export function SettingsForm({ initial }: Props) {
         });
       } catch {
         toast.error("Тест PSTN не удался");
+      }
+    });
+  }
+
+  async function onSaveFtp() {
+    startTransition(async () => {
+      try {
+        const res = await fetch("/api/settings", {
+          method: "PUT",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            ftpEnabled,
+            ftpUsername: ftpUsername.trim() || undefined,
+            ftpListenPort: Number(ftpListenPort),
+            ftpPasvMinPort: Number(ftpPasvMinPort),
+            ftpPasvMaxPort: Number(ftpPasvMaxPort),
+            ftpPasvAddress,
+          }),
+        });
+        const data = (await res.json()) as {
+          settings?: SettingsView;
+          error?: string;
+        };
+        if (!res.ok || !data.settings) {
+          toast.error(data.error ?? "Не удалось сохранить FTP");
+          return;
+        }
+        applySettings(data.settings);
+        if (ftpPassword.trim()) {
+          const keyRes = await fetch("/api/settings/ftp/key", {
+            method: "PUT",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ password: ftpPassword }),
+          });
+          const keyData = (await keyRes.json()) as {
+            settings?: SettingsView;
+            error?: string;
+          };
+          if (!keyRes.ok || !keyData.settings) {
+            toast.error(keyData.error ?? "Не удалось сохранить пароль FTP");
+            return;
+          }
+          applySettings(keyData.settings);
+          setFtpPassword("");
+          toast.success("Настройки и пароль FTP сохранены");
+          return;
+        }
+        toast.success("Настройки FTP сохранены");
+      } catch {
+        toast.error("Не удалось сохранить FTP");
+      }
+    });
+  }
+
+  async function onTestFtp() {
+    startTransition(async () => {
+      try {
+        const res = await fetch("/api/settings/ftp/test", { method: "POST" });
+        const data = (await res.json()) as {
+          test?: TestResultView;
+          error?: string;
+          detail?: string;
+        };
+        if (data.test) {
+          setFtpTestResult(data.test);
+          if (data.test.result === "success") {
+            toast.success("FTP-слушатель активен");
+          } else {
+            toast.error(data.test.detail ?? "Тест FTP не удался");
+          }
+          return;
+        }
+        toast.error(data.detail ?? data.error ?? "Тест FTP не удался");
+      } catch {
+        toast.error("Тест FTP не удался");
       }
     });
   }
@@ -964,6 +1063,145 @@ export function SettingsForm({ initial }: Props) {
               {pstnTestResult.detail ? (
                 <p className="mt-2 text-muted-foreground">
                   {pstnTestResult.detail}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      </section>
+
+      <section className="space-y-4">
+        <h2 className="text-base font-semibold">FTP — телефонный трафик</h2>
+        <p className="text-sm text-muted-foreground">
+          Софтсвитч подключается к этой платформе как FTP-клиент и заливает CDR.
+          Слушатель — не HTTPS: укажите IP хоста Docker в PASV-адресе и
+          опубликуйте порт 2121 плюс диапазон PASV. Пароль хранится
+          зашифрованным и в UI не показывается.
+        </p>
+        <div className="grid gap-4">
+          <div className="flex items-center gap-2">
+            <input
+              id="ftp-enabled"
+              type="checkbox"
+              className="size-4 rounded border"
+              checked={ftpEnabled}
+              onChange={(e) => setFtpEnabled(e.target.checked)}
+            />
+            <Label htmlFor="ftp-enabled">Включить FTP-приёмник</Label>
+            {settings.ftpListenerActive ? (
+              <Badge variant="secondary">слушатель активен</Badge>
+            ) : (
+              <Badge variant="outline">слушатель выключен</Badge>
+            )}
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="ftp-username">Логин</Label>
+            <Input
+              id="ftp-username"
+              value={ftpUsername}
+              onChange={(e) => setFtpUsername(e.target.value)}
+              autoComplete="off"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="ftp-password">Пароль</Label>
+            <Input
+              id="ftp-password"
+              type="password"
+              value={ftpPassword}
+              onChange={(e) => setFtpPassword(e.target.value)}
+              placeholder={
+                settings.hasFtpPassword
+                  ? "Пароль сохранён — вставьте новый, чтобы заменить"
+                  : "Задайте пароль для софтсвитча"
+              }
+              autoComplete="new-password"
+            />
+            <p className="text-xs text-muted-foreground">
+              {settings.hasFtpPassword ? (
+                <Badge variant="secondary">пароль сохранён</Badge>
+              ) : (
+                "Пароль ещё не задан"
+              )}
+            </p>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div className="space-y-2">
+              <Label htmlFor="ftp-port">Порт</Label>
+              <Input
+                id="ftp-port"
+                value={ftpListenPort}
+                onChange={(e) => setFtpListenPort(e.target.value)}
+                autoComplete="off"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="ftp-pasv-min">PASV min</Label>
+              <Input
+                id="ftp-pasv-min"
+                value={ftpPasvMinPort}
+                onChange={(e) => setFtpPasvMinPort(e.target.value)}
+                autoComplete="off"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="ftp-pasv-max">PASV max</Label>
+              <Input
+                id="ftp-pasv-max"
+                value={ftpPasvMaxPort}
+                onChange={(e) => setFtpPasvMaxPort(e.target.value)}
+                autoComplete="off"
+              />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="ftp-pasv-address">PASV-адрес (IP хоста)</Label>
+            <Input
+              id="ftp-pasv-address"
+              value={ftpPasvAddress}
+              onChange={(e) => setFtpPasvAddress(e.target.value)}
+              placeholder="например 192.168.1.10"
+              autoComplete="off"
+            />
+            <p className="text-xs text-muted-foreground">
+              IP или DNS, который видит софтсвитч. Не домен NPM — FTP через
+              reverse proxy не ходит.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" disabled={pending} onClick={onSaveFtp}>
+              Сохранить FTP
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={pending}
+              onClick={onTestFtp}
+            >
+              Проверить слушатель
+            </Button>
+          </div>
+          {ftpTestResult ? (
+            <div className="rounded-md border p-3 text-sm">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge
+                  variant={
+                    ftpTestResult.result === "success"
+                      ? "default"
+                      : "destructive"
+                  }
+                >
+                  {formatTestResultLabel(ftpTestResult.result)}
+                </Badge>
+                {ftpTestResult.durationMs != null ? (
+                  <span className="text-xs text-muted-foreground">
+                    {ftpTestResult.durationMs} мс
+                  </span>
+                ) : null}
+              </div>
+              {ftpTestResult.detail ? (
+                <p className="mt-2 text-muted-foreground">
+                  {ftpTestResult.detail}
                 </p>
               ) : null}
             </div>

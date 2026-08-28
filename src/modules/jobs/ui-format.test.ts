@@ -53,6 +53,16 @@ describe("jobs ui-format", () => {
     ).toContain("5 групп");
     expect(
       summarizeJobResult(
+        sample({
+          actionCode: "cdr.import",
+          phonesParsed: 8,
+          linesBad: 0,
+          changesCount: 1,
+        }),
+      ),
+    ).toContain("8 записей");
+    expect(
+      summarizeJobResult(
         sample({ status: "failed", errorMessage: "SSH timeout" }),
       ),
     ).toBe("SSH timeout");

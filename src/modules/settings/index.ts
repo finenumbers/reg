@@ -6,4 +6,5 @@ export {
   replaceSshPrivateKey,
   replaceGeoipApiKey,
   replacePstnApiKey,
+  replaceFtpPassword,
 } from "@/modules/settings/service";

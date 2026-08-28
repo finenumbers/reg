@@ -5,7 +5,11 @@
 
 const OPT_SCRIPTS_PATH_PATTERN = /^\/opt\/scripts\/[A-Za-z0-9._-]+$/;
 
-export type AllowedActionCode = "regs.poll" | "phones.sync" | "groups.sync";
+export type AllowedActionCode =
+  | "regs.poll"
+  | "phones.sync"
+  | "groups.sync"
+  | "cdr.import";
 
 /** Absolute sudo binary used for non-interactive elevation (never from UI). */
 const REMOTE_SUDO_BIN = "/usr/bin/sudo";
@@ -23,11 +27,12 @@ export function buildElevatedOptScriptsCommand(remotePath: string): string {
 
 export type AllowedActionDefinition = {
   code: AllowedActionCode;
-  /** Absolute path under /opt/scripts only — constant, never from UI/DB edits */
+  kind: "ssh" | "local";
+  /** Absolute path under /opt/scripts only — unused for local actions */
   remotePath: string;
   /** Always empty in v1 — no user-controlled argv */
   argv: readonly string[];
-  module: "registrations" | "phones" | "groups";
+  module: "registrations" | "phones" | "groups" | "traffic";
   description: string;
   /** Remote wrapper token channel uses the same absolute path */
   usesPlatformExecWrapper: true;
@@ -47,6 +52,7 @@ export type AllowedActionDefinition = {
 export const ACTION_REGISTRY: Record<AllowedActionCode, AllowedActionDefinition> = {
   "regs.poll": {
     code: "regs.poll",
+    kind: "ssh",
     remotePath: "/opt/scripts/check_regs.sh",
     argv: [],
     module: "registrations",
@@ -57,6 +63,7 @@ export const ACTION_REGISTRY: Record<AllowedActionCode, AllowedActionDefinition>
   },
   "phones.sync": {
     code: "phones.sync",
+    kind: "ssh",
     remotePath: "/opt/scripts/export.py",
     argv: [],
     module: "phones",
@@ -67,6 +74,7 @@ export const ACTION_REGISTRY: Record<AllowedActionCode, AllowedActionDefinition>
   },
   "groups.sync": {
     code: "groups.sync",
+    kind: "ssh",
     remotePath: "/opt/scripts/export.py",
     argv: [],
     module: "groups",
@@ -75,12 +83,26 @@ export const ACTION_REGISTRY: Record<AllowedActionCode, AllowedActionDefinition>
     elevateWithSudo: true,
     needsPty: false,
   },
+  "cdr.import": {
+    code: "cdr.import",
+    kind: "local",
+    remotePath: "/opt/scripts/cdr_import",
+    argv: [],
+    module: "traffic",
+    description: "Import softswitch CDR files from the local FTP inbox",
+    usesPlatformExecWrapper: true,
+    elevateWithSudo: false,
+    needsPty: false,
+  },
 };
 
 export function resolveActionForExecution(code: string): AllowedActionDefinition {
   const action = getAllowedAction(code);
   if (!action) {
     throw new Error(`Unknown or disallowed action code: ${code}`);
+  }
+  if (action.kind === "local") {
+    throw new Error(`Action ${code} is local-only and cannot be executed remotely`);
   }
   if (action.argv.length > 0) {
     throw new Error(`Action ${code} has non-empty argv — not permitted in v1`);

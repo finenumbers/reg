@@ -16,6 +16,10 @@ vi.mock("@/modules/groups/groups-sync-processor", () => ({
   processGroupsSync: (...args: unknown[]) => processGroupsSync(...args),
 }));
 
+vi.mock("@/modules/traffic/cdr-import-processor", () => ({
+  processCdrImport: vi.fn(),
+}));
+
 vi.mock("@/modules/jobs/scheduler", () => ({
   evaluateSchedulerBootstrap: () => ({
     started: true,

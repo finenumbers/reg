@@ -79,7 +79,9 @@ export function summarizeJobResult(job: JobRunListItem): string {
     const countLabel =
       job.actionCode === "groups.sync"
         ? `${job.phonesParsed} групп`
-        : `${job.phonesParsed} номеров`;
+        : job.actionCode === "cdr.import"
+          ? `${job.phonesParsed} записей`
+          : `${job.phonesParsed} номеров`;
     parts.push(countLabel);
   }
   if (job.linesBad != null && job.linesBad > 0) {

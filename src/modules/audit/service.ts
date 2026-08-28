@@ -21,6 +21,8 @@ export const AUDIT_ACTIONS = {
   GEOIP_TEST: "geoip.test",
   PSTN_KEY_REPLACE: "pstn.key_replace",
   PSTN_TEST: "pstn.test",
+  FTP_PASSWORD_REPLACE: "ftp.password_replace",
+  FTP_TEST: "ftp.test",
   ENRICH_START: "enrich.start",
   ENRICH_FINISH: "enrich.finish",
   REGS_POLL_MANUAL: "regs.poll_manual",
@@ -32,6 +34,9 @@ export const AUDIT_ACTIONS = {
   GROUPS_SYNC_MANUAL: "groups.sync_manual",
   GROUPS_SYNC_START: "groups.sync_start",
   GROUPS_SYNC_FINISH: "groups.sync_finish",
+  CDR_IMPORT_MANUAL: "cdr.import_manual",
+  CDR_IMPORT_START: "cdr.import_start",
+  CDR_IMPORT_FINISH: "cdr.import_finish",
   API_KEY_CREATE: "api_key.create",
   API_KEY_REVOKE: "api_key.revoke",
 } as const;

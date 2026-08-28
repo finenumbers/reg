@@ -123,6 +123,22 @@ export async function ensurePlatformBaseline(): Promise<{ ok: true }> {
     },
   });
 
+  await prisma.allowedAction.upsert({
+    where: { code: "cdr.import" },
+    create: {
+      code: "cdr.import",
+      remotePath: "/opt/scripts/cdr_import",
+      description: "Import softswitch CDR files from the local FTP inbox",
+      enabled: true,
+      module: "traffic",
+    },
+    update: {
+      remotePath: "/opt/scripts/cdr_import",
+      enabled: true,
+      module: "traffic",
+    },
+  });
+
   await prisma.appSetting.upsert({
     where: { id: 1 },
     create: { id: 1, artifactMaxBytes: 50_000_000 },

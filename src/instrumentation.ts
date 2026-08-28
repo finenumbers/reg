@@ -88,5 +88,21 @@ export async function register() {
     const { evaluateSchedulerBootstrap } = await import("@/modules/jobs/runtime");
     const result = evaluateSchedulerBootstrap();
     logger.warn("scheduler.bootstrap.evaluate", result);
+
+    try {
+      const { ensureCdrInbox } = await import("@/modules/traffic/paths");
+      ensureCdrInbox();
+      const { startFtpServer } = await import("@/modules/traffic/ftp-server");
+      const ftp = await startFtpServer();
+      logger.info("ftp.bootstrap", ftp);
+      const { requestCdrImportDrain } = await import(
+        "@/modules/traffic/enqueue"
+      );
+      requestCdrImportDrain("schedule");
+    } catch (error) {
+      logger.error("ftp.bootstrap.failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 }
