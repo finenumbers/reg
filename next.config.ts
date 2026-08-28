@@ -16,6 +16,11 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  experimental: {
+    // Next clones the request body when middleware/proxy runs (default 10MB, silent truncate).
+    middlewareClientMaxBodySize: "200mb",
+    proxyClientMaxBodySize: "200mb",
+  },
   serverExternalPackages: ["ssh2", "@prisma/client", "pg", "exceljs"],
   outputFileTracingIncludes: {
     "/api/phones/export": ["./ops/templates/**/*"],

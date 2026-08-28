@@ -5,12 +5,16 @@
 import { createReadStream } from "node:fs";
 import { createInterface } from "node:readline";
 import ExcelJS from "exceljs";
-import { XLSX_UNREGISTERED_FILL } from "@/lib/xlsx-export";
+import {
+  XLSX_BILLING_MISS_FILL,
+  XLSX_UNREGISTERED_FILL,
+} from "@/lib/xlsx-export";
 import { csvTimeToExcelSerial } from "@/modules/enrich/dates";
 import { guardExcelText } from "@/modules/enrich/formula-guard";
 import {
   DETAIL_HEADERS,
   DETAIL_WIDTHS,
+  MISSING_BILLING_LABEL,
   TRAFFIC_HEADERS,
   TRAFFIC_WIDTHS,
   billableMinutes,
@@ -22,12 +26,13 @@ import type { PstnFields } from "@/modules/pstn/types";
 import type { GeoFields } from "@/modules/geoip/types";
 import {
   detailBodyRole,
+  detailFill,
   detailHeaderRole,
-  detailRedCols,
   trafficBodyRole,
+  trafficFill,
   trafficHeaderRole,
-  trafficRedCols,
   type BorderRole,
+  type FillRole,
 } from "@/modules/enrich/xlsx-styles";
 
 const THIN: Partial<ExcelJS.Border> = {
@@ -85,7 +90,7 @@ function bordersFor(role: BorderRole): Partial<ExcelJS.Borders> {
 function applyStyle(
   cell: ExcelJS.Cell,
   role: BorderRole,
-  opts: { header?: boolean; date?: boolean; red?: boolean },
+  opts: { header?: boolean; date?: boolean; fill?: FillRole },
 ): void {
   cell.border = bordersFor(role);
   if (opts.header) {
@@ -95,8 +100,10 @@ function applyStyle(
   if (opts.date) {
     cell.numFmt = "m/d/yy h:mm";
   }
-  if (opts.red) {
+  if (opts.fill === "red") {
     cell.fill = XLSX_UNREGISTERED_FILL;
+  } else if (opts.fill === "yellow") {
+    cell.fill = XLSX_BILLING_MISS_FILL;
   }
 }
 
@@ -156,10 +163,8 @@ export async function writeEnrichedXlsx(opts: {
     const last = index === opts.rowCount - 1;
     const sideA = descriptionOrMissing(opts.descriptions.get(row.aNumber));
     const sideB = descriptionOrMissing(opts.descriptions.get(row.bNumber));
-    const red = trafficRedCols(
-      sideA === "Нет данных",
-      sideB === "Нет данных",
-    );
+    const pstnA = pstnOrMissing(opts.pstn.get(row.aNumber));
+    const pstnB = pstnOrMissing(opts.pstn.get(row.bNumber));
     const serial = csvTimeToExcelSerial(row.time);
     const values: Array<string | number> = [
       serial ?? text(row.time),
@@ -180,7 +185,13 @@ export async function writeEnrichedXlsx(opts: {
     excelRow.eachCell((cell, colNumber) => {
       applyStyle(cell, trafficBodyRole(colNumber - 1, last), {
         date: colNumber === 1 && serial != null,
-        red: red.has(colNumber - 1),
+        fill: trafficFill(
+          colNumber - 1,
+          sideA === MISSING_BILLING_LABEL,
+          sideB === MISSING_BILLING_LABEL,
+          pstnA.missing,
+          pstnB.missing,
+        ),
       });
     });
     excelRow.commit();
@@ -209,7 +220,6 @@ export async function writeEnrichedXlsx(opts: {
     const pstnB = pstnOrMissing(opts.pstn.get(row.bNumber));
     const geoA = geoBits(row.initIp ? opts.geo.get(row.initIp) : undefined);
     const geoB = geoBits(row.termIp ? opts.geo.get(row.termIp) : undefined);
-    const red = detailRedCols(pstnA.missing, pstnB.missing);
     const serial = csvTimeToExcelSerial(row.time);
     const values: Array<string | number> = [
       serial ?? text(row.time),
@@ -239,7 +249,13 @@ export async function writeEnrichedXlsx(opts: {
     excelRow.eachCell((cell, colNumber) => {
       applyStyle(cell, detailBodyRole(colNumber - 1, last), {
         date: colNumber === 1 && serial != null,
-        red: red.has(colNumber - 1),
+        fill: detailFill(
+          colNumber - 1,
+          sideA === MISSING_BILLING_LABEL,
+          sideB === MISSING_BILLING_LABEL,
+          pstnA.missing,
+          pstnB.missing,
+        ),
       });
     });
     excelRow.commit();

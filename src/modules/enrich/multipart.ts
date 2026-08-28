@@ -73,6 +73,7 @@ export async function streamMultipartFileToDisk(
   let filename = "cdr.csv";
   let bytes = 0;
   let headerParsed = false;
+  let sawTerminator = false;
 
   const writeChunk = (chunk: Buffer) => {
     bytes += chunk.length;
@@ -121,6 +122,7 @@ export async function streamMultipartFileToDisk(
         if (endAt >= 0) {
           await writeChunk(buf.subarray(0, endAt));
           inFile = false;
+          sawTerminator = true;
           break;
         }
         const keep = delim.length;
@@ -135,7 +137,21 @@ export async function streamMultipartFileToDisk(
     await finished(output).catch(() => undefined);
   }
 
-  if (!headerParsed || bytes <= 0) {
+  if (!headerParsed) {
+    throw new EnrichUploadError(
+      "Не передан файл (поле file)",
+      400,
+      "BAD_REQUEST",
+    );
+  }
+  if (!sawTerminator) {
+    throw new EnrichUploadError(
+      "Файл оборвался при загрузке",
+      400,
+      "INCOMPLETE_UPLOAD",
+    );
+  }
+  if (bytes <= 0) {
     throw new EnrichUploadError(
       "Не передан файл (поле file)",
       400,

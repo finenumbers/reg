@@ -6,7 +6,7 @@ vi.mock("better-auth/cookies", () => ({
     request.cookies.get("session")?.value ?? null,
 }));
 
-import { middleware } from "@/middleware";
+import { middleware, middlewareMatcherHits } from "@/middleware";
 
 function makeRequest(path: string, hasSession = false) {
   const url = `http://localhost:3000${path}`;
@@ -67,3 +67,16 @@ describe("middleware protected routes", () => {
     expect(res.status).toBe(200);
   });
 });
+
+describe("middleware matcher", () => {
+  it("skips /api/enrich so Next does not clone the upload body", () => {
+    expect(middlewareMatcherHits("/api/enrich")).toBe(false);
+    expect(middlewareMatcherHits("/api/enrich/abc/download")).toBe(false);
+  });
+
+  it("still matches the enrich page and other APIs", () => {
+    expect(middlewareMatcherHits("/enrich")).toBe(true);
+    expect(middlewareMatcherHits("/api/settings")).toBe(true);
+  });
+});
+

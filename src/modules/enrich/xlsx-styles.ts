@@ -141,30 +141,47 @@ export function detailHeaderRole(col: number): BorderRole {
   }
 }
 
-export function trafficRedCols(missingA: boolean, missingB: boolean): Set<number> {
-  const cols = new Set<number>();
-  if (missingA) {
-    cols.add(1);
-    cols.add(2);
+export type FillRole = "none" | "yellow" | "red";
+
+/** Red wins over yellow on the number cell. */
+export function trafficFill(
+  col: number,
+  billingMissA: boolean,
+  billingMissB: boolean,
+  pstnMissA: boolean,
+  pstnMissB: boolean,
+): FillRole {
+  if (col === 1) {
+    if (pstnMissA) return "red";
+    if (billingMissA) return "yellow";
   }
-  if (missingB) {
-    cols.add(3);
-    cols.add(4);
+  if (col === 2 && billingMissA) return "yellow";
+  if (col === 3) {
+    if (pstnMissB) return "red";
+    if (billingMissB) return "yellow";
   }
-  return cols;
+  if (col === 4 && billingMissB) return "yellow";
+  return "none";
 }
 
-export function detailRedCols(missingA: boolean, missingB: boolean): Set<number> {
-  const cols = new Set<number>();
-  if (missingA) {
-    cols.add(1);
-    cols.add(3);
-    cols.add(4);
+export function detailFill(
+  col: number,
+  billingMissA: boolean,
+  billingMissB: boolean,
+  pstnMissA: boolean,
+  pstnMissB: boolean,
+): FillRole {
+  if (col === 1) {
+    if (pstnMissA) return "red";
+    if (billingMissA) return "yellow";
   }
-  if (missingB) {
-    cols.add(5);
-    cols.add(7);
-    cols.add(8);
+  if (col === 2 && billingMissA) return "yellow";
+  if ((col === 3 || col === 4) && pstnMissA) return "red";
+  if (col === 5) {
+    if (pstnMissB) return "red";
+    if (billingMissB) return "yellow";
   }
-  return cols;
+  if (col === 6 && billingMissB) return "yellow";
+  if ((col === 7 || col === 8) && pstnMissB) return "red";
+  return "none";
 }

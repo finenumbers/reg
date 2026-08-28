@@ -13,6 +13,13 @@ export const XLSX_UNREGISTERED_FILL: ExcelJS.Fill = {
   fgColor: { argb: "FFFEE2E2" },
 };
 
+/** Amber — billing miss (same ARGB as UFW «без регистрации»). */
+export const XLSX_BILLING_MISS_FILL: ExcelJS.Fill = {
+  type: "pattern",
+  pattern: "solid",
+  fgColor: { argb: "FFFFC000" },
+};
+
 /** Same thin border as softswitch export header row. */
 const XLSX_THIN_BORDER: Partial<ExcelJS.Borders> = {
   top: { style: "thin" },

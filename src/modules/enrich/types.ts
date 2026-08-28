@@ -1,4 +1,6 @@
 export const MISSING_LABEL = "Нет данных";
+export const MISSING_BILLING_LABEL = "Нет в биллинге";
+export const MISSING_PSTN_LABEL = "Нет в реестре МинЦифры";
 
 export const EXCEL_MAX_ROWS = 1_048_575;
 export const ENRICH_MAX_UPLOAD_BYTES = 200 * 1024 * 1024;
@@ -149,7 +151,7 @@ export function stripIpPort(raw: string): string | null {
 
 export function descriptionOrMissing(value: string | undefined): string {
   const trimmed = value?.trim() ?? "";
-  return trimmed.length > 0 ? trimmed : MISSING_LABEL;
+  return trimmed.length > 0 ? trimmed : MISSING_BILLING_LABEL;
 }
 
 export function pstnOrMissing(
@@ -157,14 +159,14 @@ export function pstnOrMissing(
 ): { operator: string; geography: string; missing: boolean } {
   if (!fields?.found || !fields.operator) {
     return {
-      operator: MISSING_LABEL,
-      geography: MISSING_LABEL,
+      operator: MISSING_PSTN_LABEL,
+      geography: MISSING_PSTN_LABEL,
       missing: true,
     };
   }
   return {
     operator: fields.operator,
-    geography: fields.garTerritory?.trim() || MISSING_LABEL,
+    geography: fields.garTerritory?.trim() || MISSING_PSTN_LABEL,
     missing: false,
   };
 }
