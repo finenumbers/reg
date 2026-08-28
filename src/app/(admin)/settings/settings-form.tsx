@@ -13,6 +13,7 @@ import { DISPLAY_TIMEZONES } from "@/lib/display-timezone";
 import {
   DEFAULT_GEOIP_BASE_URL,
   DEFAULT_PSTN_BASE_URL,
+  SAME_HOST_PSTN_BASE_URL,
   type SettingsView,
 } from "@/modules/settings/schemas";
 import { inspectKeyMaterial } from "@/modules/ssh/key-material-hint";
@@ -901,6 +902,11 @@ export function SettingsForm({ initial }: Props) {
               placeholder={DEFAULT_PSTN_BASE_URL}
               autoComplete="off"
             />
+            <p className="text-xs text-muted-foreground">
+              Если PSTN на этом же Docker-хосте, укажите{" "}
+              <span className="font-mono">{SAME_HOST_PSTN_BASE_URL}</span>, не
+              публичный HTTPS — иначе «fetch failed» из‑за hairpin NAT.
+            </p>
           </div>
           <div className="space-y-2">
             <Label htmlFor="pstn-key">API-ключ External Lookup</Label>

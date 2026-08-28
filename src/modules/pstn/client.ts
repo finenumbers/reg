@@ -5,6 +5,7 @@
 import { logger } from "@/lib/logger";
 import {
   PSTN_LOOKUP_TIMEOUT_MS,
+  PSTN_UNREACHABLE_HINT,
   mapPstnLookupResponse,
   pstnLookupUrl,
   type PstnCredentials,
@@ -101,12 +102,9 @@ export async function lookupPstnPhone(
   } catch (error) {
     if (error instanceof PstnLookupError) throw error;
     if (error instanceof Error && error.name === "AbortError") {
-      throw new PstnLookupError("TIMEOUT", "PSTN: истекло время ожидания");
+      throw new PstnLookupError("TIMEOUT", PSTN_UNREACHABLE_HINT);
     }
-    throw new PstnLookupError(
-      "NETWORK",
-      error instanceof Error ? error.message : "PSTN: сетевая ошибка",
-    );
+    throw new PstnLookupError("NETWORK", PSTN_UNREACHABLE_HINT);
   } finally {
     clearTimeout(timer);
   }

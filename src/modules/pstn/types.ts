@@ -8,6 +8,10 @@ export const PSTN_TEST_TIMEOUT_MS = 15_000;
 export const PSTN_LOOKUP_CONCURRENCY = 8;
 export const PSTN_TEST_PHONE = "4996660000";
 export const DEFAULT_PSTN_BASE_URL = "https://pstn.finenumbers.com";
+/** Same-host Docker DNS (Reg + PSTN on the `proxy` network). */
+export const SAME_HOST_PSTN_BASE_URL = "http://pstn_app:5555";
+export const PSTN_UNREACHABLE_HINT =
+  "PSTN: не достучались до URL. Если сервис на этом же Docker-хосте, укажите http://pstn_app:5555";
 export const PSTN_CACHE_PRUNE_AFTER_MS = 30 * 24 * 60 * 60 * 1000;
 
 export type PstnFields = {

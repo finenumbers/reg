@@ -5,7 +5,10 @@
 import { z } from "zod";
 import { isDisplayTimezoneId } from "@/lib/display-timezone";
 import { DEFAULT_GEOIP_BASE_URL } from "@/modules/geoip/types";
-import { DEFAULT_PSTN_BASE_URL } from "@/modules/pstn/types";
+import {
+  DEFAULT_PSTN_BASE_URL,
+  SAME_HOST_PSTN_BASE_URL,
+} from "@/modules/pstn/types";
 
 function httpOriginSchema(label: string) {
   return z
@@ -95,4 +98,8 @@ export type SettingsUpdateResult = {
 };
 
 export const DEFAULT_SSH_PROFILE_NAME = "softswitch";
-export { DEFAULT_GEOIP_BASE_URL, DEFAULT_PSTN_BASE_URL };
+export {
+  DEFAULT_GEOIP_BASE_URL,
+  DEFAULT_PSTN_BASE_URL,
+  SAME_HOST_PSTN_BASE_URL,
+};

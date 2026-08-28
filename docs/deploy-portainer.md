@@ -82,7 +82,7 @@ Set `BETTER_AUTH_URL` to the exact public origin (`https://regs.example.com`) an
 ## 5. After first boot
 
 1. Open `https://regs.example.com/login` with bootstrap admin.
-2. **Settings:** SSH host/user/key → **Test connection**. If GeoIP Analytics runs on **this same Docker host**, set the GeoIP URL per [§6](#6-geoip-on-the-same-docker-host) before relying on country/city/ISP columns.
+2. **Settings:** SSH host/user/key → **Test connection**. If GeoIP Analytics runs on **this same Docker host**, set the GeoIP URL per [§6](#6-geoip-on-the-same-docker-host) before relying on country/city/ISP columns. If PSTN Analytics is on the same host, set the PSTN URL per [§7](#7-pstn-on-the-same-docker-host) before «Обогатить данные».
 3. **Registrations:** manual poll once; check `/jobs` and `/regs`.
 4. **Phones:** sync once after softswitch `export.py` is installed.
 5. Only then enable Settings auto-poll (`regsPollEnabled`) — still one replica.
@@ -109,14 +109,34 @@ Probe from `reg-app-1` (no curl in the image). `401` without a key means the pat
 node -e 'fetch("http://geoip_api:3000/api/v1/lookup",{method:"POST",headers:{"content-type":"application/json"},body:"{}"}).then(async r=>console.log("status",r.status,await r.text())).catch(e=>console.error(e.cause||e))'
 ```
 
-## 7. Upgrades / redeploy
+## 7. PSTN on the same Docker host
+
+The `app` container must not call the **public** PSTN HTTPS origin (`https://pstn.finenumbers.com`). That resolves to the host’s public IP. Docker hairpin NAT typically fails: Node `fetch` waits ~10s then `UND_ERR_CONNECT_TIMEOUT` / UI «fetch failed». The same URL works from a laptop (different path).
+
+Lookup is **`pstn_app`** (internal port **5555**). The PSTN Portainer compose already attaches `pstn_app` to `proxy`. If DNS from `reg` app fails, attach once (lost on container recreate unless the PSTN compose lists `proxy`):
+
+```bash
+docker network connect proxy pstn_app
+```
+
+Settings → PSTN → URL: **`http://pstn_app:5555`**. Save, then **Check connection**. Leave the API key as-is.
+
+Do **not** clear the URL field. An empty save stores the default `https://pstn.finenumbers.com` and the timeout comes back.
+
+Probe from `reg-app-1` (no curl in the image). `401` without a key means the path works:
+
+```bash
+node -e 'fetch("http://pstn_app:5555/api/v1/lookup?phone=4996660000").then(async r=>console.log("status",r.status,await r.text())).catch(e=>console.error(e.cause||e))'
+```
+
+## 8. Upgrades / redeploy
 
 1. In Portainer: **Pull and redeploy** the stack (or `docker compose -f docker-compose.portainer.yml pull && docker compose -f docker-compose.portainer.yml up -d`).
 2. Images stay `latest` / `latest-migrator` — no tag changes in compose.
 3. Migrate runs before app on each redeploy.
 4. Smoke: `/api/readyz` + login.
 
-## 8. Must not
+## 9. Must not
 
 - Publish `app:3000` or Postgres to the public internet (this compose does not map host ports).
 - Run multiple `app` replicas.
