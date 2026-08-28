@@ -140,7 +140,7 @@ async function importOneFile(
       skipped: 0,
       linesBad: 0,
       firstBadLine: 1,
-      error: headerError,
+      error: `${file.filename}: ${headerError}`,
     };
   }
 

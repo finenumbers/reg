@@ -11,10 +11,13 @@ export type InboxFile = {
   mtimeMs: number;
 };
 
+/** Softswitch dump names: 20260827_200419 — no extension. */
+const CDR_DUMP_FILENAME_RE = /^\d{8}_\d{6}$/;
+
 export function isInboxDataFile(name: string): boolean {
   if (!name || name.startsWith(".")) return false;
   if (name === POISON_FILENAME) return false;
-  return true;
+  return CDR_DUMP_FILENAME_RE.test(name);
 }
 
 export async function listInboxFiles(
