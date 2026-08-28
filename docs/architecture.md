@@ -147,13 +147,13 @@ Reg/
 ## 6. Поток данных модуля Registrations
 
 1. Scheduler (interval из `app_settings`, если polling enabled) ставит задачу `regs.poll` в `p-queue`.
-2. Очередь обрабатывает `regs.poll` с concurrency=1 и in-flight guard (anti-overlap: не стартовать второй poll, пока первый running).
+2. Очередь `p-queue` (concurrency=3) с anti-overlap **на action code**: второй `regs.poll` не стартует, пока первый in-flight (`phones.sync` / `groups.sync` / `cdr.import` могут идти параллельно).
 3. Читает settings + SSH profile.
 4. Создаёт `job_runs` со статусом `running`.
-5. Расшифровывает ключ в памяти → SSH connect → exec allowlisted path.
-6. Парсит stdout; malformed lines учитываются, не валят весь прогон целиком (см. data-model / implementation-plan).
-7. Обновляет `reg_current`; пишет `reg_change_events` **только при изменении** status/ip/port.
-8. UI читает API из локальной БД.
+5. Расшифровывает ключ в памяти → SSH connect → exec allowlisted path (`cd /opt/scripts && sudo -n -- ./<script>`; PTY только для `regs.poll`).
+6. Парсит stdout. Любая битая строка (`linesBad > 0`) **валит весь прогон** (fail-closed): `reg_current` не меняется.
+7. Обновляет `reg_current`; пишет `reg_change_events` **только при изменении** status/ip/port. Пустой dump при непустой таблице — отказ от wipe.
+8. UI читает API из локальной БД. Scheduler tick также сканирует FTP inbox и ставит `cdr.import` на leftover-файлы (не poison).
 
 Политика при ошибке/`exitCode != 0`/пустом stdout: run = failed, current state **не** трогать, на сайте явный сигнал о проблеме.
 

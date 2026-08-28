@@ -181,11 +181,7 @@ Permissions seed: `settings:write`, `ssh:test`, `regs:read`, `regs:poll`, `audit
 
 Индекс: `(phone, changed_at DESC)`.
 
-### reg_snapshots (optional / unused in v1 apply path)
-
-Full snapshot of all numbers per run is **not required** for Phase 4.  
-Current path uses `reg_current` + `reg_change_events` + `job_run_artifacts`.  
-Prisma model `RegistrationSnapshot` may exist as a placeholder; poll processor does not write it yet.
+Full snapshot всех номеров на каждый run **не хранится**. Путь записи: `reg_current` + `reg_change_events` + `job_run_artifacts`.
 
 ## 4. Что для UI, что для history/audit
 
@@ -209,8 +205,23 @@ Prisma model `RegistrationSnapshot` may exist as a placeholder; poll processor d
    - если есть и поля равны → обновить только `last_seen_at`;
    - если есть и поля отличаются → update current + insert change_event.
 3. Удалить из `reg_current` любые phone, которых **нет** в dump (история `reg_change_events` сохраняется; событие на delete не пишем).
-4. Пустой успешный dump (0 valid rows при непустом stdout) → пустой `reg_current`.
-5. При failed SSH / empty stdout / exit≠0 / timeout → **не** менять `reg_current` и **не** писать change events; run = `failed`; UI показывает проблему.
+4. Пустой dump при **непустой** `reg_current` → отказ от wipe, run = `failed`. Пустая таблица + пустой dump допустимы.
+5. При failed SSH / empty stdout / exit≠0 / timeout / `linesBad > 0` → **не** менять `reg_current` и **не** писать change events; run = `failed`; UI показывает проблему.
+
+### Phones / groups
+
+Полный replace snapshot в одной транзакции. Пустой snapshot при непустой таблице — отказ от wipe (как у regs).
+
+### CDR (`cdr_records`)
+
+- Успешный dump-файл → строки в БД, файл **удаляется** из FTP inbox.
+- Битые строки: валидные уже вставленные строки остаются (`skipDuplicates` по `cdr_id`); файл остаётся + poison; job = `failed`; баннер на всех CDR-страницах.
+- Poison **не** автоимпортируется. Leftover без poison подхватывает scheduler tick и хвост `cdr.import`.
+- `enrichedAt` ставится только после завершённого PSTN/GeoIP lookup (включая cached not-found). Live-ошибка → `enrichedAt` null, backfill повторит.
+
+### Enrich (`enrich_jobs`)
+
+Эфемерный прогон CSV→XLSX. Не больше одного `queued|running` (partial unique index). Артефакты на диске по id, TTL 24h. Full per-run snapshot регистраций **не** хранится.
 
 ## 6. Пример формата источника
 

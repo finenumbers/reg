@@ -10,6 +10,8 @@ export type ApplyGroupsResult = {
   groupCount: number;
 };
 
+const APPLY_TX = { maxWait: 10_000, timeout: 180_000 } as const;
+
 export async function applyGroupsSnapshot(
   payload: ParsedGroupsPayload,
   jobRunId: string,
@@ -44,7 +46,7 @@ export async function applyGroupsSnapshot(
         lastJobRunId: jobRunId,
       },
     });
-  });
+  }, APPLY_TX);
 
   return { groupCount: groups.length };
 }

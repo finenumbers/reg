@@ -38,6 +38,14 @@ describe("api key crypto", () => {
     expect(extractApiKeyFromHeaders(new Headers())).toBeNull();
     expect(hasApiKeyHeader(new Headers())).toBe(false);
   });
+
+  it("ignores Bearer values that are not platform API keys", () => {
+    const foreign = new Headers({ authorization: "Bearer not-a-platform-key" });
+    expect(extractApiKeyFromHeaders(foreign)).toBeNull();
+    expect(hasApiKeyHeader(foreign)).toBe(false);
+    const x = new Headers({ "x-api-key": "sk-other" });
+    expect(extractApiKeyFromHeaders(x)).toBeNull();
+  });
 });
 
 describe("apiKeyRateLimiter", () => {

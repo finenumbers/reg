@@ -23,12 +23,6 @@ export function enrichOutputPath(jobId: string, cwd?: string): string {
   return path.join(enrichJobDir(jobId, cwd), "output.xlsx");
 }
 
-export function ensureEnrichRoot(cwd?: string): string {
-  const root = enrichDataRoot(cwd);
-  mkdirSync(root, { recursive: true });
-  return root;
-}
-
 export function ensureJobDir(jobId: string, cwd?: string): string {
   const dir = enrichJobDir(jobId, cwd);
   mkdirSync(dir, { recursive: true });

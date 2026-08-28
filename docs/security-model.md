@@ -28,6 +28,7 @@
 | `regs.poll` | `/opt/scripts/check_regs.sh` | `[]` | `/bin/bash -c 'cd /opt/scripts && exec /usr/bin/sudo -n -- ./check_regs.sh'` (PTY) |
 | `phones.sync` | `/opt/scripts/export.py` | `[]` | `/bin/bash -c 'cd /opt/scripts && exec /usr/bin/sudo -n -- ./export.py'` (no PTY) |
 | `groups.sync` | `/opt/scripts/export.py` | `[]` | `/bin/bash -c 'cd /opt/scripts && exec /usr/bin/sudo -n -- ./export.py'` (no PTY) |
+| `cdr.import` | local (FTP inbox) | `[]` | не SSH — drain локальной папки |
 
 `phones.sync` / `groups.sync` — read-only `SELECT` в MySQL softswitch; JSON в stdout (`version` 2 включает `groups[]`); **без** записи `export.xlsx` и без SFTP. `groups.sync` применяет только каталог routing groups, таблицы телефонов не трогает.
 
@@ -36,7 +37,7 @@
 1. Клиент передаёт только `actionId` / `actionCode`.
 2. Путь **не** приходит из UI, query, body, headers, БД-редактируемых админкой полей.
 3. Изменение remote path для production-action — только через релиз кода + миграцию/seed, не через «форму настроек».
-4. Executor использует библиотеку `ssh2` метод исполнения команды **без** interactive shell и без `/bin/sh -c`.
+4. Executor использует `ssh2` exec с **константной** командой `bash -c 'cd /opt/scripts && exec sudo -n -- ./<script>'` (не из UI). Interactive shell недоступен. PTY выделяется **только** для `regs.poll` (`check_regs.sh` иначе отдаёт другой результат).
 5. Defense in depth: даже константный path проходит валидатор `/opt/scripts/[A-Za-z0-9._-]+`.
 
 ### Слой B — SSH forced command / remote wrapper (обязательный на softswitch)
@@ -189,7 +190,7 @@ Go-live: [production-checklist.md](./production-checklist.md). Smoke: [smoke-tes
 - Редактируемый remote command в Settings
 - Хранение plaintext ключей
 - Возврат расшифрованного ключа в API («показать ключ»)
-- `invoke_shell` / PTY для исполнения
+- `invoke_shell` / PTY кроме allowlisted `regs.poll`
 - Универсальный «run any script from /opt/scripts» picker без code review/release allowlist
 - Произвольный `ssh.exec` строки от клиента
 - Горизонтальный запуск poll на нескольких репликах без single-runner (v1: одна реплика `app`)

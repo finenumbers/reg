@@ -3,24 +3,40 @@ import { readdir } from "node:fs/promises";
 import path from "node:path";
 import { prisma } from "@/lib/db";
 import { logger } from "@/lib/logger";
-import { ENRICH_ARTIFACT_TTL_MS } from "@/modules/enrich/types";
+import {
+  ENRICH_ARTIFACT_TTL_MS,
+  failOpenEnrichStages,
+  INITIAL_STAGES,
+  type EnrichStageView,
+} from "@/modules/enrich/types";
 import { enrichDataRoot, enrichJobDir } from "@/modules/enrich/paths";
 
 export const ENRICH_ORPHAN_MESSAGE = "interrupted: process restarted";
 
 export async function reclaimOrphanEnrichJobs(): Promise<{ reclaimed: number }> {
-  const result = await prisma.enrichJob.updateMany({
+  const rows = await prisma.enrichJob.findMany({
     where: { status: { in: ["queued", "running"] } },
-    data: {
-      status: "failed",
-      finishedAt: new Date(),
-      errorMessage: ENRICH_ORPHAN_MESSAGE,
-    },
+    select: { id: true, stages: true },
   });
-  if (result.count > 0) {
-    logger.warn("enrich.orphans_reclaimed", { count: result.count });
+  const finishedAt = new Date();
+  for (const row of rows) {
+    const stages = Array.isArray(row.stages)
+      ? (row.stages as EnrichStageView[])
+      : INITIAL_STAGES;
+    await prisma.enrichJob.update({
+      where: { id: row.id },
+      data: {
+        status: "failed",
+        finishedAt,
+        errorMessage: ENRICH_ORPHAN_MESSAGE,
+        stages: failOpenEnrichStages(stages, ENRICH_ORPHAN_MESSAGE),
+      },
+    });
   }
-  return { reclaimed: result.count };
+  if (rows.length > 0) {
+    logger.warn("enrich.orphans_reclaimed", { count: rows.length });
+  }
+  return { reclaimed: rows.length };
 }
 
 export async function pruneEnrichArtifacts(

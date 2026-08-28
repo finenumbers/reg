@@ -16,6 +16,8 @@
 import type { AllowedActionCode } from "@/modules/actions/registry";
 import { prisma } from "@/lib/db";
 import { logger } from "@/lib/logger";
+import { listInboxFiles } from "@/modules/traffic/inbox";
+import { requestCdrImportDrain } from "@/modules/traffic/enqueue";
 
 /** Minimal runtime surface — avoids circular import with jobs/runtime.ts */
 export type SchedulerJobRuntime = {
@@ -74,39 +76,58 @@ async function readPollSettings(): Promise<{
   }
 }
 
+async function drainPendingInbox(): Promise<void> {
+  try {
+    const pending = await listInboxFiles();
+    if (pending.length === 0) return;
+    requestCdrImportDrain("schedule");
+  } catch (error) {
+    logger.warn("scheduler.inbox_scan_failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
 async function tick(): Promise<void> {
   const state = schedulerState();
   if (!state.runtimeRef) return;
 
-  const settings = await readPollSettings();
-  if (!settings) {
-    scheduleNext(60);
-    return;
+  let intervalSec = 60;
+  try {
+    await drainPendingInbox();
+
+    const settings = await readPollSettings();
+    if (!settings) {
+      return;
+    }
+    intervalSec = settings.intervalSec;
+
+    if (!settings.enabled) {
+      logger.debug("scheduler.tick.skipped", { reason: "regsPollEnabled=false" });
+      return;
+    }
+
+    if (state.runtimeRef.isInFlight("regs.poll")) {
+      logger.debug("scheduler.tick.skipped", { reason: "anti-overlap" });
+      return;
+    }
+
+    const result = await state.runtimeRef.enqueue({
+      actionCode: "regs.poll",
+      trigger: "schedule",
+    });
+
+    logger.info("scheduler.tick.enqueue", {
+      accepted: result.accepted,
+      reason: result.reason ?? null,
+    });
+  } catch (error) {
+    logger.error("scheduler.tick.failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  } finally {
+    scheduleNext(intervalSec);
   }
-
-  if (!settings.enabled) {
-    logger.debug("scheduler.tick.skipped", { reason: "regsPollEnabled=false" });
-    scheduleNext(settings.intervalSec);
-    return;
-  }
-
-  if (state.runtimeRef.isInFlight("regs.poll")) {
-    logger.debug("scheduler.tick.skipped", { reason: "anti-overlap" });
-    scheduleNext(settings.intervalSec);
-    return;
-  }
-
-  const result = await state.runtimeRef.enqueue({
-    actionCode: "regs.poll",
-    trigger: "schedule",
-  });
-
-  logger.info("scheduler.tick.enqueue", {
-    accepted: result.accepted,
-    reason: result.reason ?? null,
-  });
-
-  scheduleNext(settings.intervalSec);
 }
 
 function scheduleNext(intervalSec: number): void {

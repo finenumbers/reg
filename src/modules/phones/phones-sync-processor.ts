@@ -16,6 +16,7 @@ import { AUDIT_ACTIONS, auditService } from "@/modules/audit";
 import { applyPhonesSnapshot } from "@/modules/phones/apply";
 import { parsePhonesStdout } from "@/modules/phones/parser";
 import { sanitizeStderrSnippet } from "@/modules/jobs/regs-poll-processor";
+import { failJobRunIfStillRunning } from "@/modules/jobs/finalize";
 
 export type PhonesSyncProcessorInput = {
   trigger: JobTrigger;
@@ -126,6 +127,7 @@ export async function processPhonesSync(
     },
   });
 
+  try {
   await auditService.append({
     actorUserId: input.actorUserId,
     action:
@@ -408,4 +410,11 @@ export async function processPhonesSync(
     gatewayCount: applyResult.gatewayCount,
     exitCode: execResult.exitCode,
   };
+  } finally {
+    await failJobRunIfStillRunning(
+      jobRun.id,
+      startedAt,
+      "Job ended without a terminal status",
+    );
+  }
 }

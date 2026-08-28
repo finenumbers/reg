@@ -16,12 +16,7 @@ export function formatJobTimestamp(
 
 export function formatDurationMs(ms: number | null | undefined): string {
   if (ms == null || !Number.isFinite(ms) || ms < 0) return "—";
-  if (ms < 1000) return `${ms} мс`;
-  const seconds = ms / 1000;
-  if (seconds < 60) return `${seconds.toFixed(seconds < 10 ? 1 : 0)} с`;
-  const minutes = Math.floor(seconds / 60);
-  const rem = Math.round(seconds % 60);
-  return `${minutes} мин ${rem} с`;
+  return String(Math.ceil(ms / 1000));
 }
 
 export function jobStatusBadgeVariant(
@@ -71,7 +66,12 @@ export function summarizeJobResult(job: JobRunListItem): string {
     return "Выполняется…";
   }
   if (job.status === "failed") {
-    return job.errorMessage?.trim() || "Ошибка (без деталей)";
+    const err = job.errorMessage?.trim();
+    if (err) return err;
+    if (job.actionCode === "cdr.import" && (job.linesBad ?? 0) > 0) {
+      return `Частичная загрузка CDR: ${job.linesBad} битых строк`;
+    }
+    return "Ошибка (без деталей)";
   }
 
   const parts: string[] = [];

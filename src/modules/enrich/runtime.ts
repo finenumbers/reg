@@ -16,12 +16,13 @@ export function isEnrichPipelineRunning(): boolean {
   return flag().running;
 }
 
-export function startEnrichPipeline(
-  run: () => Promise<void>,
-): void {
+/** Starts the pipeline. Returns false if another run is already in this process. */
+export function startEnrichPipeline(run: () => Promise<void>): boolean {
   const state = flag();
+  if (state.running) return false;
   state.running = true;
   void run().finally(() => {
     state.running = false;
   });
+  return true;
 }

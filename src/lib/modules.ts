@@ -5,12 +5,7 @@ import type { PermissionCode } from "@/modules/rbac/permissions";
  */
 
 export type FeatureModuleId =
-  | "auth"
-  | "users"
-  | "rbac"
   | "settings"
-  | "ssh"
-  | "actions"
   | "jobs"
   | "registrations"
   | "phones"
@@ -20,7 +15,6 @@ export type FeatureModuleId =
   | "geography"
   | "operators"
   | "audit"
-  | "health"
   | "enrich";
 
 export type FeatureNavGroup = "primary" | "cdr";

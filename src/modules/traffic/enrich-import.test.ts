@@ -33,6 +33,7 @@ import {
   createCdrEnrichKeySets,
   enrichFieldsForRow,
   loadCdrImportEnrichment,
+  rowEnrichmentComplete,
 } from "@/modules/traffic/enrich-import";
 
 const EMPTY_STATS = {
@@ -109,6 +110,20 @@ describe("enrichFieldsForRow", () => {
     expect(fields.sideB).toBe(MISSING_BILLING_LABEL);
     expect(fields.operatorA).toBe(MISSING_PSTN_LABEL);
     expect(fields.countryA).toBe("");
+  });
+
+  it("treats a finished miss as complete and a missing map key as incomplete", () => {
+    const maps = {
+      pstn: new Map([
+        ["7950", { found: false, operator: null, garTerritory: null }],
+      ]),
+      geo: new Map(),
+    };
+    expect(rowEnrichmentComplete("7950", "", "", "", maps)).toBe(true);
+    expect(rowEnrichmentComplete("7950", "7862", "", "", maps)).toBe(false);
+    expect(
+      rowEnrichmentComplete("7950", "", "1.2.3.4:5060", "", maps),
+    ).toBe(false);
   });
 });
 
@@ -205,6 +220,30 @@ describe("backfillUnenrichedCdrRecords", () => {
     ]);
     countCdr.mockResolvedValue(0);
     loadDescriptions.mockResolvedValue(new Map([["79501112233", "Офис"]]));
+    enrichPstn.mockResolvedValue({
+      byOriginal: new Map([
+        ["79501112233", { found: false, operator: null, garTerritory: null }],
+        ["78620000000", { found: false, operator: null, garTerritory: null }],
+      ]),
+      cacheHits: 2,
+      liveLookups: 0,
+    });
+    enrichGeo.mockResolvedValue({
+      byIp: new Map([
+        [
+          "1.2.3.4",
+          {
+            country: null,
+            countryIso: null,
+            city: null,
+            isp: null,
+            datasetDate: null,
+          },
+        ],
+      ]),
+      cacheHits: 1,
+      liveLookups: 0,
+    });
 
     const result = await backfillUnenrichedCdrRecords({ maxRows: 400 });
 

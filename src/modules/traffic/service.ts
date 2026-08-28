@@ -11,6 +11,7 @@ import {
 } from "@/components/column-filters/types";
 import { prisma } from "@/lib/db";
 import { getJobRunSummary } from "@/modules/jobs/query";
+import { countInboxFiles } from "@/modules/traffic/inbox";
 import {
   CDR_COLUMNS,
   CDR_ENRICH_COLUMNS,
@@ -40,6 +41,8 @@ export type TrafficOperationalStatus = {
   lastFailedError: string | null;
   runningCount: number;
   recordCount: number;
+  pendingInboxCount: number;
+  poisonedCount: number;
 };
 
 function rowToData(row: Record<string, unknown>): Record<string, string> {
@@ -181,9 +184,10 @@ export async function listTrafficFacets(opts: {
 }
 
 export async function getTrafficStatus(): Promise<TrafficOperationalStatus> {
-  const [summary, recordCount] = await Promise.all([
+  const [summary, recordCount, inbox] = await Promise.all([
     getJobRunSummary("cdr.import"),
     prisma.cdrRecord.count(),
+    countInboxFiles(),
   ]);
   const last = summary.lastAny;
   return {
@@ -197,5 +201,7 @@ export async function getTrafficStatus(): Promise<TrafficOperationalStatus> {
     lastFailedError: summary.lastFailed?.errorMessage ?? null,
     runningCount: summary.runningCount,
     recordCount,
+    pendingInboxCount: inbox.pending,
+    poisonedCount: inbox.poisoned,
   };
 }

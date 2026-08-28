@@ -44,27 +44,42 @@ export async function findActiveEnrichJob(): Promise<{ id: string } | null> {
   });
 }
 
+export class EnrichActiveConflictError extends Error {
+  constructor() {
+    super("Уже выполняется другое обогащение");
+    this.name = "EnrichActiveConflictError";
+  }
+}
+
+function isUniqueConstraintError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code: unknown }).code === "P2002"
+  );
+}
+
 export async function createEnrichJob(input: {
   actorUserId: string;
   sourceFilename: string;
 }): Promise<string> {
-  const row = await prisma.enrichJob.create({
-    data: {
-      status: "queued",
-      actorUserId: input.actorUserId,
-      sourceFilename: input.sourceFilename,
-      stages: INITIAL_STAGES,
-    },
-  });
-  return row.id;
-}
-
-export async function getEnrichJob(
-  id: string,
-): Promise<EnrichJobView | null> {
-  const row = await prisma.enrichJob.findUnique({ where: { id } });
-  if (!row) return null;
-  return toJobView(row);
+  try {
+    const row = await prisma.enrichJob.create({
+      data: {
+        status: "queued",
+        actorUserId: input.actorUserId,
+        sourceFilename: input.sourceFilename,
+        stages: INITIAL_STAGES,
+      },
+    });
+    return row.id;
+  } catch (error) {
+    if (isUniqueConstraintError(error)) {
+      throw new EnrichActiveConflictError();
+    }
+    throw error;
+  }
 }
 
 /** In-progress job only — finished results are dismissed and not restored. */

@@ -1,5 +1,4 @@
 import { headers } from "next/headers";
-import { NextResponse } from "next/server";
 import { auth } from "@/modules/auth/auth";
 import { AuthError } from "@/modules/auth/errors";
 import {
@@ -158,14 +157,4 @@ export function requireSessionUserId(ctx: AuthzContext): string {
     throw new AuthError("FORBIDDEN", "API keys cannot perform this action");
   }
   return ctx.session.user.id;
-}
-
-export function rateLimitExceededResponse(retryAfterSec: number): NextResponse {
-  return NextResponse.json(
-    { error: "Too many requests", code: "RATE_LIMITED" },
-    {
-      status: 429,
-      headers: { "Retry-After": String(retryAfterSec) },
-    },
-  );
 }

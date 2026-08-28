@@ -1,12 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const updateMany = vi.fn();
+const findMany = vi.fn();
+const update = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   prisma: {
     enrichJob: {
-      updateMany: (...args: unknown[]) => updateMany(...args),
-      findMany: vi.fn().mockResolvedValue([]),
+      findMany: (...args: unknown[]) => findMany(...args),
+      update: (...args: unknown[]) => update(...args),
     },
   },
 }));
@@ -30,15 +31,33 @@ describe("reclaimOrphanEnrichJobs", () => {
     vi.clearAllMocks();
   });
 
-  it("marks queued/running enrich jobs as failed", async () => {
-    updateMany.mockResolvedValue({ count: 1 });
+  it("marks queued/running enrich jobs as failed and errors open stages", async () => {
+    findMany.mockResolvedValue([
+      {
+        id: "job-1",
+        stages: [
+          { id: "parse", label: "parse", status: "done" },
+          { id: "phones", label: "phones", status: "running" },
+        ],
+      },
+    ]);
+    update.mockResolvedValue({});
     await expect(reclaimOrphanEnrichJobs()).resolves.toEqual({ reclaimed: 1 });
-    expect(updateMany).toHaveBeenCalledWith({
-      where: { status: { in: ["queued", "running"] } },
+    expect(update).toHaveBeenCalledWith({
+      where: { id: "job-1" },
       data: {
         status: "failed",
         finishedAt: expect.any(Date),
         errorMessage: ENRICH_ORPHAN_MESSAGE,
+        stages: [
+          { id: "parse", label: "parse", status: "done" },
+          {
+            id: "phones",
+            label: "phones",
+            status: "error",
+            detail: ENRICH_ORPHAN_MESSAGE,
+          },
+        ],
       },
     });
   });

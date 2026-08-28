@@ -55,6 +55,19 @@ export async function listInboxFiles(
   return out;
 }
 
+export async function countInboxFiles(
+  cwd?: string,
+): Promise<{ pending: number; poisoned: number }> {
+  const all = await listInboxFiles({ includePoisoned: true, cwd });
+  let pending = 0;
+  let poisoned = 0;
+  for (const file of all) {
+    if (isPoisoned(file.filename, file.mtimeMs, cwd)) poisoned += 1;
+    else pending += 1;
+  }
+  return { pending, poisoned };
+}
+
 export function inboxFileError(file: InboxFile): string | null {
   if (file.size <= 0) return `Файл пустой: ${file.filename}`;
   if (file.size > CDR_MAX_FILE_BYTES) {

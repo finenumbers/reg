@@ -316,6 +316,7 @@ enum EnrichJobStatus {
 }
 
 /// Ephemeral CDR enrich run. Artifact paths are derived from id, not stored.
+/// At most one queued|running row — partial unique index enrich_jobs_one_active.
 model EnrichJob {
   id             String          @id @default(cuid())
   status         EnrichJobStatus
@@ -332,18 +333,6 @@ model EnrichJob {
   @@index([status, createdAt(sort: Desc)])
   @@index([actorUserId, createdAt(sort: Desc)])
   @@map("enrich_jobs")
-}
-
-/// Optional full snapshot per run — deferred for v1 unless needed.
-
-model RegistrationSnapshot {
-  id        String   @id @default(cuid())
-  jobRunId  String
-  payload   Json
-  createdAt DateTime @default(now())
-
-  @@index([jobRunId])
-  @@map("reg_snapshots")
 }
 
 // ---------------------------------------------------------------------------

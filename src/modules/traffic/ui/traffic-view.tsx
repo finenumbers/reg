@@ -31,7 +31,10 @@ import {
 } from "@/modules/phones/request-action";
 import type { ListTrafficResult, TrafficListItem } from "@/modules/traffic/service";
 import { TrafficTable } from "@/modules/traffic/ui/traffic-table";
-import { displayTrafficFacet } from "@/modules/traffic/ui-format";
+import {
+  composeTrafficBanner,
+  displayTrafficFacet,
+} from "@/modules/traffic/ui-format";
 
 const PAGE_SIZE = TABLE_PAGE_SIZE;
 const PHONE_SEARCH_DEBOUNCE_MS = 300;
@@ -151,15 +154,49 @@ export function TrafficView({
     return () => clearTimeout(t);
   }, [phoneInput, phoneQ, loadList]);
 
+  const applyStatusBanner = useCallback(
+    (status: {
+      lastError: string | null;
+      pendingInboxCount?: number;
+      poisonedCount?: number;
+      runningCount: number;
+    }) => {
+      setBannerError(
+        composeTrafficBanner({
+          lastError: status.lastError,
+          pendingInboxCount: status.pendingInboxCount ?? 0,
+          poisonedCount: status.poisonedCount ?? 0,
+          runningCount: status.runningCount,
+        }),
+      );
+    },
+    [],
+  );
+
   useEffect(() => {
-    if (!showOps) return;
-    void (async () => {
+    let cancelled = false;
+    const pull = async () => {
       const status = await fetchTrafficStatus();
-      if (status.ok && status.data.lastError) {
-        setBannerError(status.data.lastError);
-      }
-    })();
-  }, [showOps]);
+      if (cancelled || !status.ok) return;
+      applyStatusBanner(status.data);
+      return status.data;
+    };
+    void pull();
+    const timer = window.setInterval(() => {
+      void (async () => {
+        const data = await pull();
+        if (!data) return;
+        const pending = (data.pendingInboxCount ?? 0) > 0;
+        if (!pending && data.runningCount === 0) {
+          window.clearInterval(timer);
+        }
+      })();
+    }, 4000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [applyStatusBanner]);
 
   const onLoadMore = useCallback(() => {
     if (!hasMore || loading || loadingMoreRef.current) return;
@@ -232,7 +269,9 @@ export function TrafficView({
         },
       });
       if (outcome.ok) {
-        setBannerError(null);
+        const after = await fetchTrafficStatus();
+        if (after.ok) applyStatusBanner(after.data);
+        else setBannerError(null);
         setSyncState(
           reduceSyncUiState(IDLE_SYNC_STATE, {
             type: "SUCCESS",
@@ -282,7 +321,7 @@ export function TrafficView({
         ) : null}
       </div>
 
-      {showOps && bannerError ? (
+      {bannerError ? (
         <div
           role="alert"
           className="shrink-0 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"

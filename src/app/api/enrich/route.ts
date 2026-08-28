@@ -9,6 +9,7 @@ import { getEnrichReadyFlags } from "@/modules/pstn/credentials";
 import { ENRICH_MAX_UPLOAD_BYTES } from "@/modules/enrich/types";
 import {
   createEnrichJob,
+  EnrichActiveConflictError,
   findActiveEnrichJob,
 } from "@/modules/enrich/jobs";
 import {
@@ -86,10 +87,26 @@ export async function POST(request: Request) {
 
   await pruneEnrichArtifacts();
 
-  const jobId = await createEnrichJob({
-    actorUserId: userId,
-    sourceFilename: "cdr",
-  });
+  let jobId: string;
+  try {
+    jobId = await createEnrichJob({
+      actorUserId: userId,
+      sourceFilename: "cdr",
+    });
+  } catch (error) {
+    if (error instanceof EnrichActiveConflictError) {
+      const again = await findActiveEnrichJob();
+      return NextResponse.json(
+        {
+          error: error.message,
+          code: "CONFLICT",
+          jobId: again?.id ?? null,
+        },
+        { status: 409 },
+      );
+    }
+    throw error;
+  }
   ensureJobDir(jobId);
 
   try {
@@ -114,7 +131,7 @@ export async function POST(request: Request) {
       meta: { sourceFilename: uploaded.filename, bytes: uploaded.bytes },
     });
 
-    startEnrichPipeline(() =>
+    const started = startEnrichPipeline(() =>
       runEnrichPipeline({
         jobId,
         actorUserId: userId,
@@ -122,6 +139,25 @@ export async function POST(request: Request) {
         ip,
       }),
     );
+    if (!started) {
+      const { prisma } = await import("@/lib/db");
+      await prisma.enrichJob.update({
+        where: { id: jobId },
+        data: {
+          status: "failed",
+          finishedAt: new Date(),
+          errorMessage: "Уже выполняется другое обогащение",
+        },
+      });
+      return NextResponse.json(
+        {
+          error: "Уже выполняется другое обогащение",
+          code: "CONFLICT",
+          jobId,
+        },
+        { status: 409 },
+      );
+    }
 
     return NextResponse.json({ jobId }, { status: 202 });
   } catch (error) {

@@ -36,7 +36,9 @@ export async function getRegistrationsOperationalStatus(): Promise<Registrations
     lastError:
       lastAny?.status === "failed"
         ? (lastAny.errorMessage ?? "Poll failed")
-        : summary.lastFailed?.errorMessage ?? null,
+        : lastAny?.status === "success"
+          ? null
+          : (summary.lastFailed?.errorMessage ?? null),
     lastFinishedAt: lastAny?.finishedAt ?? lastAny?.startedAt ?? null,
     pollEnabled: settings?.regsPollEnabled ?? false,
     totalCount,

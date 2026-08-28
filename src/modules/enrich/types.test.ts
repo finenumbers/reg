@@ -3,6 +3,7 @@ import {
   MISSING_BILLING_LABEL,
   MISSING_PSTN_LABEL,
   descriptionOrMissing,
+  failOpenEnrichStages,
   isFinishedEnrichJob,
   isResumableEnrichJob,
   pstnOrMissing,
@@ -50,5 +51,22 @@ describe("enrich job lifetime", () => {
     expect(isFinishedEnrichJob({ status: "failed" })).toBe(true);
     expect(isFinishedEnrichJob({ status: "running" })).toBe(false);
     expect(isFinishedEnrichJob(null)).toBe(false);
+  });
+
+  it("fails open stages and keeps done/error", () => {
+    expect(
+      failOpenEnrichStages(
+        [
+          { id: "parse", label: "p", status: "done" },
+          { id: "phones", label: "ph", status: "running" },
+          { id: "pstn", label: "pstn", status: "pending" },
+        ],
+        "stop",
+      ),
+    ).toEqual([
+      { id: "parse", label: "p", status: "done" },
+      { id: "phones", label: "ph", status: "error", detail: "stop" },
+      { id: "pstn", label: "pstn", status: "error", detail: "stop" },
+    ]);
   });
 });

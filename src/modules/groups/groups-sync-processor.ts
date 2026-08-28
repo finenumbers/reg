@@ -16,6 +16,7 @@ import { AUDIT_ACTIONS, auditService } from "@/modules/audit";
 import { applyGroupsSnapshot } from "@/modules/groups/apply";
 import { parseGroupsStdout } from "@/modules/groups/parse";
 import { sanitizeStderrSnippet } from "@/modules/jobs/regs-poll-processor";
+import { failJobRunIfStillRunning } from "@/modules/jobs/finalize";
 
 export type GroupsSyncProcessorInput = {
   trigger: JobTrigger;
@@ -121,6 +122,7 @@ export async function processGroupsSync(
     },
   });
 
+  try {
   await auditService.append({
     actorUserId: input.actorUserId,
     action:
@@ -381,4 +383,11 @@ export async function processGroupsSync(
     groupCount: applyResult.groupCount,
     exitCode: execResult.exitCode,
   };
+  } finally {
+    await failJobRunIfStillRunning(
+      jobRun.id,
+      startedAt,
+      "Job ended without a terminal status",
+    );
+  }
 }

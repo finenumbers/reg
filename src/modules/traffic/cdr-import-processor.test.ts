@@ -215,6 +215,10 @@ describe("processCdrImport enrich on insert", () => {
           "79501112233",
           { found: true, operator: "МТС", garTerritory: "г. Москва" },
         ],
+        [
+          "78620000000",
+          { found: false, operator: null, garTerritory: null },
+        ],
       ]),
       geo: new Map([
         [

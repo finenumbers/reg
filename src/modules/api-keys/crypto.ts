@@ -7,6 +7,11 @@ export function generateApiKeySecret(): string {
   return `reg_${randomBytes(24).toString("base64url")}`;
 }
 
+/** Platform machine keys are `reg_…`. Other Bearer values must not steal the API-key path. */
+export function isPlatformApiKeySecret(secret: string): boolean {
+  return secret.startsWith("reg_");
+}
+
 export function apiKeyPrefix(secret: string): string {
   return secret.slice(0, KEY_PREFIX_LEN);
 }
@@ -35,16 +40,13 @@ export function extractApiKeyFromHeaders(headers: Headers): string | null {
   const auth = headers.get("authorization");
   if (auth) {
     const match = /^Bearer\s+(\S+)$/i.exec(auth.trim());
-    if (match?.[1]) return match[1];
+    if (match?.[1] && isPlatformApiKeySecret(match[1])) return match[1];
   }
-  const x = headers.get("x-api-key");
-  if (x?.trim()) return x.trim();
+  const x = headers.get("x-api-key")?.trim();
+  if (x && isPlatformApiKeySecret(x)) return x;
   return null;
 }
 
 export function hasApiKeyHeader(headers: Headers): boolean {
-  const auth = headers.get("authorization");
-  if (auth && /^Bearer\s+\S+/i.test(auth.trim())) return true;
-  const x = headers.get("x-api-key");
-  return Boolean(x?.trim());
+  return extractApiKeyFromHeaders(headers) != null;
 }

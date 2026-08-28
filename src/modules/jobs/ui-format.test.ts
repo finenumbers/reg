@@ -31,9 +31,9 @@ function sample(overrides: Partial<JobRunListItem> = {}): JobRunListItem {
 
 describe("jobs ui-format", () => {
   it("formats duration and trigger", () => {
-    expect(formatDurationMs(250)).toBe("250 мс");
-    expect(formatDurationMs(1500)).toBe("1.5 с");
-    expect(formatDurationMs(65000)).toBe("1 мин 5 с");
+    expect(formatDurationMs(250)).toBe("1");
+    expect(formatDurationMs(1500)).toBe("2");
+    expect(formatDurationMs(65000)).toBe("65");
     expect(formatDurationMs(null)).toBe("—");
     expect(formatJobTrigger("schedule")).toBe("По расписанию");
   });

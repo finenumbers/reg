@@ -20,6 +20,8 @@ import {
   type InboxFile,
 } from "@/modules/traffic/inbox";
 import { consumeCdrInboxDirty } from "@/modules/traffic/drain-flag";
+import { failJobRunIfStillRunning } from "@/modules/jobs/finalize";
+import { requestCdrImportDrain } from "@/modules/traffic/enqueue";
 import { markPoisoned } from "@/modules/traffic/poison";
 import {
   assertCanonicalCdrHeader,
@@ -33,6 +35,7 @@ import {
   enrichFieldsForRow,
   formatCdrEnrichStats,
   loadCdrImportEnrichment,
+  rowEnrichmentComplete,
   type CdrEnrichLookupStats,
 } from "@/modules/traffic/enrich-import";
 
@@ -241,13 +244,20 @@ async function importOneFile(
         parsed.fields.remote_dst_sig_address ?? "",
         maps,
       );
+      const complete = rowEnrichmentComplete(
+        parsed.fields.bill_ani ?? "",
+        parsed.fields.bill_dnis ?? "",
+        parsed.fields.remote_src_sig_address ?? "",
+        parsed.fields.remote_dst_sig_address ?? "",
+        maps,
+      );
       batch.push({
         ...(parsed.prisma as Prisma.CdrRecordCreateManyInput),
         ...enrich,
         cdrAt: parsed.cdrAt,
         sourceFilename: file.filename,
         lastJobRunId: jobRunId,
-        enrichedAt,
+        enrichedAt: complete ? enrichedAt : null,
       });
       if (batch.length >= CDR_INSERT_BATCH_SIZE) {
         await flush();
@@ -274,13 +284,15 @@ async function importOneFile(
 
   const skipped = Math.max(0, parsedValid - inserted);
   if (linesBad > 0) {
+    const first =
+      firstBadLine != null ? ` (первая: ${firstBadLine})` : "";
     return {
       filename: file.filename,
       inserted,
       skipped,
       linesBad,
       firstBadLine,
-      error: `${file.filename}: ${linesBad} битых строк (первая: ${firstBadLine})`,
+      error: `Частичная загрузка: вставлено ${inserted} записей, ${linesBad} битых строк${first} в ${file.filename}. Файл оставлен в FTP-папке — «Повторить импорт» на Сырых данных.`,
       enrichStats: maps.stats,
     };
   }
@@ -310,6 +322,7 @@ export async function processCdrImport(
     },
   });
 
+  try {
   await auditService.append({
     actorUserId: input.actorUserId,
     action:
@@ -379,6 +392,10 @@ export async function processCdrImport(
       });
       if (backfill.aborted || consumeCdrInboxDirty()) continue;
       break;
+    }
+    const leftover = await listInboxFiles();
+    if (leftover.length > 0) {
+      requestCdrImportDrain("schedule");
     }
   } catch (error) {
     const errorMessage =
@@ -492,5 +509,12 @@ export async function processCdrImport(
     changesCount,
     errorMessage: errorMessage ?? undefined,
   };
+  } finally {
+    await failJobRunIfStillRunning(
+      jobRun.id,
+      startedAt,
+      "Job ended without a terminal status",
+    );
+  }
 }
 

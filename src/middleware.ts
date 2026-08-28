@@ -3,9 +3,12 @@ import { getSessionCookie } from "better-auth/cookies";
 
 function hasMachineApiKey(request: NextRequest): boolean {
   const auth = request.headers.get("authorization");
-  if (auth && /^Bearer\s+\S+/i.test(auth.trim())) return true;
-  const x = request.headers.get("x-api-key");
-  return Boolean(x?.trim());
+  if (auth) {
+    const match = /^Bearer\s+(\S+)$/i.exec(auth.trim());
+    if (match?.[1]?.startsWith("reg_")) return true;
+  }
+  const x = request.headers.get("x-api-key")?.trim();
+  return Boolean(x?.startsWith("reg_"));
 }
 
 /**
@@ -45,6 +48,8 @@ export function middleware(request: NextRequest) {
     pathname === "/" ||
     pathname.startsWith("/regs") ||
     pathname.startsWith("/phones") ||
+    pathname.startsWith("/groups") ||
+    pathname.startsWith("/enrich") ||
     pathname.startsWith("/raw") ||
     pathname.startsWith("/traffic") ||
     pathname.startsWith("/geography") ||

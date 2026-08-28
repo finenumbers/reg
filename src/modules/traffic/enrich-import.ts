@@ -101,6 +101,25 @@ function geoBits(geo: GeoFields | undefined): {
   };
 }
 
+/** True when every requested PSTN/Geo lookup finished (including cached not-found). */
+export function rowEnrichmentComplete(
+  billAni: string,
+  billDnis: string,
+  remoteSrcSigAddress: string,
+  remoteDstSigAddress: string,
+  maps: Pick<CdrEnrichMaps, "pstn" | "geo">,
+): boolean {
+  const ani = billAni.trim();
+  const dnis = billDnis.trim();
+  if (ani && !maps.pstn.has(ani)) return false;
+  if (dnis && !maps.pstn.has(dnis)) return false;
+  const ipA = stripIpPort(remoteSrcSigAddress);
+  const ipB = stripIpPort(remoteDstSigAddress);
+  if (ipA && !maps.geo.has(ipA)) return false;
+  if (ipB && !maps.geo.has(ipB)) return false;
+  return true;
+}
+
 export function enrichFieldsForRow(
   billAni: string,
   billDnis: string,
@@ -218,9 +237,16 @@ export async function backfillUnenrichedCdrRecords(opts: {
         row.remoteDstSigAddress,
         maps,
       );
+      const complete = rowEnrichmentComplete(
+        row.billAni,
+        row.billDnis,
+        row.remoteSrcSigAddress,
+        row.remoteDstSigAddress,
+        maps,
+      );
       await prisma.cdrRecord.update({
         where: { id: row.id },
-        data: { ...fields, enrichedAt: now },
+        data: { ...fields, enrichedAt: complete ? now : null },
       });
       backfilled += 1;
     }

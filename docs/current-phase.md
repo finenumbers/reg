@@ -1,7 +1,7 @@
-# Current Phase — Phase 7 Production readiness
+# Current Phase — production (v1.10)
 
-**Status:** complete (deployment quality, env validation, ops runbooks, smoke/backup helpers).  
-**Date:** 2026-08-06
+**Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators.  
+**Date:** 2026-08-28
 
 ## Goals delivered
 

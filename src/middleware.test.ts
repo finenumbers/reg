@@ -73,6 +73,13 @@ describe("middleware protected routes", () => {
     expect(res.status).toBe(200);
   });
 
+  it("does not treat a foreign Bearer token as a machine API key", () => {
+    const url = "http://localhost:3000/api/regs";
+    const headers = new Headers({ authorization: "Bearer not-a-platform-key" });
+    const res = middleware(new NextRequest(url, { headers }));
+    expect(res.status).toBe(401);
+  });
+
   it("allows X-Api-Key without session cookie on /api/phones", () => {
     const url = "http://localhost:3000/api/phones";
     const headers = new Headers({ "x-api-key": "reg_testkey" });

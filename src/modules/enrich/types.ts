@@ -4,7 +4,6 @@ export const MISSING_PSTN_LABEL = "Нет в реестре МинЦифры";
 
 export const EXCEL_MAX_ROWS = 1_048_575;
 export const ENRICH_MAX_UPLOAD_BYTES = 200 * 1024 * 1024;
-export const ENRICH_PROGRESS_MIN_MS = 400;
 export const ENRICH_ARTIFACT_TTL_MS = 24 * 60 * 60 * 1000;
 
 export const TRAFFIC_HEADERS = [
@@ -147,6 +146,18 @@ export function isFinishedEnrichJob(
   job: Pick<EnrichJobView, "status"> | null,
 ): boolean {
   return job != null && (job.status === "completed" || job.status === "failed");
+}
+
+/** Mark in-flight / pending stages as error (orphan reclaim, pipeline catch). */
+export function failOpenEnrichStages(
+  stages: EnrichStageView[],
+  detail: string,
+): EnrichStageView[] {
+  return stages.map((stage) =>
+    stage.status === "done" || stage.status === "error"
+      ? stage
+      : { ...stage, status: "error", detail },
+  );
 }
 
 export function billableMinutes(seconds: number): number {

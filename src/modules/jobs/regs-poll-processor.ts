@@ -20,6 +20,7 @@ import {
 } from "@/modules/registrations/apply";
 import { parseRegsStdout } from "@/modules/registrations/parser";
 import { enqueueStaleGeoLookups, uniqueLookupIps } from "@/modules/geoip";
+import { failJobRunIfStillRunning } from "@/modules/jobs/finalize";
 
 export type RegsPollProcessorInput = {
   trigger: JobTrigger;
@@ -155,6 +156,7 @@ export async function processRegsPoll(
     },
   });
 
+  try {
   await auditService.append({
     actorUserId: input.actorUserId,
     action:
@@ -465,4 +467,11 @@ export async function processRegsPoll(
     changesCount: applyResult.changesCount,
     exitCode: execResult.exitCode,
   };
+  } finally {
+    await failJobRunIfStillRunning(
+      jobRun.id,
+      startedAt,
+      "Job ended without a terminal status",
+    );
+  }
 }

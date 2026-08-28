@@ -19,9 +19,11 @@ import {
 } from "@/modules/traffic/columns";
 import { buildTrafficFacetsUrl } from "@/modules/traffic/api-client";
 import type { TrafficListItem } from "@/modules/traffic/service";
+import { cn } from "@/lib/utils";
 import {
   displayTrafficFacet,
   formatTrafficCell,
+  trafficMissingLabelClass,
 } from "@/modules/traffic/ui-format";
 
 const DEFAULT_HIGHLIGHT = new Set<string>(CDR_PHONE_COLUMNS);
@@ -119,11 +121,11 @@ export function TrafficTable({
                 return (
                   <TableCell
                     key={h}
-                    className={
-                      DEFAULT_BOLD.has(h)
-                        ? "whitespace-nowrap font-bold"
-                        : "whitespace-nowrap"
-                    }
+                    className={cn(
+                      "whitespace-nowrap",
+                      DEFAULT_BOLD.has(h) && "font-bold",
+                      trafficMissingLabelClass(shown),
+                    )}
                   >
                     {highlightSet.has(h) ? (
                       <HighlightText text={shown} query={phoneQ} />
