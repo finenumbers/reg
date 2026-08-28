@@ -1,7 +1,11 @@
-# Current Phase — production (v1.14.1)
+# Current Phase — production (v1.14.2)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export.  
 **Date:** 2026-08-29
+
+## v1.14.2 — traffic export directory
+
+Create `/app/data/traffic-export` in the image (owned by `nextjs`) and mount `reg_traffic_export`. Fixes EACCES on month XLSX export.
 
 ## v1.14.1 — GHCR typecheck
 

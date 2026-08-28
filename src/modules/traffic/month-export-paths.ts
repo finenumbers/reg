@@ -19,6 +19,12 @@ export function monthExportOutputPath(jobId: string, cwd?: string): string {
   return path.join(monthExportJobDir(jobId, cwd), "output.xlsx");
 }
 
+export function ensureMonthExportRoot(cwd?: string): string {
+  const root = monthExportDataRoot(cwd);
+  mkdirSync(root, { recursive: true });
+  return root;
+}
+
 export function ensureMonthExportJobDir(jobId: string, cwd?: string): string {
   const dir = monthExportJobDir(jobId, cwd);
   mkdirSync(dir, { recursive: true });

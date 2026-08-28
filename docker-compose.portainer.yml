@@ -77,6 +77,7 @@ services:
     volumes:
       - reg_enrich_data:/app/data/enrich
       - reg_cdr_inbox:/app/data/cdr-inbox
+      - reg_traffic_export:/app/data/traffic-export
     # Softswitch uses active FTP to the host IP:2121. No PASV range.
     ports:
       - "${FTP_PUBLISH_PORT:-2121}:2121"
@@ -90,6 +91,7 @@ volumes:
   reg_pg_data:
   reg_enrich_data:
   reg_cdr_inbox:
+  reg_traffic_export:
 
 networks:
   internal:

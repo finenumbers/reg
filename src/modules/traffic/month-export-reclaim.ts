@@ -3,7 +3,11 @@ import { readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { logger } from "@/lib/logger";
 import { MONTH_EXPORT_ARTIFACT_TTL_MS } from "@/modules/traffic/month-export-types";
-import { monthExportDataRoot, monthExportJobDir } from "@/modules/traffic/month-export-paths";
+import {
+  ensureMonthExportRoot,
+  monthExportDataRoot,
+  monthExportJobDir,
+} from "@/modules/traffic/month-export-paths";
 
 export async function removeMonthExportJobDir(jobId: string): Promise<void> {
   await rm(monthExportJobDir(jobId), { recursive: true, force: true });
@@ -13,6 +17,11 @@ export async function pruneMonthExportArtifacts(
   now: Date = new Date(),
 ): Promise<{ removed: number }> {
   const root = monthExportDataRoot();
+  try {
+    ensureMonthExportRoot();
+  } catch {
+    return { removed: 0 };
+  }
   let entries: string[] = [];
   try {
     entries = await readdir(root);

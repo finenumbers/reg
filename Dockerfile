@@ -42,7 +42,8 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder /app/src/generated ./src/generated
 COPY --from=builder /app/scripts/docker-entrypoint.sh ./docker-entrypoint.sh
 COPY --from=builder --chown=nextjs:nodejs /app/ops/templates ./ops/templates
-RUN mkdir -p /app/data/enrich /app/data/cdr-inbox && chown nextjs:nodejs /app/data/enrich /app/data/cdr-inbox
+RUN mkdir -p /app/data/enrich /app/data/cdr-inbox /app/data/traffic-export \
+  && chown nextjs:nodejs /app/data/enrich /app/data/cdr-inbox /app/data/traffic-export
 COPY --from=builder /app/scripts/copy-module-tree.js /tmp/copy-module-tree.js
 COPY --from=deps /app/node_modules /tmp/all_modules
 RUN node /tmp/copy-module-tree.js /tmp/all_modules /app/node_modules exceljs ftp-srv \
