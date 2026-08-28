@@ -73,15 +73,6 @@ export function SettingsForm({ initial }: Props) {
   const [ftpListenPort, setFtpListenPort] = useState(
     String(initial.ftpListenPort),
   );
-  const [ftpPasvMinPort, setFtpPasvMinPort] = useState(
-    String(initial.ftpPasvMinPort),
-  );
-  const [ftpPasvMaxPort, setFtpPasvMaxPort] = useState(
-    String(initial.ftpPasvMaxPort),
-  );
-  const [ftpPasvAddress, setFtpPasvAddress] = useState(
-    initial.ftpPasvAddress ?? "",
-  );
   const [ftpTestResult, setFtpTestResult] = useState<TestResultView | null>(
     null,
   );
@@ -141,9 +132,6 @@ export function SettingsForm({ initial }: Props) {
     setFtpEnabled(next.ftpEnabled);
     setFtpUsername(next.ftpUsername ?? "");
     setFtpListenPort(String(next.ftpListenPort));
-    setFtpPasvMinPort(String(next.ftpPasvMinPort));
-    setFtpPasvMaxPort(String(next.ftpPasvMaxPort));
-    setFtpPasvAddress(next.ftpPasvAddress ?? "");
     router.refresh();
   }
 
@@ -508,9 +496,6 @@ export function SettingsForm({ initial }: Props) {
             ftpEnabled,
             ftpUsername: ftpUsername.trim() || undefined,
             ftpListenPort: Number(ftpListenPort),
-            ftpPasvMinPort: Number(ftpPasvMinPort),
-            ftpPasvMaxPort: Number(ftpPasvMaxPort),
-            ftpPasvAddress,
           }),
         });
         const data = (await res.json()) as {
@@ -1073,10 +1058,9 @@ export function SettingsForm({ initial }: Props) {
       <section className="space-y-4">
         <h2 className="text-base font-semibold">FTP — телефонный трафик</h2>
         <p className="text-sm text-muted-foreground">
-          Софтсвитч подключается к этой платформе как FTP-клиент и заливает CDR.
-          Слушатель — не HTTPS: укажите IP хоста Docker в PASV-адресе и
-          опубликуйте порт 2121 плюс диапазон PASV. Пароль хранится
-          зашифрованным и в UI не показывается.
+          Софтсвитч — FTP-клиент на своём реальном IP, активный режим, порт 21
+          на хосте Docker (не через NPM). Пароль хранится зашифрованным и в UI
+          не показывается.
         </p>
         <div className="grid gap-4">
           <div className="flex items-center gap-2">
@@ -1125,47 +1109,16 @@ export function SettingsForm({ initial }: Props) {
               )}
             </p>
           </div>
-          <div className="grid gap-4 sm:grid-cols-3">
-            <div className="space-y-2">
-              <Label htmlFor="ftp-port">Порт</Label>
-              <Input
-                id="ftp-port"
-                value={ftpListenPort}
-                onChange={(e) => setFtpListenPort(e.target.value)}
-                autoComplete="off"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="ftp-pasv-min">PASV min</Label>
-              <Input
-                id="ftp-pasv-min"
-                value={ftpPasvMinPort}
-                onChange={(e) => setFtpPasvMinPort(e.target.value)}
-                autoComplete="off"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="ftp-pasv-max">PASV max</Label>
-              <Input
-                id="ftp-pasv-max"
-                value={ftpPasvMaxPort}
-                onChange={(e) => setFtpPasvMaxPort(e.target.value)}
-                autoComplete="off"
-              />
-            </div>
-          </div>
           <div className="space-y-2">
-            <Label htmlFor="ftp-pasv-address">PASV-адрес (IP хоста)</Label>
+            <Label htmlFor="ftp-port">Порт</Label>
             <Input
-              id="ftp-pasv-address"
-              value={ftpPasvAddress}
-              onChange={(e) => setFtpPasvAddress(e.target.value)}
-              placeholder="например 192.168.1.10"
+              id="ftp-port"
+              value={ftpListenPort}
+              onChange={(e) => setFtpListenPort(e.target.value)}
               autoComplete="off"
             />
             <p className="text-xs text-muted-foreground">
-              IP или DNS, который видит софтсвитч. Не домен NPM — FTP через
-              reverse proxy не ходит.
+              Софтсвитч подключается на IP хоста и этот порт. По умолчанию 21.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">

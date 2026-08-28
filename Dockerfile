@@ -50,7 +50,7 @@ RUN node /tmp/copy-module-tree.js /tmp/all_modules /app/node_modules exceljs ftp
   && chown -R nextjs:nodejs /app/node_modules/exceljs /app/node_modules \
   && chmod +x ./docker-entrypoint.sh && chown nextjs:nodejs ./docker-entrypoint.sh
 USER nextjs
-EXPOSE 3000 2121 50100-50109
+EXPOSE 3000 21
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 # Liveness — process accepts HTTP (compose readiness uses /api/readyz)

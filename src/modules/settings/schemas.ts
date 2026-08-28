@@ -46,7 +46,7 @@ export const settingsUpdateSchema = z.object({
     .optional(),
   ftpEnabled: z.boolean().optional(),
   ftpUsername: z.string().min(1).max(128).optional(),
-  ftpListenPort: z.number().int().min(1024).max(65535).optional(),
+  ftpListenPort: z.number().int().min(1).max(65535).optional(),
   ftpPasvMinPort: z.number().int().min(1024).max(65535).optional(),
   ftpPasvMaxPort: z.number().int().min(1024).max(65535).optional(),
   ftpPasvAddress: z.string().max(255).optional(),

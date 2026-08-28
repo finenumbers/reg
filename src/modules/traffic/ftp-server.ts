@@ -202,7 +202,7 @@ export async function testFtpListener(): Promise<{
   if (isFtpListenerActive()) {
     return {
       result: "success",
-      detail: `Слушатель активен на порту ${config.listenPort}${config.pasvAddress ? `, PASV ${config.pasvAddress}` : " (задайте PASV-адрес для Docker)"}`,
+      detail: `Слушатель активен на порту ${config.listenPort}`,
     };
   }
   const started = await startFtpServer();

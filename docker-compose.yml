@@ -77,10 +77,11 @@ services:
     volumes:
       - reg_enrich_data:/app/data/enrich
       - reg_cdr_inbox:/app/data/cdr-inbox
+    cap_add:
+      - NET_BIND_SERVICE
     ports:
       - "${APP_PUBLISH_PORT:-3000}:3000"
-      - "${FTP_PUBLISH_PORT:-2121}:2121"
-      - "${FTP_PASV_PORT_RANGE:-50100-50109}:50100-50109"
+      - "${FTP_PUBLISH_PORT:-21}:21"
     healthcheck:
       test:
         [

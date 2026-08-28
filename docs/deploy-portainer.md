@@ -86,11 +86,20 @@ Set `BETTER_AUTH_URL` to the exact public origin (`https://regs.example.com`) an
 3. **Registrations:** manual poll once; check `/jobs` and `/regs`.
 4. **Phones:** sync once after softswitch `export.py` is installed.
 5. Only then enable Settings auto-poll (`regsPollEnabled`) — still one replica.
-6. **Телефонный трафик:** в Настройках задайте FTP логин/пароль, PASV-адрес = **IP Docker-хоста, который видит софтсвитч** (не HTTPS-домен NPM). Откройте на хосте `2121` и `50100–50109`. Софтсвитч заливает CDR на этот IP. NPM FTP не проксирует.
+6. **Телефонный трафик:** софтсвитч заливает CDR активным FTP на **IP Docker-хоста:21** (не HTTPS NPM). В стеке опубликован только `21`. В Настройках: логин, пароль, порт 21.
 
-## 5a. FTP ports (CDR inbox)
+## 5a. FTP port 21 (CDR inbox)
 
-The `app` service now publishes host ports `2121` (control) and `50100-50109` (PASV). Override with `FTP_PUBLISH_PORT` / `FTP_PASV_PORT_RANGE` if needed. Open the same range on the host firewall toward the softswitch. Set Settings → FTP → PASV-адрес to that reachable IP.
+NPM cannot proxy FTP. The `app` service publishes host port `21` and binds it inside the container (`cap_add: NET_BIND_SERVICE`). The softswitch uses **active FTP** from its real IP — no PASV range.
+
+If `Bind for 0.0.0.0:21 failed: port is already allocated`, something else owns TCP 21:
+
+```bash
+ss -lntup | grep ':21'
+docker ps --format '{{.Names}} {{.Ports}}' | grep ':21'
+```
+
+Override with `FTP_PUBLISH_PORT` only if you also change Settings → FTP → порт to the same number.
 
 ## 6. GeoIP on the same Docker host
 

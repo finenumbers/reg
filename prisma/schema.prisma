@@ -114,10 +114,10 @@ model AppSetting {
   ftpUsername           String?
   /// AES-256-GCM ciphertext of FTP password. Never plaintext.
   ftpPasswordCiphertext String?
-  ftpListenPort         Int         @default(2121)
+  ftpListenPort         Int         @default(21)
   ftpPasvMinPort        Int         @default(50100)
   ftpPasvMaxPort        Int         @default(50109)
-  /// Host IP/DNS advertised in PASV (Docker NAT). Softswitch must reach this.
+  /// Optional PASV advertise address — unused when the softswitch uses active FTP.
   ftpPasvAddress        String?
   updatedAt             DateTime    @updatedAt
 
