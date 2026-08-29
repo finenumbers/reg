@@ -273,6 +273,9 @@ function success(
   const legs: VoipmonitorLegs = {};
   if (roleLegs.in) legs.in = legRef(guiBase, cardTemplate, roleLegs.in);
   if (roleLegs.out) legs.out = legRef(guiBase, cardTemplate, roleLegs.out);
+  if (!legs.in && !legs.out) {
+    legs.in = legRef(guiBase, cardTemplate, call);
+  }
   return {
     status: status as MatchResult["status"],
     method,
@@ -455,14 +458,24 @@ function missingRoleCallIds(cdr: CdrCandidate, idx: CallIndex): string[] {
   return out;
 }
 
+/** Same identity as stageExact seenCdr: cdrId, else callId|callDate. */
+function reservationKey(leg: VmCall): string | null {
+  const cdrId = leg.cdrId.trim();
+  if (cdrId) return cdrId;
+  const callId = leg.callId.trim();
+  if (!callId) return null;
+  return `${callId}|${leg.callDate?.toISOString() ?? ""}`;
+}
+
 function pickUnusedLeg(
   pool: VmCall[],
   used: Map<string, number>,
   candIdx: number,
 ): VmCall | undefined {
   for (const leg of pool) {
-    if (!leg.cdrId) return leg;
-    const owner = used.get(leg.cdrId);
+    const key = reservationKey(leg);
+    if (!key) continue;
+    const owner = used.get(key);
     if (owner !== undefined && owner !== candIdx) continue;
     return leg;
   }
@@ -474,7 +487,8 @@ function claimLeg(
   candIdx: number,
   leg: VmCall | undefined,
 ): void {
-  if (leg?.cdrId) used.set(leg.cdrId, candIdx);
+  const key = leg ? reservationKey(leg) : null;
+  if (key) used.set(key, candIdx);
 }
 
 function stageExact(
@@ -770,8 +784,9 @@ function assignBucket(
     claimLeg(used, pm.candIdx, outLeg);
     let primary = inLeg ?? outLeg;
     if (!primary && pm.call) {
-      const owner = pm.call.cdrId ? used.get(pm.call.cdrId) : undefined;
-      if (owner === undefined || owner === pm.candIdx) {
+      const key = reservationKey(pm.call);
+      const owner = key ? used.get(key) : undefined;
+      if (!key || owner === undefined || owner === pm.candIdx) {
         primary = pm.call;
         claimLeg(used, pm.candIdx, pm.call);
       }
@@ -826,8 +841,9 @@ function assignBucket(
   );
   for (const pm of fallback) {
     if (assigned[pm.candIdx]) continue;
-    if (pm.call.cdrId) {
-      const owner = used.get(pm.call.cdrId);
+    const primaryKey = reservationKey(pm.call);
+    if (primaryKey) {
+      const owner = used.get(primaryKey);
       if (owner !== undefined && owner !== pm.candIdx) {
         const ev = pm.evidence;
         ev.miss_reason = MISS_ASSIGNED_ELSEWHERE;
@@ -835,7 +851,7 @@ function assignBucket(
         results[pm.candIdx] = missResult(MISS_ASSIGNED_ELSEWHERE, ev);
         continue;
       }
-      used.set(pm.call.cdrId, pm.candIdx);
+      used.set(primaryKey, pm.candIdx);
     }
     const inLeg = pickUnusedLeg(pm.inPool, used, pm.candIdx);
     const outLeg = pickUnusedLeg(pm.outPool, used, pm.candIdx);

@@ -1,7 +1,11 @@
-# Current Phase — production (v1.16.0)
+# Current Phase — production (v1.16.1)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export.  
 **Date:** 2026-08-29
+
+## v1.16.1 — match visibility and PSTN retry
+
+Successful VoIPmonitor matches always write at least `legs.in` (conf-only / unclassified fallback no longer leave Calltrace empty). VM rows without `cdrId` are reserved by `callId|callDate` so two CDRs cannot share one call. PSTN live API errors no longer fake a not-found hit, so `enrichedAt` stays null and backfill retries.
 
 ## v1.16.0 — VoIPmonitor in/out legs
 

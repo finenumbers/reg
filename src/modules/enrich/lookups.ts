@@ -153,10 +153,7 @@ export async function enrichPstnPhones(
               error: error instanceof Error ? error.message : String(error),
             });
           }
-          for (const original of normalizedToOriginals.get(phone) ?? []) {
-            byOriginal.set(original, missingFields);
-            done += 1;
-          }
+          done += (normalizedToOriginals.get(phone) ?? []).length;
         }
         onProgress?.({ current: done, total, cacheHits, liveLookups });
       }),

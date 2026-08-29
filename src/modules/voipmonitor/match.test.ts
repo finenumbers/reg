@@ -100,6 +100,8 @@ describe("matchOne", () => {
     expect(result.vm?.cdrId).toBe("42");
     expect(result.cardUrl).toContain("fcallid");
     expect(result.cardUrl).not.toContain("fId");
+    expect(result.legs.in?.cdrId).toBe("42");
+    expect(result.legs.out).toBeUndefined();
     expect(
       auditExactCallIdInvariant(satel({ sipCallIds: ["sip-abc"] }), result),
     ).toBe(true);
@@ -207,6 +209,26 @@ describe("matchOne", () => {
     expect(result.status).toBe(STATUS_MATCHED_FALLBACK);
     expect(result.vm?.cdrId).toBe("77");
     expect(result.cardUrl).toContain("fcallid");
+    expect(result.legs.in?.cdrId).toBe("77");
+    expect(result.legs.out).toBeUndefined();
+  });
+
+  it("puts a conf-only exact match in the In column", async () => {
+    const { result, error } = await matchOne(
+      {
+        client: fakeClient([vm({ cdrId: "c1", callId: "conf-xyz" })]),
+        guiBase: "https://vm.example",
+      },
+      satel({
+        sipCallIds: ["conf-xyz"],
+        inCallIds: [],
+        outCallIds: [],
+      }),
+    );
+    expect(error).toBeUndefined();
+    expect(result.status).toBe(STATUS_MATCHED_EXACT);
+    expect(result.legs.in?.cdrId).toBe("c1");
+    expect(result.legs.out).toBeUndefined();
   });
 
   it("does not exact-match a different Call-ID", async () => {
@@ -253,6 +275,40 @@ describe("matchOne", () => {
     expect(error).toBeUndefined();
     expect(auditLinkInvariants(cands, results)).toEqual([]);
     expect(results.filter((r) => r.status === STATUS_MATCHED_EXACT)).toHaveLength(
+      1,
+    );
+  });
+
+  it("does not assign a cdrId-less VM call to two candidates", async () => {
+    const client = fakeClient([
+      vm({
+        cdrId: "",
+        callId: "anon-shared",
+        callDate: new Date("2026-07-27T12:00:00Z"),
+      }),
+    ]);
+    const setup = new Date("2026-07-27T12:00:00Z");
+    const cands = [
+      satel({
+        sourceRecordId: "a",
+        setupTime: setup,
+        sipCallIds: ["anon-shared"],
+      }),
+      satel({
+        sourceRecordId: "b",
+        setupTime: setup,
+        sipCallIds: ["anon-shared"],
+      }),
+    ];
+    const { results, error } = await matchBucket(
+      { client, guiBase: "https://vm.example" },
+      cands,
+    );
+    expect(error).toBeUndefined();
+    const hits = results.filter((r) => r.status === STATUS_MATCHED_EXACT);
+    expect(hits).toHaveLength(1);
+    expect(hits[0]?.legs.in?.callId).toBe("anon-shared");
+    expect(results.filter((r) => r.status !== STATUS_MATCHED_EXACT)).toHaveLength(
       1,
     );
   });
