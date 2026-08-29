@@ -1,5 +1,9 @@
 export { isSafeVoipmonitorHref } from "@/modules/voipmonitor/url";
-export { countUnenrichedVoipmonitor, hasVoipmonitorWork } from "@/modules/voipmonitor/count";
+export {
+  countParkedVoipmonitor,
+  countUnenrichedVoipmonitor,
+  hasVoipmonitorWork,
+} from "@/modules/voipmonitor/count";
 export {
   canEnqueueVoipmonitorMatch,
   shouldChainVoipmonitorMatch,
@@ -10,5 +14,7 @@ export { loadVoipmonitorRuntime } from "@/modules/voipmonitor/credentials";
 export { VoipmonitorClient } from "@/modules/voipmonitor/client";
 export {
   composeVoipmonitorJobsBanner,
+  composeVoipmonitorParkedHint,
+  VOIPMONITOR_PARKED_HINT_TITLE,
   type JobsEnrichBannerInput,
 } from "@/modules/voipmonitor/jobs-banner";

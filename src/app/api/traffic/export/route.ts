@@ -22,6 +22,11 @@ function parseExportMonth(body: unknown): string | null {
   return parseMonthKey(month)?.key ?? null;
 }
 
+function parseIncludeDetail(body: unknown): boolean {
+  if (!body || typeof body !== "object") return false;
+  return (body as { includeDetail?: unknown }).includeDetail === true;
+}
+
 /**
  * POST /api/traffic/export — start a month CDR XLSX job.
  */
@@ -73,12 +78,13 @@ export async function POST(request: Request) {
       { status: 400 },
     );
   }
+  const includeDetail = parseIncludeDetail(json);
 
   await pruneMonthExportArtifacts();
 
   let job;
   try {
-    job = createMonthExportJob({ actorUserId: userId, month });
+    job = createMonthExportJob({ actorUserId: userId, month, includeDetail });
   } catch (error) {
     if (error instanceof MonthExportActiveConflictError) {
       return NextResponse.json(

@@ -5,8 +5,8 @@
 import { randomUUID } from "node:crypto";
 import {
   failOpenMonthExportStages,
-  INITIAL_MONTH_EXPORT_STAGES,
   isActiveMonthExport,
+  monthExportStages,
   type MonthExportJobStatus,
   type MonthExportJobView,
   type MonthExportStageId,
@@ -74,6 +74,7 @@ export function toJobView(job: MonthExportJobRecord): MonthExportJobView {
     id: job.id,
     status: job.status,
     month: job.month,
+    includeDetail: job.includeDetail,
     title: job.title,
     trafficSheetName: job.trafficSheetName,
     filename: job.filename,
@@ -94,6 +95,7 @@ export class MonthExportActiveConflictError extends Error {
 export function createMonthExportJob(input: {
   actorUserId: string;
   month: string;
+  includeDetail?: boolean;
 }): MonthExportJobRecord {
   const s = store();
   if (s.running) {
@@ -101,16 +103,18 @@ export function createMonthExportJob(input: {
   }
   s.running = true;
   const id = randomUUID();
+  const includeDetail = input.includeDetail === true;
   const job: MonthExportJobRecord = {
     id,
     actorUserId: input.actorUserId,
     createdAt: Date.now(),
     status: "queued",
     month: input.month,
+    includeDetail,
     title: "",
     trafficSheetName: "",
     filename: "",
-    stages: INITIAL_MONTH_EXPORT_STAGES.map((stage) => ({ ...stage })),
+    stages: monthExportStages(includeDetail),
     errorMessage: null,
     downloadUrl: null,
   };

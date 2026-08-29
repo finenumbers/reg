@@ -195,11 +195,13 @@ async function writeResolvedSheets(opts: {
   trafficSheetName: string;
   outputPath: string;
   rowCount: number;
+  includeDetail?: boolean;
   onProgress?: (info: XlsxSheetProgress) => void;
   eachRow: (
     visit: (row: ResolvedEnrichedRow, index: number) => void,
   ) => Promise<void>;
 }): Promise<void> {
+  const includeDetail = opts.includeDetail !== false;
   const workbook = new ExcelJS.stream.xlsx.WorkbookWriter({
     filename: opts.outputPath,
     useStyles: true,
@@ -261,6 +263,11 @@ async function writeResolvedSheets(opts: {
     to: { row: opts.rowCount + 1, column: TRAFFIC_HEADERS.length },
   };
   await traffic.commit();
+
+  if (!includeDetail) {
+    await workbook.commit();
+    return;
+  }
 
   const detail = workbook.addWorksheet("Детализация");
   DETAIL_WIDTHS.forEach((width, i) => {
@@ -345,12 +352,14 @@ export async function writeResolvedEnrichedXlsx(opts: {
   outputPath: string;
   rowCount: number;
   trafficSheetName: string;
+  includeDetail?: boolean;
   onProgress?: (info: XlsxSheetProgress) => void;
 }): Promise<void> {
   await writeResolvedSheets({
     trafficSheetName: opts.trafficSheetName,
     outputPath: opts.outputPath,
     rowCount: opts.rowCount,
+    includeDetail: opts.includeDetail,
     onProgress: opts.onProgress,
     eachRow: (visit) => eachJsonlRow<ResolvedEnrichedRow>(opts.jsonlPath, visit),
   });

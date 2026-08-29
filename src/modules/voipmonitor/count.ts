@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { QUEUE_EXHAUSTED_AT } from "@/modules/voipmonitor/constants";
 import {
   graceCutoffAt,
   liveCutoffAt,
@@ -38,6 +39,20 @@ export async function countUnenrichedVoipmonitor(): Promise<number> {
     }),
   ]);
   return Math.max(0, total - withUrl);
+}
+
+/** Exhausted not-found: empty URL and sentinel next_attempt_at. Cheap link-table count. */
+export function voipmonitorParkedLinkWhere() {
+  return {
+    voipmonitorUrl: "",
+    nextAttemptAt: { gte: QUEUE_EXHAUSTED_AT },
+  };
+}
+
+export async function countParkedVoipmonitor(): Promise<number> {
+  return prisma.cdrVoipmonitorLink.count({
+    where: voipmonitorParkedLinkWhere(),
+  });
 }
 
 export async function hasVoipmonitorWork(

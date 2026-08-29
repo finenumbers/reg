@@ -31,12 +31,20 @@ export const INITIAL_MONTH_EXPORT_STAGES: MonthExportStageView[] = [
   { id: "download", label: "Скачивание", status: "pending" },
 ];
 
+export function monthExportStages(includeDetail: boolean): MonthExportStageView[] {
+  const stages = includeDetail
+    ? INITIAL_MONTH_EXPORT_STAGES
+    : INITIAL_MONTH_EXPORT_STAGES.filter((stage) => stage.id !== "detail");
+  return stages.map((stage) => ({ ...stage }));
+}
+
 export type MonthExportJobStatus = "queued" | "running" | "completed" | "failed";
 
 export type MonthExportJobView = {
   id: string;
   status: MonthExportJobStatus;
   month: string;
+  includeDetail: boolean;
   title: string;
   trafficSheetName: string;
   filename: string;

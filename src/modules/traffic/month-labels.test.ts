@@ -20,6 +20,9 @@ describe("month labels", () => {
     expect(monthExportJobTitle(2026, 8)).toBe(
       "Сохранить данные августа 2026 года",
     );
+    expect(monthExportJobTitle(2026, 8, true)).toBe(
+      "Сохранить расширенные данные августа 2026 года",
+    );
     expect(monthExportSheetName(2026, 9).length).toBeLessThanOrEqual(31);
   });
 });

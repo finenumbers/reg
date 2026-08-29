@@ -30,7 +30,11 @@ import {
   summarizeJobResult,
   type JobStatusFilter,
 } from "@/modules/jobs/ui-format";
-import { composeVoipmonitorJobsBanner } from "@/modules/voipmonitor/jobs-banner";
+import {
+  composeVoipmonitorJobsBanner,
+  composeVoipmonitorParkedHint,
+  VOIPMONITOR_PARKED_HINT_TITLE,
+} from "@/modules/voipmonitor/jobs-banner";
 
 const PAGE_SIZE = TABLE_PAGE_SIZE;
 const JOBS_POLL_MS = 4000;
@@ -39,6 +43,7 @@ function jobsPageSignature(data: ListJobRunsResult): string {
   return [
     data.total,
     data.voipmonitorUnenrichedCount,
+    data.voipmonitorParkedCount ?? 0,
     data.voipmonitorHasWork ? "1" : "0",
     data.cdrEnrichUnenrichedCount ?? 0,
     ...data.items.map(
@@ -68,6 +73,9 @@ export function JobsView({ initial }: Props) {
   );
   const [voipmonitorHasWork, setVoipmonitorHasWork] = useState(
     initial.voipmonitorHasWork ?? false,
+  );
+  const [voipmonitorParked, setVoipmonitorParked] = useState(
+    initial.voipmonitorParkedCount ?? 0,
   );
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -130,6 +138,7 @@ export function JobsView({ initial }: Props) {
     setCdrEnrichUnenriched(result.data.cdrEnrichUnenrichedCount ?? 0);
     setVoipmonitorEnabled(result.data.voipmonitorEnabled);
     setVoipmonitorHasWork(result.data.voipmonitorHasWork ?? false);
+    setVoipmonitorParked(result.data.voipmonitorParkedCount ?? 0);
     setPage(result.data.page);
     setItems((prev) =>
       replace ? result.data.items : [...prev, ...result.data.items],
@@ -157,6 +166,7 @@ export function JobsView({ initial }: Props) {
       setCdrEnrichUnenriched(data.cdrEnrichUnenrichedCount ?? 0);
       setVoipmonitorEnabled(data.voipmonitorEnabled);
       setVoipmonitorHasWork(data.voipmonitorHasWork ?? false);
+      setVoipmonitorParked(data.voipmonitorParkedCount ?? 0);
       setPage(data.page);
       setItems(data.items);
     };
@@ -232,6 +242,7 @@ export function JobsView({ initial }: Props) {
     voipmonitorHasWork,
     cdrEnrichUnenriched,
   });
+  const voipmonitorParkedHint = composeVoipmonitorParkedHint(voipmonitorParked);
 
   const emptyMessage = status
     ? "Нет запусков по текущему фильтру статуса."
@@ -291,6 +302,14 @@ export function JobsView({ initial }: Props) {
           >
             Обновить
           </Button>
+          {voipmonitorParkedHint ? (
+            <p
+              className="ml-auto max-w-sm text-right text-sm text-muted-foreground"
+              title={VOIPMONITOR_PARKED_HINT_TITLE}
+            >
+              {voipmonitorParkedHint}
+            </p>
+          ) : null}
         </div>
         {voipmonitorBanner ? (
           <div

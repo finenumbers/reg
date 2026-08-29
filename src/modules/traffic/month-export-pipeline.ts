@@ -1,4 +1,5 @@
-import { createWriteStream } from "node:fs";
+import { once } from "node:events";
+import { createWriteStream, type WriteStream } from "node:fs";
 import { finished } from "node:stream/promises";
 import type { Prisma } from "@/generated/prisma/client";
 import { chunkArray } from "@/lib/chunk";
@@ -96,6 +97,15 @@ function keysetAfter(
   };
 }
 
+async function writeJsonlLine(
+  stream: WriteStream,
+  line: string,
+): Promise<void> {
+  if (!stream.write(line)) {
+    await once(stream, "drain");
+  }
+}
+
 function toStored(row: CdrExportRow): StoredEnrichRow {
   return {
     billAni: row.billAni,
@@ -167,6 +177,7 @@ export async function runMonthExportPipeline(jobId: string): Promise<void> {
     if (!parsed) {
       throw new Error("Некорректный месяц выгрузки");
     }
+    const includeDetail = existing.includeDetail === true;
 
     stages = setMonthExportStage(
       existing.stages.map((stage) => ({ ...stage })),
@@ -176,7 +187,7 @@ export async function runMonthExportPipeline(jobId: string): Promise<void> {
     persist(stages, true);
 
     await syncCdrAtFromCdrDate();
-    const title = monthExportJobTitle(parsed.year, parsed.month);
+    const title = monthExportJobTitle(parsed.year, parsed.month, includeDetail);
     const trafficSheetName = monthExportSheetName(parsed.year, parsed.month);
     const filename = `${trafficSheetName}-${formatExportTimestamp(jobStartedAt, "UTC")}.xlsx`;
     patchMonthExportJob(jobId, { title, trafficSheetName, filename });
@@ -271,7 +282,10 @@ export async function runMonthExportPipeline(jobId: string): Promise<void> {
             pendingUpdates.push({ id: item.row.id, data: patch });
           }
         }
-        stream.write(`${JSON.stringify(toResolved(item.row, stored))}\n`);
+        await writeJsonlLine(
+          stream,
+          `${JSON.stringify(toResolved(item.row, stored))}\n`,
+        );
         processed += 1;
       }
       for (const batch of chunkArray(pendingUpdates, MONTH_EXPORT_UPDATE_BATCH)) {
@@ -337,8 +351,9 @@ export async function runMonthExportPipeline(jobId: string): Promise<void> {
       outputPath,
       rowCount: processed,
       trafficSheetName,
+      includeDetail,
       onProgress: (info) => {
-        if (info.sheet === "detail") {
+        if (info.sheet === "detail" && includeDetail) {
           stages = setMonthExportStage(stages, "traffic", {
             status: "done",
             current: processed,
@@ -368,11 +383,13 @@ export async function runMonthExportPipeline(jobId: string): Promise<void> {
       total: processed,
       label: `Лист «${trafficSheetName}»`,
     });
-    stages = setMonthExportStage(stages, "detail", {
-      status: "done",
-      current: processed,
-      total: processed,
-    });
+    if (includeDetail) {
+      stages = setMonthExportStage(stages, "detail", {
+        status: "done",
+        current: processed,
+        total: processed,
+      });
+    }
     stages = setMonthExportStage(stages, "download", { status: "done" });
     persist(stages, true);
     patchMonthExportJob(jobId, { status: "completed" });
@@ -381,6 +398,7 @@ export async function runMonthExportPipeline(jobId: string): Promise<void> {
       rows: processed,
       gaps: gapRows,
       sheet: trafficSheetName,
+      includeDetail,
     });
   } catch (error) {
     const message =

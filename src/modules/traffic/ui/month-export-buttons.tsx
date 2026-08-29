@@ -80,14 +80,14 @@ export function MonthExportButtons({ month }: { month: string }) {
     };
   }, []);
 
-  async function start() {
+  async function start(includeDetail: boolean) {
     if (starting || isActiveMonthExport(job)) return;
     setStarting(true);
     try {
       const res = await fetch("/api/traffic/export", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ month }),
+        body: JSON.stringify({ month, includeDetail }),
       });
       const body = (await res.json().catch(() => null)) as {
         job?: MonthExportJobView;
@@ -114,8 +114,16 @@ export function MonthExportButtons({ month }: { month: string }) {
 
   return (
     <>
-      <Button type="button" disabled={busy} onClick={() => void start()}>
+      <Button type="button" disabled={busy} onClick={() => void start(false)}>
         {starting ? "Запуск…" : "Сохранить данные"}
+      </Button>
+      <Button
+        type="button"
+        variant="outline"
+        disabled={busy}
+        onClick={() => void start(true)}
+      >
+        {starting ? "Запуск…" : "Сохранить расширенные данные"}
       </Button>
 
       {job ? (

@@ -1,11 +1,17 @@
-# Current Phase — production (v1.21.0)
+# Current Phase — production (v1.22.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher.  
 **Date:** 2026-08-29
 
+## v1.22.0 — parked VoIPmonitor hint and two traffic saves
+
+On «Задачи» exhausted VoIPmonitor misses (sentinel `next_attempt_at`) leave the yellow banner. Open leftovers stay `total − with URL − parked`; the due queue is still `findFirst`. Parked count is a muted hint on the status filter row (`Не найдены в VoIPmonitor: N`).
+
+On «Телефонный трафик» «Сохранить данные» writes one month sheet; «Сохранить расширенные данные» keeps month + «Детализация». Enrich «Обогащение данных» still writes two sheets. Repeat `cdrAt` sync skips already-aligned rows.
+
 ## v1.21.0 — save traffic XLSX for the selected month
 
-On «Телефонный трафик» one button «Сохранить данные» exports the two-sheet enrich XLSX for the UTC calendar month currently selected in the dropdown. The first sheet is named after that month (no «неполный» suffix).
+On «Телефонный трафик» one button «Сохранить данные» exported the two-sheet enrich XLSX for the UTC calendar month currently selected in the dropdown. The first sheet is named after that month (no «неполный» suffix). v1.22.0 split that into basic (one sheet) and extended (two sheets).
 
 ## v1.20.0 — CDR calendar month switcher
 
@@ -13,7 +19,7 @@ Traffic, operators, geography and raw share a month `<select>` on the phone-sear
 
 ## v1.19.2 — CDR UI after VoIPmonitor queue filter
 
-Exhausted «not found» rows park on a far-future `next_attempt_at` instead of a `LIKE` on `evidence_json`. Matcher and Jobs banner stop scanning `cdr_records` on every tick, so traffic / geography / operators / raw stay responsive. Banner «Без ссылки» is again `total − with URL`; «Идёт фоновое обогащение» only when the due queue still has work.
+Exhausted «not found» rows park on a far-future `next_attempt_at` instead of a `LIKE` on `evidence_json`. Matcher and Jobs stop scanning `cdr_records` on every tick, so traffic / geography / operators / raw stay responsive. v1.22.0 hides parked leftovers from the yellow banner (`total − with URL − parked`) and shows them as a quiet filter-row hint.
 
 ## v1.19.1 — GHCR typecheck
 
@@ -51,9 +57,9 @@ Create `/app/data/traffic-export` in the image (owned by `nextjs`) and mount `re
 
 `formatCount` rejects `null`; CDR import summary now passes a number so Docker/GHCR build succeeds.
 
-## v1.14 — month traffic XLSX export
+## v1.14 — month traffic XLSX export *(superseded by v1.21.0 / v1.22.0)*
 
-On «Телефонный трафик»: two buttons export the previous full month or the current incomplete month (Settings timezone) as the same two-sheet XLSX as «Обогащение данных». Live `cdr_records`; PSTN/GeoIP gaps filled from cache/API without overwriting stored fields. Progress modal with stages; sheet named after the month.
+Historical: two buttons exported the previous full month or the current incomplete month (Settings timezone). v1.21.0 replaced that with one «Сохранить данные» button for the UTC calendar month selected in the dropdown (no «неполный» suffix). v1.22.0 split basic vs extended sheets. Live `cdr_records`; PSTN/GeoIP gaps filled from cache/API without overwriting stored fields. Progress modal with stages; sheet named after the month.
 
 ## v1.13 — operator counts, duration, live loops
 

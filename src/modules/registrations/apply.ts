@@ -5,7 +5,8 @@
  * failed / empty stdout / exit≠0 polls):
  * - upsert every phone from the dump (insert / update / lastSeenAt)
  * - delete from reg_current any phone absent from the dump
- * - empty dump → empty reg_current
+ * - empty dump may wipe only when the caller already confirmed the live
+ *   table is empty; processors refuse wipe of a non-empty table
  * - reg_change_events history is retained (no event on pure delete)
  */
 

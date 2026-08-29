@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { elapsedMsToSeconds } from "@/modules/traffic/month-export-types";
+import {
+  elapsedMsToSeconds,
+  monthExportStages,
+} from "@/modules/traffic/month-export-types";
 
 describe("elapsedMsToSeconds", () => {
   it("ceils milliseconds like the traffic UI", () => {
@@ -11,5 +14,20 @@ describe("elapsedMsToSeconds", () => {
     expect(elapsedMsToSeconds("")).toBe(0);
     expect(elapsedMsToSeconds("  ")).toBe(0);
     expect(elapsedMsToSeconds("abc")).toBe(0);
+  });
+});
+
+describe("monthExportStages", () => {
+  it("omits the detail stage for a one-sheet export", () => {
+    expect(monthExportStages(false).map((stage) => stage.id)).toEqual([
+      "period",
+      "read",
+      "fill",
+      "traffic",
+      "download",
+    ]);
+    expect(monthExportStages(true).some((stage) => stage.id === "detail")).toBe(
+      true,
+    );
   });
 });

@@ -43,8 +43,15 @@ export function formatMonthGenitive(year: number, month: number): string {
   return `${GENITIVE[monthIndex(month)]} ${year} года`;
 }
 
-export function monthExportJobTitle(year: number, month: number): string {
-  return `Сохранить данные ${formatMonthGenitive(year, month)}`;
+export function monthExportJobTitle(
+  year: number,
+  month: number,
+  includeDetail = false,
+): string {
+  const verb = includeDetail
+    ? "Сохранить расширенные данные"
+    : "Сохранить данные";
+  return `${verb} ${formatMonthGenitive(year, month)}`;
 }
 
 export function monthExportSheetName(year: number, month: number): string {
