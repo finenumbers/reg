@@ -143,7 +143,7 @@ export function JobsView({ initial }: Props) {
 
   useEffect(() => {
     let cancelled = false;
-    let timer: ReturnType<typeof window.setInterval> | null = null;
+    let timer: number | null = null;
 
     const applyPage = (data: ListJobRunsResult) => {
       pageSigRef.current = jobsPageSignature(data);

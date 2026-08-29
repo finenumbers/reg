@@ -1,7 +1,11 @@
-# Current Phase — production (v1.19.0)
+# Current Phase — production (v1.19.1)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export.  
 **Date:** 2026-08-29
+
+## v1.19.1 — GHCR typecheck
+
+Jobs poll timer is a DOM `number`, matching «Телефонный трафик», so `next build` on GHCR succeeds.
 
 ## v1.19.0 — share exact VoIPmonitor links
 
