@@ -1,4 +1,3 @@
-import { Prisma } from "@/generated/prisma/client";
 import { MAX_MATCH_ATTEMPTS } from "@/modules/voipmonitor/constants";
 import {
   MISS_CALL_ID_NOT_IN_INDEX,
@@ -23,42 +22,10 @@ export function isTerminalNotFoundExhausted(
   return TERMINAL_NOT_FOUND_MISS.some((reason) => evidenceJson.includes(reason));
 }
 
-function notExhaustedNotFound() {
-  return {
-    NOT: {
-      AND: [
-        { attemptCount: { gte: MAX_MATCH_ATTEMPTS } },
-        {
-          OR: TERMINAL_NOT_FOUND_MISS.map((reason) => ({
-            evidenceJson: { contains: reason },
-          })),
-        },
-      ],
-    },
-  };
-}
-
-/** Empty URL and not an exhausted "not found" miss (includes backoff). */
-export function voipmonitorPendingLinkWhere() {
-  return {
-    voipmonitorUrl: "",
-    ...notExhaustedNotFound(),
-  };
-}
-
-/** Pending and due for retry now. */
+/** Empty URL and due for retry now (exhausted not-found use a far-future nextAttemptAt). */
 export function voipmonitorDueLinkWhere(now: Date) {
   return {
-    ...voipmonitorPendingLinkWhere(),
+    voipmonitorUrl: "",
     OR: [{ nextAttemptAt: null }, { nextAttemptAt: { lte: now } }],
   };
-}
-
-export function terminalNotFoundSql(): Prisma.Sql {
-  return Prisma.join(
-    TERMINAL_NOT_FOUND_MISS.map(
-      (reason) => Prisma.sql`l.evidence_json LIKE ${`%${reason}%`}`,
-    ),
-    " OR ",
-  );
 }

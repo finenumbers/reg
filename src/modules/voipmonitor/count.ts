@@ -4,10 +4,7 @@ import {
   liveCutoffAt,
   type MatchLane,
 } from "@/modules/voipmonitor/lanes";
-import {
-  voipmonitorDueLinkWhere,
-  voipmonitorPendingLinkWhere,
-} from "@/modules/voipmonitor/queue-filter";
+import { voipmonitorDueLinkWhere } from "@/modules/voipmonitor/queue-filter";
 
 function openCdrWhere(
   now: Date,
@@ -32,13 +29,15 @@ function openCdrWhere(
   };
 }
 
-/** Empty URL still in the match queue (backoff included; exhausted "not found" excluded). */
-export async function countUnenrichedVoipmonitor(
-  now = new Date(),
-): Promise<number> {
-  return prisma.cdrRecord.count({
-    where: openCdrWhere(now, voipmonitorPendingLinkWhere()),
-  });
+/** CDR rows that still have no confirmed VoIPmonitor URL (cheap: two counts). */
+export async function countUnenrichedVoipmonitor(): Promise<number> {
+  const [total, withUrl] = await Promise.all([
+    prisma.cdrRecord.count(),
+    prisma.cdrVoipmonitorLink.count({
+      where: { voipmonitorUrl: { not: "" } },
+    }),
+  ]);
+  return Math.max(0, total - withUrl);
 }
 
 export async function hasVoipmonitorWork(

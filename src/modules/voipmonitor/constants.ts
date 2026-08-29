@@ -32,6 +32,9 @@ export const RETRY_BACKOFF_MS = [
 /** Stop retrying "not found in VM" misses. assigned_elsewhere / api_error stay in queue. */
 export const MAX_MATCH_ATTEMPTS = 12;
 
+/** Due-queue sentinel: exhausted not-found never match `next_attempt_at <= now`. */
+export const QUEUE_EXHAUSTED_AT = new Date("9999-01-01T00:00:00.000Z");
+
 export const EVIDENCE_JSON_MAX_CHARS = 2048;
 
 export const SATEL_CALL_ID_FIELDS = [

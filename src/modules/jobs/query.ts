@@ -6,7 +6,10 @@
 import type { JobStatus, Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
 import { countUnenrichedCdrEnrich } from "@/modules/traffic/enrich-import";
-import { countUnenrichedVoipmonitor } from "@/modules/voipmonitor/count";
+import {
+  countUnenrichedVoipmonitor,
+  hasVoipmonitorWork,
+} from "@/modules/voipmonitor/count";
 
 export type ListJobRunsFilters = {
   status?: JobStatus;
@@ -40,6 +43,7 @@ export type ListJobRunsResult = {
   pageSize: number;
   voipmonitorUnenrichedCount: number;
   voipmonitorEnabled: boolean;
+  voipmonitorHasWork: boolean;
   cdrEnrichUnenrichedCount: number;
 };
 
@@ -100,6 +104,7 @@ export async function listJobRuns(
     rows,
     voipmonitorUnenrichedCount,
     voipmonitorSettings,
+    voipmonitorHasWork,
     cdrEnrichUnenrichedCount,
   ] = await Promise.all([
     prisma.jobRun.count({ where }),
@@ -117,6 +122,7 @@ export async function listJobRuns(
       where: { id: 1 },
       select: { voipmonitorEnabled: true },
     }),
+    hasVoipmonitorWork(),
     countUnenrichedCdrEnrich(),
   ]);
 
@@ -149,6 +155,7 @@ export async function listJobRuns(
     pageSize,
     voipmonitorUnenrichedCount,
     voipmonitorEnabled: Boolean(voipmonitorSettings?.voipmonitorEnabled),
+    voipmonitorHasWork,
     cdrEnrichUnenrichedCount,
   };
 }

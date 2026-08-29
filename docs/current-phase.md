@@ -1,7 +1,11 @@
-# Current Phase — production (v1.19.1)
+# Current Phase — production (v1.19.2)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export.  
 **Date:** 2026-08-29
+
+## v1.19.2 — CDR UI after VoIPmonitor queue filter
+
+Exhausted «not found» rows park on a far-future `next_attempt_at` instead of a `LIKE` on `evidence_json`. Matcher and Jobs banner stop scanning `cdr_records` on every tick, so traffic / geography / operators / raw stay responsive. Banner «Без ссылки» is again `total − with URL`; «Идёт фоновое обогащение» only when the due queue still has work.
 
 ## v1.19.1 — GHCR typecheck
 

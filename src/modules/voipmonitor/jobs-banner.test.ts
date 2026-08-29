@@ -17,6 +17,7 @@ describe("composeVoipmonitorJobsBanner", () => {
       composeVoipmonitorJobsBanner({
         voipmonitorUnenriched: 1234,
         voipmonitorEnabled: true,
+        voipmonitorHasWork: true,
         cdrEnrichUnenriched: 0,
       }),
     ).toContain("1");
@@ -51,10 +52,22 @@ describe("composeVoipmonitorJobsBanner", () => {
     ).toMatch(/Без PSTN/);
   });
 
+  it("does not claim enrichment is running when the due queue is empty", () => {
+    const text = composeVoipmonitorJobsBanner({
+      voipmonitorUnenriched: 12,
+      voipmonitorEnabled: true,
+      voipmonitorHasWork: false,
+      cdrEnrichUnenriched: 0,
+    });
+    expect(text).toMatch(/Без ссылки/);
+    expect(text).not.toMatch(/фоновое обогащение/);
+  });
+
   it("joins VoIPmonitor and CDR enrich phrases", () => {
     const text = composeVoipmonitorJobsBanner({
       voipmonitorUnenriched: 2,
       voipmonitorEnabled: true,
+      voipmonitorHasWork: true,
       cdrEnrichUnenriched: 5,
     });
     expect(text).toMatch(/VoIPmonitor: 2 записей/);

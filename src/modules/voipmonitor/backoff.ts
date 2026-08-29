@@ -1,7 +1,9 @@
 import {
   EVIDENCE_JSON_MAX_CHARS,
+  QUEUE_EXHAUSTED_AT,
   RETRY_BACKOFF_MS,
 } from "@/modules/voipmonitor/constants";
+import { isTerminalNotFoundExhausted } from "@/modules/voipmonitor/queue-filter";
 import {
   STATUS_MATCHED_EXACT,
   STATUS_MATCHED_FALLBACK,
@@ -18,6 +20,18 @@ export function nextAttemptAt(attemptCount: number, now = new Date()): Date {
     RETRY_BACKOFF_MS.length - 1,
   );
   return new Date(now.getTime() + RETRY_BACKOFF_MS[index]!);
+}
+
+/** Backoff, or a far-future sentinel so exhausted not-found leave the due queue. */
+export function nextAttemptAtForMiss(
+  attemptCount: number,
+  evidenceJson: string,
+  now = new Date(),
+): Date {
+  if (isTerminalNotFoundExhausted(attemptCount, evidenceJson)) {
+    return QUEUE_EXHAUSTED_AT;
+  }
+  return nextAttemptAt(attemptCount, now);
 }
 
 export function compactEvidence(result: MatchResult): string {

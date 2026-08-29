@@ -3,6 +3,7 @@ import { formatCount } from "@/lib/format-count";
 export type JobsEnrichBannerInput = {
   voipmonitorUnenriched: number;
   voipmonitorEnabled: boolean;
+  voipmonitorHasWork?: boolean;
   cdrEnrichUnenriched: number;
 };
 
@@ -25,7 +26,7 @@ export function composeVoipmonitorJobsBanner(
   }
   if (vm > 0 && enrich <= 0 && !input.voipmonitorEnabled) {
     parts.push("Обогащение выключено в Настройках.");
-  } else if (vm > 0 && input.voipmonitorEnabled) {
+  } else if (vm > 0 && input.voipmonitorEnabled && input.voipmonitorHasWork) {
     parts.push("Идёт фоновое обогащение.");
   }
   return parts.join(" ");

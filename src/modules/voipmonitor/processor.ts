@@ -3,20 +3,20 @@ import { prisma } from "@/lib/db";
 import { logger } from "@/lib/logger";
 import { AUDIT_ACTIONS, auditService } from "@/modules/audit";
 import { failJobRunIfStillRunning } from "@/modules/jobs/finalize";
-import { compactEvidence, isMatchedStatus, nextAttemptAt } from "@/modules/voipmonitor/backoff";
+import {
+  compactEvidence,
+  isMatchedStatus,
+  nextAttemptAtForMiss,
+} from "@/modules/voipmonitor/backoff";
 import { candidateFromSatelRow } from "@/modules/voipmonitor/candidates";
 import { VoipmonitorClient } from "@/modules/voipmonitor/client";
 import { hasVoipmonitorWork } from "@/modules/voipmonitor/count";
 import {
   JOB_BUDGET_MS,
   MAX_CANDIDATES_PER_HOUR,
-  MAX_MATCH_ATTEMPTS,
   WRITE_CHUNK_SIZE,
 } from "@/modules/voipmonitor/constants";
-import {
-  terminalNotFoundSql,
-  voipmonitorDueLinkWhere,
-} from "@/modules/voipmonitor/queue-filter";
+import { voipmonitorDueLinkWhere } from "@/modules/voipmonitor/queue-filter";
 import { loadVoipmonitorRuntime } from "@/modules/voipmonitor/credentials";
 import { auditLinkInvariants } from "@/modules/voipmonitor/invariants";
 import {
@@ -121,10 +121,6 @@ export async function pickNextHour(
         OR (
           l.voipmonitor_url = ''
           AND (l.next_attempt_at IS NULL OR l.next_attempt_at <= ${now})
-          AND NOT (
-            l.attempt_count >= ${MAX_MATCH_ATTEMPTS}
-            AND (${terminalNotFoundSql()})
-          )
         )
       )
       ${lanePred}
@@ -171,6 +167,7 @@ async function writeHourResults(
     const attemptCount = (attempts.get(candidate.sourceRecordId) ?? 0) + 1;
     const matchedOk = isMatchedStatus(result.status);
     if (matchedOk) matched += 1;
+    const evidenceJson = compactEvidence(result);
     rows.push({
       cdrRecordId: candidate.sourceRecordId,
       voipmonitorUrl: matchedOk ? result.cardUrl : "",
@@ -181,8 +178,10 @@ async function writeHourResults(
       matchScore: result.score,
       matchedAt: result.matchedAt,
       attemptCount,
-      nextAttemptAt: matchedOk ? null : nextAttemptAt(attemptCount, now),
-      evidenceJson: compactEvidence(result),
+      nextAttemptAt: matchedOk
+        ? null
+        : nextAttemptAtForMiss(attemptCount, evidenceJson, now),
+      evidenceJson,
       voipmonitorLegs: matchedOk ? JSON.stringify(result.legs) : null,
       updatedAt: now,
     });

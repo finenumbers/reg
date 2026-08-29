@@ -39,6 +39,7 @@ function jobsPageSignature(data: ListJobRunsResult): string {
   return [
     data.total,
     data.voipmonitorUnenrichedCount,
+    data.voipmonitorHasWork ? "1" : "0",
     data.cdrEnrichUnenrichedCount ?? 0,
     ...data.items.map(
       (job) => `${job.id}:${job.status}:${job.finishedAt ?? ""}`,
@@ -64,6 +65,9 @@ export function JobsView({ initial }: Props) {
   );
   const [voipmonitorEnabled, setVoipmonitorEnabled] = useState(
     initial.voipmonitorEnabled,
+  );
+  const [voipmonitorHasWork, setVoipmonitorHasWork] = useState(
+    initial.voipmonitorHasWork ?? false,
   );
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -125,6 +129,7 @@ export function JobsView({ initial }: Props) {
     setUnenriched(result.data.voipmonitorUnenrichedCount);
     setCdrEnrichUnenriched(result.data.cdrEnrichUnenrichedCount ?? 0);
     setVoipmonitorEnabled(result.data.voipmonitorEnabled);
+    setVoipmonitorHasWork(result.data.voipmonitorHasWork ?? false);
     setPage(result.data.page);
     setItems((prev) =>
       replace ? result.data.items : [...prev, ...result.data.items],
@@ -151,6 +156,7 @@ export function JobsView({ initial }: Props) {
       setUnenriched(data.voipmonitorUnenrichedCount);
       setCdrEnrichUnenriched(data.cdrEnrichUnenrichedCount ?? 0);
       setVoipmonitorEnabled(data.voipmonitorEnabled);
+      setVoipmonitorHasWork(data.voipmonitorHasWork ?? false);
       setPage(data.page);
       setItems(data.items);
     };
@@ -223,6 +229,7 @@ export function JobsView({ initial }: Props) {
   const voipmonitorBanner = composeVoipmonitorJobsBanner({
     voipmonitorUnenriched: unenriched,
     voipmonitorEnabled,
+    voipmonitorHasWork,
     cdrEnrichUnenriched,
   });
 
