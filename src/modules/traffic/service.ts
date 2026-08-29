@@ -117,7 +117,11 @@ function applyColumnFilters(
   return { AND: [base, ...extras] };
 }
 
-function applyPhoneQ(
+export function containsInsensitive(needle: string) {
+  return { contains: needle, mode: "insensitive" as const };
+}
+
+export function applyPhoneQ(
   base: Prisma.CdrRecordWhereInput,
   phoneQ: string,
 ): Prisma.CdrRecordWhereInput {
@@ -128,7 +132,7 @@ function applyPhoneQ(
       base,
       {
         OR: CDR_PHONE_COLUMNS.map((col) => ({
-          [csvHeaderToCamel(col)]: { contains: q },
+          [csvHeaderToCamel(col)]: containsInsensitive(q),
         })),
       },
     ],
@@ -147,7 +151,7 @@ function buildWhere(
   );
 }
 
-function facetSearchWhere(
+export function facetSearchWhere(
   field: string,
   column: string,
   q: string,
@@ -158,10 +162,12 @@ function facetSearchWhere(
   }
   if (match.needles.length === 0) return {};
   if (match.needles.length === 1) {
-    return { [field]: { contains: match.needles[0] } };
+    return { [field]: containsInsensitive(match.needles[0]) };
   }
   return {
-    OR: match.needles.map((needle) => ({ [field]: { contains: needle } })),
+    OR: match.needles.map((needle) => ({
+      [field]: containsInsensitive(needle),
+    })),
   };
 }
 

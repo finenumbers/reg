@@ -1,7 +1,11 @@
-# Current Phase — production (v1.23.0)
+# Current Phase — production (v1.24.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher.  
 **Date:** 2026-08-29
+
+## v1.24.0 — case-insensitive traffic search
+
+Header-menu facet search and the toolbar phone search on traffic / geography / operators / raw use Prisma `contains` with `mode: "insensitive"`. Phones and registrations facet search already compared via `toLowerCase()`.
 
 ## v1.23.0 — CDR month switch clears column filters; facet search matches the table
 
