@@ -6,6 +6,8 @@ vi.mock("@/lib/db", () => ({
       findUnique: vi.fn().mockResolvedValue({
         regsPollEnabled: false,
         regsPollIntervalSec: 60,
+        exportSyncEnabled: false,
+        exportSyncIntervalSec: 300,
       }),
     },
   },
@@ -24,7 +26,8 @@ import {
   evaluateSchedulerBootstrap,
   isAutoSchedulerRunning,
   rescheduleAfterSettingsChange,
-  scheduledPollActions,
+  scheduledExportAction,
+  scheduledRegsAction,
   stopAutoScheduler,
   type SchedulerJobRuntime,
 } from "@/modules/jobs/scheduler";
@@ -49,59 +52,62 @@ describe("scheduler bootstrap (Settings-only)", () => {
   });
 });
 
-describe("scheduledPollActions", () => {
-  it("enqueues regs.poll and phones.sync when nothing is in flight", () => {
+describe("scheduledRegsAction", () => {
+  it("enqueues regs.poll when nothing is in flight", () => {
+    expect(scheduledRegsAction(false)).toBe("regs.poll");
+  });
+
+  it("skips regs.poll while it is in flight", () => {
+    expect(scheduledRegsAction(true)).toBeNull();
+  });
+});
+
+describe("scheduledExportAction", () => {
+  it("starts with phones.sync", () => {
     expect(
-      scheduledPollActions({
-        regsPollInFlight: false,
+      scheduledExportAction({
         phonesSyncInFlight: false,
         groupsSyncInFlight: false,
         lastExportSync: null,
       }),
     ).toEqual({
-      actions: ["regs.poll", "phones.sync"],
+      action: "phones.sync",
       nextLastExportSync: "phones.sync",
-    });
-  });
-
-  it("still enqueues export sync while regs.poll is in flight", () => {
-    expect(
-      scheduledPollActions({
-        regsPollInFlight: true,
-        phonesSyncInFlight: false,
-        groupsSyncInFlight: false,
-        lastExportSync: "phones.sync",
-      }),
-    ).toEqual({
-      actions: ["groups.sync"],
-      nextLastExportSync: "groups.sync",
     });
   });
 
   it("does not start a second export.py while one is in flight", () => {
     expect(
-      scheduledPollActions({
-        regsPollInFlight: false,
+      scheduledExportAction({
         phonesSyncInFlight: true,
         groupsSyncInFlight: false,
         lastExportSync: "phones.sync",
       }),
     ).toEqual({
-      actions: ["regs.poll"],
+      action: null,
       nextLastExportSync: "phones.sync",
     });
   });
 
   it("alternates phones.sync and groups.sync", () => {
     expect(
-      scheduledPollActions({
-        regsPollInFlight: true,
+      scheduledExportAction({
+        phonesSyncInFlight: false,
+        groupsSyncInFlight: false,
+        lastExportSync: "phones.sync",
+      }),
+    ).toEqual({
+      action: "groups.sync",
+      nextLastExportSync: "groups.sync",
+    });
+    expect(
+      scheduledExportAction({
         phonesSyncInFlight: false,
         groupsSyncInFlight: false,
         lastExportSync: "groups.sync",
       }),
     ).toEqual({
-      actions: ["phones.sync"],
+      action: "phones.sync",
       nextLastExportSync: "phones.sync",
     });
   });

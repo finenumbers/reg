@@ -13,8 +13,8 @@ Phase 7 (production readiness) is complete. Recommended follow-ups are **ops ena
 
 1. Single `app` replica confirmed
 2. SSH test + manual regs poll, phones sync, and groups sync OK
-3. Settings → enable «Регулярная загрузка» (`regsPollEnabled`) + set interval (≥30s) → Save
-4. Watch `/jobs` for `trigger=schedule` on `regs.poll`, `phones.sync`, and `groups.sync` (export.py alternates); disable the checkbox to stop new ticks
+3. Settings → enable regular registrations poll and/or phones+groups load (separate checkboxes and intervals, ≥30s) → Save
+4. Watch `/jobs` for `trigger=schedule`; `phones.sync` / `groups.sync` alternate on the export interval. Disable the matching checkbox to stop that loop.
 
 ## 3. Enable VoIPmonitor links (optional)
 

@@ -19,7 +19,7 @@
 - primary login identifier = **username** (Better Auth username plugin);
 - UI kit = **shadcn/ui + Tailwind CSS**; таблицы данных = custom tables + column filters;
 - Prisma-модели Better Auth = **adapter/CLI-generated source of truth** (не изобретать кастомную auth-схему до генерации);
-- in-process scheduler bootstrap: `instrumentation.ts` (always starts timer loop); ticks enqueue `regs.poll`, `phones.sync`, and `groups.sync` when Settings `regsPollEnabled=true` (one `export.py` at a time); single `app` replica assumed (no leader election in v1).
+- in-process scheduler bootstrap: `instrumentation.ts` (always starts timer loops); `regs.poll` when `regsPollEnabled`; `phones.sync`/`groups.sync` when `exportSyncEnabled` (one `export.py` at a time); single `app` replica assumed (no leader election in v1).
 
 ## 1. Цель системы
 

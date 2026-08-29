@@ -47,6 +47,12 @@ export function SettingsForm({ initial }: Props) {
   const [regsPollIntervalSec, setRegsPollIntervalSec] = useState(
     String(initial.regsPollIntervalSec),
   );
+  const [exportSyncEnabled, setExportSyncEnabled] = useState(
+    initial.exportSyncEnabled,
+  );
+  const [exportSyncIntervalSec, setExportSyncIntervalSec] = useState(
+    String(initial.exportSyncIntervalSec),
+  );
   const [artifactRetentionDays, setArtifactRetentionDays] = useState(
     String(initial.artifactRetentionDays),
   );
@@ -138,6 +144,8 @@ export function SettingsForm({ initial }: Props) {
     setUsername(next.username ?? "");
     setRegsPollEnabled(next.regsPollEnabled);
     setRegsPollIntervalSec(String(next.regsPollIntervalSec));
+    setExportSyncEnabled(next.exportSyncEnabled);
+    setExportSyncIntervalSec(String(next.exportSyncIntervalSec));
     setArtifactRetentionDays(String(next.artifactRetentionDays));
     setArtifactKeepLastRuns(String(next.artifactKeepLastRuns));
     setGeoipBaseUrl(next.geoipBaseUrl ?? DEFAULT_GEOIP_BASE_URL);
@@ -158,6 +166,8 @@ export function SettingsForm({ initial }: Props) {
     const body: Record<string, unknown> = {
       regsPollEnabled,
       regsPollIntervalSec: Number(regsPollIntervalSec),
+      exportSyncEnabled,
+      exportSyncIntervalSec: Number(exportSyncIntervalSec),
       artifactRetentionDays: Number(artifactRetentionDays),
       artifactKeepLastRuns: Number(artifactKeepLastRuns),
       displayTimezone,
@@ -930,22 +940,45 @@ export function SettingsForm({ initial }: Props) {
               onChange={(e) => setRegsPollEnabled(e.target.checked)}
             />
             <Label htmlFor="poll-enabled">
-              Включить регулярную загрузку регистраций, телефонных номеров и
-              входящих групп
+              Включить регулярный опрос регистраций
             </Label>
           </div>
-          <p className="text-sm text-muted-foreground">
-            Один интервал на check_regs.sh и export.py (номера и входящие
-            группы по очереди).
-          </p>
           <div className="space-y-2">
-            <Label htmlFor="interval">Интервал опроса (секунды)</Label>
+            <Label htmlFor="interval">Интервал опроса регистраций (секунды)</Label>
             <Input
               id="interval"
               type="number"
               min={30}
               value={regsPollIntervalSec}
               onChange={(e) => setRegsPollIntervalSec(e.target.value)}
+            />
+          </div>
+          <div className="flex items-center gap-3">
+            <input
+              id="export-sync-enabled"
+              type="checkbox"
+              className="size-4 rounded border"
+              checked={exportSyncEnabled}
+              onChange={(e) => setExportSyncEnabled(e.target.checked)}
+            />
+            <Label htmlFor="export-sync-enabled">
+              Включить регулярную загрузку телефонных номеров и входящих групп
+            </Label>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Отдельное расписание: export.py по очереди (сначала номера, затем
+            входящие группы). Не совмещается с опросом регистраций.
+          </p>
+          <div className="space-y-2">
+            <Label htmlFor="export-interval">
+              Интервал загрузки номеров и групп (секунды)
+            </Label>
+            <Input
+              id="export-interval"
+              type="number"
+              min={30}
+              value={exportSyncIntervalSec}
+              onChange={(e) => setExportSyncIntervalSec(e.target.value)}
             />
           </div>
           <div className="space-y-2">
@@ -979,9 +1012,11 @@ export function SettingsForm({ initial }: Props) {
               </span>
             )}
             {" · "}
-            Регулярная загрузка: {regsPollEnabled ? "включена" : "выключена"}
+            Регистрации: {regsPollEnabled ? "вкл" : "выкл"} / {regsPollIntervalSec}{" "}
+            с
             {" · "}
-            Интервал: {regsPollIntervalSec} с
+            Номера и группы: {exportSyncEnabled ? "вкл" : "выкл"} /{" "}
+            {exportSyncIntervalSec} с
           </p>
           <Button type="button" disabled={pending} onClick={onSaveSettings}>
             Сохранить настройки

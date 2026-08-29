@@ -96,6 +96,9 @@ model AppSetting {
   regsPollEnabled       Boolean     @default(false)
   /// Technical floor enforced in validation (>= 30 recommended).
   regsPollIntervalSec   Int         @default(60)
+  /// Phones + groups (export.py), independent of regs.poll.
+  exportSyncEnabled     Boolean     @default(false)
+  exportSyncIntervalSec Int         @default(300)
   artifactRetentionDays Int         @default(14)
   artifactKeepLastRuns  Int         @default(50)
   artifactMaxBytes      Int         @default(50000000)

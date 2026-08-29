@@ -1,7 +1,11 @@
-# Current Phase — production (v1.17.0)
+# Current Phase — production (v1.18.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export.  
 **Date:** 2026-08-29
+
+## v1.18.0 — separate phones/groups schedule
+
+Registrations keep `regsPollEnabled` / `regsPollIntervalSec`. Phones and incoming groups use `exportSyncEnabled` / `exportSyncIntervalSec` (one `export.py` at a time, alternating). The two loops do not share a tick. Default export interval is 300s and off until enabled.
 
 ## v1.17.0 — scheduled phones/groups and Jobs enrich banner
 

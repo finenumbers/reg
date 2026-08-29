@@ -75,6 +75,8 @@ function toSettingsView(
     keyAlgo: profile?.keyAlgo ?? null,
     regsPollEnabled: settings.regsPollEnabled,
     regsPollIntervalSec: settings.regsPollIntervalSec,
+    exportSyncEnabled: settings.exportSyncEnabled,
+    exportSyncIntervalSec: settings.exportSyncIntervalSec,
     artifactRetentionDays: settings.artifactRetentionDays,
     artifactKeepLastRuns: settings.artifactKeepLastRuns,
     artifactMaxBytes: settings.artifactMaxBytes,
@@ -159,7 +161,9 @@ export async function updateSettings(
 
   const pollScheduleChanged =
     parsed.regsPollEnabled !== undefined ||
-    parsed.regsPollIntervalSec !== undefined;
+    parsed.regsPollIntervalSec !== undefined ||
+    parsed.exportSyncEnabled !== undefined ||
+    parsed.exportSyncIntervalSec !== undefined;
 
   let createdProfile = false;
 
@@ -182,6 +186,8 @@ export async function updateSettings(
   const settingsData: {
     regsPollEnabled?: boolean;
     regsPollIntervalSec?: number;
+    exportSyncEnabled?: boolean;
+    exportSyncIntervalSec?: number;
     artifactRetentionDays?: number;
     artifactKeepLastRuns?: number;
     artifactMaxBytes?: number;
@@ -205,6 +211,12 @@ export async function updateSettings(
   }
   if (parsed.regsPollIntervalSec !== undefined) {
     settingsData.regsPollIntervalSec = parsed.regsPollIntervalSec;
+  }
+  if (parsed.exportSyncEnabled !== undefined) {
+    settingsData.exportSyncEnabled = parsed.exportSyncEnabled;
+  }
+  if (parsed.exportSyncIntervalSec !== undefined) {
+    settingsData.exportSyncIntervalSec = parsed.exportSyncIntervalSec;
   }
   if (parsed.artifactRetentionDays !== undefined) {
     settingsData.artifactRetentionDays = parsed.artifactRetentionDays;
@@ -312,6 +324,8 @@ export async function updateSettings(
       username: view.username,
       regsPollEnabled: view.regsPollEnabled,
       regsPollIntervalSec: view.regsPollIntervalSec,
+      exportSyncEnabled: view.exportSyncEnabled,
+      exportSyncIntervalSec: view.exportSyncIntervalSec,
       artifactRetentionDays: view.artifactRetentionDays,
       artifactKeepLastRuns: view.artifactKeepLastRuns,
       artifactMaxBytes: view.artifactMaxBytes,

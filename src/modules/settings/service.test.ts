@@ -40,6 +40,8 @@ describe("settings schemas and masked view contract", () => {
         username: "platform",
         regsPollEnabled: true,
         regsPollIntervalSec: 60,
+        exportSyncEnabled: true,
+        exportSyncIntervalSec: 300,
         geoipBaseUrl: "http://localhost:8080/",
         pstnBaseUrl: "http://localhost:5555/",
       }),
@@ -52,6 +54,9 @@ describe("settings schemas and masked view contract", () => {
 
     expect(() =>
       settingsUpdateSchema.parse({ regsPollIntervalSec: 10 }),
+    ).toThrow();
+    expect(() =>
+      settingsUpdateSchema.parse({ exportSyncIntervalSec: 10 }),
     ).toThrow();
   });
 
@@ -110,6 +115,8 @@ describe("settings schemas and masked view contract", () => {
       keyAlgo: "ed25519",
       regsPollEnabled: false,
       regsPollIntervalSec: 60,
+      exportSyncEnabled: false,
+      exportSyncIntervalSec: 300,
       artifactRetentionDays: 14,
       artifactKeepLastRuns: 50,
       artifactMaxBytes: 1_048_576,

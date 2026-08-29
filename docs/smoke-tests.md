@@ -50,6 +50,6 @@ Before enabling auto-poll, run the SSH host checks in [remote-server-setup.md](.
 Only after the checklist above:
 
 1. Confirm **one** `app` container.
-2. Settings → enable regular load + interval ≥30s → Save.
-3. Watch `/jobs` for `trigger=schedule` on regs, phones, and groups; confirm phones and groups do not overlap.
+2. Settings → enable registrations and/or phones+groups on their own intervals (≥30s) → Save.
+3. Watch `/jobs` for `trigger=schedule`; confirm phones and groups do not overlap with each other.
 4. Rollback: disable `regsPollEnabled` in Settings → Save.
