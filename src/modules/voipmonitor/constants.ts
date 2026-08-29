@@ -29,6 +29,9 @@ export const RETRY_BACKOFF_MS = [
   15_000, 60_000, 5 * 60_000, 15 * 60_000,
 ] as const;
 
+/** Stop retrying "not found in VM" misses. assigned_elsewhere / api_error stay in queue. */
+export const MAX_MATCH_ATTEMPTS = 12;
+
 export const EVIDENCE_JSON_MAX_CHARS = 2048;
 
 export const SATEL_CALL_ID_FIELDS = [

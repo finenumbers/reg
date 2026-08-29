@@ -33,6 +33,18 @@ import {
 import { composeVoipmonitorJobsBanner } from "@/modules/voipmonitor/jobs-banner";
 
 const PAGE_SIZE = TABLE_PAGE_SIZE;
+const JOBS_POLL_MS = 4000;
+
+function jobsPageSignature(data: ListJobRunsResult): string {
+  return [
+    data.total,
+    data.voipmonitorUnenrichedCount,
+    data.cdrEnrichUnenrichedCount ?? 0,
+    ...data.items.map(
+      (job) => `${job.id}:${job.status}:${job.finishedAt ?? ""}`,
+    ),
+  ].join("|");
+}
 
 type Props = {
   initial: ListJobRunsResult;
@@ -59,6 +71,9 @@ export function JobsView({ initial }: Props) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const refreshSeq = useRef(0);
   const loadingMoreRef = useRef(false);
+  const statusRef = useRef(status);
+  statusRef.current = status;
+  const pageSigRef = useRef(jobsPageSignature(initial));
   const [scrollRoot, setScrollRoot] = useState<Element | null>(null);
 
   const hasMore = items.length < total;
@@ -114,6 +129,7 @@ export function JobsView({ initial }: Props) {
     setItems((prev) =>
       replace ? result.data.items : [...prev, ...result.data.items],
     );
+    if (replace) pageSigRef.current = jobsPageSignature(result.data);
     setLoading(false);
     setLoadingMore(false);
     loadingMoreRef.current = false;
@@ -124,6 +140,64 @@ export function JobsView({ initial }: Props) {
       refreshSeq.current += 1;
     };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    let timer: ReturnType<typeof window.setInterval> | null = null;
+
+    const applyPage = (data: ListJobRunsResult) => {
+      pageSigRef.current = jobsPageSignature(data);
+      setTotal(data.total);
+      setUnenriched(data.voipmonitorUnenrichedCount);
+      setCdrEnrichUnenriched(data.cdrEnrichUnenrichedCount ?? 0);
+      setVoipmonitorEnabled(data.voipmonitorEnabled);
+      setPage(data.page);
+      setItems(data.items);
+    };
+
+    const pull = async () => {
+      if (document.visibilityState === "hidden") return;
+      const result = await fetchJobsList({
+        status: statusRef.current || undefined,
+        page: 1,
+        pageSize: PAGE_SIZE,
+      });
+      if (cancelled || !result.ok) return;
+      const sig = jobsPageSignature(result.data);
+      if (sig === pageSigRef.current) return;
+      applyPage(result.data);
+    };
+
+    const stop = () => {
+      if (timer != null) {
+        window.clearInterval(timer);
+        timer = null;
+      }
+    };
+    const start = () => {
+      if (cancelled || timer != null) return;
+      timer = window.setInterval(() => {
+        void pull();
+      }, JOBS_POLL_MS);
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        stop();
+        return;
+      }
+      void pull();
+      start();
+    };
+
+    void pull();
+    if (document.visibilityState !== "hidden") start();
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      cancelled = true;
+      stop();
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [status]);
 
   const onLoadMore = useCallback(() => {
     if (!hasMore || loading || loadingMoreRef.current) return;

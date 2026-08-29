@@ -784,12 +784,8 @@ function assignBucket(
     claimLeg(used, pm.candIdx, outLeg);
     let primary = inLeg ?? outLeg;
     if (!primary && pm.call) {
-      const key = reservationKey(pm.call);
-      const owner = key ? used.get(key) : undefined;
-      if (!key || owner === undefined || owner === pm.candIdx) {
-        primary = pm.call;
-        claimLeg(used, pm.candIdx, pm.call);
-      }
+      primary = pm.call;
+      claimLeg(used, pm.candIdx, pm.call);
     }
     if (primary) {
       const ev = cloneEvidence(pm.evidence);

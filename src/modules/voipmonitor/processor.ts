@@ -10,8 +10,13 @@ import { hasVoipmonitorWork } from "@/modules/voipmonitor/count";
 import {
   JOB_BUDGET_MS,
   MAX_CANDIDATES_PER_HOUR,
+  MAX_MATCH_ATTEMPTS,
   WRITE_CHUNK_SIZE,
 } from "@/modules/voipmonitor/constants";
+import {
+  terminalNotFoundSql,
+  voipmonitorDueLinkWhere,
+} from "@/modules/voipmonitor/queue-filter";
 import { loadVoipmonitorRuntime } from "@/modules/voipmonitor/credentials";
 import { auditLinkInvariants } from "@/modules/voipmonitor/invariants";
 import {
@@ -111,8 +116,17 @@ export async function pickNextHour(
     LEFT JOIN cdr_voipmonitor_links l ON l.cdr_record_id = c.id
     WHERE c."cdrAt" IS NOT NULL
       AND c."importedAt" <= ${graceCutoff}
-      AND (l.cdr_record_id IS NULL OR l.voipmonitor_url = '')
-      AND (l.next_attempt_at IS NULL OR l.next_attempt_at <= ${now})
+      AND (
+        l.cdr_record_id IS NULL
+        OR (
+          l.voipmonitor_url = ''
+          AND (l.next_attempt_at IS NULL OR l.next_attempt_at <= ${now})
+          AND NOT (
+            l.attempt_count >= ${MAX_MATCH_ATTEMPTS}
+            AND (${terminalNotFoundSql()})
+          )
+        )
+      )
       ${lanePred}
     ORDER BY date_trunc('hour', c."cdrAt") DESC
     LIMIT 1
@@ -245,10 +259,7 @@ async function processHour(input: {
         { voipmonitorLink: { is: null } },
         {
           voipmonitorLink: {
-            is: {
-              voipmonitorUrl: "",
-              OR: [{ nextAttemptAt: null }, { nextAttemptAt: { lte: input.now } }],
-            },
+            is: voipmonitorDueLinkWhere(input.now),
           },
         },
       ],

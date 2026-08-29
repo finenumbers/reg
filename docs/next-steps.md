@@ -20,7 +20,7 @@ Phase 7 (production readiness) is complete. Recommended follow-ups are **ops ena
 
 1. Dedicated VoIPmonitor GUI API user (do not share Collector credentials if avoidable)
 2. Settings → VoIPmonitor: API URL, user, password, GUI URL → Test → enable → Save
-3. Watch `/jobs` for `voipmonitor.match` and the unenriched banner; `/raw` and `/traffic` should fill VoIPmonitor In/Out (Calltrace In/Out)
+3. Watch `/jobs` for `voipmonitor.match`; the list and banner refresh while the tab is visible. `/raw` and `/traffic` should fill VoIPmonitor In/Out (Calltrace In/Out)
 
 ## 4. Optional later enhancements (out of v1 critical path)
 

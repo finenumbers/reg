@@ -1,7 +1,11 @@
-# Current Phase — production (v1.18.0)
+# Current Phase — production (v1.19.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export.  
 **Date:** 2026-08-29
+
+## v1.19.0 — share exact VoIPmonitor links
+
+Exact Call-ID match writes a Calltrace URL even if another Satel row already claimed that VM call. «Not found» misses stop after 12 attempts so `/jobs` does not spin; the Jobs list and enrich banner refresh while the tab is visible.
 
 ## v1.18.0 — separate phones/groups schedule
 

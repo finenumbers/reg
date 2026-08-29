@@ -253,7 +253,7 @@ describe("matchOne", () => {
     expect(result.status).not.toBe(STATUS_MATCHED_EXACT);
   });
 
-  it("assigns a VM cdrId to only one candidate", async () => {
+  it("shares an exact VM call across two Satel rows", async () => {
     const client = fakeClient([
       vm({
         cdrId: "1",
@@ -275,11 +275,12 @@ describe("matchOne", () => {
     expect(error).toBeUndefined();
     expect(auditLinkInvariants(cands, results)).toEqual([]);
     expect(results.filter((r) => r.status === STATUS_MATCHED_EXACT)).toHaveLength(
-      1,
+      2,
     );
+    expect(results.every((r) => r.cardUrl.includes("fcallid"))).toBe(true);
   });
 
-  it("does not assign a cdrId-less VM call to two candidates", async () => {
+  it("shares a cdrId-less exact VM call across two Satel rows", async () => {
     const client = fakeClient([
       vm({
         cdrId: "",
@@ -305,12 +306,10 @@ describe("matchOne", () => {
       cands,
     );
     expect(error).toBeUndefined();
+    expect(auditLinkInvariants(cands, results)).toEqual([]);
     const hits = results.filter((r) => r.status === STATUS_MATCHED_EXACT);
-    expect(hits).toHaveLength(1);
-    expect(hits[0]?.legs.in?.callId).toBe("anon-shared");
-    expect(results.filter((r) => r.status !== STATUS_MATCHED_EXACT)).toHaveLength(
-      1,
-    );
+    expect(hits).toHaveLength(2);
+    expect(hits.every((r) => r.legs.in?.callId === "anon-shared")).toBe(true);
   });
 
   it("does not probe misses when probeBudget is 0", async () => {
@@ -529,7 +528,7 @@ describe("matchOne", () => {
     expect(result.legs.out?.cdrId).toBe("out-9");
   });
 
-  it("reserves sibling VM cdrIds so they are not reused", async () => {
+  it("prefers an unused sibling VM leg when one cdrId is reserved", async () => {
     const client = fakeClient([
       vm({ cdrId: "taken", callId: "id-a" }),
       vm({ cdrId: "free", callId: "id-b" }),
@@ -545,6 +544,51 @@ describe("matchOne", () => {
         inCallIds: ["id-a", "id-b"],
       }),
     );
+    expect(result.status).toBe(STATUS_MATCHED_EXACT);
     expect(result.legs.in?.cdrId).toBe("free");
+  });
+
+  it("shares the reserved exact Call-ID when no other VM leg is free", async () => {
+    const client = fakeClient([vm({ cdrId: "taken", callId: "id-a" })]);
+    const { result } = await matchOne(
+      {
+        client,
+        guiBase: "https://vm.example",
+        reservedCdrIds: ["taken"],
+      },
+      satel({ sipCallIds: ["id-a"] }),
+    );
+    expect(result.status).toBe(STATUS_MATCHED_EXACT);
+    expect(result.cardUrl).toContain("fcallid");
+    expect(result.vm?.cdrId).toBe("taken");
+  });
+
+  it("does not let fallback reuse a reserved VM cdrId", async () => {
+    const client = fakeClient([
+      vm({
+        cdrId: "taken",
+        callId: "other-id",
+        caller: "79001112233",
+        called: "79005556677",
+        duration: 10,
+      }),
+    ]);
+    const { result } = await matchOne(
+      {
+        client,
+        guiBase: "https://vm.example",
+        reservedCdrIds: ["taken"],
+      },
+      satel({
+        caller: "79001112233",
+        called: "79005556677",
+        callerNumbers: ["79001112233"],
+        calledNumbers: ["79005556677"],
+        durationSec: 10,
+        sipCallIds: ["missing-id"],
+      }),
+    );
+    expect(result.status).not.toBe(STATUS_MATCHED_FALLBACK);
+    expect(result.cardUrl).toBe("");
   });
 });

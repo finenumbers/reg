@@ -4,22 +4,16 @@ import {
   liveCutoffAt,
   type MatchLane,
 } from "@/modules/voipmonitor/lanes";
+import {
+  voipmonitorDueLinkWhere,
+  voipmonitorPendingLinkWhere,
+} from "@/modules/voipmonitor/queue-filter";
 
-/** CDR rows that still have no confirmed VoIPmonitor URL. */
-export async function countUnenrichedVoipmonitor(): Promise<number> {
-  const [total, withUrl] = await Promise.all([
-    prisma.cdrRecord.count(),
-    prisma.cdrVoipmonitorLink.count({
-      where: { voipmonitorUrl: { not: "" } },
-    }),
-  ]);
-  return Math.max(0, total - withUrl);
-}
-
-export async function hasVoipmonitorWork(
-  now = new Date(),
+function openCdrWhere(
+  now: Date,
+  linkWhere: object,
   lane?: MatchLane,
-): Promise<boolean> {
+) {
   const graceCutoff = graceCutoffAt(now);
   const liveCutoff = liveCutoffAt(now);
   const cdrAt =
@@ -28,22 +22,31 @@ export async function hasVoipmonitorWork(
       : lane === "archive"
         ? { lt: liveCutoff }
         : {};
+  return {
+    importedAt: { lte: graceCutoff },
+    ...(Object.keys(cdrAt).length > 0 ? { cdrAt } : {}),
+    OR: [
+      { voipmonitorLink: { is: null } },
+      { voipmonitorLink: { is: linkWhere } },
+    ],
+  };
+}
+
+/** Empty URL still in the match queue (backoff included; exhausted "not found" excluded). */
+export async function countUnenrichedVoipmonitor(
+  now = new Date(),
+): Promise<number> {
+  return prisma.cdrRecord.count({
+    where: openCdrWhere(now, voipmonitorPendingLinkWhere()),
+  });
+}
+
+export async function hasVoipmonitorWork(
+  now = new Date(),
+  lane?: MatchLane,
+): Promise<boolean> {
   const open = await prisma.cdrRecord.findFirst({
-    where: {
-      importedAt: { lte: graceCutoff },
-      ...(Object.keys(cdrAt).length > 0 ? { cdrAt } : {}),
-      OR: [
-        { voipmonitorLink: { is: null } },
-        {
-          voipmonitorLink: {
-            is: {
-              voipmonitorUrl: "",
-              OR: [{ nextAttemptAt: null }, { nextAttemptAt: { lte: now } }],
-            },
-          },
-        },
-      ],
-    },
+    where: openCdrWhere(now, voipmonitorDueLinkWhere(now), lane),
     select: { id: true },
   });
   return open != null;

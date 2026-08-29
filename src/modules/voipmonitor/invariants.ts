@@ -82,7 +82,13 @@ export function auditLinkInvariants(
       for (const cdrId of ids) {
         const prev = used.get(cdrId);
         if (prev !== undefined) {
-          issues.push(`duplicate_vm_cdr_id[${prev},${i}]=${cdrId}`);
+          const prevStatus = results[prev]?.status;
+          const shareExact =
+            result.status === STATUS_MATCHED_EXACT &&
+            prevStatus === STATUS_MATCHED_EXACT;
+          if (!shareExact) {
+            issues.push(`duplicate_vm_cdr_id[${prev},${i}]=${cdrId}`);
+          }
         } else {
           used.set(cdrId, i);
         }
