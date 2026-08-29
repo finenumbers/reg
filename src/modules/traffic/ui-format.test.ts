@@ -83,6 +83,14 @@ describe("traffic UI date display", () => {
     expect(
       composeTrafficBanner({
         lastError: null,
+        pendingInboxCount: 1,
+        poisonedCount: 0,
+        runningCount: 1,
+      }),
+    ).toBeNull();
+    expect(
+      composeTrafficBanner({
+        lastError: null,
         pendingInboxCount: 2,
         poisonedCount: 0,
         runningCount: 1,

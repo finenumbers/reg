@@ -930,9 +930,14 @@ export function SettingsForm({ initial }: Props) {
               onChange={(e) => setRegsPollEnabled(e.target.checked)}
             />
             <Label htmlFor="poll-enabled">
-              Включить регулярный опрос регистраций
+              Включить регулярную загрузку регистраций, телефонных номеров и
+              входящих групп
             </Label>
           </div>
+          <p className="text-sm text-muted-foreground">
+            Один интервал на check_regs.sh и export.py (номера и входящие
+            группы по очереди).
+          </p>
           <div className="space-y-2">
             <Label htmlFor="interval">Интервал опроса (секунды)</Label>
             <Input
@@ -974,7 +979,7 @@ export function SettingsForm({ initial }: Props) {
               </span>
             )}
             {" · "}
-            Регулярный опрос: {regsPollEnabled ? "включён" : "выключен"}
+            Регулярная загрузка: {regsPollEnabled ? "включена" : "выключена"}
             {" · "}
             Интервал: {regsPollIntervalSec} с
           </p>

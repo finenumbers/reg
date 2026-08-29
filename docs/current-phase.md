@@ -1,7 +1,11 @@
-# Current Phase — production (v1.16.1)
+# Current Phase — production (v1.17.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export.  
 **Date:** 2026-08-29
+
+## v1.17.0 — scheduled phones/groups and Jobs enrich banner
+
+Settings «Регулярная загрузка» now also schedules `phones.sync` and `groups.sync` on the same interval (one `export.py` at a time, alternating). `/jobs` shows PSTN/GeoIP backlog next to VoIPmonitor. Traffic inbox banner waits for two or more pending files so a single in-flight import stays quiet.
 
 ## v1.16.1 — match visibility and PSTN retry
 

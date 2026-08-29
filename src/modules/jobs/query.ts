@@ -5,6 +5,7 @@
 
 import type { JobStatus, Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
+import { countUnenrichedCdrEnrich } from "@/modules/traffic/enrich-import";
 import { countUnenrichedVoipmonitor } from "@/modules/voipmonitor/count";
 
 export type ListJobRunsFilters = {
@@ -39,6 +40,7 @@ export type ListJobRunsResult = {
   pageSize: number;
   voipmonitorUnenrichedCount: number;
   voipmonitorEnabled: boolean;
+  cdrEnrichUnenrichedCount: number;
 };
 
 function toListItem(
@@ -93,24 +95,30 @@ export async function listJobRuns(
     where.actionCode = filters.actionCode.trim();
   }
 
-  const [total, rows, voipmonitorUnenrichedCount, voipmonitorSettings] =
-    await Promise.all([
-      prisma.jobRun.count({ where }),
-      prisma.jobRun.findMany({
-        where,
-        orderBy: { startedAt: "desc" },
-        skip: (page - 1) * pageSize,
-        take: pageSize,
-        include: {
-          artifact: { select: { jobRunId: true } },
-        },
-      }),
-      countUnenrichedVoipmonitor(),
-      prisma.appSetting.findUnique({
-        where: { id: 1 },
-        select: { voipmonitorEnabled: true },
-      }),
-    ]);
+  const [
+    total,
+    rows,
+    voipmonitorUnenrichedCount,
+    voipmonitorSettings,
+    cdrEnrichUnenrichedCount,
+  ] = await Promise.all([
+    prisma.jobRun.count({ where }),
+    prisma.jobRun.findMany({
+      where,
+      orderBy: { startedAt: "desc" },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      include: {
+        artifact: { select: { jobRunId: true } },
+      },
+    }),
+    countUnenrichedVoipmonitor(),
+    prisma.appSetting.findUnique({
+      where: { id: 1 },
+      select: { voipmonitorEnabled: true },
+    }),
+    countUnenrichedCdrEnrich(),
+  ]);
 
   const actorIds = [
     ...new Set(
@@ -141,6 +149,7 @@ export async function listJobRuns(
     pageSize,
     voipmonitorUnenrichedCount,
     voipmonitorEnabled: Boolean(voipmonitorSettings?.voipmonitorEnabled),
+    cdrEnrichUnenrichedCount,
   };
 }
 

@@ -262,3 +262,8 @@ export async function backfillUnenrichedCdrRecords(opts: {
 export function formatCdrEnrichStats(stats: CdrEnrichLookupStats): string {
   return `pstn cache=${stats.pstnCacheHits} live=${stats.pstnLiveLookups}; geo cache=${stats.geoCacheHits} live=${stats.geoLiveLookups}`;
 }
+
+/** CDR rows whose PSTN/GeoIP backfill has not finished (`enrichedAt` still null). */
+export async function countUnenrichedCdrEnrich(): Promise<number> {
+  return prisma.cdrRecord.count({ where: { enrichedAt: null } });
+}

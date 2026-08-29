@@ -1,14 +1,32 @@
 import { formatCount } from "@/lib/format-count";
 
+export type JobsEnrichBannerInput = {
+  voipmonitorUnenriched: number;
+  voipmonitorEnabled: boolean;
+  cdrEnrichUnenriched: number;
+};
+
+/** Operator-facing CDR enrich backlog on the Jobs page. */
 export function composeVoipmonitorJobsBanner(
-  unenriched: number,
-  enabled: boolean,
+  input: JobsEnrichBannerInput,
 ): string | null {
-  if (unenriched <= 0) return null;
-  const count = formatCount(unenriched);
-  const base = `Без ссылки VoIPmonitor: ${count} записей.`;
-  if (!enabled) {
-    return `${base} Обогащение выключено в Настройках.`;
+  const vm = input.voipmonitorUnenriched;
+  const enrich = input.cdrEnrichUnenriched;
+  if (vm <= 0 && enrich <= 0) return null;
+
+  const parts: string[] = [];
+  if (vm > 0) {
+    parts.push(`Без ссылки VoIPmonitor: ${formatCount(vm)} записей.`);
   }
-  return `${base} Идёт фоновое обогащение.`;
+  if (enrich > 0) {
+    const n = formatCount(enrich);
+    parts.push(`Без PSTN: ${n} записей.`);
+    parts.push(`Без GeoIP: ${n} записей.`);
+  }
+  if (vm > 0 && enrich <= 0 && !input.voipmonitorEnabled) {
+    parts.push("Обогащение выключено в Настройках.");
+  } else if (vm > 0 && input.voipmonitorEnabled) {
+    parts.push("Идёт фоновое обогащение.");
+  }
+  return parts.join(" ");
 }

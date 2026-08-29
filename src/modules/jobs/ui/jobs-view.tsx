@@ -47,6 +47,9 @@ export function JobsView({ initial }: Props) {
   const [unenriched, setUnenriched] = useState(
     initial.voipmonitorUnenrichedCount,
   );
+  const [cdrEnrichUnenriched, setCdrEnrichUnenriched] = useState(
+    initial.cdrEnrichUnenrichedCount ?? 0,
+  );
   const [voipmonitorEnabled, setVoipmonitorEnabled] = useState(
     initial.voipmonitorEnabled,
   );
@@ -105,6 +108,7 @@ export function JobsView({ initial }: Props) {
 
     setTotal(result.data.total);
     setUnenriched(result.data.voipmonitorUnenrichedCount);
+    setCdrEnrichUnenriched(result.data.cdrEnrichUnenrichedCount ?? 0);
     setVoipmonitorEnabled(result.data.voipmonitorEnabled);
     setPage(result.data.page);
     setItems((prev) =>
@@ -142,14 +146,15 @@ export function JobsView({ initial }: Props) {
     setExpandedId((cur) => (cur === job.id ? null : job.id));
   }
 
-  const voipmonitorBanner = composeVoipmonitorJobsBanner(
-    unenriched,
+  const voipmonitorBanner = composeVoipmonitorJobsBanner({
+    voipmonitorUnenriched: unenriched,
     voipmonitorEnabled,
-  );
+    cdrEnrichUnenriched,
+  });
 
   const emptyMessage = status
     ? "Нет запусков по текущему фильтру статуса."
-    : "Запусков пока нет. Запустите ручной опрос в разделе «Регистрации», когда SSH будет готов.";
+    : "Запусков пока нет. Включите регулярную загрузку в Настройках или запустите задачу вручную.";
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">

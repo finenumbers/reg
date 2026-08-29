@@ -8,4 +8,7 @@ export { requestVoipmonitorMatch } from "@/modules/voipmonitor/enqueue";
 export { processVoipmonitorMatch } from "@/modules/voipmonitor/processor";
 export { loadVoipmonitorRuntime } from "@/modules/voipmonitor/credentials";
 export { VoipmonitorClient } from "@/modules/voipmonitor/client";
-export { composeVoipmonitorJobsBanner } from "@/modules/voipmonitor/jobs-banner";
+export {
+  composeVoipmonitorJobsBanner,
+  type JobsEnrichBannerInput,
+} from "@/modules/voipmonitor/jobs-banner";

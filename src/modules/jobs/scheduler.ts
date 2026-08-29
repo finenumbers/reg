@@ -1,5 +1,5 @@
 /**
- * In-process scheduler for regs.poll.
+ * In-process scheduler for regs.poll, phones.sync, and groups.sync.
  *
  * The timer loop always starts at process boot (single app replica assumed).
  * Operator control is Settings-only:
@@ -9,7 +9,8 @@
  * State lives on globalThis so Next.js instrumentation + request handlers share
  * one loop (module-level `let` is duplicated across bundles).
  *
- * Anti-overlap is enforced by the job runtime (no overlapping polls).
+ * Anti-overlap is per action code. phones.sync and groups.sync share export.py,
+ * so a tick starts at most one of them.
  * Bootstrap: instrumentation.ts → evaluateSchedulerBootstrap().
  */
 
@@ -33,11 +34,38 @@ export type SchedulerJobRuntime = {
   isInFlight(actionCode: AllowedActionCode): boolean;
 };
 
+export type ScheduledPollAction = "regs.poll" | "phones.sync" | "groups.sync";
+export type ExportSyncAction = "phones.sync" | "groups.sync";
+
 type SchedulerGlobalState = {
   started: boolean;
   timer: ReturnType<typeof setTimeout> | null;
   runtimeRef: SchedulerJobRuntime | null;
+  lastExportSync: ExportSyncAction | null;
 };
+
+/** Which Settings-gated jobs this tick should enqueue. Pure — used by tests. */
+export function scheduledPollActions(input: {
+  regsPollInFlight: boolean;
+  phonesSyncInFlight: boolean;
+  groupsSyncInFlight: boolean;
+  lastExportSync: ExportSyncAction | null;
+}): { actions: ScheduledPollAction[]; nextLastExportSync: ExportSyncAction | null } {
+  const actions: ScheduledPollAction[] = [];
+  if (!input.regsPollInFlight) {
+    actions.push("regs.poll");
+  }
+
+  const exportBusy = input.phonesSyncInFlight || input.groupsSyncInFlight;
+  if (exportBusy) {
+    return { actions, nextLastExportSync: input.lastExportSync };
+  }
+
+  const nextExport: ExportSyncAction =
+    input.lastExportSync === "phones.sync" ? "groups.sync" : "phones.sync";
+  actions.push(nextExport);
+  return { actions, nextLastExportSync: nextExport };
+}
 
 const SCHEDULER_GLOBAL_KEY = "__reg_scheduler_state__";
 
@@ -50,6 +78,7 @@ function schedulerState(): SchedulerGlobalState {
       started: false,
       timer: null,
       runtimeRef: null,
+      lastExportSync: null,
     };
   }
   return g[SCHEDULER_GLOBAL_KEY];
@@ -127,20 +156,30 @@ async function tick(): Promise<void> {
       return;
     }
 
-    if (state.runtimeRef.isInFlight("regs.poll")) {
+    const planned = scheduledPollActions({
+      regsPollInFlight: state.runtimeRef.isInFlight("regs.poll"),
+      phonesSyncInFlight: state.runtimeRef.isInFlight("phones.sync"),
+      groupsSyncInFlight: state.runtimeRef.isInFlight("groups.sync"),
+      lastExportSync: state.lastExportSync ?? null,
+    });
+    state.lastExportSync = planned.nextLastExportSync;
+
+    if (planned.actions.length === 0) {
       logger.debug("scheduler.tick.skipped", { reason: "anti-overlap" });
       return;
     }
 
-    const result = await state.runtimeRef.enqueue({
-      actionCode: "regs.poll",
-      trigger: "schedule",
-    });
-
-    logger.info("scheduler.tick.enqueue", {
-      accepted: result.accepted,
-      reason: result.reason ?? null,
-    });
+    for (const actionCode of planned.actions) {
+      const result = await state.runtimeRef.enqueue({
+        actionCode,
+        trigger: "schedule",
+      });
+      logger.info("scheduler.tick.enqueue", {
+        actionCode,
+        accepted: result.accepted,
+        reason: result.reason ?? null,
+      });
+    }
   } catch (error) {
     logger.error("scheduler.tick.failed", {
       error: error instanceof Error ? error.message : String(error),
@@ -172,7 +211,7 @@ function startSchedulerLoop(runtime: SchedulerJobRuntime): void {
     note:
       "In-process scheduler loop active (single-replica only). " +
       "Duplicate app instances will duplicate polls. " +
-      "Ticks enqueue regs.poll only when regsPollEnabled=true.",
+      "Ticks enqueue regs.poll, phones.sync, and groups.sync when regsPollEnabled=true.",
   });
   // First tick after a short delay so app boot is not blocked by a poll.
   state.timer = setTimeout(() => {
@@ -208,6 +247,7 @@ export function stopAutoScheduler(): void {
   const state = schedulerState();
   state.started = false;
   state.runtimeRef = null;
+  state.lastExportSync = null;
   if (state.timer) {
     clearTimeout(state.timer);
     state.timer = null;
@@ -227,7 +267,8 @@ export function evaluateSchedulerBootstrap(runtime: SchedulerJobRuntime): {
     started: true,
     detail:
       "Auto-scheduler loop started (single-replica only). " +
-      "Ticks enqueue regs.poll only when app_settings.regsPollEnabled=true; " +
-      "interval from regsPollIntervalSec; anti-overlap enforced.",
+      "Ticks enqueue regs.poll, phones.sync, and groups.sync when " +
+      "app_settings.regsPollEnabled=true; interval from regsPollIntervalSec; " +
+      "anti-overlap per action; one export.py at a time.",
   };
 }

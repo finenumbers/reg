@@ -12,15 +12,15 @@ Phase 7 (production readiness) is complete. Recommended follow-ups are **ops ena
 ## 2. Enable auto-poll (only when ready)
 
 1. Single `app` replica confirmed
-2. SSH test + manual poll OK
-3. Settings → enable `regsPollEnabled` + set interval (≥30s) → Save
-4. Watch `/jobs` for `trigger=schedule`; disable the checkbox to stop new ticks
+2. SSH test + manual regs poll, phones sync, and groups sync OK
+3. Settings → enable «Регулярная загрузка» (`regsPollEnabled`) + set interval (≥30s) → Save
+4. Watch `/jobs` for `trigger=schedule` on `regs.poll`, `phones.sync`, and `groups.sync` (export.py alternates); disable the checkbox to stop new ticks
 
 ## 3. Enable VoIPmonitor links (optional)
 
 1. Dedicated VoIPmonitor GUI API user (do not share Collector credentials if avoidable)
 2. Settings → VoIPmonitor: API URL, user, password, GUI URL → Test → enable → Save
-3. Watch `/jobs` for `voipmonitor.match` and the unenriched banner; `/raw` and `/traffic` should fill the VoIPmonitor column
+3. Watch `/jobs` for `voipmonitor.match` and the unenriched banner; `/raw` and `/traffic` should fill VoIPmonitor In/Out (Calltrace In/Out)
 
 ## 4. Optional later enhancements (out of v1 critical path)
 

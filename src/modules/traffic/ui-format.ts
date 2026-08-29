@@ -58,12 +58,8 @@ export function composeTrafficBanner(
   status: TrafficBannerStatus,
 ): string | null {
   const parts: string[] = [];
-  if (status.pendingInboxCount > 0) {
-    const n = status.pendingInboxCount;
-    const files =
-      n === 1
-        ? "1 необработанный файл"
-        : `${formatCount(n)} необработанных файлов`;
+  if (status.pendingInboxCount >= 2) {
+    const files = `${formatCount(status.pendingInboxCount)} необработанных файлов`;
     parts.push(
       status.runningCount > 0
         ? `В FTP-папке ${files}, импорт выполняется.`
