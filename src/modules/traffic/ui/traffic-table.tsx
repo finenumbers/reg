@@ -16,7 +16,8 @@ import { HighlightText } from "@/components/highlight-text";
 import {
   CDR_PHONE_COLUMNS,
   TRAFFIC_BOLD_COLUMNS,
-  VOIPMONITOR_COLUMN,
+  VOIPMONITOR_COLUMN_IN,
+  VOIPMONITOR_COLUMN_SET,
 } from "@/modules/traffic/columns";
 import { buildTrafficFacetsUrl } from "@/modules/traffic/api-client";
 import type { TrafficListItem } from "@/modules/traffic/service";
@@ -69,7 +70,7 @@ export function TrafficTable({
         <TableRow>
           {headers.map((h) => (
             <TableHead key={h} className="text-sm font-medium">
-              {h === VOIPMONITOR_COLUMN ? (
+              {VOIPMONITOR_COLUMN_SET.has(h) ? (
                 (headerLabels?.[h] ?? h)
               ) : (
                 <ColumnFilterDropdown
@@ -132,7 +133,7 @@ export function TrafficTable({
                       trafficMissingLabelClass(shown),
                     )}
                   >
-                    {h === VOIPMONITOR_COLUMN ? (
+                    {VOIPMONITOR_COLUMN_SET.has(h) ? (
                       raw ? (
                         <a
                           href={raw}
@@ -140,7 +141,11 @@ export function TrafficTable({
                           rel="noopener noreferrer"
                           className="text-primary underline-offset-2 hover:underline"
                         >
-                          {row.data.voipmonitor_cdr_id || "открыть"}
+                          {row.data[
+                            h === VOIPMONITOR_COLUMN_IN
+                              ? "voipmonitor_cdr_id_in"
+                              : "voipmonitor_cdr_id_out"
+                          ] || "открыть"}
                         </a>
                       ) : null
                     ) : highlightSet.has(h) ? (

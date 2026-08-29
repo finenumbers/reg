@@ -59,6 +59,14 @@ function satel(partial: Partial<CdrCandidate>): CdrCandidate {
     callerIp: "",
     calledIp: "",
     sipCallIds: [],
+    inCallIds: [],
+    outCallIds: [],
+    inCaller: "",
+    inCalled: "",
+    outCaller: "",
+    outCalled: "",
+    inIp: "",
+    outIp: "",
     ...partial,
   };
 }
@@ -383,5 +391,104 @@ describe("matchOne", () => {
     );
     expect(error?.message).toContain("hour down");
     expect(results[0]?.status).toBe("unmatched");
+  });
+
+  it("places distinct in/out Call-IDs in the matching columns", async () => {
+    const client = fakeClient([
+      vm({ cdrId: "in-1", callId: "call-in", sipCallerIp: "1.1.1.1" }),
+      vm({ cdrId: "out-1", callId: "call-out", sipCallerIp: "9.9.9.9" }),
+    ]);
+    const { result, error } = await matchOne(
+      { client, guiBase: "https://vm.example" },
+      satel({
+        sipCallIds: ["call-out", "call-in"],
+        inCallIds: ["call-in"],
+        outCallIds: ["call-out"],
+      }),
+    );
+    expect(error).toBeUndefined();
+    expect(result.status).toBe(STATUS_MATCHED_EXACT);
+    expect(result.legs.in?.cdrId).toBe("in-1");
+    expect(result.legs.out?.cdrId).toBe("out-1");
+    expect(result.legs.in?.url).toContain("fcallid");
+    expect(result.legs.out?.url).toContain("fcallid");
+    expect(result.vm?.cdrId).toBe("in-1");
+  });
+
+  it("puts a shared Call-ID in both columns", async () => {
+    const { result } = await matchOne(
+      {
+        client: fakeClient([vm({ cdrId: "1", callId: "same" })]),
+        guiBase: "https://vm.example",
+      },
+      satel({
+        sipCallIds: ["same"],
+        inCallIds: ["same"],
+        outCallIds: ["same"],
+      }),
+    );
+    expect(result.legs.in?.cdrId).toBe("1");
+    expect(result.legs.out?.cdrId).toBe("1");
+  });
+
+  it("does not label an in-only Call-ID as out", async () => {
+    const { result } = await matchOne(
+      {
+        client: fakeClient([vm({ cdrId: "7", callId: "only-in" })]),
+        guiBase: "https://vm.example",
+      },
+      satel({
+        sipCallIds: ["only-in"],
+        inCallIds: ["only-in"],
+        outCallIds: [],
+      }),
+    );
+    expect(result.legs.in?.cdrId).toBe("7");
+    expect(result.legs.out).toBeUndefined();
+  });
+
+  it("probes the missing out Call-ID after an in-leg exact hit", async () => {
+    const probes: string[] = [];
+    const outLeg = vm({ cdrId: "out-9", callId: "out-id" });
+    const client: VoipmonitorClientLike = {
+      async listVoipCallsRange() {
+        return [vm({ cdrId: "in-9", callId: "in-id" })];
+      },
+      async getVoipCalls(params) {
+        const want = String(params.callId ?? "");
+        probes.push(want);
+        return want === "out-id" ? [outLeg] : [];
+      },
+    };
+    const { result } = await matchOne(
+      { client, guiBase: "https://vm.example", probeBudget: 4 },
+      satel({
+        sipCallIds: ["in-id", "out-id"],
+        inCallIds: ["in-id"],
+        outCallIds: ["out-id"],
+      }),
+    );
+    expect(probes.some((id) => id.includes("out-id"))).toBe(true);
+    expect(result.legs.in?.cdrId).toBe("in-9");
+    expect(result.legs.out?.cdrId).toBe("out-9");
+  });
+
+  it("reserves sibling VM cdrIds so they are not reused", async () => {
+    const client = fakeClient([
+      vm({ cdrId: "taken", callId: "id-a" }),
+      vm({ cdrId: "free", callId: "id-b" }),
+    ]);
+    const { result } = await matchOne(
+      {
+        client,
+        guiBase: "https://vm.example",
+        reservedCdrIds: ["taken"],
+      },
+      satel({
+        sipCallIds: ["id-a", "id-b"],
+        inCallIds: ["id-a", "id-b"],
+      }),
+    );
+    expect(result.legs.in?.cdrId).toBe("free");
   });
 });

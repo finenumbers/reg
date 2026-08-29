@@ -40,6 +40,25 @@ export type CdrCandidate = {
   callerIp: string;
   calledIp: string;
   sipCallIds: string[];
+  inCallIds: string[];
+  outCallIds: string[];
+  inCaller: string;
+  inCalled: string;
+  outCaller: string;
+  outCalled: string;
+  inIp: string;
+  outIp: string;
+};
+
+export type VoipmonitorLegRef = {
+  url: string;
+  cdrId: string;
+  callId: string;
+};
+
+export type VoipmonitorLegs = {
+  in?: VoipmonitorLegRef;
+  out?: VoipmonitorLegRef;
 };
 
 export type VmCall = {
@@ -61,6 +80,7 @@ export type MatchResult = {
   score: number;
   vm: VmCall | null;
   cardUrl: string;
+  legs: VoipmonitorLegs;
   evidenceJson: string;
   matchedAt: Date | null;
   missReason: string;

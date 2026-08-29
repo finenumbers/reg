@@ -587,6 +587,7 @@ model CdrVoipmonitorLink {
   voipmonitorUrl     String    @default("") @map("voipmonitor_url")
   voipmonitorCdrId   String    @default("") @map("voipmonitor_cdr_id")
   voipmonitorCallId  String    @default("") @map("voipmonitor_call_id")
+  voipmonitorLegs    Json?     @map("voipmonitor_legs")
   matchStatus        String    @default("") @map("match_status")
   matchMethod        String    @default("") @map("match_method")
   matchScore         Int       @default(0) @map("match_score")

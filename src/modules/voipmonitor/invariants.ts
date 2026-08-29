@@ -72,17 +72,20 @@ export function auditLinkInvariants(
       issues.push(`exact_call_id_invariant[${i}]`);
     }
     if (
-      result.vm?.cdrId &&
-      (result.status === STATUS_MATCHED_EXACT ||
-        result.status === STATUS_MATCHED_FALLBACK)
+      result.status === STATUS_MATCHED_EXACT ||
+      result.status === STATUS_MATCHED_FALLBACK
     ) {
-      const prev = used.get(result.vm.cdrId);
-      if (prev !== undefined) {
-        issues.push(
-          `duplicate_vm_cdr_id[${prev},${i}]=${result.vm.cdrId}`,
-        );
-      } else {
-        used.set(result.vm.cdrId, i);
+      const ids = new Set<string>();
+      if (result.vm?.cdrId) ids.add(result.vm.cdrId);
+      if (result.legs.in?.cdrId) ids.add(result.legs.in.cdrId);
+      if (result.legs.out?.cdrId) ids.add(result.legs.out.cdrId);
+      for (const cdrId of ids) {
+        const prev = used.get(cdrId);
+        if (prev !== undefined) {
+          issues.push(`duplicate_vm_cdr_id[${prev},${i}]=${cdrId}`);
+        } else {
+          used.set(cdrId, i);
+        }
       }
     }
   }

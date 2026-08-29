@@ -21,6 +21,7 @@ import {
   normalizeCallId,
   numberSuffixes,
   sourceCallIdNorms,
+  uniqueNonEmpty,
 } from "@/modules/voipmonitor/normalize";
 import {
   MISS_API_ERROR,
@@ -40,7 +41,9 @@ import {
   type MatchResult,
   type VmCall,
   type VoipmonitorClientLike,
+  type VoipmonitorLegs,
 } from "@/modules/voipmonitor/types";
+import { classifyCallId } from "@/modules/voipmonitor/legs";
 import { buildCardUrl } from "@/modules/voipmonitor/url";
 
 export type MatcherOptions = {
@@ -56,6 +59,8 @@ export type MatcherOptions = {
   now?: () => Date;
   /** Unique Call-IDs to probe after the hour index miss. 0 = none. */
   probeBudget?: number;
+  /** VM cdrIds already written for other CDRs in this hour. */
+  reservedCdrIds?: Iterable<string>;
 };
 
 type MatchOpts = {
@@ -80,7 +85,8 @@ type PendingMatch = {
   method: string;
   status: string;
   evidence: Record<string, unknown>;
-  legs: VmCall[];
+  inPool: VmCall[];
+  outPool: VmCall[];
 };
 
 type ScoredCall = {
@@ -196,6 +202,7 @@ function missResult(
     score: 0,
     vm: null,
     cardUrl: "",
+    legs: {},
     missReason: reason,
     evidenceJson: mustJson(ev),
     matchedAt: null,
@@ -224,6 +231,22 @@ function methodForCallIdAttempt(source: string, index: number): string {
   }
 }
 
+function legRef(
+  guiBase: string,
+  cardTemplate: string,
+  call: VmCall,
+): VoipmonitorLegs["in"] {
+  return {
+    url: buildCardUrl(cardTemplate, guiBase, {
+      cdrId: call.cdrId,
+      callId: call.callId,
+      callDate: call.callDate,
+    }),
+    cdrId: call.cdrId,
+    callId: call.callId,
+  };
+}
+
 function success(
   guiBase: string,
   cardTemplate: string,
@@ -233,6 +256,7 @@ function success(
   score: number,
   evidence: Record<string, unknown> | undefined,
   now: Date,
+  roleLegs: { in?: VmCall; out?: VmCall },
 ): MatchResult {
   const ev = evidence ?? {};
   const cardUrl = buildCardUrl(cardTemplate, guiBase, {
@@ -246,12 +270,16 @@ function success(
     score,
     method,
   };
+  const legs: VoipmonitorLegs = {};
+  if (roleLegs.in) legs.in = legRef(guiBase, cardTemplate, roleLegs.in);
+  if (roleLegs.out) legs.out = legRef(guiBase, cardTemplate, roleLegs.out);
   return {
     status: status as MatchResult["status"],
     method,
     score,
     vm: call,
     cardUrl,
+    legs,
     evidenceJson: mustJson(ev),
     matchedAt: now,
     missReason: "",
@@ -405,6 +433,50 @@ function orderLegs(
   return { ordered: scored.map((s) => s.call), score: 100 };
 }
 
+function callIdInIndex(idx: CallIndex, raw: string): boolean {
+  for (const norm of callIdVariants(raw)) {
+    if (idx.byCallId.get(norm)?.length) return true;
+  }
+  return false;
+}
+
+function missingRoleCallIds(cdr: CdrCandidate, idx: CallIndex): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of [...cdr.inCallIds, ...cdr.outCallIds]) {
+    const trimmed = raw.trim();
+    if (!trimmed) continue;
+    const norm = normalizeCallId(trimmed);
+    if (!norm || seen.has(norm)) continue;
+    seen.add(norm);
+    if (callIdInIndex(idx, trimmed)) continue;
+    out.push(trimmed);
+  }
+  return out;
+}
+
+function pickUnusedLeg(
+  pool: VmCall[],
+  used: Map<string, number>,
+  candIdx: number,
+): VmCall | undefined {
+  for (const leg of pool) {
+    if (!leg.cdrId) return leg;
+    const owner = used.get(leg.cdrId);
+    if (owner !== undefined && owner !== candIdx) continue;
+    return leg;
+  }
+  return undefined;
+}
+
+function claimLeg(
+  used: Map<string, number>,
+  candIdx: number,
+  leg: VmCall | undefined,
+): void {
+  if (leg?.cdrId) used.set(leg.cdrId, candIdx);
+}
+
 function stageExact(
   cdr: CdrCandidate,
   idx: CallIndex,
@@ -447,17 +519,31 @@ function stageExact(
   }
   if (hits.length === 0) return null;
   evidence.vm_legs_with_same_call_id = hits.length;
-  const { ordered, score } = orderLegs(cdr, hits, opts.suffixLen);
-  const winner = ordered[0]!;
+  const inPool: VmCall[] = [];
+  const outPool: VmCall[] = [];
+  const confOnly: VmCall[] = [];
+  for (const hit of hits) {
+    const role = classifyCallId(hit.callId, cdr);
+    if (role.in) inPool.push(hit);
+    if (role.out) outPool.push(hit);
+    if (!role.in && !role.out) confOnly.push(hit);
+  }
+  const inOrdered = orderLegs(cdr, inPool, opts.suffixLen).ordered;
+  const outOrdered = orderLegs(cdr, outPool, opts.suffixLen).ordered;
+  const confOrdered = orderLegs(cdr, confOnly, opts.suffixLen).ordered;
+  const winner =
+    inOrdered[0] ?? outOrdered[0] ?? confOrdered[0] ?? hits[0]!;
   evidence.selected = {
     cdrId: winner.cdrId,
     callId: winner.callId,
-    score,
+    score: 100,
+    in_leg: inOrdered[0]?.cdrId ?? "",
+    out_leg: outOrdered[0]?.cdrId ?? "",
   };
-  if (ordered.length > 1) {
+  if (inOrdered[1] || outOrdered[1] || confOrdered[1]) {
     evidence.runner_up = {
-      cdrId: ordered[1]!.cdrId,
-      callId: ordered[1]!.callId,
+      cdrId: (inOrdered[1] ?? outOrdered[1] ?? confOrdered[1])!.cdrId,
+      callId: (inOrdered[1] ?? outOrdered[1] ?? confOrdered[1])!.callId,
     };
   }
   let method = (evidence.method_seed as string) || "sip_call_id";
@@ -468,11 +554,12 @@ function stageExact(
   return {
     candIdx: 0,
     call: winner,
-    score,
+    score: 100,
     method,
     status: STATUS_MATCHED_EXACT,
     evidence,
-    legs: ordered,
+    inPool: inOrdered,
+    outPool: outOrdered,
   };
 }
 
@@ -575,10 +662,18 @@ function stageFallback(
         missReason: MISS_FALLBACK_AMBIGUOUS,
         evidenceJson: mustJson(evidence),
         matchedAt: null,
+        legs: {},
       },
     };
   }
 
+  const rolePools = classifyFallbackPools(
+    cdr,
+    best.call,
+    opts.suffixLen,
+    opts.margin,
+    opts.minScore,
+  );
   return {
     pending: {
       candIdx: 0,
@@ -587,10 +682,55 @@ function stageFallback(
       method: "fallback_numbers_ip_time",
       status: STATUS_MATCHED_FALLBACK,
       evidence,
-      legs: [best.call],
+      inPool: rolePools.inPool,
+      outPool: rolePools.outPool,
     },
     miss: null,
   };
+}
+
+function classifyFallbackPools(
+  cdr: CdrCandidate,
+  hit: VmCall,
+  suffixLen: number,
+  margin: number,
+  minScore: number,
+): { inPool: VmCall[]; outPool: VmCall[] } {
+  const inScored = scoreOne(
+    {
+      ...cdr,
+      caller: cdr.inCaller,
+      called: cdr.inCalled,
+      callerNumbers: uniqueNonEmpty(cdr.inCaller),
+      calledNumbers: uniqueNonEmpty(cdr.inCalled),
+      callerIp: cdr.inIp,
+      calledIp: "",
+    },
+    hit,
+    suffixLen,
+    true,
+  );
+  const outScored = scoreOne(
+    {
+      ...cdr,
+      caller: cdr.outCaller,
+      called: cdr.outCalled,
+      callerNumbers: uniqueNonEmpty(cdr.outCaller),
+      calledNumbers: uniqueNonEmpty(cdr.outCalled),
+      callerIp: cdr.outIp,
+      calledIp: "",
+    },
+    hit,
+    suffixLen,
+    true,
+  );
+  if (inScored.score - outScored.score >= margin && inScored.score >= minScore) {
+    return { inPool: [hit], outPool: [] };
+  }
+  if (outScored.score - inScored.score >= margin && outScored.score >= minScore) {
+    return { inPool: [], outPool: [hit] };
+  }
+  return { inPool: [], outPool: [] };
 }
 
 function assignBucket(
@@ -606,6 +746,10 @@ function assignBucket(
     missResult(MISS_NO_CANDIDATES_IN_WINDOW, {}),
   );
   const used = new Map<string, number>();
+  for (const cdrId of options.reservedCdrIds ?? []) {
+    const id = cdrId.trim();
+    if (id) used.set(id, -1);
+  }
   const exact: PendingMatch[] = [];
   for (let i = 0; i < candidates.length; i++) {
     const pm = stageExact(candidates[i]!, idx, opts, probeAttempts);
@@ -620,35 +764,38 @@ function assignBucket(
   const assigned = new Array<boolean>(candidates.length).fill(false);
   for (const pm of exact) {
     if (assigned[pm.candIdx]) continue;
-    const legs = pm.legs.length ? pm.legs : [pm.call];
-    let picked = false;
-    for (const leg of legs) {
-      if (leg.cdrId) {
-        const owner = used.get(leg.cdrId);
-        if (owner !== undefined && owner !== pm.candIdx) continue;
-        used.set(leg.cdrId, pm.candIdx);
+    const inLeg = pickUnusedLeg(pm.inPool, used, pm.candIdx);
+    const outLeg = pickUnusedLeg(pm.outPool, used, pm.candIdx);
+    claimLeg(used, pm.candIdx, inLeg);
+    claimLeg(used, pm.candIdx, outLeg);
+    let primary = inLeg ?? outLeg;
+    if (!primary && pm.call) {
+      const owner = pm.call.cdrId ? used.get(pm.call.cdrId) : undefined;
+      if (owner === undefined || owner === pm.candIdx) {
+        primary = pm.call;
+        claimLeg(used, pm.candIdx, pm.call);
       }
+    }
+    if (primary) {
       const ev = cloneEvidence(pm.evidence);
       ev.selected = {
-        cdrId: leg.cdrId,
-        callId: leg.callId,
+        cdrId: primary.cdrId,
+        callId: primary.callId,
         score: pm.score,
       };
       results[pm.candIdx] = success(
         options.guiBase,
         options.cardTemplate ?? "",
-        leg,
+        primary,
         pm.status,
         pm.method,
         pm.score,
         ev,
         now,
+        { in: inLeg, out: outLeg },
       );
       assigned[pm.candIdx] = true;
-      picked = true;
-      break;
-    }
-    if (!picked) {
+    } else {
       results[pm.candIdx] = missResult(
         MISS_ASSIGNED_ELSEWHERE,
         cloneEvidence(pm.evidence),
@@ -690,6 +837,10 @@ function assignBucket(
       }
       used.set(pm.call.cdrId, pm.candIdx);
     }
+    const inLeg = pickUnusedLeg(pm.inPool, used, pm.candIdx);
+    const outLeg = pickUnusedLeg(pm.outPool, used, pm.candIdx);
+    claimLeg(used, pm.candIdx, inLeg);
+    claimLeg(used, pm.candIdx, outLeg);
     results[pm.candIdx] = success(
       options.guiBase,
       options.cardTemplate ?? "",
@@ -699,6 +850,7 @@ function assignBucket(
       pm.score,
       pm.evidence,
       now,
+      { in: inLeg, out: outLeg },
     );
     assigned[pm.candIdx] = true;
   }
@@ -769,15 +921,18 @@ export async function matchBucket(
     suspected_cap: fetchLooksIncomplete,
   };
 
-  const missCandidates = candidates.filter(
-    (cdr) => !stageExact(cdr, idx, opts, null),
-  );
+  const missCandidates = candidates.filter((cdr) => {
+    if (!stageExact(cdr, idx, opts, null)) return true;
+    return missingRoleCallIds(cdr, idx).length > 0;
+  });
   const probeAttempts: unknown[] = [];
   const seenProbe = new Set<string>();
   const matchStarted = Date.now();
   for (const cdr of missCandidates) {
     if (seenProbe.size >= budget) break;
-    for (const raw of cdr.sipCallIds) {
+    const probeIds = missingRoleCallIds(cdr, idx);
+    const raws = probeIds.length > 0 ? probeIds : cdr.sipCallIds;
+    for (const raw of raws) {
       if (seenProbe.size >= budget) break;
       const trimmed = raw.trim();
       if (!trimmed) continue;
@@ -861,6 +1016,7 @@ export async function matchOne(
         score: 0,
         vm: null,
         cardUrl: "",
+        legs: {},
         evidenceJson: "{}",
         matchedAt: null,
         missReason: "",

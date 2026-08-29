@@ -29,6 +29,28 @@ function row(overrides: Partial<SatelCdrRow> = {}): SatelCdrRow {
   };
 }
 
+describe("candidateFromSatelRow roles", () => {
+  it("keeps in and out Call-IDs in separate sets", () => {
+    const cand = candidateFromSatelRow(
+      row({
+        inLegCallId: "in-1",
+        srcInLegCallId: "in-src",
+        outLegCallId: "out-1",
+        srcOutLegCallId: "",
+      }),
+    );
+    expect(cand?.inCallIds).toEqual(["in-1", "in-src"]);
+    expect(cand?.outCallIds).toEqual(["out-1"]);
+    expect(cand?.sipCallIds[0]).toBe("out-1");
+  });
+
+  it("does not treat an in Call-ID as out when out fields are empty", () => {
+    const cand = candidateFromSatelRow(row({ inLegCallId: "only-in" }));
+    expect(cand?.inCallIds).toEqual(["only-in"]);
+    expect(cand?.outCallIds).toEqual([]);
+  });
+});
+
 describe("candidateFromSatelRow duration", () => {
   it("treats elapsed_time as milliseconds and ceils to seconds", () => {
     expect(candidateFromSatelRow(row())?.durationSec).toBe(25);

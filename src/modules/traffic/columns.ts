@@ -143,8 +143,27 @@ export const CDR_PHONE_COLUMNS = [
 ] as const;
 
 /** Short traffic table — subset of the full CDR dump, display labels in UI. */
-export const VOIPMONITOR_COLUMN = "voipmonitor_url";
-export const VOIPMONITOR_LABEL = "VoIPmonitor";
+export const VOIPMONITOR_COLUMN_IN = "voipmonitor_url_in";
+export const VOIPMONITOR_COLUMN_OUT = "voipmonitor_url_out";
+export const VOIPMONITOR_COLUMNS = [
+  VOIPMONITOR_COLUMN_IN,
+  VOIPMONITOR_COLUMN_OUT,
+] as const;
+export const VOIPMONITOR_COLUMN_SET = new Set<string>(VOIPMONITOR_COLUMNS);
+export const VOIPMONITOR_RAW_LABELS: Record<
+  (typeof VOIPMONITOR_COLUMNS)[number],
+  string
+> = {
+  voipmonitor_url_in: "VoIPmonitor In",
+  voipmonitor_url_out: "VoIPmonitor Out",
+};
+export const VOIPMONITOR_TRAFFIC_LABELS: Record<
+  (typeof VOIPMONITOR_COLUMNS)[number],
+  string
+> = {
+  voipmonitor_url_in: "Calltrace In",
+  voipmonitor_url_out: "Calltrace Out",
+};
 
 export const TRAFFIC_SUMMARY_COLUMNS = [
   "cdr_date",
@@ -158,7 +177,7 @@ export const TRAFFIC_SUMMARY_COLUMNS = [
   "dst_name",
   "dp_name",
   "disconnect_code_string",
-  VOIPMONITOR_COLUMN,
+  ...VOIPMONITOR_COLUMNS,
 ] as const;
 
 export const TRAFFIC_SUMMARY_LABELS: Record<
@@ -176,7 +195,8 @@ export const TRAFFIC_SUMMARY_LABELS: Record<
   dp_name: "Объект набора",
   elapsed_time: "Длительность",
   disconnect_code_string: "Код завершения",
-  voipmonitor_url: VOIPMONITOR_LABEL,
+  voipmonitor_url_in: VOIPMONITOR_TRAFFIC_LABELS.voipmonitor_url_in,
+  voipmonitor_url_out: VOIPMONITOR_TRAFFIC_LABELS.voipmonitor_url_out,
 };
 
 export const TRAFFIC_GEOGRAPHY_COLUMNS = [
@@ -308,7 +328,7 @@ const ENRICH_AFTER: Record<string, readonly CdrEnrichColumn[]> = {
 
 export const RAW_TABLE_COLUMNS: readonly string[] = CDR_COLUMNS.flatMap((col) => [
   col,
-  ...(col === "cdr_id" ? [VOIPMONITOR_COLUMN] : []),
+  ...(col === "cdr_id" ? [...VOIPMONITOR_COLUMNS] : []),
   ...(ENRICH_AFTER[col] ?? []),
 ]);
 

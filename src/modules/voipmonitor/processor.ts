@@ -20,6 +20,10 @@ import {
   liveCutoffAt,
   type MatchLane,
 } from "@/modules/voipmonitor/lanes";
+import {
+  collectLegCdrIds,
+  parseVoipmonitorLegs,
+} from "@/modules/voipmonitor/legs";
 import { matchBucket } from "@/modules/voipmonitor/match";
 import {
   probeBudgetForLane,
@@ -142,6 +146,7 @@ async function writeHourResults(
     attemptCount: number;
     nextAttemptAt: Date | null;
     evidenceJson: string;
+    voipmonitorLegs: string | null;
     updatedAt: Date;
   }> = [];
   let matched = 0;
@@ -164,6 +169,7 @@ async function writeHourResults(
       attemptCount,
       nextAttemptAt: matchedOk ? null : nextAttemptAt(attemptCount, now),
       evidenceJson: compactEvidence(result),
+      voipmonitorLegs: matchedOk ? JSON.stringify(result.legs) : null,
       updatedAt: now,
     });
   }
@@ -182,6 +188,7 @@ async function writeHourResults(
         ${row.attemptCount},
         ${row.nextAttemptAt},
         ${row.evidenceJson},
+        ${row.voipmonitorLegs === null ? Prisma.sql`NULL` : Prisma.sql`CAST(${row.voipmonitorLegs} AS JSONB)`},
         ${row.updatedAt}
       )`,
     );
@@ -198,6 +205,7 @@ async function writeHourResults(
         attempt_count,
         next_attempt_at,
         evidence_json,
+        voipmonitor_legs,
         updated_at
       )
       VALUES ${Prisma.join(tuples)}
@@ -212,6 +220,7 @@ async function writeHourResults(
         attempt_count = EXCLUDED.attempt_count,
         next_attempt_at = EXCLUDED.next_attempt_at,
         evidence_json = EXCLUDED.evidence_json,
+        voipmonitor_legs = EXCLUDED.voipmonitor_legs,
         updated_at = EXCLUDED.updated_at
     `;
   }
@@ -268,11 +277,31 @@ async function processHour(input: {
     if (count > maxAttempt) maxAttempt = count;
   }
   const probeBudget = probeBudgetForLane(input.lane, maxAttempt);
+  const candidateIds = new Set(candidates.map((row) => row.sourceRecordId));
+  const siblings =
+    candidates.length === 0
+      ? []
+      : await prisma.cdrVoipmonitorLink.findMany({
+          where: {
+            voipmonitorUrl: { not: "" },
+            cdrRecord: { cdrAt },
+            NOT: { cdrRecordId: { in: [...candidateIds] } },
+          },
+          select: { voipmonitorCdrId: true, voipmonitorLegs: true },
+        });
+  const reservedCdrIds = new Set<string>();
+  for (const link of siblings) {
+    if (link.voipmonitorCdrId) reservedCdrIds.add(link.voipmonitorCdrId);
+    for (const id of collectLegCdrIds(parseVoipmonitorLegs(link.voipmonitorLegs))) {
+      reservedCdrIds.add(id);
+    }
+  }
   const { results, error, stats } = await matchBucket(
     {
       client: input.client,
       guiBase: input.guiUrl,
       probeBudget,
+      reservedCdrIds,
     },
     candidates,
   );

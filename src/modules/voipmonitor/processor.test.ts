@@ -94,6 +94,7 @@ function matchHit() {
     score: 100,
     vm: { cdrId: "vm1", callId: "c1" },
     cardUrl: "https://vm/example",
+    legs: {},
     evidenceJson: "",
     matchedAt: new Date(),
     missReason: "",

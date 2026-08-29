@@ -12,6 +12,8 @@ import {
 import { prisma } from "@/lib/db";
 import { getJobRunSummary } from "@/modules/jobs/query";
 import { countInboxFiles } from "@/modules/traffic/inbox";
+import { parseVoipmonitorLegs } from "@/modules/voipmonitor/legs";
+import type { VoipmonitorLegs } from "@/modules/voipmonitor/types";
 import { isSafeVoipmonitorHref } from "@/modules/voipmonitor/url";
 import {
   CDR_COLUMNS,
@@ -46,9 +48,20 @@ export type TrafficOperationalStatus = {
   poisonedCount: number;
 };
 
+function safeLeg(
+  ref: { url: string; cdrId: string } | undefined,
+  guiUrl: string,
+): { url: string; cdrId: string } {
+  if (!ref?.url || !guiUrl || !isSafeVoipmonitorHref(ref.url, guiUrl)) {
+    return { url: "", cdrId: "" };
+  }
+  return { url: ref.url, cdrId: ref.cdrId };
+}
+
 function rowToData(
   row: Record<string, unknown>,
-  link?: { voipmonitorUrl: string; voipmonitorCdrId: string } | null,
+  link?: { voipmonitorLegs: unknown } | null,
+  guiUrl = "",
 ): Record<string, string> {
   const data: Record<string, string> = {};
   for (const col of CDR_COLUMNS) {
@@ -59,8 +72,13 @@ function rowToData(
     const value = row[csvHeaderToCamel(col)];
     data[col] = value == null ? "" : String(value);
   }
-  data.voipmonitor_url = link?.voipmonitorUrl ?? "";
-  data.voipmonitor_cdr_id = link?.voipmonitorCdrId ?? "";
+  const legs: VoipmonitorLegs = parseVoipmonitorLegs(link?.voipmonitorLegs);
+  const inn = safeLeg(legs.in, guiUrl);
+  const out = safeLeg(legs.out, guiUrl);
+  data.voipmonitor_url_in = inn.url;
+  data.voipmonitor_cdr_id_in = inn.cdrId;
+  data.voipmonitor_url_out = out.url;
+  data.voipmonitor_cdr_id_out = out.cdrId;
   return data;
 }
 
@@ -141,8 +159,7 @@ export async function listTraffic(opts: {
             where: { cdrRecordId: { in: rows.map((row) => row.id) } },
             select: {
               cdrRecordId: true,
-              voipmonitorUrl: true,
-              voipmonitorCdrId: true,
+              voipmonitorLegs: true,
             },
           }),
           prisma.appSetting.findUnique({
@@ -151,18 +168,7 @@ export async function listTraffic(opts: {
           }),
         ]);
   const guiUrl = guiSetting?.voipmonitorGuiUrl?.trim() ?? "";
-  const linkById = new Map(
-    links.map((link) => [
-      link.cdrRecordId,
-      {
-        ...link,
-        voipmonitorUrl:
-          guiUrl && isSafeVoipmonitorHref(link.voipmonitorUrl, guiUrl)
-            ? link.voipmonitorUrl
-            : "",
-      },
-    ]),
-  );
+  const linkById = new Map(links.map((link) => [link.cdrRecordId, link]));
 
   return {
     items: rows.map((row) => ({
@@ -171,6 +177,7 @@ export async function listTraffic(opts: {
       data: rowToData(
         row as unknown as Record<string, unknown>,
         linkById.get(row.id),
+        guiUrl,
       ),
     })),
     headers: [...CDR_COLUMNS],

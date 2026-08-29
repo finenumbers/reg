@@ -55,8 +55,18 @@ function stripHostPort(raw: string): string {
 
 export function candidateFromSatelRow(row: SatelCdrRow): CdrCandidate | null {
   if (!row.cdrAt) return null;
+  const inCallIds = uniqueNonEmpty(row.inLegCallId, row.srcInLegCallId);
+  const outCallIds = uniqueNonEmpty(row.outLegCallId, row.srcOutLegCallId);
   const sipCallIds = uniqueNonEmpty(
     ...SATEL_CALL_ID_FIELDS.map((field) => row[field]),
+  );
+  const inIp = firstNonEmpty(
+    stripHostPort(row.remoteSrcSigAddress),
+    stripHostPort(row.localSrcSigAddress),
+  );
+  const outIp = firstNonEmpty(
+    stripHostPort(row.remoteDstSigAddress),
+    stripHostPort(row.localDstSigAddress),
   );
   return {
     sourceRecordId: row.id,
@@ -69,14 +79,16 @@ export function candidateFromSatelRow(row: SatelCdrRow): CdrCandidate | null {
     called: firstNonEmpty(row.billDnis, row.outDnis, row.inDnis),
     callerNumbers: uniqueNonEmpty(row.billAni, row.outAni, row.inAni),
     calledNumbers: uniqueNonEmpty(row.billDnis, row.outDnis, row.inDnis),
-    callerIp: firstNonEmpty(
-      stripHostPort(row.remoteSrcSigAddress),
-      stripHostPort(row.localSrcSigAddress),
-    ),
-    calledIp: firstNonEmpty(
-      stripHostPort(row.remoteDstSigAddress),
-      stripHostPort(row.localDstSigAddress),
-    ),
+    callerIp: inIp,
+    calledIp: outIp,
     sipCallIds,
+    inCallIds,
+    outCallIds,
+    inCaller: row.inAni,
+    inCalled: row.inDnis,
+    outCaller: row.outAni,
+    outCalled: row.outDnis,
+    inIp,
+    outIp,
   };
 }
