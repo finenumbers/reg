@@ -1,5 +1,3 @@
-import type { MonthPeriod } from "@/lib/month-window";
-
 const NOMINATIVE = [
   "Январь",
   "Февраль",
@@ -45,22 +43,10 @@ export function formatMonthGenitive(year: number, month: number): string {
   return `${GENITIVE[monthIndex(month)]} ${year} года`;
 }
 
-export function monthExportButtonLabel(
-  period: MonthPeriod,
-  year: number,
-  month: number,
-): string {
-  const genitive = formatMonthGenitive(year, month);
-  return period === "previous"
-    ? `Сохранить данные ${genitive}`
-    : `Неполные данные ${genitive}`;
+export function monthExportJobTitle(year: number, month: number): string {
+  return `Сохранить данные ${formatMonthGenitive(year, month)}`;
 }
 
-export function monthExportSheetName(
-  period: MonthPeriod,
-  year: number,
-  month: number,
-): string {
-  const nominative = formatMonthNominative(year, month);
-  return period === "previous" ? nominative : `${nominative} (неполный)`;
+export function monthExportSheetName(year: number, month: number): string {
+  return formatMonthNominative(year, month);
 }

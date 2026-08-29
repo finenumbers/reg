@@ -1,7 +1,11 @@
-# Current Phase — production (v1.20.0)
+# Current Phase — production (v1.21.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher.  
 **Date:** 2026-08-29
+
+## v1.21.0 — save traffic XLSX for the selected month
+
+On «Телефонный трафик» one button «Сохранить данные» exports the two-sheet enrich XLSX for the UTC calendar month currently selected in the dropdown. The first sheet is named after that month (no «неполный» suffix).
 
 ## v1.20.0 — CDR calendar month switcher
 

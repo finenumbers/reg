@@ -1,13 +1,6 @@
 "use client";
 
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,6 +36,7 @@ import {
 } from "@/modules/traffic/cdr-month";
 import { formatMonthNominative } from "@/modules/traffic/month-labels";
 import type { ListTrafficResult, TrafficListItem } from "@/modules/traffic/service";
+import { MonthExportButtons } from "@/modules/traffic/ui/month-export-buttons";
 import { TrafficTable } from "@/modules/traffic/ui/traffic-table";
 import {
   composeTrafficBanner,
@@ -65,7 +59,7 @@ type Props = {
   showOps: boolean;
   canRetry: boolean;
   emptyUnfiltered: string;
-  headerActions?: ReactNode;
+  showMonthExport?: boolean;
   initial: ListTrafficResult;
 };
 
@@ -79,7 +73,7 @@ export function TrafficView({
   showOps,
   canRetry,
   emptyUnfiltered,
-  headerActions,
+  showMonthExport = false,
   initial,
 }: Props) {
   const [filters, setFilters] = useState<ColumnFilters>({});
@@ -418,7 +412,7 @@ export function TrafficView({
           <p className="text-sm text-muted-foreground">{subtitle}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {headerActions}
+          {showMonthExport ? <MonthExportButtons month={month} /> : null}
           {showRetry ? (
             <Button type="button" onClick={() => void onRetry()} disabled={pending}>
               {pending ? "Импорт…" : "Повторить импорт"}

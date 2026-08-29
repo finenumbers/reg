@@ -1,5 +1,3 @@
-import type { MonthPeriod } from "@/lib/month-window";
-
 export const MONTH_EXPORT_ARTIFACT_TTL_MS = 24 * 60 * 60 * 1000;
 export const MONTH_EXPORT_PAGE_SIZE = 2000;
 export const MONTH_EXPORT_UPDATE_BATCH = 300;
@@ -38,7 +36,7 @@ export type MonthExportJobStatus = "queued" | "running" | "completed" | "failed"
 export type MonthExportJobView = {
   id: string;
   status: MonthExportJobStatus;
-  period: MonthPeriod;
+  month: string;
   title: string;
   trafficSheetName: string;
   filename: string;

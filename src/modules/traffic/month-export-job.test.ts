@@ -14,7 +14,7 @@ describe("month export job registry", () => {
   it("does not hand another user's job", () => {
     const job = createMonthExportJob({
       actorUserId: "user-a",
-      period: "previous",
+      month: "2026-07",
     });
     expect(getMonthExportForOwner(job.id, "user-b")).toBeNull();
     expect(getMonthExportForOwner(job.id, "user-a")?.id).toBe(job.id);

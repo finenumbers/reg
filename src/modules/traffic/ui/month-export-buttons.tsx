@@ -5,8 +5,6 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatCount } from "@/lib/format-count";
-import { utcExportMonth, type MonthPeriod } from "@/lib/month-window";
-import { monthExportButtonLabel } from "@/modules/traffic/month-labels";
 import {
   isActiveMonthExport,
   isFinishedMonthExport,
@@ -26,25 +24,11 @@ function dismissFinishedJob(job: MonthExportJobView | null) {
   void fetch(`/api/traffic/export/${job.id}`, { method: "DELETE", keepalive: true });
 }
 
-export function MonthExportButtons() {
-  const now = new Date();
-  const previous = utcExportMonth("previous", now);
-  const current = utcExportMonth("current", now);
-  const previousLabel = monthExportButtonLabel(
-    "previous",
-    previous.year,
-    previous.month,
-  );
-  const currentLabel = monthExportButtonLabel(
-    "current",
-    current.year,
-    current.month,
-  );
-
+export function MonthExportButtons({ month }: { month: string }) {
   const jobRef = useRef<MonthExportJobView | null>(null);
   const downloadedFor = useRef<string | null>(null);
   const [job, setJob] = useState<MonthExportJobView | null>(null);
-  const [starting, setStarting] = useState<MonthPeriod | null>(null);
+  const [starting, setStarting] = useState(false);
   jobRef.current = job;
 
   const pollJob = useCallback(async (id: string) => {
@@ -96,14 +80,14 @@ export function MonthExportButtons() {
     };
   }, []);
 
-  async function start(period: MonthPeriod) {
+  async function start() {
     if (starting || isActiveMonthExport(job)) return;
-    setStarting(period);
+    setStarting(true);
     try {
       const res = await fetch("/api/traffic/export", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ period }),
+        body: JSON.stringify({ month }),
       });
       const body = (await res.json().catch(() => null)) as {
         job?: MonthExportJobView;
@@ -116,7 +100,7 @@ export function MonthExportButtons() {
       downloadedFor.current = null;
       setJob(body.job);
     } finally {
-      setStarting(null);
+      setStarting(false);
     }
   }
 
@@ -126,23 +110,12 @@ export function MonthExportButtons() {
     setJob(null);
   }
 
-  const busy = starting != null || isActiveMonthExport(job);
+  const busy = starting || isActiveMonthExport(job);
 
   return (
     <>
-      <Button
-        type="button"
-        disabled={busy}
-        onClick={() => void start("previous")}
-      >
-        {starting === "previous" ? "Запуск…" : previousLabel}
-      </Button>
-      <Button
-        type="button"
-        disabled={busy}
-        onClick={() => void start("current")}
-      >
-        {starting === "current" ? "Запуск…" : currentLabel}
+      <Button type="button" disabled={busy} onClick={() => void start()}>
+        {starting ? "Запуск…" : "Сохранить данные"}
       </Button>
 
       {job ? (

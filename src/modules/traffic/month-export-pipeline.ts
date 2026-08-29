@@ -6,7 +6,8 @@ import { prisma } from "@/lib/db";
 import { formatCount } from "@/lib/format-count";
 import { formatExportTimestamp } from "@/lib/format-display-time";
 import { logger } from "@/lib/logger";
-import { cdrMonthPrefix, utcExportMonth } from "@/lib/month-window";
+import { cdrMonthPrefix } from "@/lib/month-window";
+import { parseMonthKey } from "@/modules/traffic/cdr-month";
 import { EXCEL_MAX_ROWS, type ResolvedEnrichedRow } from "@/modules/enrich/types";
 import { writeResolvedEnrichedXlsx } from "@/modules/enrich/xlsx-writer";
 import { getEnrichReadyFlags } from "@/modules/pstn/credentials";
@@ -25,7 +26,7 @@ import {
 } from "@/modules/traffic/month-export-job";
 import {
   formatMonthGenitive,
-  monthExportButtonLabel,
+  monthExportJobTitle,
   monthExportSheetName,
 } from "@/modules/traffic/month-labels";
 import { syncCdrAtFromCdrDate } from "@/modules/traffic/sync-cdr-at";
@@ -162,7 +163,10 @@ export async function runMonthExportPipeline(jobId: string): Promise<void> {
     if (!existing) {
       throw new Error("Задача выгрузки не найдена");
     }
-    const periodValue = existing.period;
+    const parsed = parseMonthKey(existing.month);
+    if (!parsed) {
+      throw new Error("Некорректный месяц выгрузки");
+    }
 
     stages = setMonthExportStage(
       existing.stages.map((stage) => ({ ...stage })),
@@ -172,9 +176,8 @@ export async function runMonthExportPipeline(jobId: string): Promise<void> {
     persist(stages, true);
 
     await syncCdrAtFromCdrDate();
-    const win = utcExportMonth(periodValue, jobStartedAt);
-    const title = monthExportButtonLabel(periodValue, win.year, win.month);
-    const trafficSheetName = monthExportSheetName(periodValue, win.year, win.month);
+    const title = monthExportJobTitle(parsed.year, parsed.month);
+    const trafficSheetName = monthExportSheetName(parsed.year, parsed.month);
     const filename = `${trafficSheetName}-${formatExportTimestamp(jobStartedAt, "UTC")}.xlsx`;
     patchMonthExportJob(jobId, { title, trafficSheetName, filename });
 
@@ -184,7 +187,7 @@ export async function runMonthExportPipeline(jobId: string): Promise<void> {
     });
     persist(stages, true);
 
-    const where = windowWhere(win.year, win.month, jobStartedAt);
+    const where = windowWhere(parsed.year, parsed.month, jobStartedAt);
     const total = await prisma.cdrRecord.count({ where });
     if (total > EXCEL_MAX_ROWS) {
       throw new Error(
@@ -192,7 +195,7 @@ export async function runMonthExportPipeline(jobId: string): Promise<void> {
       );
     }
     if (total === 0) {
-      const month = formatMonthGenitive(win.year, win.month);
+      const month = formatMonthGenitive(parsed.year, parsed.month);
       throw new Error(`Нет звонков за ${month}`);
     }
 

@@ -3,7 +3,6 @@
  */
 
 import { randomUUID } from "node:crypto";
-import type { MonthPeriod } from "@/lib/month-window";
 import {
   failOpenMonthExportStages,
   INITIAL_MONTH_EXPORT_STAGES,
@@ -74,7 +73,7 @@ export function toJobView(job: MonthExportJobRecord): MonthExportJobView {
   return {
     id: job.id,
     status: job.status,
-    period: job.period,
+    month: job.month,
     title: job.title,
     trafficSheetName: job.trafficSheetName,
     filename: job.filename,
@@ -94,7 +93,7 @@ export class MonthExportActiveConflictError extends Error {
 
 export function createMonthExportJob(input: {
   actorUserId: string;
-  period: MonthPeriod;
+  month: string;
 }): MonthExportJobRecord {
   const s = store();
   if (s.running) {
@@ -107,7 +106,7 @@ export function createMonthExportJob(input: {
     actorUserId: input.actorUserId,
     createdAt: Date.now(),
     status: "queued",
-    period: input.period,
+    month: input.month,
     title: "",
     trafficSheetName: "",
     filename: "",

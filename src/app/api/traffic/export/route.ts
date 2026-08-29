@@ -3,7 +3,7 @@ import { assertSameOrigin } from "@/lib/csrf";
 import { trafficExportStartRateLimiter } from "@/lib/rate-limit";
 import { requireApiPermission } from "@/modules/auth/guards";
 import { requireSessionUserId } from "@/modules/auth/session";
-import type { MonthPeriod } from "@/lib/month-window";
+import { parseMonthKey } from "@/modules/traffic/cdr-month";
 import {
   createMonthExportJob,
   MonthExportActiveConflictError,
@@ -15,11 +15,11 @@ import { pruneMonthExportArtifacts } from "@/modules/traffic/month-export-reclai
 
 export const runtime = "nodejs";
 
-function parsePeriod(body: unknown): MonthPeriod | null {
+function parseExportMonth(body: unknown): string | null {
   if (!body || typeof body !== "object") return null;
-  const period = (body as { period?: unknown }).period;
-  if (period === "previous" || period === "current") return period;
-  return null;
+  const month = (body as { month?: unknown }).month;
+  if (typeof month !== "string") return null;
+  return parseMonthKey(month)?.key ?? null;
 }
 
 /**
@@ -66,10 +66,10 @@ export async function POST(request: Request) {
       { status: 400 },
     );
   }
-  const period = parsePeriod(json);
-  if (!period) {
+  const month = parseExportMonth(json);
+  if (!month) {
     return NextResponse.json(
-      { error: "Укажите period: previous или current", code: "BAD_REQUEST" },
+      { error: "Укажите month в формате YYYY-MM", code: "BAD_REQUEST" },
       { status: 400 },
     );
   }
@@ -78,7 +78,7 @@ export async function POST(request: Request) {
 
   let job;
   try {
-    job = createMonthExportJob({ actorUserId: userId, period });
+    job = createMonthExportJob({ actorUserId: userId, month });
   } catch (error) {
     if (error instanceof MonthExportActiveConflictError) {
       return NextResponse.json(
