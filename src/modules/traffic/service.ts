@@ -32,6 +32,7 @@ import {
   csvHeaderToCamel,
   isTrafficColumn,
 } from "@/modules/traffic/columns";
+import { facetSearchMatch } from "@/modules/traffic/facet-search";
 
 export type { CdrMonth };
 
@@ -146,6 +147,24 @@ function buildWhere(
   );
 }
 
+function facetSearchWhere(
+  field: string,
+  column: string,
+  q: string,
+): Prisma.CdrRecordWhereInput {
+  const match = facetSearchMatch(column, q);
+  if (match.kind === "in") {
+    return { [field]: { in: match.values } };
+  }
+  if (match.needles.length === 0) return {};
+  if (match.needles.length === 1) {
+    return { [field]: { contains: match.needles[0] } };
+  }
+  return {
+    OR: match.needles.map((needle) => ({ [field]: { contains: needle } })),
+  };
+}
+
 async function listTrafficMonths(current: CdrMonth): Promise<CdrMonth[]> {
   const bounds = await prisma.cdrRecord.aggregate({
     where: {
@@ -255,7 +274,7 @@ export async function listTrafficFacets(opts: {
     excludeColumn: column,
   });
   const fieldWhere: Prisma.CdrRecordWhereInput = q
-    ? { AND: [where, { [field]: { contains: q } }] }
+    ? { AND: [where, facetSearchWhere(field, column, q)] }
     : where;
 
   const grouped = await prisma.cdrRecord.groupBy({

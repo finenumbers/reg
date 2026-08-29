@@ -1,7 +1,11 @@
-# Current Phase — production (v1.22.0)
+# Current Phase — production (v1.23.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher.  
 **Date:** 2026-08-29
+
+## v1.23.0 — CDR month switch clears column filters; facet search matches the table
+
+Changing the traffic / geography / operators / raw month `<select>` clears column facet chips (phone search stays). Header-menu search for `cdr_date` and duration accepts the on-screen text (`28.12.2026`, `10` seconds), not only the raw stored string.
 
 ## v1.22.0 — parked VoIPmonitor hint and two traffic saves
 

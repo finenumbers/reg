@@ -299,8 +299,14 @@ export function TrafficView({
     const parsed = parseMonthKey(nextKey);
     if (!parsed) return;
     setMonth(parsed.key);
+    setFilters({});
     setOpenColumn(null);
-    void loadList({ page: 1, replace: true, month: parsed.key });
+    void loadList({
+      page: 1,
+      replace: true,
+      month: parsed.key,
+      filters: {},
+    });
   }
 
   function onResetFilters() {
