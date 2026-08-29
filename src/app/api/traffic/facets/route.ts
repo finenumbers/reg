@@ -21,6 +21,7 @@ export async function GET(request: Request) {
 
   const filters = parseFiltersParam(url.searchParams.get("filters"));
   const phoneQ = url.searchParams.get("phoneQ") ?? undefined;
+  const month = url.searchParams.get("month") ?? undefined;
   const q = url.searchParams.get("q") ?? undefined;
   const limitRaw = Number(url.searchParams.get("limit") ?? "200");
   const limit = Number.isFinite(limitRaw) ? limitRaw : 200;
@@ -29,6 +30,7 @@ export async function GET(request: Request) {
     column,
     filters,
     phoneQ,
+    month,
     q,
     limit,
   });

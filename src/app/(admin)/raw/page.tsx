@@ -6,7 +6,7 @@ import {
   RAW_TABLE_COLUMNS,
   VOIPMONITOR_RAW_LABELS,
 } from "@/modules/traffic/columns";
-import { listTraffic } from "@/modules/traffic/service";
+import { loadTrafficViewData } from "@/modules/traffic/service";
 import { TrafficView } from "@/modules/traffic/ui/traffic-view";
 
 const HEADER_LABELS: Record<string, string> = {
@@ -18,7 +18,7 @@ const HEADER_LABELS: Record<string, string> = {
 export default async function RawCdrPage() {
   const ctx = await requirePagePermission("phones:read");
   const canRetry = hasPermission(ctx.authz.permissions, "phones:request");
-  const initial = await listTraffic({ page: 1, pageSize: 100 });
+  const initial = await loadTrafficViewData();
 
   return (
     <TrafficView

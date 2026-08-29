@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,6 +36,12 @@ import {
   waitForPhonesSyncOutcome,
   type SyncUiState,
 } from "@/modules/phones/request-action";
+import {
+  currentUtcMonth,
+  parseMonthKey,
+  type CdrMonth,
+} from "@/modules/traffic/cdr-month";
+import { formatMonthNominative } from "@/modules/traffic/month-labels";
 import type { ListTrafficResult, TrafficListItem } from "@/modules/traffic/service";
 import { TrafficTable } from "@/modules/traffic/ui/traffic-table";
 import {
@@ -72,6 +85,12 @@ export function TrafficView({
   const [filters, setFilters] = useState<ColumnFilters>({});
   const [phoneInput, setPhoneInput] = useState("");
   const [phoneQ, setPhoneQ] = useState("");
+  const [month, setMonth] = useState(
+    initial.month || currentUtcMonth().key,
+  );
+  const [months, setMonths] = useState<CdrMonth[]>(
+    initial.months?.length ? initial.months : [currentUtcMonth()],
+  );
   const [openColumn, setOpenColumn] = useState<string | null>(null);
   const [page, setPage] = useState(initial.page);
   const [items, setItems] = useState<TrafficListItem[]>(initial.items);
@@ -86,11 +105,13 @@ export function TrafficView({
   const loadingMoreRef = useRef(false);
   const filtersRef = useRef(filters);
   const phoneQRef = useRef(phoneQ);
+  const monthRef = useRef(month);
   const loadListRef = useRef<(opts?: {
     page?: number;
     replace?: boolean;
     filters?: ColumnFilters;
     phoneQ?: string;
+    month?: string;
   }) => Promise<void>>(async () => {});
   const wasBusyRef = useRef(false);
   const lastFinishedAtRef = useRef<string | null | undefined>(undefined);
@@ -98,9 +119,26 @@ export function TrafficView({
 
   filtersRef.current = filters;
   phoneQRef.current = phoneQ;
+  monthRef.current = month;
 
-  const filtersActive = hasActiveFilters(filters) || Boolean(phoneQ.trim());
+  const defaultMonthKey = currentUtcMonth().key;
+  const filtersActive =
+    hasActiveFilters(filters) ||
+    Boolean(phoneQ.trim()) ||
+    month !== defaultMonthKey;
   const hasMore = items.length < total;
+  const monthOptions = useMemo(() => {
+    if (months.some((item) => item.key === month)) return months;
+    const extra = parseMonthKey(month);
+    return extra ? [extra, ...months] : months;
+  }, [month, months]);
+  const longestMonthLabel = useMemo(
+    () =>
+      monthOptions
+        .map((item) => formatMonthNominative(item.year, item.month))
+        .reduce((a, b) => (b.length > a.length ? b : a), "Август 2026 года"),
+    [monthOptions],
+  );
 
   const loadList = useCallback(
     async (
@@ -109,11 +147,13 @@ export function TrafficView({
         replace?: boolean;
         filters?: ColumnFilters;
         phoneQ?: string;
+        month?: string;
       } = {},
     ) => {
       const replace = opts.replace ?? true;
       const nextFilters = opts.filters ?? filtersRef.current;
       const nextPhoneQ = opts.phoneQ ?? phoneQRef.current;
+      const nextMonth = opts.month ?? monthRef.current;
       const nextPage = opts.page ?? (replace ? 1 : page);
       const seq = ++refreshSeq.current;
 
@@ -130,6 +170,7 @@ export function TrafficView({
       const result = await fetchTrafficList({
         filters: nextFilters,
         phoneQ: nextPhoneQ,
+        month: nextMonth,
         page: nextPage,
         pageSize: PAGE_SIZE,
       });
@@ -148,6 +189,7 @@ export function TrafficView({
       );
       setTotal(result.data.total);
       setPage(result.data.page);
+      if (result.data.months) setMonths(result.data.months);
       setLoading(false);
       setLoadingMore(false);
       loadingMoreRef.current = false;
@@ -259,11 +301,28 @@ export function TrafficView({
     void loadList({ page: 1, replace: true, filters: next });
   }
 
+  function onMonthChange(nextKey: string) {
+    const parsed = parseMonthKey(nextKey);
+    if (!parsed) return;
+    setMonth(parsed.key);
+    setOpenColumn(null);
+    void loadList({ page: 1, replace: true, month: parsed.key });
+  }
+
   function onResetFilters() {
+    const nowMonth = currentUtcMonth();
     setFilters({});
     setPhoneInput("");
     setPhoneQ("");
-    void loadList({ page: 1, replace: true, filters: {}, phoneQ: "" });
+    setMonth(nowMonth.key);
+    setOpenColumn(null);
+    void loadList({
+      page: 1,
+      replace: true,
+      filters: {},
+      phoneQ: "",
+      month: nowMonth.key,
+    });
   }
 
   function onRemoveFacet(column: string, value: string) {
@@ -408,25 +467,48 @@ export function TrafficView({
         </div>
       ) : null}
 
-      <div className="flex shrink-0 flex-wrap items-center gap-3">
-        <Input
-          id={searchInputId}
-          value={phoneInput}
-          onChange={(e) => setPhoneInput(e.target.value)}
-          placeholder="Телефонный номер"
-          aria-label="Телефонный номер"
-          size={19}
-          className="w-[calc(17ch+1.25rem)] shrink-0"
-          autoComplete="off"
-        />
-        <Button
-          type="button"
-          variant="outline"
-          disabled={!filtersActive}
-          onClick={onResetFilters}
-        >
-          Сбросить фильтры
-        </Button>
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <Input
+            id={searchInputId}
+            value={phoneInput}
+            onChange={(e) => setPhoneInput(e.target.value)}
+            placeholder="Телефонный номер"
+            aria-label="Телефонный номер"
+            size={19}
+            className="w-[calc(17ch+1.25rem)] shrink-0"
+            autoComplete="off"
+          />
+          <Button
+            type="button"
+            variant="outline"
+            disabled={!filtersActive}
+            onClick={onResetFilters}
+          >
+            Сбросить фильтры
+          </Button>
+        </div>
+        <div className="relative inline-grid">
+          <select
+            id={`${searchInputId}-month`}
+            value={month}
+            onChange={(e) => onMonthChange(e.target.value)}
+            aria-label="Календарный месяц"
+            className="col-start-1 row-start-1 h-8 w-full rounded-lg border border-border bg-background py-0 pl-2.5 pr-8 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
+            {monthOptions.map((item) => (
+              <option key={item.key} value={item.key}>
+                {formatMonthNominative(item.year, item.month)}
+              </option>
+            ))}
+          </select>
+          <span
+            aria-hidden
+            className="invisible col-start-1 row-start-1 h-8 whitespace-nowrap border border-transparent py-0 pl-2.5 pr-8 text-sm"
+          >
+            {longestMonthLabel}
+          </span>
+        </div>
       </div>
 
       <ActiveFiltersBar
@@ -453,6 +535,7 @@ export function TrafficView({
             emptyMessage={filtersActive ? FILTERED_EMPTY : emptyUnfiltered}
             filters={filters}
             phoneQ={phoneQ}
+            month={month}
             openColumn={openColumn}
             onOpenColumnChange={setOpenColumn}
             onColumnFilterChange={onColumnChange}

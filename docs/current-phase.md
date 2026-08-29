@@ -1,7 +1,11 @@
-# Current Phase — production (v1.19.2)
+# Current Phase — production (v1.20.0)
 
-**Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export.  
+**Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher.  
 **Date:** 2026-08-29
+
+## v1.20.0 — CDR calendar month switcher
+
+Traffic, operators, geography and raw share a month `<select>` on the phone-search row (right-aligned, «Август 2026 года»). Default / refresh / reset is the current UTC calendar month of `cdr_date`. Phone search and column facets AND with that month; the option list is a cheap MIN/MAX calendar, not DISTINCT on every keystroke.
 
 ## v1.19.2 — CDR UI after VoIPmonitor queue filter
 

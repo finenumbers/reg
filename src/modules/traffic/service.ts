@@ -10,7 +10,17 @@ import {
   type FacetResponse,
 } from "@/components/column-filters/types";
 import { prisma } from "@/lib/db";
+import { TABLE_PAGE_SIZE } from "@/lib/table-pagination";
 import { getJobRunSummary } from "@/modules/jobs/query";
+import {
+  applyMonthFilter,
+  CDR_DATE_BOUND_GTE,
+  CDR_DATE_BOUND_LT,
+  currentUtcMonth,
+  monthsFromCdrDateBounds,
+  resolveMonthKey,
+  type CdrMonth,
+} from "@/modules/traffic/cdr-month";
 import { countInboxFiles } from "@/modules/traffic/inbox";
 import { parseVoipmonitorLegs } from "@/modules/voipmonitor/legs";
 import type { VoipmonitorLegs } from "@/modules/voipmonitor/types";
@@ -22,6 +32,8 @@ import {
   csvHeaderToCamel,
   isTrafficColumn,
 } from "@/modules/traffic/columns";
+
+export type { CdrMonth };
 
 export type TrafficListItem = {
   id: string;
@@ -35,6 +47,8 @@ export type ListTrafficResult = {
   total: number;
   page: number;
   pageSize: number;
+  month: string;
+  months?: CdrMonth[];
 };
 
 export type TrafficOperationalStatus = {
@@ -123,14 +137,34 @@ function applyPhoneQ(
 function buildWhere(
   filters: ColumnFilters,
   phoneQ: string,
+  month: CdrMonth,
   opts: { excludeColumn?: string } = {},
 ): Prisma.CdrRecordWhereInput {
-  return applyPhoneQ(applyColumnFilters({}, filters, opts), phoneQ);
+  return applyPhoneQ(
+    applyColumnFilters(applyMonthFilter(month.year, month.month), filters, opts),
+    phoneQ,
+  );
+}
+
+async function listTrafficMonths(current: CdrMonth): Promise<CdrMonth[]> {
+  const bounds = await prisma.cdrRecord.aggregate({
+    where: {
+      cdrDate: { gte: CDR_DATE_BOUND_GTE, lt: CDR_DATE_BOUND_LT },
+    },
+    _min: { cdrDate: true },
+    _max: { cdrDate: true },
+  });
+  return monthsFromCdrDateBounds(
+    bounds._min.cdrDate,
+    bounds._max.cdrDate,
+    current,
+  );
 }
 
 export async function listTraffic(opts: {
   filters?: ColumnFilters;
   phoneQ?: string;
+  month?: string;
   page?: number;
   pageSize?: number;
 }): Promise<ListTrafficResult> {
@@ -138,17 +172,20 @@ export async function listTraffic(opts: {
   const pageSize = Math.min(200, Math.max(1, opts.pageSize ?? 100));
   const filters = opts.filters ?? {};
   const phoneQ = opts.phoneQ?.trim() ?? "";
-  const where = buildWhere(filters, phoneQ);
+  const month = resolveMonthKey(opts.month);
+  const where = buildWhere(filters, phoneQ, month);
   const skip = (page - 1) * pageSize;
+  const includeMonths = page === 1;
 
-  const [total, rows] = await Promise.all([
+  const [total, rows, months] = await Promise.all([
     prisma.cdrRecord.count({ where }),
     prisma.cdrRecord.findMany({
       where,
-      orderBy: [{ cdrAt: "desc" }, { cdrId: "desc" }],
+      orderBy: [{ cdrDate: "desc" }, { cdrId: "desc" }],
       skip,
       take: pageSize,
     }),
+    includeMonths ? listTrafficMonths(currentUtcMonth()) : Promise.resolve(undefined),
   ]);
 
   const [links, guiSetting] =
@@ -184,13 +221,24 @@ export async function listTraffic(opts: {
     total,
     page,
     pageSize,
+    month: month.key,
+    months,
   };
+}
+
+export async function loadTrafficViewData(): Promise<ListTrafficResult> {
+  return listTraffic({
+    page: 1,
+    pageSize: TABLE_PAGE_SIZE,
+    month: currentUtcMonth().key,
+  });
 }
 
 export async function listTrafficFacets(opts: {
   column: string;
   filters?: ColumnFilters;
   phoneQ?: string;
+  month?: string;
   q?: string;
   limit?: number;
 }): Promise<FacetResponse> {
@@ -202,7 +250,8 @@ export async function listTrafficFacets(opts: {
   const limit = Math.min(500, Math.max(1, opts.limit ?? 200));
   const phoneQ = opts.phoneQ?.trim() ?? "";
   const q = opts.q?.trim() ?? "";
-  const where = buildWhere(opts.filters ?? {}, phoneQ, {
+  const month = resolveMonthKey(opts.month);
+  const where = buildWhere(opts.filters ?? {}, phoneQ, month, {
     excludeColumn: column,
   });
   const fieldWhere: Prisma.CdrRecordWhereInput = q

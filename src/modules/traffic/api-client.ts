@@ -30,6 +30,7 @@ function errorMessage(body: unknown, fallback: string): string {
 export function buildTrafficListUrl(opts: {
   filters?: ColumnFilters;
   phoneQ?: string;
+  month?: string;
   page?: number;
   pageSize?: number;
 }): string {
@@ -37,6 +38,7 @@ export function buildTrafficListUrl(opts: {
   const encoded = opts.filters ? encodeFilters(opts.filters) : null;
   if (encoded) params.set("filters", encoded);
   if (opts.phoneQ?.trim()) params.set("phoneQ", opts.phoneQ.trim());
+  if (opts.month?.trim()) params.set("month", opts.month.trim());
   if (opts.page != null) params.set("page", String(opts.page));
   if (opts.pageSize != null) params.set("pageSize", String(opts.pageSize));
   const qs = params.toString();
@@ -47,6 +49,7 @@ export function buildTrafficFacetsUrl(opts: {
   column: string;
   filters?: ColumnFilters;
   phoneQ?: string;
+  month?: string;
   q?: string;
   limit?: number;
 }): string {
@@ -55,6 +58,7 @@ export function buildTrafficFacetsUrl(opts: {
   const encoded = opts.filters ? encodeFilters(opts.filters) : null;
   if (encoded) params.set("filters", encoded);
   if (opts.phoneQ?.trim()) params.set("phoneQ", opts.phoneQ.trim());
+  if (opts.month?.trim()) params.set("month", opts.month.trim());
   if (opts.q?.trim()) params.set("q", opts.q.trim());
   if (opts.limit != null) params.set("limit", String(opts.limit));
   return `/api/traffic/facets?${params.toString()}`;
@@ -63,6 +67,7 @@ export function buildTrafficFacetsUrl(opts: {
 export async function fetchTrafficList(opts: {
   filters?: ColumnFilters;
   phoneQ?: string;
+  month?: string;
   page?: number;
   pageSize?: number;
 }): Promise<{ ok: true; data: ListTrafficResult } | { ok: false; message: string }> {

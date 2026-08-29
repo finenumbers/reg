@@ -13,12 +13,14 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const filters = parseFiltersParam(url.searchParams.get("filters"));
   const phoneQ = url.searchParams.get("phoneQ") ?? undefined;
+  const month = url.searchParams.get("month") ?? undefined;
   const page = Number(url.searchParams.get("page") ?? "1");
   const pageSize = Number(url.searchParams.get("pageSize") ?? "100");
 
   const data = await listTraffic({
     filters,
     phoneQ,
+    month,
     page: Number.isFinite(page) ? page : 1,
     pageSize: Number.isFinite(pageSize) ? pageSize : 100,
   });

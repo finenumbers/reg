@@ -40,6 +40,7 @@ type Props = {
   emptyMessage?: string;
   filters: ColumnFilters;
   phoneQ?: string;
+  month: string;
   openColumn: string | null;
   onOpenColumnChange: (column: string | null) => void;
   onColumnFilterChange: (column: string, values: string[]) => void;
@@ -54,6 +55,7 @@ export function TrafficTable({
   emptyMessage = "Нет данных.",
   filters,
   phoneQ = "",
+  month,
   openColumn,
   onOpenColumnChange,
   onColumnFilterChange,
@@ -84,6 +86,7 @@ export function TrafficTable({
                       column,
                       filters: f,
                       phoneQ,
+                      month,
                       q,
                     })
                   }
