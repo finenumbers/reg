@@ -92,8 +92,12 @@ describe("writeResolvedEnrichedXlsx", () => {
     await workbook.xlsx.readFile(outputPath);
     const traffic = workbook.getWorksheet("Август 2026 года")!;
     const detail = workbook.getWorksheet("Детализация")!;
-    expect(traffic.getRow(1).values.slice(1)).toEqual([...TRAFFIC_HEADERS]);
-    expect(detail.getRow(1).values.slice(1)).toEqual([...DETAIL_HEADERS]);
+    expect(
+      TRAFFIC_HEADERS.map((_, i) => traffic.getRow(1).getCell(i + 1).value),
+    ).toEqual([...TRAFFIC_HEADERS]);
+    expect(
+      DETAIL_HEADERS.map((_, i) => detail.getRow(1).getCell(i + 1).value),
+    ).toEqual([...DETAIL_HEADERS]);
     expect(traffic.getRow(2).getCell(1).value).toBe("01.08.2026");
     expect(traffic.getRow(2).getCell(2).value).toBe("12:00:00");
     expect(detail.getRow(2).getCell(1).value).toBe("01.08.2026");

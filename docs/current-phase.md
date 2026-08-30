@@ -1,7 +1,11 @@
-# Current Phase — production (v1.27.0)
+# Current Phase — production (v1.27.1)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher.  
 **Date:** 2026-08-30
+
+## v1.27.1 — GHCR typecheck
+
+ExcelJS `Row.values` is a union; the Date/Time header assertion now reads cells via `getCell` so `next build` on GHCR succeeds.
 
 ## v1.27.0 — Time sort and Date facet order
 
