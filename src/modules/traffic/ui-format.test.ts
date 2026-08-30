@@ -61,7 +61,7 @@ describe("traffic UI date display", () => {
 
   it("colors billing and PSTN miss labels", () => {
     expect(trafficMissingLabelClass(MISSING_BILLING_LABEL)).toBe(
-      "text-yellow-600",
+      "text-blue-600",
     );
     expect(trafficMissingLabelClass(MISSING_PSTN_LABEL)).toBe("text-red-600");
     expect(trafficMissingLabelClass("МТС")).toBeUndefined();

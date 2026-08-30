@@ -24,6 +24,11 @@ import type { TrafficListItem } from "@/modules/traffic/service";
 import { classifyTrafficListRow } from "@/modules/traffic/row-flags";
 import { cn } from "@/lib/utils";
 import {
+  nextTimeSort,
+  timeSortChevron,
+  type TimeSort,
+} from "@/modules/traffic/traffic-sort";
+import {
   displayTrafficFacet,
   formatTrafficCell,
   trafficMissingLabelClass,
@@ -47,6 +52,8 @@ type Props = {
   openColumn: string | null;
   onOpenColumnChange: (column: string | null) => void;
   onColumnFilterChange: (column: string, values: string[]) => void;
+  timeSort?: TimeSort | null;
+  onTimeSortChange?: (next: TimeSort | null) => void;
 };
 
 export function TrafficTable({
@@ -64,6 +71,8 @@ export function TrafficTable({
   openColumn,
   onOpenColumnChange,
   onColumnFilterChange,
+  timeSort = null,
+  onTimeSortChange,
 }: Props) {
   const showEmpty = !loading && data.length === 0;
   const colCount = Math.max(headers.length, 1);
@@ -77,7 +86,13 @@ export function TrafficTable({
         <TableRow>
           {headers.map((h) => (
             <TableHead key={h} className="text-sm font-medium">
-              {VOIPMONITOR_COLUMN_SET.has(h) ? (
+              {h === "cdr_time" && onTimeSortChange ? (
+                <TimeSortHeader
+                  header={headerLabels?.[h] ?? h}
+                  timeSort={timeSort}
+                  onChange={onTimeSortChange}
+                />
+              ) : VOIPMONITOR_COLUMN_SET.has(h) ? (
                 (headerLabels?.[h] ?? h)
               ) : (
                 <ColumnFilterDropdown
@@ -182,5 +197,39 @@ export function TrafficTable({
         )}
       </TableBody>
     </Table>
+  );
+}
+
+function TimeSortHeader({
+  header,
+  timeSort,
+  onChange,
+}: {
+  header: string;
+  timeSort: TimeSort | null;
+  onChange: (next: TimeSort | null) => void;
+}) {
+  const active = timeSort != null;
+  const label =
+    timeSort === "desc"
+      ? "Время, по убыванию. Нажмите для возрастания"
+      : timeSort === "asc"
+        ? "Время, по возрастанию. Нажмите чтобы сбросить"
+        : "Сортировать по времени";
+  return (
+    <div className={`col-header col-header-sort${active ? " active" : ""}`}>
+      <button
+        type="button"
+        className="col-filter-trigger"
+        aria-label={label}
+        aria-pressed={active}
+        onClick={() => onChange(nextTimeSort(timeSort))}
+      >
+        <span className="col-header-label">{header}</span>
+        <span className="col-filter-chevron" aria-hidden>
+          {timeSortChevron(timeSort)}
+        </span>
+      </button>
+    </div>
   );
 }

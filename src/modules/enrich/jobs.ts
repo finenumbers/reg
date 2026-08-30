@@ -8,7 +8,6 @@ import {
   type EnrichStageView,
   type EnrichSummary,
 } from "@/modules/enrich/types";
-import { enrichedDownloadName } from "@/modules/enrich/paths";
 import { removeJobDir } from "@/modules/enrich/reclaim";
 
 export function toJobView(row: {
@@ -158,5 +157,3 @@ export function setStage(
     stage.id === id ? { ...stage, ...patch } : stage,
   );
 }
-
-export { enrichedDownloadName };

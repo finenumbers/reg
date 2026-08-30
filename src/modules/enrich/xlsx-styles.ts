@@ -31,11 +31,12 @@ export type SheetKind = "traffic" | "detail";
 export function trafficBodyRole(col: number, lastRow: boolean): BorderRole {
   const map: Record<number, [BorderRole, BorderRole]> = {
     0: ["noRight", "noRight"],
-    1: ["groupStart", "groupLastStart"],
-    2: ["groupEnd", "groupLastEnd"],
-    3: ["groupStart", "groupLastStart"],
-    4: ["groupEnd", "groupLastEnd"],
-    5: ["noLeft", "noLeft"],
+    1: ["noRight", "noRight"],
+    2: ["groupStart", "groupLastStart"],
+    3: ["groupEnd", "groupLastEnd"],
+    4: ["groupStart", "groupLastStart"],
+    5: ["groupEnd", "groupLastEnd"],
+    6: ["noLeft", "noLeft"],
   };
   const pair = map[col];
   if (pair) return lastRow ? pair[1] : pair[0];
@@ -45,11 +46,12 @@ export function trafficBodyRole(col: number, lastRow: boolean): BorderRole {
 export function trafficHeaderRole(col: number): BorderRole {
   const map: Record<number, BorderRole> = {
     0: "headerNoRight",
-    1: "headerGroupStart",
-    2: "headerGroupEnd",
-    3: "headerGroupStart",
-    4: "headerGroupEnd",
-    5: "headerNoLeft",
+    1: "headerNoRight",
+    2: "headerGroupStart",
+    3: "headerGroupEnd",
+    4: "headerGroupStart",
+    5: "headerGroupEnd",
+    6: "headerNoLeft",
   };
   return map[col] ?? "headerPlain";
 }
@@ -60,42 +62,43 @@ export function detailBodyRole(col: number, lastRow: boolean): BorderRole {
   const lastEnd = lastRow ? "groupLastEnd" : "groupEnd";
   switch (col) {
     case 0:
-      return "noRight";
     case 1:
-      return lastStart;
+      return "noRight";
     case 2:
-    case 3:
-      return lastMid;
-    case 4:
-      return lastEnd;
-    case 5:
       return lastStart;
-    case 6:
-    case 7:
+    case 3:
+    case 4:
       return lastMid;
-    case 8:
+    case 5:
       return lastEnd;
+    case 6:
+      return lastStart;
+    case 7:
+    case 8:
+      return lastMid;
     case 9:
-      return "noLeft";
+      return lastEnd;
     case 10:
+      return "noLeft";
     case 11:
     case 12:
-      return "plain";
     case 13:
-      return "noRight";
+      return "plain";
     case 14:
-      return lastStart;
+      return "noRight";
     case 15:
-    case 16:
-      return lastMid;
-    case 17:
-      return lastEnd;
-    case 18:
       return lastStart;
-    case 19:
-    case 20:
+    case 16:
+    case 17:
       return lastMid;
+    case 18:
+      return lastEnd;
+    case 19:
+      return lastStart;
+    case 20:
     case 21:
+      return lastMid;
+    case 22:
       return lastEnd;
     default:
       return "plain";
@@ -105,56 +108,57 @@ export function detailBodyRole(col: number, lastRow: boolean): BorderRole {
 export function detailHeaderRole(col: number): BorderRole {
   switch (col) {
     case 0:
-      return "headerNoRight";
     case 1:
-      return "headerGroupStart";
+      return "headerNoRight";
     case 2:
-    case 3:
-      return "headerGroupMid";
-    case 4:
-      return "headerGroupEnd";
-    case 5:
       return "headerGroupStart";
-    case 6:
-    case 7:
+    case 3:
+    case 4:
       return "headerGroupMid";
-    case 8:
+    case 5:
       return "headerGroupEnd";
+    case 6:
+      return "headerGroupStart";
+    case 7:
+    case 8:
+      return "headerGroupMid";
     case 9:
-      return "headerNoLeft";
+      return "headerGroupEnd";
     case 10:
+      return "headerNoLeft";
     case 11:
     case 12:
-      return "headerPlain";
     case 13:
-      return "headerNoRight";
+      return "headerPlain";
     case 14:
-      return "headerGroupStart";
+      return "headerNoRight";
     case 15:
-    case 16:
-      return "headerGroupMid";
-    case 17:
-      return "headerGroupEnd";
-    case 18:
       return "headerGroupStart";
-    case 19:
-    case 20:
+    case 16:
+    case 17:
       return "headerGroupMid";
+    case 18:
+      return "headerGroupEnd";
+    case 19:
+      return "headerGroupStart";
+    case 20:
     case 21:
+      return "headerGroupMid";
+    case 22:
       return "headerGroupEnd";
     default:
       return "headerPlain";
   }
 }
 
-export type MissFontRole = "yellow" | "red" | null;
+export type MissFontRole = "blue" | "red" | null;
 
-/** Same hues as trafficMissingLabelClass (yellow-600 / red-600). */
-export const XLSX_BILLING_FONT_ARGB = "FFCA8A04";
+/** Same hues as trafficMissingLabelClass (blue-600 / red-600). */
+export const XLSX_BILLING_FONT_ARGB = "FF2563EB";
 export const XLSX_PSTN_FONT_ARGB = "FFDC2626";
 
 export function xlsxMissFontRole(value: string): MissFontRole {
-  if (value === MISSING_BILLING_LABEL) return "yellow";
+  if (value === MISSING_BILLING_LABEL) return "blue";
   if (value === MISSING_PSTN_LABEL) return "red";
   return null;
 }
@@ -162,11 +166,11 @@ export function xlsxMissFontRole(value: string): MissFontRole {
 export const XLSX_PHANTOM_FILL: ExcelJS.Fill = {
   type: "pattern",
   pattern: "solid",
-  fgColor: { argb: "FFE7E6E6" },
+  fgColor: { argb: "FFD4D4D8" },
 };
 
 export const XLSX_CALL_ERROR_FILL: ExcelJS.Fill = {
   type: "pattern",
   pattern: "solid",
-  fgColor: { argb: "FFFEE2E2" },
+  fgColor: { argb: "FFFECACA" },
 };

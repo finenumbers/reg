@@ -3,7 +3,6 @@ import { logger } from "@/lib/logger";
 import { AUDIT_ACTIONS, auditService } from "@/modules/audit";
 import {
   INITIAL_STAGES,
-  MISSING_LABEL,
   MISSING_PSTN_LABEL,
   type EnrichStageView,
   type EnrichSummary,
@@ -189,5 +188,3 @@ export async function runEnrichPipeline(input: {
     });
   }
 }
-
-export { MISSING_LABEL };

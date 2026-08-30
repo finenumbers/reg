@@ -10,6 +10,7 @@ import type {
   ListTrafficResult,
   TrafficOperationalStatus,
 } from "@/modules/traffic/service";
+import type { TimeSort } from "@/modules/traffic/traffic-sort";
 
 async function readJson(res: Response): Promise<unknown> {
   try {
@@ -33,6 +34,7 @@ export function buildTrafficListUrl(opts: {
   month?: string;
   phantom?: boolean;
   callErrors?: boolean;
+  timeSort?: TimeSort | null;
   page?: number;
   pageSize?: number;
 }): string {
@@ -43,6 +45,7 @@ export function buildTrafficListUrl(opts: {
   if (opts.month?.trim()) params.set("month", opts.month.trim());
   if (opts.phantom) params.set("phantom", "1");
   if (opts.callErrors) params.set("callErrors", "1");
+  if (opts.timeSort) params.set("timeSort", opts.timeSort);
   if (opts.page != null) params.set("page", String(opts.page));
   if (opts.pageSize != null) params.set("pageSize", String(opts.pageSize));
   const qs = params.toString();
@@ -78,6 +81,7 @@ export async function fetchTrafficList(opts: {
   month?: string;
   phantom?: boolean;
   callErrors?: boolean;
+  timeSort?: TimeSort | null;
   page?: number;
   pageSize?: number;
 }): Promise<{ ok: true; data: ListTrafficResult } | { ok: false; message: string }> {

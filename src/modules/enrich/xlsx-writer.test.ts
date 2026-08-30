@@ -4,9 +4,14 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import ExcelJS from "exceljs";
 import { writeResolvedEnrichedXlsx } from "@/modules/enrich/xlsx-writer";
-import { MISSING_BILLING_LABEL } from "@/modules/enrich/types";
+import {
+  DETAIL_HEADERS,
+  MISSING_BILLING_LABEL,
+  TRAFFIC_HEADERS,
+} from "@/modules/enrich/types";
 import type { ResolvedEnrichedRow } from "@/modules/enrich/types";
 import {
+  XLSX_BILLING_FONT_ARGB,
   XLSX_CALL_ERROR_FILL,
   XLSX_PHANTOM_FILL,
 } from "@/modules/enrich/xlsx-styles";
@@ -72,6 +77,29 @@ describe("writeResolvedEnrichedXlsx", () => {
     ]);
   });
 
+  it("splits call time into Дата and Время on both sheets", async () => {
+    dir = await mkdtemp(path.join(tmpdir(), "xlsx-writer-"));
+    const jsonlPath = path.join(dir, "rows.jsonl");
+    const outputPath = path.join(dir, "out.xlsx");
+    await writeFile(jsonlPath, `${JSON.stringify(ROW)}\n`, "utf8");
+    await writeResolvedEnrichedXlsx({
+      jsonlPath,
+      outputPath,
+      rowCount: 1,
+      trafficSheetName: "Август 2026 года",
+    });
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.readFile(outputPath);
+    const traffic = workbook.getWorksheet("Август 2026 года")!;
+    const detail = workbook.getWorksheet("Детализация")!;
+    expect(traffic.getRow(1).values.slice(1)).toEqual([...TRAFFIC_HEADERS]);
+    expect(detail.getRow(1).values.slice(1)).toEqual([...DETAIL_HEADERS]);
+    expect(traffic.getRow(2).getCell(1).value).toBe("01.08.2026");
+    expect(traffic.getRow(2).getCell(2).value).toBe("12:00:00");
+    expect(detail.getRow(2).getCell(1).value).toBe("01.08.2026");
+    expect(detail.getRow(2).getCell(2).value).toBe("12:00:00");
+  });
+
   it("fills phantom and call-error rows on every column of both sheets", async () => {
     dir = await mkdtemp(path.join(tmpdir(), "xlsx-writer-"));
     const jsonlPath = path.join(dir, "rows.jsonl");
@@ -126,5 +154,18 @@ describe("writeResolvedEnrichedXlsx", () => {
         expect(sheet.getRow(2).getCell(c).border?.top).toBeTruthy();
       }
     }
+
+    expect(traffic!.getRow(2).getCell(4).font?.color?.argb).toBe(
+      XLSX_BILLING_FONT_ARGB,
+    );
+    expect(traffic!.getRow(2).getCell(6).font?.color?.argb).toBe(
+      XLSX_BILLING_FONT_ARGB,
+    );
+    expect(detail!.getRow(2).getCell(4).font?.color?.argb).toBe(
+      XLSX_BILLING_FONT_ARGB,
+    );
+    expect(detail!.getRow(2).getCell(8).font?.color?.argb).toBe(
+      XLSX_BILLING_FONT_ARGB,
+    );
   });
 });

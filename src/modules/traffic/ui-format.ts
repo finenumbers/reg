@@ -46,7 +46,7 @@ export function formatTrafficCell(column: string, raw: string): string {
 
 /** Text color for known enrich-miss phrases in table cells. */
 export function trafficMissingLabelClass(value: string): string | undefined {
-  if (value === MISSING_BILLING_LABEL) return "text-yellow-600";
+  if (value === MISSING_BILLING_LABEL) return "text-blue-600";
   if (value === MISSING_PSTN_LABEL) return "text-red-600";
   return undefined;
 }

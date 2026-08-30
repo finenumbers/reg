@@ -35,3 +35,12 @@ export function formatCdrDayDisplay(raw: string): string {
   if (!match) return raw;
   return `${match[3]}.${match[2]}.${match[1]}`;
 }
+
+/** XLSX date/time cells from the enrich JSONL `time` field. */
+export function xlsxCdrDateTimeCells(raw: string): CdrDateParts {
+  const parts = splitCdrDateParts(raw);
+  return {
+    day: parts.day ? formatCdrDayDisplay(parts.day) : "",
+    time: parts.time,
+  };
+}

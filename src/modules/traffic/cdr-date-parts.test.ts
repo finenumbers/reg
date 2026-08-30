@@ -3,6 +3,7 @@ import {
   CDR_DATE_CIVIL_REGEX,
   formatCdrDayDisplay,
   splitCdrDateParts,
+  xlsxCdrDateTimeCells,
 } from "@/modules/traffic/cdr-date-parts";
 
 function sqlSplit(raw: string): { day: string; time: string } {
@@ -65,6 +66,19 @@ describe("formatCdrDayDisplay", () => {
   it("leaves empty and garbage unchanged", () => {
     expect(formatCdrDayDisplay("")).toBe("");
     expect(formatCdrDayDisplay("not-a-date")).toBe("not-a-date");
+  });
+});
+
+describe("xlsxCdrDateTimeCells", () => {
+  it("formats display date and clock for Excel", () => {
+    expect(xlsxCdrDateTimeCells("2026-08-01 12:00:00")).toEqual({
+      day: "01.08.2026",
+      time: "12:00:00",
+    });
+  });
+
+  it("returns empty cells when the timestamp is unparseable", () => {
+    expect(xlsxCdrDateTimeCells("not-a-date")).toEqual({ day: "", time: "" });
   });
 });
 

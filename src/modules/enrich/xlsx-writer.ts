@@ -5,8 +5,8 @@
 import { createReadStream } from "node:fs";
 import { createInterface } from "node:readline";
 import ExcelJS from "exceljs";
-import { csvTimeToDisplay } from "@/modules/enrich/dates";
 import { excelPhoneValue } from "@/modules/enrich/excel-phone";
+import { xlsxCdrDateTimeCells } from "@/modules/traffic/cdr-date-parts";
 import { guardExcelText } from "@/modules/enrich/formula-guard";
 import { classifyCdrRow } from "@/modules/enrich/row-flags";
 import {
@@ -95,7 +95,7 @@ const BODY_FONT: Partial<ExcelJS.Font> = {
 function applyMissFont(cell: ExcelJS.Cell): void {
   if (typeof cell.value !== "string") return;
   const role = xlsxMissFontRole(cell.value);
-  if (role === "yellow") {
+  if (role === "blue") {
     cell.font = { ...BODY_FONT, color: { argb: XLSX_BILLING_FONT_ARGB } };
   } else if (role === "red") {
     cell.font = { ...BODY_FONT, color: { argb: XLSX_PSTN_FONT_ARGB } };
@@ -221,8 +221,8 @@ function resolveFromMaps(
 }
 
 const PROGRESS_EVERY = 250;
-const TRAFFIC_PHONE_COLS = new Set([2, 4]);
-const DETAIL_PHONE_COLS = new Set([2, 6]);
+const TRAFFIC_PHONE_COLS = new Set([3, 5]);
+const DETAIL_PHONE_COLS = new Set([3, 7]);
 
 async function writeResolvedSheets(opts: {
   trafficSheetName: string;
@@ -266,8 +266,10 @@ async function writeResolvedSheets(opts: {
     const last = index === opts.rowCount - 1;
     const aPhone = excelPhoneValue(row.aNumber);
     const bPhone = excelPhoneValue(row.bNumber);
+    const callAt = xlsxCdrDateTimeCells(row.time);
     const values: Array<string | number> = [
-      text(csvTimeToDisplay(row.time)),
+      text(callAt.day),
+      text(callAt.time),
       aPhone,
       text(row.sideA),
       bPhone,
@@ -317,8 +319,10 @@ async function writeResolvedSheets(opts: {
     const last = index === opts.rowCount - 1;
     const aPhone = excelPhoneValue(row.aNumber);
     const bPhone = excelPhoneValue(row.bNumber);
+    const callAt = xlsxCdrDateTimeCells(row.time);
     const values: Array<string | number> = [
-      text(csvTimeToDisplay(row.time)),
+      text(callAt.day),
+      text(callAt.time),
       aPhone,
       text(row.sideA),
       text(row.operatorA),

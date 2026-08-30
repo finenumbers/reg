@@ -39,6 +39,7 @@ import { formatMonthNominative } from "@/modules/traffic/month-labels";
 import type { ListTrafficResult, TrafficListItem } from "@/modules/traffic/service";
 import { MonthExportButtons } from "@/modules/traffic/ui/month-export-buttons";
 import { TrafficTable } from "@/modules/traffic/ui/traffic-table";
+import type { TimeSort } from "@/modules/traffic/traffic-sort";
 import {
   composeTrafficBanner,
   displayTrafficFacet,
@@ -46,6 +47,17 @@ import {
 
 const PAGE_SIZE = TABLE_PAGE_SIZE;
 const PHONE_SEARCH_DEBOUNCE_MS = 300;
+
+type LoadListOpts = {
+  page?: number;
+  replace?: boolean;
+  filters?: ColumnFilters;
+  phoneQ?: string;
+  month?: string;
+  phantom?: boolean;
+  callErrors?: boolean;
+  timeSort?: TimeSort | null;
+};
 
 const FILTERED_EMPTY =
   "Нет данных по текущим фильтрам. Сбросьте фильтры или уточните выбор.";
@@ -82,6 +94,7 @@ export function TrafficView({
   const [phoneQ, setPhoneQ] = useState("");
   const [phantom, setPhantom] = useState(false);
   const [callErrors, setCallErrors] = useState(false);
+  const [timeSort, setTimeSort] = useState<TimeSort | null>(null);
   const [month, setMonth] = useState(
     initial.month || currentUtcMonth().key,
   );
@@ -103,17 +116,12 @@ export function TrafficView({
   const filtersRef = useRef(filters);
   const phoneQRef = useRef(phoneQ);
   const monthRef = useRef(month);
-  const loadListRef = useRef<(opts?: {
-    page?: number;
-    replace?: boolean;
-    filters?: ColumnFilters;
-    phoneQ?: string;
-    month?: string;
-    phantom?: boolean;
-    callErrors?: boolean;
-  }) => Promise<void>>(async () => {});
+  const loadListRef = useRef<(opts?: LoadListOpts) => Promise<void>>(
+    async () => {},
+  );
   const phantomRef = useRef(phantom);
   const callErrorsRef = useRef(callErrors);
+  const timeSortRef = useRef(timeSort);
   const wasBusyRef = useRef(false);
   const lastFinishedAtRef = useRef<string | null | undefined>(undefined);
   const [scrollRoot, setScrollRoot] = useState<Element | null>(null);
@@ -123,6 +131,7 @@ export function TrafficView({
   monthRef.current = month;
   phantomRef.current = phantom;
   callErrorsRef.current = callErrors;
+  timeSortRef.current = timeSort;
 
   const defaultMonthKey = currentUtcMonth().key;
   const filtersActive =
@@ -130,6 +139,7 @@ export function TrafficView({
     Boolean(phoneQ.trim()) ||
     phantom ||
     callErrors ||
+    timeSort != null ||
     month !== defaultMonthKey;
   const hasMore = items.length < total;
   const monthOptions = useMemo(() => {
@@ -146,23 +156,15 @@ export function TrafficView({
   );
 
   const loadList = useCallback(
-    async (
-      opts: {
-        page?: number;
-        replace?: boolean;
-        filters?: ColumnFilters;
-        phoneQ?: string;
-        month?: string;
-        phantom?: boolean;
-        callErrors?: boolean;
-      } = {},
-    ) => {
+    async (opts: LoadListOpts = {}) => {
       const replace = opts.replace ?? true;
       const nextFilters = opts.filters ?? filtersRef.current;
       const nextPhoneQ = opts.phoneQ ?? phoneQRef.current;
       const nextMonth = opts.month ?? monthRef.current;
       const nextPhantom = opts.phantom ?? phantomRef.current;
       const nextCallErrors = opts.callErrors ?? callErrorsRef.current;
+      const nextTimeSort =
+        "timeSort" in opts ? opts.timeSort : timeSortRef.current;
       const nextPage = opts.page ?? (replace ? 1 : page);
       const seq = ++refreshSeq.current;
 
@@ -182,6 +184,7 @@ export function TrafficView({
         month: nextMonth,
         phantom: nextPhantom,
         callErrors: nextCallErrors,
+        timeSort: nextTimeSort,
         page: nextPage,
         pageSize: PAGE_SIZE,
       });
@@ -318,11 +321,13 @@ export function TrafficView({
     setMonth(parsed.key);
     setFilters({});
     setOpenColumn(null);
+    setTimeSort(null);
     void loadList({
       page: 1,
       replace: true,
       month: parsed.key,
       filters: {},
+      timeSort: null,
     });
   }
 
@@ -333,6 +338,7 @@ export function TrafficView({
     setPhoneQ("");
     setPhantom(false);
     setCallErrors(false);
+    setTimeSort(null);
     setMonth(nowMonth.key);
     setOpenColumn(null);
     void loadList({
@@ -342,6 +348,7 @@ export function TrafficView({
       phoneQ: "",
       phantom: false,
       callErrors: false,
+      timeSort: null,
       month: nowMonth.key,
     });
   }
@@ -366,6 +373,11 @@ export function TrafficView({
   function onCallErrorsChange(checked: boolean) {
     setCallErrors(checked);
     void loadList({ page: 1, replace: true, callErrors: checked });
+  }
+
+  function onTimeSortChange(next: TimeSort | null) {
+    setTimeSort(next);
+    void loadList({ page: 1, replace: true, timeSort: next });
   }
 
   async function onRetry() {
@@ -592,6 +604,8 @@ export function TrafficView({
             openColumn={openColumn}
             onOpenColumnChange={setOpenColumn}
             onColumnFilterChange={onColumnChange}
+            timeSort={timeSort}
+            onTimeSortChange={onTimeSortChange}
           />
         </TableInfiniteBody>
         <TableCountFooter shown={items.length} total={total} />

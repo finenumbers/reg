@@ -121,7 +121,8 @@
   background: var(--muted);
   border-color: var(--border);
 }
-.col-header-filter.active .col-filter-trigger {
+.col-header-filter.active .col-filter-trigger,
+.col-header-sort.active .col-filter-trigger {
   background: color-mix(in oklch, var(--primary) 8%, var(--background));
   border-color: var(--border);
 }

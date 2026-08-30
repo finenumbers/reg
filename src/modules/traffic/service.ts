@@ -37,6 +37,12 @@ import {
 } from "@/modules/traffic/columns";
 import { facetSearchMatch } from "@/modules/traffic/facet-search";
 import {
+  arrangeTrafficFacetItems,
+  trafficFacetGroupOrder,
+  trafficListOrderBy,
+  type TimeSort,
+} from "@/modules/traffic/traffic-sort";
+import {
   trafficFlagWhere,
   type TrafficRowFlags,
 } from "@/modules/traffic/row-flags";
@@ -237,6 +243,7 @@ export async function listTraffic(opts: {
   month?: string;
   phantom?: boolean;
   callErrors?: boolean;
+  timeSort?: TimeSort | null;
   page?: number;
   pageSize?: number;
 }): Promise<ListTrafficResult> {
@@ -254,7 +261,7 @@ export async function listTraffic(opts: {
     prisma.cdrRecord.count({ where }),
     prisma.cdrRecord.findMany({
       where,
-      orderBy: [{ cdrDate: "desc" }, { cdrId: "desc" }],
+      orderBy: trafficListOrderBy(opts.timeSort ?? null),
       skip,
       take: pageSize,
     }),
@@ -338,17 +345,18 @@ export async function listTrafficFacets(opts: {
     by: [field as Prisma.CdrRecordScalarFieldEnum],
     where: fieldWhere,
     _count: true,
-    orderBy: { _count: { id: "desc" } },
+    orderBy: trafficFacetGroupOrder(column),
     take: limit + 1,
   });
 
-  const items = grouped.map((row) => {
+  const mapped = grouped.map((row) => {
     const raw = (row as Record<string, unknown>)[field];
     return {
       value: toFilterToken(raw == null ? "" : String(raw)),
       count: row._count,
     };
   });
+  const items = arrangeTrafficFacetItems(column, mapped);
   return {
     items: items.slice(0, limit),
     truncated: grouped.length > limit,
