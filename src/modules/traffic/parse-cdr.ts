@@ -5,6 +5,7 @@
 
 import { splitQuotedSemicolon } from "@/modules/enrich/parse-csv";
 import { parseNaiveDateTime } from "@/modules/enrich/dates";
+import { splitCdrDateParts } from "@/modules/traffic/cdr-date-parts";
 import {
   CDR_COLUMNS,
   CDR_COLUMN_COUNT,
@@ -53,6 +54,9 @@ export function parseCdrDataLine(line: string): ParsedCdrRow | null {
   }
   const cdrId = fields.cdr_id?.trim() ?? "";
   if (!cdrId) return null;
+  const parts = splitCdrDateParts(fields.cdr_date ?? "");
+  prisma.cdrDay = parts.day;
+  prisma.cdrTime = parts.time;
   return {
     fields,
     prisma,

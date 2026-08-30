@@ -1,7 +1,11 @@
-# Current Phase — production (v1.25.0)
+# Current Phase — production (v1.26.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher.  
 **Date:** 2026-08-30
+
+## v1.26.0 — CDR date and time columns
+
+Traffic / geography / operators replace «Время звонка» with **Дата** (`30.08.2026`) and **Время** (`14:22:52`). Import writes `cdr_day` / `cdr_time` from `cdr_date` (same slice as the SQL backfill). Mutual column facets stay AND/OR/`excludeColumn`. Phantom rows are darker gray; call-error rows are a stronger red. `/raw` and month XLSX keep a single `cdr_date`.
 
 ## v1.25.0 — phantom traffic and empty billing numbers
 

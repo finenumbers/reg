@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { EMPTY_FILTER_TOKEN } from "@/components/column-filters/types";
 import { csvHeaderToCamel } from "@/modules/traffic/columns";
 import {
+  applyColumnFilters,
   applyPhoneQ,
   containsInsensitive,
   facetSearchWhere,
@@ -30,6 +32,38 @@ describe("facetSearchWhere", () => {
         { cdrDate: { contains: "2026-12-28", mode: "insensitive" } },
       ],
     });
+  });
+
+  it("searches cdr_day without a time suffix needle", () => {
+    expect(facetSearchWhere("cdrDay", "cdr_day", "28.12.2026, 01:23:43")).toEqual(
+      {
+        OR: [
+          {
+            cdrDay: {
+              contains: "28.12.2026, 01:23:43",
+              mode: "insensitive",
+            },
+          },
+          { cdrDay: { contains: "2026-12-28", mode: "insensitive" } },
+        ],
+      },
+    );
+  });
+
+  it("searches cdr_time with the extracted clock", () => {
+    expect(facetSearchWhere("cdrTime", "cdr_time", "28.12.2026, 01:23:43")).toEqual(
+      {
+        OR: [
+          {
+            cdrTime: {
+              contains: "28.12.2026, 01:23:43",
+              mode: "insensitive",
+            },
+          },
+          { cdrTime: { contains: "01:23:43", mode: "insensitive" } },
+        ],
+      },
+    );
   });
 
   it("keeps duration exact-in without a case mode", () => {
@@ -77,6 +111,58 @@ describe("facetSearchWhere", () => {
         { cdrDate: { contains: "пусто", mode: "insensitive" } },
         { cdrDate: "" },
       ],
+    });
+  });
+});
+
+describe("applyColumnFilters", () => {
+  const month = { cdrDate: { startsWith: "2026-08-" } };
+
+  it("ANDs day and time exact tokens", () => {
+    expect(
+      applyColumnFilters(month, {
+        cdr_day: ["2026-08-30"],
+        cdr_time: ["14:22:52"],
+      }),
+    ).toEqual({
+      AND: [
+        month,
+        { OR: [{ cdrDay: "2026-08-30" }] },
+        { OR: [{ cdrTime: "14:22:52" }] },
+      ],
+    });
+  });
+
+  it("ORs multiple values in one column", () => {
+    expect(
+      applyColumnFilters(month, {
+        cdr_day: ["2026-08-30", "2026-08-29"],
+      }),
+    ).toEqual({
+      AND: [
+        month,
+        { OR: [{ cdrDay: "2026-08-30" }, { cdrDay: "2026-08-29" }] },
+      ],
+    });
+  });
+
+  it("excludes the open column so mutual facets stay honest", () => {
+    expect(
+      applyColumnFilters(
+        month,
+        { cdr_day: ["2026-08-30"], cdr_time: ["14:22:52"] },
+        { excludeColumn: "cdr_day" },
+      ),
+    ).toEqual({
+      AND: [month, { OR: [{ cdrTime: "14:22:52" }] }],
+    });
+  });
+
+  it("maps the empty token to a blank stored part", () => {
+    expect(
+      applyColumnFilters(month, { cdr_day: [EMPTY_FILTER_TOKEN] }),
+    ).toEqual({
+      AND: [month, { OR: [{ cdrDay: "" }] }],
     });
   });
 });

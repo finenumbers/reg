@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   cdrDateSearchNeedles,
+  cdrDaySearchNeedles,
+  cdrTimeSearchNeedles,
   displayDateQueryToRaw,
   facetSearchMatch,
   millisecondTokensForDisplayedSeconds,
@@ -58,11 +60,54 @@ describe("duration display seconds", () => {
   });
 });
 
+describe("cdrDaySearchNeedles", () => {
+  it("maps display date without keeping a time suffix", () => {
+    expect(cdrDaySearchNeedles("28.12.2026")).toEqual([
+      "28.12.2026",
+      "2026-12-28",
+    ]);
+    expect(cdrDaySearchNeedles("28.12.2026, 01:23:43")).toEqual([
+      "28.12.2026, 01:23:43",
+      "2026-12-28",
+    ]);
+    expect(cdrDaySearchNeedles("28.12")).toEqual(["28.12", "-12-28"]);
+  });
+});
+
+describe("cdrTimeSearchNeedles", () => {
+  it("keeps a typed clock and extracts time from a pasted datetime", () => {
+    expect(cdrTimeSearchNeedles("14:22:52")).toEqual(["14:22:52"]);
+    expect(cdrTimeSearchNeedles("14:22")).toEqual(["14:22"]);
+    expect(cdrTimeSearchNeedles("28.12.2026, 01:23:43")).toEqual([
+      "28.12.2026, 01:23:43",
+      "01:23:43",
+    ]);
+  });
+});
+
 describe("facetSearchMatch", () => {
   it("uses contains needles for cdr_date display input", () => {
     expect(facetSearchMatch("cdr_date", "28.12.2026")).toEqual({
       kind: "contains",
       needles: ["28.12.2026", "2026-12-28"],
+    });
+  });
+
+  it("uses date-only needles for cdr_day", () => {
+    expect(facetSearchMatch("cdr_day", "28.12.2026, 01:23:43")).toEqual({
+      kind: "contains",
+      needles: ["28.12.2026, 01:23:43", "2026-12-28"],
+    });
+  });
+
+  it("uses time-only needles for cdr_time", () => {
+    expect(facetSearchMatch("cdr_time", "28.12.2026, 01:23:43")).toEqual({
+      kind: "contains",
+      needles: ["28.12.2026, 01:23:43", "01:23:43"],
+    });
+    expect(facetSearchMatch("cdr_time", "14:22")).toEqual({
+      kind: "contains",
+      needles: ["14:22"],
     });
   });
 

@@ -435,6 +435,8 @@ model CdrRecord {
   cdrAt                      DateTime?
   cdrId                      String    @unique @map("cdr_id")
   cdrDate                    String    @map("cdr_date")
+  cdrDay                     String    @default("") @map("cdr_day")
+  cdrTime                    String    @default("") @map("cdr_time")
   inAni                      String    @map("in_ani")
   inDnis                     String    @map("in_dnis")
   outAni                     String    @map("out_ani")

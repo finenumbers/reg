@@ -69,6 +69,43 @@ export function cdrDateSearchNeedles(q: string): string[] {
   return [...new Set(needles)];
 }
 
+function dateOnlyFromMapped(mapped: string): string {
+  return /^\d{4}-\d{2}-\d{2}/.test(mapped) ? mapped.slice(0, 10) : mapped;
+}
+
+function timeOnlyFromMapped(mapped: string): string | null {
+  const space = mapped.indexOf(" ");
+  if (space < 0) return null;
+  const time = mapped.slice(space + 1);
+  return time || null;
+}
+
+/** Header search for `cdr_day` — date token only, never `YYYY-MM-DD HH:MM:SS`. */
+export function cdrDaySearchNeedles(q: string): string[] {
+  const trimmed = q.trim();
+  if (!trimmed) return [];
+  const needles = [trimmed];
+  const mapped = displayDateQueryToRaw(trimmed);
+  if (mapped) {
+    const day = dateOnlyFromMapped(mapped);
+    if (day !== trimmed) needles.push(day);
+  }
+  return [...new Set(needles)];
+}
+
+/** Header search for `cdr_time` — time token only. */
+export function cdrTimeSearchNeedles(q: string): string[] {
+  const trimmed = q.trim();
+  if (!trimmed) return [];
+  const needles = [trimmed];
+  const mapped = displayDateQueryToRaw(trimmed);
+  if (mapped) {
+    const time = timeOnlyFromMapped(mapped);
+    if (time && time !== trimmed) needles.push(time);
+  }
+  return [...new Set(needles)];
+}
+
 export function parseDisplayedSeconds(q: string): number | null {
   const cleaned = q.trim().replace(COUNT_SEP, "");
   if (!/^\d+$/.test(cleaned)) return null;
@@ -106,6 +143,12 @@ export function facetSearchMatch(column: string, q: string): FacetSearchMatch {
 
   if (column === "cdr_date") {
     return { kind: "contains", needles: cdrDateSearchNeedles(trimmed) };
+  }
+  if (column === "cdr_day") {
+    return { kind: "contains", needles: cdrDaySearchNeedles(trimmed) };
+  }
+  if (column === "cdr_time") {
+    return { kind: "contains", needles: cdrTimeSearchNeedles(trimmed) };
   }
 
   return { kind: "contains", needles: [trimmed] };

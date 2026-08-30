@@ -287,6 +287,8 @@ describe("processCdrImport enrich on insert", () => {
       data: [
         expect.objectContaining({
           cdrId: "id-enrich-1",
+          cdrDay: "",
+          cdrTime: "",
           billAni: "79501112233",
           sideA: "Офис А",
           operatorA: "МТС",

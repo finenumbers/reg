@@ -136,9 +136,9 @@ export function TrafficTable({
               key={row.id}
               className={cn(
                 flag === "phantom" &&
-                  "bg-zinc-200/70 hover:bg-zinc-300/80 dark:bg-zinc-800/70 dark:hover:bg-zinc-700/80",
+                  "bg-zinc-300 hover:bg-zinc-400/90 dark:bg-zinc-700 dark:hover:bg-zinc-600",
                 flag === "call_error" &&
-                  "bg-destructive/10 hover:bg-destructive/15",
+                  "bg-destructive/25 hover:bg-destructive/35",
               )}
             >
               {headers.map((h) => {

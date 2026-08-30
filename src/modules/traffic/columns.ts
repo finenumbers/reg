@@ -165,8 +165,11 @@ export const VOIPMONITOR_TRAFFIC_LABELS: Record<
   voipmonitor_url_out: "Calltrace Out",
 };
 
+export const CDR_DATETIME_SPLIT_COLUMNS = ["cdr_day", "cdr_time"] as const;
+
 export const TRAFFIC_SUMMARY_COLUMNS = [
-  "cdr_date",
+  "cdr_day",
+  "cdr_time",
   "bill_ani",
   "side_a",
   "bill_dnis",
@@ -184,7 +187,8 @@ export const TRAFFIC_SUMMARY_LABELS: Record<
   (typeof TRAFFIC_SUMMARY_COLUMNS)[number],
   string
 > = {
-  cdr_date: "Время звонка",
+  cdr_day: "Дата",
+  cdr_time: "Время",
   bill_ani: "А-номер",
   side_a: "Сторона A",
   bill_dnis: "В-номер",
@@ -200,7 +204,8 @@ export const TRAFFIC_SUMMARY_LABELS: Record<
 };
 
 export const TRAFFIC_GEOGRAPHY_COLUMNS = [
-  "cdr_date",
+  "cdr_day",
+  "cdr_time",
   "bill_ani",
   "side_a",
   "operator_a",
@@ -221,7 +226,8 @@ export const TRAFFIC_GEOGRAPHY_LABELS: Record<
   (typeof TRAFFIC_GEOGRAPHY_COLUMNS)[number],
   string
 > = {
-  cdr_date: "Время звонка",
+  cdr_day: "Дата",
+  cdr_time: "Время",
   bill_ani: "А-номер",
   side_a: "Сторона A",
   operator_a: "Оператор А",
@@ -239,7 +245,8 @@ export const TRAFFIC_GEOGRAPHY_LABELS: Record<
 };
 
 export const TRAFFIC_OPERATORS_COLUMNS = [
-  "cdr_date",
+  "cdr_day",
+  "cdr_time",
   "bill_ani",
   "side_a",
   "bill_dnis",
@@ -264,7 +271,8 @@ export const TRAFFIC_OPERATORS_LABELS: Record<
   (typeof TRAFFIC_OPERATORS_COLUMNS)[number],
   string
 > = {
-  cdr_date: "Время звонка",
+  cdr_day: "Дата",
+  cdr_time: "Время",
   bill_ani: "А-номер",
   side_a: "Сторона A",
   bill_dnis: "В-номер",
@@ -335,6 +343,7 @@ export const RAW_TABLE_COLUMNS: readonly string[] = CDR_COLUMNS.flatMap((col) =>
 const TRAFFIC_COLUMN_SET = new Set<string>([
   ...CDR_COLUMNS,
   ...CDR_ENRICH_COLUMNS,
+  ...CDR_DATETIME_SPLIT_COLUMNS,
 ]);
 
 export const CDR_INSERT_BATCH_SIZE = 400;

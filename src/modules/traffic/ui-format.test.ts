@@ -29,6 +29,8 @@ describe("traffic UI date display", () => {
     expect(formatTrafficCell("cdr_date", "2026-12-28 01:23:43")).toBe(
       "28.12.2026, 01:23:43",
     );
+    expect(formatTrafficCell("cdr_day", "2026-08-30")).toBe("30.08.2026");
+    expect(formatTrafficCell("cdr_time", "14:22:52")).toBe("14:22:52");
     expect(formatTrafficCell("bill_ani", "79001234567")).toBe("79001234567");
   });
 
@@ -52,6 +54,8 @@ describe("traffic UI date display", () => {
     expect(displayTrafficFacet("cdr_date", "2026-12-28 01:23:43")).toBe(
       "28.12.2026, 01:23:43",
     );
+    expect(displayTrafficFacet("cdr_day", "2026-08-30")).toBe("30.08.2026");
+    expect(displayTrafficFacet("cdr_time", "14:22:52")).toBe("14:22:52");
     expect(displayTrafficFacet("bill_ani", "79001234567")).toBe("79001234567");
   });
 

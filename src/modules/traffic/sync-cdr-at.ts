@@ -1,12 +1,8 @@
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
+import { CDR_DATE_CIVIL_REGEX } from "@/modules/traffic/cdr-date-parts";
 
-/**
- * Civil `cdr_date` prefix (no `$`). Fractional seconds still match and sync.
- * Same pattern as the previous full-table UPDATE.
- */
-export const CDR_DATE_CIVIL_REGEX =
-  "^[0-9]{4}-[0-9]{2}-[0-9]{2}[ T][0-9]{2}:[0-9]{2}:[0-9]{2}";
+export { CDR_DATE_CIVIL_REGEX };
 
 /**
  * Rewrite `cdrAt` from `cdr_date` digits as UTC civil (no display TZ).

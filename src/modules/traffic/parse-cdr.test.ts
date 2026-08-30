@@ -46,7 +46,8 @@ describe("CDR column contract", () => {
 
   it("keeps traffic summary columns inside the dump or enrich set", () => {
     expect(TRAFFIC_SUMMARY_COLUMNS).toEqual([
-      "cdr_date",
+      "cdr_day",
+      "cdr_time",
       "bill_ani",
       "side_a",
       "bill_dnis",
@@ -60,7 +61,8 @@ describe("CDR column contract", () => {
       "voipmonitor_url_in",
       "voipmonitor_url_out",
     ]);
-    expect(TRAFFIC_SUMMARY_LABELS.cdr_date).toBe("Время звонка");
+    expect(TRAFFIC_SUMMARY_LABELS.cdr_day).toBe("Дата");
+    expect(TRAFFIC_SUMMARY_LABELS.cdr_time).toBe("Время");
     expect(TRAFFIC_SUMMARY_LABELS.side_a).toBe("Сторона A");
     expect(TRAFFIC_SUMMARY_LABELS.disconnect_code_string).toBe(
       "Код завершения",
@@ -78,7 +80,8 @@ describe("CDR column contract", () => {
 
   it("keeps geography view columns inside the dump or enrich set", () => {
     expect(TRAFFIC_GEOGRAPHY_COLUMNS).toEqual([
-      "cdr_date",
+      "cdr_day",
+      "cdr_time",
       "bill_ani",
       "side_a",
       "operator_a",
@@ -106,7 +109,8 @@ describe("CDR column contract", () => {
 
   it("keeps operators view columns inside the dump or enrich set", () => {
     expect(TRAFFIC_OPERATORS_COLUMNS).toEqual([
-      "cdr_date",
+      "cdr_day",
+      "cdr_time",
       "bill_ani",
       "side_a",
       "bill_dnis",
@@ -182,6 +186,8 @@ describe("parseCdrDataLine", () => {
     expect(row!.prisma.inAni).toBe("79528752577");
     expect(row!.prisma.elapsedTime).toBe("126109");
     expect(row!.cdrAt?.toISOString()).toBe("2026-08-27T20:04:19.000Z");
+    expect(row!.prisma.cdrDay).toBe("2026-08-27");
+    expect(row!.prisma.cdrTime).toBe("20:04:19");
   });
 
   it("rejects empty cdr_id and wrong width", () => {

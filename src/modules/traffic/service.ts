@@ -26,8 +26,10 @@ import { countInboxFiles } from "@/modules/traffic/inbox";
 import { parseVoipmonitorLegs } from "@/modules/voipmonitor/legs";
 import type { VoipmonitorLegs } from "@/modules/voipmonitor/types";
 import { isSafeVoipmonitorHref } from "@/modules/voipmonitor/url";
+import { splitCdrDateParts } from "@/modules/traffic/cdr-date-parts";
 import {
   CDR_COLUMNS,
+  CDR_DATETIME_SPLIT_COLUMNS,
   CDR_ENRICH_COLUMNS,
   CDR_PHONE_COLUMNS,
   csvHeaderToCamel,
@@ -92,6 +94,12 @@ function rowToData(
     const value = row[csvHeaderToCamel(col)];
     data[col] = value == null ? "" : String(value);
   }
+  const fallback = splitCdrDateParts(data.cdr_date ?? "");
+  for (const col of CDR_DATETIME_SPLIT_COLUMNS) {
+    const stored = row[csvHeaderToCamel(col)];
+    const asText = stored == null ? "" : String(stored);
+    data[col] = asText || (col === "cdr_day" ? fallback.day : fallback.time);
+  }
   const legs: VoipmonitorLegs = parseVoipmonitorLegs(link?.voipmonitorLegs);
   const inn = safeLeg(legs.in, guiUrl);
   const out = safeLeg(legs.out, guiUrl);
@@ -102,7 +110,7 @@ function rowToData(
   return data;
 }
 
-function applyColumnFilters(
+export function applyColumnFilters(
   base: Prisma.CdrRecordWhereInput,
   filters: ColumnFilters,
   opts: { excludeColumn?: string } = {},
