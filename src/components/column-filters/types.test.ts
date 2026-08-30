@@ -7,6 +7,7 @@ import {
   removeFacetValue,
   toFilterToken,
   EMPTY_FILTER_TOKEN,
+  facetQueryMatchesEmptyLabel,
 } from "@/components/column-filters/types";
 
 describe("column filter helpers", () => {
@@ -43,5 +44,15 @@ describe("column filter helpers", () => {
     const empty = aggregateFacetItems(["", ""], { limit: 10 });
     expect(empty.items[0]?.value).toBe(EMPTY_FILTER_TOKEN);
     expect(empty.items[0]?.count).toBe(2);
+  });
+
+  it("matches empty-facet search labels without short fragments", () => {
+    expect(facetQueryMatchesEmptyLabel("пусто")).toBe(true);
+    expect(facetQueryMatchesEmptyLabel("(пусто)")).toBe(true);
+    expect(facetQueryMatchesEmptyLabel("ПУСТО")).toBe(true);
+    expect(facetQueryMatchesEmptyLabel("пуст")).toBe(true);
+    expect(facetQueryMatchesEmptyLabel("7900")).toBe(false);
+    expect(facetQueryMatchesEmptyLabel("о")).toBe(false);
+    expect(facetQueryMatchesEmptyLabel("(")).toBe(false);
   });
 });

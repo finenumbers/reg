@@ -8,6 +8,7 @@ import ExcelJS from "exceljs";
 import { csvTimeToDisplay } from "@/modules/enrich/dates";
 import { excelPhoneValue } from "@/modules/enrich/excel-phone";
 import { guardExcelText } from "@/modules/enrich/formula-guard";
+import { classifyCdrRow } from "@/modules/enrich/row-flags";
 import {
   DETAIL_HEADERS,
   DETAIL_WIDTHS,
@@ -28,6 +29,8 @@ import {
   trafficHeaderRole,
   xlsxMissFontRole,
   XLSX_BILLING_FONT_ARGB,
+  XLSX_CALL_ERROR_FILL,
+  XLSX_PHANTOM_FILL,
   XLSX_PSTN_FONT_ARGB,
   type BorderRole,
 } from "@/modules/enrich/xlsx-styles";
@@ -115,6 +118,34 @@ function applyStyle(
   if (!opts.header) applyMissFont(cell);
 }
 
+function rowFill(row: ResolvedEnrichedRow): ExcelJS.Fill | undefined {
+  const flag = classifyCdrRow({
+    aNumber: row.aNumber,
+    bNumber: row.bNumber,
+    sideA: row.sideA,
+    sideB: row.sideB,
+  });
+  if (flag === "phantom") return XLSX_PHANTOM_FILL;
+  if (flag === "call_error") return XLSX_CALL_ERROR_FILL;
+  return undefined;
+}
+
+function styleBodyRow(
+  excelRow: ExcelJS.Row,
+  colCount: number,
+  roleFor: (colIndex0: number) => BorderRole,
+  phoneCols: ReadonlySet<number>,
+  fill: ExcelJS.Fill | undefined,
+): void {
+  for (let c = 1; c <= colCount; c++) {
+    const cell = excelRow.getCell(c);
+    applyStyle(cell, roleFor(c - 1), {
+      phone: phoneCols.has(c) && typeof cell.value === "number",
+    });
+    if (fill) cell.fill = fill;
+  }
+}
+
 function text(value: string): string {
   return guardExcelText(value);
 }
@@ -190,6 +221,8 @@ function resolveFromMaps(
 }
 
 const PROGRESS_EVERY = 250;
+const TRAFFIC_PHONE_COLS = new Set([2, 4]);
+const DETAIL_PHONE_COLS = new Set([2, 6]);
 
 async function writeResolvedSheets(opts: {
   trafficSheetName: string;
@@ -249,12 +282,13 @@ async function writeResolvedSheets(opts: {
       text(row.cause),
     ];
     const excelRow = traffic.addRow(values);
-    excelRow.eachCell((cell, colNumber) => {
-      applyStyle(cell, trafficBodyRole(colNumber - 1, last), {
-        phone:
-          (colNumber === 2 || colNumber === 4) && typeof cell.value === "number",
-      });
-    });
+    styleBodyRow(
+      excelRow,
+      TRAFFIC_HEADERS.length,
+      (col) => trafficBodyRole(col, last),
+      TRAFFIC_PHONE_COLS,
+      rowFill(row),
+    );
     excelRow.commit();
     report("traffic", index + 1, last);
   });
@@ -308,12 +342,13 @@ async function writeResolvedSheets(opts: {
       text(row.providerB),
     ];
     const excelRow = detail.addRow(values);
-    excelRow.eachCell((cell, colNumber) => {
-      applyStyle(cell, detailBodyRole(colNumber - 1, last), {
-        phone:
-          (colNumber === 2 || colNumber === 6) && typeof cell.value === "number",
-      });
-    });
+    styleBodyRow(
+      excelRow,
+      DETAIL_HEADERS.length,
+      (col) => detailBodyRole(col, last),
+      DETAIL_PHONE_COLS,
+      rowFill(row),
+    );
     excelRow.commit();
     report("detail", index + 1, last);
   });

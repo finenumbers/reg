@@ -1,7 +1,11 @@
-# Current Phase — production (v1.24.0)
+# Current Phase — production (v1.25.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher.  
-**Date:** 2026-08-29
+**Date:** 2026-08-30
+
+## v1.25.0 — phantom traffic and empty billing numbers
+
+CDR tables (traffic / geography / operators / raw) color phantom rows gray (both billing numbers filled, both sides «Нет в биллинге») and call-error rows red (both `bill_ani` / `bill_dnis` exactly `""`). Toolbar checkboxes filter those classes together with month, phone search, and column facets. Header-menu search for «пусто» finds the empty-string group. Month and enrich XLSX fill the same rows.
 
 ## v1.24.0 — case-insensitive traffic search
 

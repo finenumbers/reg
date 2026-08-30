@@ -58,6 +58,16 @@ export function displayFacetValue(value: string): string {
   return value;
 }
 
+const EMPTY_FACET_LABEL = "(пусто)";
+
+/** Header-menu search should find the empty-cell group labeled «(пусто)». */
+export function facetQueryMatchesEmptyLabel(q: string): boolean {
+  const n = q.trim().toLowerCase();
+  if (!n) return false;
+  if (n.includes("пусто")) return true;
+  return n.length >= 3 && EMPTY_FACET_LABEL.includes(n);
+}
+
 export function formatFacetCount(n: number): string {
   return formatCount(n);
 }

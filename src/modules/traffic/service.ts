@@ -5,6 +5,7 @@
 import type { Prisma } from "@/generated/prisma/client";
 import {
   EMPTY_FILTER_TOKEN,
+  facetQueryMatchesEmptyLabel,
   toFilterToken,
   type ColumnFilters,
   type FacetResponse,
@@ -33,6 +34,10 @@ import {
   isTrafficColumn,
 } from "@/modules/traffic/columns";
 import { facetSearchMatch } from "@/modules/traffic/facet-search";
+import {
+  trafficFlagWhere,
+  type TrafficRowFlags,
+} from "@/modules/traffic/row-flags";
 
 export type { CdrMonth };
 
@@ -139,16 +144,44 @@ export function applyPhoneQ(
   };
 }
 
+function applyTrafficFlags(
+  base: Prisma.CdrRecordWhereInput,
+  flags: TrafficRowFlags,
+): Prisma.CdrRecordWhereInput {
+  const extra = trafficFlagWhere(flags);
+  if (!extra) return base;
+  return { AND: [base, extra] };
+}
+
 function buildWhere(
   filters: ColumnFilters,
   phoneQ: string,
   month: CdrMonth,
+  flags: TrafficRowFlags = {},
   opts: { excludeColumn?: string } = {},
 ): Prisma.CdrRecordWhereInput {
-  return applyPhoneQ(
-    applyColumnFilters(applyMonthFilter(month.year, month.month), filters, opts),
-    phoneQ,
+  return applyTrafficFlags(
+    applyPhoneQ(
+      applyColumnFilters(applyMonthFilter(month.year, month.month), filters, opts),
+      phoneQ,
+    ),
+    flags,
   );
+}
+
+function withEmptyFacetMatch(
+  field: string,
+  q: string,
+  valueWhere: Prisma.CdrRecordWhereInput,
+): Prisma.CdrRecordWhereInput {
+  if (!facetQueryMatchesEmptyLabel(q)) return valueWhere;
+  const empty = { [field]: "" } as Prisma.CdrRecordWhereInput;
+  const keys = Object.keys(valueWhere);
+  if (keys.length === 0) return empty;
+  if (valueWhere.OR && keys.length === 1) {
+    return { OR: [...valueWhere.OR, empty] };
+  }
+  return { OR: [valueWhere, empty] };
 }
 
 export function facetSearchWhere(
@@ -158,17 +191,21 @@ export function facetSearchWhere(
 ): Prisma.CdrRecordWhereInput {
   const match = facetSearchMatch(column, q);
   if (match.kind === "in") {
-    return { [field]: { in: match.values } };
+    return withEmptyFacetMatch(field, q, { [field]: { in: match.values } });
   }
-  if (match.needles.length === 0) return {};
+  if (match.needles.length === 0) {
+    return withEmptyFacetMatch(field, q, {});
+  }
   if (match.needles.length === 1) {
-    return { [field]: containsInsensitive(match.needles[0]) };
+    return withEmptyFacetMatch(field, q, {
+      [field]: containsInsensitive(match.needles[0]),
+    });
   }
-  return {
+  return withEmptyFacetMatch(field, q, {
     OR: match.needles.map((needle) => ({
       [field]: containsInsensitive(needle),
     })),
-  };
+  });
 }
 
 async function listTrafficMonths(current: CdrMonth): Promise<CdrMonth[]> {
@@ -190,6 +227,8 @@ export async function listTraffic(opts: {
   filters?: ColumnFilters;
   phoneQ?: string;
   month?: string;
+  phantom?: boolean;
+  callErrors?: boolean;
   page?: number;
   pageSize?: number;
 }): Promise<ListTrafficResult> {
@@ -198,7 +237,8 @@ export async function listTraffic(opts: {
   const filters = opts.filters ?? {};
   const phoneQ = opts.phoneQ?.trim() ?? "";
   const month = resolveMonthKey(opts.month);
-  const where = buildWhere(filters, phoneQ, month);
+  const flags = { phantom: opts.phantom, callErrors: opts.callErrors };
+  const where = buildWhere(filters, phoneQ, month, flags);
   const skip = (page - 1) * pageSize;
   const includeMonths = page === 1;
 
@@ -264,6 +304,8 @@ export async function listTrafficFacets(opts: {
   filters?: ColumnFilters;
   phoneQ?: string;
   month?: string;
+  phantom?: boolean;
+  callErrors?: boolean;
   q?: string;
   limit?: number;
 }): Promise<FacetResponse> {
@@ -276,7 +318,8 @@ export async function listTrafficFacets(opts: {
   const phoneQ = opts.phoneQ?.trim() ?? "";
   const q = opts.q?.trim() ?? "";
   const month = resolveMonthKey(opts.month);
-  const where = buildWhere(opts.filters ?? {}, phoneQ, month, {
+  const flags = { phantom: opts.phantom, callErrors: opts.callErrors };
+  const where = buildWhere(opts.filters ?? {}, phoneQ, month, flags, {
     excludeColumn: column,
   });
   const fieldWhere: Prisma.CdrRecordWhereInput = q

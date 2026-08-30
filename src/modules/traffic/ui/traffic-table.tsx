@@ -21,6 +21,7 @@ import {
 } from "@/modules/traffic/columns";
 import { buildTrafficFacetsUrl } from "@/modules/traffic/api-client";
 import type { TrafficListItem } from "@/modules/traffic/service";
+import { classifyTrafficListRow } from "@/modules/traffic/row-flags";
 import { cn } from "@/lib/utils";
 import {
   displayTrafficFacet,
@@ -41,6 +42,8 @@ type Props = {
   filters: ColumnFilters;
   phoneQ?: string;
   month: string;
+  phantom?: boolean;
+  callErrors?: boolean;
   openColumn: string | null;
   onOpenColumnChange: (column: string | null) => void;
   onColumnFilterChange: (column: string, values: string[]) => void;
@@ -56,6 +59,8 @@ export function TrafficTable({
   filters,
   phoneQ = "",
   month,
+  phantom = false,
+  callErrors = false,
   openColumn,
   onOpenColumnChange,
   onColumnFilterChange,
@@ -87,6 +92,8 @@ export function TrafficTable({
                       filters: f,
                       phoneQ,
                       month,
+                      phantom,
+                      callErrors,
                       q,
                     })
                   }
@@ -122,8 +129,18 @@ export function TrafficTable({
             </TableCell>
           </TableRow>
         ) : (
-          data.map((row) => (
-            <TableRow key={row.id}>
+          data.map((row) => {
+            const flag = classifyTrafficListRow(row.data);
+            return (
+            <TableRow
+              key={row.id}
+              className={cn(
+                flag === "phantom" &&
+                  "bg-zinc-200/70 hover:bg-zinc-300/80 dark:bg-zinc-800/70 dark:hover:bg-zinc-700/80",
+                flag === "call_error" &&
+                  "bg-destructive/10 hover:bg-destructive/15",
+              )}
+            >
               {headers.map((h) => {
                 const raw = row.data[h] ?? "";
                 const shown = formatTrafficCell(h, raw);
@@ -160,7 +177,8 @@ export function TrafficTable({
                 );
               })}
             </TableRow>
-          ))
+            );
+          })
         )}
       </TableBody>
     </Table>

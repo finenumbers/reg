@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { parseFiltersParam } from "@/components/column-filters/types";
 import { requireApiPermission } from "@/modules/auth/guards";
+import { parseTrafficFlagParam } from "@/modules/traffic/row-flags";
 import { listTrafficFacets } from "@/modules/traffic/service";
 
 /**
@@ -22,6 +23,8 @@ export async function GET(request: Request) {
   const filters = parseFiltersParam(url.searchParams.get("filters"));
   const phoneQ = url.searchParams.get("phoneQ") ?? undefined;
   const month = url.searchParams.get("month") ?? undefined;
+  const phantom = parseTrafficFlagParam(url.searchParams.get("phantom"));
+  const callErrors = parseTrafficFlagParam(url.searchParams.get("callErrors"));
   const q = url.searchParams.get("q") ?? undefined;
   const limitRaw = Number(url.searchParams.get("limit") ?? "200");
   const limit = Number.isFinite(limitRaw) ? limitRaw : 200;
@@ -31,6 +34,8 @@ export async function GET(request: Request) {
     filters,
     phoneQ,
     month,
+    phantom,
+    callErrors,
     q,
     limit,
   });

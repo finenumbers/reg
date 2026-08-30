@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   ActiveFiltersBar,
   hasActiveFilters,
@@ -79,6 +80,8 @@ export function TrafficView({
   const [filters, setFilters] = useState<ColumnFilters>({});
   const [phoneInput, setPhoneInput] = useState("");
   const [phoneQ, setPhoneQ] = useState("");
+  const [phantom, setPhantom] = useState(false);
+  const [callErrors, setCallErrors] = useState(false);
   const [month, setMonth] = useState(
     initial.month || currentUtcMonth().key,
   );
@@ -106,7 +109,11 @@ export function TrafficView({
     filters?: ColumnFilters;
     phoneQ?: string;
     month?: string;
+    phantom?: boolean;
+    callErrors?: boolean;
   }) => Promise<void>>(async () => {});
+  const phantomRef = useRef(phantom);
+  const callErrorsRef = useRef(callErrors);
   const wasBusyRef = useRef(false);
   const lastFinishedAtRef = useRef<string | null | undefined>(undefined);
   const [scrollRoot, setScrollRoot] = useState<Element | null>(null);
@@ -114,11 +121,15 @@ export function TrafficView({
   filtersRef.current = filters;
   phoneQRef.current = phoneQ;
   monthRef.current = month;
+  phantomRef.current = phantom;
+  callErrorsRef.current = callErrors;
 
   const defaultMonthKey = currentUtcMonth().key;
   const filtersActive =
     hasActiveFilters(filters) ||
     Boolean(phoneQ.trim()) ||
+    phantom ||
+    callErrors ||
     month !== defaultMonthKey;
   const hasMore = items.length < total;
   const monthOptions = useMemo(() => {
@@ -142,12 +153,16 @@ export function TrafficView({
         filters?: ColumnFilters;
         phoneQ?: string;
         month?: string;
+        phantom?: boolean;
+        callErrors?: boolean;
       } = {},
     ) => {
       const replace = opts.replace ?? true;
       const nextFilters = opts.filters ?? filtersRef.current;
       const nextPhoneQ = opts.phoneQ ?? phoneQRef.current;
       const nextMonth = opts.month ?? monthRef.current;
+      const nextPhantom = opts.phantom ?? phantomRef.current;
+      const nextCallErrors = opts.callErrors ?? callErrorsRef.current;
       const nextPage = opts.page ?? (replace ? 1 : page);
       const seq = ++refreshSeq.current;
 
@@ -165,6 +180,8 @@ export function TrafficView({
         filters: nextFilters,
         phoneQ: nextPhoneQ,
         month: nextMonth,
+        phantom: nextPhantom,
+        callErrors: nextCallErrors,
         page: nextPage,
         pageSize: PAGE_SIZE,
       });
@@ -314,6 +331,8 @@ export function TrafficView({
     setFilters({});
     setPhoneInput("");
     setPhoneQ("");
+    setPhantom(false);
+    setCallErrors(false);
     setMonth(nowMonth.key);
     setOpenColumn(null);
     void loadList({
@@ -321,6 +340,8 @@ export function TrafficView({
       replace: true,
       filters: {},
       phoneQ: "",
+      phantom: false,
+      callErrors: false,
       month: nowMonth.key,
     });
   }
@@ -335,6 +356,16 @@ export function TrafficView({
     setPhoneInput("");
     setPhoneQ("");
     void loadList({ page: 1, replace: true, phoneQ: "" });
+  }
+
+  function onPhantomChange(checked: boolean) {
+    setPhantom(checked);
+    void loadList({ page: 1, replace: true, phantom: checked });
+  }
+
+  function onCallErrorsChange(checked: boolean) {
+    setCallErrors(checked);
+    void loadList({ page: 1, replace: true, callErrors: checked });
   }
 
   async function onRetry() {
@@ -479,6 +510,26 @@ export function TrafficView({
             className="w-[calc(17ch+1.25rem)] shrink-0"
             autoComplete="off"
           />
+          <div className="flex items-center gap-2">
+            <input
+              id={`${searchInputId}-phantom`}
+              type="checkbox"
+              className="size-4 rounded border"
+              checked={phantom}
+              onChange={(e) => onPhantomChange(e.target.checked)}
+            />
+            <Label htmlFor={`${searchInputId}-phantom`}>Фантомный трафик</Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              id={`${searchInputId}-call-errors`}
+              type="checkbox"
+              className="size-4 rounded border"
+              checked={callErrors}
+              onChange={(e) => onCallErrorsChange(e.target.checked)}
+            />
+            <Label htmlFor={`${searchInputId}-call-errors`}>Ошибки звонков</Label>
+          </div>
           <Button
             type="button"
             variant="outline"
@@ -536,6 +587,8 @@ export function TrafficView({
             filters={filters}
             phoneQ={phoneQ}
             month={month}
+            phantom={phantom}
+            callErrors={callErrors}
             openColumn={openColumn}
             onOpenColumnChange={setOpenColumn}
             onColumnFilterChange={onColumnChange}

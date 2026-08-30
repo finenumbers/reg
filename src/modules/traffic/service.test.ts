@@ -39,6 +39,46 @@ describe("facetSearchWhere", () => {
     expect(values).toContain("10");
     expect(values).toContain("9900");
   });
+
+  it("adds an empty-string OR when the query matches «(пусто)»", () => {
+    expect(facetSearchWhere("billAni", "bill_ani", "пусто")).toEqual({
+      OR: [
+        { billAni: { contains: "пусто", mode: "insensitive" } },
+        { billAni: "" },
+      ],
+    });
+    expect(facetSearchWhere("billAni", "bill_ani", "(пусто)")).toMatchObject({
+      OR: expect.arrayContaining([{ billAni: "" }]),
+    });
+    expect(facetSearchWhere("billAni", "bill_ani", "ПУСТО")).toMatchObject({
+      OR: expect.arrayContaining([{ billAni: "" }]),
+    });
+    expect(facetSearchWhere("billAni", "bill_ani", "пуст")).toMatchObject({
+      OR: expect.arrayContaining([{ billAni: "" }]),
+    });
+  });
+
+  it("does not add the empty group for digits or a single letter", () => {
+    expect(facetSearchWhere("billAni", "bill_ani", "7900")).toEqual({
+      billAni: { contains: "7900", mode: "insensitive" },
+    });
+    expect(facetSearchWhere("billAni", "bill_ani", "о")).toEqual({
+      billAni: { contains: "о", mode: "insensitive" },
+    });
+    expect(facetSearchWhere("billAni", "bill_ani", "(")).toEqual({
+      billAni: { contains: "(", mode: "insensitive" },
+    });
+  });
+
+  it("keeps date needles flat when adding the empty group", () => {
+    const where = facetSearchWhere("cdrDate", "cdr_date", "пусто");
+    expect(where).toEqual({
+      OR: [
+        { cdrDate: { contains: "пусто", mode: "insensitive" } },
+        { cdrDate: "" },
+      ],
+    });
+  });
 });
 
 describe("applyPhoneQ", () => {

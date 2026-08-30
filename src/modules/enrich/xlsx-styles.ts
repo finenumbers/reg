@@ -2,6 +2,7 @@
  * Border roles matching the updated sample.xlsx group boxes.
  */
 
+import type ExcelJS from "exceljs";
 import {
   MISSING_BILLING_LABEL,
   MISSING_PSTN_LABEL,
@@ -157,3 +158,15 @@ export function xlsxMissFontRole(value: string): MissFontRole {
   if (value === MISSING_PSTN_LABEL) return "red";
   return null;
 }
+
+export const XLSX_PHANTOM_FILL: ExcelJS.Fill = {
+  type: "pattern",
+  pattern: "solid",
+  fgColor: { argb: "FFE7E6E6" },
+};
+
+export const XLSX_CALL_ERROR_FILL: ExcelJS.Fill = {
+  type: "pattern",
+  pattern: "solid",
+  fgColor: { argb: "FFFEE2E2" },
+};
