@@ -8,6 +8,7 @@ import type {
 } from "@/components/column-filters/types";
 import {
   displayFacetValue,
+  facetFiltersAffectQuery,
   formatFacetCount,
   toFilterToken,
 } from "@/components/column-filters/types";
@@ -55,6 +56,20 @@ export function ColumnFilterDropdown({
     left: number;
     width: number;
   } | null>(null);
+  const buildFacetsUrlRef = useRef(buildFacetsUrl);
+  buildFacetsUrlRef.current = buildFacetsUrl;
+  const dataRef = useRef(data);
+  dataRef.current = data;
+  const errorRef = useRef(error);
+  errorRef.current = error;
+  const wasOpenRef = useRef(false);
+  const loadedRef = useRef<{
+    column: string;
+    q: string;
+    scopeUrl: string;
+    filters: ColumnFilters;
+  } | null>(null);
+  const scopeUrl = buildFacetsUrl({ column, filters: {}, q });
 
   useEffect(() => {
     const t = setTimeout(() => setQ(qInput), 200);
@@ -86,8 +101,24 @@ export function ColumnFilterDropdown({
 
   useEffect(() => {
     if (!open) {
+      wasOpenRef.current = false;
       setQInput("");
       setQ("");
+      return;
+    }
+    const justOpened = !wasOpenRef.current;
+    wasOpenRef.current = true;
+    const prev = loadedRef.current;
+    const haveData = dataRef.current != null && errorRef.current == null;
+    if (
+      !justOpened &&
+      haveData &&
+      prev &&
+      prev.column === column &&
+      prev.q === q &&
+      prev.scopeUrl === scopeUrl &&
+      !facetFiltersAffectQuery(column, prev.filters, filters)
+    ) {
       return;
     }
     let cancelled = false;
@@ -95,7 +126,7 @@ export function ColumnFilterDropdown({
       setLoading(true);
       setError(null);
       try {
-        const url = buildFacetsUrl({ column, filters, q });
+        const url = buildFacetsUrlRef.current({ column, filters, q });
         const res = await fetch(url, { method: "GET", cache: "no-store" });
         const body = (await res.json().catch(() => null)) as
           | FacetResponse
@@ -108,7 +139,10 @@ export function ColumnFilterDropdown({
               : "Ошибка загрузки";
           throw new Error(msg);
         }
-        if (!cancelled) setData(body as FacetResponse);
+        if (!cancelled) {
+          setData(body as FacetResponse);
+          loadedRef.current = { column, q, scopeUrl, filters };
+        }
       } catch (e) {
         if (!cancelled) {
           setError(e instanceof Error ? e.message : "Ошибка загрузки");
@@ -121,7 +155,7 @@ export function ColumnFilterDropdown({
     return () => {
       cancelled = true;
     };
-  }, [open, column, filters, q, buildFacetsUrl]);
+  }, [open, column, filters, q, scopeUrl]);
 
   useEffect(() => {
     if (!open) return;

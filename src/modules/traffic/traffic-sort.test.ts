@@ -36,14 +36,12 @@ describe("trafficListOrderBy", () => {
     ]);
   });
 
-  it("sorts by clock then date in the same direction", () => {
+  it("sorts by full call time so days stay in calendar order", () => {
     expect(trafficListOrderBy("asc")).toEqual([
-      { cdrTime: "asc" },
       { cdrDate: "asc" },
       { cdrId: "asc" },
     ]);
     expect(trafficListOrderBy("desc")).toEqual([
-      { cdrTime: "desc" },
       { cdrDate: "desc" },
       { cdrId: "desc" },
     ]);

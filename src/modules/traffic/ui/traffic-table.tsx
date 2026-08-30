@@ -212,10 +212,10 @@ function TimeSortHeader({
   const active = timeSort != null;
   const label =
     timeSort === "desc"
-      ? "Время, по убыванию. Нажмите для возрастания"
+      ? "Дата и время, по убыванию. Нажмите для возрастания"
       : timeSort === "asc"
-        ? "Время, по возрастанию. Нажмите чтобы сбросить"
-        : "Сортировать по времени";
+        ? "Дата и время, по возрастанию. Нажмите чтобы сбросить"
+        : "Сортировать по дате и времени";
   return (
     <div className={`col-header col-header-sort${active ? " active" : ""}`}>
       <button

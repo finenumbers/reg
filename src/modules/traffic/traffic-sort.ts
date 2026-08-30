@@ -4,7 +4,7 @@ import {
   type FacetItem,
 } from "@/components/column-filters/types";
 
-/** Time column: clock sort only (no facet). Date column: facet days ascending. */
+/** Time column: chronology only (no facet). Date column: facet days ascending. */
 export type TimeSort = "asc" | "desc";
 
 export function parseTimeSort(raw: string | null | undefined): TimeSort | null {
@@ -24,11 +24,8 @@ export function trafficListOrderBy(
   if (timeSort == null) {
     return [{ cdrDate: "desc" }, { cdrId: "desc" }];
   }
-  return [
-    { cdrTime: timeSort },
-    { cdrDate: timeSort },
-    { cdrId: timeSort },
-  ];
+  // Full UTC timestamp — date context even when the month has no Date chip.
+  return [{ cdrDate: timeSort }, { cdrId: timeSort }];
 }
 
 export function moveEmptyFacetLast(items: FacetItem[]): FacetItem[] {

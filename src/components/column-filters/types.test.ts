@@ -4,6 +4,7 @@ import {
   encodeFilters,
   parseFiltersParam,
   setColumnFilterValues,
+  facetFiltersAffectQuery,
   removeFacetValue,
   toFilterToken,
   EMPTY_FILTER_TOKEN,
@@ -44,6 +45,28 @@ describe("column filter helpers", () => {
     const empty = aggregateFacetItems(["", ""], { limit: 10 });
     expect(empty.items[0]?.value).toBe(EMPTY_FILTER_TOKEN);
     expect(empty.items[0]?.count).toBe(2);
+  });
+
+  it("ignores the open column when deciding if facets must reload", () => {
+    const base = { cdr_day: ["2026-08-01"], side_a: ["A"] };
+    expect(
+      facetFiltersAffectQuery("cdr_day", base, {
+        cdr_day: ["2026-08-15"],
+        side_a: ["A"],
+      }),
+    ).toBe(false);
+    expect(
+      facetFiltersAffectQuery("cdr_day", base, {
+        cdr_day: ["2026-08-01"],
+        side_a: ["B"],
+      }),
+    ).toBe(true);
+    expect(facetFiltersAffectQuery("cdr_day", base, { side_a: ["A"] })).toBe(
+      false,
+    );
+    expect(
+      facetFiltersAffectQuery("side_a", { side_a: ["B", "A"] }, { side_a: ["A", "B"] }),
+    ).toBe(false);
   });
 
   it("matches empty-facet search labels without short fragments", () => {

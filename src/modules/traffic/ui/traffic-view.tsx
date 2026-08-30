@@ -376,7 +376,10 @@ export function TrafficView({
   }
 
   function onTimeSortChange(next: TimeSort | null) {
+    const prev = timeSort;
     setTimeSort(next);
+    // desc matches the default server ORDER BY — do not refetch the list.
+    if (prev == null && next === "desc") return;
     void loadList({ page: 1, replace: true, timeSort: next });
   }
 

@@ -87,6 +87,31 @@ export function setColumnFilterValues(
   return next;
 }
 
+function sameFilterValueSet(a?: string[], b?: string[]): boolean {
+  const left = a ?? [];
+  const right = b ?? [];
+  if (left.length !== right.length) return false;
+  const seen = new Set(left);
+  return right.every((value) => seen.has(value));
+}
+
+/**
+ * Facet APIs ignore the open column (`excludeColumn`).
+ * Only other columns change the menu query.
+ */
+export function facetFiltersAffectQuery(
+  column: string,
+  prev: ColumnFilters,
+  next: ColumnFilters,
+): boolean {
+  const keys = new Set([...Object.keys(prev), ...Object.keys(next)]);
+  for (const key of keys) {
+    if (key === column) continue;
+    if (!sameFilterValueSet(prev[key], next[key])) return true;
+  }
+  return false;
+}
+
 export function removeFacetValue(
   prev: ColumnFilters,
   field: string,

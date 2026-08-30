@@ -1,7 +1,11 @@
-# Current Phase — production (v1.27.1)
+# Current Phase — production (v1.28.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher.  
 **Date:** 2026-08-30
+
+## v1.28.0 — Time sort in Date context; fewer facet reloads
+
+Time sort is server `ORDER BY cdr_date, cdr_id` (full UTC chronology for the month, not clock-across-days). The first Time click (desc) matches the default list and does not refetch. Header facet menus (traffic / phones / regs) do not reload when only the open column’s chips change or the parent re-renders.
 
 ## v1.27.1 — GHCR typecheck
 
