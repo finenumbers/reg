@@ -12,6 +12,7 @@ import { queryMonthStatsWithMinutes } from "@/modules/traffic/cdr-month-stats";
 
 export type StorageMonthRow = CdrMonth & {
   calls: number;
+  seconds: number;
   minutes: number;
   incomplete: boolean;
   canDelete: boolean;
@@ -26,6 +27,7 @@ export type StoragePurgeProgress = {
 export type StorageSnapshot = {
   months: StorageMonthRow[];
   totalCalls: number;
+  totalSeconds: number;
   totalMinutes: number;
   tableBytes: number;
   deletableKey: string | null;
@@ -57,6 +59,7 @@ export async function listStorageSnapshot(): Promise<StorageSnapshot> {
     })),
     current,
   );
+  const secondsByKey = new Map(stats.map((row) => [row.key, row.seconds]));
   const minutesByKey = new Map(stats.map((row) => [row.key, row.minutes]));
   const deletableKey = deletableMonthKey(months, current.key);
   const purgeInFlight = jobRuntime.isInFlight("cdr.purge.month");
@@ -89,6 +92,7 @@ export async function listStorageSnapshot(): Promise<StorageSnapshot> {
   const rows: StorageMonthRow[] = months.map((item) => ({
     ...item,
     calls: item.count ?? 0,
+    seconds: secondsByKey.get(item.key) ?? 0,
     minutes: minutesByKey.get(item.key) ?? 0,
     incomplete: item.key === current.key,
     canDelete: item.key === deletableKey && !purgeInFlight && !importInFlight,
@@ -97,6 +101,7 @@ export async function listStorageSnapshot(): Promise<StorageSnapshot> {
   return {
     months: rows,
     totalCalls: rows.reduce((sum, row) => sum + row.calls, 0),
+    totalSeconds: rows.reduce((sum, row) => sum + row.seconds, 0),
     totalMinutes: rows.reduce((sum, row) => sum + row.minutes, 0),
     tableBytes: Number(sizeRows[0]?.bytes ?? 0),
     deletableKey,

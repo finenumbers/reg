@@ -16,7 +16,8 @@ export type FeatureModuleId =
   | "operators"
   | "audit"
   | "enrich"
-  | "storage";
+  | "storage"
+  | "stats";
 
 export type FeatureNavGroup = "primary" | "cdr" | "admin";
 
@@ -96,6 +97,14 @@ export const FEATURE_MODULES: FeatureModuleDefinition[] = [
     description: "SSH-профиль, интервал опроса, хранение артефактов",
     href: "/settings",
     navPermission: "settings:write",
+    navGroup: "admin",
+  },
+  {
+    id: "stats",
+    title: "Статистика",
+    description: "Саммари звонков и минут по SIP-транкам и технологическим платформам",
+    href: "/stats",
+    navPermission: "phones:read",
     navGroup: "admin",
   },
   {

@@ -1,7 +1,11 @@
-# Current Phase — production (v1.30.0)
+# Current Phase — production (v1.31.0)
 
-**Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge.  
+**Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics.  
 **Date:** 2026-08-31
+
+## v1.31.0 — CDR statistics; storage seconds and billable minutes
+
+«Статистика» (`/stats`, `phones:read`) sits in admin nav between Настройки and Хранение данных. Month switcher plus two summaries: SIP trunks (`PSTN_` / `Trunk_`) and platforms (`Service_` / `Platform_`). Initiating device → inbound, terminating → outbound; a call that matches several categories is counted in each. Minutes are `CEIL(CEIL(ms/1000)/60)` per call (same as XLSX). `/storage` adds **Кол-во секунд** (`SUM` of per-call `CEIL(ms/1000)`) and uses the same per-call minutes — not total seconds / 60.
 
 ## v1.30.0 — CDR month storage
 

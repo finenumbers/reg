@@ -11,6 +11,10 @@ import {
   withCurrentMonth,
   type CdrMonth,
 } from "@/modules/traffic/cdr-month";
+import {
+  billableMinutesSql,
+  billableSecondsSql,
+} from "@/modules/traffic/billable-minutes-sql";
 
 const CACHE_TTL_MS = 60_000;
 const KEY = "__reg_cdr_month_counts__";
@@ -43,38 +47,41 @@ export async function queryMonthCallCounts(): Promise<CdrMonth[]> {
   return rowsToMonths(rows);
 }
 
-type MonthStatRow = { month_key: string; calls: number; minutes: number };
+type MonthStatRow = {
+  month_key: string;
+  calls: number;
+  seconds: number;
+  minutes: number;
+};
 
-export async function queryMonthStatsWithMinutes(): Promise<
-  Array<CdrMonth & { minutes: number }>
-> {
-  const rows = await prisma.$queryRaw<MonthStatRow[]>(Prisma.sql`
+export function monthStatsWithDurationSql(): Prisma.Sql {
+  return Prisma.sql`
     SELECT
       left(cdr_day, 7) AS month_key,
       COUNT(*)::int AS calls,
-      (
-        SUM(
-          CEIL(
-            CASE
-              WHEN elapsed_time ~ '^[0-9]+([.,][0-9]+)?$'
-              THEN replace(elapsed_time, ',', '.')::numeric
-              ELSE 0
-            END / 1000
-          )
-        ) / 60
-      )::bigint AS minutes
+      (SUM(${billableSecondsSql()}))::bigint AS seconds,
+      (SUM(${billableMinutesSql()}))::bigint AS minutes
     FROM cdr_records
     WHERE cdr_day >= '2000-01-01' AND cdr_day < '2101-01-01'
     GROUP BY 1
     ORDER BY 1 DESC
-  `);
-  const out: Array<CdrMonth & { minutes: number }> = [];
+  `;
+}
+
+export async function queryMonthStatsWithMinutes(): Promise<
+  Array<CdrMonth & { seconds: number; minutes: number }>
+> {
+  const rows = await prisma.$queryRaw<MonthStatRow[]>(
+    monthStatsWithDurationSql(),
+  );
+  const out: Array<CdrMonth & { seconds: number; minutes: number }> = [];
   for (const row of rows) {
     const parsed = parseMonthKey(row.month_key);
     if (!parsed) continue;
     out.push({
       ...parsed,
       count: row.calls,
+      seconds: Number(row.seconds) || 0,
       minutes: Number(row.minutes) || 0,
     });
   }

@@ -131,6 +131,7 @@ export function StorageView({ initial }: Props) {
 
       <p className="text-sm text-muted-foreground">
         Всего {formatCount(data.totalCalls)} звонков ·{" "}
+        {formatCount(data.totalSeconds)} сек ·{" "}
         {formatCount(data.totalMinutes)} мин · таблицы CDR{" "}
         {formatBytes(data.tableBytes)}
       </p>
@@ -141,6 +142,7 @@ export function StorageView({ initial }: Props) {
             <TableRow>
               <TableHead>Месяц</TableHead>
               <TableHead className="text-right">Кол-во звонков</TableHead>
+              <TableHead className="text-right">Кол-во секунд</TableHead>
               <TableHead className="text-right">Кол-во минут</TableHead>
               <TableHead className="text-right">Удаление</TableHead>
             </TableRow>
@@ -151,6 +153,9 @@ export function StorageView({ initial }: Props) {
                 <TableCell>{monthLabel(row)}</TableCell>
                 <TableCell className="text-right">
                   {formatCount(row.calls)}
+                </TableCell>
+                <TableCell className="text-right">
+                  {formatCount(row.seconds)}
                 </TableCell>
                 <TableCell className="text-right">
                   {formatCount(row.minutes)}
@@ -190,6 +195,7 @@ export function StorageView({ initial }: Props) {
               </h2>
               <p className="mt-2 text-sm text-muted-foreground">
                 Будут безвозвратно удалены {formatCount(confirm.calls)} звонков (
+                {formatCount(confirm.seconds)} сек,{" "}
                 {formatCount(confirm.minutes)} мин) и связанные ссылки
                 VoIPmonitor. Введите ключ месяца{" "}
                 <span className="font-mono">{confirm.key}</span>.
