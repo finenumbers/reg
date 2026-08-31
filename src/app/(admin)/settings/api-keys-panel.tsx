@@ -151,7 +151,7 @@ export function ApiKeysPanel() {
         </Button>
       </div>
 
-      <div className="overflow-x-auto rounded-md border">
+      <div className="overflow-x-auto">
         <table className="w-full text-left text-sm">
           <thead className="border-b bg-muted/40 text-muted-foreground">
             <tr>

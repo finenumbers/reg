@@ -1,7 +1,11 @@
-# Current Phase — production (v1.34.0)
+# Current Phase — production (v1.35.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics.  
 **Date:** 2026-09-01
+
+## v1.35.0 — Grouped SIP stats; minutes highlight; table chrome
+
+«Внешняя нумерация» uses the same two-level header as ТфОП (Входящий/Исходящий трафик, Входящий паркинг, Фантомный трафик × Звонки/Минуты) **without Межгород**. Minutes on both SIP tables are bold; «Итого» minute cells are bright yellow. Data tables (stats, storage, API keys) have no `rounded-md border` card — same chrome as CDR traffic.
 
 ## v1.34.0 — Join Local/LDC PSTN rows on ТфОП stats
 

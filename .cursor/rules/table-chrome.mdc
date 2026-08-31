@@ -1,0 +1,24 @@
+---
+description: Data tables must not use card chrome (rounded-* border wrappers)
+alwaysApply: true
+---
+
+# Table chrome
+
+Never wrap a data table (`Table` from `@/components/ui/table`, or a raw `<table>`) in `rounded-md border` or any `rounded-* border` card. The table sits on the page background.
+
+Scroll the table with `overflow-auto` or `TableInfiniteBody` only.
+
+```tsx
+// BAD
+<div className="overflow-auto rounded-md border">
+  <Table>...</Table>
+</div>
+
+// GOOD
+<div className="overflow-auto">
+  <Table>...</Table>
+</div>
+```
+
+This rule is about table wrappers only. Alerts, dialogs, and settings field cards may still use `rounded-md border`.

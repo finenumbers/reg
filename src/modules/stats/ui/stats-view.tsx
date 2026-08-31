@@ -13,7 +13,9 @@ import {
 import { formatCount } from "@/lib/format-count";
 import { fetchStatsSnapshot } from "@/modules/stats/api-client";
 import type {
+  PstnJoinRow,
   PstnJoinTable,
+  StatsDeviceRow,
   StatsSnapshot,
   StatsTable,
 } from "@/modules/stats/service";
@@ -21,6 +23,21 @@ import { parseMonthKey } from "@/modules/traffic/cdr-month";
 import { formatMonthOption } from "@/modules/traffic/month-labels";
 
 type Props = { initial: StatsSnapshot };
+
+const SIP_GROUPS = [
+  "Входящий трафик",
+  "Исходящий трафик",
+  "Входящий паркинг",
+  "Фантомный трафик",
+] as const;
+
+const PSTN_GROUPS = [...SIP_GROUPS, "Межгород"] as const;
+
+const MINUTES_CELL = "text-right font-bold";
+const MINUTES_TOTAL_CELL =
+  "text-right font-bold bg-yellow-300 text-black hover:bg-yellow-300";
+
+type MetricPair = { calls: number; minutes: number };
 
 export function StatsView({ initial }: Props) {
   const [data, setData] = useState(initial);
@@ -97,12 +114,25 @@ export function StatsView({ initial }: Props) {
       ) : null}
 
       <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-auto">
-        <PstnTfopTable table={data.pstnTfop} />
-        <StatsSummaryTable
+        <GroupedMetricTable
+          title="Присоединения к ТфОП"
+          nameHeader="Присоединение"
+          groupLabels={PSTN_GROUPS}
+          rows={data.pstnTfop.rows.map((row) => ({
+            name: row.name,
+            pairs: metricPairs(row, true),
+          }))}
+          totals={metricPairs(data.pstnTfop.totals, true)}
+        />
+        <GroupedMetricTable
           title="Внешняя нумерация"
           nameHeader="SIP-транк"
-          table={data.trunk}
-          showParking
+          groupLabels={SIP_GROUPS}
+          rows={data.trunk.rows.map((row) => ({
+            name: row.name,
+            pairs: metricPairs(row, false),
+          }))}
+          totals={metricPairs(data.trunk.totals, false)}
         />
         <StatsSummaryTable
           title="Технологические платформы"
@@ -120,27 +150,47 @@ export function StatsView({ initial }: Props) {
   );
 }
 
-const PSTN_GROUPS = [
-  "Входящие",
-  "Исходящие",
-  "Входящий паркинг",
-  "Фантомный трафик",
-  "Межгород",
-] as const;
+function metricPairs(
+  row: StatsDeviceRow | PstnJoinRow | PstnJoinTable["totals"] | StatsTable["totals"],
+  includeLdc: boolean,
+): MetricPair[] {
+  const pairs: MetricPair[] = [
+    { calls: row.inCalls, minutes: row.inMinutes },
+    { calls: row.outCalls, minutes: row.outMinutes },
+    { calls: row.parkingCalls, minutes: row.parkingMinutes },
+    { calls: row.phantomCalls, minutes: row.phantomMinutes },
+  ];
+  if (includeLdc && "ldcCalls" in row) {
+    pairs.push({ calls: row.ldcCalls, minutes: row.ldcMinutes });
+  }
+  return pairs;
+}
 
-function PstnTfopTable({ table }: { table: PstnJoinTable }) {
-  const colSpan = 11;
+function GroupedMetricTable({
+  title,
+  nameHeader,
+  groupLabels,
+  rows,
+  totals,
+}: {
+  title: string;
+  nameHeader: string;
+  groupLabels: readonly string[];
+  rows: { name: string; pairs: MetricPair[] }[];
+  totals: MetricPair[];
+}) {
+  const colSpan = 1 + groupLabels.length * 2;
   return (
     <section className="space-y-2">
-      <h2 className="text-base font-semibold">Присоединения к ТфОП</h2>
-      <div className="overflow-auto rounded-md border">
+      <h2 className="text-base font-semibold">{title}</h2>
+      <div className="overflow-auto">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead rowSpan={2} className="h-auto align-middle">
-                Присоединение
+                {nameHeader}
               </TableHead>
-              {PSTN_GROUPS.map((label) => (
+              {groupLabels.map((label) => (
                 <TableHead
                   key={label}
                   colSpan={2}
@@ -151,7 +201,7 @@ function PstnTfopTable({ table }: { table: PstnJoinTable }) {
               ))}
             </TableRow>
             <TableRow>
-              {PSTN_GROUPS.flatMap((group) => [
+              {groupLabels.flatMap((group) => [
                 <TableHead
                   key={`${group}-calls`}
                   className="top-8 text-right"
@@ -168,7 +218,7 @@ function PstnTfopTable({ table }: { table: PstnJoinTable }) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {table.rows.length === 0 ? (
+            {rows.length === 0 ? (
               <TableRow>
                 <TableCell
                   colSpan={colSpan}
@@ -178,77 +228,30 @@ function PstnTfopTable({ table }: { table: PstnJoinTable }) {
                 </TableCell>
               </TableRow>
             ) : (
-              table.rows.map((row) => (
+              rows.map((row) => (
                 <TableRow key={row.name}>
                   <TableCell>{row.name}</TableCell>
-                  <TableCell className="text-right">
-                    {formatStatCount(row.inCalls)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {formatStatCount(row.inMinutes)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {formatStatCount(row.outCalls)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {formatStatCount(row.outMinutes)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {formatStatCount(row.parkingCalls)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {formatStatCount(row.parkingMinutes)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {formatStatCount(row.phantomCalls)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {formatStatCount(row.phantomMinutes)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {formatStatCount(row.ldcCalls)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {formatStatCount(row.ldcMinutes)}
-                  </TableCell>
+                  {row.pairs.map((pair, i) => (
+                    <MetricCells
+                      key={`${row.name}-${groupLabels[i] ?? i}`}
+                      pair={pair}
+                    />
+                  ))}
                 </TableRow>
               ))
             )}
           </TableBody>
-          {table.rows.length > 0 ? (
-            <TableFooter>
+          {rows.length > 0 ? (
+            <TableFooter className="bg-transparent">
               <TableRow>
                 <TableCell>Итого</TableCell>
-                <TableCell className="text-right">
-                  {formatStatCount(table.totals.inCalls)}
-                </TableCell>
-                <TableCell className="text-right">
-                  {formatStatCount(table.totals.inMinutes)}
-                </TableCell>
-                <TableCell className="text-right">
-                  {formatStatCount(table.totals.outCalls)}
-                </TableCell>
-                <TableCell className="text-right">
-                  {formatStatCount(table.totals.outMinutes)}
-                </TableCell>
-                <TableCell className="text-right">
-                  {formatStatCount(table.totals.parkingCalls)}
-                </TableCell>
-                <TableCell className="text-right">
-                  {formatStatCount(table.totals.parkingMinutes)}
-                </TableCell>
-                <TableCell className="text-right">
-                  {formatStatCount(table.totals.phantomCalls)}
-                </TableCell>
-                <TableCell className="text-right">
-                  {formatStatCount(table.totals.phantomMinutes)}
-                </TableCell>
-                <TableCell className="text-right">
-                  {formatStatCount(table.totals.ldcCalls)}
-                </TableCell>
-                <TableCell className="text-right">
-                  {formatStatCount(table.totals.ldcMinutes)}
-                </TableCell>
+                {totals.map((pair, i) => (
+                  <MetricCells
+                    key={`total-${groupLabels[i] ?? i}`}
+                    pair={pair}
+                    total
+                  />
+                ))}
               </TableRow>
             </TableFooter>
           ) : null}
@@ -258,22 +261,38 @@ function PstnTfopTable({ table }: { table: PstnJoinTable }) {
   );
 }
 
+function MetricCells({
+  pair,
+  total = false,
+}: {
+  pair: MetricPair;
+  total?: boolean;
+}) {
+  return (
+    <>
+      <TableCell className="text-right">
+        {formatStatCount(pair.calls)}
+      </TableCell>
+      <TableCell className={total ? MINUTES_TOTAL_CELL : MINUTES_CELL}>
+        {formatStatCount(pair.minutes)}
+      </TableCell>
+    </>
+  );
+}
+
 function StatsSummaryTable({
   title,
   nameHeader,
   table,
-  showParking = false,
 }: {
   title: string;
   nameHeader: string;
   table: StatsTable;
-  showParking?: boolean;
 }) {
-  const colSpan = showParking ? 9 : 5;
   return (
     <section className="space-y-2">
       <h2 className="text-base font-semibold">{title}</h2>
-      <div className="overflow-auto rounded-md border">
+      <div className="overflow-auto">
         <Table>
           <TableHeader>
             <TableRow>
@@ -282,23 +301,12 @@ function StatsSummaryTable({
               <TableHead className="text-right">Входящие минуты</TableHead>
               <TableHead className="text-right">Исходящие звонки</TableHead>
               <TableHead className="text-right">Исходящие минуты</TableHead>
-              {showParking ? (
-                <>
-                  <TableHead className="text-right">Входящий паркинг</TableHead>
-                  <TableHead className="text-right">Минуты паркинга</TableHead>
-                  <TableHead className="text-right">Фантомный трафик</TableHead>
-                  <TableHead className="text-right">Минуты фантома</TableHead>
-                </>
-              ) : null}
             </TableRow>
           </TableHeader>
           <TableBody>
             {table.rows.length === 0 ? (
               <TableRow>
-                <TableCell
-                  colSpan={colSpan}
-                  className="text-muted-foreground"
-                >
+                <TableCell colSpan={5} className="text-muted-foreground">
                   Нет данных за выбранный месяц
                 </TableCell>
               </TableRow>
@@ -318,28 +326,12 @@ function StatsSummaryTable({
                   <TableCell className="text-right">
                     {formatStatCount(row.outMinutes)}
                   </TableCell>
-                  {showParking ? (
-                    <>
-                      <TableCell className="text-right">
-                        {formatStatCount(row.parkingCalls)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {formatStatCount(row.parkingMinutes)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {formatStatCount(row.phantomCalls)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {formatStatCount(row.phantomMinutes)}
-                      </TableCell>
-                    </>
-                  ) : null}
                 </TableRow>
               ))
             )}
           </TableBody>
           {table.rows.length > 0 ? (
-            <TableFooter>
+            <TableFooter className="bg-transparent">
               <TableRow>
                 <TableCell>Итого</TableCell>
                 <TableCell className="text-right">
@@ -354,22 +346,6 @@ function StatsSummaryTable({
                 <TableCell className="text-right">
                   {formatStatCount(table.totals.outMinutes)}
                 </TableCell>
-                {showParking ? (
-                  <>
-                    <TableCell className="text-right">
-                      {formatStatCount(table.totals.parkingCalls)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {formatStatCount(table.totals.parkingMinutes)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {formatStatCount(table.totals.phantomCalls)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {formatStatCount(table.totals.phantomMinutes)}
-                    </TableCell>
-                  </>
-                ) : null}
               </TableRow>
             </TableFooter>
           ) : null}

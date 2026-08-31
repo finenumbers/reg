@@ -136,7 +136,7 @@ export function StorageView({ initial }: Props) {
         {formatBytes(data.tableBytes)}
       </p>
 
-      <div className="min-h-0 flex-1 overflow-auto rounded-md border">
+      <div className="min-h-0 flex-1 overflow-auto">
         <Table>
           <TableHeader>
             <TableRow>
