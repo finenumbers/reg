@@ -3,7 +3,7 @@ import { requireApiPermission } from "@/modules/auth/guards";
 import { listStatsSnapshot } from "@/modules/stats/service";
 
 /**
- * GET /api/stats — monthly PSTN/Trunk/platform CDR summary (phones:read).
+ * GET /api/stats — monthly PSTN/Trunk/LDC/platform CDR summary (phones:read).
  */
 export async function GET(request: Request) {
   const gate = await requireApiPermission("phones:read");

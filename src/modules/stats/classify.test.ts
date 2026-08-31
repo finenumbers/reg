@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
+import { MISSING_BILLING_LABEL } from "@/modules/enrich/types";
 import {
   classifyCallLegs,
   classifyDevice,
   classifySipTrunk,
+  isIncomingParking,
+  isParkingPhantom,
   isPlatform,
   isSipTrunk,
+  PARKING_DST,
 } from "@/modules/stats/classify";
 
 describe("isSipTrunk / isPlatform", () => {
@@ -49,6 +53,33 @@ describe("classifySipTrunk", () => {
   it("is case-sensitive and ignores non-SIP names", () => {
     expect(classifySipTrunk("pstn_Sochi_MTS_LDC")).toBeNull();
     expect(classifySipTrunk("Service_IVR")).toBeNull();
+  });
+});
+
+describe("isIncomingParking / isParkingPhantom", () => {
+  it("counts SIP trunk to exact Service_Parking", () => {
+    expect(isIncomingParking("PSTN_Sochi_MTS_Local", PARKING_DST)).toBe(true);
+    expect(isIncomingParking("Trunk_MSK", PARKING_DST)).toBe(true);
+    expect(isIncomingParking("PSTN_Sochi_MTS_LDC", PARKING_DST)).toBe(true);
+  });
+
+  it("does not count platform or non-exact parking dst", () => {
+    expect(isIncomingParking("Service_IVR", PARKING_DST)).toBe(false);
+    expect(isIncomingParking("PSTN_A", "Service_Parking_1")).toBe(false);
+    expect(isIncomingParking("PSTN_A", "Service_IVR")).toBe(false);
+  });
+
+  it("marks phantom only when both stored sides are billing misses", () => {
+    expect(
+      isParkingPhantom("PSTN_A", PARKING_DST, MISSING_BILLING_LABEL, MISSING_BILLING_LABEL),
+    ).toBe(true);
+    expect(isParkingPhantom("PSTN_A", PARKING_DST, MISSING_BILLING_LABEL, "")).toBe(
+      false,
+    );
+    expect(isParkingPhantom("PSTN_A", PARKING_DST, "", "")).toBe(false);
+    expect(
+      isParkingPhantom("Service_IVR", PARKING_DST, MISSING_BILLING_LABEL, MISSING_BILLING_LABEL),
+    ).toBe(false);
   });
 });
 

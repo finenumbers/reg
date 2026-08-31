@@ -1,5 +1,8 @@
+import { MISSING_BILLING_LABEL } from "@/modules/enrich/types";
+
 export const SIP_TRUNK_PREFIXES = ["PSTN_", "Trunk_"] as const;
 export const PLATFORM_PREFIXES = ["Service_", "Platform_"] as const;
+export const PARKING_DST = "Service_Parking";
 
 export const STATS_DEVICE_PREFIXES = [
   ...SIP_TRUNK_PREFIXES,
@@ -37,6 +40,25 @@ export function classifySipTrunk(name: string): SipTrunkGroup | null {
     return name.endsWith("_LDC") ? "pstnLdc" : "pstnTfop";
   }
   return null;
+}
+
+/** Initiating SIP trunk to exact Service_Parking. Platforms as src do not count. */
+export function isIncomingParking(srcName: string, dstName: string): boolean {
+  return isSipTrunk(srcName) && dstName === PARKING_DST;
+}
+
+/** Incoming parking plus both stored sides «Нет в биллинге». */
+export function isParkingPhantom(
+  srcName: string,
+  dstName: string,
+  sideA: string,
+  sideB: string,
+): boolean {
+  return (
+    isIncomingParking(srcName, dstName) &&
+    sideA === MISSING_BILLING_LABEL &&
+    sideB === MISSING_BILLING_LABEL
+  );
 }
 
 /** One CDR may yield 0–2 legs; each matching device is counted separately. */

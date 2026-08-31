@@ -17,6 +17,10 @@ export type StatsDeviceRow = {
   inMinutes: number;
   outCalls: number;
   outMinutes: number;
+  parkingCalls: number;
+  parkingMinutes: number;
+  phantomCalls: number;
+  phantomMinutes: number;
 };
 
 export type StatsTableTotals = Omit<StatsDeviceRow, "name">;
@@ -42,6 +46,10 @@ type DeviceStatRow = {
   in_minutes: number;
   out_calls: number;
   out_minutes: number;
+  parking_calls: number;
+  parking_minutes: number;
+  phantom_calls: number;
+  phantom_minutes: number;
 };
 
 const EMPTY_TOTALS: StatsTableTotals = {
@@ -49,6 +57,10 @@ const EMPTY_TOTALS: StatsTableTotals = {
   inMinutes: 0,
   outCalls: 0,
   outMinutes: 0,
+  parkingCalls: 0,
+  parkingMinutes: 0,
+  phantomCalls: 0,
+  phantomMinutes: 0,
 };
 
 function emptyTable(): StatsTable {
@@ -66,6 +78,10 @@ function toDeviceRow(row: DeviceStatRow): StatsDeviceRow {
     inMinutes: asInt(row.in_minutes),
     outCalls: asInt(row.out_calls),
     outMinutes: asInt(row.out_minutes),
+    parkingCalls: asInt(row.parking_calls),
+    parkingMinutes: asInt(row.parking_minutes),
+    phantomCalls: asInt(row.phantom_calls),
+    phantomMinutes: asInt(row.phantom_minutes),
   };
 }
 
@@ -76,6 +92,10 @@ function buildTable(rows: StatsDeviceRow[]): StatsTable {
       inMinutes: acc.inMinutes + row.inMinutes,
       outCalls: acc.outCalls + row.outCalls,
       outMinutes: acc.outMinutes + row.outMinutes,
+      parkingCalls: acc.parkingCalls + row.parkingCalls,
+      parkingMinutes: acc.parkingMinutes + row.parkingMinutes,
+      phantomCalls: acc.phantomCalls + row.phantomCalls,
+      phantomMinutes: acc.phantomMinutes + row.phantomMinutes,
     }),
     { ...EMPTY_TOTALS },
   );

@@ -100,16 +100,18 @@ export function StatsView({ initial }: Props) {
           title="Присоединения к ТфОП"
           nameHeader="SIP-транк"
           table={data.pstnTfop}
-        />
-        <StatsSummaryTable
-          title="Междугородняя и международная связь"
-          nameHeader="SIP-транк"
-          table={data.pstnLdc}
+          showParking
         />
         <StatsSummaryTable
           title="Внешняя нумерация"
           nameHeader="SIP-транк"
           table={data.trunk}
+          showParking
+        />
+        <StatsSummaryTable
+          title="Междугородняя и международная связь"
+          nameHeader="SIP-транк"
+          table={data.pstnLdc}
         />
         <StatsSummaryTable
           title="Технологические платформы"
@@ -129,11 +131,14 @@ function StatsSummaryTable({
   title,
   nameHeader,
   table,
+  showParking = false,
 }: {
   title: string;
   nameHeader: string;
   table: StatsTable;
+  showParking?: boolean;
 }) {
+  const colSpan = showParking ? 9 : 5;
   return (
     <section className="space-y-2">
       <h2 className="text-base font-semibold">{title}</h2>
@@ -146,13 +151,21 @@ function StatsSummaryTable({
               <TableHead className="text-right">Входящие минуты</TableHead>
               <TableHead className="text-right">Исходящие звонки</TableHead>
               <TableHead className="text-right">Исходящие минуты</TableHead>
+              {showParking ? (
+                <>
+                  <TableHead className="text-right">Входящий паркинг</TableHead>
+                  <TableHead className="text-right">Минуты паркинга</TableHead>
+                  <TableHead className="text-right">Фантомный трафик</TableHead>
+                  <TableHead className="text-right">Минуты фантома</TableHead>
+                </>
+              ) : null}
             </TableRow>
           </TableHeader>
           <TableBody>
             {table.rows.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={5}
+                  colSpan={colSpan}
                   className="text-muted-foreground"
                 >
                   Нет данных за выбранный месяц
@@ -174,6 +187,22 @@ function StatsSummaryTable({
                   <TableCell className="text-right">
                     {formatStatCount(row.outMinutes)}
                   </TableCell>
+                  {showParking ? (
+                    <>
+                      <TableCell className="text-right">
+                        {formatStatCount(row.parkingCalls)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {formatStatCount(row.parkingMinutes)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {formatStatCount(row.phantomCalls)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {formatStatCount(row.phantomMinutes)}
+                      </TableCell>
+                    </>
+                  ) : null}
                 </TableRow>
               ))
             )}
@@ -194,6 +223,22 @@ function StatsSummaryTable({
                 <TableCell className="text-right">
                   {formatStatCount(table.totals.outMinutes)}
                 </TableCell>
+                {showParking ? (
+                  <>
+                    <TableCell className="text-right">
+                      {formatStatCount(table.totals.parkingCalls)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {formatStatCount(table.totals.parkingMinutes)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {formatStatCount(table.totals.phantomCalls)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {formatStatCount(table.totals.phantomMinutes)}
+                    </TableCell>
+                  </>
+                ) : null}
               </TableRow>
             </TableFooter>
           ) : null}

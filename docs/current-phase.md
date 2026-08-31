@@ -1,7 +1,11 @@
-# Current Phase — production (v1.32.0)
+# Current Phase — production (v1.33.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics.  
 **Date:** 2026-09-01
+
+## v1.33.0 — Incoming parking and phantom columns on SIP stats
+
+«Статистика» table order: ТфОП, внешняя нумерация, LDC, platforms. ТфОП and внешняя нумерация add **Входящий паркинг** / **Минуты паркинга** / **Фантомный трафик** / **Минуты фантома**. Parking = initiating SIP trunk (`PSTN_` / `Trunk_`) and terminating `Service_Parking`. Phantom = parking plus both stored sides «Нет в биллинге» (not the `/traffic` phantom filter). Empty cells stay «-».
 
 ## v1.32.0 — Split SIP stats tables; dash for empty counts
 

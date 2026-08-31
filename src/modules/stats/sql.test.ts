@@ -1,7 +1,12 @@
 import { Prisma } from "@/generated/prisma/client";
 import { describe, expect, it } from "vitest";
+import { MISSING_BILLING_LABEL } from "@/modules/enrich/types";
+import {
+  PARKING_DST,
+  SIP_TRUNK_PREFIXES,
+  STATS_DEVICE_PREFIXES,
+} from "@/modules/stats/classify";
 import { deviceMonthStatsSql } from "@/modules/stats/sql";
-import { SIP_TRUNK_PREFIXES, STATS_DEVICE_PREFIXES } from "@/modules/stats/classify";
 
 function flattenSql(sql: Prisma.Sql): { text: string; values: unknown[] } {
   const text: string[] = [];
@@ -50,5 +55,17 @@ describe("deviceMonthStatsSql", () => {
     expect(text).toContain("CEIL(");
     expect(text.split("CEIL(").length).toBeGreaterThan(2);
     expect(text).not.toMatch(/SUM\s*\([^)]+\)\s*\/\s*60/);
+  });
+
+  it("counts parking and phantom only on the inbound SIP leg", () => {
+    const { text, values } = flattenSql(deviceMonthStatsSql(2026, 8));
+    expect(values).toContain(PARKING_DST);
+    expect(values).toContain(MISSING_BILLING_LABEL);
+    expect(text).toContain("side_a");
+    expect(text).toContain("side_b");
+    expect(text).toContain("parking_calls");
+    expect(text).toContain("phantom_calls");
+    expect(text).toMatch(/0 AS parking/);
+    expect(text).toMatch(/0 AS phantom/);
   });
 });

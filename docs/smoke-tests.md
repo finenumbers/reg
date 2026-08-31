@@ -41,7 +41,7 @@ Complete after first production deploy and after major upgrades:
 7. **Auto-poll off by default** — Settings `regsPollEnabled=false`; schedule jobs do not enqueue; manual poll still works. Status line shows planner active / poll disabled.
 8. **Hardening** — mutating API from another origin fails CSRF; repeated login attempts rate-limit.
 9. **Storage (admin)** — `/storage` shows month table (calls / seconds / minutes / delete). Minutes are the sum of per-call ceiled minutes, not total seconds / 60. Delete is only on the oldest complete month; confirm by typing `YYYY-MM`. Operator has no nav item; opening `/storage` as operator → `/forbidden`.
-10. **Statistics** — `/stats` (admin and operator, `phones:read`) month switcher plus three SIP summaries (ТфОП = `PSTN_` except `_LDC`; long-distance = `PSTN_*_LDC`; external numbering = `Trunk_`) and platforms. Empty call/minute cells show «-». A call that matches several categories is counted in each.
+10. **Statistics** — `/stats` (admin and operator, `phones:read`) month switcher; table order ТфОП, внешняя нумерация (`Trunk_`), LDC, platforms. ТфОП and внешняя нумерация show incoming parking (`Service_Parking`) and phantom (parking + both sides «Нет в биллинге») call/minute columns. Empty cells show «-». A call that matches several categories is counted in each.
 
 ## Softswitch (outside the app container)
 
