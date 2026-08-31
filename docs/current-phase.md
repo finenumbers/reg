@@ -1,7 +1,11 @@
-# Current Phase — production (v1.29.0)
+# Current Phase — production (v1.29.1)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher.  
 **Date:** 2026-08-31
+
+## v1.29.1 — GHCR typecheck
+
+Job runtime reads `replay` only after narrowing the processor union so `next build` on GHCR succeeds.
 
 ## v1.29.0 — CDR side labels follow the phones catalog
 

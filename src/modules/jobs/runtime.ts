@@ -139,7 +139,12 @@ export class PQueueJobRuntime implements JobRuntime {
         ) {
           requestCdrSidesRefresh("schedule");
         }
-        if (input.actionCode === "cdr.sides.refresh" && result?.replay) {
+        if (
+          input.actionCode === "cdr.sides.refresh" &&
+          result &&
+          "replay" in result &&
+          result.replay
+        ) {
           requestCdrSidesRefresh("schedule");
         }
       },
