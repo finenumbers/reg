@@ -167,7 +167,7 @@ Reg/
 - `/api/jobs/*`
 - `/api/audit/*`
 - `/api/storage`, `/api/storage/purge` — admin CDR month inventory / oldest-complete-month delete
-- `/api/stats` — monthly SIP trunk / platform CDR summary (`phones:read`)
+- `/api/stats` — monthly CDR summary: ТфОП / LDC / Trunk_ / platforms (`phones:read`)
 - `/api/healthz`, `/api/readyz`
 
 Ни один endpoint не принимает поля `command`, `scriptPath`, `remoteArgs` из клиента.

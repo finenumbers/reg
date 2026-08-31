@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   classifyCallLegs,
   classifyDevice,
+  classifySipTrunk,
   isPlatform,
   isSipTrunk,
 } from "@/modules/stats/classify";
@@ -26,6 +27,28 @@ describe("isSipTrunk / isPlatform", () => {
     expect(isSipTrunk("Service_IVR")).toBe(false);
     expect(isPlatform("PSTN_A")).toBe(false);
     expect(classifyDevice("Phone_101")).toBeNull();
+  });
+});
+
+describe("classifySipTrunk", () => {
+  it("puts PSTN Local and unsuffixed names in ТфОП", () => {
+    expect(classifySipTrunk("PSTN_Sochi_MTS_Local")).toBe("pstnTfop");
+    expect(classifySipTrunk("PSTN_A")).toBe("pstnTfop");
+  });
+
+  it("puts PSTN _LDC names in long-distance", () => {
+    expect(classifySipTrunk("PSTN_Sochi_MTS_LDC")).toBe("pstnLdc");
+  });
+
+  it("puts every Trunk_ name in external numbering", () => {
+    expect(classifySipTrunk("Trunk_MSK")).toBe("trunk");
+    expect(classifySipTrunk("Trunk_Sochi_Local")).toBe("trunk");
+    expect(classifySipTrunk("Trunk_Sochi_LDC")).toBe("trunk");
+  });
+
+  it("is case-sensitive and ignores non-SIP names", () => {
+    expect(classifySipTrunk("pstn_Sochi_MTS_LDC")).toBeNull();
+    expect(classifySipTrunk("Service_IVR")).toBeNull();
   });
 });
 

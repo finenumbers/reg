@@ -97,9 +97,19 @@ export function StatsView({ initial }: Props) {
 
       <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-auto">
         <StatsSummaryTable
-          title="SIP-транки"
+          title="Присоединения к ТфОП"
           nameHeader="SIP-транк"
-          table={data.sip}
+          table={data.pstnTfop}
+        />
+        <StatsSummaryTable
+          title="Междугородняя и международная связь"
+          nameHeader="SIP-транк"
+          table={data.pstnLdc}
+        />
+        <StatsSummaryTable
+          title="Внешняя нумерация"
+          nameHeader="SIP-транк"
+          table={data.trunk}
         />
         <StatsSummaryTable
           title="Технологические платформы"
@@ -153,16 +163,16 @@ function StatsSummaryTable({
                 <TableRow key={row.name}>
                   <TableCell>{row.name}</TableCell>
                   <TableCell className="text-right">
-                    {formatCount(row.inCalls)}
+                    {formatStatCount(row.inCalls)}
                   </TableCell>
                   <TableCell className="text-right">
-                    {formatCount(row.inMinutes)}
+                    {formatStatCount(row.inMinutes)}
                   </TableCell>
                   <TableCell className="text-right">
-                    {formatCount(row.outCalls)}
+                    {formatStatCount(row.outCalls)}
                   </TableCell>
                   <TableCell className="text-right">
-                    {formatCount(row.outMinutes)}
+                    {formatStatCount(row.outMinutes)}
                   </TableCell>
                 </TableRow>
               ))
@@ -173,16 +183,16 @@ function StatsSummaryTable({
               <TableRow>
                 <TableCell>Итого</TableCell>
                 <TableCell className="text-right">
-                  {formatCount(table.totals.inCalls)}
+                  {formatStatCount(table.totals.inCalls)}
                 </TableCell>
                 <TableCell className="text-right">
-                  {formatCount(table.totals.inMinutes)}
+                  {formatStatCount(table.totals.inMinutes)}
                 </TableCell>
                 <TableCell className="text-right">
-                  {formatCount(table.totals.outCalls)}
+                  {formatStatCount(table.totals.outCalls)}
                 </TableCell>
                 <TableCell className="text-right">
-                  {formatCount(table.totals.outMinutes)}
+                  {formatStatCount(table.totals.outMinutes)}
                 </TableCell>
               </TableRow>
             </TableFooter>
@@ -191,4 +201,8 @@ function StatsSummaryTable({
       </div>
     </section>
   );
+}
+
+function formatStatCount(n: number): string {
+  return n === 0 ? "-" : formatCount(n);
 }

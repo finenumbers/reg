@@ -8,6 +8,8 @@ export const STATS_DEVICE_PREFIXES = [
 
 export type StatsKind = "sip" | "platform";
 
+export type SipTrunkGroup = "pstnTfop" | "pstnLdc" | "trunk";
+
 export type ClassifiedCallLeg = {
   kind: StatsKind;
   name: string;
@@ -25,6 +27,15 @@ export function isPlatform(name: string): boolean {
 export function classifyDevice(name: string): StatsKind | null {
   if (isSipTrunk(name)) return "sip";
   if (isPlatform(name)) return "platform";
+  return null;
+}
+
+/** PSTN_*_LDC → long-distance; other PSTN_* → ТфОП; Trunk_* → external numbering. */
+export function classifySipTrunk(name: string): SipTrunkGroup | null {
+  if (name.startsWith("Trunk_")) return "trunk";
+  if (name.startsWith("PSTN_")) {
+    return name.endsWith("_LDC") ? "pstnLdc" : "pstnTfop";
+  }
   return null;
 }
 

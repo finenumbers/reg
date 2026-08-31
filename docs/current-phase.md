@@ -1,7 +1,11 @@
-# Current Phase — production (v1.31.0)
+# Current Phase — production (v1.32.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics.  
-**Date:** 2026-08-31
+**Date:** 2026-09-01
+
+## v1.32.0 — Split SIP stats tables; dash for empty counts
+
+«Статистика» splits SIP trunks into **Присоединения к ТфОП** (`PSTN_*` except `_LDC`, including `_Local` and unsuffixed), **Междугородняя и международная связь** (`PSTN_*_LDC`), and **Внешняя нумерация** (`Trunk_*`). Empty call/minute cells (including totals) show «-», not `0`. Platforms table is unchanged.
 
 ## v1.31.0 — CDR statistics; storage seconds and billable minutes
 

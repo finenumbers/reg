@@ -1,5 +1,9 @@
 import { prisma } from "@/lib/db";
-import type { StatsKind } from "@/modules/stats/classify";
+import {
+  classifySipTrunk,
+  type SipTrunkGroup,
+  type StatsKind,
+} from "@/modules/stats/classify";
 import { deviceMonthStatsSql } from "@/modules/stats/sql";
 import {
   resolveMonthKey,
@@ -25,7 +29,9 @@ export type StatsTable = {
 export type StatsSnapshot = {
   month: string;
   months: CdrMonth[];
-  sip: StatsTable;
+  pstnTfop: StatsTable;
+  pstnLdc: StatsTable;
+  trunk: StatsTable;
   platform: StatsTable;
 };
 
@@ -83,19 +89,35 @@ export async function listStatsSnapshot(monthRaw?: string): Promise<StatsSnapsho
     prisma.$queryRaw<DeviceStatRow[]>(deviceMonthStatsSql(month.year, month.month)),
   ]);
 
-  const sipRows: StatsDeviceRow[] = [];
-  const platformRows: StatsDeviceRow[] = [];
+  const buckets: Record<SipTrunkGroup | "platform", StatsDeviceRow[]> = {
+    pstnTfop: [],
+    pstnLdc: [],
+    trunk: [],
+    platform: [],
+  };
   for (const row of raw) {
     const item = toDeviceRow(row);
     const kind = row.kind as StatsKind;
-    if (kind === "sip") sipRows.push(item);
-    else if (kind === "platform") platformRows.push(item);
+    if (kind === "platform") {
+      buckets.platform.push(item);
+      continue;
+    }
+    if (kind === "sip") {
+      const group = classifySipTrunk(item.name);
+      if (group) buckets[group].push(item);
+    }
   }
 
   return {
     month: month.key,
     months,
-    sip: sipRows.length ? buildTable(sipRows) : emptyTable(),
-    platform: platformRows.length ? buildTable(platformRows) : emptyTable(),
+    pstnTfop: tableOrEmpty(buckets.pstnTfop),
+    pstnLdc: tableOrEmpty(buckets.pstnLdc),
+    trunk: tableOrEmpty(buckets.trunk),
+    platform: tableOrEmpty(buckets.platform),
   };
+}
+
+function tableOrEmpty(rows: StatsDeviceRow[]): StatsTable {
+  return rows.length ? buildTable(rows) : emptyTable();
 }
