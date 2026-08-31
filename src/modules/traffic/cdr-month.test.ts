@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   applyMonthFilter,
   currentUtcMonth,
+  deletableMonthKey,
+  monthKeyFromCdrDay,
   monthsFromCdrDateBounds,
   parseMonthKey,
   resolveMonthKey,
+  withCurrentMonth,
 } from "@/modules/traffic/cdr-month";
 
 describe("parseMonthKey", () => {
@@ -45,6 +48,43 @@ describe("applyMonthFilter", () => {
     expect(applyMonthFilter(2026, 8)).toEqual({
       cdrDate: { startsWith: "2026-08-" },
     });
+  });
+});
+
+describe("monthKeyFromCdrDay", () => {
+  it("reads YYYY-MM from Дата", () => {
+    expect(monthKeyFromCdrDay("2026-08-30")?.key).toBe("2026-08");
+  });
+});
+
+describe("deletableMonthKey", () => {
+  it("picks the oldest complete month", () => {
+    expect(
+      deletableMonthKey(
+        [
+          { key: "2026-08", count: 10 },
+          { key: "2026-07", count: 5 },
+          { key: "2026-01", count: 2 },
+        ],
+        "2026-08",
+      ),
+    ).toBe("2026-01");
+  });
+
+  it("returns null when only the current month has rows", () => {
+    expect(
+      deletableMonthKey([{ key: "2026-08", count: 10 }], "2026-08"),
+    ).toBeNull();
+  });
+});
+
+describe("withCurrentMonth", () => {
+  it("prepends the current month when missing", () => {
+    const current = { year: 2026, month: 8, key: "2026-08" };
+    expect(withCurrentMonth([{ year: 2026, month: 7, key: "2026-07", count: 3 }], current)).toEqual([
+      { ...current, count: 0 },
+      { year: 2026, month: 7, key: "2026-07", count: 3 },
+    ]);
   });
 });
 

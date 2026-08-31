@@ -54,3 +54,44 @@ export function clearPoison(filename?: string, cwd?: string): void {
   delete map[filename];
   writeMap(map, cwd);
 }
+
+export const PURGE_HOLD_PREFIX = "Отложено: идёт удаление ";
+
+export function purgeHoldMessage(month: string): string {
+  return `${PURGE_HOLD_PREFIX}${month}`;
+}
+
+export function isPurgeHoldError(error: string): boolean {
+  return error.startsWith(PURGE_HOLD_PREFIX);
+}
+
+export type InboxPoisonItem = {
+  filename: string;
+  error: string;
+  heldForPurge: boolean;
+};
+
+export function listPoisonEntries(cwd?: string): InboxPoisonItem[] {
+  const map = readMap(cwd);
+  return Object.entries(map)
+    .map(([filename, entry]) => ({
+      filename,
+      error: entry.error,
+      heldForPurge: isPurgeHoldError(entry.error),
+    }))
+    .sort((a, b) => a.filename.localeCompare(b.filename));
+}
+
+export function clearPurgeHolds(month: string, cwd?: string): number {
+  const needle = purgeHoldMessage(month);
+  const map = readMap(cwd);
+  let removed = 0;
+  for (const [filename, entry] of Object.entries(map)) {
+    if (entry.error === needle || entry.error.startsWith(`${needle}`)) {
+      delete map[filename];
+      removed += 1;
+    }
+  }
+  if (removed > 0) writeMap(map, cwd);
+  return removed;
+}

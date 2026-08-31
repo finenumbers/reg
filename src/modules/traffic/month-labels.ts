@@ -1,3 +1,5 @@
+import { formatCount } from "@/lib/format-count";
+
 const NOMINATIVE = [
   "Январь",
   "Февраль",
@@ -37,6 +39,16 @@ function monthIndex(month: number): number {
 
 export function formatMonthNominative(year: number, month: number): string {
   return `${NOMINATIVE[monthIndex(month)]} ${year} года`;
+}
+
+export function formatMonthOption(
+  year: number,
+  month: number,
+  count?: number,
+): string {
+  const name = formatMonthNominative(year, month);
+  if (count == null) return name;
+  return `${name} (${formatCount(count)})`;
 }
 
 export function formatMonthGenitive(year: number, month: number): string {

@@ -1,7 +1,11 @@
-# Current Phase — production (v1.29.1)
+# Current Phase — production (v1.30.0)
 
-**Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher.  
+**Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge.  
 **Date:** 2026-08-31
+
+## v1.30.0 — CDR month storage
+
+Admin «Хранение данных» (`/storage`, `settings:write`) lists stored CDR months (calls + minutes) and deletes only the oldest complete UTC month, one at a time (`cdr.purge.month`). Current month is never deletable. Batched `DELETE` on `cdr_date LIKE`; month dropdown counts come from a 60s cache of `GROUP BY left(cdr_day, 7)`. Import rejects rows without civil date/time; poison/hold files are listed on «Сырые данные». Purge will not start while `cdr.import` is in flight; rows of the purge target month are held in the inbox (not unlinked) until the job finishes.
 
 ## v1.29.1 — GHCR typecheck
 

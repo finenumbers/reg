@@ -35,7 +35,7 @@ import {
   parseMonthKey,
   type CdrMonth,
 } from "@/modules/traffic/cdr-month";
-import { formatMonthNominative } from "@/modules/traffic/month-labels";
+import { formatMonthOption } from "@/modules/traffic/month-labels";
 import type { ListTrafficResult, TrafficListItem } from "@/modules/traffic/service";
 import { MonthExportButtons } from "@/modules/traffic/ui/month-export-buttons";
 import { TrafficTable } from "@/modules/traffic/ui/traffic-table";
@@ -109,6 +109,9 @@ export function TrafficView({
   const [loadingMore, setLoadingMore] = useState(false);
   const [listError, setListError] = useState<string | null>(null);
   const [bannerError, setBannerError] = useState<string | null>(null);
+  const [poisonFiles, setPoisonFiles] = useState<
+    Array<{ filename: string; error: string; heldForPurge: boolean }>
+  >([]);
   const [syncState, setSyncState] = useState<SyncUiState>(IDLE_SYNC_STATE);
   const syncInFlightRef = useRef(false);
   const refreshSeq = useRef(0);
@@ -150,7 +153,9 @@ export function TrafficView({
   const longestMonthLabel = useMemo(
     () =>
       monthOptions
-        .map((item) => formatMonthNominative(item.year, item.month))
+        .map((item) =>
+          formatMonthOption(item.year, item.month, item.count),
+        )
         .reduce((a, b) => (b.length > a.length ? b : a), "Август 2026 года"),
     [monthOptions],
   );
@@ -227,17 +232,25 @@ export function TrafficView({
       pendingInboxCount?: number;
       poisonedCount?: number;
       runningCount: number;
+      poisonFiles?: Array<{
+        filename: string;
+        error: string;
+        heldForPurge: boolean;
+      }>;
     }) => {
+      setPoisonFiles(status.poisonFiles ?? []);
       setBannerError(
         composeTrafficBanner({
           lastError: status.lastError,
           pendingInboxCount: status.pendingInboxCount ?? 0,
           poisonedCount: status.poisonedCount ?? 0,
           runningCount: status.runningCount,
+          poisonFiles: status.poisonFiles,
+          detailOnRaw: showOps,
         }),
       );
     },
-    [],
+    [showOps],
   );
 
   useEffect(() => {
@@ -482,6 +495,21 @@ export function TrafficView({
         </div>
       ) : null}
 
+      {showOps && poisonFiles.length > 0 ? (
+        <ul
+          className="shrink-0 list-none space-y-1 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+          aria-label="Файлы с ошибкой импорта"
+        >
+          {poisonFiles.map((file) => (
+            <li key={file.filename}>
+              <span className="font-medium">{file.filename}</span>
+              {": "}
+              {file.error}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
       {listError ? (
         <div
           role="alert"
@@ -564,7 +592,7 @@ export function TrafficView({
           >
             {monthOptions.map((item) => (
               <option key={item.key} value={item.key}>
-                {formatMonthNominative(item.year, item.month)}
+                {formatMonthOption(item.year, item.month, item.count)}
               </option>
             ))}
           </select>

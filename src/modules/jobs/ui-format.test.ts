@@ -73,6 +73,17 @@ describe("jobs ui-format", () => {
     ).toContain("3 номеров в diff");
     expect(
       summarizeJobResult(
+        sample({
+          actionCode: "cdr.purge.month",
+          phonesParsed: 42,
+          linesBad: 0,
+          changesCount: 0,
+          hasArtifact: false,
+        }),
+      ),
+    ).toContain("42 записей");
+    expect(
+      summarizeJobResult(
         sample({ status: "failed", errorMessage: "SSH timeout" }),
       ),
     ).toBe("SSH timeout");

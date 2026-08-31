@@ -59,6 +59,13 @@ describe("middleware protected routes", () => {
     expect(res.headers.get("location")).toContain("/login");
   });
 
+  it("redirects anonymous users from /storage to /login", () => {
+    const res = middleware(makeRequest("/storage"));
+    expect(res.status).toBe(307);
+    expect(res.headers.get("location")).toContain("/login");
+    expect(res.headers.get("location")).toContain("next=%2Fstorage");
+  });
+
   it("returns 401 JSON for anonymous /api/regs", async () => {
     const res = middleware(makeRequest("/api/regs"));
     expect(res.status).toBe(401);

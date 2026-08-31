@@ -147,7 +147,7 @@ Reg/
 ## 6. Поток данных модуля Registrations
 
 1. Scheduler (interval из `app_settings`, если polling enabled) ставит задачу `regs.poll` в `p-queue`.
-2. Очередь `p-queue` (concurrency=3) с anti-overlap **на action code**: второй `regs.poll` не стартует, пока первый in-flight (`phones.sync` / `groups.sync` / `cdr.import` могут идти параллельно).
+2. Очередь `p-queue` (concurrency=3) с anti-overlap **на action code**: второй `regs.poll` не стартует, пока первый in-flight (`phones.sync` / `groups.sync` / `cdr.import` могут идти параллельно). `cdr.purge.month` не стартует, пока `cdr.import` in-flight.
 3. Читает settings + SSH profile.
 4. Создаёт `job_runs` со статусом `running`.
 5. Расшифровывает ключ в памяти → SSH connect → exec allowlisted path (`cd /opt/scripts && sudo -n -- ./<script>`; PTY только для `regs.poll`).
@@ -166,6 +166,7 @@ Reg/
 - `/api/regs/*`
 - `/api/jobs/*`
 - `/api/audit/*`
+- `/api/storage`, `/api/storage/purge` — admin CDR month inventory / oldest-complete-month delete
 - `/api/healthz`, `/api/readyz`
 
 Ни один endpoint не принимает поля `command`, `scriptPath`, `remoteArgs` из клиента.

@@ -40,6 +40,7 @@ Complete after first production deploy and after major upgrades:
 6. **Jobs / audit / regs** — `/jobs`, `/audit` (admin), `/regs` load with filters.
 7. **Auto-poll off by default** — Settings `regsPollEnabled=false`; schedule jobs do not enqueue; manual poll still works. Status line shows planner active / poll disabled.
 8. **Hardening** — mutating API from another origin fails CSRF; repeated login attempts rate-limit.
+9. **Storage (admin)** — `/storage` shows month table (calls / minutes / delete). Delete is only on the oldest complete month; confirm by typing `YYYY-MM`. Operator has no nav item; opening `/storage` as operator → `/forbidden`.
 
 ## Softswitch (outside the app container)
 

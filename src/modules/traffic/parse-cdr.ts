@@ -41,9 +41,17 @@ export function parseCdrDate(raw: string): Date | null {
   return parseNaiveDateTime(raw);
 }
 
-export function parseCdrDataLine(line: string): ParsedCdrRow | null {
+export type CdrParseReject = "width" | "cdr_id" | "date";
+
+export type ClassifiedCdrLine =
+  | { ok: true; row: ParsedCdrRow }
+  | { ok: false; reason: CdrParseReject };
+
+export function classifyCdrDataLine(line: string): ClassifiedCdrLine {
   const values = splitQuotedSemicolon(stripBom(line).trim());
-  if (values.length !== CDR_COLUMN_COUNT) return null;
+  if (values.length !== CDR_COLUMN_COUNT) {
+    return { ok: false, reason: "width" };
+  }
   const fields: Record<string, string> = {};
   const prisma: Record<string, string> = {};
   for (let i = 0; i < CDR_COLUMN_COUNT; i++) {
@@ -53,14 +61,23 @@ export function parseCdrDataLine(line: string): ParsedCdrRow | null {
     prisma[csvHeaderToCamel(header)] = value;
   }
   const cdrId = fields.cdr_id?.trim() ?? "";
-  if (!cdrId) return null;
+  if (!cdrId) return { ok: false, reason: "cdr_id" };
   const parts = splitCdrDateParts(fields.cdr_date ?? "");
+  if (!parts.day || !parts.time) return { ok: false, reason: "date" };
   prisma.cdrDay = parts.day;
   prisma.cdrTime = parts.time;
   return {
-    fields,
-    prisma,
-    cdrId,
-    cdrAt: parseCdrDate(fields.cdr_date ?? ""),
+    ok: true,
+    row: {
+      fields,
+      prisma,
+      cdrId,
+      cdrAt: parseCdrDate(fields.cdr_date ?? ""),
+    },
   };
+}
+
+export function parseCdrDataLine(line: string): ParsedCdrRow | null {
+  const classified = classifyCdrDataLine(line);
+  return classified.ok ? classified.row : null;
 }

@@ -108,5 +108,28 @@ describe("traffic UI date display", () => {
         runningCount: 0,
       }),
     ).toMatch(/Сырые данные/);
+    expect(
+      composeTrafficBanner({
+        lastError: null,
+        pendingInboxCount: 0,
+        poisonedCount: 1,
+        runningCount: 0,
+        poisonFiles: [
+          { filename: "a.csv", error: "Нет даты", heldForPurge: false },
+        ],
+      }),
+    ).toMatch(/a\.csv: Нет даты.*Сырые данные/);
+    expect(
+      composeTrafficBanner({
+        lastError: null,
+        pendingInboxCount: 0,
+        poisonedCount: 1,
+        runningCount: 0,
+        poisonFiles: [
+          { filename: "a.csv", error: "Нет даты", heldForPurge: false },
+        ],
+        detailOnRaw: true,
+      }),
+    ).not.toMatch(/Сырые данные/);
   });
 });

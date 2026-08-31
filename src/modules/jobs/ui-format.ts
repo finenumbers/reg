@@ -87,7 +87,9 @@ export function summarizeJobResult(job: JobRunListItem): string {
             ? `${n} ссылок`
             : job.actionCode === "cdr.sides.refresh"
               ? `${n} номеров в diff`
-              : `${n} номеров`;
+              : job.actionCode === "cdr.purge.month"
+                ? `${n} записей`
+                : `${n} номеров`;
     parts.push(countLabel);
   }
   if (job.linesBad != null && job.linesBad > 0) {

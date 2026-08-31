@@ -11,6 +11,7 @@ export type CdrMonth = {
   year: number;
   month: number;
   key: string;
+  count?: number;
 };
 
 export function monthKey(year: number, month: number): string {
@@ -46,6 +47,42 @@ export function applyMonthFilter(
   month: number,
 ): { cdrDate: { startsWith: string } } {
   return { cdrDate: { startsWith: cdrMonthPrefix(year, month) } };
+}
+
+/** Month key from the Дата column (`YYYY-MM-DD` → `YYYY-MM`). */
+export function monthKeyFromCdrDay(
+  raw: string | null | undefined,
+): CdrMonth | null {
+  if (!raw) return null;
+  return parseMonthKey(raw.trim().slice(0, 7));
+}
+
+export function compareMonthKey(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
+/** Oldest complete month (not the current UTC calendar month, count > 0). */
+export function deletableMonthKey(
+  months: readonly Pick<CdrMonth, "key" | "count">[],
+  currentKey: string,
+): string | null {
+  let oldest: string | null = null;
+  for (const item of months) {
+    if (item.key === currentKey) continue;
+    if ((item.count ?? 0) <= 0) continue;
+    if (oldest == null || compareMonthKey(item.key, oldest) < 0) {
+      oldest = item.key;
+    }
+  }
+  return oldest;
+}
+
+export function withCurrentMonth(
+  months: CdrMonth[],
+  current: CdrMonth,
+): CdrMonth[] {
+  if (months.some((item) => item.key === current.key)) return months;
+  return [{ ...current, count: current.count ?? 0 }, ...months];
 }
 
 function monthFromCdrDate(raw: string | null | undefined): CdrMonth | null {

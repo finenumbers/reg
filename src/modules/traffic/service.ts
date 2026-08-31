@@ -15,14 +15,13 @@ import { TABLE_PAGE_SIZE } from "@/lib/table-pagination";
 import { getJobRunSummary } from "@/modules/jobs/query";
 import {
   applyMonthFilter,
-  CDR_DATE_BOUND_GTE,
-  CDR_DATE_BOUND_LT,
   currentUtcMonth,
-  monthsFromCdrDateBounds,
   resolveMonthKey,
   type CdrMonth,
 } from "@/modules/traffic/cdr-month";
+import { listCachedMonthCounts } from "@/modules/traffic/cdr-month-stats";
 import { countInboxFiles } from "@/modules/traffic/inbox";
+import { listPoisonEntries } from "@/modules/traffic/poison";
 import { parseVoipmonitorLegs } from "@/modules/voipmonitor/legs";
 import type { VoipmonitorLegs } from "@/modules/voipmonitor/types";
 import { isSafeVoipmonitorHref } from "@/modules/voipmonitor/url";
@@ -74,6 +73,11 @@ export type TrafficOperationalStatus = {
   recordCount: number;
   pendingInboxCount: number;
   poisonedCount: number;
+  poisonFiles?: Array<{
+    filename: string;
+    error: string;
+    heldForPurge: boolean;
+  }>;
 };
 
 function safeLeg(
@@ -222,19 +226,8 @@ export function facetSearchWhere(
   });
 }
 
-async function listTrafficMonths(current: CdrMonth): Promise<CdrMonth[]> {
-  const bounds = await prisma.cdrRecord.aggregate({
-    where: {
-      cdrDate: { gte: CDR_DATE_BOUND_GTE, lt: CDR_DATE_BOUND_LT },
-    },
-    _min: { cdrDate: true },
-    _max: { cdrDate: true },
-  });
-  return monthsFromCdrDateBounds(
-    bounds._min.cdrDate,
-    bounds._max.cdrDate,
-    current,
-  );
+async function listTrafficMonths(): Promise<CdrMonth[]> {
+  return listCachedMonthCounts();
 }
 
 export async function listTraffic(opts: {
@@ -265,7 +258,7 @@ export async function listTraffic(opts: {
       skip,
       take: pageSize,
     }),
-    includeMonths ? listTrafficMonths(currentUtcMonth()) : Promise.resolve(undefined),
+    includeMonths ? listTrafficMonths() : Promise.resolve(undefined),
   ]);
 
   const [links, guiSetting] =
@@ -383,5 +376,6 @@ export async function getTrafficStatus(): Promise<TrafficOperationalStatus> {
     recordCount,
     pendingInboxCount: inbox.pending,
     poisonedCount: inbox.poisoned,
+    poisonFiles: listPoisonEntries(),
   };
 }

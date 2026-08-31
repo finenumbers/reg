@@ -88,6 +88,10 @@ Full operator checklist: [smoke-tests.md](./smoke-tests.md).
 
 Schedule `pg_dump` (see [backup-and-restore.md](./backup-and-restore.md)) and store `APP_ENCRYPTION_KEY` in the same secrets vault as DB backups.
 
+Do **not** run «Хранение данных» month purge without a recent dump. Deleted CDR rows stay gone after a restart (job may show `interrupted`); rerun is idempotent. Disk space returns via autovacuum, not immediately — do not `VACUUM FULL` from the app.
+
+Migration `20260831180000_cdr_day_index` builds `cdr_records_cdr_day_idx`. On a large heap this briefly locks writers during `CREATE INDEX` (non-`CONCURRENTLY`). Schedule the deploy when import load is low.
+
 ## 8. Auto-poll enablement (optional, later)
 
 Only when all are true:

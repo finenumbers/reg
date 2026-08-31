@@ -21,6 +21,7 @@ import { requestVoipmonitorMatch } from "@/modules/voipmonitor/enqueue";
 import { processVoipmonitorMatch } from "@/modules/voipmonitor/processor";
 import { processCdrSidesRefresh } from "@/modules/traffic/sides-refresh/processor";
 import { requestCdrSidesRefresh } from "@/modules/traffic/sides-refresh/enqueue";
+import { processCdrPurgeMonth } from "@/modules/traffic/purge/processor";
 import {
   evaluateSchedulerBootstrap as evaluateSchedulerBootstrapImpl,
 } from "@/modules/jobs/scheduler";
@@ -32,12 +33,14 @@ const SUPPORTED_JOB_ACTIONS = new Set<AllowedActionCode>([
   "cdr.import",
   "voipmonitor.match",
   "cdr.sides.refresh",
+  "cdr.purge.month",
 ]);
 
 export type JobEnqueueInput = {
   actionCode: AllowedActionCode;
   trigger: "schedule" | "manual" | "test";
   actorUserId?: string;
+  month?: string;
 };
 
 export type JobEnqueueResult = {
@@ -69,6 +72,16 @@ export class PQueueJobRuntime implements JobRuntime {
 
     if (this.isInFlight(input.actionCode)) {
       return { accepted: false, reason: "anti-overlap: job already in flight" };
+    }
+
+    if (
+      input.actionCode === "cdr.purge.month" &&
+      this.isInFlight("cdr.import")
+    ) {
+      return {
+        accepted: false,
+        reason: "anti-overlap: cdr.import in flight",
+      };
     }
 
     this.inFlight.add(input.actionCode);
@@ -103,6 +116,13 @@ export class PQueueJobRuntime implements JobRuntime {
           return await processCdrSidesRefresh({
             trigger: input.trigger,
             actorUserId: input.actorUserId,
+          });
+        }
+        if (input.actionCode === "cdr.purge.month") {
+          return await processCdrPurgeMonth({
+            trigger: input.trigger,
+            actorUserId: input.actorUserId,
+            month: input.month,
           });
         }
         return await processRegsPoll({

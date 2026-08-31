@@ -190,14 +190,22 @@ describe("parseCdrDataLine", () => {
     expect(row!.prisma.cdrTime).toBe("20:04:19");
   });
 
-  it("rejects empty cdr_id and wrong width", () => {
+  it("rejects empty cdr_id, wrong width, and missing date", () => {
     expect(parseCdrDataLine(quotedRow({ cdr_id: "" }))).toBeNull();
     expect(parseCdrDataLine('"a";"b"')).toBeNull();
+    expect(parseCdrDataLine(quotedRow({ cdr_id: "id1", cdr_date: "" }))).toBeNull();
+    expect(
+      parseCdrDataLine(quotedRow({ cdr_id: "id1", cdr_date: "not-a-date" })),
+    ).toBeNull();
   });
 
   it("keeps empty optional fields", () => {
     const row = parseCdrDataLine(
-      quotedRow({ cdr_id: "id1", out_orig_dnis: "" }),
+      quotedRow({
+        cdr_id: "id1",
+        cdr_date: "2026-08-27 20:04:19",
+        out_orig_dnis: "",
+      }),
     );
     expect(row!.fields.out_orig_dnis).toBe("");
     expect(row!.prisma.outOrigDnis).toBe("");

@@ -67,7 +67,11 @@ vi.mock("@/lib/logger", () => ({
 }));
 
 import { processCdrImport } from "@/modules/traffic/cdr-import-processor";
-import { isPoisoned } from "@/modules/traffic/poison";
+import { isPoisoned, listPoisonEntries } from "@/modules/traffic/poison";
+import {
+  resetPurgeTargetForTests,
+  setPurgeTargetMonth,
+} from "@/modules/traffic/purge/target";
 
 const HEADER = CDR_COLUMNS.map((col) => `"${col}"`).join(";");
 
@@ -114,6 +118,7 @@ describe("processCdrImport empty-minute dumps", () => {
   });
 
   afterEach(async () => {
+    resetPurgeTargetForTests();
     if (prevInbox === undefined) delete process.env.CDR_INBOX_DIR;
     else process.env.CDR_INBOX_DIR = prevInbox;
     if (inboxDir) await rm(inboxDir, { recursive: true, force: true });
@@ -187,6 +192,46 @@ describe("processCdrImport empty-minute dumps", () => {
     expect(existsSync(badFile)).toBe(true);
     expect(loadEnrich).not.toHaveBeenCalled();
   });
+
+  it("skips the purge target month and does not unlink the file", async () => {
+    setPurgeTargetMonth("2026-07");
+    const file = dumpPath(inboxDir, "20260828_170001");
+    await writeFile(
+      file,
+      `${HEADER}\n${quotedRow({
+        cdr_id: "july-1",
+        cdr_date: "2026-07-15 10:00:00",
+      })}\n${quotedRow({
+        cdr_id: "aug-1",
+        cdr_date: "2026-08-15 10:00:00",
+      })}\n`,
+      "utf8",
+    );
+    createManyCdr.mockResolvedValue({ count: 1 });
+
+    const result = await processCdrImport({ trigger: "test" });
+
+    expect(createManyCdr).toHaveBeenCalledWith({
+      data: [expect.objectContaining({ cdrId: "aug-1" })],
+      skipDuplicates: true,
+    });
+    expect(createManyCdr).not.toHaveBeenCalledWith({
+      data: expect.arrayContaining([
+        expect.objectContaining({ cdrId: "july-1" }),
+      ]),
+      skipDuplicates: true,
+    });
+    expect(existsSync(file)).toBe(true);
+    expect(isPoisoned("20260828_170001", statSync(file).mtimeMs)).toBe(true);
+    expect(listPoisonEntries()).toEqual([
+      expect.objectContaining({
+        filename: "20260828_170001",
+        heldForPurge: true,
+      }),
+    ]);
+    expect(result.status).toBe("failed");
+    expect(result.errorMessage).toMatch(/Отложено: идёт удаление 2026-07/);
+  });
 });
 
 function quotedRow(
@@ -257,6 +302,7 @@ describe("processCdrImport enrich on insert", () => {
   });
 
   afterEach(async () => {
+    resetPurgeTargetForTests();
     if (prevInbox === undefined) delete process.env.CDR_INBOX_DIR;
     else process.env.CDR_INBOX_DIR = prevInbox;
     if (inboxDir) await rm(inboxDir, { recursive: true, force: true });
@@ -269,6 +315,7 @@ describe("processCdrImport enrich on insert", () => {
       file,
       `${HEADER}\n${quotedRow({
         cdr_id: "id-enrich-1",
+        cdr_date: "2026-08-27 20:04:19",
         bill_ani: "79501112233",
         bill_dnis: "78620000000",
         remote_src_sig_address: "1.2.3.4:5060",
@@ -287,8 +334,8 @@ describe("processCdrImport enrich on insert", () => {
       data: [
         expect.objectContaining({
           cdrId: "id-enrich-1",
-          cdrDay: "",
-          cdrTime: "",
+          cdrDay: "2026-08-27",
+          cdrTime: "20:04:19",
           billAni: "79501112233",
           sideA: "Офис А",
           operatorA: "МТС",

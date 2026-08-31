@@ -23,12 +23,19 @@ import { consumeCdrInboxDirty } from "@/modules/traffic/drain-flag";
 import { failJobRunIfStillRunning } from "@/modules/jobs/finalize";
 import { requestCdrImportDrain } from "@/modules/traffic/enqueue";
 import { requestVoipmonitorMatch } from "@/modules/voipmonitor/enqueue";
-import { markPoisoned } from "@/modules/traffic/poison";
+import { invalidateCdrMonthCountCache } from "@/modules/traffic/cdr-month-stats";
+import { monthKeyFromCdrDay } from "@/modules/traffic/cdr-month";
+import { markPoisoned, purgeHoldMessage } from "@/modules/traffic/poison";
 import {
   assertCanonicalCdrHeader,
-  parseCdrDataLine,
+  classifyCdrDataLine,
   parseCdrHeaderLine,
 } from "@/modules/traffic/parse-cdr";
+import {
+  emptyParseRejectCounts,
+  formatParseRejectCounts,
+} from "@/modules/traffic/parse-reject";
+import { getPurgeTargetMonth } from "@/modules/traffic/purge/target";
 import { syncCdrAtFromCdrDate } from "@/modules/traffic/sync-cdr-at";
 import {
   addCdrEnrichKeysFromFields,
@@ -116,9 +123,12 @@ async function importOneFile(
   let lineNo = 0;
   let headerChecked = false;
   let linesBad = 0;
+  let heldForPurge = 0;
   let firstBadLine: number | null = null;
   let parsedValid = 0;
   let headerError: string | null = null;
+  const rejectCounts = emptyParseRejectCounts();
+  const targetMonth = getPurgeTargetMonth();
 
   const rl1 = openCdrLines(file.absPath);
   try {
@@ -136,14 +146,20 @@ async function importOneFile(
         continue;
       }
       if (!raw.trim()) continue;
-      const parsed = parseCdrDataLine(raw);
-      if (!parsed) {
+      const classified = classifyCdrDataLine(raw);
+      if (!classified.ok) {
         linesBad += 1;
+        rejectCounts[classified.reason] += 1;
         if (firstBadLine == null) firstBadLine = lineNo;
         continue;
       }
+      const rowMonth = monthKeyFromCdrDay(classified.row.prisma.cdrDay)?.key;
+      if (targetMonth && rowMonth === targetMonth) {
+        heldForPurge += 1;
+        continue;
+      }
       parsedValid += 1;
-      addCdrEnrichKeysFromFields(keys, parsed.fields);
+      addCdrEnrichKeysFromFields(keys, classified.row.fields);
     }
   } finally {
     rl1.close();
@@ -174,7 +190,7 @@ async function importOneFile(
   }
 
   // Valid header, no call rows — empty minute, not a failure.
-  if (parsedValid === 0 && linesBad === 0) {
+  if (parsedValid === 0 && linesBad === 0 && heldForPurge === 0) {
     return {
       filename: file.filename,
       inserted: 0,
@@ -186,14 +202,31 @@ async function importOneFile(
     };
   }
 
+  if (parsedValid === 0 && heldForPurge > 0 && linesBad === 0 && targetMonth) {
+    return {
+      filename: file.filename,
+      inserted: 0,
+      skipped: 0,
+      linesBad: 0,
+      firstBadLine: null,
+      error: purgeHoldMessage(targetMonth),
+      enrichStats: null,
+    };
+  }
+
   if (parsedValid === 0) {
+    const reasons = formatParseRejectCounts(rejectCounts);
+    const hold =
+      heldForPurge > 0 && targetMonth
+        ? `; ${formatCount(heldForPurge)} отложено (${purgeHoldMessage(targetMonth)})`
+        : "";
     return {
       filename: file.filename,
       inserted: 0,
       skipped: 0,
       linesBad,
       firstBadLine,
-      error: `Нет валидных строк в ${file.filename}${firstBadLine ? ` (первая плохая: ${firstBadLine})` : ""}`,
+      error: `Нет валидных строк в ${file.filename}${reasons ? ` (${reasons})` : ""}${firstBadLine ? `, первая плохая: ${firstBadLine}` : ""}${hold}`,
       enrichStats: null,
     };
   }
@@ -236,8 +269,11 @@ async function importOneFile(
         continue;
       }
       if (!raw.trim()) continue;
-      const parsed = parseCdrDataLine(raw);
-      if (!parsed) continue;
+      const classified = classifyCdrDataLine(raw);
+      if (!classified.ok) continue;
+      const rowMonth = monthKeyFromCdrDay(classified.row.prisma.cdrDay)?.key;
+      if (targetMonth && rowMonth === targetMonth) continue;
+      const parsed = classified.row;
       const enrich = enrichFieldsForRow(
         parsed.fields.bill_ani ?? "",
         parsed.fields.bill_dnis ?? "",
@@ -284,16 +320,33 @@ async function importOneFile(
   }
 
   const skipped = Math.max(0, parsedValid - inserted);
+  const reasons = formatParseRejectCounts(rejectCounts);
+  const holdNote =
+    heldForPurge > 0 && targetMonth
+      ? ` ${formatCount(heldForPurge)} строк отложено (${purgeHoldMessage(targetMonth)}).`
+      : "";
   if (linesBad > 0) {
     const first =
       firstBadLine != null ? ` (первая: ${firstBadLine})` : "";
+    const detail = reasons ? ` (${reasons})` : "";
     return {
       filename: file.filename,
       inserted,
       skipped,
       linesBad,
       firstBadLine,
-      error: `Частичная загрузка: вставлено ${formatCount(inserted)} записей, ${formatCount(linesBad)} битых строк${first} в ${file.filename}. Файл оставлен в FTP-папке — «Повторить импорт» на Сырых данных.`,
+      error: `Частичная загрузка: вставлено ${formatCount(inserted)} записей, ${formatCount(linesBad)} битых строк${detail}${first} в ${file.filename}.${holdNote} Файл оставлен в FTP-папке — «Повторить импорт» на Сырых данных.`,
+      enrichStats: maps.stats,
+    };
+  }
+  if (heldForPurge > 0 && targetMonth) {
+    return {
+      filename: file.filename,
+      inserted,
+      skipped,
+      linesBad: 0,
+      firstBadLine: null,
+      error: `${purgeHoldMessage(targetMonth)}. Вставлено ${formatCount(inserted)} записей других месяцев в ${file.filename}.`,
       enrichStats: maps.stats,
     };
   }
@@ -497,6 +550,10 @@ export async function processCdrImport(
     linesBad,
     fileCount: fileResults.length,
   });
+
+  if (phonesParsed > 0) {
+    invalidateCdrMonthCountCache();
+  }
 
   if (!failed && phonesParsed > 0) {
     requestVoipmonitorMatch("schedule");

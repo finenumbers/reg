@@ -51,11 +51,19 @@ export function trafficMissingLabelClass(value: string): string | undefined {
   return undefined;
 }
 
+export type TrafficPoisonFile = {
+  filename: string;
+  error: string;
+  heldForPurge: boolean;
+};
+
 export type TrafficBannerStatus = {
   lastError: string | null;
   pendingInboxCount: number;
   poisonedCount: number;
   runningCount: number;
+  poisonFiles?: TrafficPoisonFile[];
+  detailOnRaw?: boolean;
 };
 
 /** Operator-facing inbox / partial-import notice. */
@@ -73,7 +81,19 @@ export function composeTrafficBanner(
   }
   if (status.lastError?.trim()) {
     parts.push(status.lastError.trim());
-  } else if (status.poisonedCount > 0) {
+  }
+  const poison = status.poisonFiles ?? [];
+  if (poison.length > 0) {
+    const n = poison.length;
+    const files = n === 1 ? "1 файл" : `${formatCount(n)} файлов`;
+    const first = poison[0]!;
+    const hint = status.detailOnRaw
+      ? ""
+      : " Подробности на странице «Сырые данные».";
+    parts.push(
+      `В FTP-папке ${files} отложены (${first.filename}: ${first.error}).${hint}`,
+    );
+  } else if (!status.lastError?.trim() && status.poisonedCount > 0) {
     const n = status.poisonedCount;
     const files = n === 1 ? "1 файл" : `${formatCount(n)} файлов`;
     parts.push(

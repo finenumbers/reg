@@ -15,7 +15,8 @@ export type FeatureModuleId =
   | "geography"
   | "operators"
   | "audit"
-  | "enrich";
+  | "enrich"
+  | "storage";
 
 export type FeatureNavGroup = "primary" | "cdr" | "admin";
 
@@ -94,6 +95,14 @@ export const FEATURE_MODULES: FeatureModuleDefinition[] = [
     title: "Настройки",
     description: "SSH-профиль, интервал опроса, хранение артефактов",
     href: "/settings",
+    navPermission: "settings:write",
+    navGroup: "admin",
+  },
+  {
+    id: "storage",
+    title: "Хранение данных",
+    description: "Месяцы CDR в локальной базе и удаление самого старого полного месяца",
+    href: "/storage",
     navPermission: "settings:write",
     navGroup: "admin",
   },

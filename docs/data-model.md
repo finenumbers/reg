@@ -215,8 +215,11 @@ Full snapshot всех номеров на каждый run **не хранит�
 ### CDR (`cdr_records`)
 
 - Успешный dump-файл → строки в БД, файл **удаляется** из FTP inbox.
-- Битые строки: валидные уже вставленные строки остаются (`skipDuplicates` по `cdr_id`); файл остаётся + poison; job = `failed`; баннер на всех CDR-страницах.
+- Строка без гражданской даты+времени (`Дата` / `cdr_day` + время) отклоняется так же, как пустой `cdr_id` или неверная ширина.
+- Битые строки: валидные уже вставленные строки остаются (`skipDuplicates` по `cdr_id`); файл остаётся + poison; job = `failed`; баннер на CDR-страницах, полный список файлов на «Сырые данные».
 - Poison **не** автоимпортируется. Leftover без poison подхватывает scheduler tick и хвост `cdr.import`.
+- Во время `cdr.purge.month` строки целевого месяца не вставляются; файл остаётся с hold и после джобы drain повторяется.
+- Индекс `(cdr_date, cdr_id)` — list/export/DELETE; индекс `cdr_day` — `GROUP BY` месяцев на `/storage` и в кэше dropdown.
 - `enrichedAt` ставится только после завершённого PSTN/GeoIP lookup (включая cached not-found). Live-ошибка → `enrichedAt` null, backfill повторит.
 
 ### VoIPmonitor (`cdr_voipmonitor_links`)

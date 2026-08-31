@@ -171,6 +171,22 @@ export async function ensurePlatformBaseline(): Promise<{ ok: true }> {
     },
   });
 
+  await prisma.allowedAction.upsert({
+    where: { code: "cdr.purge.month" },
+    create: {
+      code: "cdr.purge.month",
+      remotePath: "/opt/scripts/cdr_purge_month",
+      description: "Delete the oldest complete CDR calendar month",
+      enabled: true,
+      module: "traffic",
+    },
+    update: {
+      remotePath: "/opt/scripts/cdr_purge_month",
+      enabled: true,
+      module: "traffic",
+    },
+  });
+
   await prisma.appSetting.upsert({
     where: { id: 1 },
     create: { id: 1, artifactMaxBytes: 50_000_000 },

@@ -18,6 +18,7 @@ vi.mock("@/modules/groups/groups-sync-processor", () => ({
 
 const processCdrImport = vi.fn();
 const processCdrSidesRefresh = vi.fn();
+const processCdrPurgeMonth = vi.fn();
 const requestCdrSidesRefresh = vi.fn();
 
 vi.mock("@/modules/traffic/cdr-import-processor", () => ({
@@ -27,6 +28,10 @@ vi.mock("@/modules/traffic/cdr-import-processor", () => ({
 vi.mock("@/modules/traffic/sides-refresh/processor", () => ({
   processCdrSidesRefresh: (...args: unknown[]) =>
     processCdrSidesRefresh(...args),
+}));
+
+vi.mock("@/modules/traffic/purge/processor", () => ({
+  processCdrPurgeMonth: (...args: unknown[]) => processCdrPurgeMonth(...args),
 }));
 
 vi.mock("@/modules/traffic/sides-refresh/enqueue", () => ({
@@ -137,6 +142,11 @@ describe("PQueueJobRuntime anti-overlap", () => {
       jobRunId: "sides-1",
       phonesParsed: 0,
       changesCount: 0,
+    });
+    processCdrPurgeMonth.mockResolvedValue({
+      status: "success",
+      jobRunId: "purge-1",
+      phonesParsed: 0,
     });
     processGroupsSync.mockImplementation(
       () =>
@@ -306,5 +316,39 @@ describe("PQueueJobRuntime anti-overlap", () => {
     });
     await new Promise((r) => setTimeout(r, 40));
     expect(requestCdrSidesRefresh).toHaveBeenCalledWith("schedule");
+  });
+
+  it("rejects cdr.purge.month while cdr.import is in flight", async () => {
+    processCdrImport.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          setTimeout(
+            () =>
+              resolve({
+                status: "success",
+                jobRunId: "cdr-slow",
+                phonesParsed: 1,
+                linesBad: 0,
+                changesCount: 0,
+              }),
+            80,
+          );
+        }),
+    );
+    const runtime = new PQueueJobRuntime();
+    const importResult = await runtime.enqueue({
+      actionCode: "cdr.import",
+      trigger: "schedule",
+    });
+    const purgeResult = await runtime.enqueue({
+      actionCode: "cdr.purge.month",
+      trigger: "manual",
+      month: "2025-01",
+    });
+    expect(importResult.accepted).toBe(true);
+    expect(purgeResult.accepted).toBe(false);
+    expect(purgeResult.reason).toMatch(/cdr.import/);
+    expect(processCdrPurgeMonth).not.toHaveBeenCalled();
+    await new Promise((r) => setTimeout(r, 100));
   });
 });

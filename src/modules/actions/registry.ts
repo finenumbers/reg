@@ -11,7 +11,8 @@ export type AllowedActionCode =
   | "groups.sync"
   | "cdr.import"
   | "voipmonitor.match"
-  | "cdr.sides.refresh";
+  | "cdr.sides.refresh"
+  | "cdr.purge.month";
 
 /** Absolute sudo binary used for non-interactive elevation (never from UI). */
 const REMOTE_SUDO_BIN = "/usr/bin/sudo";
@@ -114,6 +115,17 @@ export const ACTION_REGISTRY: Record<AllowedActionCode, AllowedActionDefinition>
     argv: [],
     module: "traffic",
     description: "Refresh CDR side A/B labels from the phones catalog",
+    usesPlatformExecWrapper: true,
+    elevateWithSudo: false,
+    needsPty: false,
+  },
+  "cdr.purge.month": {
+    code: "cdr.purge.month",
+    kind: "local",
+    remotePath: "/opt/scripts/cdr_purge_month",
+    argv: [],
+    module: "traffic",
+    description: "Delete the oldest complete CDR calendar month",
     usesPlatformExecWrapper: true,
     elevateWithSudo: false,
     needsPty: false,

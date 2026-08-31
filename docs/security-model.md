@@ -30,6 +30,7 @@
 | `groups.sync` | `/opt/scripts/export.py` | `[]` | `/bin/bash -c 'cd /opt/scripts && exec /usr/bin/sudo -n -- ./export.py'` (no PTY) |
 | `cdr.import` | local (FTP inbox) | `[]` | не SSH — drain локальной папки |
 | `cdr.sides.refresh` | local | `[]` | не SSH — сверка Описаний каталога с `cdr_records.side_*` |
+| `cdr.purge.month` | local | `[]` | не SSH — пакетное удаление самого старого полного месяца CDR |
 
 `phones.sync` / `groups.sync` — read-only `SELECT` в MySQL softswitch; JSON в stdout (`version` 2 включает `groups[]`); **без** записи `export.xlsx` и без SFTP. `groups.sync` применяет только каталог routing groups, таблицы телефонов не трогает.
 
@@ -160,10 +161,11 @@ Bootstrap первого admin: из env `ADMIN_USERNAME` / `ADMIN_PASSWORD` п�
 
 | Control | Scope |
 |---------|--------|
-| Same-origin (Origin/Referer) | Mutating app APIs: settings update/key replace, SSH test, manual poll |
+| Same-origin (Origin/Referer) | Mutating app APIs: settings update/key replace, SSH test, manual poll, CDR month purge |
 | Login rate limit | Better Auth `sign-in/username` — 10 attempts / 5 min per IP (in-memory) |
 | Poll rate limit | `POST /api/regs/poll` — 6 / min per user (in-memory; anti-overlap remains) |
 | SSH test rate limit | `POST /api/settings/ssh/test` — 10 / min per user |
+| Storage purge rate limit | `POST /api/storage/purge` — 3 / min per session user; session + `settings:write` only (API keys cannot purge) |
 | API key rate limit | Machine key reads — 10 000 / min per key (in-memory) |
 | Log redaction | JSON logger redacts password/key/token-like fields |
 

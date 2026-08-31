@@ -79,3 +79,9 @@ export const voipmonitorTestRateLimiter = new SlidingWindowRateLimiter(
 
 /** Machine API key reads: 10_000 / minute per key (single-replica) */
 export const apiKeyRateLimiter = new SlidingWindowRateLimiter(10_000, 60 * 1000);
+
+/** CDR month purge starts per admin: 3 / minute */
+export const storagePurgeRateLimiter = new SlidingWindowRateLimiter(
+  3,
+  60 * 1000,
+);

@@ -55,6 +55,7 @@ export function middleware(request: NextRequest) {
     pathname.startsWith("/geography") ||
     pathname.startsWith("/operators") ||
     pathname.startsWith("/settings") ||
+    pathname.startsWith("/storage") ||
     pathname.startsWith("/jobs") ||
     pathname.startsWith("/audit");
 
