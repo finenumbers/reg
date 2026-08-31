@@ -99,6 +99,13 @@ model AppSetting {
   /// Phones + groups (export.py), independent of regs.poll.
   exportSyncEnabled     Boolean     @default(false)
   exportSyncIntervalSec Int         @default(300)
+  /// Backfill cdr_records.side_* from the phones catalog (diff-only).
+  cdrSidesRefreshEnabled     Boolean @default(true)
+  cdrSidesRefreshIntervalSec Int     @default(300)
+  /// Last successfully applied phone → Описание map (JSON object).
+  cdrSidesRefreshMap         Json?
+  /// phone_import_state.lastSyncedAt used when the map was saved.
+  cdrSidesRefreshCatalogAt   DateTime?
   artifactRetentionDays Int         @default(14)
   artifactKeepLastRuns  Int         @default(50)
   artifactMaxBytes      Int         @default(50000000)

@@ -10,7 +10,8 @@ export type AllowedActionCode =
   | "phones.sync"
   | "groups.sync"
   | "cdr.import"
-  | "voipmonitor.match";
+  | "voipmonitor.match"
+  | "cdr.sides.refresh";
 
 /** Absolute sudo binary used for non-interactive elevation (never from UI). */
 const REMOTE_SUDO_BIN = "/usr/bin/sudo";
@@ -102,6 +103,17 @@ export const ACTION_REGISTRY: Record<AllowedActionCode, AllowedActionDefinition>
     argv: [],
     module: "traffic",
     description: "Correlate CDR rows with VoIPmonitor and store deep-links",
+    usesPlatformExecWrapper: true,
+    elevateWithSudo: false,
+    needsPty: false,
+  },
+  "cdr.sides.refresh": {
+    code: "cdr.sides.refresh",
+    kind: "local",
+    remotePath: "/opt/scripts/cdr_sides_refresh",
+    argv: [],
+    module: "traffic",
+    description: "Refresh CDR side A/B labels from the phones catalog",
     usesPlatformExecWrapper: true,
     elevateWithSudo: false,
     needsPty: false,

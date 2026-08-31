@@ -1,7 +1,11 @@
-# Current Phase — production (v1.28.0)
+# Current Phase — production (v1.29.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher.  
-**Date:** 2026-08-30
+**Date:** 2026-08-31
+
+## v1.29.0 — CDR side labels follow the phones catalog
+
+«Сторона А/В» in traffic still search the whole selected month on stored `side_*`. When a phone’s Описание appears or changes, job `cdr.sides.refresh` writes the new label onto matching `bill_ani` / `bill_dnis` (all months). Settings toggle + interval; first run ~15s after deploy if no snapshot yet; always runs after a successful `phones.sync` or `cdr.import`. Empty catalog does not wipe sides. Facets and filters stay unchanged.
 
 ## v1.28.0 — Time sort in Date context; fewer facet reloads
 

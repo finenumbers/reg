@@ -28,6 +28,8 @@ import {
   rescheduleAfterSettingsChange,
   scheduledExportAction,
   scheduledRegsAction,
+  scheduledSidesRefreshAction,
+  sidesRefreshDelaySec,
   stopAutoScheduler,
   type SchedulerJobRuntime,
 } from "@/modules/jobs/scheduler";
@@ -110,5 +112,56 @@ describe("scheduledExportAction", () => {
       action: "phones.sync",
       nextLastExportSync: "phones.sync",
     });
+  });
+});
+
+describe("scheduledSidesRefreshAction", () => {
+  it("enqueues when idle and enabled", () => {
+    expect(
+      scheduledSidesRefreshAction({
+        enabled: true,
+        refreshInFlight: false,
+        phonesSyncInFlight: false,
+        cdrImportInFlight: false,
+      }),
+    ).toBe("cdr.sides.refresh");
+  });
+
+  it("skips when disabled or a conflicting job is in flight", () => {
+    expect(
+      scheduledSidesRefreshAction({
+        enabled: false,
+        refreshInFlight: false,
+        phonesSyncInFlight: false,
+        cdrImportInFlight: false,
+      }),
+    ).toBeNull();
+    expect(
+      scheduledSidesRefreshAction({
+        enabled: true,
+        refreshInFlight: false,
+        phonesSyncInFlight: false,
+        cdrImportInFlight: true,
+      }),
+    ).toBeNull();
+  });
+});
+
+describe("sidesRefreshDelaySec", () => {
+  it("uses 15s once when there is no snapshot yet", () => {
+    expect(
+      sidesRefreshDelaySec({
+        hasSnapshot: false,
+        usedInitialDelay: false,
+        intervalSec: 300,
+      }),
+    ).toBe(15);
+    expect(
+      sidesRefreshDelaySec({
+        hasSnapshot: false,
+        usedInitialDelay: true,
+        intervalSec: 300,
+      }),
+    ).toBe(300);
   });
 });

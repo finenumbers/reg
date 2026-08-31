@@ -16,8 +16,22 @@ vi.mock("@/modules/groups/groups-sync-processor", () => ({
   processGroupsSync: (...args: unknown[]) => processGroupsSync(...args),
 }));
 
+const processCdrImport = vi.fn();
+const processCdrSidesRefresh = vi.fn();
+const requestCdrSidesRefresh = vi.fn();
+
 vi.mock("@/modules/traffic/cdr-import-processor", () => ({
-  processCdrImport: vi.fn(),
+  processCdrImport: (...args: unknown[]) => processCdrImport(...args),
+}));
+
+vi.mock("@/modules/traffic/sides-refresh/processor", () => ({
+  processCdrSidesRefresh: (...args: unknown[]) =>
+    processCdrSidesRefresh(...args),
+}));
+
+vi.mock("@/modules/traffic/sides-refresh/enqueue", () => ({
+  requestCdrSidesRefresh: (...args: unknown[]) =>
+    requestCdrSidesRefresh(...args),
 }));
 
 const processVoipmonitorMatch = vi.fn();
@@ -110,6 +124,19 @@ describe("PQueueJobRuntime anti-overlap", () => {
       phonesParsed: 0,
       changesCount: 0,
       hoursProcessed: 0,
+    });
+    processCdrImport.mockResolvedValue({
+      status: "success",
+      jobRunId: "cdr-1",
+      phonesParsed: 1,
+      linesBad: 0,
+      changesCount: 0,
+    });
+    processCdrSidesRefresh.mockResolvedValue({
+      status: "success",
+      jobRunId: "sides-1",
+      phonesParsed: 0,
+      changesCount: 0,
     });
     processGroupsSync.mockImplementation(
       () =>
@@ -242,5 +269,42 @@ describe("PQueueJobRuntime anti-overlap", () => {
     });
     await new Promise((r) => setTimeout(r, 40));
     expect(requestVoipmonitorMatch).not.toHaveBeenCalled();
+  });
+
+  it("chains cdr.sides.refresh after a successful phones.sync", async () => {
+    const runtime = new PQueueJobRuntime();
+    await runtime.enqueue({
+      actionCode: "phones.sync",
+      trigger: "manual",
+    });
+    await new Promise((r) => setTimeout(r, 80));
+    expect(requestCdrSidesRefresh).toHaveBeenCalledWith("schedule");
+  });
+
+  it("chains cdr.sides.refresh after a successful cdr.import", async () => {
+    const runtime = new PQueueJobRuntime();
+    await runtime.enqueue({
+      actionCode: "cdr.import",
+      trigger: "schedule",
+    });
+    await new Promise((r) => setTimeout(r, 40));
+    expect(requestCdrSidesRefresh).toHaveBeenCalledWith("schedule");
+  });
+
+  it("replays cdr.sides.refresh when the catalog moved mid-job", async () => {
+    processCdrSidesRefresh.mockResolvedValue({
+      status: "success",
+      jobRunId: "sides-2",
+      phonesParsed: 1,
+      changesCount: 2,
+      replay: true,
+    });
+    const runtime = new PQueueJobRuntime();
+    await runtime.enqueue({
+      actionCode: "cdr.sides.refresh",
+      trigger: "schedule",
+    });
+    await new Promise((r) => setTimeout(r, 40));
+    expect(requestCdrSidesRefresh).toHaveBeenCalledWith("schedule");
   });
 });

@@ -19,6 +19,8 @@ import {
 } from "@/modules/voipmonitor/continue";
 import { requestVoipmonitorMatch } from "@/modules/voipmonitor/enqueue";
 import { processVoipmonitorMatch } from "@/modules/voipmonitor/processor";
+import { processCdrSidesRefresh } from "@/modules/traffic/sides-refresh/processor";
+import { requestCdrSidesRefresh } from "@/modules/traffic/sides-refresh/enqueue";
 import {
   evaluateSchedulerBootstrap as evaluateSchedulerBootstrapImpl,
 } from "@/modules/jobs/scheduler";
@@ -29,6 +31,7 @@ const SUPPORTED_JOB_ACTIONS = new Set<AllowedActionCode>([
   "groups.sync",
   "cdr.import",
   "voipmonitor.match",
+  "cdr.sides.refresh",
 ]);
 
 export type JobEnqueueInput = {
@@ -96,6 +99,12 @@ export class PQueueJobRuntime implements JobRuntime {
             actorUserId: input.actorUserId,
           });
         }
+        if (input.actionCode === "cdr.sides.refresh") {
+          return await processCdrSidesRefresh({
+            trigger: input.trigger,
+            actorUserId: input.actorUserId,
+          });
+        }
         return await processRegsPoll({
           trigger: input.trigger,
           actorUserId: input.actorUserId,
@@ -122,6 +131,16 @@ export class PQueueJobRuntime implements JobRuntime {
           ).then((allowed) => {
             if (allowed) requestVoipmonitorMatch("schedule");
           });
+        }
+        if (
+          (input.actionCode === "phones.sync" ||
+            input.actionCode === "cdr.import") &&
+          result?.status === "success"
+        ) {
+          requestCdrSidesRefresh("schedule");
+        }
+        if (input.actionCode === "cdr.sides.refresh" && result?.replay) {
+          requestCdrSidesRefresh("schedule");
         }
       },
       (error) => {

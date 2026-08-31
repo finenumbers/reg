@@ -155,6 +155,22 @@ export async function ensurePlatformBaseline(): Promise<{ ok: true }> {
     },
   });
 
+  await prisma.allowedAction.upsert({
+    where: { code: "cdr.sides.refresh" },
+    create: {
+      code: "cdr.sides.refresh",
+      remotePath: "/opt/scripts/cdr_sides_refresh",
+      description: "Refresh CDR side labels from the phones catalog",
+      enabled: true,
+      module: "traffic",
+    },
+    update: {
+      remotePath: "/opt/scripts/cdr_sides_refresh",
+      enabled: true,
+      module: "traffic",
+    },
+  });
+
   await prisma.appSetting.upsert({
     where: { id: 1 },
     create: { id: 1, artifactMaxBytes: 50_000_000 },

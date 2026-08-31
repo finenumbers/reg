@@ -29,6 +29,7 @@
 | `phones.sync` | `/opt/scripts/export.py` | `[]` | `/bin/bash -c 'cd /opt/scripts && exec /usr/bin/sudo -n -- ./export.py'` (no PTY) |
 | `groups.sync` | `/opt/scripts/export.py` | `[]` | `/bin/bash -c 'cd /opt/scripts && exec /usr/bin/sudo -n -- ./export.py'` (no PTY) |
 | `cdr.import` | local (FTP inbox) | `[]` | не SSH — drain локальной папки |
+| `cdr.sides.refresh` | local | `[]` | не SSH — сверка Описаний каталога с `cdr_records.side_*` |
 
 `phones.sync` / `groups.sync` — read-only `SELECT` в MySQL softswitch; JSON в stdout (`version` 2 включает `groups[]`); **без** записи `export.xlsx` и без SFTP. `groups.sync` применяет только каталог routing groups, таблицы телефонов не трогает.
 

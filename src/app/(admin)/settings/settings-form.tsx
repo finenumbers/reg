@@ -53,6 +53,12 @@ export function SettingsForm({ initial }: Props) {
   const [exportSyncIntervalSec, setExportSyncIntervalSec] = useState(
     String(initial.exportSyncIntervalSec),
   );
+  const [cdrSidesRefreshEnabled, setCdrSidesRefreshEnabled] = useState(
+    initial.cdrSidesRefreshEnabled,
+  );
+  const [cdrSidesRefreshIntervalSec, setCdrSidesRefreshIntervalSec] = useState(
+    String(initial.cdrSidesRefreshIntervalSec),
+  );
   const [artifactRetentionDays, setArtifactRetentionDays] = useState(
     String(initial.artifactRetentionDays),
   );
@@ -146,6 +152,8 @@ export function SettingsForm({ initial }: Props) {
     setRegsPollIntervalSec(String(next.regsPollIntervalSec));
     setExportSyncEnabled(next.exportSyncEnabled);
     setExportSyncIntervalSec(String(next.exportSyncIntervalSec));
+    setCdrSidesRefreshEnabled(next.cdrSidesRefreshEnabled);
+    setCdrSidesRefreshIntervalSec(String(next.cdrSidesRefreshIntervalSec));
     setArtifactRetentionDays(String(next.artifactRetentionDays));
     setArtifactKeepLastRuns(String(next.artifactKeepLastRuns));
     setGeoipBaseUrl(next.geoipBaseUrl ?? DEFAULT_GEOIP_BASE_URL);
@@ -168,6 +176,8 @@ export function SettingsForm({ initial }: Props) {
       regsPollIntervalSec: Number(regsPollIntervalSec),
       exportSyncEnabled,
       exportSyncIntervalSec: Number(exportSyncIntervalSec),
+      cdrSidesRefreshEnabled,
+      cdrSidesRefreshIntervalSec: Number(cdrSidesRefreshIntervalSec),
       artifactRetentionDays: Number(artifactRetentionDays),
       artifactKeepLastRuns: Number(artifactKeepLastRuns),
       displayTimezone,
@@ -981,6 +991,35 @@ export function SettingsForm({ initial }: Props) {
               onChange={(e) => setExportSyncIntervalSec(e.target.value)}
             />
           </div>
+          <div className="flex items-center gap-3">
+            <input
+              id="sides-refresh-enabled"
+              type="checkbox"
+              className="size-4 rounded border"
+              checked={cdrSidesRefreshEnabled}
+              onChange={(e) => setCdrSidesRefreshEnabled(e.target.checked)}
+            />
+            <Label htmlFor="sides-refresh-enabled">
+              Обновлять описания сторон в журнале звонков
+            </Label>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Подставляет Описание из справочника в уже загруженные звонки, когда
+            оно появилось или изменилось. После «Загрузить данные» запускается
+            сразу. Поиск в трафике по-прежнему за весь выбранный месяц.
+          </p>
+          <div className="space-y-2">
+            <Label htmlFor="sides-refresh-interval">
+              Интервал обновления описаний в журнале (секунды)
+            </Label>
+            <Input
+              id="sides-refresh-interval"
+              type="number"
+              min={30}
+              value={cdrSidesRefreshIntervalSec}
+              onChange={(e) => setCdrSidesRefreshIntervalSec(e.target.value)}
+            />
+          </div>
           <div className="space-y-2">
             <Label htmlFor="retention">Хранение артефактов (дни)</Label>
             <Input
@@ -1017,6 +1056,9 @@ export function SettingsForm({ initial }: Props) {
             {" · "}
             Номера и группы: {exportSyncEnabled ? "вкл" : "выкл"} /{" "}
             {exportSyncIntervalSec} с
+            {" · "}
+            Описания в журнале: {cdrSidesRefreshEnabled ? "вкл" : "выкл"} /{" "}
+            {cdrSidesRefreshIntervalSec} с
           </p>
           <Button type="button" disabled={pending} onClick={onSaveSettings}>
             Сохранить настройки

@@ -77,6 +77,8 @@ function toSettingsView(
     regsPollIntervalSec: settings.regsPollIntervalSec,
     exportSyncEnabled: settings.exportSyncEnabled,
     exportSyncIntervalSec: settings.exportSyncIntervalSec,
+    cdrSidesRefreshEnabled: settings.cdrSidesRefreshEnabled,
+    cdrSidesRefreshIntervalSec: settings.cdrSidesRefreshIntervalSec,
     artifactRetentionDays: settings.artifactRetentionDays,
     artifactKeepLastRuns: settings.artifactKeepLastRuns,
     artifactMaxBytes: settings.artifactMaxBytes,
@@ -163,7 +165,9 @@ export async function updateSettings(
     parsed.regsPollEnabled !== undefined ||
     parsed.regsPollIntervalSec !== undefined ||
     parsed.exportSyncEnabled !== undefined ||
-    parsed.exportSyncIntervalSec !== undefined;
+    parsed.exportSyncIntervalSec !== undefined ||
+    parsed.cdrSidesRefreshEnabled !== undefined ||
+    parsed.cdrSidesRefreshIntervalSec !== undefined;
 
   let createdProfile = false;
 
@@ -188,6 +192,8 @@ export async function updateSettings(
     regsPollIntervalSec?: number;
     exportSyncEnabled?: boolean;
     exportSyncIntervalSec?: number;
+    cdrSidesRefreshEnabled?: boolean;
+    cdrSidesRefreshIntervalSec?: number;
     artifactRetentionDays?: number;
     artifactKeepLastRuns?: number;
     artifactMaxBytes?: number;
@@ -217,6 +223,12 @@ export async function updateSettings(
   }
   if (parsed.exportSyncIntervalSec !== undefined) {
     settingsData.exportSyncIntervalSec = parsed.exportSyncIntervalSec;
+  }
+  if (parsed.cdrSidesRefreshEnabled !== undefined) {
+    settingsData.cdrSidesRefreshEnabled = parsed.cdrSidesRefreshEnabled;
+  }
+  if (parsed.cdrSidesRefreshIntervalSec !== undefined) {
+    settingsData.cdrSidesRefreshIntervalSec = parsed.cdrSidesRefreshIntervalSec;
   }
   if (parsed.artifactRetentionDays !== undefined) {
     settingsData.artifactRetentionDays = parsed.artifactRetentionDays;
@@ -326,6 +338,8 @@ export async function updateSettings(
       regsPollIntervalSec: view.regsPollIntervalSec,
       exportSyncEnabled: view.exportSyncEnabled,
       exportSyncIntervalSec: view.exportSyncIntervalSec,
+      cdrSidesRefreshEnabled: view.cdrSidesRefreshEnabled,
+      cdrSidesRefreshIntervalSec: view.cdrSidesRefreshIntervalSec,
       artifactRetentionDays: view.artifactRetentionDays,
       artifactKeepLastRuns: view.artifactKeepLastRuns,
       artifactMaxBytes: view.artifactMaxBytes,

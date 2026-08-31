@@ -58,6 +58,9 @@ describe("settings schemas and masked view contract", () => {
     expect(() =>
       settingsUpdateSchema.parse({ exportSyncIntervalSec: 10 }),
     ).toThrow();
+    expect(() =>
+      settingsUpdateSchema.parse({ cdrSidesRefreshIntervalSec: 10 }),
+    ).toThrow();
   });
 
   it("accepts display timezones from the curated list", () => {
@@ -117,6 +120,8 @@ describe("settings schemas and masked view contract", () => {
       regsPollIntervalSec: 60,
       exportSyncEnabled: false,
       exportSyncIntervalSec: 300,
+      cdrSidesRefreshEnabled: true,
+      cdrSidesRefreshIntervalSec: 300,
       artifactRetentionDays: 14,
       artifactKeepLastRuns: 50,
       artifactMaxBytes: 1_048_576,

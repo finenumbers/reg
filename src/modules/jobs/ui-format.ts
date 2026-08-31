@@ -85,7 +85,9 @@ export function summarizeJobResult(job: JobRunListItem): string {
           ? `${n} записей`
           : job.actionCode === "voipmonitor.match"
             ? `${n} ссылок`
-            : `${n} номеров`;
+            : job.actionCode === "cdr.sides.refresh"
+              ? `${n} номеров в diff`
+              : `${n} номеров`;
     parts.push(countLabel);
   }
   if (job.linesBad != null && job.linesBad > 0) {

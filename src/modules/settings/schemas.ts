@@ -37,6 +37,8 @@ export const settingsUpdateSchema = z.object({
   regsPollIntervalSec: z.number().int().min(30).max(86400).optional(),
   exportSyncEnabled: z.boolean().optional(),
   exportSyncIntervalSec: z.number().int().min(30).max(86400).optional(),
+  cdrSidesRefreshEnabled: z.boolean().optional(),
+  cdrSidesRefreshIntervalSec: z.number().int().min(30).max(86400).optional(),
   artifactRetentionDays: z.number().int().min(1).max(365).optional(),
   artifactKeepLastRuns: z.number().int().min(1).max(1000).optional(),
   artifactMaxBytes: z.number().int().min(1024).max(50_000_000).optional(),
@@ -106,6 +108,8 @@ export type SettingsView = {
   regsPollIntervalSec: number;
   exportSyncEnabled: boolean;
   exportSyncIntervalSec: number;
+  cdrSidesRefreshEnabled: boolean;
+  cdrSidesRefreshIntervalSec: number;
   artifactRetentionDays: number;
   artifactKeepLastRuns: number;
   artifactMaxBytes: number;

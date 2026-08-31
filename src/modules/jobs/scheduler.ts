@@ -1,11 +1,13 @@
 /**
  * In-process scheduler for regs.poll, phones.sync, and groups.sync.
  *
- * Two Settings-gated loops (single app replica assumed):
+ * Three Settings-gated loops (single app replica assumed):
  * - regs: regsPollEnabled / regsPollIntervalSec → regs.poll
  *   (same loop always drains CDR inbox + VoIPmonitor)
  * - export: exportSyncEnabled / exportSyncIntervalSec → phones.sync
  *   or groups.sync (one export.py at a time, alternating)
+ * - sides: cdrSidesRefreshEnabled / interval → cdr.sides.refresh
+ *   (also chained after phones.sync / cdr.import)
  *
  * State lives on globalThis so Next.js instrumentation + request handlers share
  * one loop (module-level `let` is duplicated across bundles).
@@ -40,18 +42,25 @@ type ScheduleSettings = {
   regsIntervalSec: number;
   exportEnabled: boolean;
   exportIntervalSec: number;
+  sidesEnabled: boolean;
+  sidesIntervalSec: number;
+  sidesHasSnapshot: boolean;
 };
 
 type SchedulerGlobalState = {
   started: boolean;
   timer: ReturnType<typeof setTimeout> | null;
   exportTimer: ReturnType<typeof setTimeout> | null;
+  sidesTimer: ReturnType<typeof setTimeout> | null;
   runtimeRef: SchedulerJobRuntime | null;
   lastExportSync: ExportSyncAction | null;
+  sidesUsedInitialDelay: boolean;
 };
 
 const DEFAULT_REGS_INTERVAL_SEC = 60;
 const DEFAULT_EXPORT_INTERVAL_SEC = 300;
+const DEFAULT_SIDES_REFRESH_INTERVAL_SEC = 300;
+const FIRST_SIDES_REFRESH_DELAY_SEC = 15;
 
 /** Next regs.poll, or null when that job is already running. Pure — used by tests. */
 export function scheduledRegsAction(regsPollInFlight: boolean): "regs.poll" | null {
@@ -72,6 +81,35 @@ export function scheduledExportAction(input: {
   return { action: nextExport, nextLastExportSync: nextExport };
 }
 
+/** Next cdr.sides.refresh. Pure — used by tests. */
+export function scheduledSidesRefreshAction(input: {
+  enabled: boolean;
+  refreshInFlight: boolean;
+  phonesSyncInFlight: boolean;
+  cdrImportInFlight: boolean;
+}): "cdr.sides.refresh" | null {
+  if (!input.enabled) return null;
+  if (
+    input.refreshInFlight ||
+    input.phonesSyncInFlight ||
+    input.cdrImportInFlight
+  ) {
+    return null;
+  }
+  return "cdr.sides.refresh";
+}
+
+export function sidesRefreshDelaySec(input: {
+  hasSnapshot: boolean;
+  usedInitialDelay: boolean;
+  intervalSec: number;
+}): number {
+  if (!input.hasSnapshot && !input.usedInitialDelay) {
+    return FIRST_SIDES_REFRESH_DELAY_SEC;
+  }
+  return Math.max(30, input.intervalSec);
+}
+
 const SCHEDULER_GLOBAL_KEY = "__reg_scheduler_state__";
 
 function schedulerState(): SchedulerGlobalState {
@@ -83,8 +121,10 @@ function schedulerState(): SchedulerGlobalState {
       started: false,
       timer: null,
       exportTimer: null,
+      sidesTimer: null,
       runtimeRef: null,
       lastExportSync: null,
+      sidesUsedInitialDelay: false,
     };
   }
   return g[SCHEDULER_GLOBAL_KEY];
@@ -107,6 +147,9 @@ async function readScheduleSettings(): Promise<ScheduleSettings | null> {
         regsIntervalSec: DEFAULT_REGS_INTERVAL_SEC,
         exportEnabled: false,
         exportIntervalSec: DEFAULT_EXPORT_INTERVAL_SEC,
+        sidesEnabled: true,
+        sidesIntervalSec: DEFAULT_SIDES_REFRESH_INTERVAL_SEC,
+        sidesHasSnapshot: false,
       };
     }
     return {
@@ -120,6 +163,12 @@ async function readScheduleSettings(): Promise<ScheduleSettings | null> {
         settings.exportSyncIntervalSec,
         DEFAULT_EXPORT_INTERVAL_SEC,
       ),
+      sidesEnabled: settings.cdrSidesRefreshEnabled,
+      sidesIntervalSec: clampInterval(
+        settings.cdrSidesRefreshIntervalSec,
+        DEFAULT_SIDES_REFRESH_INTERVAL_SEC,
+      ),
+      sidesHasSnapshot: settings.cdrSidesRefreshMap != null,
     };
   } catch (error) {
     logger.error("scheduler.settings_read_failed", {
@@ -275,6 +324,68 @@ function scheduleNextExport(intervalSec: number): void {
   });
 }
 
+function scheduleNextSides(intervalSec: number): void {
+  const state = schedulerState();
+  if (!state.started) return;
+  state.sidesTimer = armTimer(state.sidesTimer, intervalSec * 1000, () => {
+    void tickSides();
+  });
+}
+
+async function tickSides(): Promise<void> {
+  const state = schedulerState();
+  if (!state.runtimeRef) return;
+
+  let intervalSec = DEFAULT_SIDES_REFRESH_INTERVAL_SEC;
+  try {
+    const settings = await readScheduleSettings();
+    if (!settings) {
+      return;
+    }
+    intervalSec = sidesRefreshDelaySec({
+      hasSnapshot: settings.sidesHasSnapshot,
+      usedInitialDelay: state.sidesUsedInitialDelay,
+      intervalSec: settings.sidesIntervalSec,
+    });
+    if (!settings.sidesHasSnapshot && !state.sidesUsedInitialDelay) {
+      state.sidesUsedInitialDelay = true;
+    }
+
+    if (!settings.sidesEnabled) {
+      logger.debug("scheduler.sides.skipped", {
+        reason: "cdrSidesRefreshEnabled=false",
+      });
+      return;
+    }
+
+    const action = scheduledSidesRefreshAction({
+      enabled: true,
+      refreshInFlight: state.runtimeRef.isInFlight("cdr.sides.refresh"),
+      phonesSyncInFlight: state.runtimeRef.isInFlight("phones.sync"),
+      cdrImportInFlight: state.runtimeRef.isInFlight("cdr.import"),
+    });
+    if (!action) {
+      logger.debug("scheduler.sides.skipped", { reason: "anti-overlap" });
+      return;
+    }
+    await enqueueScheduled(action);
+  } catch (error) {
+    logger.error("scheduler.sides.failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  } finally {
+    const latest = await readScheduleSettings();
+    const next = latest
+      ? sidesRefreshDelaySec({
+          hasSnapshot: latest.sidesHasSnapshot,
+          usedInitialDelay: state.sidesUsedInitialDelay,
+          intervalSec: latest.sidesIntervalSec,
+        })
+      : intervalSec;
+    scheduleNextSides(next);
+  }
+}
+
 function startSchedulerLoop(runtime: SchedulerJobRuntime): void {
   const state = schedulerState();
   if (state.started) return;
@@ -284,7 +395,8 @@ function startSchedulerLoop(runtime: SchedulerJobRuntime): void {
     note:
       "In-process scheduler loop active (single-replica only). " +
       "Duplicate app instances will duplicate polls. " +
-      "regs.poll uses regsPollEnabled; phones/groups use exportSyncEnabled.",
+      "regs.poll uses regsPollEnabled; phones/groups use exportSyncEnabled; " +
+      "cdr.sides.refresh uses cdrSidesRefreshEnabled.",
   });
   // First regs/housekeeping tick after a short delay so boot is not blocked.
   state.timer = armTimer(null, 5_000, () => {
@@ -296,6 +408,14 @@ function startSchedulerLoop(runtime: SchedulerJobRuntime): void {
     const settings = await readScheduleSettings();
     const intervalSec = settings?.exportIntervalSec ?? DEFAULT_EXPORT_INTERVAL_SEC;
     scheduleNextExport(intervalSec);
+    const sidesDelay = settings
+      ? sidesRefreshDelaySec({
+          hasSnapshot: settings.sidesHasSnapshot,
+          usedInitialDelay: false,
+          intervalSec: settings.sidesIntervalSec,
+        })
+      : FIRST_SIDES_REFRESH_DELAY_SEC;
+    scheduleNextSides(sidesDelay);
   })();
 }
 
@@ -312,14 +432,24 @@ export async function rescheduleAfterSettingsChange(): Promise<void> {
   const regsIntervalSec = settings?.regsIntervalSec ?? DEFAULT_REGS_INTERVAL_SEC;
   const exportIntervalSec =
     settings?.exportIntervalSec ?? DEFAULT_EXPORT_INTERVAL_SEC;
+  const sidesDelay = settings
+    ? sidesRefreshDelaySec({
+        hasSnapshot: settings.sidesHasSnapshot,
+        usedInitialDelay: state.sidesUsedInitialDelay,
+        intervalSec: settings.sidesIntervalSec,
+      })
+    : DEFAULT_SIDES_REFRESH_INTERVAL_SEC;
   logger.info("scheduler.reschedule", {
     regsEnabled: settings?.regsEnabled ?? false,
     regsIntervalSec,
     exportEnabled: settings?.exportEnabled ?? false,
     exportIntervalSec,
+    sidesEnabled: settings?.sidesEnabled ?? false,
+    sidesIntervalSec: sidesDelay,
   });
   scheduleNext(regsIntervalSec);
   scheduleNextExport(exportIntervalSec);
+  scheduleNextSides(sidesDelay);
 }
 
 /**
@@ -330,6 +460,7 @@ export function stopAutoScheduler(): void {
   state.started = false;
   state.runtimeRef = null;
   state.lastExportSync = null;
+  state.sidesUsedInitialDelay = false;
   if (state.timer) {
     clearTimeout(state.timer);
     state.timer = null;
@@ -337,6 +468,10 @@ export function stopAutoScheduler(): void {
   if (state.exportTimer) {
     clearTimeout(state.exportTimer);
     state.exportTimer = null;
+  }
+  if (state.sidesTimer) {
+    clearTimeout(state.sidesTimer);
+    state.sidesTimer = null;
   }
 }
 
@@ -355,6 +490,7 @@ export function evaluateSchedulerBootstrap(runtime: SchedulerJobRuntime): {
       "Auto-scheduler loop started (single-replica only). " +
       "regs.poll when regsPollEnabled=true; phones.sync/groups.sync when " +
       "exportSyncEnabled=true (one export.py at a time); " +
+      "cdr.sides.refresh when cdrSidesRefreshEnabled=true; " +
       "intervals from Settings; anti-overlap per action.",
   };
 }
