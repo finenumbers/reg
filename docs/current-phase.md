@@ -1,7 +1,11 @@
-# Current Phase — production (v1.33.0)
+# Current Phase — production (v1.34.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics.  
 **Date:** 2026-09-01
+
+## v1.34.0 — Join Local/LDC PSTN rows on ТфОП stats
+
+«Присоединения к ТфОП» uses a two-level header (Присоединение + grouped Звонки/Минуты). One row per logical `PSTN_*` name with `_Local`/`_LDC` stripped. Incoming / outgoing / incoming parking / phantom come from `*_Local` or unsuffixed `PSTN_*`. **Межгород** is outgoing calls/minutes of the paired `PSTN_*_LDC` only. The separate LDC table is gone. `GET /api/stats` drops `pstnLdc` and adds `ldcCalls`/`ldcMinutes` on `pstnTfop` rows. Parking formula is unchanged (`src` SIP trunk → `Service_Parking`).
 
 ## v1.33.0 — Incoming parking and phantom columns on SIP stats
 

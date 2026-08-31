@@ -4,6 +4,10 @@ import {
   type SipTrunkGroup,
   type StatsKind,
 } from "@/modules/stats/classify";
+import {
+  pairPstnRows,
+  type PstnJoinRow,
+} from "@/modules/stats/pair-pstn";
 import { deviceMonthStatsSql } from "@/modules/stats/sql";
 import {
   resolveMonthKey,
@@ -23,6 +27,8 @@ export type StatsDeviceRow = {
   phantomMinutes: number;
 };
 
+export type { PstnJoinRow };
+
 export type StatsTableTotals = Omit<StatsDeviceRow, "name">;
 
 export type StatsTable = {
@@ -30,11 +36,17 @@ export type StatsTable = {
   totals: StatsTableTotals;
 };
 
+export type PstnJoinTotals = Omit<PstnJoinRow, "name">;
+
+export type PstnJoinTable = {
+  rows: PstnJoinRow[];
+  totals: PstnJoinTotals;
+};
+
 export type StatsSnapshot = {
   month: string;
   months: CdrMonth[];
-  pstnTfop: StatsTable;
-  pstnLdc: StatsTable;
+  pstnTfop: PstnJoinTable;
   trunk: StatsTable;
   platform: StatsTable;
 };
@@ -63,8 +75,18 @@ const EMPTY_TOTALS: StatsTableTotals = {
   phantomMinutes: 0,
 };
 
+const EMPTY_PSTN_TOTALS: PstnJoinTotals = {
+  ...EMPTY_TOTALS,
+  ldcCalls: 0,
+  ldcMinutes: 0,
+};
+
 function emptyTable(): StatsTable {
   return { rows: [], totals: { ...EMPTY_TOTALS } };
+}
+
+function emptyPstnTable(): PstnJoinTable {
+  return { rows: [], totals: { ...EMPTY_PSTN_TOTALS } };
 }
 
 function asInt(n: number): number {
@@ -102,6 +124,25 @@ function buildTable(rows: StatsDeviceRow[]): StatsTable {
   return { rows, totals };
 }
 
+function buildPstnTable(rows: PstnJoinRow[]): PstnJoinTable {
+  const totals = rows.reduce(
+    (acc, row) => ({
+      inCalls: acc.inCalls + row.inCalls,
+      inMinutes: acc.inMinutes + row.inMinutes,
+      outCalls: acc.outCalls + row.outCalls,
+      outMinutes: acc.outMinutes + row.outMinutes,
+      parkingCalls: acc.parkingCalls + row.parkingCalls,
+      parkingMinutes: acc.parkingMinutes + row.parkingMinutes,
+      phantomCalls: acc.phantomCalls + row.phantomCalls,
+      phantomMinutes: acc.phantomMinutes + row.phantomMinutes,
+      ldcCalls: acc.ldcCalls + row.ldcCalls,
+      ldcMinutes: acc.ldcMinutes + row.ldcMinutes,
+    }),
+    { ...EMPTY_PSTN_TOTALS },
+  );
+  return { rows, totals };
+}
+
 export async function listStatsSnapshot(monthRaw?: string): Promise<StatsSnapshot> {
   const month = resolveMonthKey(monthRaw);
   const [months, raw] = await Promise.all([
@@ -131,11 +172,16 @@ export async function listStatsSnapshot(monthRaw?: string): Promise<StatsSnapsho
   return {
     month: month.key,
     months,
-    pstnTfop: tableOrEmpty(buckets.pstnTfop),
-    pstnLdc: tableOrEmpty(buckets.pstnLdc),
+    pstnTfop: pstnTableOrEmpty(
+      pairPstnRows([...buckets.pstnTfop, ...buckets.pstnLdc]),
+    ),
     trunk: tableOrEmpty(buckets.trunk),
     platform: tableOrEmpty(buckets.platform),
   };
+}
+
+function pstnTableOrEmpty(rows: PstnJoinRow[]): PstnJoinTable {
+  return rows.length ? buildPstnTable(rows) : emptyPstnTable();
 }
 
 function tableOrEmpty(rows: StatsDeviceRow[]): StatsTable {

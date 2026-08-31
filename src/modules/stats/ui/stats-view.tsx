@@ -13,6 +13,7 @@ import {
 import { formatCount } from "@/lib/format-count";
 import { fetchStatsSnapshot } from "@/modules/stats/api-client";
 import type {
+  PstnJoinTable,
   StatsSnapshot,
   StatsTable,
 } from "@/modules/stats/service";
@@ -96,22 +97,12 @@ export function StatsView({ initial }: Props) {
       ) : null}
 
       <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-auto">
-        <StatsSummaryTable
-          title="Присоединения к ТфОП"
-          nameHeader="SIP-транк"
-          table={data.pstnTfop}
-          showParking
-        />
+        <PstnTfopTable table={data.pstnTfop} />
         <StatsSummaryTable
           title="Внешняя нумерация"
           nameHeader="SIP-транк"
           table={data.trunk}
           showParking
-        />
-        <StatsSummaryTable
-          title="Междугородняя и международная связь"
-          nameHeader="SIP-транк"
-          table={data.pstnLdc}
         />
         <StatsSummaryTable
           title="Технологические платформы"
@@ -120,10 +111,150 @@ export function StatsView({ initial }: Props) {
         />
         <p className="text-sm text-muted-foreground">
           Звонок учитывается в каждой подходящей категории; итог не сверяется с
-          числом CDR за месяц.
+          числом CDR за месяц. Межгород — исходящие звонки и минуты парного{" "}
+          <span className="font-mono">PSTN_*_LDC</span>; входящие LDC в таблице
+          нет.
         </p>
       </div>
     </div>
+  );
+}
+
+const PSTN_GROUPS = [
+  "Входящие",
+  "Исходящие",
+  "Входящий паркинг",
+  "Фантомный трафик",
+  "Межгород",
+] as const;
+
+function PstnTfopTable({ table }: { table: PstnJoinTable }) {
+  const colSpan = 11;
+  return (
+    <section className="space-y-2">
+      <h2 className="text-base font-semibold">Присоединения к ТфОП</h2>
+      <div className="overflow-auto rounded-md border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead rowSpan={2} className="h-auto align-middle">
+                Присоединение
+              </TableHead>
+              {PSTN_GROUPS.map((label) => (
+                <TableHead
+                  key={label}
+                  colSpan={2}
+                  className="text-center"
+                >
+                  {label}
+                </TableHead>
+              ))}
+            </TableRow>
+            <TableRow>
+              {PSTN_GROUPS.flatMap((group) => [
+                <TableHead
+                  key={`${group}-calls`}
+                  className="top-8 text-right"
+                >
+                  Звонки
+                </TableHead>,
+                <TableHead
+                  key={`${group}-minutes`}
+                  className="top-8 text-right"
+                >
+                  Минуты
+                </TableHead>,
+              ])}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {table.rows.length === 0 ? (
+              <TableRow>
+                <TableCell
+                  colSpan={colSpan}
+                  className="text-muted-foreground"
+                >
+                  Нет данных за выбранный месяц
+                </TableCell>
+              </TableRow>
+            ) : (
+              table.rows.map((row) => (
+                <TableRow key={row.name}>
+                  <TableCell>{row.name}</TableCell>
+                  <TableCell className="text-right">
+                    {formatStatCount(row.inCalls)}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {formatStatCount(row.inMinutes)}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {formatStatCount(row.outCalls)}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {formatStatCount(row.outMinutes)}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {formatStatCount(row.parkingCalls)}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {formatStatCount(row.parkingMinutes)}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {formatStatCount(row.phantomCalls)}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {formatStatCount(row.phantomMinutes)}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {formatStatCount(row.ldcCalls)}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {formatStatCount(row.ldcMinutes)}
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+          {table.rows.length > 0 ? (
+            <TableFooter>
+              <TableRow>
+                <TableCell>Итого</TableCell>
+                <TableCell className="text-right">
+                  {formatStatCount(table.totals.inCalls)}
+                </TableCell>
+                <TableCell className="text-right">
+                  {formatStatCount(table.totals.inMinutes)}
+                </TableCell>
+                <TableCell className="text-right">
+                  {formatStatCount(table.totals.outCalls)}
+                </TableCell>
+                <TableCell className="text-right">
+                  {formatStatCount(table.totals.outMinutes)}
+                </TableCell>
+                <TableCell className="text-right">
+                  {formatStatCount(table.totals.parkingCalls)}
+                </TableCell>
+                <TableCell className="text-right">
+                  {formatStatCount(table.totals.parkingMinutes)}
+                </TableCell>
+                <TableCell className="text-right">
+                  {formatStatCount(table.totals.phantomCalls)}
+                </TableCell>
+                <TableCell className="text-right">
+                  {formatStatCount(table.totals.phantomMinutes)}
+                </TableCell>
+                <TableCell className="text-right">
+                  {formatStatCount(table.totals.ldcCalls)}
+                </TableCell>
+                <TableCell className="text-right">
+                  {formatStatCount(table.totals.ldcMinutes)}
+                </TableCell>
+              </TableRow>
+            </TableFooter>
+          ) : null}
+        </Table>
+      </div>
+    </section>
   );
 }
 
