@@ -1,7 +1,11 @@
-# Current Phase — production (v1.37.2)
+# Current Phase — production (v1.37.3)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics.  
 **Date:** 2026-09-02
+
+## v1.37.3 — Stats totals bold; platforms table matches SIP chrome
+
+All «Итого» cells on `/stats` are bold. **Технологические платформы** uses the same two-level header and column widths as the SIP tables: **Входящий трафик** / **Исходящий трафик** × Звонки/Минуты (name 210px, metrics 90px). Minutes stay bold; «Итого» minute cells stay yellow.
 
 ## v1.37.2 — Fixed SIP stats column widths
 
@@ -133,7 +137,7 @@ Create `/app/data/traffic-export` in the image (owned by `nextjs`) and mount `re
 
 `formatCount` rejects `null`; CDR import summary now passes a number so Docker/GHCR build succeeds.
 
-## v1.14 — month traffic XLSX export *(superseded by v1.21.0 / v1.22.0)*
+## v1.14 — month traffic XLSX export _(superseded by v1.21.0 / v1.22.0)_
 
 Historical: two buttons exported the previous full month or the current incomplete month (Settings timezone). v1.21.0 replaced that with one «Сохранить данные» button for the UTC calendar month selected in the dropdown (no «неполный» suffix). v1.22.0 split basic vs extended sheets. Live `cdr_records`; PSTN/GeoIP gaps filled from cache/API without overwriting stored fields. Progress modal with stages; sheet named after the month.
 
@@ -157,15 +161,15 @@ Isolated matcher in Reg (no Collector runtime). Settings credentials → job `vo
 
 ## Operator surfaces added/updated
 
-| Item | Purpose |
-|------|---------|
-| `migrate` compose service | `prisma migrate deploy` before `app` |
-| Baseline migration `prisma/migrations/20260806100000_init` | Production schema apply path |
-| `/api/healthz` / `/api/readyz` | Liveness; env+DB readiness |
-| Startup instrumentation | Env assert → baseline seed → admin bootstrap → scheduler eval |
-| `docs/production-checklist.md` | Full go-live list + must-not-do |
-| `docs/backup-and-restore.md` | `pg_dump` / restore / encryption key |
-| `docs/smoke-tests.md` | Automated + UI acceptance |
+| Item                                                       | Purpose                                                       |
+| ---------------------------------------------------------- | ------------------------------------------------------------- |
+| `migrate` compose service                                  | `prisma migrate deploy` before `app`                          |
+| Baseline migration `prisma/migrations/20260806100000_init` | Production schema apply path                                  |
+| `/api/healthz` / `/api/readyz`                             | Liveness; env+DB readiness                                    |
+| Startup instrumentation                                    | Env assert → baseline seed → admin bootstrap → scheduler eval |
+| `docs/production-checklist.md`                             | Full go-live list + must-not-do                               |
+| `docs/backup-and-restore.md`                               | `pg_dump` / restore / encryption key                          |
+| `docs/smoke-tests.md`                                      | Automated + UI acceptance                                     |
 
 ## Explicitly NOT done in Phase 7
 

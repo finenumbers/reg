@@ -16,11 +16,11 @@ BASE_URL=https://regs.example.com npm run smoke
 
 What it verifies:
 
-| Check | Expect |
-|-------|--------|
-| `GET /api/healthz` | 200 |
-| `GET /api/readyz` | 200 (env + DB) |
-| `GET /api/settings`, `/api/regs`, `/api/jobs`, `/api/audit` without session | 401 |
+| Check                                                                       | Expect         |
+| --------------------------------------------------------------------------- | -------------- |
+| `GET /api/healthz`                                                          | 200            |
+| `GET /api/readyz`                                                           | 200 (env + DB) |
+| `GET /api/settings`, `/api/regs`, `/api/jobs`, `/api/audit` without session | 401            |
 
 Optional authenticated checks (export cookies from a logged-in browser session):
 
@@ -41,7 +41,7 @@ Complete after first production deploy and after major upgrades:
 7. **Auto-poll off by default** — Settings `regsPollEnabled=false`; schedule jobs do not enqueue; manual poll still works. Status line shows planner active / poll disabled.
 8. **Hardening** — mutating API from another origin fails CSRF; repeated login attempts rate-limit.
 9. **Storage (admin)** — `/storage` shows month table (calls / seconds / minutes / delete) with no outer card (same chrome as `/traffic`). Minutes are the sum of per-call ceiled minutes, not total seconds / 60. Delete is only on the oldest complete month; confirm by typing `YYYY-MM`. Operator has no nav item; opening `/storage` as operator → `/forbidden`.
-10. **Statistics** — `/stats` (admin and operator, `phones:read`) month switcher; table order ТфОП, внешняя нумерация (`Trunk_`), platforms. No outer card on any table. ТфОП and внешняя нумерация share a two-level header (Входящий/Исходящий трафик, Входящий паркинг, Фантомный трафик × Звонки/Минуты); **Межгород** only on ТфОП. Name columns are 210px; every «Звонки» / «Минуты» is 90px. ТфОП is one row per join name (`PSTN_*` without `_Local`/`_LDC`): Local groups from `*_Local`/unsuffixed, **Межгород** = outgoing only from the paired `*_LDC`. Minutes are bold; «Итого» minute cells are yellow. Empty cells show «-». A call that matches several categories is counted in each.
+10. **Statistics** — `/stats` (admin and operator, `phones:read`) month switcher; table order ТфОП, внешняя нумерация (`Trunk_`), platforms. No outer card on any table. All three tables share a two-level header and the same column widths (name 210px; every «Звонки» / «Минуты» 90px). ТфОП and внешняя нумерация: Входящий/Исходящий трафик, Входящий паркинг, Фантомный трафик × Звонки/Минуты; **Межгород** only on ТфОП. Platforms: only Входящий/Исходящий трафик × Звонки/Минуты. ТфОП is one row per join name (`PSTN_*` without `_Local`/`_LDC`): Local groups from `*_Local`/unsuffixed, **Межгород** = outgoing only from the paired `*_LDC`. Minutes are bold; the whole «Итого» row is bold; «Итого» minute cells are yellow. Empty cells show «-». A call that matches several categories is counted in each.
 
 ## Softswitch (outside the app container)
 

@@ -33,6 +33,8 @@ const SIP_GROUPS = [
 
 const PSTN_GROUPS = [...SIP_GROUPS, "Межгород"] as const;
 
+const PLATFORM_GROUPS = ["Входящий трафик", "Исходящий трафик"] as const;
+
 const MINUTES_CELL = "text-right font-bold";
 const MINUTES_TOTAL_CELL =
   "text-right font-bold bg-yellow-300 text-black hover:bg-yellow-300";
@@ -78,9 +80,9 @@ export function StatsView({ initial }: Props) {
       <div className="flex shrink-0 flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Статистика</h1>
-          <p className="text-sm text-muted-foreground">
-            Саммари входящих и исходящих звонков / минут по SIP-транкам и
-            технологическим платформам.
+          <p className="text-muted-foreground text-sm">
+            Саммари входящих и исходящих звонков / минут по SIP-транкам и технологическим
+            платформам.
           </p>
         </div>
         <div className="relative inline-grid">
@@ -90,7 +92,7 @@ export function StatsView({ initial }: Props) {
             onChange={(e) => void onMonthChange(e.target.value)}
             disabled={loading}
             aria-label="Календарный месяц"
-            className="col-start-1 row-start-1 h-8 w-full rounded-lg border border-border bg-background py-0 pl-2.5 pr-8 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-60"
+            className="border-border bg-background focus-visible:border-ring focus-visible:ring-ring/50 col-start-1 row-start-1 h-8 w-full rounded-lg border py-0 pr-8 pl-2.5 text-sm outline-none focus-visible:ring-3 disabled:opacity-60"
           >
             {monthOptions.map((item) => (
               <option key={item.key} value={item.key}>
@@ -100,7 +102,7 @@ export function StatsView({ initial }: Props) {
           </select>
           <span
             aria-hidden
-            className="invisible col-start-1 row-start-1 h-8 whitespace-nowrap border border-transparent py-0 pl-2.5 pr-8 text-sm"
+            className="invisible col-start-1 row-start-1 h-8 border border-transparent py-0 pr-8 pl-2.5 text-sm whitespace-nowrap"
           >
             {longestMonthLabel}
           </span>
@@ -110,7 +112,7 @@ export function StatsView({ initial }: Props) {
       {error ? (
         <div
           role="alert"
-          className="shrink-0 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+          className="border-destructive/30 bg-destructive/10 text-destructive shrink-0 rounded-md border px-3 py-2 text-sm"
         >
           {error}
         </div>
@@ -137,16 +139,32 @@ export function StatsView({ initial }: Props) {
           }))}
           totals={metricPairs(data.trunk.totals, false)}
         />
-        <StatsSummaryTable
+        <GroupedMetricTable
           title="Технологические платформы"
           nameHeader="Платформа"
-          table={data.platform}
+          groupLabels={PLATFORM_GROUPS}
+          rows={data.platform.rows.map((row) => ({
+            name: row.name,
+            pairs: [
+              { calls: row.inCalls, minutes: row.inMinutes },
+              { calls: row.outCalls, minutes: row.outMinutes },
+            ],
+          }))}
+          totals={[
+            {
+              calls: data.platform.totals.inCalls,
+              minutes: data.platform.totals.inMinutes,
+            },
+            {
+              calls: data.platform.totals.outCalls,
+              minutes: data.platform.totals.outMinutes,
+            },
+          ]}
         />
-        <p className="text-sm text-muted-foreground">
-          Звонок учитывается в каждой подходящей категории; итог не сверяется с
-          числом CDR за месяц. Межгород — исходящие звонки и минуты парного{" "}
-          <span className="font-mono">PSTN_*_LDC</span>; входящие LDC в таблице
-          нет.
+        <p className="text-muted-foreground text-sm">
+          Звонок учитывается в каждой подходящей категории; итог не сверяется с числом CDR
+          за месяц. Межгород — исходящие звонки и минуты парного{" "}
+          <span className="font-mono">PSTN_*_LDC</span>; входящие LDC в таблице нет.
         </p>
       </div>
     </div>
@@ -202,27 +220,17 @@ function GroupedMetricTable({
                 {nameHeader}
               </TableHead>
               {groupLabels.map((label) => (
-                <TableHead
-                  key={label}
-                  colSpan={2}
-                  className="text-center"
-                >
+                <TableHead key={label} colSpan={2} className="text-center">
                   {label}
                 </TableHead>
               ))}
             </TableRow>
             <TableRow>
               {groupLabels.flatMap((group) => [
-                <TableHead
-                  key={`${group}-calls`}
-                  className="top-8 text-right"
-                >
+                <TableHead key={`${group}-calls`} className="top-8 text-right">
                   Звонки
                 </TableHead>,
-                <TableHead
-                  key={`${group}-minutes`}
-                  className="top-8 text-right"
-                >
+                <TableHead key={`${group}-minutes`} className="top-8 text-right">
                   Минуты
                 </TableHead>,
               ])}
@@ -231,10 +239,7 @@ function GroupedMetricTable({
           <TableBody>
             {rows.length === 0 ? (
               <TableRow>
-                <TableCell
-                  colSpan={colSpan}
-                  className="text-muted-foreground"
-                >
+                <TableCell colSpan={colSpan} className="text-muted-foreground">
                   Нет данных за выбранный месяц
                 </TableCell>
               </TableRow>
@@ -243,25 +248,18 @@ function GroupedMetricTable({
                 <TableRow key={row.name}>
                   <TableCell>{row.name}</TableCell>
                   {row.pairs.map((pair, i) => (
-                    <MetricCells
-                      key={`${row.name}-${groupLabels[i] ?? i}`}
-                      pair={pair}
-                    />
+                    <MetricCells key={`${row.name}-${groupLabels[i] ?? i}`} pair={pair} />
                   ))}
                 </TableRow>
               ))
             )}
           </TableBody>
           {rows.length > 0 ? (
-            <TableFooter className="bg-transparent">
+            <TableFooter className="bg-transparent font-bold">
               <TableRow>
                 <TableCell>Итого</TableCell>
                 {totals.map((pair, i) => (
-                  <MetricCells
-                    key={`total-${groupLabels[i] ?? i}`}
-                    pair={pair}
-                    total
-                  />
+                  <MetricCells key={`total-${groupLabels[i] ?? i}`} pair={pair} total />
                 ))}
               </TableRow>
             </TableFooter>
@@ -272,97 +270,14 @@ function GroupedMetricTable({
   );
 }
 
-function MetricCells({
-  pair,
-  total = false,
-}: {
-  pair: MetricPair;
-  total?: boolean;
-}) {
+function MetricCells({ pair, total = false }: { pair: MetricPair; total?: boolean }) {
   return (
     <>
-      <TableCell className="text-right">
-        {formatStatCount(pair.calls)}
-      </TableCell>
+      <TableCell className="text-right">{formatStatCount(pair.calls)}</TableCell>
       <TableCell className={total ? MINUTES_TOTAL_CELL : MINUTES_CELL}>
         {formatStatCount(pair.minutes)}
       </TableCell>
     </>
-  );
-}
-
-function StatsSummaryTable({
-  title,
-  nameHeader,
-  table,
-}: {
-  title: string;
-  nameHeader: string;
-  table: StatsTable;
-}) {
-  return (
-    <section className="space-y-2">
-      <h2 className="text-base font-semibold">{title}</h2>
-      <div className="overflow-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>{nameHeader}</TableHead>
-              <TableHead className="text-right">Входящие звонки</TableHead>
-              <TableHead className="text-right">Входящие минуты</TableHead>
-              <TableHead className="text-right">Исходящие звонки</TableHead>
-              <TableHead className="text-right">Исходящие минуты</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {table.rows.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={5} className="text-muted-foreground">
-                  Нет данных за выбранный месяц
-                </TableCell>
-              </TableRow>
-            ) : (
-              table.rows.map((row) => (
-                <TableRow key={row.name}>
-                  <TableCell>{row.name}</TableCell>
-                  <TableCell className="text-right">
-                    {formatStatCount(row.inCalls)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {formatStatCount(row.inMinutes)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {formatStatCount(row.outCalls)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {formatStatCount(row.outMinutes)}
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-          {table.rows.length > 0 ? (
-            <TableFooter className="bg-transparent">
-              <TableRow>
-                <TableCell>Итого</TableCell>
-                <TableCell className="text-right">
-                  {formatStatCount(table.totals.inCalls)}
-                </TableCell>
-                <TableCell className="text-right">
-                  {formatStatCount(table.totals.inMinutes)}
-                </TableCell>
-                <TableCell className="text-right">
-                  {formatStatCount(table.totals.outCalls)}
-                </TableCell>
-                <TableCell className="text-right">
-                  {formatStatCount(table.totals.outMinutes)}
-                </TableCell>
-              </TableRow>
-            </TableFooter>
-          ) : null}
-        </Table>
-      </div>
-    </section>
   );
 }
 
