@@ -1,7 +1,11 @@
-# Current Phase — production (v1.38.0)
+# Current Phase — production (v1.38.1)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail.  
 **Date:** 2026-09-02
+
+## v1.38.1 — Drop the detail page footnote
+
+`/detail` no longer shows the operator explainer under the table (client = Описание, independent slices, parking ⊂ incoming, totals ≠ unique CDRs).
 
 ## v1.38.0 — Client traffic detail after raw CDR
 

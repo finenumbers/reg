@@ -188,13 +188,6 @@ export function DetailView({ initial }: Props) {
         </TableInfiniteBody>
         <TableCountFooter shown={visible.length} total={data.rows.length} />
       </div>
-
-      <p className="text-muted-foreground shrink-0 text-sm">
-        Клиент — текущее Описание из «Телефонные номера» и все его номера оконечного
-        оборудования. Срезы независимы: один звонок может быть исходящим у одного
-        клиента и входящим у другого. Паркинг входит и во входящий трафик. Итог — сумма
-        строк, не число уникальных CDR.
-      </p>
     </div>
   );
 }
