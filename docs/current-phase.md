@@ -1,7 +1,11 @@
-# Current Phase — production (v1.35.0)
+# Current Phase — production (v1.36.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics.  
 **Date:** 2026-09-01
+
+## v1.36.0 — VoIPmonitor match findFirst flake; Jobs status filter
+
+`voipmonitor.match` no longer dies on the Prisma `cdrRecord.findFirst` existence-check (same predicate is raw SQL + a short transient retry). Jobs list probes cannot 500 `GET /api/jobs`; `errorMessage` is truncated on read; the status filter uses one request and a successful poll clears the red banner.
 
 ## v1.35.0 — Grouped SIP stats; minutes highlight; table chrome
 
@@ -65,7 +69,7 @@ Changing the traffic / geography / operators / raw month `<select>` clears colum
 
 ## v1.22.0 — parked VoIPmonitor hint and two traffic saves
 
-On «Задачи» exhausted VoIPmonitor misses (sentinel `next_attempt_at`) leave the yellow banner. Open leftovers stay `total − with URL − parked`; the due queue is still `findFirst`. Parked count is a muted hint on the status filter row (`Не найдены в VoIPmonitor: N`).
+On «Задачи» exhausted VoIPmonitor misses (sentinel `next_attempt_at`) leave the yellow banner. Open leftovers stay `total − with URL − parked`; the due queue is a raw `SELECT 1` (v1.36.0). Parked count is a muted hint on the status filter row (`Не найдены в VoIPmonitor: N`).
 
 On «Телефонный трафик» «Сохранить данные» writes one month sheet; «Сохранить расширенные данные» keeps month + «Детализация». Enrich «Обогащение данных» still writes two sheets. Repeat `cdrAt` sync skips already-aligned rows.
 

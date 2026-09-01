@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const hasVoipmonitorWork = vi.fn();
 const loadVoipmonitorRuntime = vi.fn();
 const matchBucket = vi.fn();
 const jobRunCreate = vi.fn();
@@ -27,10 +26,6 @@ vi.mock("@/lib/db", () => ({
       findMany: (...args: unknown[]) => findLinks(...args),
     },
   },
-}));
-
-vi.mock("@/modules/voipmonitor/count", () => ({
-  hasVoipmonitorWork: (...args: unknown[]) => hasVoipmonitorWork(...args),
 }));
 
 vi.mock("@/modules/voipmonitor/credentials", () => ({
@@ -119,13 +114,10 @@ describe("processVoipmonitorMatch interleave", () => {
   });
 
   it("processes live then archive when both lanes have work", async () => {
-    hasVoipmonitorWork
-      .mockResolvedValueOnce(true)
-      .mockResolvedValueOnce(true)
-      .mockResolvedValue(false);
     queryRaw
       .mockResolvedValueOnce([{ hour: new Date("2026-08-29T10:00:00.000Z") }])
-      .mockResolvedValueOnce([{ hour: new Date("2026-08-20T10:00:00.000Z") }]);
+      .mockResolvedValueOnce([{ hour: new Date("2026-08-20T10:00:00.000Z") }])
+      .mockResolvedValue([]);
     findMany
       .mockResolvedValueOnce([satelRow("live1", new Date("2026-08-29T10:15:00.000Z"))])
       .mockResolvedValueOnce([
@@ -148,13 +140,10 @@ describe("processVoipmonitorMatch interleave", () => {
   });
 
   it("still runs archive after a live API error and keeps live from rolling back", async () => {
-    hasVoipmonitorWork
-      .mockResolvedValueOnce(true)
-      .mockResolvedValueOnce(true)
-      .mockResolvedValue(false);
     queryRaw
       .mockResolvedValueOnce([{ hour: new Date("2026-08-29T10:00:00.000Z") }])
-      .mockResolvedValueOnce([{ hour: new Date("2026-08-20T10:00:00.000Z") }]);
+      .mockResolvedValueOnce([{ hour: new Date("2026-08-20T10:00:00.000Z") }])
+      .mockResolvedValue([]);
     findMany
       .mockResolvedValueOnce([satelRow("live1", new Date("2026-08-29T10:15:00.000Z"))])
       .mockResolvedValueOnce([
@@ -196,12 +185,34 @@ describe("processVoipmonitorMatch interleave", () => {
     expect(queryRaw).not.toHaveBeenCalled();
   });
 
+  it("stores a compact error when hour pick fails", async () => {
+    queryRaw.mockRejectedValue({
+      code: "P2002",
+      message: [
+        "Invalid `prisma.cdrRecord.findFirst()` invocation:",
+        "",
+        "Unique constraint failed",
+      ].join("\n"),
+    });
+    const result = await processVoipmonitorMatch({ trigger: "schedule" });
+    expect(result.status).toBe("failed");
+    expect(result.errorMessage).toBe("P2002: Unique constraint failed");
+    expect(jobRunUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          errorMessage: "P2002: Unique constraint failed",
+        }),
+      }),
+    );
+  });
+
   it("returns empty success when no lane has work", async () => {
-    hasVoipmonitorWork.mockResolvedValue(false);
+    queryRaw.mockResolvedValue([]);
     const result = await processVoipmonitorMatch({ trigger: "schedule" });
     expect(result.status).toBe("success");
     expect(result.hoursProcessed).toBe(0);
     expect(result.skipped).toBeUndefined();
     expect(matchBucket).not.toHaveBeenCalled();
+    expect(queryRaw).toHaveBeenCalled();
   });
 });

@@ -1,6 +1,11 @@
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
 import { logger } from "@/lib/logger";
+import {
+  compactPrismaError,
+  prismaErrorFields,
+  withTransientRetry,
+} from "@/lib/prisma-transient";
 import { AUDIT_ACTIONS, auditService } from "@/modules/audit";
 import { failJobRunIfStillRunning } from "@/modules/jobs/finalize";
 import {
@@ -10,7 +15,6 @@ import {
 } from "@/modules/voipmonitor/backoff";
 import { candidateFromSatelRow } from "@/modules/voipmonitor/candidates";
 import { VoipmonitorClient } from "@/modules/voipmonitor/client";
-import { hasVoipmonitorWork } from "@/modules/voipmonitor/count";
 import {
   JOB_BUDGET_MS,
   MAX_CANDIDATES_PER_HOUR,
@@ -22,9 +26,9 @@ import { auditLinkInvariants } from "@/modules/voipmonitor/invariants";
 import {
   graceCutoffAt,
   laneCdrAtWhere,
-  liveCutoffAt,
   type MatchLane,
 } from "@/modules/voipmonitor/lanes";
+import { openQueueWhereSql } from "@/modules/voipmonitor/open-queue-sql";
 import {
   collectLegCdrIds,
   parseVoipmonitorLegs,
@@ -104,30 +108,17 @@ export async function pickNextHour(
   now: Date,
   lane: MatchLane,
 ): Promise<Date | null> {
-  const graceCutoff = graceCutoffAt(now);
-  const liveCutoff = liveCutoffAt(now);
-  const lanePred =
-    lane === "live"
-      ? Prisma.sql`AND c."cdrAt" >= ${liveCutoff}`
-      : Prisma.sql`AND c."cdrAt" < ${liveCutoff}`;
-  const rows = await prisma.$queryRaw<Array<{ hour: Date }>>(Prisma.sql`
-    SELECT date_trunc('hour', c."cdrAt") AS hour
-    FROM cdr_records c
-    LEFT JOIN cdr_voipmonitor_links l ON l.cdr_record_id = c.id
-    WHERE c."cdrAt" IS NOT NULL
-      AND c."importedAt" <= ${graceCutoff}
-      AND (
-        l.cdr_record_id IS NULL
-        OR (
-          l.voipmonitor_url = ''
-          AND (l.next_attempt_at IS NULL OR l.next_attempt_at <= ${now})
-        )
-      )
-      ${lanePred}
-    ORDER BY date_trunc('hour', c."cdrAt") DESC
-    LIMIT 1
-  `);
-  return rows[0]?.hour ?? null;
+  return withTransientRetry(async () => {
+    const rows = await prisma.$queryRaw<Array<{ hour: Date }>>(Prisma.sql`
+      SELECT date_trunc('hour', c."cdrAt") AS hour
+      FROM cdr_records c
+      LEFT JOIN cdr_voipmonitor_links l ON l.cdr_record_id = c.id
+      WHERE ${openQueueWhereSql(now, lane)}
+      ORDER BY date_trunc('hour', c."cdrAt") DESC
+      LIMIT 1
+    `);
+    return rows[0]?.hour ?? null;
+  });
 }
 
 async function writeHourResults(
@@ -250,35 +241,39 @@ async function processHour(input: {
 }): Promise<HourMeta> {
   const hourEnd = new Date(input.hour.getTime() + 60 * 60 * 1000);
   const cdrAt = laneCdrAtWhere(input.hour, hourEnd, input.lane, input.now);
-  const rows = await prisma.cdrRecord.findMany({
-    where: {
-      importedAt: { lte: graceCutoffAt(input.now) },
-      cdrAt,
-      OR: [
-        { voipmonitorLink: { is: null } },
-        {
-          voipmonitorLink: {
-            is: voipmonitorDueLinkWhere(input.now),
+  const rows = await withTransientRetry(() =>
+    prisma.cdrRecord.findMany({
+      where: {
+        importedAt: { lte: graceCutoffAt(input.now) },
+        cdrAt,
+        OR: [
+          { voipmonitorLink: { is: null } },
+          {
+            voipmonitorLink: {
+              is: voipmonitorDueLinkWhere(input.now),
+            },
           },
-        },
-      ],
-    },
-    select: CANDIDATE_SELECT,
-    orderBy: { cdrAt: "desc" },
-    take: MAX_CANDIDATES_PER_HOUR,
-  });
+        ],
+      },
+      select: CANDIDATE_SELECT,
+      orderBy: { cdrAt: "desc" },
+      take: MAX_CANDIDATES_PER_HOUR,
+    }),
+  );
   const candidates = rows
     .map((row) => candidateFromSatelRow(row))
     .filter((row): row is NonNullable<typeof row> => row != null);
   const existing =
     candidates.length === 0
       ? []
-      : await prisma.cdrVoipmonitorLink.findMany({
-          where: {
-            cdrRecordId: { in: candidates.map((row) => row.sourceRecordId) },
-          },
-          select: { cdrRecordId: true, attemptCount: true },
-        });
+      : await withTransientRetry(() =>
+          prisma.cdrVoipmonitorLink.findMany({
+            where: {
+              cdrRecordId: { in: candidates.map((row) => row.sourceRecordId) },
+            },
+            select: { cdrRecordId: true, attemptCount: true },
+          }),
+        );
   const attempts = new Map(
     existing.map((row) => [row.cdrRecordId, row.attemptCount]),
   );
@@ -291,14 +286,16 @@ async function processHour(input: {
   const siblings =
     candidates.length === 0
       ? []
-      : await prisma.cdrVoipmonitorLink.findMany({
-          where: {
-            voipmonitorUrl: { not: "" },
-            cdrRecord: { cdrAt },
-            NOT: { cdrRecordId: { in: [...candidateIds] } },
-          },
-          select: { voipmonitorCdrId: true, voipmonitorLegs: true },
-        });
+      : await withTransientRetry(() =>
+          prisma.cdrVoipmonitorLink.findMany({
+            where: {
+              voipmonitorUrl: { not: "" },
+              cdrRecord: { cdrAt },
+              NOT: { cdrRecordId: { in: [...candidateIds] } },
+            },
+            select: { voipmonitorCdrId: true, voipmonitorLegs: true },
+          }),
+        );
   const reservedCdrIds = new Set<string>();
   for (const link of siblings) {
     if (link.voipmonitorCdrId) reservedCdrIds.add(link.voipmonitorCdrId);
@@ -370,7 +367,6 @@ async function processLane(
   guiUrl: string,
 ): Promise<HourMeta | null> {
   const now = new Date();
-  if (!(await hasVoipmonitorWork(now, lane))) return null;
   const hour = await pickNextHour(now, lane);
   if (!hour) return null;
   return processHour({ lane, hour, now, jobRunId, client, guiUrl });
@@ -566,7 +562,7 @@ export async function processVoipmonitorMatch(
       hoursProcessed,
     };
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = compactPrismaError(error);
     const finishedAt = new Date();
     await prisma.jobRun.updateMany({
       where: { id: jobRun.id, status: "running" },
@@ -579,7 +575,7 @@ export async function processVoipmonitorMatch(
     });
     logger.error("voipmonitor.match.failed", {
       jobRunId: jobRun.id,
-      error: message,
+      ...prismaErrorFields(error),
     });
     return {
       status: "failed",

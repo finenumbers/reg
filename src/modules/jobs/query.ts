@@ -5,12 +5,33 @@
 
 import type { JobStatus, Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
+import { logger } from "@/lib/logger";
+import { truncateUtf8 } from "@/lib/utf8-truncate";
 import { countUnenrichedCdrEnrich } from "@/modules/traffic/enrich-import";
 import {
   countParkedVoipmonitor,
   countUnenrichedVoipmonitor,
   hasVoipmonitorWork,
 } from "@/modules/voipmonitor/count";
+
+/** Keep list payloads small; Prisma dumps in errorMessage can be huge. */
+export const JOB_LIST_ERROR_MAX_BYTES = 2048;
+
+async function settleProbe<T>(
+  label: string,
+  fn: () => Promise<T>,
+  fallback: T,
+): Promise<T> {
+  try {
+    return await fn();
+  } catch (error) {
+    logger.warn("jobs.list.probe_failed", {
+      probe: label,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return fallback;
+  }
+}
 
 export type ListJobRunsFilters = {
   status?: JobStatus;
@@ -76,7 +97,9 @@ function toListItem(
     startedAt: row.startedAt.toISOString(),
     finishedAt: row.finishedAt?.toISOString() ?? null,
     durationMs: row.durationMs,
-    errorMessage: row.errorMessage,
+    errorMessage: row.errorMessage
+      ? truncateUtf8(row.errorMessage, JOB_LIST_ERROR_MAX_BYTES)
+      : null,
     exitCode: row.exitCode,
     phonesParsed: row.phonesParsed,
     linesBad: row.linesBad,
@@ -120,14 +143,14 @@ export async function listJobRuns(
         artifact: { select: { jobRunId: true } },
       },
     }),
-    countUnenrichedVoipmonitor(),
+    settleProbe("unenriched", countUnenrichedVoipmonitor, 0),
     prisma.appSetting.findUnique({
       where: { id: 1 },
       select: { voipmonitorEnabled: true },
     }),
-    hasVoipmonitorWork(),
-    countParkedVoipmonitor(),
-    countUnenrichedCdrEnrich(),
+    settleProbe("hasWork", () => hasVoipmonitorWork(), false),
+    settleProbe("parked", countParkedVoipmonitor, 0),
+    settleProbe("cdrEnrich", countUnenrichedCdrEnrich, 0),
   ]);
 
   const actorIds = [

@@ -84,7 +84,6 @@ export function JobsView({ initial }: Props) {
   const refreshSeq = useRef(0);
   const loadingMoreRef = useRef(false);
   const statusRef = useRef(status);
-  statusRef.current = status;
   const pageSigRef = useRef(jobsPageSignature(initial));
   const [scrollRoot, setScrollRoot] = useState<Element | null>(null);
 
@@ -161,6 +160,7 @@ export function JobsView({ initial }: Props) {
 
     const applyPage = (data: ListJobRunsResult) => {
       pageSigRef.current = jobsPageSignature(data);
+      setListError(null);
       setTotal(data.total);
       setUnenriched(data.voipmonitorUnenrichedCount);
       setCdrEnrichUnenriched(data.cdrEnrichUnenrichedCount ?? 0);
@@ -180,7 +180,10 @@ export function JobsView({ initial }: Props) {
       });
       if (cancelled || !result.ok) return;
       const sig = jobsPageSignature(result.data);
-      if (sig === pageSigRef.current) return;
+      if (sig === pageSigRef.current) {
+        setListError(null);
+        return;
+      }
       applyPage(result.data);
     };
 
@@ -205,7 +208,7 @@ export function JobsView({ initial }: Props) {
       start();
     };
 
-    void pull();
+    statusRef.current = status;
     if (document.visibilityState !== "hidden") start();
     document.addEventListener("visibilitychange", onVisibility);
     return () => {

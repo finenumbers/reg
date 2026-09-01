@@ -1,34 +1,9 @@
+import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
+import { withTransientRetry } from "@/lib/prisma-transient";
 import { QUEUE_EXHAUSTED_AT } from "@/modules/voipmonitor/constants";
-import {
-  graceCutoffAt,
-  liveCutoffAt,
-  type MatchLane,
-} from "@/modules/voipmonitor/lanes";
-import { voipmonitorDueLinkWhere } from "@/modules/voipmonitor/queue-filter";
-
-function openCdrWhere(
-  now: Date,
-  linkWhere: object,
-  lane?: MatchLane,
-) {
-  const graceCutoff = graceCutoffAt(now);
-  const liveCutoff = liveCutoffAt(now);
-  const cdrAt =
-    lane === "live"
-      ? { gte: liveCutoff }
-      : lane === "archive"
-        ? { lt: liveCutoff }
-        : {};
-  return {
-    importedAt: { lte: graceCutoff },
-    ...(Object.keys(cdrAt).length > 0 ? { cdrAt } : {}),
-    OR: [
-      { voipmonitorLink: { is: null } },
-      { voipmonitorLink: { is: linkWhere } },
-    ],
-  };
-}
+import { type MatchLane } from "@/modules/voipmonitor/lanes";
+import { openQueueWhereSql } from "@/modules/voipmonitor/open-queue-sql";
 
 /** CDR rows that still have no confirmed VoIPmonitor URL (cheap: two counts). */
 export async function countUnenrichedVoipmonitor(): Promise<number> {
@@ -59,9 +34,14 @@ export async function hasVoipmonitorWork(
   now = new Date(),
   lane?: MatchLane,
 ): Promise<boolean> {
-  const open = await prisma.cdrRecord.findFirst({
-    where: openCdrWhere(now, voipmonitorDueLinkWhere(now), lane),
-    select: { id: true },
+  return withTransientRetry(async () => {
+    const rows = await prisma.$queryRaw<Array<{ ok: number }>>(Prisma.sql`
+      SELECT 1 AS ok
+      FROM cdr_records c
+      LEFT JOIN cdr_voipmonitor_links l ON l.cdr_record_id = c.id
+      WHERE ${openQueueWhereSql(now, lane)}
+      LIMIT 1
+    `);
+    return rows.length > 0;
   });
-  return open != null;
 }
