@@ -7,6 +7,7 @@ import type { JobStatus, Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
 import { logger } from "@/lib/logger";
 import { truncateUtf8 } from "@/lib/utf8-truncate";
+import { sanitizeAuditMeta } from "@/modules/audit/sanitize";
 import { countUnenrichedCdrEnrich } from "@/modules/traffic/enrich-import";
 import {
   countParkedVoipmonitor,
@@ -56,6 +57,8 @@ export type JobRunListItem = {
   actorUserId: string | null;
   actorUsername: string | null;
   hasArtifact: boolean;
+  /** Sanitized JobRun.meta; null if missing or not an object. */
+  meta: Record<string, unknown> | null;
 };
 
 export type ListJobRunsResult = {
@@ -86,6 +89,7 @@ function toListItem(
     changesCount: number | null;
     actorUserId: string | null;
     artifact: { jobRunId: string } | null;
+    meta?: unknown;
   },
   actorUsername: string | null,
 ): JobRunListItem {
@@ -107,7 +111,13 @@ function toListItem(
     actorUserId: row.actorUserId,
     actorUsername,
     hasArtifact: row.artifact != null,
+    meta: metaAsRecord(row.meta),
   };
+}
+
+function metaAsRecord(meta: unknown): Record<string, unknown> | null {
+  if (!meta || typeof meta !== "object" || Array.isArray(meta)) return null;
+  return sanitizeAuditMeta(meta as Record<string, unknown>) ?? null;
 }
 
 export async function listJobRuns(

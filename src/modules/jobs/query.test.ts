@@ -67,6 +67,7 @@ function jobRow(errorMessage: string | null) {
     changesCount: 0,
     actorUserId: null,
     artifact: null,
+    meta: null,
   };
 }
 
@@ -103,5 +104,28 @@ describe("listJobRuns", () => {
       JOB_LIST_ERROR_MAX_BYTES,
     );
     expect(message).toContain("[truncated]");
+  });
+
+  it("returns sanitized object meta and drops non-objects", async () => {
+    jobRunFindMany.mockResolvedValue([
+      {
+        ...jobRow("short"),
+        meta: { files: ["a.csv"], token: "secret", password: "x" },
+      },
+    ]);
+    const withMeta = await listJobRuns();
+    expect(withMeta.items[0]?.meta).toEqual({
+      files: ["a.csv"],
+      token: "[REDACTED]",
+      password: "[REDACTED]",
+    });
+
+    jobRunFindMany.mockResolvedValue([{ ...jobRow("short"), meta: ["nope"] }]);
+    const arrayMeta = await listJobRuns();
+    expect(arrayMeta.items[0]?.meta).toBeNull();
+
+    jobRunFindMany.mockResolvedValue([{ ...jobRow("short"), meta: "nope" }]);
+    const stringMeta = await listJobRuns();
+    expect(stringMeta.items[0]?.meta).toBeNull();
   });
 });

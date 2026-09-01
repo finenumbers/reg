@@ -23,6 +23,9 @@ import { fetchJobsList } from "@/modules/jobs/api-client";
 import type { JobRunListItem, ListJobRunsResult } from "@/modules/jobs/query";
 import {
   formatDurationMs,
+  formatJobAction,
+  formatJobActionTitle,
+  formatJobMetaDetails,
   formatJobStatus,
   formatJobTimestamp,
   formatJobTrigger,
@@ -357,6 +360,8 @@ export function JobsView({ initial }: Props) {
                 ) : null}
                 {items.map((job) => {
                   const open = expandedId === job.id;
+                  const result = summarizeJobResult(job);
+                  const metaDetails = formatJobMetaDetails(job, timeZone);
                   return (
                     <Fragment key={job.id}>
                       <TableRow
@@ -364,8 +369,11 @@ export function JobsView({ initial }: Props) {
                         onClick={() => toggleExpand(job)}
                         data-state={open ? "selected" : undefined}
                       >
-                        <TableCell className="text-xs">
-                          {job.actionCode}
+                        <TableCell
+                          className="text-xs"
+                          title={formatJobActionTitle(job.actionCode)}
+                        >
+                          {formatJobAction(job.actionCode)}
                         </TableCell>
                         <TableCell>{formatJobTrigger(job.trigger)}</TableCell>
                         <TableCell>
@@ -382,8 +390,11 @@ export function JobsView({ initial }: Props) {
                         <TableCell className="tabular-nums text-sm">
                           {formatDurationMs(job.durationMs)}
                         </TableCell>
-                        <TableCell className="max-w-xs truncate text-sm text-muted-foreground">
-                          {summarizeJobResult(job)}
+                        <TableCell
+                          className="max-w-xs truncate text-sm text-muted-foreground"
+                          title={result}
+                        >
+                          {result}
                         </TableCell>
                       </TableRow>
                       {open ? (
@@ -420,12 +431,24 @@ export function JobsView({ initial }: Props) {
                               </div>
                               <div className="sm:col-span-2">
                                 <dt className="text-xs text-muted-foreground">
-                                  Ошибка / сообщение
+                                  Сообщение
                                 </dt>
                                 <dd className="whitespace-pre-wrap break-words">
                                   {job.errorMessage?.trim() || "—"}
                                 </dd>
                               </div>
+                              {metaDetails.length > 0
+                                ? metaDetails.map((detail) => (
+                                    <div key={`${detail.label}:${detail.value}`}>
+                                      <dt className="text-xs text-muted-foreground">
+                                        {detail.label}
+                                      </dt>
+                                      <dd className="whitespace-pre-wrap break-words">
+                                        {detail.value}
+                                      </dd>
+                                    </div>
+                                  ))
+                                : null}
                             </dl>
                           </TableCell>
                         </TableRow>

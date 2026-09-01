@@ -1,7 +1,11 @@
-# Current Phase — production (v1.36.0)
+# Current Phase — production (v1.37.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics.  
 **Date:** 2026-09-01
+
+## v1.37.0 — Readable Jobs results
+
+«Задачи» shows human action names and operator-facing result lines. `GET /api/jobs` returns sanitized `meta`; the summary uses per-action counter meaning (import skipped rows are «уже в базе», VoIPmonitor skip/empty-queue are not a silent success). Expanded row lists whitelisted details, not raw JSON.
 
 ## v1.36.0 — VoIPmonitor match findFirst flake; Jobs status filter
 
