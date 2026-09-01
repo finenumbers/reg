@@ -1,7 +1,11 @@
-# Current Phase — production (v1.37.1)
+# Current Phase — production (v1.37.2)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics.  
-**Date:** 2026-09-01
+**Date:** 2026-09-02
+
+## v1.37.2 — Fixed SIP stats column widths
+
+«Присоединение» / «SIP-транк» are 210px; every «Звонки» and «Минуты» column is 90px (`table-fixed` + colgroup). Platforms table is unchanged.
 
 ## v1.37.1 — Jobs expanded message
 

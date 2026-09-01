@@ -37,6 +37,9 @@ const MINUTES_CELL = "text-right font-bold";
 const MINUTES_TOTAL_CELL =
   "text-right font-bold bg-yellow-300 text-black hover:bg-yellow-300";
 
+const NAME_COL_PX = 210;
+const METRIC_COL_PX = 90;
+
 type MetricPair = { calls: number; minutes: number };
 
 export function StatsView({ initial }: Props) {
@@ -180,11 +183,19 @@ function GroupedMetricTable({
   totals: MetricPair[];
 }) {
   const colSpan = 1 + groupLabels.length * 2;
+  const tableWidth = NAME_COL_PX + groupLabels.length * METRIC_COL_PX * 2;
   return (
     <section className="space-y-2">
       <h2 className="text-base font-semibold">{title}</h2>
       <div className="overflow-auto">
-        <Table>
+        <Table className="table-fixed" style={{ width: tableWidth }}>
+          <colgroup>
+            <col style={{ width: NAME_COL_PX }} />
+            {groupLabels.flatMap((group) => [
+              <col key={`${group}-c`} style={{ width: METRIC_COL_PX }} />,
+              <col key={`${group}-m`} style={{ width: METRIC_COL_PX }} />,
+            ])}
+          </colgroup>
           <TableHeader>
             <TableRow>
               <TableHead rowSpan={2} className="h-auto align-middle">
