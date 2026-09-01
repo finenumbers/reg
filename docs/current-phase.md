@@ -1,7 +1,11 @@
-# Current Phase — production (v1.37.0)
+# Current Phase — production (v1.37.1)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics.  
 **Date:** 2026-09-01
+
+## v1.37.1 — Jobs expanded message
+
+Successful job rows no longer expand to empty «Сообщение» / «Код выхода». The panel writes a short operator sentence from counters and `meta`. Zero `cdr.sides.refresh` reads as «Без изменений»; enrich stats are Russian (кэш / запросы).
 
 ## v1.37.0 — Readable Jobs results
 

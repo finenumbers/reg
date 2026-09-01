@@ -25,6 +25,7 @@ import {
   formatDurationMs,
   formatJobAction,
   formatJobActionTitle,
+  formatJobMessage,
   formatJobMetaDetails,
   formatJobStatus,
   formatJobTimestamp,
@@ -362,6 +363,7 @@ export function JobsView({ initial }: Props) {
                   const open = expandedId === job.id;
                   const result = summarizeJobResult(job);
                   const metaDetails = formatJobMetaDetails(job, timeZone);
+                  const message = formatJobMessage(job, timeZone);
                   return (
                     <Fragment key={job.id}>
                       <TableRow
@@ -411,14 +413,14 @@ export function JobsView({ initial }: Props) {
                                     "— (планировщик / система)"}
                                 </dd>
                               </div>
-                              <div>
-                                <dt className="text-xs text-muted-foreground">
-                                  Код выхода
-                                </dt>
-                                <dd className="tabular-nums">
-                                  {job.exitCode ?? "—"}
-                                </dd>
-                              </div>
+                              {job.exitCode != null ? (
+                                <div>
+                                  <dt className="text-xs text-muted-foreground">
+                                    Код выхода
+                                  </dt>
+                                  <dd className="tabular-nums">{job.exitCode}</dd>
+                                </div>
+                              ) : null}
                               <div>
                                 <dt className="text-xs text-muted-foreground">
                                   Артефакт
@@ -429,14 +431,16 @@ export function JobsView({ initial }: Props) {
                                     : "Нет"}
                                 </dd>
                               </div>
-                              <div className="sm:col-span-2">
-                                <dt className="text-xs text-muted-foreground">
-                                  Сообщение
-                                </dt>
-                                <dd className="whitespace-pre-wrap break-words">
-                                  {job.errorMessage?.trim() || "—"}
-                                </dd>
-                              </div>
+                              {message ? (
+                                <div className="sm:col-span-2">
+                                  <dt className="text-xs text-muted-foreground">
+                                    Сообщение
+                                  </dt>
+                                  <dd className="whitespace-pre-wrap break-words">
+                                    {message}
+                                  </dd>
+                                </div>
+                              ) : null}
                               {metaDetails.length > 0
                                 ? metaDetails.map((detail) => (
                                     <div key={`${detail.label}:${detail.value}`}>

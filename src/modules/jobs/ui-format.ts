@@ -236,6 +236,13 @@ function summarizeVoipmonitor(job: JobRunListItem): string {
 
 function summarizeSidesRefresh(job: JobRunListItem): string {
   const meta = jobMeta(job);
+  const noDiff =
+    (job.changesCount ?? 0) === 0 && (job.phonesParsed ?? 0) === 0;
+  if (noDiff && job.changesCount != null && job.phonesParsed != null) {
+    return meta?.replay === true
+      ? "Без изменений · повторный прогон"
+      : "Без изменений";
+  }
   const parts: string[] = [];
   if (job.changesCount != null) {
     parts.push(`${formatCount(job.changesCount)} строк обновлено`);
@@ -381,14 +388,11 @@ export function formatJobMetaDetails(
       ? (meta.enrich as Record<string, unknown>)
       : null;
   if (enrich) {
-    const pstnCache = finiteNumber(enrich.pstnCacheHits) ?? 0;
-    const pstnLive = finiteNumber(enrich.pstnLiveLookups) ?? 0;
-    const geoCache = finiteNumber(enrich.geoCacheHits) ?? 0;
-    const geoLive = finiteNumber(enrich.geoLiveLookups) ?? 0;
-    if (pstnCache + pstnLive + geoCache + geoLive > 0) {
+    const enrichLine = formatEnrichLine(enrich);
+    if (enrichLine) {
       details.push({
         label: "Обогащение",
-        value: `PSTN cache ${formatCount(pstnCache)} · live ${formatCount(pstnLive)}; GeoIP cache ${formatCount(geoCache)} · live ${formatCount(geoLive)}`,
+        value: enrichLine,
       });
     }
   }
@@ -419,6 +423,167 @@ export function formatJobMetaDetails(
   }
 
   return details;
+}
+
+function formatEnrichLine(enrich: Record<string, unknown>): string | null {
+  const pstnCache = finiteNumber(enrich.pstnCacheHits) ?? 0;
+  const pstnLive = finiteNumber(enrich.pstnLiveLookups) ?? 0;
+  const geoCache = finiteNumber(enrich.geoCacheHits) ?? 0;
+  const geoLive = finiteNumber(enrich.geoLiveLookups) ?? 0;
+  if (pstnCache + pstnLive + geoCache + geoLive <= 0) return null;
+  return `PSTN: ${formatCount(pstnCache)} из кэша, ${formatCount(pstnLive)} запросов; GeoIP: ${formatCount(geoCache)} из кэша, ${formatCount(geoLive)} запросов`;
+}
+
+function describeRegsMessage(job: JobRunListItem): string {
+  const meta = jobMeta(job);
+  const bits: string[] = [];
+  if (job.phonesParsed != null) {
+    bits.push(`Снимок ${formatCount(job.phonesParsed)} номеров`);
+  }
+  if (job.changesCount === 0 && (job.phonesParsed ?? 0) > 0) {
+    bits.push("Изменений status/ip/port нет");
+  } else if (job.changesCount != null && job.changesCount > 0) {
+    bits.push(`${formatCount(job.changesCount)} изменений status/ip/port`);
+  }
+  const removed = finiteNumber(meta?.removed);
+  if (removed != null && removed > 0) {
+    bits.push(`${formatCount(removed)} нет в новом снимке`);
+  }
+  const duplicates = finiteNumber(meta?.duplicatePhones);
+  if (duplicates != null && duplicates > 0) {
+    bits.push(`${formatCount(duplicates)} дублей в выгрузке`);
+  }
+  if (job.linesBad != null && job.linesBad > 0) {
+    bits.push(`${formatCount(job.linesBad)} плохих строк`);
+  }
+  if (bits.length === 0) return "Опрос регистраций завершён.";
+  return `${bits.join(". ")}.`;
+}
+
+function describeImportMessage(job: JobRunListItem): string {
+  const meta = jobMeta(job);
+  const files = stringList(meta?.files);
+  const bits: string[] = [];
+  if (files.length === 1) {
+    bits.push(`файл ${files[0]}`);
+  } else if (files.length > 1) {
+    bits.push(`${formatCount(files.length)} файлов`);
+  }
+  if (job.phonesParsed != null) {
+    bits.push(`вставлено ${formatCount(job.phonesParsed)}`);
+  }
+  if (job.changesCount != null && job.changesCount > 0) {
+    bits.push(`${formatCount(job.changesCount)} уже были в базе`);
+  }
+  if (job.linesBad != null && job.linesBad > 0) {
+    bits.push(`${formatCount(job.linesBad)} битых строк`);
+  }
+  const enrich =
+    meta?.enrich &&
+    typeof meta.enrich === "object" &&
+    !Array.isArray(meta.enrich)
+      ? formatEnrichLine(meta.enrich as Record<string, unknown>)
+      : null;
+  const head =
+    bits.length > 0
+      ? `${bits[0]!.charAt(0).toUpperCase()}${bits[0]!.slice(1)}${bits.length > 1 ? `: ${bits.slice(1).join(", ")}` : ""}.`
+      : "Импорт CDR завершён.";
+  return enrich ? `${head} ${enrich}.` : head;
+}
+
+function describeVoipMessage(job: JobRunListItem, timeZone: string): string {
+  const meta = jobMeta(job);
+  if (meta?.skipped === true) {
+    return summarizeVoipmonitor(job);
+  }
+  if (isEmptyVoipmonitorQueue(meta)) {
+    return "Очередь пуста — новых CDR на сопоставление нет.";
+  }
+  const bits: string[] = [];
+  if (job.phonesParsed != null) {
+    bits.push(`сопоставлено ${formatCount(job.phonesParsed)}`);
+  }
+  if (job.changesCount != null) {
+    bits.push(`записано ${formatCount(job.changesCount)}`);
+  }
+  const hours = Array.isArray(meta?.hours) ? meta.hours : [];
+  const hourBits: string[] = [];
+  for (const raw of hours) {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) continue;
+    const line = formatHourDetail(raw as Record<string, unknown>, timeZone);
+    if (line) hourBits.push(line);
+  }
+  const head =
+    bits.length > 0
+      ? `${bits[0]!.charAt(0).toUpperCase()}${bits[0]!.slice(1)}${bits.length > 1 ? `, ${bits.slice(1).join(", ")}` : ""}.`
+      : "Сопоставление завершено.";
+  if (hourBits.length === 0) return head;
+  return `${head} ${hourBits.join("; ")}.`;
+}
+
+function describeSidesMessage(job: JobRunListItem): string {
+  const noDiff =
+    (job.changesCount ?? 0) === 0 && (job.phonesParsed ?? 0) === 0;
+  if (noDiff) {
+    return jobMeta(job)?.replay === true
+      ? "Каталог описаний не менялся — журнал звонков не обновляли (повторный прогон)."
+      : "Каталог описаний не менялся — журнал звонков не обновляли.";
+  }
+  const bits: string[] = [];
+  if (job.changesCount != null) {
+    bits.push(`обновлено ${formatCount(job.changesCount)} строк`);
+  }
+  if (job.phonesParsed != null) {
+    bits.push(`по ${formatCount(job.phonesParsed)} номерам`);
+  }
+  const text = bits.join(" ");
+  return `${text.charAt(0).toUpperCase()}${text.slice(1)}.`;
+}
+
+/**
+ * Longer operator note for the expanded row.
+ * Uses stored errorMessage when present; otherwise a sentence from counters/meta.
+ */
+export function formatJobMessage(
+  job: JobRunListItem,
+  timeZone: string,
+): string | null {
+  const stored = job.errorMessage?.trim();
+  if (stored) return stored;
+  if (job.status !== "success") return null;
+  switch (job.actionCode) {
+    case "regs.poll":
+      return describeRegsMessage(job);
+    case "phones.sync": {
+      const meta = jobMeta(job);
+      const ep = finiteNumber(meta?.endpointCount);
+      const gw = finiteNumber(meta?.gatewayCount);
+      if (job.phonesParsed == null && ep == null && gw == null) {
+        return "Синхронизация телефонов завершена.";
+      }
+      const bits: string[] = [];
+      if (job.phonesParsed != null) {
+        bits.push(`${formatCount(job.phonesParsed)} номеров`);
+      }
+      if (ep != null) bits.push(`${formatCount(ep)} EP`);
+      if (gw != null) bits.push(`${formatCount(gw)} шлюзов`);
+      return `Справочник: ${bits.join(", ")}.`;
+    }
+    case "groups.sync":
+      return job.phonesParsed != null
+        ? `Справочник входящих групп: ${formatCount(job.phonesParsed)}.`
+        : "Загрузка групп завершена.";
+    case "cdr.import":
+      return describeImportMessage(job);
+    case "voipmonitor.match":
+      return describeVoipMessage(job, timeZone);
+    case "cdr.sides.refresh":
+      return describeSidesMessage(job);
+    case "cdr.purge.month":
+      return summarizePurge(job);
+    default:
+      return null;
+  }
 }
 
 export type JobsListQuery = {

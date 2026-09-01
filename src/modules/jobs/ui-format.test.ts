@@ -4,6 +4,7 @@ import {
   formatDurationMs,
   formatJobAction,
   formatJobActionTitle,
+  formatJobMessage,
   formatJobMetaDetails,
   formatJobTrigger,
   jobStatusBadgeVariant,
@@ -210,6 +211,15 @@ describe("jobs ui-format", () => {
     expect(
       summarizeJobResult(
         sample({
+          actionCode: "cdr.sides.refresh",
+          phonesParsed: 0,
+          changesCount: 0,
+        }),
+      ),
+    ).toBe("Без изменений");
+    expect(
+      summarizeJobResult(
+        sample({
           actionCode: "cdr.purge.month",
           phonesParsed: 42,
           errorMessage: "Удалено 42 записей · Август 2026 года",
@@ -276,6 +286,66 @@ describe("jobs ui-format", () => {
       "Обогащение",
     ]);
     expect(details[0]?.value).toContain("a.csv");
+    expect(details.find((d) => d.label === "Обогащение")?.value).toContain(
+      "из кэша",
+    );
+  });
+
+  it("writes an expanded message when errorMessage is empty", () => {
+    expect(
+      formatJobMessage(
+        sample({ phonesParsed: 13, changesCount: 0, linesBad: 0 }),
+        "UTC",
+      ),
+    ).toBe("Снимок 13 номеров. Изменений status/ip/port нет.");
+    expect(
+      formatJobMessage(
+        sample({
+          actionCode: "cdr.sides.refresh",
+          phonesParsed: 0,
+          changesCount: 0,
+        }),
+        "UTC",
+      ),
+    ).toMatch(/не обновляли/);
+    expect(
+      formatJobMessage(
+        sample({
+          actionCode: "voipmonitor.match",
+          phonesParsed: 9,
+          changesCount: 9,
+          meta: {
+            hours: [
+              {
+                lane: "live",
+                hour: "2026-09-01T03:00:00.000Z",
+                matched: 9,
+              },
+            ],
+          },
+        }),
+        "UTC",
+      ),
+    ).toMatch(/Сопоставлено 9/);
+    expect(
+      formatJobMessage(
+        sample({
+          actionCode: "cdr.import",
+          phonesParsed: 12,
+          changesCount: 0,
+          meta: {
+            files: ["20260901_035147"],
+            enrich: {
+              pstnCacheHits: 18,
+              pstnLiveLookups: 2,
+              geoCacheHits: 5,
+              geoLiveLookups: 0,
+            },
+          },
+        }),
+        "UTC",
+      ),
+    ).toMatch(/Файл 20260901_035147/);
   });
 
   it("maps status badge variants", () => {
