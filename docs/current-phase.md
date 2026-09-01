@@ -1,7 +1,11 @@
-# Current Phase — production (v1.37.3)
+# Current Phase — production (v1.38.0)
 
-**Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics.  
+**Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail.  
 **Date:** 2026-09-02
+
+## v1.38.0 — Client traffic detail after raw CDR
+
+«Детализация» (`/detail`, `phones:read`) sits in CDR nav after «Сырые данные». One row per current catalog **Описание** (all its endpoint numbers). Month switcher; independent slices: incoming (B-number), outgoing `PSTN_*_Local`, incoming parking (`Service_Parking` on B), external `Trunk_*`, long-distance `PSTN_*_LDC` / `_OLD`. Same call can be outgoing for A and incoming for B. Minutes are per-call `CEIL(CEIL(ms/1000)/60)`. Sort the full table (client A–Z, or a group by minutes desc); infinite scroll 100; sticky header; «Итого» from the whole snapshot; zeros are «-». Client column is at least 250px and sized to the longest name. SQL joins trimmed catalog numbers to `bill_ani` / `bill_dnis` (not `side_*`). No new tables or indexes.
 
 ## v1.37.3 — Stats totals bold; platforms table matches SIP chrome
 

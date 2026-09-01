@@ -220,7 +220,7 @@ Full snapshot всех номеров на каждый run **не хранит�
 - Poison **не** автоимпортируется. Leftover без poison подхватывает scheduler tick и хвост `cdr.import`.
 - Во время `cdr.purge.month` строки целевого месяца не вставляются; файл остаётся с hold и после джобы drain повторяется.
 - Индекс `(cdr_date, cdr_id)` — list/export/DELETE; индекс `cdr_day` — `GROUP BY` месяцев на `/storage` и в кэше dropdown.
-- Длительность: `elapsed_time` — миллисекунды. Секунды = `CEIL(ms/1000)` на звонок; минуты на `/storage` и `/stats` = `CEIL(секунд_звонка/60)` на звонок, затем `SUM` (не сумма секунд месяца / 60).
+- Длительность: `elapsed_time` — миллисекунды. Секунды = `CEIL(ms/1000)` на звонок; минуты на `/storage`, `/stats` и `/detail` = `CEIL(секунд_звонка/60)` на звонок, затем `SUM` (не сумма секунд месяца / 60). `/detail` группирует по текущему `phone_endpoints.data.Описание` через `TRIM(bill_ani/bill_dnis) = TRIM(endpointNumber)`; новой таблицы нет.
 - `enrichedAt` ставится только после завершённого PSTN/GeoIP lookup (включая cached not-found). Live-ошибка → `enrichedAt` null, backfill повторит.
 
 ### VoIPmonitor (`cdr_voipmonitor_links`)

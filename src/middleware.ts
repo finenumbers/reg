@@ -51,6 +51,7 @@ export function middleware(request: NextRequest) {
     pathname.startsWith("/groups") ||
     pathname.startsWith("/enrich") ||
     pathname.startsWith("/raw") ||
+    pathname.startsWith("/detail") ||
     pathname.startsWith("/traffic") ||
     pathname.startsWith("/geography") ||
     pathname.startsWith("/operators") ||

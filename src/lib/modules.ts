@@ -17,7 +17,8 @@ export type FeatureModuleId =
   | "audit"
   | "enrich"
   | "storage"
-  | "stats";
+  | "stats"
+  | "detail";
 
 export type FeatureNavGroup = "primary" | "cdr" | "admin";
 
@@ -88,6 +89,14 @@ export const FEATURE_MODULES: FeatureModuleDefinition[] = [
     title: "Сырые данные",
     description: "Полный дамп CDR софтсвитча из локальной БД",
     href: "/raw",
+    navPermission: "phones:read",
+    navGroup: "cdr",
+  },
+  {
+    id: "detail",
+    title: "Детализация",
+    description: "Звонки и минуты по клиентам каталога номеров",
+    href: "/detail",
     navPermission: "phones:read",
     navGroup: "cdr",
   },

@@ -168,6 +168,7 @@ Reg/
 - `/api/audit/*`
 - `/api/storage`, `/api/storage/purge` — admin CDR month inventory / oldest-complete-month delete
 - `/api/stats` — monthly CDR summary: ТфОП (Local+LDC joined, two-level header including Межгород) / Trunk_ (same header without Межгород) / platforms; parking + phantom on ТфОП and Trunk_ (`phones:read`)
+- `/api/detail` — monthly client slices from the phones catalog (Описание + endpoint numbers) × incoming / PSTN Local / parking / Trunk_ / PSTN LDC+OLD (`phones:read`)
 - `/api/healthz`, `/api/readyz`
 
 Ни один endpoint не принимает поля `command`, `scriptPath`, `remoteArgs` из клиента.
