@@ -1,7 +1,11 @@
-# Current Phase — production (v1.38.1)
+# Current Phase — production (v1.39.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail.  
-**Date:** 2026-09-02
+**Date:** 2026-09-07
+
+## v1.39.0 — Unregistered checkbox on Registrations
+
+«Регистрации» gets the same toolbar checkbox «Без регистрации» as «Телефонные номера»: one click keeps `reg_current` rows with status Unregistered. List and facets share `unregisteredOnly` (AND with phone search and column filters). Reset, infinite scroll, and poll keep the flag. XLSX export stays a full snapshot.
 
 ## v1.38.1 — Drop the detail page footnote
 

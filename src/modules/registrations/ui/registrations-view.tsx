@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   ActiveFiltersBar,
   hasActiveFilters,
@@ -58,6 +59,7 @@ export function RegistrationsView({ canPoll, initial }: Props) {
   const [filters, setFilters] = useState<ColumnFilters>({});
   const [phoneInput, setPhoneInput] = useState("");
   const [phoneQ, setPhoneQ] = useState("");
+  const [unregisteredOnly, setUnregisteredOnly] = useState(false);
   const [openColumn, setOpenColumn] = useState<string | null>(null);
   const [page, setPage] = useState(initial.page);
   const [items, setItems] = useState(initial.items);
@@ -78,14 +80,19 @@ export function RegistrationsView({ canPoll, initial }: Props) {
   const loadingMoreRef = useRef(false);
   const filtersRef = useRef(filters);
   const phoneQRef = useRef(phoneQ);
+  const unregisteredOnlyRef = useRef(unregisteredOnly);
   const phoneSearchTimerRef = useRef<number | null>(null);
   const [scrollRoot, setScrollRoot] = useState<Element | null>(null);
 
   filtersRef.current = filters;
   phoneQRef.current = phoneQ;
+  unregisteredOnlyRef.current = unregisteredOnly;
 
   const hasMore = items.length < total;
-  const filtersActive = hasActiveFilters(filters) || phoneQ.trim().length > 0;
+  const filtersActive =
+    hasActiveFilters(filters) ||
+    phoneQ.trim().length > 0 ||
+    unregisteredOnly;
 
   useEffect(() => {
     return () => {
@@ -99,6 +106,7 @@ export function RegistrationsView({ canPoll, initial }: Props) {
   async function loadList(opts: {
     filters?: ColumnFilters;
     phoneQ?: string;
+    unregisteredOnly?: boolean;
     page?: number;
     replace?: boolean;
     soft?: boolean;
@@ -107,6 +115,10 @@ export function RegistrationsView({ canPoll, initial }: Props) {
     const nextFilters = opts.filters ?? filtersRef.current;
     const nextPhoneQ =
       opts.phoneQ !== undefined ? opts.phoneQ : phoneQRef.current;
+    const nextUnregisteredOnly =
+      opts.unregisteredOnly !== undefined
+        ? opts.unregisteredOnly
+        : unregisteredOnlyRef.current;
     const nextPage = opts.page ?? (replace ? 1 : page);
     const seq = ++refreshSeq.current;
 
@@ -123,6 +135,7 @@ export function RegistrationsView({ canPoll, initial }: Props) {
     const result = await fetchRegsList({
       filters: nextFilters,
       phoneQ: nextPhoneQ,
+      unregisteredOnly: nextUnregisteredOnly,
       page: nextPage,
       pageSize: PAGE_SIZE,
     });
@@ -156,7 +169,7 @@ export function RegistrationsView({ canPoll, initial }: Props) {
     if (!hasMore || loading || loadingMoreRef.current) return;
     void loadList({ page: page + 1, replace: false });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- loadList closes over latest filters
-  }, [hasMore, loading, page, filters, phoneQ]);
+  }, [hasMore, loading, page, filters, phoneQ, unregisteredOnly]);
 
   const sentinelRef = useInfiniteScroll({
     enabled: hasMore && !loading && !loadingMore && !listError,
@@ -211,9 +224,25 @@ export function RegistrationsView({ canPoll, initial }: Props) {
     }
     setPhoneInput("");
     setPhoneQ("");
+    setUnregisteredOnly(false);
     setFilters({});
     setOpenColumn(null);
-    void loadList({ filters: {}, phoneQ: "", page: 1, replace: true });
+    void loadList({
+      filters: {},
+      phoneQ: "",
+      unregisteredOnly: false,
+      page: 1,
+      replace: true,
+    });
+  }
+
+  function onUnregisteredOnlyChange(checked: boolean) {
+    setUnregisteredOnly(checked);
+    void loadList({
+      unregisteredOnly: checked,
+      page: 1,
+      replace: true,
+    });
   }
 
   async function onManualPoll() {
@@ -412,6 +441,16 @@ export function RegistrationsView({ canPoll, initial }: Props) {
           className="w-[calc(17ch+1.25rem)] shrink-0"
           autoComplete="off"
         />
+        <div className="flex items-center gap-2">
+          <input
+            id="regs-unregistered-only"
+            type="checkbox"
+            className="size-4 rounded border"
+            checked={unregisteredOnly}
+            onChange={(e) => onUnregisteredOnlyChange(e.target.checked)}
+          />
+          <Label htmlFor="regs-unregistered-only">Без регистрации</Label>
+        </div>
         <Button
           type="button"
           variant="outline"
@@ -446,6 +485,7 @@ export function RegistrationsView({ canPoll, initial }: Props) {
             selectedPhone={selectedPhone}
             filters={filters}
             phoneQ={phoneQ}
+            unregisteredOnly={unregisteredOnly}
             openColumn={openColumn}
             onOpenColumnChange={setOpenColumn}
             onColumnFilterChange={onColumnFilterChange}

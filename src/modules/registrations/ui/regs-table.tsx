@@ -31,6 +31,7 @@ type Props = {
   selectedPhone?: string | null;
   filters: ColumnFilters;
   phoneQ?: string;
+  unregisteredOnly?: boolean;
   openColumn: string | null;
   onOpenColumnChange: (column: string | null) => void;
   onColumnFilterChange: (column: string, values: string[]) => void;
@@ -44,6 +45,7 @@ export function RegsTable({
   selectedPhone = null,
   filters,
   phoneQ = "",
+  unregisteredOnly = false,
   openColumn,
   onOpenColumnChange,
   onColumnFilterChange,
@@ -78,7 +80,13 @@ export function RegsTable({
                 selected={filters[col.id] ?? []}
                 filters={filters}
                 buildFacetsUrl={({ column, filters: f, q }) =>
-                  buildRegsFacetsUrl({ column, filters: f, phoneQ, q })
+                  buildRegsFacetsUrl({
+                    column,
+                    filters: f,
+                    phoneQ,
+                    unregisteredOnly,
+                    q,
+                  })
                 }
                 formatValue={(value) =>
                   displayFacetForColumn(col.id, value, timeZone)

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const requireApiPermission = vi.fn();
 const listRegistrations = vi.fn();
+const listRegistrationFacets = vi.fn();
 const getRegistrationDetail = vi.fn();
 
 vi.mock("@/modules/auth/guards", () => ({
@@ -10,10 +11,13 @@ vi.mock("@/modules/auth/guards", () => ({
 
 vi.mock("@/modules/registrations/service", () => ({
   listRegistrations: (...args: unknown[]) => listRegistrations(...args),
+  listRegistrationFacets: (...args: unknown[]) =>
+    listRegistrationFacets(...args),
   getRegistrationDetail: (...args: unknown[]) => getRegistrationDetail(...args),
 }));
 
 import { GET as listGet } from "@/app/api/regs/route";
+import { GET as facetsGet } from "@/app/api/regs/facets/route";
 import { GET as detailGet } from "@/app/api/regs/[phone]/route";
 
 describe("GET /api/regs", () => {
@@ -67,8 +71,66 @@ describe("GET /api/regs", () => {
     expect(listRegistrations).toHaveBeenCalledWith({
       phoneQ: "738",
       filters: { status: ["Registered"] },
+      unregisteredOnly: false,
       page: 1,
       pageSize: 100,
+    });
+  });
+
+  it("forwards unregisteredOnly to the list service", async () => {
+    requireApiPermission.mockResolvedValue({
+      ok: true,
+      ctx: { session: { user: { id: "u1" } } },
+    });
+    listRegistrations.mockResolvedValue({
+      items: [],
+      total: 0,
+      page: 1,
+      pageSize: 100,
+    });
+
+    const res = await listGet(
+      new Request("http://localhost/api/regs?unregisteredOnly=1"),
+    );
+    expect(res.status).toBe(200);
+    expect(listRegistrations).toHaveBeenCalledWith({
+      phoneQ: undefined,
+      filters: {},
+      unregisteredOnly: true,
+      page: 1,
+      pageSize: 100,
+    });
+  });
+});
+
+describe("GET /api/regs/facets", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("forwards unregisteredOnly to the facets service", async () => {
+    requireApiPermission.mockResolvedValue({
+      ok: true,
+      ctx: { session: { user: { id: "u1" } } },
+    });
+    listRegistrationFacets.mockResolvedValue({
+      items: [],
+      truncated: false,
+    });
+
+    const res = await facetsGet(
+      new Request(
+        "http://localhost/api/regs/facets?column=country&unregisteredOnly=1",
+      ),
+    );
+    expect(res.status).toBe(200);
+    expect(listRegistrationFacets).toHaveBeenCalledWith({
+      column: "country",
+      filters: {},
+      phoneQ: undefined,
+      unregisteredOnly: true,
+      q: undefined,
+      limit: 200,
     });
   });
 });

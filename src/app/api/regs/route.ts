@@ -2,10 +2,11 @@ import { NextResponse } from "next/server";
 import { parseFiltersParam } from "@/components/column-filters/types";
 import { requireApiPermission } from "@/modules/auth/guards";
 import { listRegistrations } from "@/modules/registrations/service";
+import { parseUnregisteredOnlyParam } from "@/modules/registrations/ui-format";
 
 /**
  * GET /api/regs — list current registration states from local DB.
- * Optional: filters=<json>, phoneQ, page, pageSize.
+ * Optional: filters=<json>, phoneQ, unregisteredOnly, page, pageSize.
  */
 export async function GET(request: Request) {
   const gate = await requireApiPermission("regs:read");
@@ -14,12 +15,16 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const phoneQ = url.searchParams.get("phoneQ") ?? undefined;
   const filters = parseFiltersParam(url.searchParams.get("filters"));
+  const unregisteredOnly = parseUnregisteredOnlyParam(
+    url.searchParams.get("unregisteredOnly"),
+  );
   const page = Number(url.searchParams.get("page") ?? "1");
   const pageSize = Number(url.searchParams.get("pageSize") ?? "100");
 
   const result = await listRegistrations({
     phoneQ,
     filters,
+    unregisteredOnly,
     page: Number.isFinite(page) ? page : 1,
     pageSize: Number.isFinite(pageSize) ? pageSize : 100,
   });

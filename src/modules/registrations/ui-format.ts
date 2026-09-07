@@ -80,9 +80,16 @@ export function describeHistoryEvent(event: RegistrationHistoryItem): string {
 export type RegsListQuery = {
   filters?: ColumnFilters;
   phoneQ?: string;
+  unregisteredOnly?: boolean;
   page?: number;
   pageSize?: number;
 };
+
+export function parseUnregisteredOnlyParam(
+  raw: string | null | undefined,
+): boolean {
+  return raw === "1" || raw === "true";
+}
 
 /** Build GET /api/regs query string from UI filters. */
 export function buildRegsListUrl(query: RegsListQuery = {}): string {
@@ -91,6 +98,7 @@ export function buildRegsListUrl(query: RegsListQuery = {}): string {
   if (encoded) params.set("filters", encoded);
   const phoneQ = query.phoneQ?.trim();
   if (phoneQ) params.set("phoneQ", phoneQ);
+  if (query.unregisteredOnly) params.set("unregisteredOnly", "1");
   if (query.page && query.page > 1) params.set("page", String(query.page));
   if (query.pageSize && query.pageSize !== 100) {
     params.set("pageSize", String(query.pageSize));
@@ -103,6 +111,7 @@ export function buildRegsFacetsUrl(opts: {
   column: string;
   filters?: ColumnFilters;
   phoneQ?: string;
+  unregisteredOnly?: boolean;
   q?: string;
   limit?: number;
 }): string {
@@ -111,6 +120,7 @@ export function buildRegsFacetsUrl(opts: {
   const encoded = opts.filters ? encodeFilters(opts.filters) : null;
   if (encoded) params.set("filters", encoded);
   if (opts.phoneQ?.trim()) params.set("phoneQ", opts.phoneQ.trim());
+  if (opts.unregisteredOnly) params.set("unregisteredOnly", "1");
   if (opts.q?.trim()) params.set("q", opts.q.trim());
   if (opts.limit != null) params.set("limit", String(opts.limit));
   return `/api/regs/facets?${params.toString()}`;

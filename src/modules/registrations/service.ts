@@ -20,13 +20,16 @@ import {
   uniqueLookupIps,
 } from "@/modules/geoip";
 import { buildPhoneDescriptionMap } from "@/modules/registrations/phone-description";
+import {
+  applyRegistrationQuery,
+  columnCellValue,
+} from "@/modules/registrations/query-filter";
 import { sortRegistrationItemsByPhone } from "@/modules/registrations/sort";
 import type {
   RegistrationHistoryItem,
   RegistrationListItem,
 } from "@/modules/registrations/types";
 import {
-  formatEndpoint,
   formatRegStatus,
   formatTimestamp,
   REG_COLUMN_HEADERS,
@@ -36,6 +39,8 @@ export type ListRegistrationsFilters = {
   /** Substring search over Телефон (toolbar) */
   phoneQ?: string;
   filters?: ColumnFilters;
+  /** Toolbar «Без регистрации» — status === Unregistered */
+  unregisteredOnly?: boolean;
   page?: number;
   pageSize?: number;
 };
@@ -141,60 +146,6 @@ async function descriptionsForPhones(
   return buildPhoneDescriptionMap(endpoints);
 }
 
-function columnCellValue(
-  row: RegistrationListItem,
-  column: string,
-): string {
-  switch (column) {
-    case "phone":
-      return row.phone;
-    case "description":
-      return row.description ?? "";
-    case "status":
-      return row.status;
-    case "endpoint":
-      return formatEndpoint(row.ip, row.port);
-    case "country":
-      return row.country ?? "";
-    case "city":
-      return row.city ?? "";
-    case "isp":
-      return row.isp ?? "";
-    case "lastChangedAt":
-      return row.lastChangedAt ?? "";
-    case "lastSeenAt":
-      return row.lastSeenAt ?? "";
-    default:
-      return "";
-  }
-}
-
-function matchesColumnFilter(
-  row: RegistrationListItem,
-  column: string,
-  values: string[],
-): boolean {
-  if (values.length === 0) return true;
-  const token = cellToFilterToken(columnCellValue(row, column));
-  return values.includes(token);
-}
-
-function applyColumnFilters(
-  rows: RegistrationListItem[],
-  filters: ColumnFilters,
-  opts: { excludeColumn?: string } = {},
-): RegistrationListItem[] {
-  const entries = Object.entries(filters).filter(
-    ([col, values]) =>
-      values.length > 0 &&
-      (!opts.excludeColumn || col !== opts.excludeColumn),
-  );
-  if (entries.length === 0) return rows;
-  return rows.filter((row) =>
-    entries.every(([col, values]) => matchesColumnFilter(row, col, values)),
-  );
-}
-
 export async function loadAllRegistrationItems(
   opts: { waitGeo?: boolean } = {},
 ): Promise<RegistrationListItem[]> {
@@ -208,11 +159,6 @@ export async function loadAllRegistrationItems(
   return attachGeoFields(items, { wait: opts.waitGeo });
 }
 
-function matchesPhoneQ(row: RegistrationListItem, phoneQ: string): boolean {
-  if (!phoneQ) return true;
-  return row.phone.toLowerCase().includes(phoneQ.toLowerCase());
-}
-
 export async function listRegistrations(
   filters: ListRegistrationsFilters = {},
 ): Promise<ListRegistrationsResult> {
@@ -220,11 +166,14 @@ export async function listRegistrations(
   const pageSize = Math.min(200, Math.max(1, filters.pageSize ?? 100));
   const columnFilters = filters.filters ?? {};
   const phoneQ = (filters.phoneQ ?? "").trim();
+  const unregisteredOnly = Boolean(filters.unregisteredOnly);
 
   const all = await loadAllRegistrationItems();
-  const filtered = applyColumnFilters(all, columnFilters).filter((row) =>
-    matchesPhoneQ(row, phoneQ),
-  );
+  const filtered = applyRegistrationQuery(all, {
+    filters: columnFilters,
+    phoneQ,
+    unregisteredOnly,
+  });
   const skip = (page - 1) * pageSize;
   const pageItems = await attachGeoFields(filtered.slice(skip, skip + pageSize), {
     enqueueMissing: true,
@@ -242,6 +191,7 @@ export async function listRegistrationFacets(opts: {
   column: string;
   filters?: ColumnFilters;
   phoneQ?: string;
+  unregisteredOnly?: boolean;
   q?: string;
   limit?: number;
 }): Promise<FacetResponse> {
@@ -252,9 +202,12 @@ export async function listRegistrationFacets(opts: {
 
   const phoneQ = opts.phoneQ?.trim() ?? "";
   const all = await loadAllRegistrationItems();
-  const filtered = applyColumnFilters(all, opts.filters ?? {}, {
+  const filtered = applyRegistrationQuery(all, {
+    filters: opts.filters ?? {},
+    phoneQ,
+    unregisteredOnly: Boolean(opts.unregisteredOnly),
     excludeColumn: column,
-  }).filter((row) => matchesPhoneQ(row, phoneQ));
+  });
 
   const values = filtered.map((row) =>
     cellToFilterToken(columnCellValue(row, column)),

@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 import { parseFiltersParam } from "@/components/column-filters/types";
 import { requireApiPermission } from "@/modules/auth/guards";
 import { listRegistrationFacets } from "@/modules/registrations/service";
-import { REG_COLUMN_HEADERS } from "@/modules/registrations/ui-format";
+import {
+  parseUnregisteredOnlyParam,
+  REG_COLUMN_HEADERS,
+} from "@/modules/registrations/ui-format";
 
 /**
  * GET /api/regs/facets — distinct values + counts for one column (cross-filter aware).
@@ -22,6 +25,9 @@ export async function GET(request: Request) {
 
   const filters = parseFiltersParam(url.searchParams.get("filters"));
   const phoneQ = url.searchParams.get("phoneQ") ?? undefined;
+  const unregisteredOnly = parseUnregisteredOnlyParam(
+    url.searchParams.get("unregisteredOnly"),
+  );
   const q = url.searchParams.get("q") ?? undefined;
   const limitRaw = Number(url.searchParams.get("limit") ?? "200");
   const limit = Number.isFinite(limitRaw) ? limitRaw : 200;
@@ -30,6 +36,7 @@ export async function GET(request: Request) {
     column,
     filters,
     phoneQ,
+    unregisteredOnly,
     q,
     limit,
   });

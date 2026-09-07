@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildRegsFacetsUrl,
   buildRegsListUrl,
   describeHistoryEvent,
   formatEndpoint,
   formatTimestamp,
+  parseUnregisteredOnlyParam,
   REG_COLUMN_HEADERS,
   statusBadgeVariant,
 } from "@/modules/registrations/ui-format";
@@ -76,6 +78,27 @@ describe("registrations UI format helpers", () => {
       }),
     ).toBe(
       `/api/regs?filters=${encodeURIComponent(JSON.stringify({ status: ["Registered"], phone: ["738"] }))}&page=2`,
+    );
+    expect(buildRegsListUrl({ unregisteredOnly: true })).toBe(
+      "/api/regs?unregisteredOnly=1",
+    );
+    expect(buildRegsListUrl({ unregisteredOnly: false })).toBe("/api/regs");
+  });
+
+  it("parses unregisteredOnly query values like phones/traffic flags", () => {
+    expect(parseUnregisteredOnlyParam("1")).toBe(true);
+    expect(parseUnregisteredOnlyParam("true")).toBe(true);
+    expect(parseUnregisteredOnlyParam("0")).toBe(false);
+    expect(parseUnregisteredOnlyParam("false")).toBe(false);
+    expect(parseUnregisteredOnlyParam(null)).toBe(false);
+  });
+
+  it("includes unregisteredOnly on facet URLs only when set", () => {
+    expect(
+      buildRegsFacetsUrl({ column: "country", unregisteredOnly: true }),
+    ).toBe("/api/regs/facets?column=country&unregisteredOnly=1");
+    expect(buildRegsFacetsUrl({ column: "country" })).toBe(
+      "/api/regs/facets?column=country",
     );
   });
 
