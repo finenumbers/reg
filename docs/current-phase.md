@@ -1,7 +1,11 @@
-# Current Phase — production (v1.42.0)
+# Current Phase — production (v1.43.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail.  
 **Date:** 2026-09-13
+
+## v1.43.0 — Green phantom traffic rows
+
+CDR tables (traffic / geography / operators / raw) paint phantom rows green (`bg-green-200`) instead of gray. Month and enrich XLSX use the same fill (`#BBF7D0`). Classification is unchanged: both billing numbers filled, both sides «Нет в биллинге». Parking stays blue; call-error stays light red.
 
 ## v1.42.0 — Parking checkbox on CDR tables
 

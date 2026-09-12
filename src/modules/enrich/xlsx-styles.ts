@@ -163,10 +163,11 @@ export function xlsxMissFontRole(value: string): MissFontRole {
   return null;
 }
 
+/** Tailwind green-200 — phantom traffic (both sides «Нет в биллинге»). */
 export const XLSX_PHANTOM_FILL: ExcelJS.Fill = {
   type: "pattern",
   pattern: "solid",
-  fgColor: { argb: "FFD4D4D8" },
+  fgColor: { argb: "FFBBF7D0" },
 };
 
 export const XLSX_CALL_ERROR_FILL: ExcelJS.Fill = {
