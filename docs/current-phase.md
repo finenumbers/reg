@@ -1,7 +1,11 @@
-# Current Phase — production (v1.39.0)
+# Current Phase — production (v1.40.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail.  
-**Date:** 2026-09-07
+**Date:** 2026-09-13
+
+## v1.40.0 — Unregistered rows on Registrations
+
+«Регистрации» paints `Unregistered` rows with the same light red as «Транки с регистрацией» (`bg-destructive/10`; selected stays `bg-destructive/20`). The «Не зарегистрирован» badge is saturated red (`bg-red-600`), pairing the green Registered badge. XLSX uses the same `#FEE2E2` row fill as phones. Filters, poll, and API are unchanged.
 
 ## v1.39.0 — Unregistered checkbox on Registrations
 

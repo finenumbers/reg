@@ -129,7 +129,9 @@ export function RegsTable({
                 data-state={selected ? "selected" : undefined}
                 className={cn(
                   onRowClick && "cursor-pointer",
-                  selected && "bg-muted/60",
+                  row.status === "Unregistered"
+                    ? "bg-destructive/10 hover:bg-destructive/15 data-[state=selected]:bg-destructive/20"
+                    : selected && "bg-muted/60",
                 )}
                 onClick={() => onRowClick?.(row)}
               >

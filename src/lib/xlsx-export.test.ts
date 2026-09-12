@@ -22,6 +22,29 @@ describe("xlsx-export helpers", () => {
     expect(buf.subarray(0, 2).toString("utf8")).toBe("PK");
   });
 
+  it("createSimpleWorkbook highlights rows when asked", () => {
+    const wb = createSimpleWorkbook({
+      sheetName: "Регистрации",
+      headers: ["Телефон", "Статус"],
+      rows: [
+        ["100", "Зарегистрирован"],
+        ["200", "Не зарегистрирован"],
+      ],
+      highlightFill: XLSX_UNREGISTERED_FILL,
+      highlightRow: (_i, values) => values[1] === "Не зарегистрирован",
+    });
+    const sheet = wb.getWorksheet("Регистрации");
+    expect(sheet).toBeTruthy();
+    expect(sheet?.getRow(2).getCell(1).fill).toBeUndefined();
+    expect(sheet?.getRow(3).getCell(1).fill).toMatchObject({
+      type: "pattern",
+      fgColor: { argb: "FFFEE2E2" },
+    });
+    expect(sheet?.getRow(3).getCell(2).fill).toMatchObject({
+      fgColor: { argb: "FFFEE2E2" },
+    });
+  });
+
   it("columnWidthForValues uses max length without tight upper clamp", () => {
     expect(columnWidthForValues("ID", ["1", "22"])).toBe(Math.max(8, 2 + 2));
     expect(columnWidthForValues("Название", ["abc"])).toBe(

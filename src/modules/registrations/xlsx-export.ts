@@ -6,6 +6,7 @@ import {
   createSimpleWorkbook,
   formatExportTimestamp,
   workbookToBuffer,
+  XLSX_UNREGISTERED_FILL,
 } from "@/lib/xlsx-export";
 import { loadAllRegistrationItems } from "@/modules/registrations/service";
 import { getDisplayTimezone } from "@/modules/settings";
@@ -62,6 +63,8 @@ export async function buildRegsExportXlsx(): Promise<RegsExportResult> {
     sheetName: "Регистрации",
     headers,
     rows,
+    highlightFill: XLSX_UNREGISTERED_FILL,
+    highlightRow: (index) => items[index]?.status === "Unregistered",
   });
   const buffer = await workbookToBuffer(workbook);
   return {

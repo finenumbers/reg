@@ -157,6 +157,8 @@ export function createSimpleWorkbook(opts: {
   headers: readonly string[];
   rows: string[][];
   styleCell?: (ctx: ReplaceSheetStyleCellCtx) => void;
+  highlightRow?: (rowIndex: number, values: string[]) => boolean;
+  highlightFill?: ExcelJS.Fill;
 }): ExcelJS.Workbook {
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet(opts.sheetName);
@@ -164,6 +166,8 @@ export function createSimpleWorkbook(opts: {
   sheet.addRow(opts.headers.map(() => ""));
   replaceSheetData(sheet, opts.headers, opts.rows, {
     styleCell: opts.styleCell,
+    highlightRow: opts.highlightRow,
+    highlightFill: opts.highlightFill,
   });
   return workbook;
 }

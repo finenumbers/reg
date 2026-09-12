@@ -21,7 +21,7 @@ export function RegStatusBadge({
       className={cn(
         status === "Registered"
           ? "bg-emerald-600 text-white hover:bg-emerald-600/90"
-          : "border-border bg-muted text-muted-foreground",
+          : "bg-red-600 text-white hover:bg-red-600/90",
         className,
       )}
     >
