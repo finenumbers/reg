@@ -174,3 +174,10 @@ export const XLSX_CALL_ERROR_FILL: ExcelJS.Fill = {
   pattern: "solid",
   fgColor: { argb: "FFFECACA" },
 };
+
+/** Tailwind blue-200 — parking with a known side. */
+export const XLSX_PARKING_KNOWN_FILL: ExcelJS.Fill = {
+  type: "pattern",
+  pattern: "solid",
+  fgColor: { argb: "FFBFDBFE" },
+};

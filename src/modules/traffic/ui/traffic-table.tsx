@@ -154,6 +154,8 @@ export function TrafficTable({
                   "bg-zinc-300 hover:bg-zinc-400/90 dark:bg-zinc-700 dark:hover:bg-zinc-600",
                 flag === "call_error" &&
                   "bg-destructive/25 hover:bg-destructive/35",
+                flag === "parking_known" &&
+                  "bg-blue-200 hover:bg-blue-300/90 dark:bg-blue-950 dark:hover:bg-blue-900",
               )}
             >
               {headers.map((h) => {

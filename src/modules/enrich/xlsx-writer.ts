@@ -30,6 +30,7 @@ import {
   xlsxMissFontRole,
   XLSX_BILLING_FONT_ARGB,
   XLSX_CALL_ERROR_FILL,
+  XLSX_PARKING_KNOWN_FILL,
   XLSX_PHANTOM_FILL,
   XLSX_PSTN_FONT_ARGB,
   type BorderRole,
@@ -124,9 +125,11 @@ function rowFill(row: ResolvedEnrichedRow): ExcelJS.Fill | undefined {
     bNumber: row.bNumber,
     sideA: row.sideA,
     sideB: row.sideB,
+    dialObject: row.dialObject,
   });
   if (flag === "phantom") return XLSX_PHANTOM_FILL;
   if (flag === "call_error") return XLSX_CALL_ERROR_FILL;
+  if (flag === "parking_known") return XLSX_PARKING_KNOWN_FILL;
   return undefined;
 }
 

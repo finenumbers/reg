@@ -26,6 +26,7 @@ export function classifyTrafficListRow(
     bNumber: data.bill_dnis ?? "",
     sideA: data.side_a ?? "",
     sideB: data.side_b ?? "",
+    dialObject: data.dp_name ?? "",
   });
 }
 

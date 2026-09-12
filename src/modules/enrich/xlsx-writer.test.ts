@@ -10,9 +10,11 @@ import {
   TRAFFIC_HEADERS,
 } from "@/modules/enrich/types";
 import type { ResolvedEnrichedRow } from "@/modules/enrich/types";
+import { PARKING_DIAL_OBJECT } from "@/modules/enrich/row-flags";
 import {
   XLSX_BILLING_FONT_ARGB,
   XLSX_CALL_ERROR_FILL,
+  XLSX_PARKING_KNOWN_FILL,
   XLSX_PHANTOM_FILL,
 } from "@/modules/enrich/xlsx-styles";
 
@@ -104,7 +106,7 @@ describe("writeResolvedEnrichedXlsx", () => {
     expect(detail.getRow(2).getCell(2).value).toBe("12:00:00");
   });
 
-  it("fills phantom and call-error rows on every column of both sheets", async () => {
+  it("fills phantom, call-error, and parking-known rows on every column of both sheets", async () => {
     dir = await mkdtemp(path.join(tmpdir(), "xlsx-writer-"));
     const jsonlPath = path.join(dir, "rows.jsonl");
     const outputPath = path.join(dir, "out.xlsx");
@@ -122,15 +124,21 @@ describe("writeResolvedEnrichedXlsx", () => {
       sideA: MISSING_BILLING_LABEL,
       sideB: MISSING_BILLING_LABEL,
     };
+    const parkingKnown: ResolvedEnrichedRow = {
+      ...ROW,
+      dialObject: PARKING_DIAL_OBJECT,
+      sideA: "Офис",
+      sideB: MISSING_BILLING_LABEL,
+    };
     await writeFile(
       jsonlPath,
-      `${JSON.stringify(phantom)}\n${JSON.stringify(errorRow)}\n${JSON.stringify(ROW)}\n`,
+      `${JSON.stringify(phantom)}\n${JSON.stringify(errorRow)}\n${JSON.stringify(ROW)}\n${JSON.stringify(parkingKnown)}\n`,
       "utf8",
     );
     await writeResolvedEnrichedXlsx({
       jsonlPath,
       outputPath,
-      rowCount: 3,
+      rowCount: 4,
       trafficSheetName: "Август 2026 года",
     });
     const workbook = new ExcelJS.Workbook();
@@ -147,6 +155,8 @@ describe("writeResolvedEnrichedXlsx", () => {
     const phantomArgb = (XLSX_PHANTOM_FILL as ExcelJS.FillPattern).fgColor?.argb;
     const errorArgb = (XLSX_CALL_ERROR_FILL as ExcelJS.FillPattern).fgColor
       ?.argb;
+    const parkingArgb = (XLSX_PARKING_KNOWN_FILL as ExcelJS.FillPattern).fgColor
+      ?.argb;
 
     for (const sheet of [traffic!, detail!]) {
       const lastCol = sheet.columnCount;
@@ -155,6 +165,7 @@ describe("writeResolvedEnrichedXlsx", () => {
         expect(argb(sheet.getRow(2).getCell(c))).toBe(phantomArgb);
         expect(argb(sheet.getRow(3).getCell(c))).toBe(errorArgb);
         expect(argb(sheet.getRow(4).getCell(c))).toBeUndefined();
+        expect(argb(sheet.getRow(5).getCell(c))).toBe(parkingArgb);
         expect(sheet.getRow(2).getCell(c).border?.top).toBeTruthy();
       }
     }
@@ -169,6 +180,9 @@ describe("writeResolvedEnrichedXlsx", () => {
       XLSX_BILLING_FONT_ARGB,
     );
     expect(detail!.getRow(2).getCell(8).font?.color?.argb).toBe(
+      XLSX_BILLING_FONT_ARGB,
+    );
+    expect(traffic!.getRow(5).getCell(6).font?.color?.argb).toBe(
       XLSX_BILLING_FONT_ARGB,
     );
   });

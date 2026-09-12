@@ -27,6 +27,18 @@ describe("classifyTrafficListRow", () => {
       }),
     ).toBe("call_error");
   });
+
+  it("reads dp_name for parking with a known side", () => {
+    expect(
+      classifyTrafficListRow({
+        bill_ani: "79001112233",
+        bill_dnis: "79004445566",
+        side_a: "Офис",
+        side_b: MISSING_BILLING_LABEL,
+        dp_name: "Service_Parking",
+      }),
+    ).toBe("parking_known");
+  });
 });
 
 describe("trafficFlagWhere", () => {

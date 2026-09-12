@@ -4,7 +4,10 @@ import {
   classifyCdrRow,
   isCdrEmpty,
   isCdrFilled,
+  isSideKnown,
+  PARKING_DIAL_OBJECT,
 } from "@/modules/enrich/row-flags";
+import { PARKING_DST } from "@/modules/stats/classify";
 
 describe("isCdrEmpty / isCdrFilled", () => {
   it("treats only the empty string as empty", () => {
@@ -17,6 +20,20 @@ describe("isCdrEmpty / isCdrFilled", () => {
   });
 });
 
+describe("PARKING_DIAL_OBJECT", () => {
+  it("stays equal to stats PARKING_DST", () => {
+    expect(PARKING_DIAL_OBJECT).toBe(PARKING_DST);
+  });
+});
+
+describe("isSideKnown", () => {
+  it("rejects empty and billing-miss labels", () => {
+    expect(isSideKnown("")).toBe(false);
+    expect(isSideKnown(MISSING_BILLING_LABEL)).toBe(false);
+    expect(isSideKnown("Офис")).toBe(true);
+  });
+});
+
 describe("classifyCdrRow", () => {
   it("marks both empty numbers as a call error", () => {
     expect(
@@ -25,6 +42,7 @@ describe("classifyCdrRow", () => {
         bNumber: "",
         sideA: MISSING_BILLING_LABEL,
         sideB: MISSING_BILLING_LABEL,
+        dialObject: "",
       }),
     ).toBe("call_error");
   });
@@ -36,6 +54,7 @@ describe("classifyCdrRow", () => {
         bNumber: " ",
         sideA: MISSING_BILLING_LABEL,
         sideB: MISSING_BILLING_LABEL,
+        dialObject: "",
       }),
     ).toBe("phantom");
   });
@@ -47,6 +66,7 @@ describe("classifyCdrRow", () => {
         bNumber: "79004445566",
         sideA: MISSING_BILLING_LABEL,
         sideB: MISSING_BILLING_LABEL,
+        dialObject: "",
       }),
     ).toBe("phantom");
   });
@@ -58,6 +78,7 @@ describe("classifyCdrRow", () => {
         bNumber: "79004445566",
         sideA: MISSING_BILLING_LABEL,
         sideB: "Офис",
+        dialObject: "",
       }),
     ).toBeNull();
   });
@@ -69,6 +90,7 @@ describe("classifyCdrRow", () => {
         bNumber: "79004445566",
         sideA: MISSING_BILLING_LABEL,
         sideB: "Офис",
+        dialObject: "",
       }),
     ).toBeNull();
   });
@@ -80,7 +102,104 @@ describe("classifyCdrRow", () => {
         bNumber: "79004445566",
         sideA: "",
         sideB: "",
+        dialObject: "",
       }),
     ).toBeNull();
+  });
+
+  it("marks parking with only side A known", () => {
+    expect(
+      classifyCdrRow({
+        aNumber: "79001112233",
+        bNumber: "79004445566",
+        sideA: "Офис",
+        sideB: MISSING_BILLING_LABEL,
+        dialObject: PARKING_DIAL_OBJECT,
+      }),
+    ).toBe("parking_known");
+  });
+
+  it("marks parking with only side B known", () => {
+    expect(
+      classifyCdrRow({
+        aNumber: "79001112233",
+        bNumber: "79004445566",
+        sideA: MISSING_BILLING_LABEL,
+        sideB: "Офис",
+        dialObject: PARKING_DIAL_OBJECT,
+      }),
+    ).toBe("parking_known");
+  });
+
+  it("marks parking when both sides are known", () => {
+    expect(
+      classifyCdrRow({
+        aNumber: "79001112233",
+        bNumber: "79004445566",
+        sideA: "Клиент A",
+        sideB: "Клиент B",
+        dialObject: PARKING_DIAL_OBJECT,
+      }),
+    ).toBe("parking_known");
+  });
+
+  it("keeps parking with both billing misses as phantom", () => {
+    expect(
+      classifyCdrRow({
+        aNumber: "79001112233",
+        bNumber: "79004445566",
+        sideA: MISSING_BILLING_LABEL,
+        sideB: MISSING_BILLING_LABEL,
+        dialObject: PARKING_DIAL_OBJECT,
+      }),
+    ).toBe("phantom");
+  });
+
+  it("does not mark a parking suffix as parking_known", () => {
+    expect(
+      classifyCdrRow({
+        aNumber: "79001112233",
+        bNumber: "79004445566",
+        sideA: "Офис",
+        sideB: MISSING_BILLING_LABEL,
+        dialObject: "Service_Parking_1",
+      }),
+    ).toBeNull();
+  });
+
+  it("trims dial object before matching parking", () => {
+    expect(
+      classifyCdrRow({
+        aNumber: "79001112233",
+        bNumber: "79004445566",
+        sideA: "Офис",
+        sideB: MISSING_BILLING_LABEL,
+        dialObject: " Service_Parking ",
+      }),
+    ).toBe("parking_known");
+  });
+
+  it("returns null for parking while sides are still blank", () => {
+    expect(
+      classifyCdrRow({
+        aNumber: "79001112233",
+        bNumber: "79004445566",
+        sideA: "",
+        sideB: "",
+        dialObject: PARKING_DIAL_OBJECT,
+      }),
+    ).toBeNull();
+  });
+
+  it("keeps call_error ahead of parking_known", () => {
+    expect(
+      classifyCdrRow({
+        aNumber: "",
+        bNumber: "",
+        sideA: "Офис",
+        sideB: MISSING_BILLING_LABEL,
+        dialObject: PARKING_DIAL_OBJECT,
+      }),
+    ).toBe("call_error");
   });
 });
