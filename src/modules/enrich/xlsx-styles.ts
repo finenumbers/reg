@@ -182,3 +182,10 @@ export const XLSX_PARKING_KNOWN_FILL: ExcelJS.Fill = {
   pattern: "solid",
   fgColor: { argb: "FFBFDBFE" },
 };
+
+/** Tailwind gray-200 — known side and empty duration («Недозвон»). */
+export const XLSX_KNOWN_EMPTY_DURATION_FILL: ExcelJS.Fill = {
+  type: "pattern",
+  pattern: "solid",
+  fgColor: { argb: "FFE5E7EB" },
+};

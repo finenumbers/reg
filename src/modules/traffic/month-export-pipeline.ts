@@ -134,6 +134,7 @@ function toResolved(row: CdrExportRow, stored: StoredEnrichRow): ResolvedEnriche
     aNumber: stored.billAni,
     bNumber: stored.billDnis,
     seconds: elapsedMsToSeconds(row.elapsedTime),
+    elapsedTime: row.elapsedTime,
     initDevice: row.srcName,
     termDevice: row.dstName,
     dialObject: row.dpName,

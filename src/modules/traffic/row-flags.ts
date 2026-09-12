@@ -14,6 +14,7 @@ export type TrafficRowFlags = {
   phantom?: boolean;
   callErrors?: boolean;
   parking?: boolean;
+  noAnswer?: boolean;
 };
 
 export function parseTrafficFlagParam(raw: string | null): boolean {
@@ -29,6 +30,7 @@ export function classifyTrafficListRow(
     sideA: data.side_a ?? "",
     sideB: data.side_b ?? "",
     dialObject: data.dp_name ?? "",
+    elapsedTime: data.elapsed_time ?? "",
   });
 }
 
@@ -51,13 +53,26 @@ export function parkingKnownWhere(): Prisma.CdrRecordWhereInput {
   };
 }
 
+/** Same rows as classifyCdrRow → known_empty_duration. */
+export function knownEmptyDurationWhere(): Prisma.CdrRecordWhereInput {
+  return {
+    AND: [
+      { elapsedTime: "" },
+      { OR: [knownSideWhere("sideA"), knownSideWhere("sideB")] },
+      { OR: [{ billAni: { not: "" } }, { billDnis: { not: "" } }] },
+      { dpName: { not: PARKING_DIAL_OBJECT } },
+    ],
+  };
+}
+
 export function trafficFlagWhere(
   flags: TrafficRowFlags,
 ): Prisma.CdrRecordWhereInput | null {
   const phantom = Boolean(flags.phantom);
   const callErrors = Boolean(flags.callErrors);
   const parking = Boolean(flags.parking);
-  if (!phantom && !callErrors && !parking) return null;
+  const noAnswer = Boolean(flags.noAnswer);
+  if (!phantom && !callErrors && !parking && !noAnswer) return null;
 
   const parts: Prisma.CdrRecordWhereInput[] = [];
   if (phantom) {
@@ -76,6 +91,9 @@ export function trafficFlagWhere(
   }
   if (parking) {
     parts.push(parkingKnownWhere());
+  }
+  if (noAnswer) {
+    parts.push(knownEmptyDurationWhere());
   }
   if (parts.length === 1) return parts[0]!;
   return { OR: parts };

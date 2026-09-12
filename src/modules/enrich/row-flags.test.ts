@@ -202,4 +202,86 @@ describe("classifyCdrRow", () => {
       }),
     ).toBe("call_error");
   });
+
+  it("marks a known side with empty duration as known_empty_duration", () => {
+    expect(
+      classifyCdrRow({
+        aNumber: "79001112233",
+        bNumber: "79004445566",
+        sideA: "Офис",
+        sideB: MISSING_BILLING_LABEL,
+        dialObject: "",
+        elapsedTime: "",
+      }),
+    ).toBe("known_empty_duration");
+    expect(
+      classifyCdrRow({
+        aNumber: "79001112233",
+        bNumber: "",
+        sideA: MISSING_BILLING_LABEL,
+        sideB: "Офис",
+        dialObject: "",
+        elapsedTime: "",
+      }),
+    ).toBe("known_empty_duration");
+  });
+
+  it("does not treat missing or zero duration as empty", () => {
+    const row = {
+      aNumber: "79001112233",
+      bNumber: "79004445566",
+      sideA: "Офис",
+      sideB: MISSING_BILLING_LABEL,
+      dialObject: "",
+    };
+    expect(classifyCdrRow(row)).toBeNull();
+    expect(classifyCdrRow({ ...row, elapsedTime: "0" })).toBeNull();
+    expect(classifyCdrRow({ ...row, elapsedTime: "24383" })).toBeNull();
+  });
+
+  it("keeps phantom and parking ahead of empty duration", () => {
+    expect(
+      classifyCdrRow({
+        aNumber: "79001112233",
+        bNumber: "79004445566",
+        sideA: MISSING_BILLING_LABEL,
+        sideB: MISSING_BILLING_LABEL,
+        dialObject: "",
+        elapsedTime: "",
+      }),
+    ).toBe("phantom");
+    expect(
+      classifyCdrRow({
+        aNumber: "79001112233",
+        bNumber: "79004445566",
+        sideA: "Офис",
+        sideB: MISSING_BILLING_LABEL,
+        dialObject: PARKING_DIAL_OBJECT,
+        elapsedTime: "",
+      }),
+    ).toBe("parking_known");
+    expect(
+      classifyCdrRow({
+        aNumber: "",
+        bNumber: "",
+        sideA: "Офис",
+        sideB: MISSING_BILLING_LABEL,
+        dialObject: "",
+        elapsedTime: "",
+      }),
+    ).toBe("call_error");
+  });
+
+  it("marks a parking suffix with empty duration as known_empty_duration", () => {
+    expect(
+      classifyCdrRow({
+        aNumber: "79001112233",
+        bNumber: "79004445566",
+        sideA: "Офис",
+        sideB: MISSING_BILLING_LABEL,
+        dialObject: "Service_Parking_1",
+        elapsedTime: "",
+      }),
+    ).toBe("known_empty_duration");
+  });
 });

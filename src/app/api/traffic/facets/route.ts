@@ -26,6 +26,7 @@ export async function GET(request: Request) {
   const phantom = parseTrafficFlagParam(url.searchParams.get("phantom"));
   const callErrors = parseTrafficFlagParam(url.searchParams.get("callErrors"));
   const parking = parseTrafficFlagParam(url.searchParams.get("parking"));
+  const noAnswer = parseTrafficFlagParam(url.searchParams.get("noAnswer"));
   const q = url.searchParams.get("q") ?? undefined;
   const limitRaw = Number(url.searchParams.get("limit") ?? "200");
   const limit = Number.isFinite(limitRaw) ? limitRaw : 200;
@@ -38,6 +39,7 @@ export async function GET(request: Request) {
     phantom,
     callErrors,
     parking,
+    noAnswer,
     q,
     limit,
   });

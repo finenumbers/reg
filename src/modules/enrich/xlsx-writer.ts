@@ -30,6 +30,7 @@ import {
   xlsxMissFontRole,
   XLSX_BILLING_FONT_ARGB,
   XLSX_CALL_ERROR_FILL,
+  XLSX_KNOWN_EMPTY_DURATION_FILL,
   XLSX_PARKING_KNOWN_FILL,
   XLSX_PHANTOM_FILL,
   XLSX_PSTN_FONT_ARGB,
@@ -126,10 +127,12 @@ function rowFill(row: ResolvedEnrichedRow): ExcelJS.Fill | undefined {
     sideA: row.sideA,
     sideB: row.sideB,
     dialObject: row.dialObject,
+    elapsedTime: row.elapsedTime,
   });
   if (flag === "phantom") return XLSX_PHANTOM_FILL;
   if (flag === "call_error") return XLSX_CALL_ERROR_FILL;
   if (flag === "parking_known") return XLSX_PARKING_KNOWN_FILL;
+  if (flag === "known_empty_duration") return XLSX_KNOWN_EMPTY_DURATION_FILL;
   return undefined;
 }
 

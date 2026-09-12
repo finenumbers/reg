@@ -127,10 +127,6 @@ export function MonthExportButtons({ month }: { month: string }) {
           {starting ? "Запуск…" : "Сохранить расширенные данные"}
         </Button>
       </div>
-      <p className="max-w-md text-right text-xs text-muted-foreground">
-        Файл — весь выбранный месяц. Заливка строк как в таблице: фантом,
-        паркинг, ошибки звонков.
-      </p>
 
       {job ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">

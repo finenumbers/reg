@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { MISSING_BILLING_LABEL } from "@/modules/enrich/types";
 import {
   classifyTrafficListRow,
+  knownEmptyDurationWhere,
   parkingKnownWhere,
   parseTrafficFlagParam,
   trafficFlagWhere,
@@ -40,13 +41,39 @@ describe("classifyTrafficListRow", () => {
       }),
     ).toBe("parking_known");
   });
+
+  it("reads elapsed_time for a known side with empty duration", () => {
+    expect(
+      classifyTrafficListRow({
+        bill_ani: "79001112233",
+        bill_dnis: "79004445566",
+        side_a: "Офис",
+        side_b: MISSING_BILLING_LABEL,
+        elapsed_time: "",
+      }),
+    ).toBe("known_empty_duration");
+    expect(
+      classifyTrafficListRow({
+        bill_ani: "79001112233",
+        bill_dnis: "79004445566",
+        side_a: "Офис",
+        side_b: MISSING_BILLING_LABEL,
+        elapsed_time: "0",
+      }),
+    ).toBeNull();
+  });
 });
 
 describe("trafficFlagWhere", () => {
   it("is null when all flags are off", () => {
     expect(trafficFlagWhere({})).toBeNull();
     expect(
-      trafficFlagWhere({ phantom: false, callErrors: false, parking: false }),
+      trafficFlagWhere({
+        phantom: false,
+        callErrors: false,
+        parking: false,
+        noAnswer: false,
+      }),
     ).toBeNull();
   });
 
@@ -84,6 +111,12 @@ describe("trafficFlagWhere", () => {
     });
     expect(trafficFlagWhere({ parking: true, callErrors: true })).toEqual({
       OR: [{ billAni: "", billDnis: "" }, parkingKnownWhere()],
+    });
+    expect(trafficFlagWhere({ noAnswer: true })).toEqual(
+      knownEmptyDurationWhere(),
+    );
+    expect(trafficFlagWhere({ noAnswer: true, parking: true })).toEqual({
+      OR: [parkingKnownWhere(), knownEmptyDurationWhere()],
     });
   });
 

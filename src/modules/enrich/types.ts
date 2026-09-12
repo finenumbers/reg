@@ -142,6 +142,8 @@ export type ResolvedEnrichedRow = {
   termEndpoint: string;
   sideA: string;
   sideB: string;
+  /** Raw softswitch ms. Missing is not empty duration for row fill. */
+  elapsedTime?: string;
   operatorA: string;
   geographyA: string;
   operatorB: string;

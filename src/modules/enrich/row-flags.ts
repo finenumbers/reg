@@ -14,9 +14,16 @@ export type CdrRowSides = {
   sideA: string;
   sideB: string;
   dialObject: string;
+  /** Raw softswitch ms. Missing is not empty — only exactly `""` is. */
+  elapsedTime?: string;
 };
 
-export type CdrRowFlag = "phantom" | "call_error" | "parking_known" | null;
+export type CdrRowFlag =
+  | "phantom"
+  | "call_error"
+  | "parking_known"
+  | "known_empty_duration"
+  | null;
 
 export function isCdrEmpty(value: string): boolean {
   return value === "";
@@ -45,6 +52,13 @@ export function classifyCdrRow(row: CdrRowSides): CdrRowFlag {
     (isSideKnown(row.sideA) || isSideKnown(row.sideB))
   ) {
     return "parking_known";
+  }
+  if (
+    row.elapsedTime !== undefined &&
+    isCdrEmpty(row.elapsedTime) &&
+    (isSideKnown(row.sideA) || isSideKnown(row.sideB))
+  ) {
+    return "known_empty_duration";
   }
   return null;
 }

@@ -1,7 +1,11 @@
-# Current Phase — production (v1.44.0)
+# Current Phase — production (v1.45.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail.  
 **Date:** 2026-09-13
+
+## v1.45.0 — Gray «Недозвон» rows and checkbox
+
+CDR tables (traffic / geography / operators / raw) paint a row gray when side A or B is a known catalog description, «Длительность» is empty (`elapsed_time === ""`), and the row is not phantom / parking / call-error. Toolbar checkbox «Недозвон» keeps that class (OR with the other three). Month XLSX uses the same fill (`#E5E7EB`); `seconds === 0` alone is not empty. The hint under traffic export buttons is gone.
 
 ## v1.44.0 — Month XLSX fill note and OOXML regression
 

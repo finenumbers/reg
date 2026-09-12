@@ -50,6 +50,7 @@ type Props = {
   phantom?: boolean;
   callErrors?: boolean;
   parking?: boolean;
+  noAnswer?: boolean;
   openColumn: string | null;
   onOpenColumnChange: (column: string | null) => void;
   onColumnFilterChange: (column: string, values: string[]) => void;
@@ -70,6 +71,7 @@ export function TrafficTable({
   phantom = false,
   callErrors = false,
   parking = false,
+  noAnswer = false,
   openColumn,
   onOpenColumnChange,
   onColumnFilterChange,
@@ -112,6 +114,7 @@ export function TrafficTable({
                       phantom,
                       callErrors,
                       parking,
+                      noAnswer,
                       q,
                     })
                   }
@@ -159,6 +162,8 @@ export function TrafficTable({
                   "bg-destructive/25 hover:bg-destructive/35",
                 flag === "parking_known" &&
                   "bg-blue-200 hover:bg-blue-300/90 dark:bg-blue-950 dark:hover:bg-blue-900",
+                flag === "known_empty_duration" &&
+                  "bg-gray-200 hover:bg-gray-300/90 dark:bg-gray-950 dark:hover:bg-gray-900",
               )}
             >
               {headers.map((h) => {
