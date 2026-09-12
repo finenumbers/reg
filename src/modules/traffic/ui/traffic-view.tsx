@@ -56,6 +56,7 @@ type LoadListOpts = {
   month?: string;
   phantom?: boolean;
   callErrors?: boolean;
+  parking?: boolean;
   timeSort?: TimeSort | null;
 };
 
@@ -94,6 +95,7 @@ export function TrafficView({
   const [phoneQ, setPhoneQ] = useState("");
   const [phantom, setPhantom] = useState(false);
   const [callErrors, setCallErrors] = useState(false);
+  const [parking, setParking] = useState(false);
   const [timeSort, setTimeSort] = useState<TimeSort | null>(null);
   const [month, setMonth] = useState(
     initial.month || currentUtcMonth().key,
@@ -124,6 +126,7 @@ export function TrafficView({
   );
   const phantomRef = useRef(phantom);
   const callErrorsRef = useRef(callErrors);
+  const parkingRef = useRef(parking);
   const timeSortRef = useRef(timeSort);
   const wasBusyRef = useRef(false);
   const lastFinishedAtRef = useRef<string | null | undefined>(undefined);
@@ -134,6 +137,7 @@ export function TrafficView({
   monthRef.current = month;
   phantomRef.current = phantom;
   callErrorsRef.current = callErrors;
+  parkingRef.current = parking;
   timeSortRef.current = timeSort;
 
   const defaultMonthKey = currentUtcMonth().key;
@@ -142,6 +146,7 @@ export function TrafficView({
     Boolean(phoneQ.trim()) ||
     phantom ||
     callErrors ||
+    parking ||
     timeSort != null ||
     month !== defaultMonthKey;
   const hasMore = items.length < total;
@@ -168,6 +173,7 @@ export function TrafficView({
       const nextMonth = opts.month ?? monthRef.current;
       const nextPhantom = opts.phantom ?? phantomRef.current;
       const nextCallErrors = opts.callErrors ?? callErrorsRef.current;
+      const nextParking = opts.parking ?? parkingRef.current;
       const nextTimeSort =
         "timeSort" in opts ? opts.timeSort : timeSortRef.current;
       const nextPage = opts.page ?? (replace ? 1 : page);
@@ -189,6 +195,7 @@ export function TrafficView({
         month: nextMonth,
         phantom: nextPhantom,
         callErrors: nextCallErrors,
+        parking: nextParking,
         timeSort: nextTimeSort,
         page: nextPage,
         pageSize: PAGE_SIZE,
@@ -351,6 +358,7 @@ export function TrafficView({
     setPhoneQ("");
     setPhantom(false);
     setCallErrors(false);
+    setParking(false);
     setTimeSort(null);
     setMonth(nowMonth.key);
     setOpenColumn(null);
@@ -361,6 +369,7 @@ export function TrafficView({
       phoneQ: "",
       phantom: false,
       callErrors: false,
+      parking: false,
       timeSort: null,
       month: nowMonth.key,
     });
@@ -386,6 +395,11 @@ export function TrafficView({
   function onCallErrorsChange(checked: boolean) {
     setCallErrors(checked);
     void loadList({ page: 1, replace: true, callErrors: checked });
+  }
+
+  function onParkingChange(checked: boolean) {
+    setParking(checked);
+    void loadList({ page: 1, replace: true, parking: checked });
   }
 
   function onTimeSortChange(next: TimeSort | null) {
@@ -573,6 +587,16 @@ export function TrafficView({
             />
             <Label htmlFor={`${searchInputId}-call-errors`}>Ошибки звонков</Label>
           </div>
+          <div className="flex items-center gap-2">
+            <input
+              id={`${searchInputId}-parking`}
+              type="checkbox"
+              className="size-4 rounded border"
+              checked={parking}
+              onChange={(e) => onParkingChange(e.target.checked)}
+            />
+            <Label htmlFor={`${searchInputId}-parking`}>Паркинг</Label>
+          </div>
           <Button
             type="button"
             variant="outline"
@@ -632,6 +656,7 @@ export function TrafficView({
             month={month}
             phantom={phantom}
             callErrors={callErrors}
+            parking={parking}
             openColumn={openColumn}
             onOpenColumnChange={setOpenColumn}
             onColumnFilterChange={onColumnChange}

@@ -236,6 +236,7 @@ export async function listTraffic(opts: {
   month?: string;
   phantom?: boolean;
   callErrors?: boolean;
+  parking?: boolean;
   timeSort?: TimeSort | null;
   page?: number;
   pageSize?: number;
@@ -245,7 +246,11 @@ export async function listTraffic(opts: {
   const filters = opts.filters ?? {};
   const phoneQ = opts.phoneQ?.trim() ?? "";
   const month = resolveMonthKey(opts.month);
-  const flags = { phantom: opts.phantom, callErrors: opts.callErrors };
+  const flags = {
+    phantom: opts.phantom,
+    callErrors: opts.callErrors,
+    parking: opts.parking,
+  };
   const where = buildWhere(filters, phoneQ, month, flags);
   const skip = (page - 1) * pageSize;
   const includeMonths = page === 1;
@@ -314,6 +319,7 @@ export async function listTrafficFacets(opts: {
   month?: string;
   phantom?: boolean;
   callErrors?: boolean;
+  parking?: boolean;
   q?: string;
   limit?: number;
 }): Promise<FacetResponse> {
@@ -326,7 +332,11 @@ export async function listTrafficFacets(opts: {
   const phoneQ = opts.phoneQ?.trim() ?? "";
   const q = opts.q?.trim() ?? "";
   const month = resolveMonthKey(opts.month);
-  const flags = { phantom: opts.phantom, callErrors: opts.callErrors };
+  const flags = {
+    phantom: opts.phantom,
+    callErrors: opts.callErrors,
+    parking: opts.parking,
+  };
   const where = buildWhere(opts.filters ?? {}, phoneQ, month, flags, {
     excludeColumn: column,
   });

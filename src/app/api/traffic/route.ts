@@ -18,6 +18,7 @@ export async function GET(request: Request) {
   const month = url.searchParams.get("month") ?? undefined;
   const phantom = parseTrafficFlagParam(url.searchParams.get("phantom"));
   const callErrors = parseTrafficFlagParam(url.searchParams.get("callErrors"));
+  const parking = parseTrafficFlagParam(url.searchParams.get("parking"));
   const timeSort = parseTimeSort(url.searchParams.get("timeSort"));
   const page = Number(url.searchParams.get("page") ?? "1");
   const pageSize = Number(url.searchParams.get("pageSize") ?? "100");
@@ -28,6 +29,7 @@ export async function GET(request: Request) {
     month,
     phantom,
     callErrors,
+    parking,
     timeSort,
     page: Number.isFinite(page) ? page : 1,
     pageSize: Number.isFinite(pageSize) ? pageSize : 100,

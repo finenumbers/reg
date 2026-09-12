@@ -1,7 +1,11 @@
-# Current Phase — production (v1.41.0)
+# Current Phase — production (v1.42.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail.  
 **Date:** 2026-09-13
+
+## v1.42.0 — Parking checkbox on CDR tables
+
+CDR toolbar (traffic / geography / operators / raw) adds «Паркинг» next to «Фантомный трафик» and «Ошибки звонков». It keeps rows classified as parking-known: «Объект набора» is `Service_Parking` and side A or B is a known description. Combines with the other two flags by OR; reset and column facets keep the flag.
 
 ## v1.41.0 — Blue parking rows with a known side
 

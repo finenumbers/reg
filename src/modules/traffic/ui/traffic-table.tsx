@@ -49,6 +49,7 @@ type Props = {
   month: string;
   phantom?: boolean;
   callErrors?: boolean;
+  parking?: boolean;
   openColumn: string | null;
   onOpenColumnChange: (column: string | null) => void;
   onColumnFilterChange: (column: string, values: string[]) => void;
@@ -68,6 +69,7 @@ export function TrafficTable({
   month,
   phantom = false,
   callErrors = false,
+  parking = false,
   openColumn,
   onOpenColumnChange,
   onColumnFilterChange,
@@ -109,6 +111,7 @@ export function TrafficTable({
                       month,
                       phantom,
                       callErrors,
+                      parking,
                       q,
                     })
                   }

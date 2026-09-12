@@ -25,6 +25,7 @@ export async function GET(request: Request) {
   const month = url.searchParams.get("month") ?? undefined;
   const phantom = parseTrafficFlagParam(url.searchParams.get("phantom"));
   const callErrors = parseTrafficFlagParam(url.searchParams.get("callErrors"));
+  const parking = parseTrafficFlagParam(url.searchParams.get("parking"));
   const q = url.searchParams.get("q") ?? undefined;
   const limitRaw = Number(url.searchParams.get("limit") ?? "200");
   const limit = Number.isFinite(limitRaw) ? limitRaw : 200;
@@ -36,6 +37,7 @@ export async function GET(request: Request) {
     month,
     phantom,
     callErrors,
+    parking,
     q,
     limit,
   });

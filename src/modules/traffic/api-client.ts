@@ -34,6 +34,7 @@ export function buildTrafficListUrl(opts: {
   month?: string;
   phantom?: boolean;
   callErrors?: boolean;
+  parking?: boolean;
   timeSort?: TimeSort | null;
   page?: number;
   pageSize?: number;
@@ -45,6 +46,7 @@ export function buildTrafficListUrl(opts: {
   if (opts.month?.trim()) params.set("month", opts.month.trim());
   if (opts.phantom) params.set("phantom", "1");
   if (opts.callErrors) params.set("callErrors", "1");
+  if (opts.parking) params.set("parking", "1");
   if (opts.timeSort) params.set("timeSort", opts.timeSort);
   if (opts.page != null) params.set("page", String(opts.page));
   if (opts.pageSize != null) params.set("pageSize", String(opts.pageSize));
@@ -59,6 +61,7 @@ export function buildTrafficFacetsUrl(opts: {
   month?: string;
   phantom?: boolean;
   callErrors?: boolean;
+  parking?: boolean;
   q?: string;
   limit?: number;
 }): string {
@@ -70,6 +73,7 @@ export function buildTrafficFacetsUrl(opts: {
   if (opts.month?.trim()) params.set("month", opts.month.trim());
   if (opts.phantom) params.set("phantom", "1");
   if (opts.callErrors) params.set("callErrors", "1");
+  if (opts.parking) params.set("parking", "1");
   if (opts.q?.trim()) params.set("q", opts.q.trim());
   if (opts.limit != null) params.set("limit", String(opts.limit));
   return `/api/traffic/facets?${params.toString()}`;
@@ -81,6 +85,7 @@ export async function fetchTrafficList(opts: {
   month?: string;
   phantom?: boolean;
   callErrors?: boolean;
+  parking?: boolean;
   timeSort?: TimeSort | null;
   page?: number;
   pageSize?: number;

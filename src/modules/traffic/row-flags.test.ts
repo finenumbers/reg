@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { MISSING_BILLING_LABEL } from "@/modules/enrich/types";
 import {
   classifyTrafficListRow,
+  parkingKnownWhere,
   parseTrafficFlagParam,
   trafficFlagWhere,
 } from "@/modules/traffic/row-flags";
@@ -42,9 +43,11 @@ describe("classifyTrafficListRow", () => {
 });
 
 describe("trafficFlagWhere", () => {
-  it("is null when both flags are off", () => {
+  it("is null when all flags are off", () => {
     expect(trafficFlagWhere({})).toBeNull();
-    expect(trafficFlagWhere({ phantom: false, callErrors: false })).toBeNull();
+    expect(
+      trafficFlagWhere({ phantom: false, callErrors: false, parking: false }),
+    ).toBeNull();
   });
 
   it("filters empty billing numbers for call errors", () => {
@@ -63,7 +66,11 @@ describe("trafficFlagWhere", () => {
     });
   });
 
-  it("ORs both classes when both flags are on", () => {
+  it("filters parking with a known side and at least one number", () => {
+    expect(trafficFlagWhere({ parking: true })).toEqual(parkingKnownWhere());
+  });
+
+  it("ORs classes when several flags are on", () => {
     expect(trafficFlagWhere({ phantom: true, callErrors: true })).toEqual({
       OR: [
         {
@@ -74,6 +81,9 @@ describe("trafficFlagWhere", () => {
         },
         { billAni: "", billDnis: "" },
       ],
+    });
+    expect(trafficFlagWhere({ parking: true, callErrors: true })).toEqual({
+      OR: [{ billAni: "", billDnis: "" }, parkingKnownWhere()],
     });
   });
 
