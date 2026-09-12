@@ -1,7 +1,11 @@
-# Current Phase — production (v1.43.0)
+# Current Phase — production (v1.44.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail.  
 **Date:** 2026-09-13
+
+## v1.44.0 — Month XLSX fill note and OOXML regression
+
+«Сохранить данные» still writes the whole selected month. Row fills stay the three table classes (phantom / parking / call-error); blue «Нет в биллинге» text is independent. A short hint under the traffic export buttons states that. Tests now assert solid `applyFill` xfs in `styles.xml`, not only the ExcelJS cell getter. Writer unchanged.
 
 ## v1.43.0 — Green phantom traffic rows
 

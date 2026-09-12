@@ -113,18 +113,24 @@ export function MonthExportButtons({ month }: { month: string }) {
   const busy = starting || isActiveMonthExport(job);
 
   return (
-    <>
-      <Button type="button" disabled={busy} onClick={() => void start(false)}>
-        {starting ? "Запуск…" : "Сохранить данные"}
-      </Button>
-      <Button
-        type="button"
-        variant="outline"
-        disabled={busy}
-        onClick={() => void start(true)}
-      >
-        {starting ? "Запуск…" : "Сохранить расширенные данные"}
-      </Button>
+    <div className="flex flex-col items-end gap-1">
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <Button type="button" disabled={busy} onClick={() => void start(false)}>
+          {starting ? "Запуск…" : "Сохранить данные"}
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={busy}
+          onClick={() => void start(true)}
+        >
+          {starting ? "Запуск…" : "Сохранить расширенные данные"}
+        </Button>
+      </div>
+      <p className="max-w-md text-right text-xs text-muted-foreground">
+        Файл — весь выбранный месяц. Заливка строк как в таблице: фантом,
+        паркинг, ошибки звонков.
+      </p>
 
       {job ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -178,6 +184,6 @@ export function MonthExportButtons({ month }: { month: string }) {
           </div>
         </div>
       ) : null}
-    </>
+    </div>
   );
 }

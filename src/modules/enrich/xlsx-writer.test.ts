@@ -17,6 +17,12 @@ import {
   XLSX_PARKING_KNOWN_FILL,
   XLSX_PHANTOM_FILL,
 } from "@/modules/enrich/xlsx-styles";
+import {
+  readXlsxEntry,
+  xlsxCellXfs,
+  xlsxFillRgbs,
+  xlsxSheetStyleIds,
+} from "@/modules/enrich/xlsx-ooxml";
 
 const ROW: ResolvedEnrichedRow = {
   time: "2026-08-01 12:00:00",
@@ -185,5 +191,54 @@ describe("writeResolvedEnrichedXlsx", () => {
     expect(traffic!.getRow(5).getCell(6).font?.color?.argb).toBe(
       XLSX_BILLING_FONT_ARGB,
     );
+  });
+
+  it("writes solid fill xfs that Excel can apply (OOXML, not ExcelJS getter)", async () => {
+    dir = await mkdtemp(path.join(tmpdir(), "xlsx-writer-"));
+    const jsonlPath = path.join(dir, "rows.jsonl");
+    const outputPath = path.join(dir, "out.xlsx");
+    const phantom: ResolvedEnrichedRow = {
+      ...ROW,
+      sideA: MISSING_BILLING_LABEL,
+      sideB: MISSING_BILLING_LABEL,
+    };
+    const errorRow: ResolvedEnrichedRow = {
+      ...ROW,
+      aNumber: "",
+      bNumber: "",
+    };
+    const parkingKnown: ResolvedEnrichedRow = {
+      ...ROW,
+      dialObject: PARKING_DIAL_OBJECT,
+      sideA: "Офис",
+      sideB: MISSING_BILLING_LABEL,
+    };
+    await writeFile(
+      jsonlPath,
+      `${JSON.stringify(phantom)}\n${JSON.stringify(errorRow)}\n${JSON.stringify(ROW)}\n${JSON.stringify(parkingKnown)}\n`,
+      "utf8",
+    );
+    await writeResolvedEnrichedXlsx({
+      jsonlPath,
+      outputPath,
+      rowCount: 4,
+      trafficSheetName: "Август 2026 года",
+      includeDetail: false,
+    });
+
+    const stylesXml = readXlsxEntry(outputPath, "xl/styles.xml");
+    const sheetXml = readXlsxEntry(outputPath, "xl/worksheets/sheet1.xml");
+    const rgbs = xlsxFillRgbs(stylesXml);
+    expect(rgbs).toEqual(
+      expect.arrayContaining(["FFBBF7D0", "FFFECACA", "FFBFDBFE"]),
+    );
+
+    const xfs = xlsxCellXfs(stylesXml);
+    expect(xfs.some((xf) => xf.applyFill && xf.fillId >= 2)).toBe(true);
+
+    const used = xlsxSheetStyleIds(sheetXml)
+      .map((id) => xfs[id])
+      .filter(Boolean);
+    expect(used.some((xf) => xf.applyFill && xf.fillId >= 2)).toBe(true);
   });
 });
