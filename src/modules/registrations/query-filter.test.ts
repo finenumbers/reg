@@ -76,18 +76,14 @@ describe("applyRegistrationQuery", () => {
     expect(filtered.map((r) => r.status)).toEqual(["Unregistered"]);
   });
 
-  it("filters channelality; Премиум does not match a missing catalog row", () => {
-    const withPremium: typeof rows = [
-      { ...rows[0]!, channelality: "Премиум" },
-      { ...rows[1]!, channelality: null },
-    ];
+  it("filters channelality; empty capacity and catalog miss share __empty__", () => {
     expect(
-      applyRegistrationQuery(withPremium, {
-        filters: { channelality: ["Премиум"] },
+      applyRegistrationQuery(rows, {
+        filters: { channelality: ["10"] },
       }).map((r) => r.phone),
     ).toEqual(["73852222205"]);
     expect(
-      applyRegistrationQuery(withPremium, {
+      applyRegistrationQuery(rows, {
         filters: { channelality: ["__empty__"] },
       }).map((r) => r.phone),
     ).toEqual(["73912193303"]);

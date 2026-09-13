@@ -87,7 +87,7 @@ describe("registration detail panel projection", () => {
       current: {
         phone: "420910902600",
         description: "Fine Numbers",
-        channelality: "Премиум",
+        channelality: "10",
         status: "Registered",
         ip: "185.175.158.149",
         port: 5060,

@@ -40,12 +40,9 @@ describe("registrations XLSX columns", () => {
     ]);
   });
 
-  it("writes capacity, Премиум, and empty catalog miss", () => {
+  it("writes capacity and empty catalog miss", () => {
     const tz = "Europe/Moscow";
     expect(registrationExportRow(sample, tz)[1]).toBe("10");
-    expect(
-      registrationExportRow({ ...sample, channelality: "Премиум" }, tz)[1],
-    ).toBe("Премиум");
     expect(
       registrationExportRow({ ...sample, channelality: null }, tz)[1],
     ).toBe("");

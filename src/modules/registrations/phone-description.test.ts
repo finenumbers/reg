@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   buildPhoneDescriptionMap,
   buildPhoneEndpointEnrichmentMap,
-  DEFAULT_CHANNELALITY,
 } from "@/modules/registrations/phone-description";
 
 describe("buildPhoneDescriptionMap", () => {
@@ -68,7 +67,7 @@ describe("buildPhoneEndpointEnrichmentMap", () => {
     ]);
     expect(map.get("100")).toEqual({
       description: "Клиент",
-      channelality: "10",
+      channelality: " 10 ",
     });
     expect(map.get("200")).toEqual({
       description: null,
@@ -76,16 +75,17 @@ describe("buildPhoneEndpointEnrichmentMap", () => {
     });
   });
 
-  it("uses Премиум when the catalog row exists but capacity is empty", () => {
+  it("keeps empty capacity as null, including whitespace-only and missing key", () => {
     const map = buildPhoneEndpointEnrichmentMap([
       { endpointNumber: "100", name: "empty", data: { "ИНИЦ. емкость": "" } },
       { endpointNumber: "200", name: "spaces", data: { "ИНИЦ. емкость": "   " } },
       { endpointNumber: "300", name: "missing", data: { Описание: "X" } },
       { endpointNumber: "400", name: "zero", data: { "ИНИЦ. емкость": "0" } },
     ]);
-    expect(map.get("100")?.channelality).toBe(DEFAULT_CHANNELALITY);
-    expect(map.get("200")?.channelality).toBe(DEFAULT_CHANNELALITY);
-    expect(map.get("300")?.channelality).toBe(DEFAULT_CHANNELALITY);
+    expect(map.get("100")?.channelality).toBeNull();
+    expect(map.get("200")?.channelality).toBeNull();
+    expect(map.get("300")?.channelality).toBeNull();
+    expect(map.get("300")?.description).toBe("X");
     expect(map.get("400")?.channelality).toBe("0");
     expect(map.has("999")).toBe(false);
   });

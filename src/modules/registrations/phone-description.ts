@@ -6,8 +6,6 @@
 const DESCRIPTION_FIELD = "Описание";
 const INIT_CAPACITY_FIELD = "ИНИЦ. емкость";
 
-export const DEFAULT_CHANNELALITY = "Премиум";
-
 export type PhoneEndpointDescriptionSource = {
   endpointNumber: string | null;
   name: string;
@@ -16,20 +14,20 @@ export type PhoneEndpointDescriptionSource = {
 
 export type PhoneEndpointEnrichment = {
   description: string | null;
-  channelality: string;
+  channelality: string | null;
 };
 
-function asDataString(value: unknown): string | null {
-  if (value == null) return null;
-  if (typeof value === "string") {
-    const trimmed = value.trim();
-    return trimmed.length > 0 ? trimmed : null;
-  }
+/**
+ * Same coercion as phones catalog `asString` / `asStringRecord`:
+ * null → ""; number/boolean → String; no trim.
+ */
+function catalogCellString(value: unknown): string {
+  if (value == null) return "";
+  if (typeof value === "string") return value;
   if (typeof value === "number" || typeof value === "boolean") {
-    const trimmed = String(value).trim();
-    return trimmed.length > 0 ? trimmed : null;
+    return String(value);
   }
-  return null;
+  return "";
 }
 
 function readDescription(data: unknown): string | null {
@@ -42,7 +40,10 @@ function readDescription(data: unknown): string | null {
 
 function readInitCapacity(data: unknown): string | null {
   if (!data || typeof data !== "object" || Array.isArray(data)) return null;
-  return asDataString((data as Record<string, unknown>)[INIT_CAPACITY_FIELD]);
+  const raw = catalogCellString(
+    (data as Record<string, unknown>)[INIT_CAPACITY_FIELD],
+  );
+  return raw.trim().length > 0 ? raw : null;
 }
 
 /**
@@ -66,8 +67,8 @@ export function buildPhoneDescriptionMap(
 
 /**
  * Phone → Описание + Канальность. First row wins after callers sort (e.g. by name).
- * Presence in the map means a catalog row exists. Empty ИНИЦ. емкость → «Премиум».
- * No map key = registration is not in the catalog.
+ * Канальность is the raw catalog ИНИЦ. емкость (same as Телефонные номера).
+ * Trim-empty field or no catalog row → null.
  */
 export function buildPhoneEndpointEnrichmentMap(
   rows: PhoneEndpointDescriptionSource[],
@@ -78,7 +79,7 @@ export function buildPhoneEndpointEnrichmentMap(
     if (!number || map.has(number)) continue;
     map.set(number, {
       description: readDescription(row.data),
-      channelality: readInitCapacity(row.data) ?? DEFAULT_CHANNELALITY,
+      channelality: readInitCapacity(row.data),
     });
   }
   return map;
