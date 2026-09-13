@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { RowColorMark } from "@/components/row-color-legend";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -589,7 +590,9 @@ export function TrafficView({
               checked={phantom}
               onChange={(e) => onPhantomChange(e.target.checked)}
             />
-            <Label htmlFor={`${searchInputId}-phantom`}>Фантомный трафик</Label>
+            <Label htmlFor={`${searchInputId}-phantom`}>
+              <RowColorMark tone="phantom">Фантомный трафик</RowColorMark>
+            </Label>
           </div>
           <div className="flex items-center gap-2">
             <input
@@ -599,7 +602,9 @@ export function TrafficView({
               checked={callErrors}
               onChange={(e) => onCallErrorsChange(e.target.checked)}
             />
-            <Label htmlFor={`${searchInputId}-call-errors`}>Ошибки звонков</Label>
+            <Label htmlFor={`${searchInputId}-call-errors`}>
+              <RowColorMark tone="call_error">Ошибки звонков</RowColorMark>
+            </Label>
           </div>
           <div className="flex items-center gap-2">
             <input
@@ -609,7 +614,9 @@ export function TrafficView({
               checked={parking}
               onChange={(e) => onParkingChange(e.target.checked)}
             />
-            <Label htmlFor={`${searchInputId}-parking`}>Паркинг</Label>
+            <Label htmlFor={`${searchInputId}-parking`}>
+              <RowColorMark tone="parking_known">Паркинг</RowColorMark>
+            </Label>
           </div>
           <div className="flex items-center gap-2">
             <input
@@ -619,7 +626,9 @@ export function TrafficView({
               checked={noAnswer}
               onChange={(e) => onNoAnswerChange(e.target.checked)}
             />
-            <Label htmlFor={`${searchInputId}-no-answer`}>Недозвон</Label>
+            <Label htmlFor={`${searchInputId}-no-answer`}>
+              <RowColorMark tone="known_empty_duration">Недозвон</RowColorMark>
+            </Label>
           </div>
           <Button
             type="button"

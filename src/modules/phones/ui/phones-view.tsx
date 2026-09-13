@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { RowColorMark } from "@/components/row-color-legend";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -542,7 +543,7 @@ export function PhonesView({ canRequest, initial }: Props) {
                 }
               />
               <Label htmlFor="phones-sip-unregistered-only">
-                Без регистрации
+                <RowColorMark tone="unregistered">Без регистрации</RowColorMark>
               </Label>
             </div>
           ) : null}

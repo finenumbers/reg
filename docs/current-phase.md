@@ -1,7 +1,11 @@
-# Current Phase — production (v1.46.1)
+# Current Phase — production (v1.47.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail.  
 **Date:** 2026-09-13
+
+## v1.47.0 — Marker legend on row-color checkboxes
+
+Toolbar labels «Фантомный трафик», «Ошибки звонков», «Паркинг», and «Недозвон» on CDR tables (traffic / geography / operators / raw) get a highlighter stroke in the same base fill as the matching row. «Без регистрации» on «Регистрации» and «Телефонные номера» → «Транки с регистрацией» uses the unregistered row tint. Filters, row paint, and XLSX are unchanged.
 
 ## v1.46.1 — Канальность is the raw catalog capacity
 

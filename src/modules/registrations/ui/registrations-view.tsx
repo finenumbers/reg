@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { RowColorMark } from "@/components/row-color-legend";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -449,7 +450,9 @@ export function RegistrationsView({ canPoll, initial }: Props) {
             checked={unregisteredOnly}
             onChange={(e) => onUnregisteredOnlyChange(e.target.checked)}
           />
-          <Label htmlFor="regs-unregistered-only">Без регистрации</Label>
+          <Label htmlFor="regs-unregistered-only">
+            <RowColorMark tone="unregistered">Без регистрации</RowColorMark>
+          </Label>
         </div>
         <Button
           type="button"
