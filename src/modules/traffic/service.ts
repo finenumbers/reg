@@ -17,6 +17,7 @@ import {
   applyMonthFilter,
   currentUtcMonth,
   resolveMonthKey,
+  sumMonthRecordCounts,
   type CdrMonth,
 } from "@/modules/traffic/cdr-month";
 import { listCachedMonthCounts } from "@/modules/traffic/cdr-month-stats";
@@ -371,9 +372,9 @@ export async function listTrafficFacets(opts: {
 }
 
 export async function getTrafficStatus(): Promise<TrafficOperationalStatus> {
-  const [summary, recordCount, inbox] = await Promise.all([
+  const [summary, months, inbox] = await Promise.all([
     getJobRunSummary("cdr.import"),
-    prisma.cdrRecord.count(),
+    listCachedMonthCounts(),
     countInboxFiles(),
   ]);
   const last = summary.lastAny;
@@ -387,7 +388,7 @@ export async function getTrafficStatus(): Promise<TrafficOperationalStatus> {
     lastFinishedAt: last?.finishedAt ?? null,
     lastFailedError: summary.lastFailed?.errorMessage ?? null,
     runningCount: summary.runningCount,
-    recordCount,
+    recordCount: sumMonthRecordCounts(months),
     pendingInboxCount: inbox.pending,
     poisonedCount: inbox.poisoned,
     poisonFiles: listPoisonEntries(),

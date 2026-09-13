@@ -85,6 +85,17 @@ export function withCurrentMonth(
   return [{ ...current, count: current.count ?? 0 }, ...months];
 }
 
+/** Sum of per-month call counts (empty current-month slot is 0). */
+export function sumMonthRecordCounts(
+  months: readonly Pick<CdrMonth, "count">[],
+): number {
+  let total = 0;
+  for (const item of months) {
+    total += item.count ?? 0;
+  }
+  return total;
+}
+
 function monthFromCdrDate(raw: string | null | undefined): CdrMonth | null {
   if (!raw) return null;
   return parseMonthKey(raw.slice(0, 7));

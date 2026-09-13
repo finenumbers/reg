@@ -1,7 +1,11 @@
-# Current Phase — production (v1.47.1)
+# Current Phase — production (v1.47.2)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail.  
 **Date:** 2026-09-13
+
+## v1.47.2 — Traffic status uses the month-count cache
+
+`GET /api/traffic/status` still returns `recordCount`. The extra full-table `COUNT(*)` on every 4s poll is gone; the number is the sum of the existing 60s month-count cache (`cdr_day`). Import and purge already invalidate that cache. Filters, row paint, and XLSX are unchanged.
 
 ## v1.47.1 — Color plates on row-color checkboxes
 

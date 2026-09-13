@@ -7,6 +7,7 @@ import {
   monthsFromCdrDateBounds,
   parseMonthKey,
   resolveMonthKey,
+  sumMonthRecordCounts,
   withCurrentMonth,
 } from "@/modules/traffic/cdr-month";
 
@@ -85,6 +86,23 @@ describe("withCurrentMonth", () => {
       { ...current, count: 0 },
       { year: 2026, month: 7, key: "2026-07", count: 3 },
     ]);
+  });
+});
+
+describe("sumMonthRecordCounts", () => {
+  it("sums stored month counts and treats a missing count as 0", () => {
+    expect(
+      sumMonthRecordCounts([
+        { count: 10 },
+        { count: 0 },
+        {},
+        { count: 3 },
+      ]),
+    ).toBe(13);
+  });
+
+  it("is 0 for an empty list", () => {
+    expect(sumMonthRecordCounts([])).toBe(0);
   });
 });
 
