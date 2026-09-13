@@ -6,6 +6,7 @@ const rows: RegistrationListItem[] = [
   {
     phone: "73852222205",
     description: "Клиент А",
+    channelality: "10",
     status: "Registered",
     ip: "46.20.69.189",
     port: 5060,
@@ -18,6 +19,7 @@ const rows: RegistrationListItem[] = [
   {
     phone: "73912193303",
     description: null,
+    channelality: null,
     status: "Unregistered",
     ip: null,
     port: null,
@@ -72,5 +74,30 @@ describe("applyRegistrationQuery", () => {
       excludeColumn: "status",
     });
     expect(filtered.map((r) => r.status)).toEqual(["Unregistered"]);
+  });
+
+  it("filters channelality; Премиум does not match a missing catalog row", () => {
+    const withPremium: typeof rows = [
+      { ...rows[0]!, channelality: "Премиум" },
+      { ...rows[1]!, channelality: null },
+    ];
+    expect(
+      applyRegistrationQuery(withPremium, {
+        filters: { channelality: ["Премиум"] },
+      }).map((r) => r.phone),
+    ).toEqual(["73852222205"]);
+    expect(
+      applyRegistrationQuery(withPremium, {
+        filters: { channelality: ["__empty__"] },
+      }).map((r) => r.phone),
+    ).toEqual(["73912193303"]);
+  });
+
+  it("excludes the open channelality column so mutual facets stay honest", () => {
+    const filtered = applyRegistrationQuery(rows, {
+      filters: { channelality: ["10"] },
+      excludeColumn: "channelality",
+    });
+    expect(filtered).toHaveLength(2);
   });
 });

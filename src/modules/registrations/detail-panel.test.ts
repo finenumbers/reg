@@ -32,6 +32,7 @@ describe("registration detail panel projection", () => {
       current: {
         phone: "73912193303",
         description: null,
+        channelality: null,
         status: "Unregistered",
         ip: null,
         port: null,
@@ -86,6 +87,7 @@ describe("registration detail panel projection", () => {
       current: {
         phone: "420910902600",
         description: "Fine Numbers",
+        channelality: "Премиум",
         status: "Registered",
         ip: "185.175.158.149",
         port: 5060,

@@ -7,6 +7,7 @@ import {
   formatTimestamp,
   parseUnregisteredOnlyParam,
   REG_COLUMN_HEADERS,
+  REG_COLUMN_ORDER,
   statusBadgeVariant,
 } from "@/modules/registrations/ui-format";
 import type { RegistrationHistoryItem, RegistrationListItem } from "@/modules/registrations/types";
@@ -15,6 +16,7 @@ const sampleRows: RegistrationListItem[] = [
   {
     phone: "73852222205",
     description: "Клиент А",
+    channelality: "10",
     status: "Registered",
     ip: "46.20.69.189",
     port: 5060,
@@ -27,6 +29,7 @@ const sampleRows: RegistrationListItem[] = [
   {
     phone: "73912193303",
     description: null,
+    channelality: null,
     status: "Unregistered",
     ip: null,
     port: null,
@@ -39,8 +42,20 @@ const sampleRows: RegistrationListItem[] = [
 ];
 
 describe("registrations UI format helpers", () => {
+  it("keeps table and facet column order in lockstep", () => {
+    expect([...REG_COLUMN_ORDER]).toEqual(Object.keys(REG_COLUMN_HEADERS));
+    expect(REG_COLUMN_ORDER.slice(0, 3)).toEqual([
+      "phone",
+      "channelality",
+      "description",
+    ]);
+  });
+
   it("exposes GeoIP column headers used by table and XLSX", () => {
     expect(REG_COLUMN_HEADERS).toMatchObject({
+      phone: "Телефон",
+      channelality: "Канальность",
+      description: "Описание",
       country: "Страна",
       city: "Город",
       isp: "Оператор связи",

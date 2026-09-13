@@ -20,6 +20,8 @@ import {
   displayFacetForColumn,
   formatEndpoint,
   formatTimestamp,
+  REG_COLUMN_HEADERS,
+  REG_COLUMN_ORDER,
 } from "@/modules/registrations/ui-format";
 import { RegStatusBadge } from "@/modules/registrations/ui/reg-status-badge";
 import { cn } from "@/lib/utils";
@@ -53,31 +55,19 @@ export function RegsTable({
 }: Props) {
   const { timeZone } = useDisplayTimezone();
   const showEmpty = !loading && data.length === 0;
-  const colCount = 9;
+  const colCount = REG_COLUMN_ORDER.length;
 
   return (
     <Table className="text-sm">
       <TableHeader>
         <TableRow>
-          {(
-            [
-              { id: "phone", header: "Телефон" },
-              { id: "description", header: "Описание" },
-              { id: "status", header: "Статус" },
-              { id: "endpoint", header: "Endpoint" },
-              { id: "country", header: "Страна" },
-              { id: "city", header: "Город" },
-              { id: "isp", header: "Оператор связи" },
-              { id: "lastChangedAt", header: "Изменение" },
-              { id: "lastSeenAt", header: "Обновление" },
-            ] as const
-          ).map((col) => (
-            <TableHead key={col.id} className="text-sm font-medium">
+          {REG_COLUMN_ORDER.map((id) => (
+            <TableHead key={id} className="text-sm font-medium">
               <ColumnFilterDropdown
-                column={col.id}
-                header={col.header}
-                open={openColumn === col.id}
-                selected={filters[col.id] ?? []}
+                column={id}
+                header={REG_COLUMN_HEADERS[id]}
+                open={openColumn === id}
+                selected={filters[id] ?? []}
                 filters={filters}
                 buildFacetsUrl={({ column, filters: f, q }) =>
                   buildRegsFacetsUrl({
@@ -89,13 +79,13 @@ export function RegsTable({
                   })
                 }
                 formatValue={(value) =>
-                  displayFacetForColumn(col.id, value, timeZone)
+                  displayFacetForColumn(id, value, timeZone)
                 }
                 onToggle={() =>
-                  onOpenColumnChange(openColumn === col.id ? null : col.id)
+                  onOpenColumnChange(openColumn === id ? null : id)
                 }
-                onChange={(values) => onColumnFilterChange(col.id, values)}
-                onClear={() => onColumnFilterChange(col.id, [])}
+                onChange={(values) => onColumnFilterChange(id, values)}
+                onClear={() => onColumnFilterChange(id, [])}
               />
             </TableHead>
           ))}
@@ -135,10 +125,18 @@ export function RegsTable({
                 )}
                 onClick={() => onRowClick?.(row)}
               >
+                {/* Cell order must match REG_COLUMN_ORDER */}
                 <TableCell className="text-sm">
                   <span className="text-sm tabular-nums">
                     <HighlightText text={row.phone} query={phoneQ} />
                   </span>
+                </TableCell>
+                <TableCell className="text-sm">
+                  {row.channelality ? (
+                    row.channelality
+                  ) : (
+                    <span className="text-sm text-muted-foreground">—</span>
+                  )}
                 </TableCell>
                 <TableCell className="text-sm">
                   {row.description ? (

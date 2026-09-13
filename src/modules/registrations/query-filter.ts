@@ -24,6 +24,8 @@ export function columnCellValue(
   switch (column) {
     case "phone":
       return row.phone;
+    case "channelality":
+      return row.channelality ?? "";
     case "description":
       return row.description ?? "";
     case "status":

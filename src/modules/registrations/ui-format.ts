@@ -44,8 +44,24 @@ export function displayFacetForColumn(
   return value;
 }
 
-export const REG_COLUMN_HEADERS: Record<string, string> = {
+export const REG_COLUMN_ORDER = [
+  "phone",
+  "channelality",
+  "description",
+  "status",
+  "endpoint",
+  "country",
+  "city",
+  "isp",
+  "lastChangedAt",
+  "lastSeenAt",
+] as const;
+
+export type RegColumnId = (typeof REG_COLUMN_ORDER)[number];
+
+export const REG_COLUMN_HEADERS: Record<RegColumnId, string> = {
   phone: "Телефон",
+  channelality: "Канальность",
   description: "Описание",
   status: "Статус",
   endpoint: "Endpoint",

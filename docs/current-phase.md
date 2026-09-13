@@ -1,7 +1,11 @@
-# Current Phase — production (v1.45.0)
+# Current Phase — production (v1.46.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail.  
 **Date:** 2026-09-13
+
+## v1.46.0 — Канальность on Registrations
+
+«Регистрации» adds «Канальность» between «Телефон» and «Описание». Values come from `phone_endpoints.data["ИНИЦ. емкость"]` when the SIP number matches. Empty capacity on a catalog row is «Премиум»; a registration with no catalog row stays empty («—», empty facet / XLSX cell). Column filters, mutual facets, detail sheet, and the full-table XLSX export include the column. Toolbar phone search is unchanged.
 
 ## v1.45.0 — Gray «Недозвон» rows and checkbox
 

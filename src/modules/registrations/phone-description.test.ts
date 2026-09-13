@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { buildPhoneDescriptionMap } from "@/modules/registrations/phone-description";
+import {
+  buildPhoneDescriptionMap,
+  buildPhoneEndpointEnrichmentMap,
+  DEFAULT_CHANNELALITY,
+} from "@/modules/registrations/phone-description";
 
 describe("buildPhoneDescriptionMap", () => {
   it("maps Описание by endpoint number", () => {
@@ -44,6 +48,67 @@ describe("buildPhoneDescriptionMap", () => {
     expect(map.get("100")).toBe("Первый");
     expect(map.has("200")).toBe(false);
     expect(map.has("300")).toBe(false);
+    expect(map.size).toBe(1);
+  });
+});
+
+describe("buildPhoneEndpointEnrichmentMap", () => {
+  it("reads ИНИЦ. емкость as string or number", () => {
+    const map = buildPhoneEndpointEnrichmentMap([
+      {
+        endpointNumber: "100",
+        name: "a",
+        data: { "ИНИЦ. емкость": " 10 ", Описание: "Клиент" },
+      },
+      {
+        endpointNumber: "200",
+        name: "b",
+        data: { "ИНИЦ. емкость": 30 },
+      },
+    ]);
+    expect(map.get("100")).toEqual({
+      description: "Клиент",
+      channelality: "10",
+    });
+    expect(map.get("200")).toEqual({
+      description: null,
+      channelality: "30",
+    });
+  });
+
+  it("uses Премиум when the catalog row exists but capacity is empty", () => {
+    const map = buildPhoneEndpointEnrichmentMap([
+      { endpointNumber: "100", name: "empty", data: { "ИНИЦ. емкость": "" } },
+      { endpointNumber: "200", name: "spaces", data: { "ИНИЦ. емкость": "   " } },
+      { endpointNumber: "300", name: "missing", data: { Описание: "X" } },
+      { endpointNumber: "400", name: "zero", data: { "ИНИЦ. емкость": "0" } },
+    ]);
+    expect(map.get("100")?.channelality).toBe(DEFAULT_CHANNELALITY);
+    expect(map.get("200")?.channelality).toBe(DEFAULT_CHANNELALITY);
+    expect(map.get("300")?.channelality).toBe(DEFAULT_CHANNELALITY);
+    expect(map.get("400")?.channelality).toBe("0");
+    expect(map.has("999")).toBe(false);
+  });
+
+  it("skips missing numbers and keeps the first duplicate", () => {
+    const map = buildPhoneEndpointEnrichmentMap([
+      {
+        endpointNumber: null,
+        name: "skip",
+        data: { "ИНИЦ. емкость": "1" },
+      },
+      {
+        endpointNumber: "100",
+        name: "first",
+        data: { "ИНИЦ. емкость": "2" },
+      },
+      {
+        endpointNumber: "100",
+        name: "second",
+        data: { "ИНИЦ. емкость": "9" },
+      },
+    ]);
+    expect(map.get("100")?.channelality).toBe("2");
     expect(map.size).toBe(1);
   });
 });

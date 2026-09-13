@@ -16,35 +16,47 @@ import {
   formatRegStatus,
   formatTimestamp,
   REG_COLUMN_HEADERS,
+  REG_COLUMN_ORDER,
 } from "@/modules/registrations/ui-format";
 
-const REG_EXPORT_COLUMNS = [
-  "phone",
-  "description",
-  "status",
-  "endpoint",
-  "country",
-  "city",
-  "isp",
-  "lastChangedAt",
-  "lastSeenAt",
-] as const;
+export const REG_EXPORT_COLUMNS = REG_COLUMN_ORDER;
 
-function registrationExportRow(
+export function registrationExportCell(
+  row: RegistrationListItem,
+  column: (typeof REG_EXPORT_COLUMNS)[number],
+  timeZone: string,
+): string {
+  switch (column) {
+    case "phone":
+      return row.phone;
+    case "channelality":
+      return row.channelality ?? "";
+    case "description":
+      return row.description ?? "";
+    case "status":
+      return formatRegStatus(row.status);
+    case "endpoint":
+      return formatEndpoint(row.ip, row.port);
+    case "country":
+      return row.country ?? "";
+    case "city":
+      return row.city ?? "";
+    case "isp":
+      return row.isp ?? "";
+    case "lastChangedAt":
+      return formatTimestamp(row.lastChangedAt, timeZone);
+    case "lastSeenAt":
+      return formatTimestamp(row.lastSeenAt, timeZone);
+  }
+}
+
+export function registrationExportRow(
   row: RegistrationListItem,
   timeZone: string,
 ): string[] {
-  return [
-    row.phone,
-    row.description ?? "",
-    formatRegStatus(row.status),
-    formatEndpoint(row.ip, row.port),
-    row.country ?? "",
-    row.city ?? "",
-    row.isp ?? "",
-    formatTimestamp(row.lastChangedAt, timeZone),
-    formatTimestamp(row.lastSeenAt, timeZone),
-  ];
+  return REG_EXPORT_COLUMNS.map((key) =>
+    registrationExportCell(row, key, timeZone),
+  );
 }
 
 export type RegsExportResult = {
