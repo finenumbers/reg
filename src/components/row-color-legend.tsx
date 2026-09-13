@@ -9,19 +9,14 @@ export type RowColorTone =
   | "unregistered";
 
 const TONE_CLASS: Record<RowColorTone, string> = {
-  phantom:
-    "[--row-mark:var(--color-green-200)] dark:[--row-mark:var(--color-green-950)]",
-  call_error:
-    "[--row-mark:color-mix(in_oklab,var(--destructive)_25%,transparent)]",
-  parking_known:
-    "[--row-mark:var(--color-blue-200)] dark:[--row-mark:var(--color-blue-950)]",
-  known_empty_duration:
-    "[--row-mark:var(--color-gray-200)] dark:[--row-mark:var(--color-gray-950)]",
-  unregistered:
-    "[--row-mark:color-mix(in_oklab,var(--destructive)_10%,transparent)]",
+  phantom: "bg-green-200 dark:bg-green-950",
+  call_error: "bg-destructive/25",
+  parking_known: "bg-blue-200 dark:bg-blue-950",
+  known_empty_duration: "bg-gray-200 dark:bg-gray-950",
+  unregistered: "bg-destructive/10",
 };
 
-/** Highlighter stroke on checkbox label text — same base fill as the matching table row. */
+/** Solid color plate on checkbox label text — same base fill as the matching table row. */
 export function RowColorMark({
   tone,
   children,
@@ -30,6 +25,13 @@ export function RowColorMark({
   children: ReactNode;
 }) {
   return (
-    <span className={cn("row-color-mark", TONE_CLASS[tone])}>{children}</span>
+    <span
+      className={cn(
+        "rounded-sm px-1 text-inherit whitespace-nowrap",
+        TONE_CLASS[tone],
+      )}
+    >
+      {children}
+    </span>
   );
 }

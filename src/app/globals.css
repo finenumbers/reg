@@ -232,17 +232,3 @@ mark.search-hit {
   padding: 0 0.1em;
   border-radius: 2px;
 }
-
-/* Highlighter stroke on filter labels — color via --row-mark (not mark.search-hit). */
-.row-color-mark {
-  color: inherit;
-  padding: 0 0.12em;
-  box-decoration-break: clone;
-  -webkit-box-decoration-break: clone;
-  background-image: linear-gradient(
-    transparent 18%,
-    var(--row-mark) 18%,
-    var(--row-mark) 86%,
-    transparent 86%
-  );
-}
