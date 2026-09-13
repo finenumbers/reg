@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 export type RowColorTone =
@@ -16,7 +17,7 @@ const TONE_CLASS: Record<RowColorTone, string> = {
   unregistered: "bg-destructive/10",
 };
 
-/** Solid color plate on checkbox label text — same base fill as the matching table row. */
+/** Badge chrome on checkbox label text — same base fill as the matching table row. */
 export function RowColorMark({
   tone,
   children,
@@ -25,13 +26,14 @@ export function RowColorMark({
   children: ReactNode;
 }) {
   return (
-    <span
+    <Badge
+      variant="outline"
       className={cn(
-        "rounded-sm px-1 text-inherit whitespace-nowrap",
+        "border-transparent text-foreground text-sm leading-none",
         TONE_CLASS[tone],
       )}
     >
       {children}
-    </span>
+    </Badge>
   );
 }
