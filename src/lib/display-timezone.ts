@@ -50,3 +50,9 @@ export function resolveDisplayTimezone(
   if (value && isDisplayTimezoneId(value)) return value;
   return DEFAULT_DISPLAY_TIMEZONE;
 }
+
+/** Operator clock label: `UTC` or `UTC+7` from the fixed offset table. */
+export function formatUtcOffsetLabel(zone: DisplayTimezoneId): string {
+  const hours = TZ_OFFSET_HOURS[zone];
+  return hours === 0 ? "UTC" : `UTC+${hours}`;
+}

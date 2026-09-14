@@ -1,7 +1,11 @@
-# Current Phase — production (v1.50.0)
+# Current Phase — production (v1.51.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail.  
-**Date:** 2026-09-14
+**Date:** 2026-09-15
+
+## v1.51.0 — Sidebar clocks labeled UTC / UTC+N
+
+Left-nav clocks are two `text-sm` rows: `UTC: HH:mm:ss` and `UTC+N: HH:mm:ss`. N is the fixed Settings display-timezone offset (`UTC` when that zone is selected). The «Время UTC» / «Местное время» stacks are gone. Tick, civil-clock CDR cells / XLSX are unchanged.
 
 ## v1.50.0 — CDR month storage lives on Settings
 

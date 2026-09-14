@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useDisplayTimezone } from "@/components/display-timezone-provider";
+import { formatUtcOffsetLabel } from "@/lib/display-timezone";
 import { formatDisplayClock } from "@/lib/format-display-time";
 import { cn } from "@/lib/utils";
 
@@ -59,27 +60,29 @@ export function LiveClocks({ className }: { className?: string }) {
   const utc = now ? formatDisplayClock(now, "UTC") : CLOCK_WIDTH_SAMPLE;
   const local = now ? formatDisplayClock(now, timeZone) : CLOCK_WIDTH_SAMPLE;
   const iso = now?.toISOString();
+  const localLabel = formatUtcOffsetLabel(timeZone);
 
   return (
-    <div className={cn("space-y-3 text-sm", className)}>
-      <div>
-        <p>Время UTC:</p>
-        <time
-          dateTime={iso}
-          className={cn("font-bold text-black tabular-nums", !now && "invisible")}
-        >
-          {utc}
-        </time>
-      </div>
-      <div>
-        <p>Местное время:</p>
-        <time
-          dateTime={iso}
-          className={cn("font-bold text-black tabular-nums", !now && "invisible")}
-        >
-          {local}
-        </time>
-      </div>
+    <div
+      className={cn(
+        "grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5 whitespace-nowrap text-sm",
+        className,
+      )}
+    >
+      <span>UTC:</span>
+      <time
+        dateTime={iso}
+        className={cn("font-bold text-black tabular-nums", !now && "invisible")}
+      >
+        {utc}
+      </time>
+      <span>{localLabel}:</span>
+      <time
+        dateTime={iso}
+        className={cn("font-bold text-black tabular-nums", !now && "invisible")}
+      >
+        {local}
+      </time>
     </div>
   );
 }
