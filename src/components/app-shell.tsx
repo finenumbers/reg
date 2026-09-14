@@ -56,6 +56,7 @@ export function AppShell({
   );
   const primaryNav = visible.filter((m) => (m.navGroup ?? "primary") === "primary");
   const cdrNav = visible.filter((m) => m.navGroup === "cdr");
+  const analyticsNav = visible.filter((m) => m.navGroup === "analytics");
   const adminNav = visible.filter((m) => m.navGroup === "admin");
 
   async function onLogout() {
@@ -89,6 +90,19 @@ export function AppShell({
             <>
               <Separator className="my-3 shrink-0" />
               {cdrNav.map((item) => (
+                <NavLink
+                  key={item.href}
+                  href={item.href!}
+                  label={item.title}
+                  active={isNavActive(pathname, item.href!)}
+                />
+              ))}
+            </>
+          ) : null}
+          {analyticsNav.length > 0 ? (
+            <>
+              <Separator className="my-3 shrink-0" />
+              {analyticsNav.map((item) => (
                 <NavLink
                   key={item.href}
                   href={item.href!}

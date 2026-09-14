@@ -1,7 +1,11 @@
-# Current Phase — production (v1.52.0)
+# Current Phase — production (v1.53.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail.  
 **Date:** 2026-09-15
+
+## v1.53.0 — Детализация and Статистика between CDR and Settings
+
+Left nav puts «Детализация» and «Статистика» in their own group after the CDR block (traffic / operators / geography / raw), with a separator above and another before «Настройки». Admin after that is Настройки / Задачи / Аудит. Operator still sees Задачи after the second separator (Настройки / Аудит stay hidden). Permissions and routes are unchanged.
 
 ## v1.52.0 — Release tag on the logout button
 

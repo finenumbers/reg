@@ -19,7 +19,7 @@ export type FeatureModuleId =
   | "stats"
   | "detail";
 
-export type FeatureNavGroup = "primary" | "cdr" | "admin";
+export type FeatureNavGroup = "primary" | "cdr" | "analytics" | "admin";
 
 type FeatureModuleDefinition = {
   id: FeatureModuleId;
@@ -97,15 +97,7 @@ export const FEATURE_MODULES: FeatureModuleDefinition[] = [
     description: "Звонки и минуты по клиентам каталога номеров",
     href: "/detail",
     navPermission: "phones:read",
-    navGroup: "cdr",
-  },
-  {
-    id: "settings",
-    title: "Настройки",
-    description: "SSH-профиль, интервал опроса, месяцы CDR",
-    href: "/settings",
-    navPermission: "settings:write",
-    navGroup: "admin",
+    navGroup: "analytics",
   },
   {
     id: "stats",
@@ -113,6 +105,14 @@ export const FEATURE_MODULES: FeatureModuleDefinition[] = [
     description: "Саммари звонков и минут по SIP-транкам и технологическим платформам",
     href: "/stats",
     navPermission: "phones:read",
+    navGroup: "analytics",
+  },
+  {
+    id: "settings",
+    title: "Настройки",
+    description: "SSH-профиль, интервал опроса, месяцы CDR",
+    href: "/settings",
+    navPermission: "settings:write",
     navGroup: "admin",
   },
   {
