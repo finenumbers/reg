@@ -1,7 +1,11 @@
-# Current Phase — production (v1.51.0)
+# Current Phase — production (v1.52.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail.  
 **Date:** 2026-09-15
+
+## v1.52.0 — Release tag on the logout button
+
+The standalone `v{package.json}` line under the left-nav clocks is gone. The outline «Выйти» button reads «Выйти - v1.52.0»: button type for the action, the previous `text-xs font-normal text-muted-foreground` for the tag. `aria-label` stays «Выйти». Clocks and logout are unchanged.
 
 ## v1.51.0 — Sidebar clocks labeled UTC / UTC+N
 

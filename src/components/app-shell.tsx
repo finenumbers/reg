@@ -114,17 +114,18 @@ export function AppShell({
         </nav>
         <div className="mt-auto shrink-0 space-y-2 px-2 pt-4">
           <LiveClocks />
-          <p className="text-xs text-muted-foreground">
-            {releaseLabel}
-          </p>
           <Button
             type="button"
             variant="outline"
             size="sm"
             className="w-full"
+            aria-label="Выйти"
             onClick={onLogout}
           >
-            Выйти
+            Выйти -{" "}
+            <span className="text-xs font-normal text-muted-foreground">
+              {releaseLabel}
+            </span>
           </Button>
         </div>
       </aside>
