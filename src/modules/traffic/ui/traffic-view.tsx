@@ -507,7 +507,7 @@ export function TrafficView({
             <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
             <p className="text-sm text-muted-foreground">{subtitle}</p>
           </div>
-          <LiveClocks className="shrink-0 pt-1.5" />
+          <LiveClocks className="shrink-0" />
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {showMonthExport ? <MonthExportButtons month={month} /> : null}

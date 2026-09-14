@@ -1,7 +1,11 @@
-# Current Phase — production (v1.48.0)
+# Current Phase — production (v1.48.1)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail.  
 **Date:** 2026-09-14
+
+## v1.48.1 — CDR header clocks on one 14px line
+
+CDR tables (traffic / operators / geography / raw) show UTC and local time as one `text-sm` line next to the title: «Время UTC: HH:mm:ss    Местное время: HH:mm:ss». The two-line 12px stack and header `pt-1.5` are gone. Tick, Settings timezone, and civil-clock CDR cells / XLSX are unchanged.
 
 ## v1.48.0 — Live UTC and local clocks on CDR table headers
 
