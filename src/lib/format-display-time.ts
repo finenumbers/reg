@@ -38,6 +38,12 @@ export function formatDisplayTimestamp(
   return `${part(parts, "day")}.${part(parts, "month")}.${part(parts, "year")}, ${part(parts, "hour")}:${part(parts, "minute")}:${part(parts, "second")}`;
 }
 
+/** Wall clock only: `18:50:05` in a chosen IANA zone. */
+export function formatDisplayClock(date: Date, timeZone: string): string {
+  const parts = partsFor(date, timeZone);
+  return `${part(parts, "hour")}:${part(parts, "minute")}:${part(parts, "second")}`;
+}
+
 /** Compact stamp for download filenames: `20260820-1850` in display TZ. */
 export function formatExportTimestamp(
   d: Date = new Date(),

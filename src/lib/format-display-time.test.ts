@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { formatDisplayTimestamp, formatExportTimestamp } from "@/lib/format-display-time";
+import {
+  formatDisplayClock,
+  formatDisplayTimestamp,
+  formatExportTimestamp,
+} from "@/lib/format-display-time";
 import { resolveDisplayTimezone } from "@/lib/display-timezone";
 
 describe("formatDisplayTimestamp", () => {
@@ -18,6 +22,21 @@ describe("formatDisplayTimestamp", () => {
   it("handles empty and invalid values", () => {
     expect(formatDisplayTimestamp(null, "Europe/Moscow")).toBe("—");
     expect(formatDisplayTimestamp("not-a-date", "UTC")).toBe("—");
+  });
+});
+
+describe("formatDisplayClock", () => {
+  const instant = new Date("2026-08-20T15:50:05.000Z");
+
+  it("formats UTC and Moscow from the same instant", () => {
+    expect(formatDisplayClock(instant, "UTC")).toBe("15:50:05");
+    expect(formatDisplayClock(instant, "Europe/Moscow")).toBe("18:50:05");
+  });
+
+  it("crosses midnight in Moscow", () => {
+    expect(
+      formatDisplayClock(new Date("2026-08-20T21:00:00.000Z"), "Europe/Moscow"),
+    ).toBe("00:00:00");
   });
 });
 

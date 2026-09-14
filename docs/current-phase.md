@@ -1,7 +1,11 @@
-# Current Phase — production (v1.47.3)
+# Current Phase — production (v1.48.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail.  
-**Date:** 2026-09-13
+**Date:** 2026-09-14
+
+## v1.48.0 — Live UTC and local clocks on CDR table headers
+
+CDR tables (traffic / operators / geography / raw) show two live `HH:mm:ss` lines next to the title: «Время UTC» and «Местное время». Local time uses the Settings display timezone; both lines share one workstation `Date.now()` snapshot. Detail, table cells, and XLSX stay civil-clock from the CDR file.
 
 ## v1.47.3 — Badge chrome on row-color checkboxes
 
