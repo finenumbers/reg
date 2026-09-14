@@ -41,10 +41,8 @@ function monthLabel(row: StorageMonthRow): string {
   return row.incomplete ? `${name} (неполный)` : name;
 }
 
-type Props = { initial: StorageSnapshot };
-
-export function StorageView({ initial }: Props) {
-  const [data, setData] = useState(initial);
+export function StorageView() {
+  const [data, setData] = useState<StorageSnapshot | null>(null);
   const [confirm, setConfirm] = useState<StorageMonthRow | null>(null);
   const [typed, setTyped] = useState("");
   const [pending, setPending] = useState(false);
@@ -61,12 +59,16 @@ export function StorageView({ initial }: Props) {
   }, []);
 
   useEffect(() => {
-    if (!data.purgeInFlight && !data.importInFlight) return;
+    void reload();
+  }, [reload]);
+
+  useEffect(() => {
+    if (!data?.purgeInFlight && !data?.importInFlight) return;
     const timer = window.setInterval(() => {
       void reload();
     }, POLL_MS);
     return () => window.clearInterval(timer);
-  }, [data.purgeInFlight, data.importInFlight, reload]);
+  }, [data?.purgeInFlight, data?.importInFlight, reload]);
 
   async function onConfirmDelete() {
     if (!confirm) return;
@@ -85,31 +87,36 @@ export function StorageView({ initial }: Props) {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-4">
+    <section className="space-y-4">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">
+        <h2 id="cdr-storage" className="text-base font-semibold">
           Хранение данных
-        </h1>
+        </h2>
         <p className="text-sm text-muted-foreground">
-          Месяцы CDR в локальной базе (по колонке «Дата»). Удалить можно только
-          самый старый полный месяц, по одному. Текущий месяц трогать нельзя.
-          Место на диске вернётся после очистки базы (autovacuum), не сразу.
+          Месяцы CDR в локальной базе (по колонке «Дата»), не артефакты задач.
+          Удалить можно только самый старый полный месяц, по одному. Текущий
+          месяц трогать нельзя. Место на диске вернётся после очистки базы
+          (autovacuum), не сразу.
         </p>
       </div>
 
       {error ? (
         <div
           role="alert"
-          className="shrink-0 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+          className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
         >
           {error}
         </div>
       ) : null}
 
-      {data.purgeInFlight && data.purge ? (
+      {!data && !error ? (
+        <p className="text-sm text-muted-foreground">Загрузка…</p>
+      ) : null}
+
+      {data?.purgeInFlight && data.purge ? (
         <div
           role="status"
-          className="shrink-0 rounded-md border border-border bg-muted/40 px-3 py-2 text-sm"
+          className="rounded-md border border-border bg-muted/40 px-3 py-2 text-sm"
         >
           Удаляется {data.purge.month}… {formatCount(data.purge.deleted)}
           {data.purge.target > 0
@@ -119,67 +126,71 @@ export function StorageView({ initial }: Props) {
         </div>
       ) : null}
 
-      {data.importInFlight && !data.purgeInFlight ? (
+      {data?.importInFlight && !data.purgeInFlight ? (
         <div
           role="status"
-          className="shrink-0 rounded-md border border-border bg-muted/40 px-3 py-2 text-sm"
+          className="rounded-md border border-border bg-muted/40 px-3 py-2 text-sm"
         >
           Идёт импорт CDR. Удаление месяца будет доступно после окончания
           загрузки.
         </div>
       ) : null}
 
-      <p className="text-sm text-muted-foreground">
-        Всего {formatCount(data.totalCalls)} звонков ·{" "}
-        {formatCount(data.totalSeconds)} сек ·{" "}
-        {formatCount(data.totalMinutes)} мин · таблицы CDR{" "}
-        {formatBytes(data.tableBytes)}
-      </p>
+      {data ? (
+        <>
+          <p className="text-sm text-muted-foreground">
+            Всего {formatCount(data.totalCalls)} звонков ·{" "}
+            {formatCount(data.totalSeconds)} сек ·{" "}
+            {formatCount(data.totalMinutes)} мин · таблицы CDR{" "}
+            {formatBytes(data.tableBytes)}
+          </p>
 
-      <div className="min-h-0 flex-1 overflow-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Месяц</TableHead>
-              <TableHead className="text-right">Кол-во звонков</TableHead>
-              <TableHead className="text-right">Кол-во секунд</TableHead>
-              <TableHead className="text-right">Кол-во минут</TableHead>
-              <TableHead className="text-right">Удаление</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {data.months.map((row) => (
-              <TableRow key={row.key}>
-                <TableCell>{monthLabel(row)}</TableCell>
-                <TableCell className="text-right">
-                  {formatCount(row.calls)}
-                </TableCell>
-                <TableCell className="text-right">
-                  {formatCount(row.seconds)}
-                </TableCell>
-                <TableCell className="text-right">
-                  {formatCount(row.minutes)}
-                </TableCell>
-                <TableCell className="text-right">
-                  {row.canDelete ? (
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => {
-                        setConfirm(row);
-                        setTyped("");
-                      }}
-                    >
-                      Удалить
-                    </Button>
-                  ) : null}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+          <div className="overflow-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Месяц</TableHead>
+                  <TableHead className="text-right">Кол-во звонков</TableHead>
+                  <TableHead className="text-right">Кол-во секунд</TableHead>
+                  <TableHead className="text-right">Кол-во минут</TableHead>
+                  <TableHead className="text-right">Удаление</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data.months.map((row) => (
+                  <TableRow key={row.key}>
+                    <TableCell>{monthLabel(row)}</TableCell>
+                    <TableCell className="text-right">
+                      {formatCount(row.calls)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {formatCount(row.seconds)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {formatCount(row.minutes)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {row.canDelete ? (
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => {
+                            setConfirm(row);
+                            setTyped("");
+                          }}
+                        >
+                          Удалить
+                        </Button>
+                      ) : null}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </>
+      ) : null}
 
       {confirm ? (
         <div
@@ -235,6 +246,6 @@ export function StorageView({ initial }: Props) {
           </div>
         </div>
       ) : null}
-    </div>
+    </section>
   );
 }

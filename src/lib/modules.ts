@@ -16,7 +16,6 @@ export type FeatureModuleId =
   | "operators"
   | "audit"
   | "enrich"
-  | "storage"
   | "stats"
   | "detail";
 
@@ -103,7 +102,7 @@ export const FEATURE_MODULES: FeatureModuleDefinition[] = [
   {
     id: "settings",
     title: "Настройки",
-    description: "SSH-профиль, интервал опроса, хранение артефактов",
+    description: "SSH-профиль, интервал опроса, месяцы CDR",
     href: "/settings",
     navPermission: "settings:write",
     navGroup: "admin",
@@ -114,14 +113,6 @@ export const FEATURE_MODULES: FeatureModuleDefinition[] = [
     description: "Саммари звонков и минут по SIP-транкам и технологическим платформам",
     href: "/stats",
     navPermission: "phones:read",
-    navGroup: "admin",
-  },
-  {
-    id: "storage",
-    title: "Хранение данных",
-    description: "Месяцы CDR в локальной базе и удаление самого старого полного месяца",
-    href: "/storage",
-    navPermission: "settings:write",
     navGroup: "admin",
   },
   {

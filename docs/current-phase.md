@@ -1,7 +1,11 @@
-# Current Phase — production (v1.49.0)
+# Current Phase — production (v1.50.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail.  
 **Date:** 2026-09-14
+
+## v1.50.0 — CDR month storage lives on Settings
+
+«Хранение данных» is a section at the bottom of `/settings` (after API keys): month table, totals, oldest-complete-month delete. The admin nav item and `/storage` page are gone; `/storage` still requires `settings:write` and redirects to `/settings#cdr-storage`. The snapshot loads on the client (`GET /api/storage`) so Settings SSH/keys do not wait on the full-table month `GROUP BY`. `POST /api/storage/purge`, `cdr.purge.month`, and civil-clock CDR cells / XLSX are unchanged.
 
 ## v1.49.0 — Live clocks in the left nav footer
 
