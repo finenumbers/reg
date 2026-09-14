@@ -38,7 +38,6 @@ import {
 } from "@/modules/traffic/cdr-month";
 import { formatMonthOption } from "@/modules/traffic/month-labels";
 import type { ListTrafficResult, TrafficListItem } from "@/modules/traffic/service";
-import { LiveClocks } from "@/modules/traffic/ui/live-clocks";
 import { MonthExportButtons } from "@/modules/traffic/ui/month-export-buttons";
 import { TrafficTable } from "@/modules/traffic/ui/traffic-table";
 import type { TimeSort } from "@/modules/traffic/traffic-sort";
@@ -502,12 +501,9 @@ export function TrafficView({
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
       <div className="flex shrink-0 flex-wrap items-start justify-between gap-4">
-        <div className="flex min-w-0 flex-wrap items-start gap-x-6 gap-y-2">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
-            <p className="text-sm text-muted-foreground">{subtitle}</p>
-          </div>
-          <LiveClocks className="shrink-0" />
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+          <p className="text-sm text-muted-foreground">{subtitle}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {showMonthExport ? <MonthExportButtons month={month} /> : null}

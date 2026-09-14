@@ -61,22 +61,25 @@ export function LiveClocks({ className }: { className?: string }) {
   const iso = now?.toISOString();
 
   return (
-    <p className={cn("whitespace-nowrap text-sm", className)}>
-      Время UTC:{" "}
-      <time
-        dateTime={iso}
-        className={cn("font-bold text-black tabular-nums", !now && "invisible")}
-      >
-        {utc}
-      </time>
-      {"    "}
-      Местное время:{" "}
-      <time
-        dateTime={iso}
-        className={cn("font-bold text-black tabular-nums", !now && "invisible")}
-      >
-        {local}
-      </time>
-    </p>
+    <div className={cn("space-y-3 text-sm", className)}>
+      <div>
+        <p>Время UTC:</p>
+        <time
+          dateTime={iso}
+          className={cn("font-bold text-black tabular-nums", !now && "invisible")}
+        >
+          {utc}
+        </time>
+      </div>
+      <div>
+        <p>Местное время:</p>
+        <time
+          dateTime={iso}
+          className={cn("font-bold text-black tabular-nums", !now && "invisible")}
+        >
+          {local}
+        </time>
+      </div>
+    </div>
   );
 }

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { FEATURE_MODULES } from "@/lib/modules";
+import { LiveClocks } from "@/components/live-clocks";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { authClient } from "@/modules/auth/auth-client";
@@ -112,6 +113,7 @@ export function AppShell({
           ) : null}
         </nav>
         <div className="mt-auto shrink-0 space-y-2 px-2 pt-4">
+          <LiveClocks />
           <p className="text-xs text-muted-foreground">
             {releaseLabel}
           </p>

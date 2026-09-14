@@ -1,7 +1,11 @@
-# Current Phase — production (v1.48.1)
+# Current Phase — production (v1.49.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail.  
 **Date:** 2026-09-14
+
+## v1.49.0 — Live clocks in the left nav footer
+
+UTC and local time sit in the left navigation footer (above the version and «Выйти») on every admin page, as two `text-sm` stacks: «Время UTC» / «Местное время». They are gone from CDR table headers. Local time still follows the Settings display timezone. Civil-clock CDR cells / XLSX are unchanged.
 
 ## v1.48.1 — CDR header clocks on one 14px line
 
