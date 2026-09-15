@@ -27,6 +27,7 @@ import {
 import {
   applyRegistrationQuery,
   columnCellValue,
+  countUnregisteredRows,
 } from "@/modules/registrations/query-filter";
 import { sortRegistrationItemsByPhone } from "@/modules/registrations/sort";
 import type {
@@ -54,6 +55,8 @@ export type ListRegistrationsResult = {
   total: number;
   page: number;
   pageSize: number;
+  /** Live SIP Unregistered in reg_current — not the filtered page total. */
+  unregisteredCount: number;
 };
 
 export type RegistrationDetailResult = {
@@ -197,6 +200,7 @@ export async function listRegistrations(
     total: filtered.length,
     page,
     pageSize,
+    unregisteredCount: countUnregisteredRows(all),
   };
 }
 

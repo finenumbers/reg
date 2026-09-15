@@ -18,7 +18,11 @@ import {
   TableInfiniteBody,
 } from "@/components/table-infinite-body";
 import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
-import { formatCount } from "@/lib/format-count";
+import {
+  PHONES_REGS_UNREGISTERED_POLL_MS,
+  useRegsUnregisteredCount,
+} from "@/hooks/use-regs-unregistered-count";
+import { formatCount, formatUnregisteredOnlyLabel } from "@/lib/format-count";
 import { TABLE_PAGE_SIZE } from "@/lib/table-pagination";
 import {
   convertPhonesRtuImport,
@@ -48,6 +52,8 @@ const PHONE_SEARCH_DEBOUNCE_MS = 300;
 type Props = {
   canRequest: boolean;
   initial: ListPhonesResult;
+  /** Live SIP Unregistered from reg_current (Registrations), not catalog «Нет». */
+  initialRegsUnregisteredCount: number;
 };
 
 function formatSyncedAt(iso: string | null, timeZone: string): string {
@@ -60,7 +66,11 @@ function selectKind(next: PhoneKind, current: PhoneKind, load: (k: PhoneKind) =>
   load(next);
 }
 
-export function PhonesView({ canRequest, initial }: Props) {
+export function PhonesView({
+  canRequest,
+  initial,
+  initialRegsUnregisteredCount,
+}: Props) {
   const { timeZone } = useDisplayTimezone();
   const [kind, setKind] = useState<PhoneKind>(initial.kind);
   const [filters, setFilters] = useState<ColumnFilters>({});
@@ -79,6 +89,9 @@ export function PhonesView({ canRequest, initial }: Props) {
   );
   const [unregisteredCount, setUnregisteredCount] = useState(
     initial.unregisteredCount,
+  );
+  const [regsUnregisteredCount, setRegsUnregisteredCount] = useState(
+    initialRegsUnregisteredCount,
   );
   const [errorCount, setErrorCount] = useState(initial.errorCount);
   const [lastSyncedAt, setLastSyncedAt] = useState(initial.lastSyncedAt);
@@ -100,12 +113,14 @@ export function PhonesView({ canRequest, initial }: Props) {
   const filtersRef = useRef(filters);
   const phoneQRef = useRef(phoneQ);
   const sipUnregisteredOnlyRef = useRef(sipUnregisteredOnly);
+  const kindRef = useRef(kind);
   const phoneSearchTimerRef = useRef<number | null>(null);
   const [scrollRoot, setScrollRoot] = useState<Element | null>(null);
 
   filtersRef.current = filters;
   phoneQRef.current = phoneQ;
   sipUnregisteredOnlyRef.current = sipUnregisteredOnly;
+  kindRef.current = kind;
 
   const hasMore = items.length < total;
   const filtersActive =
@@ -154,9 +169,10 @@ export function PhonesView({ canRequest, initial }: Props) {
     sipUnregisteredOnly?: boolean;
     page?: number;
     replace?: boolean;
+    soft?: boolean;
   }) {
     const replace = opts.replace ?? true;
-    const nextKind = opts.kind ?? kind;
+    const nextKind = opts.kind ?? kindRef.current;
     const nextFilters = opts.filters ?? filtersRef.current;
     const nextPhoneQ =
       opts.phoneQ !== undefined ? opts.phoneQ : phoneQRef.current;
@@ -168,7 +184,7 @@ export function PhonesView({ canRequest, initial }: Props) {
     const seq = ++refreshSeq.current;
 
     if (replace) {
-      setLoading(true);
+      if (!opts.soft) setLoading(true);
       loadingMoreRef.current = false;
       setLoadingMore(false);
     } else {
@@ -218,6 +234,18 @@ export function PhonesView({ canRequest, initial }: Props) {
     setLoadingMore(false);
     loadingMoreRef.current = false;
   }
+
+  const loadListRef = useRef(loadList);
+  loadListRef.current = loadList;
+
+  useRegsUnregisteredCount({
+    intervalMs: PHONES_REGS_UNREGISTERED_POLL_MS,
+    onCount: setRegsUnregisteredCount,
+    onSnapshot: () => {
+      if (kindRef.current !== "endpoints_registered") return;
+      void loadListRef.current({ page: 1, replace: true, soft: true });
+    },
+  });
 
   const onLoadMore = useCallback(() => {
     if (!hasMore || loading || loadingMoreRef.current) return;
@@ -543,7 +571,9 @@ export function PhonesView({ canRequest, initial }: Props) {
                 }
               />
               <Label htmlFor="phones-sip-unregistered-only">
-                <RowColorMark tone="unregistered">Без регистрации</RowColorMark>
+                <RowColorMark tone="unregistered">
+                  {formatUnregisteredOnlyLabel(regsUnregisteredCount)}
+                </RowColorMark>
               </Label>
             </div>
           ) : null}

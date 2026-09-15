@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { applyRegistrationQuery } from "@/modules/registrations/query-filter";
+import {
+  applyRegistrationQuery,
+  countUnregisteredRows,
+} from "@/modules/registrations/query-filter";
 import type { RegistrationListItem } from "@/modules/registrations/types";
 
 const rows: RegistrationListItem[] = [
@@ -87,6 +90,16 @@ describe("applyRegistrationQuery", () => {
         filters: { channelality: ["__empty__"] },
       }).map((r) => r.phone),
     ).toEqual(["73912193303"]);
+  });
+
+  it("counts Unregistered rows independently of list filters", () => {
+    expect(countUnregisteredRows(rows)).toBe(1);
+    expect(
+      countUnregisteredRows(
+        applyRegistrationQuery(rows, { unregisteredOnly: true, phoneQ: "222" }),
+      ),
+    ).toBe(0);
+    expect(countUnregisteredRows(rows)).toBe(1);
   });
 
   it("excludes the open channelality column so mutual facets stay honest", () => {

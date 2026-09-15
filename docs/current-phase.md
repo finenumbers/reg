@@ -1,7 +1,11 @@
-# Current Phase — production (v1.53.0)
+# Current Phase — production (v1.54.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail.  
 **Date:** 2026-09-15
+
+## v1.54.0 — Unregistered count on the checkbox
+
+«Без регистрации (N)» on «Регистрации» and «Телефонные номера» → «Транки с регистрацией» shows live Unregistered rows from `reg_current`. N comes from the Registrations snapshot (`GET /api/regs/status`); manual «Загрузить данные» writes it from status before the wait snapshot and again after a successful list reload. Successful scheduled polls refresh the badge; the list reloads only when `lastSuccessAt` changes. Filters, row paint, and the phones catalog «без рег.» subtitle are unchanged.
 
 ## v1.53.0 — Детализация and Статистика between CDR and Settings
 

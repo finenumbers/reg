@@ -6,3 +6,8 @@ export function formatCount(n: number): string {
   const digits = String(Math.trunc(Math.abs(n)));
   return sign + digits.replace(/\B(?=(\d{3})+(?!\d))/g, THIN_NBSP);
 }
+
+/** Toolbar checkbox on Registrations and Phones → «Транки с регистрацией». */
+export function formatUnregisteredOnlyLabel(n: number): string {
+  return `Без регистрации (${formatCount(n)})`;
+}

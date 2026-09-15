@@ -18,7 +18,12 @@ import {
   TableInfiniteBody,
 } from "@/components/table-infinite-body";
 import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
+import {
+  REGS_UNREGISTERED_POLL_MS,
+  useRegsUnregisteredCount,
+} from "@/hooks/use-regs-unregistered-count";
 import { useDisplayTimezone } from "@/components/display-timezone-provider";
+import { formatUnregisteredOnlyLabel } from "@/lib/format-count";
 import { TABLE_PAGE_SIZE } from "@/lib/table-pagination";
 import {
   downloadRegsExport,
@@ -61,6 +66,9 @@ export function RegistrationsView({ canPoll, initial }: Props) {
   const [phoneInput, setPhoneInput] = useState("");
   const [phoneQ, setPhoneQ] = useState("");
   const [unregisteredOnly, setUnregisteredOnly] = useState(false);
+  const [unregisteredCount, setUnregisteredCount] = useState(
+    initial.unregisteredCount,
+  );
   const [openColumn, setOpenColumn] = useState<string | null>(null);
   const [page, setPage] = useState(initial.page);
   const [items, setItems] = useState(initial.items);
@@ -158,6 +166,7 @@ export function RegistrationsView({ canPoll, initial }: Props) {
 
     setTotal(result.data.total);
     setPage(result.data.page);
+    setUnregisteredCount(result.data.unregisteredCount);
     setItems((prev) =>
       replace ? result.data.items : [...prev, ...result.data.items],
     );
@@ -165,6 +174,18 @@ export function RegistrationsView({ canPoll, initial }: Props) {
     setLoadingMore(false);
     loadingMoreRef.current = false;
   }
+
+  const loadListRef = useRef(loadList);
+  loadListRef.current = loadList;
+
+  useRegsUnregisteredCount({
+    intervalMs: REGS_UNREGISTERED_POLL_MS,
+    pollInFlight: () => pollInFlightRef.current,
+    onCount: setUnregisteredCount,
+    onSnapshot: () => {
+      void loadListRef.current({ page: 1, replace: true, soft: true });
+    },
+  });
 
   const onLoadMore = useCallback(() => {
     if (!hasMore || loading || loadingMoreRef.current) return;
@@ -256,6 +277,7 @@ export function RegistrationsView({ canPoll, initial }: Props) {
       const beforeStatus = await fetchRegsStatus();
       if (beforeStatus.ok) {
         beforeFinishedAt = beforeStatus.data.lastFinishedAt;
+        setUnregisteredCount(beforeStatus.data.unregisteredCount);
       }
 
       const result = await postRegsPoll();
@@ -278,6 +300,7 @@ export function RegistrationsView({ canPoll, initial }: Props) {
           if (!status.ok) {
             throw new Error(status.message);
           }
+          setUnregisteredCount(status.data.unregisteredCount);
           return toPollStatusSnapshot(status.data);
         },
       });
@@ -451,7 +474,9 @@ export function RegistrationsView({ canPoll, initial }: Props) {
             onChange={(e) => onUnregisteredOnlyChange(e.target.checked)}
           />
           <Label htmlFor="regs-unregistered-only">
-            <RowColorMark tone="unregistered">Без регистрации</RowColorMark>
+            <RowColorMark tone="unregistered">
+              {formatUnregisteredOnlyLabel(unregisteredCount)}
+            </RowColorMark>
           </Label>
         </div>
         <Button

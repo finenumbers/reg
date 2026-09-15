@@ -17,13 +17,20 @@ export type RegistrationsOperationalStatus = RegsPollStatus & {
   runningCount: number;
 };
 
+/** Live SIP Unregistered rows in reg_current. Local DB only. */
+export async function countUnregisteredCurrent(): Promise<number> {
+  return prisma.registrationCurrent.count({ where: { status: "Unregistered" } });
+}
+
 export async function getRegistrationsOperationalStatus(): Promise<RegistrationsOperationalStatus> {
-  const [settings, summary, totalCount, registeredCount] = await Promise.all([
-    prisma.appSetting.findUnique({ where: { id: 1 } }),
-    getJobRunSummary("regs.poll"),
-    prisma.registrationCurrent.count(),
-    prisma.registrationCurrent.count({ where: { status: "Registered" } }),
-  ]);
+  const [settings, summary, totalCount, registeredCount, unregisteredCount] =
+    await Promise.all([
+      prisma.appSetting.findUnique({ where: { id: 1 } }),
+      getJobRunSummary("regs.poll"),
+      prisma.registrationCurrent.count(),
+      prisma.registrationCurrent.count({ where: { status: "Registered" } }),
+      countUnregisteredCurrent(),
+    ]);
 
   const lastAny = summary.lastAny;
   let lastJobStatus: RegsPollStatus["lastJobStatus"] = "never";
@@ -43,7 +50,7 @@ export async function getRegistrationsOperationalStatus(): Promise<Registrations
     pollEnabled: settings?.regsPollEnabled ?? false,
     totalCount,
     registeredCount,
-    unregisteredCount: Math.max(0, totalCount - registeredCount),
+    unregisteredCount,
     lastSuccessAt: summary.lastSuccess?.finishedAt ?? summary.lastSuccess?.startedAt ?? null,
     lastFailedAt: summary.lastFailed?.finishedAt ?? summary.lastFailed?.startedAt ?? null,
     lastFailedError: summary.lastFailed?.errorMessage ?? null,

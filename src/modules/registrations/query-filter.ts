@@ -73,6 +73,16 @@ function applyColumnFilters(
   );
 }
 
+/** Global Unregistered bucket — ignores list filters. */
+export function countUnregisteredRows(
+  rows: readonly Pick<RegistrationListItem, "status">[],
+): number {
+  return rows.reduce(
+    (n, row) => (row.status === "Unregistered" ? n + 1 : n),
+    0,
+  );
+}
+
 export function matchesPhoneQ(
   row: RegistrationListItem,
   phoneQ: string,
