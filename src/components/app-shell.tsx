@@ -27,7 +27,7 @@ function NavLink({
     <Link
       href={href}
       className={cn(
-        "whitespace-nowrap rounded-md px-2 py-1.5 text-sm font-bold transition-colors",
+        "whitespace-nowrap rounded-md px-2 py-1 text-sm font-bold transition-colors",
         active
           ? "bg-black text-white hover:bg-black hover:text-white"
           : "text-black hover:bg-muted",
@@ -76,8 +76,8 @@ export function AppShell({
             className="h-auto w-[140px] bg-transparent object-contain"
           />
         </Link>
-        <Separator className="mb-3 shrink-0" />
-        <nav className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
+        <Separator className="mb-2 shrink-0" />
+        <nav className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto">
           {primaryNav.map((item) => (
             <NavLink
               key={item.href}
@@ -88,7 +88,7 @@ export function AppShell({
           ))}
           {cdrNav.length > 0 ? (
             <>
-              <Separator className="my-3 shrink-0" />
+              <Separator className="my-1.5 shrink-0" />
               {cdrNav.map((item) => (
                 <NavLink
                   key={item.href}
@@ -101,7 +101,7 @@ export function AppShell({
           ) : null}
           {analyticsNav.length > 0 ? (
             <>
-              <Separator className="my-3 shrink-0" />
+              <Separator className="my-1.5 shrink-0" />
               {analyticsNav.map((item) => (
                 <NavLink
                   key={item.href}
@@ -114,7 +114,7 @@ export function AppShell({
           ) : null}
           {adminNav.length > 0 ? (
             <>
-              <Separator className="my-3 shrink-0" />
+              <Separator className="my-1.5 shrink-0" />
               {adminNav.map((item) => (
                 <NavLink
                   key={item.href}

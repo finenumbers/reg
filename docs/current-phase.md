@@ -1,7 +1,11 @@
-# Current Phase — production (v1.54.0)
+# Current Phase — production (v1.55.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail.  
-**Date:** 2026-09-15
+**Date:** 2026-09-17
+
+## v1.55.0 — Tighter left-nav vertical spacing
+
+Left-nav items use `py-1` and `gap-0.5` instead of `py-1.5` / `gap-1`. Group separators are `my-1.5`; the separator under the logo is `mb-2`. Font, item size (`text-sm` / 14px), sidebar width, logo padding, and the clocks / «Выйти» footer are unchanged.
 
 ## v1.54.0 — Unregistered count on the checkbox
 
