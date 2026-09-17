@@ -14,9 +14,9 @@ describe("formatDisplayTimestamp", () => {
     ).toBe("20.08.2026, 18:50:05");
   });
 
-  it("formats Krasnoyarsk (UTC+7) from the same instant", () => {
+  it("formats Novosibirsk (UTC+7) from the same instant", () => {
     expect(
-      formatDisplayTimestamp("2026-08-20T15:50:05.000Z", "Asia/Krasnoyarsk"),
+      formatDisplayTimestamp("2026-08-20T15:50:05.000Z", "Asia/Novosibirsk"),
     ).toBe("20.08.2026, 22:50:05");
   });
 
@@ -78,6 +78,7 @@ describe("formatExportTimestamp", () => {
 describe("resolveDisplayTimezone", () => {
   it("falls back to Moscow for unknown zones", () => {
     expect(resolveDisplayTimezone("Mars/Phobos")).toBe("Europe/Moscow");
-    expect(resolveDisplayTimezone("Asia/Krasnoyarsk")).toBe("Asia/Krasnoyarsk");
+    expect(resolveDisplayTimezone("Asia/Novosibirsk")).toBe("Asia/Novosibirsk");
+    expect(resolveDisplayTimezone("Asia/Krasnoyarsk")).toBe("Asia/Novosibirsk");
   });
 });

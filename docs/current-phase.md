@@ -1,7 +1,11 @@
-# Current Phase — production (v1.56.0)
+# Current Phase — production (v1.57.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail.  
 **Date:** 2026-09-17
+
+## v1.57.0 — Four display timezones, sidebar back to 141.25px
+
+Settings «Часовой пояс дат» keeps UTC, Калининград (UTC+2), Москва (UTC+3), and Новосибирск (UTC+7). Stored `Asia/Krasnoyarsk` still resolves to Novosibirsk; other removed zones fall back to Moscow. Left-nav sidebar content width returns to 141.25px (`Телефонные номера`). Live UTC date, sister-product links, and civil-clock CDR cells / XLSX are unchanged.
 
 ## v1.56.0 — UTC date and sister-product links in the left nav
 

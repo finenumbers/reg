@@ -3,7 +3,7 @@
  */
 
 import { z } from "zod";
-import { isDisplayTimezoneId } from "@/lib/display-timezone";
+import { isAcceptedDisplayTimezone } from "@/lib/display-timezone";
 import { DEFAULT_GEOIP_BASE_URL } from "@/modules/geoip/types";
 import {
   DEFAULT_PSTN_BASE_URL,
@@ -46,7 +46,7 @@ export const settingsUpdateSchema = z.object({
   pstnBaseUrl: pstnBaseUrlSchema.optional(),
   displayTimezone: z
     .string()
-    .refine(isDisplayTimezoneId, "Unsupported display timezone")
+    .refine(isAcceptedDisplayTimezone, "Unsupported display timezone")
     .optional(),
   ftpEnabled: z.boolean().optional(),
   ftpUsername: z.string().min(1).max(128).optional(),

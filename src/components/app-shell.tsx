@@ -81,8 +81,8 @@ export function AppShell({
 
   return (
     <div className="flex h-screen overflow-hidden bg-background text-foreground">
-      {/* Equal 20px inset around max(«Телефонные номера» 141.25px, UTC+12 / 31 сентября 149.2px). */}
-      <aside className="sticky top-0 flex h-screen w-[calc(2.5rem+150px+1px)] shrink-0 flex-col overflow-hidden border-r border-border bg-card px-3 py-4">
+      {/* Equal 20px inset around the longest label «Телефонные номера» (141.25px). */}
+      <aside className="sticky top-0 flex h-screen w-[calc(2.5rem+141.25px+1px)] shrink-0 flex-col overflow-hidden border-r border-border bg-card px-3 py-4">
         <Link href="/" className="flex shrink-0 justify-center pb-4">
           <img
             src="/brand/logo-full.png"

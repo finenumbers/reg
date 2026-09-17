@@ -65,6 +65,9 @@ describe("settings schemas and masked view contract", () => {
 
   it("accepts display timezones from the curated list", () => {
     expect(
+      settingsUpdateSchema.parse({ displayTimezone: "Asia/Novosibirsk" }),
+    ).toMatchObject({ displayTimezone: "Asia/Novosibirsk" });
+    expect(
       settingsUpdateSchema.parse({ displayTimezone: "Asia/Krasnoyarsk" }),
     ).toMatchObject({ displayTimezone: "Asia/Krasnoyarsk" });
     expect(() =>
