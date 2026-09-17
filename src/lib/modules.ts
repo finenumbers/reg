@@ -30,6 +30,19 @@ type FeatureModuleDefinition = {
   navGroup?: FeatureNavGroup;
 };
 
+export const EXTERNAL_NAV_LINKS = [
+  {
+    id: "did-free-numbers",
+    title: "Свободные номера",
+    href: "https://did.finenumbers.com/",
+  },
+  {
+    id: "pstn-numbering",
+    title: "Ресурс нумерации",
+    href: "https://pstn.finenumbers.com/",
+  },
+] as const;
+
 export const FEATURE_MODULES: FeatureModuleDefinition[] = [
   {
     id: "registrations",

@@ -3,10 +3,11 @@
 import { useEffect, useState } from "react";
 import { useDisplayTimezone } from "@/components/display-timezone-provider";
 import { formatUtcOffsetLabel } from "@/lib/display-timezone";
-import { formatDisplayClock } from "@/lib/format-display-time";
+import { formatDisplayClock, formatDisplayUtcDate } from "@/lib/format-display-time";
 import { cn } from "@/lib/utils";
 
 const CLOCK_WIDTH_SAMPLE = "00:00:00";
+const DATE_WIDTH_SAMPLE = "31 сентября";
 
 function msUntilNextSecond(nowMs: number = Date.now()): number {
   const remainder = nowMs % 1000;
@@ -57,9 +58,11 @@ export function LiveClocks({ className }: { className?: string }) {
     };
   }, []);
 
+  const utcDate = now ? formatDisplayUtcDate(now) : DATE_WIDTH_SAMPLE;
   const utc = now ? formatDisplayClock(now, "UTC") : CLOCK_WIDTH_SAMPLE;
   const local = now ? formatDisplayClock(now, timeZone) : CLOCK_WIDTH_SAMPLE;
   const iso = now?.toISOString();
+  const utcDateTime = iso?.slice(0, 10);
   const localLabel = formatUtcOffsetLabel(timeZone);
 
   return (
@@ -69,6 +72,13 @@ export function LiveClocks({ className }: { className?: string }) {
         className,
       )}
     >
+      <span>Дата:</span>
+      <time
+        dateTime={utcDateTime}
+        className={cn("font-bold text-black", !now && "invisible")}
+      >
+        {utcDate}
+      </time>
       <span>UTC:</span>
       <time
         dateTime={iso}

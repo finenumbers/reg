@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { FEATURE_MODULES } from "@/lib/modules";
+import { EXTERNAL_NAV_LINKS, FEATURE_MODULES } from "@/lib/modules";
 import { LiveClocks } from "@/components/live-clocks";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,15 @@ import { cn } from "@/lib/utils";
 function isNavActive(pathname: string, href: string): boolean {
   if (href === "/") return pathname === "/";
   return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+function navItemClassName(active: boolean): string {
+  return cn(
+    "whitespace-nowrap rounded-md px-2 py-1 text-sm font-bold transition-colors",
+    active
+      ? "bg-black text-white hover:bg-black hover:text-white"
+      : "text-black hover:bg-muted",
+  );
 }
 
 function NavLink({
@@ -24,17 +33,22 @@ function NavLink({
   active: boolean;
 }) {
   return (
-    <Link
-      href={href}
-      className={cn(
-        "whitespace-nowrap rounded-md px-2 py-1 text-sm font-bold transition-colors",
-        active
-          ? "bg-black text-white hover:bg-black hover:text-white"
-          : "text-black hover:bg-muted",
-      )}
-    >
+    <Link href={href} className={navItemClassName(active)}>
       {label}
     </Link>
+  );
+}
+
+function ExternalNavLink({ href, label }: { href: string; label: string }) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={navItemClassName(false)}
+    >
+      {label}
+    </a>
   );
 }
 
@@ -67,8 +81,8 @@ export function AppShell({
 
   return (
     <div className="flex h-screen overflow-hidden bg-background text-foreground">
-      {/* Equal 20px inset around the longest label «Телефонные номера» (141.25px). */}
-      <aside className="sticky top-0 flex h-screen w-[calc(2.5rem+141.25px+1px)] shrink-0 flex-col overflow-hidden border-r border-border bg-card px-3 py-4">
+      {/* Equal 20px inset around max(«Телефонные номера» 141.25px, UTC+12 / 31 сентября 149.2px). */}
+      <aside className="sticky top-0 flex h-screen w-[calc(2.5rem+150px+1px)] shrink-0 flex-col overflow-hidden border-r border-border bg-card px-3 py-4">
         <Link href="/" className="flex shrink-0 justify-center pb-4">
           <img
             src="/brand/logo-full.png"
@@ -112,6 +126,16 @@ export function AppShell({
               ))}
             </>
           ) : null}
+          <>
+            <Separator className="my-1.5 shrink-0" />
+            {EXTERNAL_NAV_LINKS.map((item) => (
+              <ExternalNavLink
+                key={item.id}
+                href={item.href}
+                label={item.title}
+              />
+            ))}
+          </>
           {adminNav.length > 0 ? (
             <>
               <Separator className="my-1.5 shrink-0" />

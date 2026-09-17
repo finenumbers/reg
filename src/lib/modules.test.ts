@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FEATURE_MODULES } from "@/lib/modules";
+import { EXTERNAL_NAV_LINKS, FEATURE_MODULES } from "@/lib/modules";
 
 const KNOWN_NAV_GROUPS = new Set(["primary", "cdr", "analytics", "admin"]);
 
@@ -29,5 +29,19 @@ describe("FEATURE_MODULES nav groups", () => {
     for (const module of FEATURE_MODULES) {
       expect(KNOWN_NAV_GROUPS.has(module.navGroup ?? "primary")).toBe(true);
     }
+  });
+
+  it("keeps sister-product links out of feature modules", () => {
+    expect(EXTERNAL_NAV_LINKS.map((item) => item.id)).toEqual([
+      "did-free-numbers",
+      "pstn-numbering",
+    ]);
+    expect(EXTERNAL_NAV_LINKS.map((item) => item.href)).toEqual([
+      "https://did.finenumbers.com/",
+      "https://pstn.finenumbers.com/",
+    ]);
+    const featureIds = FEATURE_MODULES.map((module) => module.id as string);
+    expect(featureIds).not.toContain("did-free-numbers");
+    expect(featureIds).not.toContain("pstn-numbering");
   });
 });

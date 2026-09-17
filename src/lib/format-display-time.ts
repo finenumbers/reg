@@ -4,6 +4,21 @@
 
 import { DEFAULT_DISPLAY_TIMEZONE } from "@/lib/display-timezone";
 
+const UTC_MONTH_GENITIVE = [
+  "января",
+  "февраля",
+  "марта",
+  "апреля",
+  "мая",
+  "июня",
+  "июля",
+  "августа",
+  "сентября",
+  "октября",
+  "ноября",
+  "декабря",
+] as const;
+
 function partsFor(
   date: Date,
   timeZone: string,
@@ -42,6 +57,11 @@ export function formatDisplayTimestamp(
 export function formatDisplayClock(date: Date, timeZone: string): string {
   const parts = partsFor(date, timeZone);
   return `${part(parts, "hour")}:${part(parts, "minute")}:${part(parts, "second")}`;
+}
+
+/** UTC calendar day for nav clocks: `17 сентября`. */
+export function formatDisplayUtcDate(date: Date): string {
+  return `${date.getUTCDate()} ${UTC_MONTH_GENITIVE[date.getUTCMonth()]}`;
 }
 
 /** Compact stamp for download filenames: `20260820-1850` in display TZ. */

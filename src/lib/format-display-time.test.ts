@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   formatDisplayClock,
   formatDisplayTimestamp,
+  formatDisplayUtcDate,
   formatExportTimestamp,
 } from "@/lib/format-display-time";
 import { resolveDisplayTimezone } from "@/lib/display-timezone";
@@ -37,6 +38,32 @@ describe("formatDisplayClock", () => {
     expect(
       formatDisplayClock(new Date("2026-08-20T21:00:00.000Z"), "Europe/Moscow"),
     ).toBe("00:00:00");
+  });
+});
+
+describe("formatDisplayUtcDate", () => {
+  it("formats the UTC calendar day without a year", () => {
+    expect(formatDisplayUtcDate(new Date("2026-09-17T11:14:13.000Z"))).toBe(
+      "17 сентября",
+    );
+  });
+
+  it("stays on the UTC day past display-timezone midnight", () => {
+    expect(formatDisplayUtcDate(new Date("2026-09-17T23:00:00.000Z"))).toBe(
+      "17 сентября",
+    );
+  });
+
+  it("drops the leading zero on the first of the month", () => {
+    expect(formatDisplayUtcDate(new Date("2026-01-01T00:00:00.000Z"))).toBe(
+      "1 января",
+    );
+  });
+
+  it("keeps a UTC leap day", () => {
+    expect(formatDisplayUtcDate(new Date("2024-02-29T00:00:00.000Z"))).toBe(
+      "29 февраля",
+    );
   });
 });
 

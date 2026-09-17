@@ -1,7 +1,13 @@
-# Current Phase — production (v1.55.0)
+# Current Phase — production (v1.56.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail.  
 **Date:** 2026-09-17
+
+## v1.56.0 — UTC date and sister-product links in the left nav
+
+Left-nav clocks add a live UTC calendar day (`17 сентября`) above `UTC` / `UTC+N`. The date comes from UTC getters, not the Settings display timezone. Right-hand values stay bold. Sidebar content width is 150px so `UTC+12` + `31 сентября` is not clipped.
+
+Between «Статистика» and «Настройки»: «Свободные номера» (`https://did.finenumbers.com/`) and «Ресурс нумерации» (`https://pstn.finenumbers.com/`), each in a new tab. Operator still sees the pair before «Задачи». Tick and civil-clock CDR cells / XLSX are unchanged.
 
 ## v1.55.0 — Tighter left-nav vertical spacing
 
