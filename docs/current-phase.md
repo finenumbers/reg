@@ -1,7 +1,11 @@
-# Current Phase — production (v1.57.0)
+# Current Phase — production (v1.58.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail.  
-**Date:** 2026-09-17
+**Date:** 2026-09-19
+
+## v1.58.0 — Number and description in the registration detail sheet
+
+The right-hand registration card summary shows «Номер» above «Канальность» and «Описание» after it. Values come from the existing detail payload (`current.phone`, `current.description`); empty description is «—». Table columns, filters, and XLSX are unchanged.
 
 ## v1.57.0 — Four display timezones, sidebar back to 141.25px
 

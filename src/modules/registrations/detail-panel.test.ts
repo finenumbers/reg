@@ -13,6 +13,8 @@ import {
 function projectDetailPanel(detail: RegistrationDetailResult) {
   return {
     phone: detail.current.phone,
+    channelality: detail.current.channelality ?? "—",
+    description: detail.current.description ?? "—",
     status: detail.current.status,
     endpoint: formatEndpoint(detail.current.ip, detail.current.port),
     lastChangedAt: formatTimestamp(detail.current.lastChangedAt, "Europe/Moscow"),
@@ -70,6 +72,8 @@ describe("registration detail panel projection", () => {
 
     const view = projectDetailPanel(mocked);
     expect(view.phone).toBe("73912193303");
+    expect(view.channelality).toBe("—");
+    expect(view.description).toBe("—");
     expect(view.status).toBe("Unregistered");
     expect(view.endpoint).toBe("—");
     expect(view.lastSeenAt).not.toBe("—");
@@ -99,6 +103,9 @@ describe("registration detail panel projection", () => {
       },
       events: [],
     });
+    expect(view.phone).toBe("420910902600");
+    expect(view.channelality).toBe("10");
+    expect(view.description).toBe("Fine Numbers");
     expect(view.endpoint).toBe("185.175.158.149:5060");
     expect(view.history).toEqual([]);
   });
