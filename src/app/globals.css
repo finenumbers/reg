@@ -100,7 +100,7 @@
 }
 .col-header-label {
   font-weight: 500;
-  font-size: 0.875rem;
+  font-size: 0.75rem;
   white-space: nowrap;
 }
 .col-filter-trigger {
@@ -112,10 +112,10 @@
   color: inherit;
   border: 1px solid transparent;
   border-radius: 4px;
-  padding: 0.15rem 0.3rem;
+  padding: 0.1rem 0.25rem;
   text-align: left;
   cursor: pointer;
-  font-size: 0.875rem;
+  font-size: 0.75rem;
 }
 .col-filter-trigger:hover {
   background: var(--muted);

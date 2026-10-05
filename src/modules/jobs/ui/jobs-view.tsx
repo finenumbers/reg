@@ -372,7 +372,6 @@ export function JobsView({ initial }: Props) {
                         data-state={open ? "selected" : undefined}
                       >
                         <TableCell
-                          className="text-xs"
                           title={formatJobActionTitle(job.actionCode)}
                         >
                           {formatJobAction(job.actionCode)}
@@ -383,17 +382,17 @@ export function JobsView({ initial }: Props) {
                             {formatJobStatus(job.status)}
                           </Badge>
                         </TableCell>
-                        <TableCell className="whitespace-nowrap text-sm">
+                        <TableCell className="whitespace-nowrap">
                           {formatJobTimestamp(job.startedAt, timeZone)}
                         </TableCell>
-                        <TableCell className="whitespace-nowrap text-sm">
+                        <TableCell className="whitespace-nowrap">
                           {formatJobTimestamp(job.finishedAt, timeZone)}
                         </TableCell>
-                        <TableCell className="tabular-nums text-sm">
+                        <TableCell className="tabular-nums">
                           {formatDurationMs(job.durationMs)}
                         </TableCell>
                         <TableCell
-                          className="max-w-xs truncate text-sm text-muted-foreground"
+                          className="max-w-xs truncate text-muted-foreground"
                           title={result}
                         >
                           {result}
@@ -401,7 +400,7 @@ export function JobsView({ initial }: Props) {
                       </TableRow>
                       {open ? (
                         <TableRow>
-                          <TableCell colSpan={7} className="bg-muted/40 text-sm">
+                          <TableCell colSpan={7} className="bg-muted/40">
                             <dl className="grid gap-2 sm:grid-cols-2">
                               <div>
                                 <dt className="text-xs text-muted-foreground">

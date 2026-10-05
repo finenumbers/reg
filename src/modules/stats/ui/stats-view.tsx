@@ -227,10 +227,10 @@ function GroupedMetricTable({
             </TableRow>
             <TableRow>
               {groupLabels.flatMap((group) => [
-                <TableHead key={`${group}-calls`} className="top-8 text-right">
+                <TableHead key={`${group}-calls`} className="top-7 text-right">
                   Звонки
                 </TableHead>,
-                <TableHead key={`${group}-minutes`} className="top-8 text-right">
+                <TableHead key={`${group}-minutes`} className="top-7 text-right">
                   Минуты
                 </TableHead>,
               ])}

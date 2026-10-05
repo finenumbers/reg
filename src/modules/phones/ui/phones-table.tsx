@@ -57,11 +57,11 @@ export function PhonesTable({
   const colCount = Math.max(headers.length, 1);
 
   return (
-    <Table className="text-sm">
+    <Table>
       <TableHeader>
         <TableRow>
           {headers.map((h) => (
-            <TableHead key={h} className="text-sm font-medium">
+            <TableHead key={h} className="font-medium">
               <ColumnFilterDropdown
                 column={h}
                 header={h}
@@ -93,7 +93,7 @@ export function PhonesTable({
           <TableRow>
             <TableCell
               colSpan={colCount}
-              className="h-24 text-sm text-muted-foreground"
+              className="h-24 text-muted-foreground"
             >
               Загрузка…
             </TableCell>
@@ -102,7 +102,7 @@ export function PhonesTable({
           <TableRow>
             <TableCell
               colSpan={colCount}
-              className="h-24 text-sm text-muted-foreground"
+              className="h-24 text-muted-foreground"
             >
               {emptyMessage}
             </TableCell>
@@ -120,10 +120,7 @@ export function PhonesTable({
                 const raw = row.data[h] ?? "";
                 const value = displayPhoneCellValue(h, raw);
                 return (
-                  <TableCell
-                    key={`${row.id}-${h}`}
-                    className="text-sm"
-                  >
+                  <TableCell key={`${row.id}-${h}`}>
                     {h === ENDPOINT_NUMBER_FIELD ? (
                       <HighlightText text={raw} query={phoneQ} />
                     ) : (

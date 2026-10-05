@@ -85,11 +85,11 @@ export function TrafficTable({
     : DEFAULT_HIGHLIGHT;
 
   return (
-    <Table className="text-sm">
+    <Table>
       <TableHeader>
         <TableRow>
           {headers.map((h) => (
-            <TableHead key={h} className="text-sm font-medium">
+            <TableHead key={h} className="font-medium">
               {h === "cdr_time" && onTimeSortChange ? (
                 <TimeSortHeader
                   header={headerLabels?.[h] ?? h}
@@ -135,7 +135,7 @@ export function TrafficTable({
           <TableRow>
             <TableCell
               colSpan={colCount}
-              className="h-24 text-sm text-muted-foreground"
+              className="h-24 text-muted-foreground"
             >
               Загрузка…
             </TableCell>
@@ -144,7 +144,7 @@ export function TrafficTable({
           <TableRow>
             <TableCell
               colSpan={colCount}
-              className="h-24 text-sm text-muted-foreground"
+              className="h-24 text-muted-foreground"
             >
               {emptyMessage}
             </TableCell>

@@ -44,7 +44,7 @@ const MINUTES_TOTAL_CELL =
   "sticky bottom-0 z-10 text-right font-bold bg-yellow-300 text-black hover:bg-yellow-300";
 const FOOTER_CELL = "sticky bottom-0 z-10 bg-background font-bold";
 const SORT_BTN =
-  "inline-flex h-8 max-h-8 w-full items-center justify-center bg-transparent px-0 text-inherit";
+  "inline-flex h-7 max-h-7 w-full items-center justify-center bg-transparent px-0 text-inherit";
 const SORT_ACTIVE = "text-blue-600";
 const METRIC_COL_PX = 90;
 const CLIENT_COL_MIN_PX = 250;
@@ -169,7 +169,7 @@ export function DetailView({ initial }: Props) {
       <span
         ref={measureRef}
         aria-hidden
-        className="invisible absolute text-sm whitespace-nowrap"
+        className="invisible absolute text-xs whitespace-nowrap"
       >
         {longestClient}
       </span>
@@ -236,7 +236,7 @@ function DetailTable({
             <TableHead
               key={group.key}
               colSpan={2}
-              className="h-8 text-center"
+              className="h-7 text-center"
               aria-sort={sortKey === group.key ? "descending" : "none"}
             >
               <SortButton
@@ -249,10 +249,10 @@ function DetailTable({
         </TableRow>
         <TableRow>
           {GROUPS.flatMap((group) => [
-            <TableHead key={`${group.key}-calls`} className="top-8 text-right">
+            <TableHead key={`${group.key}-calls`} className="top-7 text-right">
               Звонки
             </TableHead>,
-            <TableHead key={`${group.key}-minutes`} className="top-8 text-right">
+            <TableHead key={`${group.key}-minutes`} className="top-7 text-right">
               Минуты
             </TableHead>,
           ])}

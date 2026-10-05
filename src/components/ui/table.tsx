@@ -10,7 +10,7 @@ function Table({ className, ...props }: React.ComponentProps<"table">) {
       <table
         data-slot="table"
         className={cn(
-          "w-max caption-bottom border-separate border-spacing-0 text-sm",
+          "w-max caption-bottom border-separate border-spacing-0 text-xs",
           className,
         )}
         {...props}
@@ -70,7 +70,7 @@ function TableHead({ className, ...props }: React.ComponentProps<"th">) {
     <th
       data-slot="table-head"
       className={cn(
-        "sticky top-0 z-20 h-8 bg-background px-2 text-left align-middle font-medium whitespace-nowrap text-foreground shadow-[inset_-1px_-1px_0_0_var(--border)] last:shadow-[inset_0_-1px_0_0_var(--border)] [&:has([role=checkbox])]:pr-0",
+        "sticky top-0 z-20 h-7 bg-background px-2 text-left align-middle text-xs font-medium whitespace-nowrap text-foreground shadow-[inset_-1px_-1px_0_0_var(--border)] last:shadow-[inset_0_-1px_0_0_var(--border)] [&:has([role=checkbox])]:pr-0",
         className,
       )}
       {...props}
@@ -83,7 +83,7 @@ function TableCell({ className, ...props }: React.ComponentProps<"td">) {
     <td
       data-slot="table-cell"
       className={cn(
-        "border-b border-r px-2 py-1 align-middle whitespace-nowrap last:border-r-0 [&:has([role=checkbox])]:pr-0",
+        "border-b border-r px-2 py-0.5 align-middle text-xs whitespace-nowrap last:border-r-0 [&:has([role=checkbox])]:pr-0",
         className
       )}
       {...props}
@@ -98,7 +98,7 @@ function TableCaption({
   return (
     <caption
       data-slot="table-caption"
-      className={cn("mt-4 text-sm text-muted-foreground", className)}
+      className={cn("mt-4 text-xs text-muted-foreground", className)}
       {...props}
     />
   )

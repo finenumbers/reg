@@ -58,11 +58,11 @@ export function RegsTable({
   const colCount = REG_COLUMN_ORDER.length;
 
   return (
-    <Table className="text-sm">
+    <Table>
       <TableHeader>
         <TableRow>
           {REG_COLUMN_ORDER.map((id) => (
-            <TableHead key={id} className="text-sm font-medium">
+            <TableHead key={id} className="font-medium">
               <ColumnFilterDropdown
                 column={id}
                 header={REG_COLUMN_HEADERS[id]}
@@ -96,7 +96,7 @@ export function RegsTable({
           <TableRow>
             <TableCell
               colSpan={colCount}
-              className="h-24 text-sm text-muted-foreground"
+              className="h-24 text-muted-foreground"
             >
               Загрузка регистраций…
             </TableCell>
@@ -105,7 +105,7 @@ export function RegsTable({
           <TableRow>
             <TableCell
               colSpan={colCount}
-              className="h-24 text-sm text-muted-foreground"
+              className="h-24 text-muted-foreground"
             >
               {emptyMessage}
             </TableCell>
@@ -126,58 +126,58 @@ export function RegsTable({
                 onClick={() => onRowClick?.(row)}
               >
                 {/* Cell order must match REG_COLUMN_ORDER */}
-                <TableCell className="text-sm">
-                  <span className="text-sm tabular-nums">
+                <TableCell>
+                  <span className="tabular-nums">
                     <HighlightText text={row.phone} query={phoneQ} />
                   </span>
                 </TableCell>
-                <TableCell className="text-sm">
+                <TableCell>
                   {row.channelality ? (
                     row.channelality
                   ) : (
-                    <span className="text-sm text-muted-foreground">—</span>
+                    <span className="text-muted-foreground">—</span>
                   )}
                 </TableCell>
-                <TableCell className="text-sm">
+                <TableCell>
                   {row.description ? (
                     row.description
                   ) : (
-                    <span className="text-sm text-muted-foreground">—</span>
+                    <span className="text-muted-foreground">—</span>
                   )}
                 </TableCell>
-                <TableCell className="text-sm">
+                <TableCell>
                   <RegStatusBadge status={row.status} />
                 </TableCell>
-                <TableCell className="text-sm">
-                  <span className="text-sm text-muted-foreground">
+                <TableCell>
+                  <span className="text-muted-foreground">
                     {formatEndpoint(row.ip, row.port)}
                   </span>
                 </TableCell>
-                <TableCell className="text-sm">
+                <TableCell>
                   {row.country ? (
                     row.country
                   ) : (
-                    <span className="text-sm text-muted-foreground">—</span>
+                    <span className="text-muted-foreground">—</span>
                   )}
                 </TableCell>
-                <TableCell className="text-sm">
+                <TableCell>
                   {row.city ? (
                     row.city
                   ) : (
-                    <span className="text-sm text-muted-foreground">—</span>
+                    <span className="text-muted-foreground">—</span>
                   )}
                 </TableCell>
-                <TableCell className="text-sm">
+                <TableCell>
                   {row.isp ? (
                     row.isp
                   ) : (
-                    <span className="text-sm text-muted-foreground">—</span>
+                    <span className="text-muted-foreground">—</span>
                   )}
                 </TableCell>
-                <TableCell className="text-sm">
+                <TableCell>
                   {formatTimestamp(row.lastChangedAt, timeZone)}
                 </TableCell>
-                <TableCell className="text-sm">
+                <TableCell>
                   {formatTimestamp(row.lastSeenAt, timeZone)}
                 </TableCell>
               </TableRow>

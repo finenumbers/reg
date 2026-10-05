@@ -265,33 +265,33 @@ export function AuditView({ initial }: Props) {
                         onClick={() => toggleExpand(item)}
                         data-state={open ? "selected" : undefined}
                       >
-                        <TableCell className="whitespace-nowrap text-sm">
+                        <TableCell className="whitespace-nowrap">
                           {formatAuditTimestamp(item.createdAt, timeZone)}
                         </TableCell>
-                        <TableCell className="text-sm">
+                        <TableCell>
                           {formatAuditActor(item)}
                         </TableCell>
                         <TableCell>
-                          <span className="text-sm font-medium">
+                          <span className="font-medium">
                             {formatAuditAction(item.action)}
                           </span>
                           <span className="mt-0.5 block text-[11px] text-muted-foreground">
                             {item.action}
                           </span>
                         </TableCell>
-                        <TableCell className="text-sm">
+                        <TableCell>
                           {formatAuditTarget(item)}
                         </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
+                        <TableCell className="text-muted-foreground">
                           {item.ip ?? "—"}
                         </TableCell>
-                        <TableCell className="max-w-xs truncate text-sm text-muted-foreground">
+                        <TableCell className="max-w-xs truncate text-muted-foreground">
                           {summarizeAuditMeta(item.meta)}
                         </TableCell>
                       </TableRow>
                       {open && item.meta ? (
                         <TableRow>
-                          <TableCell colSpan={6} className="bg-muted/40 text-sm">
+                          <TableCell colSpan={6} className="bg-muted/40">
                             <p className="mb-2 text-xs text-muted-foreground">
                               Санитизированная meta (секреты скрыты)
                             </p>

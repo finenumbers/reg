@@ -1,7 +1,11 @@
-# Current Phase — production (v1.58.0)
+# Current Phase — production (v1.59.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail.  
-**Date:** 2026-09-19
+**Date:** 2026-10-05
+
+## v1.59.0 — 12px table text
+
+All data tables use 12px (`text-xs`) for cells and headers. Local `text-sm` overrides are gone so Registrations, Phones, Traffic, Audit, Jobs, and API keys match the shared Table primitive. Header row is `h-7`, body cells `py-0.5`; Stats/Detail sticky second headers use `top-7`. Column-filter header labels are 12px. Settings «API-ключи» heading matches other in-page `h2` (`text-base font-semibold`). Buttons inside cells stay `size="sm"`.
 
 ## v1.58.0 — Number and description in the registration detail sheet
 
