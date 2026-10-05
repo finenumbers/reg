@@ -182,7 +182,7 @@ Jobs operator UI: `GET /api/jobs` + `/jobs` (`regs:read`) — no SSH secrets, no
 | Secrets at startup | Production rejects placeholder `BETTER_AUTH_SECRET` and example `APP_ENCRYPTION_KEY` |
 | `BETTER_AUTH_URL` | Public browser origin (HTTPS behind NPM) |
 | `APP_ENCRYPTION_KEY` | Must be backed up with DB dumps — see [backup-and-restore.md](./backup-and-restore.md) |
-| Migrations | Compose `migrate` service runs `prisma migrate deploy` before `app` |
+| Migrations | Compose `migrate` service runs `prisma migrate deploy` and the CDR category backfill before `app` |
 | Edge proxy | External NPM only; `/` and `/api` → same upstream |
 
 Go-live: [production-checklist.md](./production-checklist.md). Smoke: [smoke-tests.md](./smoke-tests.md).

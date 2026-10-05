@@ -1,7 +1,7 @@
 #!/bin/sh
 # App container entrypoint — starts Next.js standalone server.
 # Schema migrations run via the compose `migrate` service (Dockerfile target: migrator),
-# or manually: ./scripts/db-migrate.sh / npx prisma migrate deploy
+# or manually: ./scripts/db-migrate.sh (migrate + CDR category backfill)
 set -eu
 
 echo "[entrypoint] Starting app (HOSTNAME=${HOSTNAME:-0.0.0.0} PORT=${PORT:-3000})..."

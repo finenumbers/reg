@@ -14,9 +14,11 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY package.json package-lock.json ./
 COPY prisma ./prisma
 COPY prisma.config.ts ./prisma.config.ts
+COPY scripts/cdr-call-class-backfill.mjs ./scripts/cdr-call-class-backfill.mjs
+COPY scripts/migrate-and-backfill.sh ./scripts/migrate-and-backfill.sh
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
-CMD ["npx", "prisma", "migrate", "deploy"]
+CMD ["sh", "./scripts/migrate-and-backfill.sh"]
 
 FROM node:22-bookworm-slim AS builder
 WORKDIR /app

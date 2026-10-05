@@ -1,6 +1,7 @@
 import { requirePagePermission } from "@/modules/auth/guards";
 import { hasPermission } from "@/modules/rbac/permissions";
 import {
+  CALL_CLASS_LABELS,
   CDR_COLUMNS,
   CDR_ENRICH_LABELS,
   RAW_TABLE_COLUMNS,
@@ -13,6 +14,7 @@ const HEADER_LABELS: Record<string, string> = {
   ...Object.fromEntries(CDR_COLUMNS.map((col) => [col, col])),
   ...CDR_ENRICH_LABELS,
   ...VOIPMONITOR_RAW_LABELS,
+  ...CALL_CLASS_LABELS,
 };
 
 export default async function RawCdrPage() {

@@ -2,7 +2,7 @@
 
 Internal telecom ops platform for monitoring SIP registrations on an operator softswitch via allowlisted SSH scripts under `/opt/scripts/`.
 
-**Repository:** [github.com/finenumbers/reg](https://github.com/finenumbers/reg) · **Release:** [v1.59.0](https://github.com/finenumbers/reg/releases/tag/v1.59.0)
+**Repository:** [github.com/finenumbers/reg](https://github.com/finenumbers/reg) · **Release:** [v1.60.0](https://github.com/finenumbers/reg/releases/tag/v1.60.0)
 
 ## Stack (approved)
 
@@ -18,7 +18,7 @@ Internal telecom ops platform for monitoring SIP registrations on an operator so
 | Image                                     | Use                      |
 | ----------------------------------------- | ------------------------ |
 | `ghcr.io/finenumbers/reg:latest`          | App (Portainer redeploy) |
-| `ghcr.io/finenumbers/reg:latest-migrator` | `prisma migrate deploy`  |
+| `ghcr.io/finenumbers/reg:latest-migrator` | `prisma migrate deploy`, then CDR category/status backfill |
 
 Versioned tags (`:1.0.0`, …) are also published by CI; production compose uses **`latest` only**.
 

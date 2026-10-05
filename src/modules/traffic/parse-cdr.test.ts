@@ -48,6 +48,8 @@ describe("CDR column contract", () => {
     expect(TRAFFIC_SUMMARY_COLUMNS).toEqual([
       "cdr_day",
       "cdr_time",
+      "call_category",
+      "call_status",
       "bill_ani",
       "side_a",
       "bill_dnis",
@@ -82,6 +84,8 @@ describe("CDR column contract", () => {
     expect(TRAFFIC_GEOGRAPHY_COLUMNS).toEqual([
       "cdr_day",
       "cdr_time",
+      "call_category",
+      "call_status",
       "bill_ani",
       "side_a",
       "operator_a",
@@ -111,6 +115,8 @@ describe("CDR column contract", () => {
     expect(TRAFFIC_OPERATORS_COLUMNS).toEqual([
       "cdr_day",
       "cdr_time",
+      "call_category",
+      "call_status",
       "bill_ani",
       "side_a",
       "bill_dnis",
@@ -142,9 +148,11 @@ describe("CDR column contract", () => {
 
   it("places enrich columns next to source fields without changing the dump contract", () => {
     expect(CDR_ENRICH_COLUMNS).toHaveLength(12);
-    expect(RAW_TABLE_COLUMNS).toHaveLength(134);
-    expect(RAW_TABLE_COLUMNS[1]).toBe("voipmonitor_url_in");
-    expect(RAW_TABLE_COLUMNS[2]).toBe("voipmonitor_url_out");
+    expect(RAW_TABLE_COLUMNS).toHaveLength(136);
+    expect(RAW_TABLE_COLUMNS[0]).toBe("call_category");
+    expect(RAW_TABLE_COLUMNS[1]).toBe("call_status");
+    expect(RAW_TABLE_COLUMNS[3]).toBe("voipmonitor_url_in");
+    expect(RAW_TABLE_COLUMNS[4]).toBe("voipmonitor_url_out");
     for (const col of CDR_COLUMNS) {
       expect(RAW_TABLE_COLUMNS).toContain(col);
     }

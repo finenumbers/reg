@@ -27,16 +27,16 @@ export type BorderRole =
 
 export type SheetKind = "traffic" | "detail";
 
-/** 0-based column → body role (non-last row). */
+/** 0-based column → body role (non-last row). Category and status sit at 2–3. */
 export function trafficBodyRole(col: number, lastRow: boolean): BorderRole {
   const map: Record<number, [BorderRole, BorderRole]> = {
     0: ["noRight", "noRight"],
     1: ["noRight", "noRight"],
-    2: ["groupStart", "groupLastStart"],
-    3: ["groupEnd", "groupLastEnd"],
     4: ["groupStart", "groupLastStart"],
     5: ["groupEnd", "groupLastEnd"],
-    6: ["noLeft", "noLeft"],
+    6: ["groupStart", "groupLastStart"],
+    7: ["groupEnd", "groupLastEnd"],
+    8: ["noLeft", "noLeft"],
   };
   const pair = map[col];
   if (pair) return lastRow ? pair[1] : pair[0];
@@ -47,11 +47,11 @@ export function trafficHeaderRole(col: number): BorderRole {
   const map: Record<number, BorderRole> = {
     0: "headerNoRight",
     1: "headerNoRight",
-    2: "headerGroupStart",
-    3: "headerGroupEnd",
     4: "headerGroupStart",
     5: "headerGroupEnd",
-    6: "headerNoLeft",
+    6: "headerGroupStart",
+    7: "headerGroupEnd",
+    8: "headerNoLeft",
   };
   return map[col] ?? "headerPlain";
 }
@@ -64,41 +64,41 @@ export function detailBodyRole(col: number, lastRow: boolean): BorderRole {
     case 0:
     case 1:
       return "noRight";
-    case 2:
-      return lastStart;
-    case 3:
     case 4:
-      return lastMid;
+      return lastStart;
     case 5:
-      return lastEnd;
     case 6:
-      return lastStart;
+      return lastMid;
     case 7:
+      return lastEnd;
     case 8:
-      return lastMid;
+      return lastStart;
     case 9:
-      return lastEnd;
     case 10:
-      return "noLeft";
+      return lastMid;
     case 11:
-    case 12:
-    case 13:
-      return "plain";
-    case 14:
-      return "noRight";
-    case 15:
-      return lastStart;
-    case 16:
-    case 17:
-      return lastMid;
-    case 18:
       return lastEnd;
-    case 19:
+    case 12:
+      return "noLeft";
+    case 13:
+    case 14:
+    case 15:
+      return "plain";
+    case 16:
+      return "noRight";
+    case 17:
       return lastStart;
-    case 20:
-    case 21:
+    case 18:
+    case 19:
       return lastMid;
+    case 20:
+      return lastEnd;
+    case 21:
+      return lastStart;
     case 22:
+    case 23:
+      return lastMid;
+    case 24:
       return lastEnd;
     default:
       return "plain";
@@ -110,41 +110,41 @@ export function detailHeaderRole(col: number): BorderRole {
     case 0:
     case 1:
       return "headerNoRight";
-    case 2:
-      return "headerGroupStart";
-    case 3:
     case 4:
-      return "headerGroupMid";
+      return "headerGroupStart";
     case 5:
-      return "headerGroupEnd";
     case 6:
-      return "headerGroupStart";
+      return "headerGroupMid";
     case 7:
+      return "headerGroupEnd";
     case 8:
-      return "headerGroupMid";
+      return "headerGroupStart";
     case 9:
-      return "headerGroupEnd";
     case 10:
-      return "headerNoLeft";
+      return "headerGroupMid";
     case 11:
-    case 12:
-    case 13:
-      return "headerPlain";
-    case 14:
-      return "headerNoRight";
-    case 15:
-      return "headerGroupStart";
-    case 16:
-    case 17:
-      return "headerGroupMid";
-    case 18:
       return "headerGroupEnd";
-    case 19:
+    case 12:
+      return "headerNoLeft";
+    case 13:
+    case 14:
+    case 15:
+      return "headerPlain";
+    case 16:
+      return "headerNoRight";
+    case 17:
       return "headerGroupStart";
-    case 20:
-    case 21:
+    case 18:
+    case 19:
       return "headerGroupMid";
+    case 20:
+      return "headerGroupEnd";
+    case 21:
+      return "headerGroupStart";
     case 22:
+    case 23:
+      return "headerGroupMid";
+    case 24:
       return "headerGroupEnd";
     default:
       return "headerPlain";

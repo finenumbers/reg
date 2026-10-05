@@ -167,9 +167,21 @@ export const VOIPMONITOR_TRAFFIC_LABELS: Record<
 
 export const CDR_DATETIME_SPLIT_COLUMNS = ["cdr_day", "cdr_time"] as const;
 
+export const CALL_CLASS_COLUMNS = ["call_category", "call_status"] as const;
+
+export const CALL_CLASS_LABELS: Record<
+  (typeof CALL_CLASS_COLUMNS)[number],
+  string
+> = {
+  call_category: "Категория",
+  call_status: "Статус",
+};
+
 export const TRAFFIC_SUMMARY_COLUMNS = [
   "cdr_day",
   "cdr_time",
+  "call_category",
+  "call_status",
   "bill_ani",
   "side_a",
   "bill_dnis",
@@ -189,6 +201,8 @@ export const TRAFFIC_SUMMARY_LABELS: Record<
 > = {
   cdr_day: "Дата",
   cdr_time: "Время",
+  call_category: "Категория",
+  call_status: "Статус",
   bill_ani: "А-номер",
   side_a: "Сторона A",
   bill_dnis: "В-номер",
@@ -206,6 +220,8 @@ export const TRAFFIC_SUMMARY_LABELS: Record<
 export const TRAFFIC_GEOGRAPHY_COLUMNS = [
   "cdr_day",
   "cdr_time",
+  "call_category",
+  "call_status",
   "bill_ani",
   "side_a",
   "operator_a",
@@ -228,6 +244,8 @@ export const TRAFFIC_GEOGRAPHY_LABELS: Record<
 > = {
   cdr_day: "Дата",
   cdr_time: "Время",
+  call_category: "Категория",
+  call_status: "Статус",
   bill_ani: "А-номер",
   side_a: "Сторона A",
   operator_a: "Оператор А",
@@ -247,6 +265,8 @@ export const TRAFFIC_GEOGRAPHY_LABELS: Record<
 export const TRAFFIC_OPERATORS_COLUMNS = [
   "cdr_day",
   "cdr_time",
+  "call_category",
+  "call_status",
   "bill_ani",
   "side_a",
   "bill_dnis",
@@ -273,6 +293,8 @@ export const TRAFFIC_OPERATORS_LABELS: Record<
 > = {
   cdr_day: "Дата",
   cdr_time: "Время",
+  call_category: "Категория",
+  call_status: "Статус",
   bill_ani: "А-номер",
   side_a: "Сторона A",
   bill_dnis: "В-номер",
@@ -334,16 +356,20 @@ const ENRICH_AFTER: Record<string, readonly CdrEnrichColumn[]> = {
   remote_dst_sig_address: ["country_b", "city_b", "provider_b"],
 };
 
-export const RAW_TABLE_COLUMNS: readonly string[] = CDR_COLUMNS.flatMap((col) => [
-  col,
-  ...(col === "cdr_id" ? [...VOIPMONITOR_COLUMNS] : []),
-  ...(ENRICH_AFTER[col] ?? []),
-]);
+export const RAW_TABLE_COLUMNS: readonly string[] = [
+  ...CALL_CLASS_COLUMNS,
+  ...CDR_COLUMNS.flatMap((col) => [
+    col,
+    ...(col === "cdr_id" ? [...VOIPMONITOR_COLUMNS] : []),
+    ...(ENRICH_AFTER[col] ?? []),
+  ]),
+];
 
 const TRAFFIC_COLUMN_SET = new Set<string>([
   ...CDR_COLUMNS,
   ...CDR_ENRICH_COLUMNS,
   ...CDR_DATETIME_SPLIT_COLUMNS,
+  ...CALL_CLASS_COLUMNS,
 ]);
 
 export const CDR_INSERT_BATCH_SIZE = 400;

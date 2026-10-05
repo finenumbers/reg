@@ -574,6 +574,8 @@ model CdrRecord {
   countryB                   String    @default("") @map("country_b")
   cityB                      String    @default("") @map("city_b")
   providerB                  String    @default("") @map("provider_b")
+  callCategory               String    @default("") @map("call_category")
+  callStatus                 String    @default("") @map("call_status")
   enrichedAt                 DateTime? @map("enriched_at")
   sourceFilename             String
   importedAt                 DateTime  @default(now())

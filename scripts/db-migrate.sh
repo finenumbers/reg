@@ -11,3 +11,5 @@ if [[ -z "${DATABASE_URL:-}" ]]; then
 fi
 npx prisma migrate deploy
 echo "Migrations applied."
+node scripts/cdr-call-class-backfill.mjs
+echo "CDR category and status backfill finished."

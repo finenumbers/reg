@@ -89,7 +89,7 @@ Core **не знает** бизнес-семантику регистраций 
 | Deploy | Docker Compose / Portainer: `db` → `migrate` → single `app` |
 | Edge proxy | Внешний NGINX Proxy Manager (уже есть) — **не дублировать** в compose |
 
-Compose-сервисы v1: `db` (PostgreSQL) → `migrate` (`prisma migrate deploy`) → `app` (Next.js, одна реплика), сеть `proxy` для NPM.  
+Compose-сервисы v1: `db` (PostgreSQL) → `migrate` (`prisma migrate deploy`, затем backfill категории CDR) → `app` (Next.js, одна реплика), сеть `proxy` для NPM.  
 Redis **не** входит в v1 (BullMQ не используется). Отдельный worker-контейнер в v1 не обязателен: poll-цикл и manual jobs идут в процессе `app` через `p-queue` + timer/interval, синхронизированный с `app_settings`.
 
 > Примечание: in-process scheduler означает, что при горизонтальном масштабировании нескольких реплик `app` нужен механизм лидерства / single-runner. В v1 предполагается **одна** реплика `app` за NPM.

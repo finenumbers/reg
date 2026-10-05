@@ -53,7 +53,7 @@ Optional publish ports: `APP_PUBLISH_PORT`, `POSTGRES_PUBLISH_PORT`.
 
 ## 3. Database
 
-1. `migrate` service runs `prisma migrate deploy` on each stack start (idempotent).
+1. `migrate` service runs `prisma migrate deploy`, then the CDR category/status backfill, on each stack start (idempotent). `npx prisma migrate deploy` alone leaves existing rows blank.
 2. If this database was previously created with `db push` only, baseline once:
 
    ```bash

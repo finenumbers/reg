@@ -10,6 +10,10 @@ import { xlsxCdrDateTimeCells } from "@/modules/traffic/cdr-date-parts";
 import { guardExcelText } from "@/modules/enrich/formula-guard";
 import { classifyCdrRow } from "@/modules/enrich/row-flags";
 import {
+  classifyCallCategory,
+  classifyExportStatus,
+} from "@/modules/traffic/call-class";
+import {
   DETAIL_HEADERS,
   DETAIL_WIDTHS,
   TRAFFIC_HEADERS,
@@ -227,8 +231,16 @@ function resolveFromMaps(
 }
 
 const PROGRESS_EVERY = 250;
-const TRAFFIC_PHONE_COLS = new Set([3, 5]);
-const DETAIL_PHONE_COLS = new Set([3, 7]);
+/** 1-based Excel columns: А-номер and В-номер, after Категория and Статус. */
+const TRAFFIC_PHONE_COLS = new Set([5, 7]);
+const DETAIL_PHONE_COLS = new Set([5, 9]);
+
+function callClassCells(row: ResolvedEnrichedRow): [string, string] {
+  return [
+    text(classifyCallCategory(row.sideA, row.sideB, row.termDevice)),
+    text(classifyExportStatus(row.elapsedTime)),
+  ];
+}
 
 async function writeResolvedSheets(opts: {
   trafficSheetName: string;
@@ -276,6 +288,7 @@ async function writeResolvedSheets(opts: {
     const values: Array<string | number> = [
       text(callAt.day),
       text(callAt.time),
+      ...callClassCells(row),
       aPhone,
       text(row.sideA),
       bPhone,
@@ -329,6 +342,7 @@ async function writeResolvedSheets(opts: {
     const values: Array<string | number> = [
       text(callAt.day),
       text(callAt.time),
+      ...callClassCells(row),
       aPhone,
       text(row.sideA),
       text(row.operatorA),

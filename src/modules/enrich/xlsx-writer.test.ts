@@ -11,6 +11,7 @@ import {
 } from "@/modules/enrich/types";
 import type { ResolvedEnrichedRow } from "@/modules/enrich/types";
 import { PARKING_DIAL_OBJECT } from "@/modules/enrich/row-flags";
+import { CALL_CATEGORY, CALL_STATUS } from "@/modules/traffic/call-class";
 import {
   XLSX_BILLING_FONT_ARGB,
   XLSX_CALL_ERROR_FILL,
@@ -109,8 +110,12 @@ describe("writeResolvedEnrichedXlsx", () => {
     ).toEqual([...DETAIL_HEADERS]);
     expect(traffic.getRow(2).getCell(1).value).toBe("01.08.2026");
     expect(traffic.getRow(2).getCell(2).value).toBe("12:00:00");
+    expect(traffic.getRow(2).getCell(3).value).toBe(CALL_CATEGORY.internal);
+    expect(traffic.getRow(2).getCell(4).value).toBe(CALL_STATUS.success);
     expect(detail.getRow(2).getCell(1).value).toBe("01.08.2026");
     expect(detail.getRow(2).getCell(2).value).toBe("12:00:00");
+    expect(detail.getRow(2).getCell(3).value).toBe(CALL_CATEGORY.internal);
+    expect(detail.getRow(2).getCell(4).value).toBe(CALL_STATUS.success);
   });
 
   it("fills phantom, call-error, parking-known, and empty-duration rows on every column of both sheets", async () => {
@@ -195,21 +200,24 @@ describe("writeResolvedEnrichedXlsx", () => {
       }
     }
 
-    expect(traffic!.getRow(2).getCell(4).font?.color?.argb).toBe(
-      XLSX_BILLING_FONT_ARGB,
-    );
     expect(traffic!.getRow(2).getCell(6).font?.color?.argb).toBe(
       XLSX_BILLING_FONT_ARGB,
     );
-    expect(detail!.getRow(2).getCell(4).font?.color?.argb).toBe(
+    expect(traffic!.getRow(2).getCell(8).font?.color?.argb).toBe(
       XLSX_BILLING_FONT_ARGB,
     );
-    expect(detail!.getRow(2).getCell(8).font?.color?.argb).toBe(
+    expect(detail!.getRow(2).getCell(6).font?.color?.argb).toBe(
       XLSX_BILLING_FONT_ARGB,
     );
-    expect(traffic!.getRow(5).getCell(6).font?.color?.argb).toBe(
+    expect(detail!.getRow(2).getCell(10).font?.color?.argb).toBe(
       XLSX_BILLING_FONT_ARGB,
     );
+    expect(traffic!.getRow(5).getCell(8).font?.color?.argb).toBe(
+      XLSX_BILLING_FONT_ARGB,
+    );
+    expect(traffic!.getRow(6).getCell(3).value).toBe(CALL_CATEGORY.outgoing);
+    expect(traffic!.getRow(6).getCell(4).value).toBe(CALL_STATUS.failed);
+    expect(traffic!.getRow(7).getCell(4).value).toBe(CALL_STATUS.success);
   });
 
   it("writes solid fill xfs that Excel can apply (OOXML, not ExcelJS getter)", async () => {

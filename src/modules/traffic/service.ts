@@ -28,6 +28,7 @@ import type { VoipmonitorLegs } from "@/modules/voipmonitor/types";
 import { isSafeVoipmonitorHref } from "@/modules/voipmonitor/url";
 import { splitCdrDateParts } from "@/modules/traffic/cdr-date-parts";
 import {
+  CALL_CLASS_COLUMNS,
   CDR_COLUMNS,
   CDR_DATETIME_SPLIT_COLUMNS,
   CDR_ENRICH_COLUMNS,
@@ -102,6 +103,10 @@ function rowToData(
     data[col] = value == null ? "" : String(value);
   }
   for (const col of CDR_ENRICH_COLUMNS) {
+    const value = row[csvHeaderToCamel(col)];
+    data[col] = value == null ? "" : String(value);
+  }
+  for (const col of CALL_CLASS_COLUMNS) {
     const value = row[csvHeaderToCamel(col)];
     data[col] = value == null ? "" : String(value);
   }

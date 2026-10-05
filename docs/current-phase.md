@@ -1,7 +1,15 @@
-# Current Phase — production (v1.59.0)
+# Current Phase — production (v1.60.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail.  
 **Date:** 2026-10-05
+
+## v1.60.0 — CDR category and status
+
+Each CDR row stores «Категория» and «Статус». A side counts as filled only when it is a billing description (`""` and «Нет в биллинге» are undefined). Parking is exact `dst_name = Service_Parking`. Both sides filled on parking is «Исходящий паркинг». Empty `elapsed_time` is «Неудачный»; `0` is «Удачный».
+
+A `BEFORE INSERT OR UPDATE` trigger writes the columns, including when sides are refreshed. The migration adds the columns and functions only. The migrator then fills existing rows in batches of 5000 and drops the temporary partial index. `npx prisma migrate deploy` alone leaves old rows blank.
+
+Traffic, Geography, and Operators show the columns after «Время». Raw data shows them first. Month export and enrich XLSX write them after «Время» on both sheets. Row colors and the phantom / error / parking / no-answer filters are unchanged.
 
 ## v1.59.0 — 12px table text
 
@@ -277,7 +285,7 @@ Isolated matcher in Reg (no Collector runtime). Settings credentials → job `vo
 
 | Item                                                       | Purpose                                                       |
 | ---------------------------------------------------------- | ------------------------------------------------------------- |
-| `migrate` compose service                                  | `prisma migrate deploy` before `app`                          |
+| `migrate` compose service                                  | `prisma migrate deploy` and CDR category backfill before `app` |
 | Baseline migration `prisma/migrations/20260806100000_init` | Production schema apply path                                  |
 | `/api/healthz` / `/api/readyz`                             | Liveness; env+DB readiness                                    |
 | Startup instrumentation                                    | Env assert → baseline seed → admin bootstrap → scheduler eval |
