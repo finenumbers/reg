@@ -18,13 +18,13 @@ Related: [backup-and-restore.md](./backup-and-restore.md), [smoke-tests.md](./sm
 
 Copy `.env.example` → `.env` (or Portainer stack env) and set:
 
-| Variable | Requirement |
-|----------|-------------|
-| `BETTER_AUTH_SECRET` | ≥32 chars; `openssl rand -base64 32` |
-| `BETTER_AUTH_URL` | Public origin browsers use (`https://regs.example.com`) |
-| `APP_ENCRYPTION_KEY` | 64 hex chars; `openssl rand -hex 32`; **back up offline** |
+| Variable                            | Requirement                                                              |
+| ----------------------------------- | ------------------------------------------------------------------------ |
+| `BETTER_AUTH_SECRET`                | ≥32 chars; `openssl rand -base64 32`                                     |
+| `BETTER_AUTH_URL`                   | Public origin browsers use (`https://regs.example.com`)                  |
+| `APP_ENCRYPTION_KEY`                | 64 hex chars; `openssl rand -hex 32`; **back up offline**                |
 | `ADMIN_USERNAME` / `ADMIN_PASSWORD` | First admin (≥8 char password); only creates user when users table empty |
-| `POSTGRES_*` | Match compose DB credentials |
+| `POSTGRES_*`                        | Match compose DB credentials                                             |
 
 Optional publish ports: `APP_PUBLISH_PORT`, `POSTGRES_PUBLISH_PORT`.
 
@@ -53,7 +53,7 @@ Optional publish ports: `APP_PUBLISH_PORT`, `POSTGRES_PUBLISH_PORT`.
 
 ## 3. Database
 
-1. `migrate` service runs `prisma migrate deploy`, then the CDR category/status backfill, on each stack start (idempotent). `npx prisma migrate deploy` alone leaves existing rows blank.
+1. `migrate` service runs `prisma migrate deploy`, then the CDR category/status backfill, on each stack start (idempotent). v1.62.0 rewrites every already labeled CDR row’s status (and «Фантомный звонок») before `app` starts. `npx prisma migrate deploy` alone leaves existing rows blank and does not rename old labels.
 2. If this database was previously created with `db push` only, baseline once:
 
    ```bash

@@ -3,17 +3,14 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 export type RowColorTone =
-  | "phantom"
-  | "call_error"
-  | "parking_known"
-  | "known_empty_duration"
-  | "unregistered";
+  "phantom" | "call_error" | "parking_known" | "failed" | "check" | "unregistered";
 
 const TONE_CLASS: Record<RowColorTone, string> = {
   phantom: "bg-green-200 dark:bg-green-950",
   call_error: "bg-destructive/25",
   parking_known: "bg-blue-200 dark:bg-blue-950",
-  known_empty_duration: "bg-gray-200 dark:bg-gray-950",
+  failed: "bg-gray-200 dark:bg-gray-950",
+  check: "bg-yellow-200 dark:bg-yellow-950",
   unregistered: "bg-destructive/10",
 };
 
@@ -29,7 +26,7 @@ export function RowColorMark({
     <Badge
       variant="outline"
       className={cn(
-        "border-transparent text-foreground text-sm leading-none",
+        "text-foreground border-transparent text-sm leading-none",
         TONE_CLASS[tone],
       )}
     >

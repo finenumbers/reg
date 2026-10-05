@@ -13,10 +13,7 @@ import {
   setColumnFilterValues,
   type ColumnFilters,
 } from "@/components/column-filters";
-import {
-  TableCountFooter,
-  TableInfiniteBody,
-} from "@/components/table-infinite-body";
+import { TableCountFooter, TableInfiniteBody } from "@/components/table-infinite-body";
 import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
 import { TABLE_PAGE_SIZE } from "@/lib/table-pagination";
 import {
@@ -41,10 +38,7 @@ import type { ListTrafficResult, TrafficListItem } from "@/modules/traffic/servi
 import { MonthExportButtons } from "@/modules/traffic/ui/month-export-buttons";
 import { TrafficTable } from "@/modules/traffic/ui/traffic-table";
 import type { TimeSort } from "@/modules/traffic/traffic-sort";
-import {
-  composeTrafficBanner,
-  displayTrafficFacet,
-} from "@/modules/traffic/ui-format";
+import { composeTrafficBanner, displayTrafficFacet } from "@/modules/traffic/ui-format";
 
 const PAGE_SIZE = TABLE_PAGE_SIZE;
 const PHONE_SEARCH_DEBOUNCE_MS = 300;
@@ -58,7 +52,9 @@ type LoadListOpts = {
   phantom?: boolean;
   callErrors?: boolean;
   parking?: boolean;
-  noAnswer?: boolean;
+  redirect?: boolean;
+  failed?: boolean;
+  check?: boolean;
   timeSort?: TimeSort | null;
 };
 
@@ -98,11 +94,11 @@ export function TrafficView({
   const [phantom, setPhantom] = useState(false);
   const [callErrors, setCallErrors] = useState(false);
   const [parking, setParking] = useState(false);
-  const [noAnswer, setNoAnswer] = useState(false);
+  const [redirect, setRedirect] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const [check, setCheck] = useState(false);
   const [timeSort, setTimeSort] = useState<TimeSort | null>(null);
-  const [month, setMonth] = useState(
-    initial.month || currentUtcMonth().key,
-  );
+  const [month, setMonth] = useState(initial.month || currentUtcMonth().key);
   const [months, setMonths] = useState<CdrMonth[]>(
     initial.months?.length ? initial.months : [currentUtcMonth()],
   );
@@ -124,13 +120,13 @@ export function TrafficView({
   const filtersRef = useRef(filters);
   const phoneQRef = useRef(phoneQ);
   const monthRef = useRef(month);
-  const loadListRef = useRef<(opts?: LoadListOpts) => Promise<void>>(
-    async () => {},
-  );
+  const loadListRef = useRef<(opts?: LoadListOpts) => Promise<void>>(async () => {});
   const phantomRef = useRef(phantom);
   const callErrorsRef = useRef(callErrors);
   const parkingRef = useRef(parking);
-  const noAnswerRef = useRef(noAnswer);
+  const redirectRef = useRef(redirect);
+  const failedRef = useRef(failed);
+  const checkRef = useRef(check);
   const timeSortRef = useRef(timeSort);
   const wasBusyRef = useRef(false);
   const lastFinishedAtRef = useRef<string | null | undefined>(undefined);
@@ -142,7 +138,9 @@ export function TrafficView({
   phantomRef.current = phantom;
   callErrorsRef.current = callErrors;
   parkingRef.current = parking;
-  noAnswerRef.current = noAnswer;
+  redirectRef.current = redirect;
+  failedRef.current = failed;
+  checkRef.current = check;
   timeSortRef.current = timeSort;
 
   const defaultMonthKey = currentUtcMonth().key;
@@ -152,7 +150,9 @@ export function TrafficView({
     phantom ||
     callErrors ||
     parking ||
-    noAnswer ||
+    redirect ||
+    failed ||
+    check ||
     timeSort != null ||
     month !== defaultMonthKey;
   const hasMore = items.length < total;
@@ -164,9 +164,7 @@ export function TrafficView({
   const longestMonthLabel = useMemo(
     () =>
       monthOptions
-        .map((item) =>
-          formatMonthOption(item.year, item.month, item.count),
-        )
+        .map((item) => formatMonthOption(item.year, item.month, item.count))
         .reduce((a, b) => (b.length > a.length ? b : a), "Август 2026 года"),
     [monthOptions],
   );
@@ -180,9 +178,10 @@ export function TrafficView({
       const nextPhantom = opts.phantom ?? phantomRef.current;
       const nextCallErrors = opts.callErrors ?? callErrorsRef.current;
       const nextParking = opts.parking ?? parkingRef.current;
-      const nextNoAnswer = opts.noAnswer ?? noAnswerRef.current;
-      const nextTimeSort =
-        "timeSort" in opts ? opts.timeSort : timeSortRef.current;
+      const nextRedirect = opts.redirect ?? redirectRef.current;
+      const nextFailed = opts.failed ?? failedRef.current;
+      const nextCheck = opts.check ?? checkRef.current;
+      const nextTimeSort = "timeSort" in opts ? opts.timeSort : timeSortRef.current;
       const nextPage = opts.page ?? (replace ? 1 : page);
       const seq = ++refreshSeq.current;
 
@@ -203,7 +202,9 @@ export function TrafficView({
         phantom: nextPhantom,
         callErrors: nextCallErrors,
         parking: nextParking,
-        noAnswer: nextNoAnswer,
+        redirect: nextRedirect,
+        failed: nextFailed,
+        check: nextCheck,
         timeSort: nextTimeSort,
         page: nextPage,
         pageSize: PAGE_SIZE,
@@ -218,9 +219,7 @@ export function TrafficView({
         return;
       }
 
-      setItems((prev) =>
-        replace ? result.data.items : [...prev, ...result.data.items],
-      );
+      setItems((prev) => (replace ? result.data.items : [...prev, ...result.data.items]));
       setTotal(result.data.total);
       setPage(result.data.page);
       if (result.data.months) setMonths(result.data.months);
@@ -272,10 +271,8 @@ export function TrafficView({
     let cancelled = false;
     let timer: number | null = null;
 
-    const isBusy = (data: {
-      pendingInboxCount?: number;
-      runningCount: number;
-    }) => (data.pendingInboxCount ?? 0) > 0 || data.runningCount > 0;
+    const isBusy = (data: { pendingInboxCount?: number; runningCount: number }) =>
+      (data.pendingInboxCount ?? 0) > 0 || data.runningCount > 0;
 
     const pull = async () => {
       const status = await fetchTrafficStatus();
@@ -367,7 +364,9 @@ export function TrafficView({
     setPhantom(false);
     setCallErrors(false);
     setParking(false);
-    setNoAnswer(false);
+    setRedirect(false);
+    setFailed(false);
+    setCheck(false);
     setTimeSort(null);
     setMonth(nowMonth.key);
     setOpenColumn(null);
@@ -379,7 +378,9 @@ export function TrafficView({
       phantom: false,
       callErrors: false,
       parking: false,
-      noAnswer: false,
+      redirect: false,
+      failed: false,
+      check: false,
       timeSort: null,
       month: nowMonth.key,
     });
@@ -412,9 +413,19 @@ export function TrafficView({
     void loadList({ page: 1, replace: true, parking: checked });
   }
 
-  function onNoAnswerChange(checked: boolean) {
-    setNoAnswer(checked);
-    void loadList({ page: 1, replace: true, noAnswer: checked });
+  function onRedirectChange(checked: boolean) {
+    setRedirect(checked);
+    void loadList({ page: 1, replace: true, redirect: checked });
+  }
+
+  function onFailedChange(checked: boolean) {
+    setFailed(checked);
+    void loadList({ page: 1, replace: true, failed: checked });
+  }
+
+  function onCheckChange(checked: boolean) {
+    setCheck(checked);
+    void loadList({ page: 1, replace: true, check: checked });
   }
 
   function onTimeSortChange(next: TimeSort | null) {
@@ -503,7 +514,7 @@ export function TrafficView({
       <div className="flex shrink-0 flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
-          <p className="text-sm text-muted-foreground">{subtitle}</p>
+          <p className="text-muted-foreground text-sm">{subtitle}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {showMonthExport ? <MonthExportButtons month={month} /> : null}
@@ -518,7 +529,7 @@ export function TrafficView({
       {bannerError ? (
         <div
           role="alert"
-          className="shrink-0 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+          className="border-destructive/30 bg-destructive/10 text-destructive shrink-0 rounded-md border px-3 py-2 text-sm"
         >
           {bannerError}
         </div>
@@ -526,7 +537,7 @@ export function TrafficView({
 
       {showOps && poisonFiles.length > 0 ? (
         <ul
-          className="shrink-0 list-none space-y-1 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+          className="border-destructive/30 bg-destructive/10 text-destructive shrink-0 list-none space-y-1 rounded-md border px-3 py-2 text-sm"
           aria-label="Файлы с ошибкой импорта"
         >
           {poisonFiles.map((file) => (
@@ -542,7 +553,7 @@ export function TrafficView({
       {listError ? (
         <div
           role="alert"
-          className="shrink-0 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+          className="border-destructive/30 bg-destructive/10 text-destructive shrink-0 rounded-md border px-3 py-2 text-sm"
         >
           {listError}
           <Button
@@ -563,7 +574,7 @@ export function TrafficView({
           className={
             syncState.status === "success"
               ? "shrink-0 rounded-md border border-emerald-600/30 bg-emerald-600/10 px-3 py-2 text-sm text-emerald-800 dark:text-emerald-200"
-              : "shrink-0 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+              : "border-destructive/30 bg-destructive/10 text-destructive shrink-0 rounded-md border px-3 py-2 text-sm"
           }
         >
           {syncState.message}
@@ -620,14 +631,38 @@ export function TrafficView({
           </div>
           <div className="flex items-center gap-2">
             <input
-              id={`${searchInputId}-no-answer`}
+              id={`${searchInputId}-redirect`}
               type="checkbox"
               className="size-4 rounded border"
-              checked={noAnswer}
-              onChange={(e) => onNoAnswerChange(e.target.checked)}
+              checked={redirect}
+              onChange={(e) => onRedirectChange(e.target.checked)}
             />
-            <Label htmlFor={`${searchInputId}-no-answer`}>
-              <RowColorMark tone="known_empty_duration">Недозвон</RowColorMark>
+            <Label htmlFor={`${searchInputId}-redirect`} className="text-sm">
+              Редирект
+            </Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              id={`${searchInputId}-failed`}
+              type="checkbox"
+              className="size-4 rounded border"
+              checked={failed}
+              onChange={(e) => onFailedChange(e.target.checked)}
+            />
+            <Label htmlFor={`${searchInputId}-failed`}>
+              <RowColorMark tone="failed">Неуспешный</RowColorMark>
+            </Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              id={`${searchInputId}-check`}
+              type="checkbox"
+              className="size-4 rounded border"
+              checked={check}
+              onChange={(e) => onCheckChange(e.target.checked)}
+            />
+            <Label htmlFor={`${searchInputId}-check`}>
+              <RowColorMark tone="check">Проверка</RowColorMark>
             </Label>
           </div>
           <Button
@@ -645,7 +680,7 @@ export function TrafficView({
             value={month}
             onChange={(e) => onMonthChange(e.target.value)}
             aria-label="Календарный месяц"
-            className="col-start-1 row-start-1 h-8 w-full rounded-lg border border-border bg-background py-0 pl-2.5 pr-8 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+            className="border-border bg-background focus-visible:border-ring focus-visible:ring-ring/50 col-start-1 row-start-1 h-8 w-full rounded-lg border py-0 pr-8 pl-2.5 text-sm outline-none focus-visible:ring-3"
           >
             {monthOptions.map((item) => (
               <option key={item.key} value={item.key}>
@@ -655,7 +690,7 @@ export function TrafficView({
           </select>
           <span
             aria-hidden
-            className="invisible col-start-1 row-start-1 h-8 whitespace-nowrap border border-transparent py-0 pl-2.5 pr-8 text-sm"
+            className="invisible col-start-1 row-start-1 h-8 border border-transparent py-0 pr-8 pl-2.5 text-sm whitespace-nowrap"
           >
             {longestMonthLabel}
           </span>
@@ -690,7 +725,9 @@ export function TrafficView({
             phantom={phantom}
             callErrors={callErrors}
             parking={parking}
-            noAnswer={noAnswer}
+            redirect={redirect}
+            failed={failed}
+            check={check}
             openColumn={openColumn}
             onOpenColumnChange={setOpenColumn}
             onColumnFilterChange={onColumnChange}

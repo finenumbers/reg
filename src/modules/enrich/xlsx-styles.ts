@@ -3,10 +3,7 @@
  */
 
 import type ExcelJS from "exceljs";
-import {
-  MISSING_BILLING_LABEL,
-  MISSING_PSTN_LABEL,
-} from "@/modules/enrich/types";
+import { MISSING_BILLING_LABEL, MISSING_PSTN_LABEL } from "@/modules/enrich/types";
 
 export type BorderRole =
   | "plain"
@@ -163,28 +160,36 @@ export function xlsxMissFontRole(value: string): MissFontRole {
   return null;
 }
 
-/** Tailwind green-200 — phantom traffic (both sides «-»). */
+/** Tailwind green-200 — category «Фантомный трафик». */
 export const XLSX_PHANTOM_FILL: ExcelJS.Fill = {
   type: "pattern",
   pattern: "solid",
   fgColor: { argb: "FFBBF7D0" },
 };
 
+/** Tailwind red-200 — «Ошибка маршрута» and «Нет регистрации». */
 export const XLSX_CALL_ERROR_FILL: ExcelJS.Fill = {
   type: "pattern",
   pattern: "solid",
   fgColor: { argb: "FFFECACA" },
 };
 
-/** Tailwind blue-200 — parking with a known side. */
+/** Tailwind blue-200 — incoming and outgoing parking. */
 export const XLSX_PARKING_KNOWN_FILL: ExcelJS.Fill = {
   type: "pattern",
   pattern: "solid",
   fgColor: { argb: "FFBFDBFE" },
 };
 
-/** Tailwind gray-200 — known side and empty duration («Недозвон»). */
-export const XLSX_KNOWN_EMPTY_DURATION_FILL: ExcelJS.Fill = {
+/** Tailwind yellow-200 — category «Проверка». */
+export const XLSX_CHECK_FILL: ExcelJS.Fill = {
+  type: "pattern",
+  pattern: "solid",
+  fgColor: { argb: "FFFEF08A" },
+};
+
+/** Tailwind gray-200 — status «Неуспешный» when the category has no color. */
+export const XLSX_FAILED_FILL: ExcelJS.Fill = {
   type: "pattern",
   pattern: "solid",
   fgColor: { argb: "FFE5E7EB" },

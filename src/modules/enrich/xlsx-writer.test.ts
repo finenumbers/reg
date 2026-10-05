@@ -10,12 +10,13 @@ import {
   TRAFFIC_HEADERS,
 } from "@/modules/enrich/types";
 import type { ResolvedEnrichedRow } from "@/modules/enrich/types";
-import { PARKING_DIAL_OBJECT } from "@/modules/enrich/row-flags";
 import { CALL_CATEGORY, CALL_STATUS } from "@/modules/traffic/call-class";
+import { PARKING_DST } from "@/modules/stats/classify";
 import {
   XLSX_BILLING_FONT_ARGB,
   XLSX_CALL_ERROR_FILL,
-  XLSX_KNOWN_EMPTY_DURATION_FILL,
+  XLSX_CHECK_FILL,
+  XLSX_FAILED_FILL,
   XLSX_PARKING_KNOWN_FILL,
   XLSX_PHANTOM_FILL,
 } from "@/modules/enrich/xlsx-styles";
@@ -140,7 +141,7 @@ describe("writeResolvedEnrichedXlsx", () => {
     );
   });
 
-  it("fills phantom, call-error, parking-known, and empty-duration rows on every column of both sheets", async () => {
+  it("fills phantom, route-error, parking, check, and failed rows on every column of both sheets", async () => {
     dir = await mkdtemp(path.join(tmpdir(), "xlsx-writer-"));
     const jsonlPath = path.join(dir, "rows.jsonl");
     const outputPath = path.join(dir, "out.xlsx");
@@ -148,23 +149,25 @@ describe("writeResolvedEnrichedXlsx", () => {
       ...ROW,
       aNumber: "79001112233",
       bNumber: "79004445566",
+      termDevice: PARKING_DST,
       sideA: MISSING_BILLING_LABEL,
       sideB: MISSING_BILLING_LABEL,
+      elapsedTime: "",
     };
     const errorRow: ResolvedEnrichedRow = {
       ...ROW,
       aNumber: "",
       bNumber: "",
-      sideA: MISSING_BILLING_LABEL,
-      sideB: MISSING_BILLING_LABEL,
+      cause: "Class4, 40 - Gateway Is Invalid",
+      elapsedTime: "",
     };
     const parkingKnown: ResolvedEnrichedRow = {
       ...ROW,
-      dialObject: PARKING_DIAL_OBJECT,
+      termDevice: PARKING_DST,
       sideA: "Офис",
       sideB: MISSING_BILLING_LABEL,
     };
-    const noAnswer: ResolvedEnrichedRow = {
+    const failed: ResolvedEnrichedRow = {
       ...ROW,
       seconds: 0,
       elapsedTime: "",
@@ -179,7 +182,7 @@ describe("writeResolvedEnrichedXlsx", () => {
     };
     await writeFile(
       jsonlPath,
-      `${JSON.stringify(phantom)}\n${JSON.stringify(errorRow)}\n${JSON.stringify(ROW)}\n${JSON.stringify(parkingKnown)}\n${JSON.stringify(noAnswer)}\n${JSON.stringify(zeroSeconds)}\n`,
+      `${JSON.stringify(phantom)}\n${JSON.stringify(errorRow)}\n${JSON.stringify(ROW)}\n${JSON.stringify(parkingKnown)}\n${JSON.stringify(failed)}\n${JSON.stringify(zeroSeconds)}\n`,
       "utf8",
     );
     await writeResolvedEnrichedXlsx({
@@ -202,8 +205,7 @@ describe("writeResolvedEnrichedXlsx", () => {
     const phantomArgb = (XLSX_PHANTOM_FILL as ExcelJS.FillPattern).fgColor?.argb;
     const errorArgb = (XLSX_CALL_ERROR_FILL as ExcelJS.FillPattern).fgColor?.argb;
     const parkingArgb = (XLSX_PARKING_KNOWN_FILL as ExcelJS.FillPattern).fgColor?.argb;
-    const noAnswerArgb = (XLSX_KNOWN_EMPTY_DURATION_FILL as ExcelJS.FillPattern).fgColor
-      ?.argb;
+    const failedArgb = (XLSX_FAILED_FILL as ExcelJS.FillPattern).fgColor?.argb;
 
     for (const sheet of [traffic!, detail!]) {
       const lastCol = sheet.columnCount;
@@ -213,7 +215,7 @@ describe("writeResolvedEnrichedXlsx", () => {
         expect(argb(sheet.getRow(3).getCell(c))).toBe(errorArgb);
         expect(argb(sheet.getRow(4).getCell(c))).toBeUndefined();
         expect(argb(sheet.getRow(5).getCell(c))).toBe(parkingArgb);
-        expect(argb(sheet.getRow(6).getCell(c))).toBe(noAnswerArgb);
+        expect(argb(sheet.getRow(6).getCell(c))).toBe(failedArgb);
         expect(argb(sheet.getRow(7).getCell(c))).toBeUndefined();
         expect(sheet.getRow(2).getCell(c).border?.top).toBeTruthy();
       }
@@ -226,6 +228,10 @@ describe("writeResolvedEnrichedXlsx", () => {
     expect(detail!.getRow(2).getCell(6).font?.color?.argb).toBe(XLSX_BILLING_FONT_ARGB);
     expect(detail!.getRow(2).getCell(10).font?.color?.argb).toBe(XLSX_BILLING_FONT_ARGB);
     expect(traffic!.getRow(5).getCell(8).font?.color?.argb).toBe(XLSX_BILLING_FONT_ARGB);
+    expect(traffic!.getRow(2).getCell(3).value).toBe(CALL_CATEGORY.phantom);
+    expect(traffic!.getRow(2).getCell(4).value).toBe(CALL_STATUS.failed);
+    expect(traffic!.getRow(3).getCell(3).value).toBe(CALL_CATEGORY.routeError);
+    expect(traffic!.getRow(5).getCell(3).value).toBe(CALL_CATEGORY.outgoingParking);
     expect(traffic!.getRow(6).getCell(3).value).toBe(CALL_CATEGORY.outgoing);
     expect(traffic!.getRow(6).getCell(4).value).toBe(CALL_STATUS.failed);
     expect(traffic!.getRow(7).getCell(4).value).toBe(CALL_STATUS.success);
@@ -237,35 +243,40 @@ describe("writeResolvedEnrichedXlsx", () => {
     const outputPath = path.join(dir, "out.xlsx");
     const phantom: ResolvedEnrichedRow = {
       ...ROW,
+      termDevice: PARKING_DST,
       sideA: MISSING_BILLING_LABEL,
       sideB: MISSING_BILLING_LABEL,
     };
     const errorRow: ResolvedEnrichedRow = {
       ...ROW,
-      aNumber: "",
-      bNumber: "",
+      cause: "Class4, 1 - Unregistered IP Address",
     };
     const parkingKnown: ResolvedEnrichedRow = {
       ...ROW,
-      dialObject: PARKING_DIAL_OBJECT,
+      termDevice: PARKING_DST,
       sideA: "Офис",
       sideB: MISSING_BILLING_LABEL,
     };
-    const noAnswer: ResolvedEnrichedRow = {
+    const failed: ResolvedEnrichedRow = {
       ...ROW,
       elapsedTime: "",
       sideA: "Офис",
       sideB: MISSING_BILLING_LABEL,
     };
+    const check: ResolvedEnrichedRow = {
+      ...ROW,
+      termDevice: "Service_Check",
+      elapsedTime: "",
+    };
     await writeFile(
       jsonlPath,
-      `${JSON.stringify(phantom)}\n${JSON.stringify(errorRow)}\n${JSON.stringify(ROW)}\n${JSON.stringify(parkingKnown)}\n${JSON.stringify(noAnswer)}\n`,
+      `${JSON.stringify(phantom)}\n${JSON.stringify(errorRow)}\n${JSON.stringify(ROW)}\n${JSON.stringify(parkingKnown)}\n${JSON.stringify(failed)}\n${JSON.stringify(check)}\n`,
       "utf8",
     );
     await writeResolvedEnrichedXlsx({
       jsonlPath,
       outputPath,
-      rowCount: 5,
+      rowCount: 6,
       trafficSheetName: "Август 2026 года",
       includeDetail: false,
     });
@@ -274,7 +285,13 @@ describe("writeResolvedEnrichedXlsx", () => {
     const sheetXml = readXlsxEntry(outputPath, "xl/worksheets/sheet1.xml");
     const rgbs = xlsxFillRgbs(stylesXml);
     expect(rgbs).toEqual(
-      expect.arrayContaining(["FFBBF7D0", "FFFECACA", "FFBFDBFE", "FFE5E7EB"]),
+      expect.arrayContaining([
+        "FFBBF7D0",
+        "FFFECACA",
+        "FFBFDBFE",
+        "FFE5E7EB",
+        (XLSX_CHECK_FILL as ExcelJS.FillPattern).fgColor?.argb,
+      ]),
     );
 
     const xfs = xlsxCellXfs(stylesXml);

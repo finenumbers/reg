@@ -1,7 +1,15 @@
-# Current Phase — production (v1.61.0)
+# Current Phase — production (v1.62.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail.  
 **Date:** 2026-10-05
+
+## v1.62.0 — CDR toolbar filters follow category and status
+
+«Фантомный звонок» is stored as «Фантомный трафик». Status «Удачный» is «Успешный»; «Неудачный» is «Неуспешный». Classification rules are unchanged: empty `elapsed_time` is failed, `0` is success.
+
+CDR toolbars (traffic / geography / operators / raw) drop «Недозвон». Six checkboxes match stored columns and combine with OR: «Фантомный трафик», «Ошибки звонков» («Ошибка маршрута» and «Нет регистрации» only), «Паркинг» (incoming and outgoing parking on `dst_name`), «Редирект» (no fill), «Неуспешный», «Проверка». Table rows and month/enrich XLSX use the same fills. Gray is only «Неуспешный» when the category has no color of its own. A missing enrich `elapsedTime` stays «Успешный».
+
+The migrator rewrites old labels in primary-key order, 5000 rows at a time, then `ANALYZE` if it changed anything. The new app does not start until that script exits. `npx prisma migrate deploy` alone leaves the old labels in place.
 
 ## v1.61.0 — Extra call categories, billing hyphen, database size
 
@@ -65,7 +73,7 @@ UTC and local time sit in the left navigation footer (above the version and «В
 
 ## v1.48.1 — CDR header clocks on one 14px line
 
-CDR tables (traffic / operators / geography / raw) show UTC and local time as one `text-sm` line next to the title: «Время UTC: HH:mm:ss    Местное время: HH:mm:ss». The two-line 12px stack and header `pt-1.5` are gone. Tick, Settings timezone, and civil-clock CDR cells / XLSX are unchanged.
+CDR tables (traffic / operators / geography / raw) show UTC and local time as one `text-sm` line next to the title: «Время UTC: HH:mm:ss Местное время: HH:mm:ss». The two-line 12px stack and header `pt-1.5` are gone. Tick, Settings timezone, and civil-clock CDR cells / XLSX are unchanged.
 
 ## v1.48.0 — Live UTC and local clocks on CDR table headers
 
@@ -289,15 +297,15 @@ Isolated matcher in Reg (no Collector runtime). Settings credentials → job `vo
 
 ## Operator surfaces added/updated
 
-| Item                                                       | Purpose                                                       |
-| ---------------------------------------------------------- | ------------------------------------------------------------- |
+| Item                                                       | Purpose                                                        |
+| ---------------------------------------------------------- | -------------------------------------------------------------- |
 | `migrate` compose service                                  | `prisma migrate deploy` and CDR category backfill before `app` |
-| Baseline migration `prisma/migrations/20260806100000_init` | Production schema apply path                                  |
-| `/api/healthz` / `/api/readyz`                             | Liveness; env+DB readiness                                    |
-| Startup instrumentation                                    | Env assert → baseline seed → admin bootstrap → scheduler eval |
-| `docs/production-checklist.md`                             | Full go-live list + must-not-do                               |
-| `docs/backup-and-restore.md`                               | `pg_dump` / restore / encryption key                          |
-| `docs/smoke-tests.md`                                      | Automated + UI acceptance                                     |
+| Baseline migration `prisma/migrations/20260806100000_init` | Production schema apply path                                   |
+| `/api/healthz` / `/api/readyz`                             | Liveness; env+DB readiness                                     |
+| Startup instrumentation                                    | Env assert → baseline seed → admin bootstrap → scheduler eval  |
+| `docs/production-checklist.md`                             | Full go-live list + must-not-do                                |
+| `docs/backup-and-restore.md`                               | `pg_dump` / restore / encryption key                           |
+| `docs/smoke-tests.md`                                      | Automated + UI acceptance                                      |
 
 ## Explicitly NOT done in Phase 7
 

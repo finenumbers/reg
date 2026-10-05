@@ -13,13 +13,9 @@ import {
   renderCallStatusCaseSql,
 } from "@/modules/traffic/call-class";
 
-const CATEGORY_MIGRATION = path.join(
+const LABEL_MIGRATION = path.join(
   process.cwd(),
-  "prisma/migrations/20261005192000_cdr_call_class_extra/migration.sql",
-);
-const STATUS_MIGRATION = path.join(
-  process.cwd(),
-  "prisma/migrations/20261005181000_cdr_call_class/migration.sql",
+  "prisma/migrations/20261005211500_cdr_call_class_labels/migration.sql",
 );
 
 describe("classifyCallCategory", () => {
@@ -101,9 +97,8 @@ describe("classifyCallStatus", () => {
 
 describe("call class SQL", () => {
   it("is the function body stored in the migration", () => {
-    expect(readFileSync(CATEGORY_MIGRATION, "utf8")).toContain(
-      renderCallCategoryCaseSql(),
-    );
-    expect(readFileSync(STATUS_MIGRATION, "utf8")).toContain(renderCallStatusCaseSql());
+    const sql = readFileSync(LABEL_MIGRATION, "utf8");
+    expect(sql).toContain(renderCallCategoryCaseSql());
+    expect(sql).toContain(renderCallStatusCaseSql());
   });
 });

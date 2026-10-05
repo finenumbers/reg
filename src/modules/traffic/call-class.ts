@@ -15,7 +15,7 @@ export const CALL_CATEGORY = {
   outgoing: "Исходящий звонок",
   incoming: "Входящий звонок",
   internal: "Внутренний звонок",
-  phantom: "Фантомный звонок",
+  phantom: "Фантомный трафик",
   incomingParking: "Входящий паркинг",
   outgoingParking: "Исходящий паркинг",
   error: "Ошибка",
@@ -29,8 +29,8 @@ const UNREGISTERED_DISCONNECT = "Class4, 1 - Unregistered IP Address";
 const ROUTE_ERROR_DISCONNECT = "Class4, 40 - Gateway Is Invalid";
 
 export const CALL_STATUS = {
-  success: "Удачный",
-  failed: "Неудачный",
+  success: "Успешный",
+  failed: "Неуспешный",
 } as const;
 
 export type CallClass = {

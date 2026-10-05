@@ -3,8 +3,10 @@
  * 1. Replace stored «Нет в биллинге» with «-» on both sides.
  * 2. Fill call_category / call_status left empty by the first migration.
  * 3. Reclassify rows that match the extra category predicates.
+ * 4. Rewrite leftover «Фантомный звонок» and «Удачный» / «Неудачный» labels.
  *
  * Idempotent. A partial index exists only while old billing-miss rows remain.
+ * The label pass walks the text primary key once and does not build an index.
  * Compose migrator runs this after migrate deploy. The app must not start
  * until this script exits 0.
  */
@@ -183,11 +185,79 @@ async function reclassifyExtra() {
   console.log("cdr call class reclassify: complete");
 }
 
+const OLD_PHANTOM = "Фантомный звонок";
+const OLD_SUCCESS = "Удачный";
+const OLD_FAILED = "Неудачный";
+
+/** One forward scan of the cuid primary key. Do not restart from id '' each batch. */
+async function renameCallClassLabels() {
+  let cursor = "";
+  let renamed = 0;
+  for (;;) {
+    const preview = await client.query(
+      `SELECT id FROM cdr_records
+       WHERE id > $1
+         AND (
+           call_status IN ($2, $3)
+           OR call_category = $4
+         )
+       ORDER BY id
+       LIMIT $5`,
+      [cursor, OLD_SUCCESS, OLD_FAILED, OLD_PHANTOM, BATCH],
+    );
+    if ((preview.rowCount ?? 0) === 0) break;
+
+    const ids = preview.rows.map((row) => row.id);
+    const firstId = ids[0];
+    const lastId = ids[ids.length - 1];
+    await client.query("BEGIN");
+    try {
+      const updated = await client.query(
+        `UPDATE cdr_records
+         SET call_category = ${CATEGORY_FN},
+             call_status = cdr_call_status(elapsed_time)
+         WHERE id = ANY($1::text[])`,
+        [ids],
+      );
+      await client.query("COMMIT");
+      const touched = updated.rowCount ?? 0;
+      if (touched !== ids.length) {
+        throw new Error(`cdr call class rename updated ${touched} of ${ids.length}`);
+      }
+      const still = await client.query(
+        `SELECT 1 FROM cdr_records
+         WHERE id = $1
+           AND (
+             call_status IN ($2, $3)
+             OR call_category = $4
+           )`,
+        [firstId, OLD_SUCCESS, OLD_FAILED, OLD_PHANTOM],
+      );
+      if ((still.rowCount ?? 0) > 0) {
+        throw new Error(`cdr call class rename left ${firstId} unchanged`);
+      }
+      renamed += touched;
+      console.log(`cdr call class rename: updated ${touched}`);
+      cursor = lastId;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    }
+  }
+  if (renamed > 0) {
+    await client.query("ANALYZE cdr_records");
+    console.log("cdr call class rename: complete");
+    return;
+  }
+  console.log("cdr call class rename: nothing to rewrite");
+}
+
 try {
   await client.connect();
   await replaceBillingMiss();
   await fillEmptyCategories();
   await reclassifyExtra();
+  await renameCallClassLabels();
 } catch (error) {
   console.error(error instanceof Error ? error.message : error);
   process.exitCode = 1;

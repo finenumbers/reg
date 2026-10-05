@@ -8,8 +8,8 @@ import ExcelJS from "exceljs";
 import { excelPhoneValue } from "@/modules/enrich/excel-phone";
 import { xlsxCdrDateTimeCells } from "@/modules/traffic/cdr-date-parts";
 import { guardExcelText } from "@/modules/enrich/formula-guard";
-import { classifyCdrRow } from "@/modules/enrich/row-flags";
 import { classifyCallCategory, classifyExportStatus } from "@/modules/traffic/call-class";
+import { cdrRowTone } from "@/modules/traffic/row-tone";
 import {
   DETAIL_HEADERS,
   DETAIL_WIDTHS,
@@ -32,7 +32,8 @@ import {
   xlsxMissFontRole,
   XLSX_BILLING_FONT_ARGB,
   XLSX_CALL_ERROR_FILL,
-  XLSX_KNOWN_EMPTY_DURATION_FILL,
+  XLSX_CHECK_FILL,
+  XLSX_FAILED_FILL,
   XLSX_PARKING_KNOWN_FILL,
   XLSX_PHANTOM_FILL,
   XLSX_PSTN_FONT_ARGB,
@@ -124,18 +125,15 @@ function applyStyle(
 }
 
 function rowFill(row: ResolvedEnrichedRow): ExcelJS.Fill | undefined {
-  const flag = classifyCdrRow({
-    aNumber: row.aNumber,
-    bNumber: row.bNumber,
-    sideA: row.sideA,
-    sideB: row.sideB,
-    dialObject: row.dialObject,
-    elapsedTime: row.elapsedTime,
-  });
-  if (flag === "phantom") return XLSX_PHANTOM_FILL;
-  if (flag === "call_error") return XLSX_CALL_ERROR_FILL;
-  if (flag === "parking_known") return XLSX_PARKING_KNOWN_FILL;
-  if (flag === "known_empty_duration") return XLSX_KNOWN_EMPTY_DURATION_FILL;
+  const tone = cdrRowTone(
+    classifyCallCategory(row.sideA, row.sideB, row.termDevice, row.initDevice, row.cause),
+    classifyExportStatus(row.elapsedTime),
+  );
+  if (tone === "phantom") return XLSX_PHANTOM_FILL;
+  if (tone === "call_error") return XLSX_CALL_ERROR_FILL;
+  if (tone === "parking") return XLSX_PARKING_KNOWN_FILL;
+  if (tone === "check") return XLSX_CHECK_FILL;
+  if (tone === "failed") return XLSX_FAILED_FILL;
   return undefined;
 }
 

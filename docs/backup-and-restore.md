@@ -4,12 +4,12 @@ Practical recovery notes for Reg (PostgreSQL + encrypted SSH secrets).
 
 ## What to back up
 
-| Asset | Why |
-|-------|-----|
-| PostgreSQL database | Users, sessions, settings, SSH ciphertext, regs, jobs, audit |
-| `APP_ENCRYPTION_KEY` | **Required** to decrypt SSH private keys after restore |
-| `BETTER_AUTH_SECRET` | Session/cookie integrity; changing it invalidates sessions |
-| Compose / Portainer stack env | Reproducible redeploy (store in a secrets vault, not git) |
+| Asset                         | Why                                                          |
+| ----------------------------- | ------------------------------------------------------------ |
+| PostgreSQL database           | Users, sessions, settings, SSH ciphertext, regs, jobs, audit |
+| `APP_ENCRYPTION_KEY`          | **Required** to decrypt SSH private keys after restore       |
+| `BETTER_AUTH_SECRET`          | Session/cookie integrity; changing it invalidates sessions   |
+| Compose / Portainer stack env | Reproducible redeploy (store in a secrets vault, not git)    |
 
 Application container filesystem does **not** hold the SSH private key in plaintext. Losing only the DB without `APP_ENCRYPTION_KEY` still loses usable SSH credentials.
 
@@ -63,7 +63,7 @@ Adjust `-U` / `-d` if you changed `POSTGRES_USER` / `POSTGRES_DB`.
 3. **Scheduler:** leave Settings `regsPollEnabled=false` until restore + SSH test succeed.
 4. **NPM:** DNS/TLS live on the proxy; app only needs to be reachable on the `proxy` network at port 3000.
 5. **Audit/jobs history** live in Postgres — included in `pg_dump`.
-6. **Migrations:** after restore of an older dump, run the `migrate` service (or `./scripts/db-migrate.sh`) so schema matches the image, stored «Нет в биллинге» sides become `-`, and CDR category/status are filled. `npx prisma migrate deploy` alone leaves existing `call_category` blank and does not rewrite sides.
+6. **Migrations:** after restore of an older dump, run the `migrate` service (or `./scripts/db-migrate.sh`) so schema matches the image, stored «Нет в биллинге» sides become `-`, and CDR category/status are filled. v1.62.0 also rewrites every already labeled row from «Фантомный звонок» / «Удачный» / «Неудачный» to the new labels; the app container does not start until that script exits. `npx prisma migrate deploy` alone leaves existing `call_category` blank and does not rewrite sides or old labels.
 
 ## Encrypted secrets checklist
 

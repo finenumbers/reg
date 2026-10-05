@@ -43,10 +43,7 @@ import {
   trafficListOrderBy,
   type TimeSort,
 } from "@/modules/traffic/traffic-sort";
-import {
-  trafficFlagWhere,
-  type TrafficRowFlags,
-} from "@/modules/traffic/row-flags";
+import { trafficFlagWhere, type TrafficRowFlags } from "@/modules/traffic/row-flags";
 
 export type { CdrMonth };
 
@@ -243,7 +240,9 @@ export async function listTraffic(opts: {
   phantom?: boolean;
   callErrors?: boolean;
   parking?: boolean;
-  noAnswer?: boolean;
+  redirect?: boolean;
+  failed?: boolean;
+  check?: boolean;
   timeSort?: TimeSort | null;
   page?: number;
   pageSize?: number;
@@ -257,7 +256,9 @@ export async function listTraffic(opts: {
     phantom: opts.phantom,
     callErrors: opts.callErrors,
     parking: opts.parking,
-    noAnswer: opts.noAnswer,
+    redirect: opts.redirect,
+    failed: opts.failed,
+    check: opts.check,
   };
   const where = buildWhere(filters, phoneQ, month, flags);
   const skip = (page - 1) * pageSize;
@@ -328,7 +329,9 @@ export async function listTrafficFacets(opts: {
   phantom?: boolean;
   callErrors?: boolean;
   parking?: boolean;
-  noAnswer?: boolean;
+  redirect?: boolean;
+  failed?: boolean;
+  check?: boolean;
   q?: string;
   limit?: number;
 }): Promise<FacetResponse> {
@@ -345,7 +348,9 @@ export async function listTrafficFacets(opts: {
     phantom: opts.phantom,
     callErrors: opts.callErrors,
     parking: opts.parking,
-    noAnswer: opts.noAnswer,
+    redirect: opts.redirect,
+    failed: opts.failed,
+    check: opts.check,
   };
   const where = buildWhere(opts.filters ?? {}, phoneQ, month, flags, {
     excludeColumn: column,
@@ -384,11 +389,7 @@ export async function getTrafficStatus(): Promise<TrafficOperationalStatus> {
   ]);
   const last = summary.lastAny;
   return {
-    lastJobStatus: last
-      ? last.status
-      : summary.runningCount > 0
-        ? "running"
-        : "never",
+    lastJobStatus: last ? last.status : summary.runningCount > 0 ? "running" : "never",
     lastError: last?.status === "failed" ? last.errorMessage : null,
     lastFinishedAt: last?.finishedAt ?? null,
     lastFailedError: summary.lastFailed?.errorMessage ?? null,

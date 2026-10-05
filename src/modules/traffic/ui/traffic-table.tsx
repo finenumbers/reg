@@ -8,10 +8,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  ColumnFilterDropdown,
-  type ColumnFilters,
-} from "@/components/column-filters";
+import { ColumnFilterDropdown, type ColumnFilters } from "@/components/column-filters";
 import { HighlightText } from "@/components/highlight-text";
 import {
   CDR_PHONE_COLUMNS,
@@ -21,7 +18,7 @@ import {
 } from "@/modules/traffic/columns";
 import { buildTrafficFacetsUrl } from "@/modules/traffic/api-client";
 import type { TrafficListItem } from "@/modules/traffic/service";
-import { classifyTrafficListRow } from "@/modules/traffic/row-flags";
+import { cdrRowTone } from "@/modules/traffic/row-tone";
 import { cn } from "@/lib/utils";
 import {
   nextTimeSort,
@@ -50,7 +47,9 @@ type Props = {
   phantom?: boolean;
   callErrors?: boolean;
   parking?: boolean;
-  noAnswer?: boolean;
+  redirect?: boolean;
+  failed?: boolean;
+  check?: boolean;
   openColumn: string | null;
   onOpenColumnChange: (column: string | null) => void;
   onColumnFilterChange: (column: string, values: string[]) => void;
@@ -71,7 +70,9 @@ export function TrafficTable({
   phantom = false,
   callErrors = false,
   parking = false,
-  noAnswer = false,
+  redirect = false,
+  failed = false,
+  check = false,
   openColumn,
   onOpenColumnChange,
   onColumnFilterChange,
@@ -80,9 +81,7 @@ export function TrafficTable({
 }: Props) {
   const showEmpty = !loading && data.length === 0;
   const colCount = Math.max(headers.length, 1);
-  const highlightSet = highlightColumns
-    ? new Set(highlightColumns)
-    : DEFAULT_HIGHLIGHT;
+  const highlightSet = highlightColumns ? new Set(highlightColumns) : DEFAULT_HIGHLIGHT;
 
   return (
     <Table>
@@ -114,14 +113,14 @@ export function TrafficTable({
                       phantom,
                       callErrors,
                       parking,
-                      noAnswer,
+                      redirect,
+                      failed,
+                      check,
                       q,
                     })
                   }
                   formatValue={(value) => displayTrafficFacet(h, value)}
-                  onToggle={() =>
-                    onOpenColumnChange(openColumn === h ? null : h)
-                  }
+                  onToggle={() => onOpenColumnChange(openColumn === h ? null : h)}
                   onChange={(values) => onColumnFilterChange(h, values)}
                   onClear={() => onColumnFilterChange(h, [])}
                 />
@@ -133,75 +132,73 @@ export function TrafficTable({
       <TableBody>
         {loading ? (
           <TableRow>
-            <TableCell
-              colSpan={colCount}
-              className="h-24 text-muted-foreground"
-            >
+            <TableCell colSpan={colCount} className="text-muted-foreground h-24">
               Загрузка…
             </TableCell>
           </TableRow>
         ) : showEmpty ? (
           <TableRow>
-            <TableCell
-              colSpan={colCount}
-              className="h-24 text-muted-foreground"
-            >
+            <TableCell colSpan={colCount} className="text-muted-foreground h-24">
               {emptyMessage}
             </TableCell>
           </TableRow>
         ) : (
           data.map((row) => {
-            const flag = classifyTrafficListRow(row.data);
+            const tone = cdrRowTone(
+              row.data.call_category ?? "",
+              row.data.call_status ?? "",
+            );
             return (
-            <TableRow
-              key={row.id}
-              className={cn(
-                flag === "phantom" &&
-                  "bg-green-200 hover:bg-green-300/90 dark:bg-green-950 dark:hover:bg-green-900",
-                flag === "call_error" &&
-                  "bg-destructive/25 hover:bg-destructive/35",
-                flag === "parking_known" &&
-                  "bg-blue-200 hover:bg-blue-300/90 dark:bg-blue-950 dark:hover:bg-blue-900",
-                flag === "known_empty_duration" &&
-                  "bg-gray-200 hover:bg-gray-300/90 dark:bg-gray-950 dark:hover:bg-gray-900",
-              )}
-            >
-              {headers.map((h) => {
-                const raw = row.data[h] ?? "";
-                const shown = formatTrafficCell(h, raw);
-                return (
-                  <TableCell
-                    key={h}
-                    className={cn(
-                      "whitespace-nowrap",
-                      DEFAULT_BOLD.has(h) && "font-bold",
-                      trafficMissingLabelClass(h, shown),
-                    )}
-                  >
-                    {VOIPMONITOR_COLUMN_SET.has(h) ? (
-                      raw ? (
-                        <a
-                          href={raw}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-primary underline-offset-2 hover:underline"
-                        >
-                          {row.data[
-                            h === VOIPMONITOR_COLUMN_IN
-                              ? "voipmonitor_cdr_id_in"
-                              : "voipmonitor_cdr_id_out"
-                          ] || "открыть"}
-                        </a>
-                      ) : null
-                    ) : highlightSet.has(h) ? (
-                      <HighlightText text={shown} query={phoneQ} />
-                    ) : (
-                      shown
-                    )}
-                  </TableCell>
-                );
-              })}
-            </TableRow>
+              <TableRow
+                key={row.id}
+                className={cn(
+                  tone === "phantom" &&
+                    "bg-green-200 hover:bg-green-300/90 dark:bg-green-950 dark:hover:bg-green-900",
+                  tone === "call_error" && "bg-destructive/25 hover:bg-destructive/35",
+                  tone === "parking" &&
+                    "bg-blue-200 hover:bg-blue-300/90 dark:bg-blue-950 dark:hover:bg-blue-900",
+                  tone === "check" &&
+                    "bg-yellow-200 hover:bg-yellow-300/90 dark:bg-yellow-950 dark:hover:bg-yellow-900",
+                  tone === "failed" &&
+                    "bg-gray-200 hover:bg-gray-300/90 dark:bg-gray-950 dark:hover:bg-gray-900",
+                )}
+              >
+                {headers.map((h) => {
+                  const raw = row.data[h] ?? "";
+                  const shown = formatTrafficCell(h, raw);
+                  return (
+                    <TableCell
+                      key={h}
+                      className={cn(
+                        "whitespace-nowrap",
+                        DEFAULT_BOLD.has(h) && "font-bold",
+                        trafficMissingLabelClass(h, shown),
+                      )}
+                    >
+                      {VOIPMONITOR_COLUMN_SET.has(h) ? (
+                        raw ? (
+                          <a
+                            href={raw}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-primary underline-offset-2 hover:underline"
+                          >
+                            {row.data[
+                              h === VOIPMONITOR_COLUMN_IN
+                                ? "voipmonitor_cdr_id_in"
+                                : "voipmonitor_cdr_id_out"
+                            ] || "открыть"}
+                          </a>
+                        ) : null
+                      ) : highlightSet.has(h) ? (
+                        <HighlightText text={shown} query={phoneQ} />
+                      ) : (
+                        shown
+                      )}
+                    </TableCell>
+                  );
+                })}
+              </TableRow>
             );
           })
         )}
@@ -227,7 +224,7 @@ function TimeSortHeader({
         ? "Дата и время, по возрастанию. Нажмите чтобы сбросить"
         : "Сортировать по дате и времени";
   return (
-    <div className={`col-header col-header-sort${active ? " active" : ""}`}>
+    <div className={`col-header col-header-sort${active ? "active" : ""}`}>
       <button
         type="button"
         className="col-filter-trigger"
