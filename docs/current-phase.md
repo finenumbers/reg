@@ -1,7 +1,11 @@
-# Current Phase — production (v1.69.0)
+# Current Phase — production (v1.70.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail.  
 **Date:** 2026-10-06
+
+## v1.70.0 — Count line sits 12px above the screen edge
+
+The gap under «Показано … из …» matches the 12px gap above that text. Admin pages use 12px bottom padding; top and side padding stay 24px. Groups, statistics, settings, and enrich share that bottom inset.
 
 ## v1.69.0 — 12px table count line
 
