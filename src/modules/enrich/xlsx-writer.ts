@@ -126,7 +126,14 @@ function applyStyle(
 
 function rowFill(row: ResolvedEnrichedRow): ExcelJS.Fill | undefined {
   const tone = cdrRowTone(
-    classifyCallCategory(row.sideA, row.sideB, row.termDevice, row.initDevice, row.cause),
+    classifyCallCategory(
+      row.sideA,
+      row.sideB,
+      row.termDevice,
+      row.initDevice,
+      row.cause,
+      row.dialObject,
+    ),
     classifyExportStatus(row.elapsedTime),
   );
   if (tone === "phantom") return XLSX_PHANTOM_FILL;
@@ -254,6 +261,7 @@ function callClassCells(row: ResolvedEnrichedRow): [string, string] {
         row.termDevice,
         row.initDevice,
         row.cause,
+        row.dialObject,
       ),
     ),
     text(classifyExportStatus(row.elapsedTime)),

@@ -1,7 +1,13 @@
-# Current Phase — production (v1.63.0)
+# Current Phase — production (v1.64.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail.  
 **Date:** 2026-10-05
+
+## v1.64.0 — «Проверка» from the dial object and test sides
+
+«Проверка» is exact `dp_name = Service_Check`, or `side_a` / `side_b` starting with `Тест ` (the space is part of the prefix; `Тест` and `Тест_1` do not match). Terminating `dst_name = Service_Check` is no longer «Проверка». «Редирект» still wins. The checkbox, row fill, and month/enrich XLSX follow the stored category and the same TypeScript rule.
+
+The migrator replaces `cdr_call_category` with a six-argument function (`dp_name` last), points the existing trigger at it, then drops the five-argument function. It rewrites old `dst_name = Service_Check` rows through the indexed pass, then walks the primary key once for `dp_name = Service_Check` and sides `Тест …`. The app does not start until that script exits. `npx prisma migrate deploy` alone leaves old rows unchanged.
 
 ## v1.63.0 — No «Редирект» checkbox
 

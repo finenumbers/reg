@@ -122,7 +122,7 @@ describe("writeResolvedEnrichedXlsx", () => {
     const outputPath = path.join(dir, "out.xlsx");
     await writeFile(
       jsonlPath,
-      `${JSON.stringify({ ...ROW, initDevice: "Redirect_1", termDevice: "Service_Check", cause: "Class4, 40 - Gateway Is Invalid" })}\n`,
+      `${JSON.stringify({ ...ROW, initDevice: "Redirect_1", dialObject: "Service_Check", cause: "Class4, 40 - Gateway Is Invalid" })}\n`,
       "utf8",
     );
     await writeResolvedEnrichedXlsx({
@@ -138,6 +138,31 @@ describe("writeResolvedEnrichedXlsx", () => {
     );
     expect(workbook.getWorksheet("Детализация")!.getRow(2).getCell(3).value).toBe(
       CALL_CATEGORY.redirect,
+    );
+  });
+
+  it("writes check from a test billing side on both sheets", async () => {
+    dir = await mkdtemp(path.join(tmpdir(), "xlsx-writer-"));
+    const jsonlPath = path.join(dir, "rows.jsonl");
+    const outputPath = path.join(dir, "out.xlsx");
+    await writeFile(
+      jsonlPath,
+      `${JSON.stringify({ ...ROW, sideA: "Тест 1" })}\n`,
+      "utf8",
+    );
+    await writeResolvedEnrichedXlsx({
+      jsonlPath,
+      outputPath,
+      rowCount: 1,
+      trafficSheetName: "Август 2026 года",
+    });
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.readFile(outputPath);
+    expect(workbook.getWorksheet("Август 2026 года")!.getRow(2).getCell(3).value).toBe(
+      CALL_CATEGORY.check,
+    );
+    expect(workbook.getWorksheet("Детализация")!.getRow(2).getCell(3).value).toBe(
+      CALL_CATEGORY.check,
     );
   });
 
@@ -265,7 +290,7 @@ describe("writeResolvedEnrichedXlsx", () => {
     };
     const check: ResolvedEnrichedRow = {
       ...ROW,
-      termDevice: "Service_Check",
+      dialObject: "Service_Check",
       elapsedTime: "",
     };
     await writeFile(

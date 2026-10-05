@@ -23,8 +23,10 @@ export const CALL_CATEGORY = {
 
 /** Literal prefix. `Redirect` and `Service_Redirect_` do not match. No trim. */
 const REDIRECT_SRC_PREFIX = "Redirect_";
-/** Exact terminating device. `Service_Check_1` does not match. */
-const CHECK_DST = "Service_Check";
+/** Exact dial object. `Service_Check_1` and `Service_Check ` do not match. */
+const CHECK_DP = "Service_Check";
+/** Literal prefix, including the space. `Тест`, `Тест_1`, and `тест 1` do not match. No trim. */
+const CHECK_SIDE_PREFIX = "Тест ";
 const UNREGISTERED_DISCONNECT = "Class4, 1 - Unregistered IP Address";
 const ROUTE_ERROR_DISCONNECT = "Class4, 40 - Gateway Is Invalid";
 
@@ -53,9 +55,10 @@ function sideKnownSql(column: "side_a" | "side_b"): string {
 /** Category CASE. Embedded verbatim in the migration function body. */
 export function renderCallCategoryCaseSql(): string {
   const parking = `dst_name = ${sqlLiteral(PARKING_DST)}`;
+  const check = `dp_name = ${sqlLiteral(CHECK_DP)} OR starts_with(side_a, ${sqlLiteral(CHECK_SIDE_PREFIX)}) OR starts_with(side_b, ${sqlLiteral(CHECK_SIDE_PREFIX)})`;
   return `CASE
     WHEN starts_with(src_name, ${sqlLiteral(REDIRECT_SRC_PREFIX)}) THEN ${sqlLiteral(CALL_CATEGORY.redirect)}
-    WHEN dst_name = ${sqlLiteral(CHECK_DST)} THEN ${sqlLiteral(CALL_CATEGORY.check)}
+    WHEN ${check} THEN ${sqlLiteral(CALL_CATEGORY.check)}
     WHEN disconnect_code_string = ${sqlLiteral(UNREGISTERED_DISCONNECT)} THEN ${sqlLiteral(CALL_CATEGORY.unregistered)}
     WHEN disconnect_code_string = ${sqlLiteral(ROUTE_ERROR_DISCONNECT)} THEN ${sqlLiteral(CALL_CATEGORY.routeError)}
     WHEN ${parking} AND ${sideUnknownSql("side_a")} AND ${sideUnknownSql("side_b")} THEN ${sqlLiteral(CALL_CATEGORY.phantom)}
@@ -79,9 +82,16 @@ export function classifyCallCategory(
   dstName: string,
   srcName = "",
   disconnectCode = "",
+  dpName = "",
 ): string {
   if (srcName.startsWith(REDIRECT_SRC_PREFIX)) return CALL_CATEGORY.redirect;
-  if (dstName === CHECK_DST) return CALL_CATEGORY.check;
+  if (
+    dpName === CHECK_DP ||
+    sideA.startsWith(CHECK_SIDE_PREFIX) ||
+    sideB.startsWith(CHECK_SIDE_PREFIX)
+  ) {
+    return CALL_CATEGORY.check;
+  }
   if (disconnectCode === UNREGISTERED_DISCONNECT) return CALL_CATEGORY.unregistered;
   if (disconnectCode === ROUTE_ERROR_DISCONNECT) return CALL_CATEGORY.routeError;
   const a = isSideKnown(sideA);
@@ -117,9 +127,17 @@ export function classifyCall(
   elapsedTime: string,
   srcName = "",
   disconnectCode = "",
+  dpName = "",
 ): CallClass {
   return {
-    category: classifyCallCategory(sideA, sideB, dstName, srcName, disconnectCode),
+    category: classifyCallCategory(
+      sideA,
+      sideB,
+      dstName,
+      srcName,
+      disconnectCode,
+      dpName,
+    ),
     status: classifyCallStatus(elapsedTime),
   };
 }

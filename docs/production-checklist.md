@@ -53,7 +53,7 @@ Optional publish ports: `APP_PUBLISH_PORT`, `POSTGRES_PUBLISH_PORT`.
 
 ## 3. Database
 
-1. `migrate` service runs `prisma migrate deploy`, then the CDR category/status backfill, on each stack start (idempotent). v1.62.0 rewrites every already labeled CDR row’s status (and «Фантомный звонок») before `app` starts. `npx prisma migrate deploy` alone leaves existing rows blank and does not rename old labels.
+1. `migrate` service runs `prisma migrate deploy`, then the CDR category/status backfill, on each stack start (idempotent). v1.64.0 rewrites old `dst_name = Service_Check` rows and already stored `dp_name = Service_Check` / sides starting with `Тест ` before `app` starts. `npx prisma migrate deploy` alone leaves existing rows unchanged.
 2. If this database was previously created with `db push` only, baseline once:
 
    ```bash

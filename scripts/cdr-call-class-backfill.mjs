@@ -3,7 +3,8 @@
  * 1. Replace stored «Нет в биллинге» with «-» on both sides.
  * 2. Fill call_category / call_status left empty by the first migration.
  * 3. Reclassify rows that match the extra category predicates.
- * 4. Rewrite leftover «Фантомный звонок» and «Удачный» / «Неудачный» labels.
+ * 4. Reclassify dial-object Service_Check and billing sides «Тест …».
+ * 5. Rewrite leftover «Фантомный звонок» and «Удачный» / «Неудачный» labels.
  *
  * Idempotent. A partial index exists only while old billing-miss rows remain.
  * The label pass walks the text primary key once and does not build an index.
@@ -16,7 +17,9 @@ const BATCH = 5000;
 const EMPTY_INDEX = "cdr_records_call_category_empty_idx";
 const MISS_INDEX = "cdr_records_billing_miss_idx";
 const OLD_BILLING = "Нет в биллинге";
-const CATEGORY_FN = `cdr_call_category(side_a, side_b, dst_name, src_name, disconnect_code_string)`;
+const CATEGORY_FN = `cdr_call_category(side_a, side_b, dst_name, src_name, disconnect_code_string, dp_name)`;
+const CHECK_DP = "Service_Check";
+const CHECK_SIDE_PREFIX = "Тест ";
 const EXTRA_PREDICATE = `
   starts_with(src_name, 'Redirect_')
   OR dst_name = 'Service_Check'
@@ -185,6 +188,78 @@ async function reclassifyExtra() {
   console.log("cdr call class reclassify: complete");
 }
 
+/**
+ * One forward scan of the cuid primary key. Do not restart from id '' each batch.
+ * dp_name and the billing sides are not indexed, so this predicate stays out of
+ * EXTRA_PREDICATE, which rescans from the start on every deploy.
+ */
+async function reclassifyCheckDialAndSides() {
+  let cursor = "";
+  let rewritten = 0;
+  for (;;) {
+    const preview = await client.query(
+      `SELECT id FROM cdr_records
+       WHERE id > $1
+         AND (
+           dp_name = $2
+           OR starts_with(side_a, $3)
+           OR starts_with(side_b, $3)
+         )
+         AND call_category IS DISTINCT FROM ${CATEGORY_FN}
+       ORDER BY id
+       LIMIT $4`,
+      [cursor, CHECK_DP, CHECK_SIDE_PREFIX, BATCH],
+    );
+    if ((preview.rowCount ?? 0) === 0) break;
+
+    const ids = preview.rows.map((row) => row.id);
+    const firstId = ids[0];
+    const lastId = ids[ids.length - 1];
+    await client.query("BEGIN");
+    try {
+      const updated = await client.query(
+        `UPDATE cdr_records
+         SET call_category = ${CATEGORY_FN}
+         WHERE id = ANY($1::text[])`,
+        [ids],
+      );
+      await client.query("COMMIT");
+      const touched = updated.rowCount ?? 0;
+      if (touched !== ids.length) {
+        throw new Error(
+          `cdr call class check updated ${touched} of ${ids.length}`,
+        );
+      }
+      const still = await client.query(
+        `SELECT 1 FROM cdr_records
+         WHERE id = $1
+           AND (
+             dp_name = $2
+             OR starts_with(side_a, $3)
+             OR starts_with(side_b, $3)
+           )
+           AND call_category IS DISTINCT FROM ${CATEGORY_FN}`,
+        [firstId, CHECK_DP, CHECK_SIDE_PREFIX],
+      );
+      if ((still.rowCount ?? 0) > 0) {
+        throw new Error(`cdr call class check left ${firstId} unchanged`);
+      }
+      rewritten += touched;
+      console.log(`cdr call class check: updated ${touched}`);
+      cursor = lastId;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    }
+  }
+  if (rewritten > 0) {
+    await client.query("ANALYZE cdr_records");
+    console.log("cdr call class check: complete");
+    return;
+  }
+  console.log("cdr call class check: nothing to rewrite");
+}
+
 const OLD_PHANTOM = "Фантомный звонок";
 const OLD_SUCCESS = "Удачный";
 const OLD_FAILED = "Неудачный";
@@ -257,6 +332,7 @@ try {
   await replaceBillingMiss();
   await fillEmptyCategories();
   await reclassifyExtra();
+  await reclassifyCheckDialAndSides();
   await renameCallClassLabels();
 } catch (error) {
   console.error(error instanceof Error ? error.message : error);

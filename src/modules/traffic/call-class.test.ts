@@ -17,6 +17,10 @@ const LABEL_MIGRATION = path.join(
   process.cwd(),
   "prisma/migrations/20261005211500_cdr_call_class_labels/migration.sql",
 );
+const CHECK_MIGRATION = path.join(
+  process.cwd(),
+  "prisma/migrations/20261005222000_cdr_check_dial_and_sides/migration.sql",
+);
 
 describe("classifyCallCategory", () => {
   const known = "Офис";
@@ -56,32 +60,53 @@ describe("classifyCallCategory", () => {
     const unregistered = "Class4, 1 - Unregistered IP Address";
     const routeError = "Class4, 40 - Gateway Is Invalid";
     expect(
-      classifyCallCategory(known, known, "Service_Check", "Redirect_1", unregistered),
-    ).toBe(CALL_CATEGORY.redirect);
-    expect(
       classifyCallCategory(
         known,
         known,
+        "gw",
+        "Redirect_1",
+        unregistered,
         "Service_Check",
-        "Service_Redirect_",
-        routeError,
       ),
-    ).toBe(CALL_CATEGORY.check);
+    ).toBe(CALL_CATEGORY.redirect);
+    expect(
+      classifyCallCategory(known, known, "gw", "Redirect_1", "", "Service_Check"),
+    ).toBe(CALL_CATEGORY.redirect);
+    expect(classifyCallCategory(known, known, "gw", "gw", "", "Service_Check")).toBe(
+      CALL_CATEGORY.check,
+    );
+    expect(classifyCallCategory("Тест 1", known, PARKING_DST, "gw", unregistered)).toBe(
+      CALL_CATEGORY.check,
+    );
+    expect(classifyCallCategory(known, "Тест ", "gw", "gw", routeError)).toBe(
+      CALL_CATEGORY.check,
+    );
+    expect(classifyCallCategory(known, known, "Service_Check", "gw", "")).toBe(
+      CALL_CATEGORY.internal,
+    );
     expect(classifyCallCategory(known, known, "gw", "RedirectX", "")).toBe(
       CALL_CATEGORY.internal,
     );
-    expect(classifyCallCategory(known, known, "Service_Check_1", "gw", "")).toBe(
+    expect(classifyCallCategory(known, known, "gw", "gw", "", "Service_Check_1")).toBe(
       CALL_CATEGORY.internal,
     );
+    expect(classifyCallCategory(known, known, "gw", "gw", "", " Service_Check")).toBe(
+      CALL_CATEGORY.internal,
+    );
+    expect(classifyCallCategory(known, known, "gw", "gw", "", "Service_Check ")).toBe(
+      CALL_CATEGORY.internal,
+    );
+    expect(classifyCallCategory("Тест", known, "gw")).toBe(CALL_CATEGORY.internal);
+    expect(classifyCallCategory("Тест_1", known, "gw")).toBe(CALL_CATEGORY.internal);
+    expect(classifyCallCategory("Тестовый", known, "gw")).toBe(CALL_CATEGORY.internal);
+    expect(classifyCallCategory(" Тест 1", known, "gw")).toBe(CALL_CATEGORY.internal);
+    expect(classifyCallCategory("тест 1", known, "gw")).toBe(CALL_CATEGORY.internal);
     expect(classifyCallCategory(known, known, "gw", "gw", unregistered)).toBe(
       CALL_CATEGORY.unregistered,
     );
     expect(classifyCallCategory(known, known, PARKING_DST, "gw", routeError)).toBe(
       CALL_CATEGORY.routeError,
     );
-    expect(
-      classifyCallCategory(known, known, "Service_Check", " Redirect_", unregistered),
-    ).toBe(CALL_CATEGORY.check);
   });
 });
 
@@ -97,8 +122,13 @@ describe("classifyCallStatus", () => {
 
 describe("call class SQL", () => {
   it("is the function body stored in the migration", () => {
-    const sql = readFileSync(LABEL_MIGRATION, "utf8");
+    const sql = readFileSync(CHECK_MIGRATION, "utf8");
     expect(sql).toContain(renderCallCategoryCaseSql());
-    expect(sql).toContain(renderCallStatusCaseSql());
+    expect(readFileSync(LABEL_MIGRATION, "utf8")).toContain(renderCallStatusCaseSql());
+    expect(sql).toContain("NEW.dp_name");
+    expect(sql).toContain(
+      "DROP FUNCTION cdr_call_category(text, text, text, text, text);",
+    );
+    expect(sql).not.toContain("CASCADE");
   });
 });
