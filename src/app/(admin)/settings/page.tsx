@@ -11,7 +11,7 @@ export default async function SettingsPage() {
   return (
     <div className="h-full space-y-6 overflow-y-auto">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Настройки</h1>
+        <h1 className="text-xl font-semibold tracking-tight">Настройки</h1>
         <p className="text-sm text-muted-foreground">
           SSH-профиль, импорт зашифрованного ключа, параметры опроса и месяцы
           CDR. Ключи маскируются при хранении и в UI — только замена.

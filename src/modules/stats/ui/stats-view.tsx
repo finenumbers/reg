@@ -81,7 +81,7 @@ export function StatsView({ initial }: Props) {
     <div className="flex h-full min-h-0 flex-col gap-4">
       <div className="flex shrink-0 flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Статистика</h1>
+          <h1 className="text-xl font-semibold tracking-tight">Статистика</h1>
           <p className="text-muted-foreground text-sm">
             Саммари входящих и исходящих звонков / минут по SIP-транкам и технологическим
             платформам.

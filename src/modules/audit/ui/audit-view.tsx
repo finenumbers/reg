@@ -169,7 +169,7 @@ export function AuditView({ initial }: Props) {
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
       <div className="shrink-0">
-        <h1 className="text-2xl font-semibold tracking-tight">Аудит</h1>
+        <h1 className="text-xl font-semibold tracking-tight">Аудит</h1>
         <p className="text-sm text-muted-foreground">
           События безопасности и действия операторов. Секреты в meta никогда не
           показываются.

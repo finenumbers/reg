@@ -1,7 +1,11 @@
-# Current Phase — production (v1.70.0)
+# Current Phase — production (v1.71.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail.  
 **Date:** 2026-10-06
+
+## v1.71.0 — Section titles are 20px
+
+Page section titles (`h1`) are 20px (`text-xl`, line-height 28px). The muted line under each title stays 14px. Nested `h2` headings stay 16px. Login card title, navigation, and table text are unchanged.
 
 ## v1.70.0 — Count line sits 12px above the screen edge
 
