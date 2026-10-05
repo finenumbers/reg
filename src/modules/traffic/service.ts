@@ -242,6 +242,7 @@ export async function listTraffic(opts: {
   parking?: boolean;
   failed?: boolean;
   check?: boolean;
+  success?: boolean;
   timeSort?: TimeSort | null;
   page?: number;
   pageSize?: number;
@@ -257,6 +258,7 @@ export async function listTraffic(opts: {
     parking: opts.parking,
     failed: opts.failed,
     check: opts.check,
+    success: opts.success,
   };
   const where = buildWhere(filters, phoneQ, month, flags);
   const skip = (page - 1) * pageSize;
@@ -329,6 +331,7 @@ export async function listTrafficFacets(opts: {
   parking?: boolean;
   failed?: boolean;
   check?: boolean;
+  success?: boolean;
   q?: string;
   limit?: number;
 }): Promise<FacetResponse> {
@@ -347,6 +350,7 @@ export async function listTrafficFacets(opts: {
     parking: opts.parking,
     failed: opts.failed,
     check: opts.check,
+    success: opts.success,
   };
   const where = buildWhere(opts.filters ?? {}, phoneQ, month, flags, {
     excludeColumn: column,

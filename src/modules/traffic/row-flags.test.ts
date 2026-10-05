@@ -34,6 +34,7 @@ describe("trafficFlagWhere", () => {
         parking: false,
         failed: false,
         check: false,
+        success: false,
       }),
     ).toBeNull();
   });
@@ -51,6 +52,12 @@ describe("trafficFlagWhere", () => {
     expect(trafficFlagWhere({ check: true })).toEqual({
       callCategory: CALL_CATEGORY.check,
     });
+    expect(trafficFlagWhere({ success: true })).toEqual({
+      callCategory: {
+        in: [CALL_CATEGORY.incoming, CALL_CATEGORY.outgoing, CALL_CATEGORY.internal],
+      },
+      callStatus: CALL_STATUS.success,
+    });
   });
 
   it("ORs classes when several flags are on", () => {
@@ -59,6 +66,17 @@ describe("trafficFlagWhere", () => {
     });
     expect(trafficFlagWhere({ parking: true, failed: true })).toEqual({
       OR: [parkingWhere, { callStatus: CALL_STATUS.failed }],
+    });
+    expect(trafficFlagWhere({ success: true, failed: true })).toEqual({
+      OR: [
+        { callStatus: CALL_STATUS.failed },
+        {
+          callCategory: {
+            in: [CALL_CATEGORY.incoming, CALL_CATEGORY.outgoing, CALL_CATEGORY.internal],
+          },
+          callStatus: CALL_STATUS.success,
+        },
+      ],
     });
   });
 

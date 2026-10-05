@@ -49,6 +49,7 @@ type Props = {
   parking?: boolean;
   failed?: boolean;
   check?: boolean;
+  success?: boolean;
   openColumn: string | null;
   onOpenColumnChange: (column: string | null) => void;
   onColumnFilterChange: (column: string, values: string[]) => void;
@@ -71,6 +72,7 @@ export function TrafficTable({
   parking = false,
   failed = false,
   check = false,
+  success = false,
   openColumn,
   onOpenColumnChange,
   onColumnFilterChange,
@@ -113,6 +115,7 @@ export function TrafficTable({
                       parking,
                       failed,
                       check,
+                      success,
                       q,
                     })
                   }

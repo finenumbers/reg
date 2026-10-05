@@ -5,6 +5,7 @@
  * 3. Reclassify rows that match the extra category predicates.
  * 4. Reclassify dial-object Service_Check and billing sides «Тест …».
  * 5. Rewrite leftover «Фантомный звонок» and «Удачный» / «Неудачный» labels.
+ * 6. Rewrite stored status «Неуспешный» to «Неуспешные» (status only).
  *
  * Idempotent. A partial index exists only while old billing-miss rows remain.
  * The label pass walks the text primary key once and does not build an index.
@@ -226,9 +227,7 @@ async function reclassifyCheckDialAndSides() {
       await client.query("COMMIT");
       const touched = updated.rowCount ?? 0;
       if (touched !== ids.length) {
-        throw new Error(
-          `cdr call class check updated ${touched} of ${ids.length}`,
-        );
+        throw new Error(`cdr call class check updated ${touched} of ${ids.length}`);
       }
       const still = await client.query(
         `SELECT 1 FROM cdr_records
@@ -327,6 +326,64 @@ async function renameCallClassLabels() {
   console.log("cdr call class rename: nothing to rewrite");
 }
 
+const OLD_FAILED_STATUS = "Неуспешный";
+
+/** Status text only. Do not recompute call_category. */
+async function renameFailedStatusPlural() {
+  let cursor = "";
+  let renamed = 0;
+  for (;;) {
+    const preview = await client.query(
+      `SELECT id FROM cdr_records
+       WHERE id > $1
+         AND call_status = $2
+       ORDER BY id
+       LIMIT $3`,
+      [cursor, OLD_FAILED_STATUS, BATCH],
+    );
+    if ((preview.rowCount ?? 0) === 0) break;
+
+    const ids = preview.rows.map((row) => row.id);
+    const firstId = ids[0];
+    const lastId = ids[ids.length - 1];
+    await client.query("BEGIN");
+    try {
+      const updated = await client.query(
+        `UPDATE cdr_records
+         SET call_status = cdr_call_status(elapsed_time)
+         WHERE id = ANY($1::text[])`,
+        [ids],
+      );
+      await client.query("COMMIT");
+      const touched = updated.rowCount ?? 0;
+      if (touched !== ids.length) {
+        throw new Error(`cdr failed status plural updated ${touched} of ${ids.length}`);
+      }
+      const still = await client.query(
+        `SELECT 1 FROM cdr_records
+         WHERE id = $1
+           AND call_status = $2`,
+        [firstId, OLD_FAILED_STATUS],
+      );
+      if ((still.rowCount ?? 0) > 0) {
+        throw new Error(`cdr failed status plural left ${firstId} unchanged`);
+      }
+      renamed += touched;
+      console.log(`cdr failed status plural: updated ${touched}`);
+      cursor = lastId;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    }
+  }
+  if (renamed > 0) {
+    await client.query("ANALYZE cdr_records");
+    console.log("cdr failed status plural: complete");
+    return;
+  }
+  console.log("cdr failed status plural: nothing to rewrite");
+}
+
 try {
   await client.connect();
   await replaceBillingMiss();
@@ -334,6 +391,7 @@ try {
   await reclassifyExtra();
   await reclassifyCheckDialAndSides();
   await renameCallClassLabels();
+  await renameFailedStatusPlural();
 } catch (error) {
   console.error(error instanceof Error ? error.message : error);
   process.exitCode = 1;

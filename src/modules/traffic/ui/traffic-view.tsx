@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { FILTER_TOOLBAR_INPUT, FILTER_TOOLBAR_TEXT } from "@/components/filter-toolbar";
 import { RowColorMark } from "@/components/row-color-legend";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -55,6 +56,7 @@ type LoadListOpts = {
   parking?: boolean;
   failed?: boolean;
   check?: boolean;
+  success?: boolean;
   timeSort?: TimeSort | null;
 };
 
@@ -96,6 +98,7 @@ export function TrafficView({
   const [parking, setParking] = useState(false);
   const [failed, setFailed] = useState(false);
   const [check, setCheck] = useState(false);
+  const [success, setSuccess] = useState(false);
   const [timeSort, setTimeSort] = useState<TimeSort | null>(null);
   const [month, setMonth] = useState(initial.month || currentUtcMonth().key);
   const [months, setMonths] = useState<CdrMonth[]>(
@@ -125,6 +128,7 @@ export function TrafficView({
   const parkingRef = useRef(parking);
   const failedRef = useRef(failed);
   const checkRef = useRef(check);
+  const successRef = useRef(success);
   const timeSortRef = useRef(timeSort);
   const wasBusyRef = useRef(false);
   const lastFinishedAtRef = useRef<string | null | undefined>(undefined);
@@ -138,6 +142,7 @@ export function TrafficView({
   parkingRef.current = parking;
   failedRef.current = failed;
   checkRef.current = check;
+  successRef.current = success;
   timeSortRef.current = timeSort;
 
   const defaultMonthKey = currentUtcMonth().key;
@@ -149,6 +154,7 @@ export function TrafficView({
     parking ||
     failed ||
     check ||
+    success ||
     timeSort != null ||
     month !== defaultMonthKey;
   const hasMore = items.length < total;
@@ -176,6 +182,7 @@ export function TrafficView({
       const nextParking = opts.parking ?? parkingRef.current;
       const nextFailed = opts.failed ?? failedRef.current;
       const nextCheck = opts.check ?? checkRef.current;
+      const nextSuccess = opts.success ?? successRef.current;
       const nextTimeSort = "timeSort" in opts ? opts.timeSort : timeSortRef.current;
       const nextPage = opts.page ?? (replace ? 1 : page);
       const seq = ++refreshSeq.current;
@@ -199,6 +206,7 @@ export function TrafficView({
         parking: nextParking,
         failed: nextFailed,
         check: nextCheck,
+        success: nextSuccess,
         timeSort: nextTimeSort,
         page: nextPage,
         pageSize: PAGE_SIZE,
@@ -360,6 +368,7 @@ export function TrafficView({
     setParking(false);
     setFailed(false);
     setCheck(false);
+    setSuccess(false);
     setTimeSort(null);
     setMonth(nowMonth.key);
     setOpenColumn(null);
@@ -373,6 +382,7 @@ export function TrafficView({
       parking: false,
       failed: false,
       check: false,
+      success: false,
       timeSort: null,
       month: nowMonth.key,
     });
@@ -413,6 +423,11 @@ export function TrafficView({
   function onCheckChange(checked: boolean) {
     setCheck(checked);
     void loadList({ page: 1, replace: true, check: checked });
+  }
+
+  function onSuccessChange(checked: boolean) {
+    setSuccess(checked);
+    void loadList({ page: 1, replace: true, success: checked });
   }
 
   function onTimeSortChange(next: TimeSort | null) {
@@ -618,18 +633,6 @@ export function TrafficView({
           </div>
           <div className="flex items-center gap-2">
             <input
-              id={`${searchInputId}-failed`}
-              type="checkbox"
-              className="size-4 rounded border"
-              checked={failed}
-              onChange={(e) => onFailedChange(e.target.checked)}
-            />
-            <Label htmlFor={`${searchInputId}-failed`}>
-              <RowColorMark tone="failed">Неуспешный</RowColorMark>
-            </Label>
-          </div>
-          <div className="flex items-center gap-2">
-            <input
               id={`${searchInputId}-check`}
               type="checkbox"
               className="size-4 rounded border"
@@ -638,6 +641,35 @@ export function TrafficView({
             />
             <Label htmlFor={`${searchInputId}-check`}>
               <RowColorMark tone="check">Проверка</RowColorMark>
+            </Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              id={`${searchInputId}-failed`}
+              type="checkbox"
+              className="size-4 rounded border"
+              checked={failed}
+              onChange={(e) => onFailedChange(e.target.checked)}
+            />
+            <Label htmlFor={`${searchInputId}-failed`}>
+              <RowColorMark tone="failed">Неуспешные</RowColorMark>
+            </Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              id={`${searchInputId}-success`}
+              type="checkbox"
+              className="size-4 rounded border"
+              checked={success}
+              onChange={(e) => onSuccessChange(e.target.checked)}
+            />
+            <Label htmlFor={`${searchInputId}-success`}>
+              <Badge
+                variant="outline"
+                className={`text-foreground border-transparent bg-transparent ${FILTER_TOOLBAR_TEXT} leading-none`}
+              >
+                Успешные
+              </Badge>
             </Label>
           </div>
           <Button
@@ -703,6 +735,7 @@ export function TrafficView({
             parking={parking}
             failed={failed}
             check={check}
+            success={success}
             openColumn={openColumn}
             onOpenColumnChange={setOpenColumn}
             onColumnFilterChange={onColumnChange}

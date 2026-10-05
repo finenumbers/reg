@@ -1,7 +1,13 @@
-# Current Phase — production (v1.66.0)
+# Current Phase — production (v1.67.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail.  
 **Date:** 2026-10-05
+
+## v1.67.0 — CDR «Успешные» and plural failed status
+
+CDR toolbars (traffic / geography / operators / raw) put «Проверка» after «Паркинг» and before «Неуспешные», then «Успешные». «Успешные» keeps «Входящий звонок», «Исходящий звонок», and «Внутренний звонок» only when status is «Успешный». The other checkboxes still combine with OR. Stored status «Неуспешный» is now «Неуспешные» in the column, the gray fill, and new month/enrich XLSX. The checkbox row does not filter those exports.
+
+The migrator replaces `cdr_call_status` in place (the trigger still calls it) and rewrites stored «Неуспешный» in primary-key batches of 5000, status only. The app does not start until that script exits. `npx prisma migrate deploy` alone leaves the old status text in place.
 
 ## v1.66.0 — 12px search toolbar text
 

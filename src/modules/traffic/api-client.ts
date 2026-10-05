@@ -34,6 +34,7 @@ export function buildTrafficListUrl(opts: {
   parking?: boolean;
   failed?: boolean;
   check?: boolean;
+  success?: boolean;
   timeSort?: TimeSort | null;
   page?: number;
   pageSize?: number;
@@ -48,6 +49,7 @@ export function buildTrafficListUrl(opts: {
   if (opts.parking) params.set("parking", "1");
   if (opts.failed) params.set("failed", "1");
   if (opts.check) params.set("check", "1");
+  if (opts.success) params.set("success", "1");
   if (opts.timeSort) params.set("timeSort", opts.timeSort);
   if (opts.page != null) params.set("page", String(opts.page));
   if (opts.pageSize != null) params.set("pageSize", String(opts.pageSize));
@@ -65,6 +67,7 @@ export function buildTrafficFacetsUrl(opts: {
   parking?: boolean;
   failed?: boolean;
   check?: boolean;
+  success?: boolean;
   q?: string;
   limit?: number;
 }): string {
@@ -79,6 +82,7 @@ export function buildTrafficFacetsUrl(opts: {
   if (opts.parking) params.set("parking", "1");
   if (opts.failed) params.set("failed", "1");
   if (opts.check) params.set("check", "1");
+  if (opts.success) params.set("success", "1");
   if (opts.q?.trim()) params.set("q", opts.q.trim());
   if (opts.limit != null) params.set("limit", String(opts.limit));
   return `/api/traffic/facets?${params.toString()}`;
@@ -93,6 +97,7 @@ export async function fetchTrafficList(opts: {
   parking?: boolean;
   failed?: boolean;
   check?: boolean;
+  success?: boolean;
   timeSort?: TimeSort | null;
   page?: number;
   pageSize?: number;

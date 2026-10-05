@@ -17,6 +17,10 @@ const LABEL_MIGRATION = path.join(
   process.cwd(),
   "prisma/migrations/20261005211500_cdr_call_class_labels/migration.sql",
 );
+const FAILED_PLURAL_MIGRATION = path.join(
+  process.cwd(),
+  "prisma/migrations/20261005234000_cdr_failed_status_plural/migration.sql",
+);
 const CHECK_MIGRATION = path.join(
   process.cwd(),
   "prisma/migrations/20261005222000_cdr_check_dial_and_sides/migration.sql",
@@ -123,8 +127,13 @@ describe("classifyCallStatus", () => {
 describe("call class SQL", () => {
   it("is the function body stored in the migration", () => {
     const sql = readFileSync(CHECK_MIGRATION, "utf8");
+    const labels = readFileSync(LABEL_MIGRATION, "utf8");
     expect(sql).toContain(renderCallCategoryCaseSql());
-    expect(readFileSync(LABEL_MIGRATION, "utf8")).toContain(renderCallStatusCaseSql());
+    expect(readFileSync(FAILED_PLURAL_MIGRATION, "utf8")).toContain(
+      renderCallStatusCaseSql(),
+    );
+    expect(labels).toContain("'Неуспешный'");
+    expect(labels).not.toContain("'Неуспешные'");
     expect(sql).toContain("NEW.dp_name");
     expect(sql).toContain(
       "DROP FUNCTION cdr_call_category(text, text, text, text, text);",

@@ -188,7 +188,7 @@ export const XLSX_CHECK_FILL: ExcelJS.Fill = {
   fgColor: { argb: "FFFEF08A" },
 };
 
-/** Tailwind gray-200 — status «Неуспешный» when the category has no color. */
+/** Tailwind gray-200 — status «Неуспешные» when the category has no color. */
 export const XLSX_FAILED_FILL: ExcelJS.Fill = {
   type: "pattern",
   pattern: "solid",

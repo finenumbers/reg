@@ -32,7 +32,7 @@ const ROUTE_ERROR_DISCONNECT = "Class4, 40 - Gateway Is Invalid";
 
 export const CALL_STATUS = {
   success: "Успешный",
-  failed: "Неуспешный",
+  failed: "Неуспешные",
 } as const;
 
 export type CallClass = {

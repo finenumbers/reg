@@ -12,6 +12,7 @@ export type TrafficRowFlags = {
   parking?: boolean;
   failed?: boolean;
   check?: boolean;
+  success?: boolean;
 };
 
 export function parseTrafficFlagParam(raw: string | null): boolean {
@@ -39,6 +40,14 @@ export function trafficFlagWhere(
   }
   if (flags.failed) parts.push({ callStatus: CALL_STATUS.failed });
   if (flags.check) parts.push({ callCategory: CALL_CATEGORY.check });
+  if (flags.success) {
+    parts.push({
+      callCategory: {
+        in: [CALL_CATEGORY.incoming, CALL_CATEGORY.outgoing, CALL_CATEGORY.internal],
+      },
+      callStatus: CALL_STATUS.success,
+    });
+  }
   if (parts.length === 0) return null;
   if (parts.length === 1) return parts[0]!;
   return { OR: parts };
