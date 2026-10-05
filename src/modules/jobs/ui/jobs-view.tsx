@@ -258,7 +258,7 @@ export function JobsView({ initial }: Props) {
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
       <div className="shrink-0">
-        <h1 className="text-xl font-semibold tracking-tight">Задачи</h1>
+        <h1 className="text-xl font-semibold tracking-tight [text-box:trim-start_cap_alphabetic]">Задачи</h1>
         <p className="text-sm text-muted-foreground">
           История опросов и запусков задач из локальной базы. Сортировка по
           времени старта (сначала новые).

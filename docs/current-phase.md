@@ -1,7 +1,11 @@
-# Current Phase — production (v1.72.0)
+# Current Phase — production (v1.73.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail.  
 **Date:** 2026-10-06
+
+## v1.73.0 — Section title caps line up with the toolbar buttons
+
+Section titles trim the empty space above the capitals, so the top of the letters meets the top edge of the buttons on the right. Font size stays 20px. The gap between the title and its subtitle stays; that pair’s bottom edge moves up by the trimmed amount. Pages without toolbar buttons use the same trim, so the letters sit on the 16px line.
 
 ## v1.72.0 — Main column top inset matches the nav
 

@@ -8,7 +8,7 @@ export default function ForbiddenPage() {
         <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
           Доступ запрещён
         </p>
-        <h1 className="text-xl font-semibold tracking-tight">Нет прав</h1>
+        <h1 className="text-xl font-semibold tracking-tight [text-box:trim-start_cap_alphabetic]">Нет прав</h1>
         <p className="text-sm text-muted-foreground">
           Вы вошли в систему, но у вашей учётной записи нет прав на этот раздел.
         </p>
