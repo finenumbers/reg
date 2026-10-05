@@ -52,7 +52,6 @@ type LoadListOpts = {
   phantom?: boolean;
   callErrors?: boolean;
   parking?: boolean;
-  redirect?: boolean;
   failed?: boolean;
   check?: boolean;
   timeSort?: TimeSort | null;
@@ -94,7 +93,6 @@ export function TrafficView({
   const [phantom, setPhantom] = useState(false);
   const [callErrors, setCallErrors] = useState(false);
   const [parking, setParking] = useState(false);
-  const [redirect, setRedirect] = useState(false);
   const [failed, setFailed] = useState(false);
   const [check, setCheck] = useState(false);
   const [timeSort, setTimeSort] = useState<TimeSort | null>(null);
@@ -124,7 +122,6 @@ export function TrafficView({
   const phantomRef = useRef(phantom);
   const callErrorsRef = useRef(callErrors);
   const parkingRef = useRef(parking);
-  const redirectRef = useRef(redirect);
   const failedRef = useRef(failed);
   const checkRef = useRef(check);
   const timeSortRef = useRef(timeSort);
@@ -138,7 +135,6 @@ export function TrafficView({
   phantomRef.current = phantom;
   callErrorsRef.current = callErrors;
   parkingRef.current = parking;
-  redirectRef.current = redirect;
   failedRef.current = failed;
   checkRef.current = check;
   timeSortRef.current = timeSort;
@@ -150,7 +146,6 @@ export function TrafficView({
     phantom ||
     callErrors ||
     parking ||
-    redirect ||
     failed ||
     check ||
     timeSort != null ||
@@ -178,7 +173,6 @@ export function TrafficView({
       const nextPhantom = opts.phantom ?? phantomRef.current;
       const nextCallErrors = opts.callErrors ?? callErrorsRef.current;
       const nextParking = opts.parking ?? parkingRef.current;
-      const nextRedirect = opts.redirect ?? redirectRef.current;
       const nextFailed = opts.failed ?? failedRef.current;
       const nextCheck = opts.check ?? checkRef.current;
       const nextTimeSort = "timeSort" in opts ? opts.timeSort : timeSortRef.current;
@@ -202,7 +196,6 @@ export function TrafficView({
         phantom: nextPhantom,
         callErrors: nextCallErrors,
         parking: nextParking,
-        redirect: nextRedirect,
         failed: nextFailed,
         check: nextCheck,
         timeSort: nextTimeSort,
@@ -364,7 +357,6 @@ export function TrafficView({
     setPhantom(false);
     setCallErrors(false);
     setParking(false);
-    setRedirect(false);
     setFailed(false);
     setCheck(false);
     setTimeSort(null);
@@ -378,7 +370,6 @@ export function TrafficView({
       phantom: false,
       callErrors: false,
       parking: false,
-      redirect: false,
       failed: false,
       check: false,
       timeSort: null,
@@ -411,11 +402,6 @@ export function TrafficView({
   function onParkingChange(checked: boolean) {
     setParking(checked);
     void loadList({ page: 1, replace: true, parking: checked });
-  }
-
-  function onRedirectChange(checked: boolean) {
-    setRedirect(checked);
-    void loadList({ page: 1, replace: true, redirect: checked });
   }
 
   function onFailedChange(checked: boolean) {
@@ -631,18 +617,6 @@ export function TrafficView({
           </div>
           <div className="flex items-center gap-2">
             <input
-              id={`${searchInputId}-redirect`}
-              type="checkbox"
-              className="size-4 rounded border"
-              checked={redirect}
-              onChange={(e) => onRedirectChange(e.target.checked)}
-            />
-            <Label htmlFor={`${searchInputId}-redirect`} className="text-sm">
-              Редирект
-            </Label>
-          </div>
-          <div className="flex items-center gap-2">
-            <input
               id={`${searchInputId}-failed`}
               type="checkbox"
               className="size-4 rounded border"
@@ -725,7 +699,6 @@ export function TrafficView({
             phantom={phantom}
             callErrors={callErrors}
             parking={parking}
-            redirect={redirect}
             failed={failed}
             check={check}
             openColumn={openColumn}

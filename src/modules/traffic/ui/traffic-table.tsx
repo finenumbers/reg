@@ -47,7 +47,6 @@ type Props = {
   phantom?: boolean;
   callErrors?: boolean;
   parking?: boolean;
-  redirect?: boolean;
   failed?: boolean;
   check?: boolean;
   openColumn: string | null;
@@ -70,7 +69,6 @@ export function TrafficTable({
   phantom = false,
   callErrors = false,
   parking = false,
-  redirect = false,
   failed = false,
   check = false,
   openColumn,
@@ -113,7 +111,6 @@ export function TrafficTable({
                       phantom,
                       callErrors,
                       parking,
-                      redirect,
                       failed,
                       check,
                       q,

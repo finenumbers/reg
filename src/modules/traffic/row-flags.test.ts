@@ -32,7 +32,6 @@ describe("trafficFlagWhere", () => {
         phantom: false,
         callErrors: false,
         parking: false,
-        redirect: false,
         failed: false,
         check: false,
       }),
@@ -46,9 +45,6 @@ describe("trafficFlagWhere", () => {
     expect(trafficFlagWhere({ callErrors: true })).toEqual(callErrorsWhere);
     expect(callErrorsWhere.callCategory.in).not.toContain(CALL_CATEGORY.error);
     expect(trafficFlagWhere({ parking: true })).toEqual(parkingWhere);
-    expect(trafficFlagWhere({ redirect: true })).toEqual({
-      callCategory: CALL_CATEGORY.redirect,
-    });
     expect(trafficFlagWhere({ failed: true })).toEqual({
       callStatus: CALL_STATUS.failed,
     });

@@ -2,7 +2,7 @@
 
 Internal telecom ops platform for monitoring SIP registrations on an operator softswitch via allowlisted SSH scripts under `/opt/scripts/`.
 
-**Repository:** [github.com/finenumbers/reg](https://github.com/finenumbers/reg) · **Release:** [v1.62.0](https://github.com/finenumbers/reg/releases/tag/v1.62.0)
+**Repository:** [github.com/finenumbers/reg](https://github.com/finenumbers/reg) · **Release:** [v1.63.0](https://github.com/finenumbers/reg/releases/tag/v1.63.0)
 
 ## Stack (approved)
 

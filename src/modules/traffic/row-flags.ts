@@ -10,7 +10,6 @@ export type TrafficRowFlags = {
   phantom?: boolean;
   callErrors?: boolean;
   parking?: boolean;
-  redirect?: boolean;
   failed?: boolean;
   check?: boolean;
 };
@@ -38,7 +37,6 @@ export function trafficFlagWhere(
       },
     });
   }
-  if (flags.redirect) parts.push({ callCategory: CALL_CATEGORY.redirect });
   if (flags.failed) parts.push({ callStatus: CALL_STATUS.failed });
   if (flags.check) parts.push({ callCategory: CALL_CATEGORY.check });
   if (parts.length === 0) return null;

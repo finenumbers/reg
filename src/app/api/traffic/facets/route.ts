@@ -26,7 +26,6 @@ export async function GET(request: Request) {
   const phantom = parseTrafficFlagParam(url.searchParams.get("phantom"));
   const callErrors = parseTrafficFlagParam(url.searchParams.get("callErrors"));
   const parking = parseTrafficFlagParam(url.searchParams.get("parking"));
-  const redirect = parseTrafficFlagParam(url.searchParams.get("redirect"));
   const failed = parseTrafficFlagParam(url.searchParams.get("failed"));
   const check = parseTrafficFlagParam(url.searchParams.get("check"));
   const q = url.searchParams.get("q") ?? undefined;
@@ -41,7 +40,6 @@ export async function GET(request: Request) {
     phantom,
     callErrors,
     parking,
-    redirect,
     failed,
     check,
     q,

@@ -32,7 +32,6 @@ export function buildTrafficListUrl(opts: {
   phantom?: boolean;
   callErrors?: boolean;
   parking?: boolean;
-  redirect?: boolean;
   failed?: boolean;
   check?: boolean;
   timeSort?: TimeSort | null;
@@ -47,7 +46,6 @@ export function buildTrafficListUrl(opts: {
   if (opts.phantom) params.set("phantom", "1");
   if (opts.callErrors) params.set("callErrors", "1");
   if (opts.parking) params.set("parking", "1");
-  if (opts.redirect) params.set("redirect", "1");
   if (opts.failed) params.set("failed", "1");
   if (opts.check) params.set("check", "1");
   if (opts.timeSort) params.set("timeSort", opts.timeSort);
@@ -65,7 +63,6 @@ export function buildTrafficFacetsUrl(opts: {
   phantom?: boolean;
   callErrors?: boolean;
   parking?: boolean;
-  redirect?: boolean;
   failed?: boolean;
   check?: boolean;
   q?: string;
@@ -80,7 +77,6 @@ export function buildTrafficFacetsUrl(opts: {
   if (opts.phantom) params.set("phantom", "1");
   if (opts.callErrors) params.set("callErrors", "1");
   if (opts.parking) params.set("parking", "1");
-  if (opts.redirect) params.set("redirect", "1");
   if (opts.failed) params.set("failed", "1");
   if (opts.check) params.set("check", "1");
   if (opts.q?.trim()) params.set("q", opts.q.trim());
@@ -95,7 +91,6 @@ export async function fetchTrafficList(opts: {
   phantom?: boolean;
   callErrors?: boolean;
   parking?: boolean;
-  redirect?: boolean;
   failed?: boolean;
   check?: boolean;
   timeSort?: TimeSort | null;

@@ -1,7 +1,11 @@
-# Current Phase — production (v1.62.0)
+# Current Phase — production (v1.63.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail.  
 **Date:** 2026-10-05
+
+## v1.63.0 — No «Редирект» checkbox
+
+The CDR toolbar checkbox «Редирект» and its list filter are gone. Category «Редирект» is still stored and shown. A successful redirect row has no fill; a failed one stays gray. The other five checkboxes, row colors, and the label backfill are unchanged.
 
 ## v1.62.0 — CDR toolbar filters follow category and status
 

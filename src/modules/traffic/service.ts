@@ -240,7 +240,6 @@ export async function listTraffic(opts: {
   phantom?: boolean;
   callErrors?: boolean;
   parking?: boolean;
-  redirect?: boolean;
   failed?: boolean;
   check?: boolean;
   timeSort?: TimeSort | null;
@@ -256,7 +255,6 @@ export async function listTraffic(opts: {
     phantom: opts.phantom,
     callErrors: opts.callErrors,
     parking: opts.parking,
-    redirect: opts.redirect,
     failed: opts.failed,
     check: opts.check,
   };
@@ -329,7 +327,6 @@ export async function listTrafficFacets(opts: {
   phantom?: boolean;
   callErrors?: boolean;
   parking?: boolean;
-  redirect?: boolean;
   failed?: boolean;
   check?: boolean;
   q?: string;
@@ -348,7 +345,6 @@ export async function listTrafficFacets(opts: {
     phantom: opts.phantom,
     callErrors: opts.callErrors,
     parking: opts.parking,
-    redirect: opts.redirect,
     failed: opts.failed,
     check: opts.check,
   };
