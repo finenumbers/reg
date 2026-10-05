@@ -1,7 +1,11 @@
-# Current Phase — production (v1.71.0)
+# Current Phase — production (v1.72.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail.  
 **Date:** 2026-10-06
+
+## v1.72.0 — Main column top inset matches the nav
+
+The admin main column top padding is 16px, the same as the left nav. Side padding stays 24px and the bottom stays 12px. Section title line-height is unchanged, so the letters still sit inside that 16px line.
 
 ## v1.71.0 — Section titles are 20px
 
