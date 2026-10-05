@@ -1,7 +1,11 @@
-# Current Phase — production (v1.67.0)
+# Current Phase — production (v1.68.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail.  
-**Date:** 2026-10-05
+**Date:** 2026-10-06
+
+## v1.68.0 — Search field and month menu fit their labels
+
+The «Телефонный номер» field on Registrations, Phones, and CDR toolbars is as wide as that placeholder, with the same gap on the left and the right. Month menus and the Phones section menu are as wide as the widest option plus the arrow slot. The left-nav database size is saturated green.
 
 ## v1.67.0 — CDR «Успешные» and plural failed status
 

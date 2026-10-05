@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { FitSelect } from "@/components/fit-select";
 import {
   TableCountFooter,
   TableInfiniteBody,
@@ -68,11 +69,12 @@ export function DetailView({ initial }: Props) {
     return extra ? [extra, ...data.months] : data.months;
   }, [data.month, data.months]);
 
-  const longestMonthLabel = useMemo(
+  const monthSelectOptions = useMemo(
     () =>
-      monthOptions
-        .map((item) => formatMonthOption(item.year, item.month, item.count))
-        .reduce((a, b) => (b.length > a.length ? b : a), "Август 2026 года"),
+      monthOptions.map((item) => ({
+        value: item.key,
+        label: formatMonthOption(item.year, item.month, item.count),
+      })),
     [monthOptions],
   );
 
@@ -133,28 +135,15 @@ export function DetailView({ initial }: Props) {
             Звонки и минуты по клиентам каталога номеров за календарный месяц.
           </p>
         </div>
-        <div className="relative inline-grid">
-          <select
-            id="detail-month"
-            value={data.month}
-            onChange={(e) => void onMonthChange(e.target.value)}
-            disabled={loading}
-            aria-label="Календарный месяц"
-            className="border-border bg-background focus-visible:border-ring focus-visible:ring-ring/50 col-start-1 row-start-1 h-8 w-full rounded-lg border py-0 pr-8 pl-2.5 text-sm outline-none focus-visible:ring-3 disabled:opacity-60"
-          >
-            {monthOptions.map((item) => (
-              <option key={item.key} value={item.key}>
-                {formatMonthOption(item.year, item.month, item.count)}
-              </option>
-            ))}
-          </select>
-          <span
-            aria-hidden
-            className="invisible col-start-1 row-start-1 h-8 border border-transparent py-0 pr-8 pl-2.5 text-sm whitespace-nowrap"
-          >
-            {longestMonthLabel}
-          </span>
-        </div>
+        <FitSelect
+          id="detail-month"
+          value={data.month}
+          options={monthSelectOptions}
+          onChange={(value) => void onMonthChange(value)}
+          disabled={loading}
+          aria-label="Календарный месяц"
+          textClassName="text-sm"
+        />
       </div>
 
       {error ? (

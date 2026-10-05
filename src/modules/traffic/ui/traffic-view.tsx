@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { FILTER_TOOLBAR_INPUT, FILTER_TOOLBAR_TEXT } from "@/components/filter-toolbar";
+import { FitSelect } from "@/components/fit-select";
+import { FILTER_TOOLBAR_TEXT } from "@/components/filter-toolbar";
+import { PhoneSearchInput } from "@/components/phone-search-input";
 import { RowColorMark } from "@/components/row-color-legend";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   ActiveFiltersBar,
@@ -163,11 +164,12 @@ export function TrafficView({
     const extra = parseMonthKey(month);
     return extra ? [extra, ...months] : months;
   }, [month, months]);
-  const longestMonthLabel = useMemo(
+  const monthSelectOptions = useMemo(
     () =>
-      monthOptions
-        .map((item) => formatMonthOption(item.year, item.month, item.count))
-        .reduce((a, b) => (b.length > a.length ? b : a), "Август 2026 года"),
+      monthOptions.map((item) => ({
+        value: item.key,
+        label: formatMonthOption(item.year, item.month, item.count),
+      })),
     [monthOptions],
   );
 
@@ -585,15 +587,10 @@ export function TrafficView({
 
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
-          <Input
+          <PhoneSearchInput
             id={searchInputId}
             value={phoneInput}
-            onChange={(e) => setPhoneInput(e.target.value)}
-            placeholder="Телефонный номер"
-            aria-label="Телефонный номер"
-            size={19}
-            className={`w-[calc(17ch+1.25rem)] shrink-0 ${FILTER_TOOLBAR_INPUT}`}
-            autoComplete="off"
+            onChange={setPhoneInput}
           />
           <div className="flex items-center gap-2">
             <input
@@ -682,27 +679,14 @@ export function TrafficView({
             Сбросить фильтры
           </Button>
         </div>
-        <div className="relative inline-grid">
-          <select
-            id={`${searchInputId}-month`}
-            value={month}
-            onChange={(e) => onMonthChange(e.target.value)}
-            aria-label="Календарный месяц"
-            className={`border-border bg-background focus-visible:border-ring focus-visible:ring-ring/50 col-start-1 row-start-1 h-8 w-full rounded-lg border py-0 pr-8 pl-2.5 ${FILTER_TOOLBAR_TEXT} outline-none focus-visible:ring-3`}
-          >
-            {monthOptions.map((item) => (
-              <option key={item.key} value={item.key}>
-                {formatMonthOption(item.year, item.month, item.count)}
-              </option>
-            ))}
-          </select>
-          <span
-            aria-hidden
-            className={`invisible col-start-1 row-start-1 h-8 border border-transparent py-0 pr-8 pl-2.5 ${FILTER_TOOLBAR_TEXT} whitespace-nowrap`}
-          >
-            {longestMonthLabel}
-          </span>
-        </div>
+        <FitSelect
+          id={`${searchInputId}-month`}
+          value={month}
+          options={monthSelectOptions}
+          onChange={onMonthChange}
+          aria-label="Календарный месяц"
+          textClassName={FILTER_TOOLBAR_TEXT}
+        />
       </div>
 
       <ActiveFiltersBar

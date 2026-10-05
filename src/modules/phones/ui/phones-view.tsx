@@ -2,13 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import {
-  FILTER_TOOLBAR_INPUT,
-  FILTER_TOOLBAR_TEXT,
-} from "@/components/filter-toolbar";
+import { FitSelect } from "@/components/fit-select";
+import { FILTER_TOOLBAR_TEXT } from "@/components/filter-toolbar";
+import { PhoneSearchInput } from "@/components/phone-search-input";
 import { RowColorMark } from "@/components/row-color-legend";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   ActiveFiltersBar,
@@ -138,16 +136,19 @@ export function PhonesView({
     return map;
   }, [headers]);
 
-  const longestKindLabel = useMemo(() => {
-    const labels = [
-      "Шлюзы",
-      "Транки с регистрацией",
-      "Транки без регистрации",
-      ...(errorCount > 0 || kind === "endpoints_error"
-        ? [`Ошибка (${formatCount(errorCount)})`]
-        : []),
+  const kindOptions = useMemo(() => {
+    const options: { value: PhoneKind; label: string }[] = [
+      { value: "gateways", label: "Шлюзы" },
+      { value: "endpoints_registered", label: "Транки с регистрацией" },
+      { value: "endpoints_unregistered", label: "Транки без регистрации" },
     ];
-    return labels.reduce((a, b) => (b.length > a.length ? b : a));
+    if (errorCount > 0 || kind === "endpoints_error") {
+      options.push({
+        value: "endpoints_error",
+        label: `Ошибка (${formatCount(errorCount)})`,
+      });
+    }
+    return options;
   }, [errorCount, kind]);
 
   useEffect(() => {
@@ -553,15 +554,10 @@ export function PhonesView({
 
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
-          <Input
+          <PhoneSearchInput
             id="phones-phone-search"
             value={phoneInput}
-            onChange={(e) => onPhoneInputChange(e.target.value)}
-            placeholder="Телефонный номер"
-            aria-label="Телефонный номер"
-            size={19}
-            className={`w-[calc(17ch+1.25rem)] shrink-0 ${FILTER_TOOLBAR_INPUT}`}
-            autoComplete="off"
+            onChange={onPhoneInputChange}
           />
           {kind === "endpoints_registered" ? (
             <div className="flex items-center gap-2">
@@ -591,34 +587,14 @@ export function PhonesView({
             Сбросить фильтры
           </Button>
         </div>
-        <div className="relative inline-grid">
-          <select
-            id="phones-kind"
-            value={kind}
-            onChange={(e) => switchKind(e.target.value as PhoneKind)}
-            aria-label="Раздел"
-            className={`col-start-1 row-start-1 h-8 w-full rounded-lg border border-border bg-background py-0 pl-2.5 pr-8 ${FILTER_TOOLBAR_TEXT} outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50`}
-          >
-            <option value="gateways">Шлюзы</option>
-            <option value="endpoints_registered">
-              Транки с регистрацией
-            </option>
-            <option value="endpoints_unregistered">
-              Транки без регистрации
-            </option>
-            {errorCount > 0 || kind === "endpoints_error" ? (
-              <option value="endpoints_error">
-                Ошибка ({formatCount(errorCount)})
-              </option>
-            ) : null}
-          </select>
-          <span
-            aria-hidden
-            className={`invisible col-start-1 row-start-1 h-8 whitespace-nowrap border border-transparent py-0 pl-2.5 pr-8 ${FILTER_TOOLBAR_TEXT}`}
-          >
-            {longestKindLabel}
-          </span>
-        </div>
+        <FitSelect
+          id="phones-kind"
+          value={kind}
+          options={kindOptions}
+          onChange={(value) => switchKind(value as PhoneKind)}
+          aria-label="Раздел"
+          textClassName={FILTER_TOOLBAR_TEXT}
+        />
       </div>
 
       <ActiveFiltersBar

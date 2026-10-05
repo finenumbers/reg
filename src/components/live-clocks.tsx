@@ -147,7 +147,7 @@ export function LiveClocks({ className }: { className?: string }) {
       <span>БД:</span>
       <span
         className={cn(
-          "font-bold text-black tabular-nums",
+          "font-bold text-green-600 tabular-nums dark:text-green-500",
           dbBytes == null && "invisible",
         )}
       >

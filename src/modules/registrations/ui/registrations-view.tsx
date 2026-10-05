@@ -2,13 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import {
-  FILTER_TOOLBAR_INPUT,
-  FILTER_TOOLBAR_TEXT,
-} from "@/components/filter-toolbar";
+import { FILTER_TOOLBAR_TEXT } from "@/components/filter-toolbar";
+import { PhoneSearchInput } from "@/components/phone-search-input";
 import { RowColorMark } from "@/components/row-color-legend";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   ActiveFiltersBar,
@@ -459,15 +456,10 @@ export function RegistrationsView({ canPoll, initial }: Props) {
       ) : null}
 
       <div className="flex shrink-0 flex-wrap items-center gap-3">
-        <Input
+        <PhoneSearchInput
           id="regs-phone-search"
           value={phoneInput}
-          onChange={(e) => onPhoneInputChange(e.target.value)}
-          placeholder="Телефонный номер"
-          aria-label="Телефонный номер"
-          size={19}
-          className={`w-[calc(17ch+1.25rem)] shrink-0 ${FILTER_TOOLBAR_INPUT}`}
-          autoComplete="off"
+          onChange={onPhoneInputChange}
         />
         <div className="flex items-center gap-2">
           <input
