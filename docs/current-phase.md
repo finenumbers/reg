@@ -1,7 +1,11 @@
-# Current Phase — production (v1.73.0)
+# Current Phase — production (v1.74.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail.  
 **Date:** 2026-10-06
+
+## v1.74.0 — Main column left inset is 16px
+
+The admin main column left padding is 16px, the same as the top inset. The right side stays 24px and the bottom stays 12px.
 
 ## v1.73.0 — Section title caps line up with the toolbar buttons
 

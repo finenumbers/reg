@@ -167,7 +167,7 @@ export function AppShell({
           </Button>
         </div>
       </aside>
-      <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-6 pt-4 pb-3">
+      <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pr-6 pl-4 pt-4 pb-3">
         {children}
       </main>
     </div>
