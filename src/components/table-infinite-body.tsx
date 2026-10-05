@@ -57,7 +57,7 @@ export function TableCountFooter({
   return (
     <div
       className={cn(
-        "shrink-0 border-t border-border/60 pt-3 text-sm text-muted-foreground",
+        "shrink-0 border-t border-border/60 pt-3 text-xs text-muted-foreground",
         className,
       )}
     >

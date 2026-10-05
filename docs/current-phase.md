@@ -1,7 +1,11 @@
-# Current Phase — production (v1.68.0)
+# Current Phase — production (v1.69.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail.  
 **Date:** 2026-10-06
+
+## v1.69.0 — 12px table count line
+
+The «Показано … из …» line under tables, including «0 результатов», uses the same 12px as table cells. Top padding and the border stay. The in-scroll «Загрузка…» line stays 14px.
 
 ## v1.68.0 — Search field and month menu fit their labels
 
