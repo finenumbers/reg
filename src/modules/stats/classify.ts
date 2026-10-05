@@ -47,7 +47,7 @@ export function isIncomingParking(srcName: string, dstName: string): boolean {
   return isSipTrunk(srcName) && dstName === PARKING_DST;
 }
 
-/** Incoming parking plus both stored sides «Нет в биллинге». */
+/** Incoming parking plus both stored sides «-». */
 export function isParkingPhantom(
   srcName: string,
   dstName: string,

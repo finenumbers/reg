@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MISSING_PSTN_LABEL } from "@/modules/enrich/types";
+import { MISSING_BILLING_LABEL, MISSING_PSTN_LABEL } from "@/modules/enrich/types";
 import {
   applyPatchToRow,
   collectGapKeys,
@@ -46,7 +46,7 @@ describe("collectGapKeys", () => {
         cityB: "",
         providerB: "",
         enrichedAt: new Date("2026-08-01T00:00:00.000Z"),
-        sideB: "Нет в биллинге",
+        sideB: MISSING_BILLING_LABEL,
       }),
     );
     expect(keys.phones).toEqual([]);
@@ -71,10 +71,7 @@ describe("mergeEnrichGaps", () => {
     const { patch } = mergeEnrichGaps(row(), {
       descriptions: new Map([["78620000000", "Офис B"]]),
       pstn: new Map([
-        [
-          "78620000000",
-          { found: true, operator: "Билайн", garTerritory: "Сочи" },
-        ],
+        ["78620000000", { found: true, operator: "Билайн", garTerritory: "Сочи" }],
       ]),
       geo: new Map([
         [
@@ -106,10 +103,7 @@ describe("mergeEnrichGaps", () => {
     const { patch } = mergeEnrichGaps(original, {
       descriptions: new Map(),
       pstn: new Map([
-        [
-          "78620000000",
-          { found: true, operator: "Билайн", garTerritory: "Сочи" },
-        ],
+        ["78620000000", { found: true, operator: "Билайн", garTerritory: "Сочи" }],
       ]),
       geo: new Map(),
     });

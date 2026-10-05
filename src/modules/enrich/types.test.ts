@@ -10,7 +10,7 @@ import {
 } from "@/modules/enrich/types";
 
 describe("enrich field rules", () => {
-  it("uses Нет в биллинге when description is missing", () => {
+  it("uses - when description is missing", () => {
     expect(descriptionOrMissing(undefined)).toBe(MISSING_BILLING_LABEL);
     expect(descriptionOrMissing("  ")).toBe(MISSING_BILLING_LABEL);
     expect(descriptionOrMissing("Шлюз")).toBe("Шлюз");

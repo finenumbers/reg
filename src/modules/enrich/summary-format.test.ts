@@ -30,7 +30,7 @@ describe("formatEnrichSummary", () => {
       { label: "Уникальных IP", value: formatCount(12) },
       {
         label: "Описания",
-        value: `${formatCount(415)} найдено / ${formatCount(62773)} нет в биллинге`,
+        value: `${formatCount(415)} найдено / ${formatCount(62773)} -`,
       },
       {
         label: "PSTN",

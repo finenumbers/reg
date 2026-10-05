@@ -8,6 +8,10 @@ import { MISSING_BILLING_LABEL } from "@/modules/enrich/types";
 import { PARKING_DST } from "@/modules/stats/classify";
 
 export const CALL_CATEGORY = {
+  redirect: "Редирект",
+  check: "Проверка",
+  unregistered: "Нет регистрации",
+  routeError: "Ошибка маршрута",
   outgoing: "Исходящий звонок",
   incoming: "Входящий звонок",
   internal: "Внутренний звонок",
@@ -16,6 +20,13 @@ export const CALL_CATEGORY = {
   outgoingParking: "Исходящий паркинг",
   error: "Ошибка",
 } as const;
+
+/** Literal prefix. `Redirect` and `Service_Redirect_` do not match. No trim. */
+const REDIRECT_SRC_PREFIX = "Redirect_";
+/** Exact terminating device. `Service_Check_1` does not match. */
+const CHECK_DST = "Service_Check";
+const UNREGISTERED_DISCONNECT = "Class4, 1 - Unregistered IP Address";
+const ROUTE_ERROR_DISCONNECT = "Class4, 40 - Gateway Is Invalid";
 
 export const CALL_STATUS = {
   success: "Удачный",
@@ -43,6 +54,10 @@ function sideKnownSql(column: "side_a" | "side_b"): string {
 export function renderCallCategoryCaseSql(): string {
   const parking = `dst_name = ${sqlLiteral(PARKING_DST)}`;
   return `CASE
+    WHEN starts_with(src_name, ${sqlLiteral(REDIRECT_SRC_PREFIX)}) THEN ${sqlLiteral(CALL_CATEGORY.redirect)}
+    WHEN dst_name = ${sqlLiteral(CHECK_DST)} THEN ${sqlLiteral(CALL_CATEGORY.check)}
+    WHEN disconnect_code_string = ${sqlLiteral(UNREGISTERED_DISCONNECT)} THEN ${sqlLiteral(CALL_CATEGORY.unregistered)}
+    WHEN disconnect_code_string = ${sqlLiteral(ROUTE_ERROR_DISCONNECT)} THEN ${sqlLiteral(CALL_CATEGORY.routeError)}
     WHEN ${parking} AND ${sideUnknownSql("side_a")} AND ${sideUnknownSql("side_b")} THEN ${sqlLiteral(CALL_CATEGORY.phantom)}
     WHEN ${parking} AND ${sideUnknownSql("side_a")} AND ${sideKnownSql("side_b")} THEN ${sqlLiteral(CALL_CATEGORY.incomingParking)}
     WHEN ${parking} AND ${sideKnownSql("side_a")} THEN ${sqlLiteral(CALL_CATEGORY.outgoingParking)}
@@ -62,7 +77,13 @@ export function classifyCallCategory(
   sideA: string,
   sideB: string,
   dstName: string,
+  srcName = "",
+  disconnectCode = "",
 ): string {
+  if (srcName.startsWith(REDIRECT_SRC_PREFIX)) return CALL_CATEGORY.redirect;
+  if (dstName === CHECK_DST) return CALL_CATEGORY.check;
+  if (disconnectCode === UNREGISTERED_DISCONNECT) return CALL_CATEGORY.unregistered;
+  if (disconnectCode === ROUTE_ERROR_DISCONNECT) return CALL_CATEGORY.routeError;
   const a = isSideKnown(sideA);
   const b = isSideKnown(sideB);
   const parking = dstName === PARKING_DST;
@@ -94,9 +115,11 @@ export function classifyCall(
   sideB: string,
   dstName: string,
   elapsedTime: string,
+  srcName = "",
+  disconnectCode = "",
 ): CallClass {
   return {
-    category: classifyCallCategory(sideA, sideB, dstName),
+    category: classifyCallCategory(sideA, sideB, dstName, srcName, disconnectCode),
     status: classifyCallStatus(elapsedTime),
   };
 }

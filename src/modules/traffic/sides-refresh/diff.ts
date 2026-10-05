@@ -45,7 +45,7 @@ export function descriptionMapsEqual(
 
 /**
  * Pairs to write onto cdr_records. Missing previous map → apply the whole catalog.
- * Removed phones become «Нет в биллинге».
+ * Removed phones become «-».
  */
 export function diffDescriptionMaps(
   previous: Map<string, string> | null,

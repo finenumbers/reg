@@ -81,10 +81,7 @@ describe("writeResolvedEnrichedXlsx", () => {
   });
 
   it("keeps both sheets by default", async () => {
-    await expect(writeWorkbook()).resolves.toEqual([
-      "Август 2026 года",
-      "Детализация",
-    ]);
+    await expect(writeWorkbook()).resolves.toEqual(["Август 2026 года", "Детализация"]);
   });
 
   it("splits call time into Дата and Время on both sheets", async () => {
@@ -102,12 +99,12 @@ describe("writeResolvedEnrichedXlsx", () => {
     await workbook.xlsx.readFile(outputPath);
     const traffic = workbook.getWorksheet("Август 2026 года")!;
     const detail = workbook.getWorksheet("Детализация")!;
-    expect(
-      TRAFFIC_HEADERS.map((_, i) => traffic.getRow(1).getCell(i + 1).value),
-    ).toEqual([...TRAFFIC_HEADERS]);
-    expect(
-      DETAIL_HEADERS.map((_, i) => detail.getRow(1).getCell(i + 1).value),
-    ).toEqual([...DETAIL_HEADERS]);
+    expect(TRAFFIC_HEADERS.map((_, i) => traffic.getRow(1).getCell(i + 1).value)).toEqual(
+      [...TRAFFIC_HEADERS],
+    );
+    expect(DETAIL_HEADERS.map((_, i) => detail.getRow(1).getCell(i + 1).value)).toEqual([
+      ...DETAIL_HEADERS,
+    ]);
     expect(traffic.getRow(2).getCell(1).value).toBe("01.08.2026");
     expect(traffic.getRow(2).getCell(2).value).toBe("12:00:00");
     expect(traffic.getRow(2).getCell(3).value).toBe(CALL_CATEGORY.internal);
@@ -116,6 +113,31 @@ describe("writeResolvedEnrichedXlsx", () => {
     expect(detail.getRow(2).getCell(2).value).toBe("12:00:00");
     expect(detail.getRow(2).getCell(3).value).toBe(CALL_CATEGORY.internal);
     expect(detail.getRow(2).getCell(4).value).toBe(CALL_STATUS.success);
+  });
+
+  it("writes redirect from the initiating device on both sheets", async () => {
+    dir = await mkdtemp(path.join(tmpdir(), "xlsx-writer-"));
+    const jsonlPath = path.join(dir, "rows.jsonl");
+    const outputPath = path.join(dir, "out.xlsx");
+    await writeFile(
+      jsonlPath,
+      `${JSON.stringify({ ...ROW, initDevice: "Redirect_1", termDevice: "Service_Check", cause: "Class4, 40 - Gateway Is Invalid" })}\n`,
+      "utf8",
+    );
+    await writeResolvedEnrichedXlsx({
+      jsonlPath,
+      outputPath,
+      rowCount: 1,
+      trafficSheetName: "Август 2026 года",
+    });
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.readFile(outputPath);
+    expect(workbook.getWorksheet("Август 2026 года")!.getRow(2).getCell(3).value).toBe(
+      CALL_CATEGORY.redirect,
+    );
+    expect(workbook.getWorksheet("Детализация")!.getRow(2).getCell(3).value).toBe(
+      CALL_CATEGORY.redirect,
+    );
   });
 
   it("fills phantom, call-error, parking-known, and empty-duration rows on every column of both sheets", async () => {
@@ -178,13 +200,10 @@ describe("writeResolvedEnrichedXlsx", () => {
       return fill?.fgColor?.argb;
     };
     const phantomArgb = (XLSX_PHANTOM_FILL as ExcelJS.FillPattern).fgColor?.argb;
-    const errorArgb = (XLSX_CALL_ERROR_FILL as ExcelJS.FillPattern).fgColor
+    const errorArgb = (XLSX_CALL_ERROR_FILL as ExcelJS.FillPattern).fgColor?.argb;
+    const parkingArgb = (XLSX_PARKING_KNOWN_FILL as ExcelJS.FillPattern).fgColor?.argb;
+    const noAnswerArgb = (XLSX_KNOWN_EMPTY_DURATION_FILL as ExcelJS.FillPattern).fgColor
       ?.argb;
-    const parkingArgb = (XLSX_PARKING_KNOWN_FILL as ExcelJS.FillPattern).fgColor
-      ?.argb;
-    const noAnswerArgb = (
-      XLSX_KNOWN_EMPTY_DURATION_FILL as ExcelJS.FillPattern
-    ).fgColor?.argb;
 
     for (const sheet of [traffic!, detail!]) {
       const lastCol = sheet.columnCount;
@@ -200,21 +219,13 @@ describe("writeResolvedEnrichedXlsx", () => {
       }
     }
 
-    expect(traffic!.getRow(2).getCell(6).font?.color?.argb).toBe(
-      XLSX_BILLING_FONT_ARGB,
-    );
-    expect(traffic!.getRow(2).getCell(8).font?.color?.argb).toBe(
-      XLSX_BILLING_FONT_ARGB,
-    );
-    expect(detail!.getRow(2).getCell(6).font?.color?.argb).toBe(
-      XLSX_BILLING_FONT_ARGB,
-    );
-    expect(detail!.getRow(2).getCell(10).font?.color?.argb).toBe(
-      XLSX_BILLING_FONT_ARGB,
-    );
-    expect(traffic!.getRow(5).getCell(8).font?.color?.argb).toBe(
-      XLSX_BILLING_FONT_ARGB,
-    );
+    expect(traffic!.getRow(2).getCell(6).value).toBe(MISSING_BILLING_LABEL);
+    expect(String(traffic!.getRow(2).getCell(6).value).startsWith("'")).toBe(false);
+    expect(traffic!.getRow(2).getCell(6).font?.color?.argb).toBe(XLSX_BILLING_FONT_ARGB);
+    expect(traffic!.getRow(2).getCell(8).font?.color?.argb).toBe(XLSX_BILLING_FONT_ARGB);
+    expect(detail!.getRow(2).getCell(6).font?.color?.argb).toBe(XLSX_BILLING_FONT_ARGB);
+    expect(detail!.getRow(2).getCell(10).font?.color?.argb).toBe(XLSX_BILLING_FONT_ARGB);
+    expect(traffic!.getRow(5).getCell(8).font?.color?.argb).toBe(XLSX_BILLING_FONT_ARGB);
     expect(traffic!.getRow(6).getCell(3).value).toBe(CALL_CATEGORY.outgoing);
     expect(traffic!.getRow(6).getCell(4).value).toBe(CALL_STATUS.failed);
     expect(traffic!.getRow(7).getCell(4).value).toBe(CALL_STATUS.success);
@@ -263,12 +274,7 @@ describe("writeResolvedEnrichedXlsx", () => {
     const sheetXml = readXlsxEntry(outputPath, "xl/worksheets/sheet1.xml");
     const rgbs = xlsxFillRgbs(stylesXml);
     expect(rgbs).toEqual(
-      expect.arrayContaining([
-        "FFBBF7D0",
-        "FFFECACA",
-        "FFBFDBFE",
-        "FFE5E7EB",
-      ]),
+      expect.arrayContaining(["FFBBF7D0", "FFFECACA", "FFBFDBFE", "FFE5E7EB"]),
     );
 
     const xfs = xlsxCellXfs(stylesXml);

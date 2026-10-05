@@ -1,11 +1,17 @@
-# Current Phase — production (v1.60.0)
+# Current Phase — production (v1.61.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail.  
 **Date:** 2026-10-05
 
+## v1.61.0 — Extra call categories, billing hyphen, database size
+
+Four categories are checked before parking and direction: «Редирект» (`src_name` starts with `Redirect_`), «Проверка» (exact `dst_name = Service_Check`), «Нет регистрации» (`Class4, 1 - Unregistered IP Address`), «Ошибка маршрута» (`Class4, 40 - Gateway Is Invalid`). The migrator rewrites every stored «Нет в биллинге» side to `-` and recomputes categories. `-` is an unknown side, same as `""`. Blue miss text stays on side A/B only. Month and enrich XLSX use the same labels and write the hyphen as text.
+
+The left-nav clock block adds «БД» with the whole project database size (`pg_database_size`), always in gigabytes with one decimal. It refreshes once a minute while the tab is visible.
+
 ## v1.60.0 — CDR category and status
 
-Each CDR row stores «Категория» and «Статус». A side counts as filled only when it is a billing description (`""` and «Нет в биллинге» are undefined). Parking is exact `dst_name = Service_Parking`. Both sides filled on parking is «Исходящий паркинг». Empty `elapsed_time` is «Неудачный»; `0` is «Удачный».
+Each CDR row stores «Категория» and «Статус». A side counts as filled only when it is a billing description (`""` and «-» are undefined). Parking is exact `dst_name = Service_Parking`. Both sides filled on parking is «Исходящий паркинг». Empty `elapsed_time` is «Неудачный»; `0` is «Удачный».
 
 A `BEFORE INSERT OR UPDATE` trigger writes the columns, including when sides are refreshed. The migration adds the columns and functions only. The migrator then fills existing rows in batches of 5000 and drops the temporary partial index. `npx prisma migrate deploy` alone leaves old rows blank.
 
@@ -95,11 +101,11 @@ CDR tables (traffic / geography / operators / raw) paint a row gray when side A 
 
 ## v1.44.0 — Month XLSX fill note and OOXML regression
 
-«Сохранить данные» still writes the whole selected month. Row fills stay the three table classes (phantom / parking / call-error); blue «Нет в биллинге» text is independent. A short hint under the traffic export buttons states that. Tests now assert solid `applyFill` xfs in `styles.xml`, not only the ExcelJS cell getter. Writer unchanged.
+«Сохранить данные» still writes the whole selected month. Row fills stay the three table classes (phantom / parking / call-error); blue «-» text is independent. A short hint under the traffic export buttons states that. Tests now assert solid `applyFill` xfs in `styles.xml`, not only the ExcelJS cell getter. Writer unchanged.
 
 ## v1.43.0 — Green phantom traffic rows
 
-CDR tables (traffic / geography / operators / raw) paint phantom rows green (`bg-green-200`) instead of gray. Month and enrich XLSX use the same fill (`#BBF7D0`). Classification is unchanged: both billing numbers filled, both sides «Нет в биллинге». Parking stays blue; call-error stays light red.
+CDR tables (traffic / geography / operators / raw) paint phantom rows green (`bg-green-200`) instead of gray. Month and enrich XLSX use the same fill (`#BBF7D0`). Classification is unchanged: both billing numbers filled, both sides «-». Parking stays blue; call-error stays light red.
 
 ## v1.42.0 — Parking checkbox on CDR tables
 
@@ -107,7 +113,7 @@ CDR toolbar (traffic / geography / operators / raw) adds «Паркинг» next
 
 ## v1.41.0 — Blue parking rows with a known side
 
-CDR tables (traffic / geography / operators / raw) paint a row blue when «Объект набора» is exactly `Service_Parking` and side A or side B is a known catalog description. Phantom stays gray (both sides «Нет в биллинге»); call-error stays light red. Month and enrich XLSX use the same blue fill (`#BFDBFE`). No new toolbar filter.
+CDR tables (traffic / geography / operators / raw) paint a row blue when «Объект набора» is exactly `Service_Parking` and side A or side B is a known catalog description. Phantom stays gray (both sides «-»); call-error stays light red. Month and enrich XLSX use the same blue fill (`#BFDBFE`). No new toolbar filter.
 
 ## v1.40.0 — Unregistered rows on Registrations
 
@@ -155,7 +161,7 @@ Successful job rows no longer expand to empty «Сообщение» / «Код 
 
 ## v1.33.0 — Incoming parking and phantom columns on SIP stats
 
-«Статистика» table order: ТфОП, внешняя нумерация, LDC, platforms. ТфОП and внешняя нумерация add **Входящий паркинг** / **Минуты паркинга** / **Фантомный трафик** / **Минуты фантома**. Parking = initiating SIP trunk (`PSTN_` / `Trunk_`) and terminating `Service_Parking`. Phantom = parking plus both stored sides «Нет в биллинге» (not the `/traffic` phantom filter). Empty cells stay «-».
+«Статистика» table order: ТфОП, внешняя нумерация, LDC, platforms. ТфОП and внешняя нумерация add **Входящий паркинг** / **Минуты паркинга** / **Фантомный трафик** / **Минуты фантома**. Parking = initiating SIP trunk (`PSTN_` / `Trunk_`) and terminating `Service_Parking`. Phantom = parking plus both stored sides «-» (not the `/traffic` phantom filter). Empty cells stay «-».
 
 ## v1.32.0 — Split SIP stats tables; dash for empty counts
 
@@ -195,7 +201,7 @@ Traffic / geography / operators replace «Время звонка» with **Да�
 
 ## v1.25.0 — phantom traffic and empty billing numbers
 
-CDR tables (traffic / geography / operators / raw) color phantom rows gray (both billing numbers filled, both sides «Нет в биллинге») and call-error rows red (both `bill_ani` / `bill_dnis` exactly `""`). Toolbar checkboxes filter those classes together with month, phone search, and column facets. Header-menu search for «пусто» finds the empty-string group. Month and enrich XLSX fill the same rows.
+CDR tables (traffic / geography / operators / raw) color phantom rows gray (both billing numbers filled, both sides «-») and call-error rows red (both `bill_ani` / `bill_dnis` exactly `""`). Toolbar checkboxes filter those classes together with month, phone search, and column facets. Header-menu search for «пусто» finds the empty-string group. Month and enrich XLSX fill the same rows.
 
 ## v1.24.0 — case-insensitive traffic search
 

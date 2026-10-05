@@ -7,10 +7,7 @@ import { formatCount } from "@/lib/format-count";
 import { EMPTY_FILTER_TOKEN } from "@/components/column-filters/types";
 import { csvTimeToDisplay } from "@/modules/enrich/dates";
 import { formatCdrDayDisplay } from "@/modules/traffic/cdr-date-parts";
-import {
-  MISSING_BILLING_LABEL,
-  MISSING_PSTN_LABEL,
-} from "@/modules/enrich/types";
+import { MISSING_BILLING_LABEL, MISSING_PSTN_LABEL } from "@/modules/enrich/types";
 
 export { formatCdrDayDisplay };
 
@@ -44,9 +41,16 @@ export function formatTrafficCell(column: string, raw: string): string {
   return raw;
 }
 
+const BILLING_SIDE_COLUMNS = new Set(["side_a", "side_b"]);
+
 /** Text color for known enrich-miss phrases in table cells. */
-export function trafficMissingLabelClass(value: string): string | undefined {
-  if (value === MISSING_BILLING_LABEL) return "text-blue-600";
+export function trafficMissingLabelClass(
+  column: string,
+  value: string,
+): string | undefined {
+  if (BILLING_SIDE_COLUMNS.has(column) && value === MISSING_BILLING_LABEL) {
+    return "text-blue-600";
+  }
   if (value === MISSING_PSTN_LABEL) return "text-red-600";
   return undefined;
 }
@@ -67,9 +71,7 @@ export type TrafficBannerStatus = {
 };
 
 /** Operator-facing inbox / partial-import notice. */
-export function composeTrafficBanner(
-  status: TrafficBannerStatus,
-): string | null {
+export function composeTrafficBanner(status: TrafficBannerStatus): string | null {
   const parts: string[] = [];
   if (status.pendingInboxCount >= 2) {
     const files = `${formatCount(status.pendingInboxCount)} необработанных файлов`;
@@ -87,9 +89,7 @@ export function composeTrafficBanner(
     const n = poison.length;
     const files = n === 1 ? "1 файл" : `${formatCount(n)} файлов`;
     const first = poison[0]!;
-    const hint = status.detailOnRaw
-      ? ""
-      : " Подробности на странице «Сырые данные».";
+    const hint = status.detailOnRaw ? "" : " Подробности на странице «Сырые данные».";
     parts.push(
       `В FTP-папке ${files} отложены (${first.filename}: ${first.error}).${hint}`,
     );

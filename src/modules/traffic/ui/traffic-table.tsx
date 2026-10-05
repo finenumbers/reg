@@ -175,7 +175,7 @@ export function TrafficTable({
                     className={cn(
                       "whitespace-nowrap",
                       DEFAULT_BOLD.has(h) && "font-bold",
-                      trafficMissingLabelClass(shown),
+                      trafficMissingLabelClass(h, shown),
                     )}
                   >
                     {VOIPMONITOR_COLUMN_SET.has(h) ? (

@@ -9,13 +9,11 @@ import { excelPhoneValue } from "@/modules/enrich/excel-phone";
 import { xlsxCdrDateTimeCells } from "@/modules/traffic/cdr-date-parts";
 import { guardExcelText } from "@/modules/enrich/formula-guard";
 import { classifyCdrRow } from "@/modules/enrich/row-flags";
-import {
-  classifyCallCategory,
-  classifyExportStatus,
-} from "@/modules/traffic/call-class";
+import { classifyCallCategory, classifyExportStatus } from "@/modules/traffic/call-class";
 import {
   DETAIL_HEADERS,
   DETAIL_WIDTHS,
+  MISSING_BILLING_LABEL,
   TRAFFIC_HEADERS,
   TRAFFIC_WIDTHS,
   billableMinutes,
@@ -98,12 +96,13 @@ const BODY_FONT: Partial<ExcelJS.Font> = {
   size: 11,
 };
 
-function applyMissFont(cell: ExcelJS.Cell): void {
+function applyMissFont(cell: ExcelJS.Cell, billingSide: boolean): void {
   if (typeof cell.value !== "string") return;
-  const role = xlsxMissFontRole(cell.value);
-  if (role === "blue") {
+  if (billingSide && cell.value === MISSING_BILLING_LABEL) {
     cell.font = { ...BODY_FONT, color: { argb: XLSX_BILLING_FONT_ARGB } };
-  } else if (role === "red") {
+    return;
+  }
+  if (xlsxMissFontRole(cell.value) === "red") {
     cell.font = { ...BODY_FONT, color: { argb: XLSX_PSTN_FONT_ARGB } };
   }
 }
@@ -111,7 +110,7 @@ function applyMissFont(cell: ExcelJS.Cell): void {
 function applyStyle(
   cell: ExcelJS.Cell,
   role: BorderRole,
-  opts: { header?: boolean; phone?: boolean },
+  opts: { header?: boolean; phone?: boolean; billingSide?: boolean },
 ): void {
   cell.border = bordersFor(role);
   if (opts.header) {
@@ -121,7 +120,7 @@ function applyStyle(
   if (opts.phone) {
     cell.numFmt = "0";
   }
-  if (!opts.header) applyMissFont(cell);
+  if (!opts.header) applyMissFont(cell, Boolean(opts.billingSide));
 }
 
 function rowFill(row: ResolvedEnrichedRow): ExcelJS.Fill | undefined {
@@ -145,12 +144,14 @@ function styleBodyRow(
   colCount: number,
   roleFor: (colIndex0: number) => BorderRole,
   phoneCols: ReadonlySet<number>,
+  sideCols: ReadonlySet<number>,
   fill: ExcelJS.Fill | undefined,
 ): void {
   for (let c = 1; c <= colCount; c++) {
     const cell = excelRow.getCell(c);
     applyStyle(cell, roleFor(c - 1), {
       phone: phoneCols.has(c) && typeof cell.value === "number",
+      billingSide: sideCols.has(c),
     });
     if (fill) cell.fill = fill;
   }
@@ -160,9 +161,17 @@ function text(value: string): string {
   return guardExcelText(value);
 }
 
-function geoBits(
-  geo: GeoFields | undefined,
-): { country: string; city: string; isp: string } {
+/** Billing-miss hyphen is a known sentinel, not a formula. */
+function sideText(value: string): string {
+  if (value === MISSING_BILLING_LABEL) return value;
+  return text(value);
+}
+
+function geoBits(geo: GeoFields | undefined): {
+  country: string;
+  city: string;
+  isp: string;
+} {
   return {
     country: geo?.countryIso ?? "",
     city: geo?.city ?? "",
@@ -234,10 +243,21 @@ const PROGRESS_EVERY = 250;
 /** 1-based Excel columns: А-номер and В-номер, after Категория and Статус. */
 const TRAFFIC_PHONE_COLS = new Set([5, 7]);
 const DETAIL_PHONE_COLS = new Set([5, 9]);
+/** 1-based «Сторона A/B» columns. Blue billing-miss text stays on these only. */
+const TRAFFIC_SIDE_COLS = new Set([6, 8]);
+const DETAIL_SIDE_COLS = new Set([6, 10]);
 
 function callClassCells(row: ResolvedEnrichedRow): [string, string] {
   return [
-    text(classifyCallCategory(row.sideA, row.sideB, row.termDevice)),
+    text(
+      classifyCallCategory(
+        row.sideA,
+        row.sideB,
+        row.termDevice,
+        row.initDevice,
+        row.cause,
+      ),
+    ),
     text(classifyExportStatus(row.elapsedTime)),
   ];
 }
@@ -248,9 +268,7 @@ async function writeResolvedSheets(opts: {
   rowCount: number;
   includeDetail?: boolean;
   onProgress?: (info: XlsxSheetProgress) => void;
-  eachRow: (
-    visit: (row: ResolvedEnrichedRow, index: number) => void,
-  ) => Promise<void>;
+  eachRow: (visit: (row: ResolvedEnrichedRow, index: number) => void) => Promise<void>;
 }): Promise<void> {
   const includeDetail = opts.includeDetail !== false;
   const workbook = new ExcelJS.stream.xlsx.WorkbookWriter({
@@ -259,11 +277,7 @@ async function writeResolvedSheets(opts: {
     useSharedStrings: false,
   });
 
-  const report = (
-    sheet: XlsxSheetProgress["sheet"],
-    current: number,
-    last: boolean,
-  ) => {
+  const report = (sheet: XlsxSheetProgress["sheet"], current: number, last: boolean) => {
     if (!opts.onProgress) return;
     if (last || current === 0 || current % PROGRESS_EVERY === 0) {
       opts.onProgress({ sheet, current, total: opts.rowCount });
@@ -290,9 +304,9 @@ async function writeResolvedSheets(opts: {
       text(callAt.time),
       ...callClassCells(row),
       aPhone,
-      text(row.sideA),
+      sideText(row.sideA),
       bPhone,
-      text(row.sideB),
+      sideText(row.sideB),
       row.seconds,
       billableMinutes(row.seconds),
       "",
@@ -308,6 +322,7 @@ async function writeResolvedSheets(opts: {
       TRAFFIC_HEADERS.length,
       (col) => trafficBodyRole(col, last),
       TRAFFIC_PHONE_COLS,
+      TRAFFIC_SIDE_COLS,
       rowFill(row),
     );
     excelRow.commit();
@@ -344,11 +359,11 @@ async function writeResolvedSheets(opts: {
       text(callAt.time),
       ...callClassCells(row),
       aPhone,
-      text(row.sideA),
+      sideText(row.sideA),
       text(row.operatorA),
       text(row.geographyA),
       bPhone,
-      text(row.sideB),
+      sideText(row.sideB),
       text(row.operatorB),
       text(row.geographyB),
       row.seconds,
@@ -371,6 +386,7 @@ async function writeResolvedSheets(opts: {
       DETAIL_HEADERS.length,
       (col) => detailBodyRole(col, last),
       DETAIL_PHONE_COLS,
+      DETAIL_SIDE_COLS,
       rowFill(row),
     );
     excelRow.commit();

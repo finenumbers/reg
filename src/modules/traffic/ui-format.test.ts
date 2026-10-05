@@ -60,11 +60,16 @@ describe("traffic UI date display", () => {
   });
 
   it("colors billing and PSTN miss labels", () => {
-    expect(trafficMissingLabelClass(MISSING_BILLING_LABEL)).toBe(
+    expect(trafficMissingLabelClass("side_a", MISSING_BILLING_LABEL)).toBe(
       "text-blue-600",
     );
-    expect(trafficMissingLabelClass(MISSING_PSTN_LABEL)).toBe("text-red-600");
-    expect(trafficMissingLabelClass("МТС")).toBeUndefined();
+    expect(trafficMissingLabelClass("bill_ani", MISSING_BILLING_LABEL)).toBe(
+      undefined,
+    );
+    expect(trafficMissingLabelClass("operator_a", MISSING_PSTN_LABEL)).toBe(
+      "text-red-600",
+    );
+    expect(trafficMissingLabelClass("side_a", "МТС")).toBeUndefined();
   });
 
   it("composes inbox and partial-import banners", () => {

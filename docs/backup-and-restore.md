@@ -63,7 +63,7 @@ Adjust `-U` / `-d` if you changed `POSTGRES_USER` / `POSTGRES_DB`.
 3. **Scheduler:** leave Settings `regsPollEnabled=false` until restore + SSH test succeed.
 4. **NPM:** DNS/TLS live on the proxy; app only needs to be reachable on the `proxy` network at port 3000.
 5. **Audit/jobs history** live in Postgres — included in `pg_dump`.
-6. **Migrations:** after restore of an older dump, run the `migrate` service (or `./scripts/db-migrate.sh`) so schema matches the image and CDR category/status are filled. `npx prisma migrate deploy` alone leaves existing `call_category` blank.
+6. **Migrations:** after restore of an older dump, run the `migrate` service (or `./scripts/db-migrate.sh`) so schema matches the image, stored «Нет в биллинге» sides become `-`, and CDR category/status are filled. `npx prisma migrate deploy` alone leaves existing `call_category` blank and does not rewrite sides.
 
 ## Encrypted secrets checklist
 
