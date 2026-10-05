@@ -1,7 +1,11 @@
-# Current Phase — production (v1.64.0)
+# Current Phase — production (v1.65.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail.  
 **Date:** 2026-10-05
+
+## v1.65.0 — 13px search toolbar text
+
+Registrations, Phones, and Traffic search rows use 13px for the phone field, checkbox labels, the reset button, and the section or month select (including the invisible width span). The phone field stays 13px below and above the `md` breakpoint. Checkbox chips keep `leading-none` and medium weight. Control heights are unchanged.
 
 ## v1.64.0 — «Проверка» from the dial object and test sides
 

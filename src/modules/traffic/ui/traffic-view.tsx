@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { FILTER_TOOLBAR_INPUT, FILTER_TOOLBAR_TEXT } from "@/components/filter-toolbar";
 import { RowColorMark } from "@/components/row-color-legend";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -576,7 +577,7 @@ export function TrafficView({
             placeholder="Телефонный номер"
             aria-label="Телефонный номер"
             size={19}
-            className="w-[calc(17ch+1.25rem)] shrink-0"
+            className={`w-[calc(17ch+1.25rem)] shrink-0 ${FILTER_TOOLBAR_INPUT}`}
             autoComplete="off"
           />
           <div className="flex items-center gap-2">
@@ -642,6 +643,7 @@ export function TrafficView({
           <Button
             type="button"
             variant="outline"
+            className={FILTER_TOOLBAR_TEXT}
             disabled={!filtersActive}
             onClick={onResetFilters}
           >
@@ -654,7 +656,7 @@ export function TrafficView({
             value={month}
             onChange={(e) => onMonthChange(e.target.value)}
             aria-label="Календарный месяц"
-            className="border-border bg-background focus-visible:border-ring focus-visible:ring-ring/50 col-start-1 row-start-1 h-8 w-full rounded-lg border py-0 pr-8 pl-2.5 text-sm outline-none focus-visible:ring-3"
+            className={`border-border bg-background focus-visible:border-ring focus-visible:ring-ring/50 col-start-1 row-start-1 h-8 w-full rounded-lg border py-0 pr-8 pl-2.5 ${FILTER_TOOLBAR_TEXT} outline-none focus-visible:ring-3`}
           >
             {monthOptions.map((item) => (
               <option key={item.key} value={item.key}>
@@ -664,7 +666,7 @@ export function TrafficView({
           </select>
           <span
             aria-hidden
-            className="invisible col-start-1 row-start-1 h-8 border border-transparent py-0 pr-8 pl-2.5 text-sm whitespace-nowrap"
+            className={`invisible col-start-1 row-start-1 h-8 border border-transparent py-0 pr-8 pl-2.5 ${FILTER_TOOLBAR_TEXT} whitespace-nowrap`}
           >
             {longestMonthLabel}
           </span>

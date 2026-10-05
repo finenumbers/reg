@@ -2,6 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import {
+  FILTER_TOOLBAR_INPUT,
+  FILTER_TOOLBAR_TEXT,
+} from "@/components/filter-toolbar";
 import { RowColorMark } from "@/components/row-color-legend";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -556,7 +560,7 @@ export function PhonesView({
             placeholder="Телефонный номер"
             aria-label="Телефонный номер"
             size={19}
-            className="w-[calc(17ch+1.25rem)] shrink-0"
+            className={`w-[calc(17ch+1.25rem)] shrink-0 ${FILTER_TOOLBAR_INPUT}`}
             autoComplete="off"
           />
           {kind === "endpoints_registered" ? (
@@ -580,6 +584,7 @@ export function PhonesView({
           <Button
             type="button"
             variant="outline"
+            className={FILTER_TOOLBAR_TEXT}
             disabled={!filtersActive}
             onClick={onResetFilters}
           >
@@ -592,7 +597,7 @@ export function PhonesView({
             value={kind}
             onChange={(e) => switchKind(e.target.value as PhoneKind)}
             aria-label="Раздел"
-            className="col-start-1 row-start-1 h-8 w-full rounded-lg border border-border bg-background py-0 pl-2.5 pr-8 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+            className={`col-start-1 row-start-1 h-8 w-full rounded-lg border border-border bg-background py-0 pl-2.5 pr-8 ${FILTER_TOOLBAR_TEXT} outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50`}
           >
             <option value="gateways">Шлюзы</option>
             <option value="endpoints_registered">
@@ -609,7 +614,7 @@ export function PhonesView({
           </select>
           <span
             aria-hidden
-            className="invisible col-start-1 row-start-1 h-8 whitespace-nowrap border border-transparent py-0 pl-2.5 pr-8 text-sm"
+            className={`invisible col-start-1 row-start-1 h-8 whitespace-nowrap border border-transparent py-0 pl-2.5 pr-8 ${FILTER_TOOLBAR_TEXT}`}
           >
             {longestKindLabel}
           </span>

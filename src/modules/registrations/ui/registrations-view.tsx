@@ -2,6 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import {
+  FILTER_TOOLBAR_INPUT,
+  FILTER_TOOLBAR_TEXT,
+} from "@/components/filter-toolbar";
 import { RowColorMark } from "@/components/row-color-legend";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -462,7 +466,7 @@ export function RegistrationsView({ canPoll, initial }: Props) {
           placeholder="Телефонный номер"
           aria-label="Телефонный номер"
           size={19}
-          className="w-[calc(17ch+1.25rem)] shrink-0"
+          className={`w-[calc(17ch+1.25rem)] shrink-0 ${FILTER_TOOLBAR_INPUT}`}
           autoComplete="off"
         />
         <div className="flex items-center gap-2">
@@ -482,6 +486,7 @@ export function RegistrationsView({ canPoll, initial }: Props) {
         <Button
           type="button"
           variant="outline"
+          className={FILTER_TOOLBAR_TEXT}
           disabled={!filtersActive}
           onClick={onResetFilters}
         >

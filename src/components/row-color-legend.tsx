@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { FILTER_TOOLBAR_TEXT } from "@/components/filter-toolbar";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
@@ -26,7 +27,7 @@ export function RowColorMark({
     <Badge
       variant="outline"
       className={cn(
-        "text-foreground border-transparent text-sm leading-none",
+        `text-foreground border-transparent ${FILTER_TOOLBAR_TEXT} leading-none`,
         TONE_CLASS[tone],
       )}
     >
