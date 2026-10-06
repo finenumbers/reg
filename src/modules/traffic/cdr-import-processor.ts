@@ -27,6 +27,11 @@ import { invalidateCdrMonthCountCache } from "@/modules/traffic/cdr-month-stats"
 import { monthKeyFromCdrDay } from "@/modules/traffic/cdr-month";
 import { markPoisoned, purgeHoldMessage } from "@/modules/traffic/poison";
 import {
+  activePurgeHold,
+  monthIsHeld,
+  rememberPurgeTarget,
+} from "@/modules/traffic/purge/hold";
+import {
   assertCanonicalCdrHeader,
   classifyCdrDataLine,
   parseCdrHeaderLine,
@@ -69,6 +74,8 @@ type FileImportResult = {
   linesBad: number;
   firstBadLine: number | null;
   error: string | null;
+  /** Keep the file without poison so a finished purge can load the held rows. */
+  leaveFile?: boolean;
   enrichStats: CdrEnrichLookupStats | null;
 };
 
@@ -128,7 +135,14 @@ async function importOneFile(
   let parsedValid = 0;
   let headerError: string | null = null;
   const rejectCounts = emptyParseRejectCounts();
-  const targetMonth = getPurgeTargetMonth();
+  const heldMonths = new Set<string>();
+  let heldDuringInsert = false;
+  const shouldHold = (rowMonth: string | undefined): boolean => {
+    rememberPurgeTarget(heldMonths, getPurgeTargetMonth());
+    return monthIsHeld(heldMonths, rowMonth);
+  };
+  const liveHold = (): string | null =>
+    activePurgeHold(heldMonths, getPurgeTargetMonth());
 
   const rl1 = openCdrLines(file.absPath);
   try {
@@ -154,7 +168,7 @@ async function importOneFile(
         continue;
       }
       const rowMonth = monthKeyFromCdrDay(classified.row.prisma.cdrDay)?.key;
-      if (targetMonth && rowMonth === targetMonth) {
+      if (shouldHold(rowMonth)) {
         heldForPurge += 1;
         continue;
       }
@@ -202,23 +216,37 @@ async function importOneFile(
     };
   }
 
-  if (parsedValid === 0 && heldForPurge > 0 && linesBad === 0 && targetMonth) {
+  if (parsedValid === 0 && heldForPurge > 0 && linesBad === 0) {
+    const live = liveHold();
+    if (live) {
+      return {
+        filename: file.filename,
+        inserted: 0,
+        skipped: 0,
+        linesBad: 0,
+        firstBadLine: null,
+        error: purgeHoldMessage(live),
+        enrichStats: null,
+      };
+    }
     return {
       filename: file.filename,
       inserted: 0,
       skipped: 0,
       linesBad: 0,
       firstBadLine: null,
-      error: purgeHoldMessage(targetMonth),
+      error: null,
+      leaveFile: true,
       enrichStats: null,
     };
   }
 
   if (parsedValid === 0) {
     const reasons = formatParseRejectCounts(rejectCounts);
+    const live = liveHold();
     const hold =
-      heldForPurge > 0 && targetMonth
-        ? `; ${formatCount(heldForPurge)} отложено (${purgeHoldMessage(targetMonth)})`
+      heldForPurge > 0 && live
+        ? `; ${formatCount(heldForPurge)} отложено (${purgeHoldMessage(live)})`
         : "";
     return {
       filename: file.filename,
@@ -272,7 +300,10 @@ async function importOneFile(
       const classified = classifyCdrDataLine(raw);
       if (!classified.ok) continue;
       const rowMonth = monthKeyFromCdrDay(classified.row.prisma.cdrDay)?.key;
-      if (targetMonth && rowMonth === targetMonth) continue;
+      if (shouldHold(rowMonth)) {
+        heldDuringInsert = true;
+        continue;
+      }
       const parsed = classified.row;
       const enrich = enrichFieldsForRow(
         parsed.fields.bill_ani ?? "",
@@ -321,9 +352,11 @@ async function importOneFile(
 
   const skipped = Math.max(0, parsedValid - inserted);
   const reasons = formatParseRejectCounts(rejectCounts);
+  const live = liveHold();
+  const heldAny = heldForPurge > 0 || heldDuringInsert;
   const holdNote =
-    heldForPurge > 0 && targetMonth
-      ? ` ${formatCount(heldForPurge)} строк отложено (${purgeHoldMessage(targetMonth)}).`
+    heldAny && live
+      ? ` ${formatCount(heldForPurge)} строк отложено (${purgeHoldMessage(live)}).`
       : "";
   if (linesBad > 0) {
     const first =
@@ -339,14 +372,26 @@ async function importOneFile(
       enrichStats: maps.stats,
     };
   }
-  if (heldForPurge > 0 && targetMonth) {
+  if (heldAny && live) {
     return {
       filename: file.filename,
       inserted,
       skipped,
       linesBad: 0,
       firstBadLine: null,
-      error: `${purgeHoldMessage(targetMonth)}. Вставлено ${formatCount(inserted)} записей других месяцев в ${file.filename}.`,
+      error: `${purgeHoldMessage(live)}. Вставлено ${formatCount(inserted)} записей других месяцев в ${file.filename}.`,
+      enrichStats: maps.stats,
+    };
+  }
+  if (heldAny) {
+    return {
+      filename: file.filename,
+      inserted,
+      skipped,
+      linesBad: 0,
+      firstBadLine: null,
+      error: null,
+      leaveFile: true,
       enrichStats: maps.stats,
     };
   }
@@ -419,7 +464,7 @@ export async function processCdrImport(
           if (result.enrichStats) addEnrichStats(enrichStats, result.enrichStats);
           if (result.error) {
             markPoisoned(file.filename, file.mtimeMs, result.error);
-          } else {
+          } else if (!result.leaveFile) {
             await unlink(file.absPath);
           }
         }

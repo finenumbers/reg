@@ -232,6 +232,53 @@ describe("processCdrImport empty-minute dumps", () => {
     expect(result.status).toBe("failed");
     expect(result.errorMessage).toMatch(/Отложено: идёт удаление 2026-07/);
   });
+
+  it("does not insert or poison a month after the purge target clears mid-file", async () => {
+    setPurgeTargetMonth("2026-07");
+    loadEnrich.mockImplementation(async () => {
+      setPurgeTargetMonth(null);
+      return {
+        descriptions: new Map(),
+        pstn: new Map(),
+        geo: new Map(),
+        stats: {
+          pstnCacheHits: 0,
+          pstnLiveLookups: 0,
+          geoCacheHits: 0,
+          geoLiveLookups: 0,
+        },
+      };
+    });
+    const file = dumpPath(inboxDir, "20260828_170002");
+    await writeFile(
+      file,
+      `${HEADER}\n${quotedRow({
+        cdr_id: "july-1",
+        cdr_date: "2026-07-15 10:00:00",
+      })}\n${quotedRow({
+        cdr_id: "aug-1",
+        cdr_date: "2026-08-15 10:00:00",
+      })}\n`,
+      "utf8",
+    );
+    createManyCdr.mockResolvedValue({ count: 1 });
+
+    const result = await processCdrImport({ trigger: "test" });
+
+    expect(createManyCdr).toHaveBeenCalledWith({
+      data: [expect.objectContaining({ cdrId: "aug-1" })],
+      skipDuplicates: true,
+    });
+    expect(createManyCdr).not.toHaveBeenCalledWith({
+      data: expect.arrayContaining([
+        expect.objectContaining({ cdrId: "july-1" }),
+      ]),
+      skipDuplicates: true,
+    });
+    expect(existsSync(file)).toBe(true);
+    expect(isPoisoned("20260828_170002", statSync(file).mtimeMs)).toBe(false);
+    expect(result.status).toBe("success");
+  });
 });
 
 function quotedRow(

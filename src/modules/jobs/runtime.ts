@@ -21,7 +21,9 @@ import { requestVoipmonitorMatch } from "@/modules/voipmonitor/enqueue";
 import { processVoipmonitorMatch } from "@/modules/voipmonitor/processor";
 import { processCdrSidesRefresh } from "@/modules/traffic/sides-refresh/processor";
 import { requestCdrSidesRefresh } from "@/modules/traffic/sides-refresh/enqueue";
+import { parseMonthKey } from "@/modules/traffic/cdr-month";
 import { processCdrPurgeMonth } from "@/modules/traffic/purge/processor";
+import { setPurgeTargetMonth } from "@/modules/traffic/purge/target";
 import { processCdrTariffRate } from "@/modules/traffic/tariff-rate/processor";
 import {
   evaluateSchedulerBootstrap as evaluateSchedulerBootstrapImpl,
@@ -100,6 +102,10 @@ export class PQueueJobRuntime implements JobRuntime {
     }
 
     this.inFlight.add(input.actionCode);
+    if (input.actionCode === "cdr.purge.month") {
+      const month = parseMonthKey(input.month);
+      if (month) setPurgeTargetMonth(month.key);
+    }
 
     const runPromise = this.queue.add(async () => {
       try {

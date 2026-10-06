@@ -43,11 +43,13 @@ export const EMPTY_CDR_TARIFF: CdrTariffCells = {
   price: "",
 };
 
-const RATED_FULL = new Set<string>([
-  CALL_CATEGORY.outgoing,
+/** Charge from the tariff; cost is always 0.00. Status must still be successful. */
+const ZERO_COST = new Set<string>([
+  CALL_CATEGORY.outgoingParking,
   CALL_CATEGORY.internal,
-  CALL_CATEGORY.redirect,
 ]);
+
+const RATED_FULL = new Set<string>([CALL_CATEGORY.outgoing, CALL_CATEGORY.redirect]);
 
 /** 12 integer digits: abs(kopecks) >= 100 * 10^12. */
 const KOPECK_OVERFLOW = BigInt("100000000000000");
@@ -160,9 +162,9 @@ export function rateCdrCall(input: {
   elapsedTime: string;
   rates: readonly TariffRateLookup[];
 }): CdrTariffCells {
-  const parking = input.category === CALL_CATEGORY.outgoingParking;
+  const zeroCost = ZERO_COST.has(input.category);
   if (input.status !== CALL_STATUS.success) return EMPTY_CDR_TARIFF;
-  if (!parking && !RATED_FULL.has(input.category)) return EMPTY_CDR_TARIFF;
+  if (!zeroCost && !RATED_FULL.has(input.category)) return EMPTY_CDR_TARIFF;
 
   const number = input.billDnis.trim();
   if (!/^7\d{10}$/.test(number)) return EMPTY_CDR_TARIFF;
@@ -177,7 +179,7 @@ export function rateCdrCall(input: {
   const seconds = elapsedMsToCeiledSeconds(input.elapsedTime);
   const minutes = divCeilPositive(seconds, SIXTY);
   const chargeK = kopecksFromScale6(minutes * price6, CHARGE_DIVISOR, BigInt(9999));
-  const costK = parking
+  const costK = zeroCost
     ? ZERO
     : kopecksFromScale6(seconds * cost6, COST_DIVISOR, BigInt(599999));
   const profitK = chargeK - costK;

@@ -82,16 +82,54 @@ export function listPoisonEntries(cwd?: string): InboxPoisonItem[] {
     .sort((a, b) => a.filename.localeCompare(b.filename));
 }
 
-export function clearPurgeHolds(month: string, cwd?: string): number {
+function isHoldForMonth(error: string, month: string): boolean {
   const needle = purgeHoldMessage(month);
+  return error === needle || error.startsWith(needle);
+}
+
+export function clearPurgeHolds(month: string, cwd?: string): number {
   const map = readMap(cwd);
   let removed = 0;
   for (const [filename, entry] of Object.entries(map)) {
-    if (entry.error === needle || entry.error.startsWith(`${needle}`)) {
+    if (isHoldForMonth(entry.error, month)) {
       delete map[filename];
       removed += 1;
     }
   }
   if (removed > 0) writeMap(map, cwd);
   return removed;
+}
+
+/** Drop every purge hold. Real parse-failure poison stays. */
+export function clearAllPurgeHolds(cwd?: string): number {
+  const map = readMap(cwd);
+  let removed = 0;
+  for (const [filename, entry] of Object.entries(map)) {
+    if (isPurgeHoldError(entry.error)) {
+      delete map[filename];
+      removed += 1;
+    }
+  }
+  if (removed > 0) writeMap(map, cwd);
+  return removed;
+}
+
+/**
+ * Manual retry. While `month` is the live purge target, keep holds for that
+ * month. A null month clears the whole journal, including stale holds.
+ */
+export function clearPoisonExceptMonthHold(
+  month: string | null,
+  cwd?: string,
+): void {
+  if (!month) {
+    writeMap({}, cwd);
+    return;
+  }
+  const map = readMap(cwd);
+  for (const [filename, entry] of Object.entries(map)) {
+    if (isHoldForMonth(entry.error, month)) continue;
+    delete map[filename];
+  }
+  writeMap(map, cwd);
 }

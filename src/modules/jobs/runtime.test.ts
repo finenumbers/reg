@@ -86,6 +86,10 @@ vi.mock("@/lib/logger", () => ({
 }));
 
 import { PQueueJobRuntime } from "@/modules/jobs/runtime";
+import {
+  getPurgeTargetMonth,
+  resetPurgeTargetForTests,
+} from "@/modules/traffic/purge/target";
 
 describe("PQueueJobRuntime anti-overlap", () => {
   beforeEach(() => {
@@ -353,6 +357,25 @@ describe("PQueueJobRuntime anti-overlap", () => {
     expect(purgeResult.accepted).toBe(false);
     expect(purgeResult.reason).toMatch(/cdr.import/);
     expect(processCdrPurgeMonth).not.toHaveBeenCalled();
+    expect(getPurgeTargetMonth()).toBeNull();
     await new Promise((r) => setTimeout(r, 100));
+  });
+
+  it("arms the purge month before the processor runs", async () => {
+    resetPurgeTargetForTests();
+    processCdrPurgeMonth.mockResolvedValue({
+      status: "success",
+      jobRunId: "purge-1",
+      phonesParsed: 0,
+    });
+    const runtime = new PQueueJobRuntime();
+    const accepted = runtime.enqueue({
+      actionCode: "cdr.purge.month",
+      trigger: "manual",
+      month: "2026-07",
+    });
+    expect(getPurgeTargetMonth()).toBe("2026-07");
+    await accepted;
+    resetPurgeTargetForTests();
   });
 });

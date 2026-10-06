@@ -4,7 +4,8 @@ import { assertSameOrigin } from "@/lib/csrf";
 import { pollRateLimiter } from "@/lib/rate-limit";
 import { jobRuntime } from "@/modules/jobs/runtime";
 import { requireSessionUserId } from "@/modules/auth/session";
-import { clearPoison } from "@/modules/traffic/poison";
+import { clearPoisonExceptMonthHold } from "@/modules/traffic/poison";
+import { getPurgeTargetMonth } from "@/modules/traffic/purge/target";
 import { markCdrInboxDirty } from "@/modules/traffic/drain-flag";
 
 /**
@@ -42,7 +43,7 @@ export async function POST(request: Request) {
     );
   }
 
-  clearPoison();
+  clearPoisonExceptMonthHold(getPurgeTargetMonth());
   markCdrInboxDirty();
 
   const result = await jobRuntime.enqueue({

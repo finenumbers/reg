@@ -17,6 +17,7 @@ import {
   applyPatchToRow,
   collectGapKeys,
   mergeEnrichGaps,
+  patchTouchesSide,
   type StoredEnrichRow,
 } from "@/modules/traffic/month-export-gaps";
 import {
@@ -130,6 +131,40 @@ function toStored(row: CdrExportRow): StoredEnrichRow {
     cityB: row.cityB,
     providerB: row.providerB,
     enrichedAt: row.enrichedAt,
+  };
+}
+
+type TariffCells = Pick<
+  CdrExportRow,
+  | "tariffDirection"
+  | "tariffPrice"
+  | "tariffCharge"
+  | "tariffCost"
+  | "tariffProfit"
+>;
+
+const TARIFF_SELECT = {
+  id: true,
+  tariffDirection: true,
+  tariffPrice: true,
+  tariffCharge: true,
+  tariffCost: true,
+  tariffProfit: true,
+} as const;
+
+/** Side fill rerates in the DB trigger. The file must use that result, not the pre-update SELECT. */
+export function withStoredTariff<T extends TariffCells>(
+  row: T,
+  updated: TariffCells | undefined,
+): T {
+  if (!updated) return row;
+  return {
+    ...row,
+    tariffDirection: updated.tariffDirection,
+    tariffPrice: updated.tariffPrice,
+    tariffCharge: updated.tariffCharge,
+    tariffCost: updated.tariffCost,
+    tariffProfit: updated.tariffProfit,
   };
 }
 
@@ -280,24 +315,56 @@ export async function runMonthExportPipeline(jobId: string): Promise<void> {
         geoLive += maps.stats.geoLiveLookups;
       }
 
+      const prepared: Array<{
+        row: CdrExportRow;
+        stored: StoredEnrichRow;
+        patch: ReturnType<typeof mergeEnrichGaps>["patch"] | null;
+      }> = [];
+      for (const item of storedRows) {
+        let stored = item.stored;
+        let patch: ReturnType<typeof mergeEnrichGaps>["patch"] | null = null;
+        if (maps) {
+          const merged = mergeEnrichGaps(stored, maps);
+          if (merged.changed) {
+            stored = applyPatchToRow(stored, merged.patch);
+            patch = merged.patch;
+          }
+        }
+        prepared.push({ row: item.row, stored, patch });
+      }
+
+      const tariffById = new Map<string, TariffCells>();
+      const sideFirst = prepared.filter(
+        (item) => item.patch && patchTouchesSide(item.patch),
+      );
+      for (const batch of chunkArray(sideFirst, MONTH_EXPORT_UPDATE_BATCH)) {
+        const updated = await prisma.$transaction(
+          batch.map((item) =>
+            prisma.cdrRecord.update({
+              where: { id: item.row.id },
+              data: item.patch!,
+              select: TARIFF_SELECT,
+            }),
+          ),
+        );
+        for (const row of updated) {
+          tariffById.set(row.id, row);
+        }
+      }
+
       const pendingUpdates: Array<{
         id: string;
         data: ReturnType<typeof mergeEnrichGaps>["patch"];
       }> = [];
-      for (const item of storedRows) {
-        let stored = item.stored;
-        if (maps) {
-          const { patch, changed } = mergeEnrichGaps(stored, maps);
-          if (changed) {
-            stored = applyPatchToRow(stored, patch);
-            pendingUpdates.push({ id: item.row.id, data: patch });
-          }
-        }
+      for (const item of prepared) {
         await writeJsonlLine(
           stream,
-          `${JSON.stringify(toResolved(item.row, stored))}\n`,
+          `${JSON.stringify(toResolved(withStoredTariff(item.row, tariffById.get(item.row.id)), item.stored))}\n`,
         );
         processed += 1;
+        if (item.patch && !tariffById.has(item.row.id)) {
+          pendingUpdates.push({ id: item.row.id, data: item.patch });
+        }
       }
       for (const batch of chunkArray(pendingUpdates, MONTH_EXPORT_UPDATE_BATCH)) {
         await prisma.$transaction(

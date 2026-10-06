@@ -20,6 +20,10 @@ const PRICE_MIGRATION = path.join(
   process.cwd(),
   "prisma/migrations/20261006223000_cdr_tariff_price/migration.sql",
 );
+const INTERNAL_ZERO_COST_MIGRATION = path.join(
+  process.cwd(),
+  "prisma/migrations/20261006225000_cdr_internal_zero_cost/migration.sql",
+);
 
 const RATES: TariffRateLookup[] = [
   { direction: "Россия", abc: "7", price: "1", cost: "0.5", sortIndex: 0 },
@@ -82,19 +86,23 @@ describe("rateCdrCall", () => {
     ).toMatchObject({ direction: "Раньше", charge: "4.00", cost: "1.22", profit: "2.78" });
   });
 
-  it("rates redirect and internal calls the same way", () => {
-    expect(rate({ category: CALL_CATEGORY.redirect }).direction).toBe("Москва-центр");
-    expect(rate({ category: CALL_CATEGORY.internal }).direction).toBe("Москва-центр");
+  it("rates a redirect the same way as an outgoing call", () => {
+    expect(rate({ category: CALL_CATEGORY.redirect })).toEqual(rate());
   });
 
-  it("sets parking cost to zero", () => {
-    expect(rate({ category: CALL_CATEGORY.outgoingParking })).toEqual({
+  it("sets parking and successful internal cost to zero", () => {
+    const zeroCost = {
       direction: "Москва-центр",
       price: "3",
       charge: "3.00",
       cost: "0.00",
       profit: "3.00",
-    });
+    };
+    expect(rate({ category: CALL_CATEGORY.outgoingParking })).toEqual(zeroCost);
+    expect(rate({ category: CALL_CATEGORY.internal })).toEqual(zeroCost);
+    expect(
+      rate({ category: CALL_CATEGORY.internal, status: CALL_STATUS.failed, elapsedTime: "" }),
+    ).toEqual(EMPTY_CDR_TARIFF);
   });
 
   it("leaves every other category and failed calls empty", () => {
@@ -185,6 +193,17 @@ describe("cdr tariff migration", () => {
     expect(sql).toContain("cdr_rate_call");
     expect(sql).not.toContain("tariff_price");
     expect(sql).not.toContain("formatTariffDecimal");
+  });
+
+  it("zeros internal cost without rewriting the shipped rating functions", () => {
+    const sql = readFileSync(INTERNAL_ZERO_COST_MIGRATION, "utf8");
+    expect(sql).toContain("CREATE OR REPLACE FUNCTION cdr_rate_call");
+    expect(sql).toContain("category IN ('Исходящий паркинг', 'Внутренний звонок')");
+    expect(sql).toContain(CALL_STATUS.success);
+    expect(readFileSync(MIGRATION, "utf8")).toContain("IF category = 'Исходящий паркинг' THEN");
+    expect(readFileSync(PRICE_MIGRATION, "utf8")).toContain(
+      "IF category = 'Исходящий паркинг' THEN",
+    );
   });
 
   it("adds the catalog price without rewriting the shipped rating migration", () => {

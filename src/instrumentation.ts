@@ -65,6 +65,11 @@ export async function register() {
       );
       const reclaim = await reclaimOrphanJobRuns();
       logger.info("jobs.reclaim_orphans", reclaim);
+      const { clearAllPurgeHolds } = await import("@/modules/traffic/poison");
+      const released = clearAllPurgeHolds();
+      if (released > 0) {
+        logger.info("cdr.purge.holds_released", { released });
+      }
     } catch (error) {
       logger.error("jobs.reclaim_orphans.failed", {
         error: error instanceof Error ? error.message : String(error),

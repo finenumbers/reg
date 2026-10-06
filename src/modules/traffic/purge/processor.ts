@@ -19,7 +19,13 @@ import {
 } from "@/modules/traffic/cdr-month";
 import { formatMonthNominative } from "@/modules/traffic/month-labels";
 import { clearPurgeHolds } from "@/modules/traffic/poison";
-import { CDR_PURGE_BATCH_SIZE, purgeDeleteBatchSql } from "@/modules/traffic/purge/sql";
+import {
+  CDR_PURGE_BATCH_SIZE,
+  purgeAuditBatchSql,
+  purgeDeleteBatchSql,
+  purgeJobsBatchSql,
+  utcMonthInterval,
+} from "@/modules/traffic/purge/sql";
 import { setPurgeTargetMonth } from "@/modules/traffic/purge/target";
 
 const BATCH_PAUSE_MS = 50;
@@ -39,6 +45,41 @@ export type CdrPurgeProcessorResult = {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function rawCount(result: unknown): number {
+  const batch = typeof result === "number" ? result : Number(result);
+  return Number.isFinite(batch) ? batch : 0;
+}
+
+/** Jobs and audit whose timestamps fall in the CDR month. Never the purge job itself. */
+async function deleteMonthHistory(
+  year: number,
+  month: number,
+  keepJobId: string,
+): Promise<{ jobs: number; audit: number }> {
+  const { start, end } = utcMonthInterval(year, month);
+  let jobs = 0;
+  let audit = 0;
+  while (true) {
+    const batch = rawCount(
+      await prisma.$executeRaw(
+        purgeJobsBatchSql(start, end, keepJobId, CDR_PURGE_BATCH_SIZE),
+      ),
+    );
+    if (batch <= 0) break;
+    jobs += batch;
+  }
+  while (true) {
+    const batch = rawCount(
+      await prisma.$executeRaw(
+        purgeAuditBatchSql(start, end, CDR_PURGE_BATCH_SIZE),
+      ),
+    );
+    if (batch <= 0) break;
+    audit += batch;
+  }
+  return { jobs, audit };
 }
 
 export async function resolveDeletableMonthKey(): Promise<string | null> {
@@ -63,6 +104,8 @@ export async function processCdrPurgeMonth(
   });
 
   let deleted = 0;
+  let deletedJobs = 0;
+  let deletedAudit = 0;
   let targetCount = 0;
   const target = requested;
 
@@ -74,13 +117,15 @@ export async function processCdrPurgeMonth(
         : !deletable
           ? "Нет полного месяца для удаления"
           : `Удалить можно только самый старый полный месяц (${deletable})`;
-      await finish(jobRun.id, startedAt, input, {
-        status: "failed",
-        deleted: 0,
-        targetCount: 0,
-        month: target?.key ?? null,
-        errorMessage: message,
-      });
+    await finish(jobRun.id, startedAt, input, {
+      status: "failed",
+      deleted: 0,
+      deletedJobs: 0,
+      deletedAudit: 0,
+      targetCount: 0,
+      month: target?.key ?? null,
+      errorMessage: message,
+    });
       return {
         status: "failed",
         jobRunId: jobRun.id,
@@ -94,6 +139,8 @@ export async function processCdrPurgeMonth(
       await finish(jobRun.id, startedAt, input, {
         status: "failed",
         deleted: 0,
+        deletedJobs: 0,
+        deletedAudit: 0,
         targetCount: 0,
         month: target.key,
         errorMessage: message,
@@ -129,11 +176,12 @@ export async function processCdrPurgeMonth(
       if (currentUtcMonth().key === target.key) {
         throw new Error("Текущий месяц удалить нельзя");
       }
-      const result = await prisma.$executeRaw(
-        purgeDeleteBatchSql(target.year, target.month, CDR_PURGE_BATCH_SIZE),
+      const batch = rawCount(
+        await prisma.$executeRaw(
+          purgeDeleteBatchSql(target.year, target.month, CDR_PURGE_BATCH_SIZE),
+        ),
       );
-      const batch = typeof result === "number" ? result : Number(result);
-      if (!Number.isFinite(batch) || batch <= 0) break;
+      if (batch <= 0) break;
       deleted += batch;
       await prisma.jobRun.update({
         where: { id: jobRun.id },
@@ -149,10 +197,16 @@ export async function processCdrPurgeMonth(
       await sleep(BATCH_PAUSE_MS);
     }
 
+    const history = await deleteMonthHistory(target.year, target.month, jobRun.id);
+    deletedJobs = history.jobs;
+    deletedAudit = history.audit;
+
     invalidateCdrMonthCountCache();
     await finish(jobRun.id, startedAt, input, {
       status: "success",
       deleted,
+      deletedJobs,
+      deletedAudit,
       targetCount,
       month: target.key,
       errorMessage: null,
@@ -172,6 +226,8 @@ export async function processCdrPurgeMonth(
     await finish(jobRun.id, startedAt, input, {
       status: "failed",
       deleted,
+      deletedJobs,
+      deletedAudit,
       targetCount,
       month: target?.key ?? null,
       errorMessage,
@@ -204,6 +260,8 @@ async function finish(
   result: {
     status: "success" | "failed";
     deleted: number;
+    deletedJobs: number;
+    deletedAudit: number;
     targetCount: number;
     month: string | null;
     errorMessage: string | null;
@@ -228,12 +286,14 @@ async function finish(
       errorMessage:
         result.errorMessage ??
         (result.status === "success"
-          ? `Удалено ${formatCount(result.deleted)} записей${label ? ` · ${label}` : ""}`
+          ? `Удалено ${formatCount(result.deleted)} звонков${label ? ` · ${label}` : ""}. Задач: ${formatCount(result.deletedJobs)}. Аудит: ${formatCount(result.deletedAudit)}.`
           : null),
       meta: {
         month: result.month,
         targetCount: result.targetCount,
         deletedCount: result.deleted,
+        deletedJobs: result.deletedJobs,
+        deletedAudit: result.deletedAudit,
       },
     },
   });
@@ -246,6 +306,8 @@ async function finish(
       status: result.status,
       month: result.month,
       deleted: result.deleted,
+      deletedJobs: result.deletedJobs,
+      deletedAudit: result.deletedAudit,
       targetCount: result.targetCount,
     },
   });
@@ -254,5 +316,7 @@ async function finish(
     status: result.status,
     month: result.month,
     deleted: result.deleted,
+    deletedJobs: result.deletedJobs,
+    deletedAudit: result.deletedAudit,
   });
 }

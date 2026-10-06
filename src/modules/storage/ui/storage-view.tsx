@@ -93,10 +93,11 @@ export function StorageView() {
           Хранение данных
         </h2>
         <p className="text-sm text-muted-foreground">
-          Месяцы CDR в локальной базе (по колонке «Дата»), не артефакты задач.
-          Удалить можно только самый старый полный месяц, по одному. Текущий
-          месяц трогать нельзя. Место на диске вернётся после очистки базы
-          (autovacuum), не сразу.
+          Месяцы CDR в локальной базе (по колонке «Дата»). Вместе со звонками
+          удаляются задачи и записи аудита этого месяца UTC. Удалить можно
+          только самый старый полный месяц, по одному. Текущий месяц трогать
+          нельзя. Место на диске вернётся после очистки базы (autovacuum), не
+          сразу.
         </p>
       </div>
 
@@ -207,8 +208,9 @@ export function StorageView() {
               <p className="mt-2 text-sm text-muted-foreground">
                 Будут безвозвратно удалены {formatCount(confirm.calls)} звонков (
                 {formatCount(confirm.seconds)} сек,{" "}
-                {formatCount(confirm.minutes)} мин) и связанные ссылки
-                VoIPmonitor. Введите ключ месяца{" "}
+                {formatCount(confirm.minutes)} мин), связанные ссылки
+                VoIPmonitor, а также задачи и записи аудита за этот месяц UTC.
+                Введите ключ месяца{" "}
                 <span className="font-mono">{confirm.key}</span>.
               </p>
             </div>

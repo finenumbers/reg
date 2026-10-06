@@ -3,6 +3,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+  clearAllPurgeHolds,
+  clearPoisonExceptMonthHold,
   clearPurgeHolds,
   listPoisonEntries,
   markPoisoned,
@@ -41,5 +43,25 @@ describe("poison journal", () => {
       "aug.csv",
       "bad.csv",
     ]);
+  });
+
+  it("keeps only the live purge hold on retry and drops every hold on startup", () => {
+    markPoisoned("bad.csv", 1, "Нет даты");
+    markPoisoned("july.csv", 2, purgeHoldMessage("2026-07"));
+    markPoisoned(
+      "july-part.csv",
+      4,
+      `${purgeHoldMessage("2026-07")}. Вставлено 1 записей других месяцев в july-part.csv.`,
+    );
+    markPoisoned("aug.csv", 3, purgeHoldMessage("2026-08"));
+
+    clearPoisonExceptMonthHold("2026-07");
+    expect(listPoisonEntries().map((item) => item.filename)).toEqual([
+      "july-part.csv",
+      "july.csv",
+    ]);
+
+    expect(clearAllPurgeHolds()).toBe(2);
+    expect(listPoisonEntries()).toEqual([]);
   });
 });

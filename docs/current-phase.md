@@ -1,7 +1,19 @@
-# Current Phase — production (v1.81.0)
+# Current Phase — production (v1.83.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, call billing.  
 **Date:** 2026-10-06
+
+## v1.83.0 — Month purge holds the file and clears that month's jobs and audit
+
+Import skips a month for the whole file once that month is the purge target, even if the target clears before the file ends. The file stays on disk without a purge-hold mark when the delete has already finished, so the drain can load it. A restart drops leftover purge-hold marks. Retry keeps the hold only while that month is still being deleted.
+
+After the CDR rows of a month are gone, jobs and audit whose timestamps fall in that UTC month are deleted in batches. The purge job itself stays. Registrations and the phone catalog stay; their link to an old job is cleared by the existing foreign key. «Хранение данных» says so before the operator confirms.
+
+A month sheet writes tariff cells from the database update only when a blank side is filled. Other rows keep the tariff read with the row.
+
+## v1.82.0 — Internal calls have zero cost
+
+A successful «Внутренний звонок» still takes the tariff charge and writes «Себестоимость» `0.00`. «Прибыль» is that charge. This is the same money rule as «Исходящий паркинг». A failed internal call stays blank. The rating function is replaced in a new migration; the v1.79.0 and v1.80.0 migrations stay as shipped. The migrator backfill rewrites stored internal rows on the next deploy.
 
 ## v1.81.0 — Remove unused month window and legacy Calltrace rewrite
 

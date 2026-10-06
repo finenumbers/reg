@@ -58,6 +58,10 @@ function geoIp(raw: string): string | null {
   return host && isLookupIpv4(host) ? host : null;
 }
 
+export function patchTouchesSide(patch: MergedEnrichPatch): boolean {
+  return patch.sideA !== undefined || patch.sideB !== undefined;
+}
+
 export function sideNeedsFill(value: string): boolean {
   return isBlank(value);
 }
