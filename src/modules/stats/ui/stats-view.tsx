@@ -41,7 +41,7 @@ const MINUTES_TOTAL_CELL =
   "text-right font-bold bg-yellow-300 text-black hover:bg-yellow-300";
 
 const NAME_COL_PX = 210;
-const METRIC_COL_PX = 70;
+const METRIC_COL_PX = 80;
 
 type MetricPair = { calls: number; minutes: number };
 
