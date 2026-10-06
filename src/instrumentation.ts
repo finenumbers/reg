@@ -102,6 +102,17 @@ export async function register() {
     logger.warn("scheduler.bootstrap.evaluate", result);
 
     try {
+      const { requestCdrTariffRate } = await import(
+        "@/modules/traffic/tariff-rate/enqueue"
+      );
+      await requestCdrTariffRate("schedule");
+    } catch (error) {
+      logger.error("cdr.tariff.rate.bootstrap_failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    try {
       const { ensureCdrInbox } = await import("@/modules/traffic/paths");
       ensureCdrInbox();
       const { startFtpServer } = await import("@/modules/traffic/ftp-server");

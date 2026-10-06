@@ -1,5 +1,6 @@
 import { requirePagePermission } from "@/modules/auth/guards";
 import { hasPermission } from "@/modules/rbac/permissions";
+import { CDR_TARIFF_LABELS } from "@/modules/traffic/cdr-tariff";
 import {
   CALL_CLASS_LABELS,
   CDR_COLUMNS,
@@ -15,6 +16,7 @@ const HEADER_LABELS: Record<string, string> = {
   ...CDR_ENRICH_LABELS,
   ...VOIPMONITOR_RAW_LABELS,
   ...CALL_CLASS_LABELS,
+  ...CDR_TARIFF_LABELS,
 };
 
 export default async function RawCdrPage() {

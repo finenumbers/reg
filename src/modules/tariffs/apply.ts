@@ -40,14 +40,21 @@ export async function applyTariffSnapshot(
         rowCount: rows.length,
         filename,
         loadedAt,
+        rateGeneration: 1,
+        ratedGeneration: 0,
       },
       update: {
         rowCount: rows.length,
         filename,
         loadedAt,
+        rateGeneration: { increment: 1 },
       },
     });
   }, APPLY_TX);
+
+  void import("@/modules/traffic/tariff-rate/enqueue")
+    .then(({ requestCdrTariffRate }) => requestCdrTariffRate("schedule"))
+    .catch(() => undefined);
 
   return { rowCount: rows.length, loadedAt };
 }

@@ -148,11 +148,13 @@ describe("CDR column contract", () => {
 
   it("places enrich columns next to source fields without changing the dump contract", () => {
     expect(CDR_ENRICH_COLUMNS).toHaveLength(12);
-    expect(RAW_TABLE_COLUMNS).toHaveLength(136);
+    expect(RAW_TABLE_COLUMNS).toHaveLength(140);
     expect(RAW_TABLE_COLUMNS[0]).toBe("call_category");
     expect(RAW_TABLE_COLUMNS[1]).toBe("call_status");
-    expect(RAW_TABLE_COLUMNS[3]).toBe("voipmonitor_url_in");
-    expect(RAW_TABLE_COLUMNS[4]).toBe("voipmonitor_url_out");
+    expect(RAW_TABLE_COLUMNS[2]).toBe("tariff_direction");
+    expect(RAW_TABLE_COLUMNS[5]).toBe("tariff_profit");
+    expect(RAW_TABLE_COLUMNS[7]).toBe("voipmonitor_url_in");
+    expect(RAW_TABLE_COLUMNS[8]).toBe("voipmonitor_url_out");
     for (const col of CDR_COLUMNS) {
       expect(RAW_TABLE_COLUMNS).toContain(col);
     }

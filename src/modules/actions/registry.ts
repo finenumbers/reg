@@ -12,7 +12,8 @@ export type AllowedActionCode =
   | "cdr.import"
   | "voipmonitor.match"
   | "cdr.sides.refresh"
-  | "cdr.purge.month";
+  | "cdr.purge.month"
+  | "cdr.tariff.rate";
 
 /** Absolute sudo binary used for non-interactive elevation (never from UI). */
 const REMOTE_SUDO_BIN = "/usr/bin/sudo";
@@ -126,6 +127,17 @@ export const ACTION_REGISTRY: Record<AllowedActionCode, AllowedActionDefinition>
     argv: [],
     module: "traffic",
     description: "Delete the oldest complete CDR calendar month",
+    usesPlatformExecWrapper: true,
+    elevateWithSudo: false,
+    needsPty: false,
+  },
+  "cdr.tariff.rate": {
+    code: "cdr.tariff.rate",
+    kind: "local",
+    remotePath: "/opt/scripts/cdr_tariff_rate",
+    argv: [],
+    module: "traffic",
+    description: "Recompute CDR direction, price, cost, and profit from the tariff snapshot",
     usesPlatformExecWrapper: true,
     elevateWithSudo: false,
     needsPty: false,

@@ -5,3 +5,4 @@ set -eu
 
 npx prisma migrate deploy
 node scripts/cdr-call-class-backfill.mjs
+node scripts/cdr-tariff-backfill.mjs

@@ -36,6 +36,7 @@ import {
   csvHeaderToCamel,
   isTrafficColumn,
 } from "@/modules/traffic/columns";
+import { CDR_TARIFF_COLUMNS } from "@/modules/traffic/cdr-tariff";
 import { facetSearchMatch } from "@/modules/traffic/facet-search";
 import {
   arrangeTrafficFacetItems,
@@ -104,6 +105,10 @@ function rowToData(
     data[col] = value == null ? "" : String(value);
   }
   for (const col of CALL_CLASS_COLUMNS) {
+    const value = row[csvHeaderToCamel(col)];
+    data[col] = value == null ? "" : String(value);
+  }
+  for (const col of CDR_TARIFF_COLUMNS) {
     const value = row[csvHeaderToCamel(col)];
     data[col] = value == null ? "" : String(value);
   }

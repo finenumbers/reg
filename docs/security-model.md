@@ -127,7 +127,7 @@ Ciphertext envelope в БД: `v1:<iv_b64>:<authTag_b64>:<ciphertext_b64>`.
 
 - Пароли: хеширование через Better Auth (не хранить plaintext).
 - Сессия: cookie-based session Better Auth (httpOnly, Secure в prod, SameSite); модели `session` / `account` / `verification` в БД по схеме Better Auth + Prisma adapter.
-- **Machine API keys (v1.3):** read-only интеграции через `Authorization: Bearer <key>` или `X-Api-Key`. Секрет хранится только как SHA-256 hash (`api_keys`). Права по умолчанию: `regs:read` + `phones:read`. Rate limit **10 000 / мин на ключ** (in-memory, single replica). Создание/отзыв — Settings (`settings:write`). Ключи **не** открывают poll/sync/settings/SSH, RTU import (`POST /api/phones/rtu-import`) и тарификацию (`GET /api/tariffs`, `POST /api/tariffs/import`): себестоимость доступна только из сессии с `phones:read`.
+- **Machine API keys (v1.3):** read-only интеграции через `Authorization: Bearer <key>` или `X-Api-Key`. Секрет хранится только как SHA-256 hash (`api_keys`). Права по умолчанию: `regs:read` + `phones:read`. Rate limit **10 000 / мин на ключ** (in-memory, single replica). Создание/отзыв — Settings (`settings:write`). Ключи **не** открывают poll/sync/settings/SSH, RTU import (`POST /api/phones/rtu-import`) и тарификацию (`GET /api/tariffs`, `POST /api/tariffs/import`): себестоимость доступна только из сессии с `phones:read`. В `GET /api/traffic` ключ не получает «Себестоимость» и «Прибыль» и не фильтрует по ним.
 - Кастомный JWT access/refresh стек и отдельная таблица `refresh_tokens` **не** используются.
 - RBAC поверх Better Auth (роли/permissions в собственных таблицах, привязка к user id):
   - `admin` — settings, ключи, users, audit

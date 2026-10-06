@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { parseFiltersParam } from "@/components/column-filters/types";
 import { requireApiPermission } from "@/modules/auth/guards";
 import { parseTrafficFlagParam } from "@/modules/traffic/row-flags";
+import {
+  omitCdrTariffSecretFilters,
+  stripCdrTariffSecrets,
+} from "@/modules/traffic/cdr-tariff";
 import { listTraffic } from "@/modules/traffic/service";
 import { parseTimeSort } from "@/modules/traffic/traffic-sort";
 
@@ -13,7 +17,11 @@ export async function GET(request: Request) {
   if (!gate.ok) return gate.response;
 
   const url = new URL(request.url);
-  const filters = parseFiltersParam(url.searchParams.get("filters"));
+  const parsedFilters = parseFiltersParam(url.searchParams.get("filters"));
+  const filters =
+    gate.ctx.authKind === "session"
+      ? parsedFilters
+      : omitCdrTariffSecretFilters(parsedFilters);
   const phoneQ = url.searchParams.get("phoneQ") ?? undefined;
   const month = url.searchParams.get("month") ?? undefined;
   const phantom = parseTrafficFlagParam(url.searchParams.get("phantom"));
@@ -40,6 +48,13 @@ export async function GET(request: Request) {
     page: Number.isFinite(page) ? page : 1,
     pageSize: Number.isFinite(pageSize) ? pageSize : 100,
   });
+
+  if (gate.ctx.authKind !== "session") {
+    data.items = data.items.map((item) => ({
+      ...item,
+      data: stripCdrTariffSecrets(item.data),
+    }));
+  }
 
   return NextResponse.json(data);
 }

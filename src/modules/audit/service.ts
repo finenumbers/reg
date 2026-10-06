@@ -50,6 +50,8 @@ export const AUDIT_ACTIONS = {
   API_KEY_CREATE: "api_key.create",
   API_KEY_REVOKE: "api_key.revoke",
   TARIFFS_IMPORT: "tariffs.import",
+  CDR_TARIFF_RATE_START: "cdr.tariff.rate_start",
+  CDR_TARIFF_RATE_FINISH: "cdr.tariff.rate_finish",
 } as const;
 
 export type AuditAction =

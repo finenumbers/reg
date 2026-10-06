@@ -51,6 +51,8 @@ const ACTION_LABELS: Record<string, string> = {
   "api_key.create": "Создание API-ключа",
   "api_key.revoke": "Отзыв API-ключа",
   "tariffs.import": "Загрузка тарификации",
+  "cdr.tariff.rate_start": "Старт пересчёта тарифов в журнале звонков",
+  "cdr.tariff.rate_finish": "Завершение пересчёта тарифов в журнале звонков",
   "users.change": "Изменение пользователя",
 };
 

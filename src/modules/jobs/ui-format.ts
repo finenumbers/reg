@@ -16,6 +16,7 @@ const JOB_ACTION_LABELS: Record<string, string> = {
   "voipmonitor.match": "VoIPmonitor",
   "cdr.sides.refresh": "Описания сторон",
   "cdr.purge.month": "Удаление месяца",
+  "cdr.tariff.rate": "Пересчёт тарифов",
 };
 
 const META_FILES_CAP = 8;
@@ -316,6 +317,10 @@ export function summarizeJobResult(job: JobRunListItem): string {
       return summarizeSidesRefresh(job);
     case "cdr.purge.month":
       return summarizePurge(job);
+    case "cdr.tariff.rate":
+      return job.changesCount
+        ? `Обновлено ${formatCount(job.changesCount)} звонков`
+        : "Звонки пересчитаны";
     default:
       return summarizeUnknownSuccess(job);
   }
@@ -581,6 +586,10 @@ export function formatJobMessage(
       return describeSidesMessage(job);
     case "cdr.purge.month":
       return summarizePurge(job);
+    case "cdr.tariff.rate":
+      return job.changesCount
+        ? `Пересчитано звонков: ${formatCount(job.changesCount)}.`
+        : "Звонки пересчитаны по текущим тарифам.";
     default:
       return null;
   }

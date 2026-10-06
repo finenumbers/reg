@@ -172,6 +172,22 @@ export async function ensurePlatformBaseline(): Promise<{ ok: true }> {
   });
 
   await prisma.allowedAction.upsert({
+    where: { code: "cdr.tariff.rate" },
+    create: {
+      code: "cdr.tariff.rate",
+      remotePath: "/opt/scripts/cdr_tariff_rate",
+      description: "Recompute CDR tariff cells from the current snapshot",
+      enabled: true,
+      module: "traffic",
+    },
+    update: {
+      remotePath: "/opt/scripts/cdr_tariff_rate",
+      enabled: true,
+      module: "traffic",
+    },
+  });
+
+  await prisma.allowedAction.upsert({
     where: { code: "cdr.purge.month" },
     create: {
       code: "cdr.purge.month",

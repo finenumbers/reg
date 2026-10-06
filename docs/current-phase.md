@@ -1,7 +1,13 @@
-# Current Phase — production (v1.78.0)
+# Current Phase — production (v1.79.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs.  
 **Date:** 2026-10-06
+
+## v1.79.0 — CDR tariff columns
+
+«Сырые данные» shows Направление, Стоимость, Себестоимость, and Прибыль after Статус. A successful «Исходящий звонок», «Внутренний звонок», or «Редирект» whose B-number is 11 digits starting with 7 takes the longest matching ABC from the tariff snapshot. Equal ABC length keeps the earlier file row. Стоимость is CEIL(seconds/60) × price per minute. Себестоимость is ceiled seconds × cost per minute / 60. «Исходящий паркинг» uses the same charge and writes cost `0.00`. Прибыль is charge minus cost. Money is ceiled to a kopeck toward +infinity and stored with two decimal places. Other category and status combinations stay blank.
+
+The same function fills existing rows at migrate time and again after every successful tariff upload. A bad tariff file does not replace the snapshot and does not start a recompute. New imports and side refreshes that change category, status, B-number, or duration recompute that row. API keys do not receive Себестоимость or Прибыль and cannot filter by them.
 
 ## v1.78.0 — Tariff catalog
 

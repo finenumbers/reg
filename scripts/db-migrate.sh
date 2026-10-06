@@ -13,3 +13,5 @@ npx prisma migrate deploy
 echo "Migrations applied."
 node scripts/cdr-call-class-backfill.mjs
 echo "CDR category and status backfill finished."
+node scripts/cdr-tariff-backfill.mjs
+echo "CDR tariff backfill finished."

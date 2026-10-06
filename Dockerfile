@@ -15,6 +15,7 @@ COPY package.json package-lock.json ./
 COPY prisma ./prisma
 COPY prisma.config.ts ./prisma.config.ts
 COPY scripts/cdr-call-class-backfill.mjs ./scripts/cdr-call-class-backfill.mjs
+COPY scripts/cdr-tariff-backfill.mjs ./scripts/cdr-tariff-backfill.mjs
 COPY scripts/migrate-and-backfill.sh ./scripts/migrate-and-backfill.sh
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1

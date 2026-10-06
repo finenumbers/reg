@@ -451,11 +451,15 @@ model TariffRate {
 }
 
 model TariffImportState {
-  id        Int       @id @default(1)
-  rowCount  Int       @default(0)
-  filename  String?
-  loadedAt  DateTime?
-  updatedAt DateTime  @updatedAt
+  id              Int       @id @default(1)
+  rowCount        Int       @default(0)
+  filename        String?
+  loadedAt        DateTime?
+  /// Incremented in the same transaction as a successful snapshot replace.
+  rateGeneration  Int       @default(0)
+  /// Set to rateGeneration only after a full CDR pass for that generation.
+  ratedGeneration Int       @default(0)
+  updatedAt       DateTime  @updatedAt
 
   @@map("tariff_import_state")
 }
@@ -603,6 +607,10 @@ model CdrRecord {
   providerB                  String    @default("") @map("provider_b")
   callCategory               String    @default("") @map("call_category")
   callStatus                 String    @default("") @map("call_status")
+  tariffDirection            String    @default("") @map("tariff_direction")
+  tariffCharge               String    @default("") @map("tariff_charge")
+  tariffCost                 String    @default("") @map("tariff_cost")
+  tariffProfit               String    @default("") @map("tariff_profit")
   enrichedAt                 DateTime? @map("enriched_at")
   sourceFilename             String
   importedAt                 DateTime  @default(now())

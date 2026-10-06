@@ -22,6 +22,7 @@ import { processVoipmonitorMatch } from "@/modules/voipmonitor/processor";
 import { processCdrSidesRefresh } from "@/modules/traffic/sides-refresh/processor";
 import { requestCdrSidesRefresh } from "@/modules/traffic/sides-refresh/enqueue";
 import { processCdrPurgeMonth } from "@/modules/traffic/purge/processor";
+import { processCdrTariffRate } from "@/modules/traffic/tariff-rate/processor";
 import {
   evaluateSchedulerBootstrap as evaluateSchedulerBootstrapImpl,
 } from "@/modules/jobs/scheduler";
@@ -34,6 +35,7 @@ const SUPPORTED_JOB_ACTIONS = new Set<AllowedActionCode>([
   "voipmonitor.match",
   "cdr.sides.refresh",
   "cdr.purge.month",
+  "cdr.tariff.rate",
 ]);
 
 export type JobEnqueueInput = {
@@ -48,6 +50,19 @@ export type JobEnqueueResult = {
   reason?: string;
   jobRunId?: string;
 };
+
+let tariffRateFailures = 0;
+
+/** Immediate reconcile after success. Back off after a failed pass, then stop. */
+function tariffRateRetryDelay(failed: boolean): number | null {
+  if (!failed) {
+    tariffRateFailures = 0;
+    return 0;
+  }
+  tariffRateFailures += 1;
+  if (tariffRateFailures > 3) return null;
+  return 15_000 * tariffRateFailures;
+}
 
 export interface JobRuntime {
   enqueue(input: JobEnqueueInput): Promise<JobEnqueueResult>;
@@ -125,6 +140,12 @@ export class PQueueJobRuntime implements JobRuntime {
             month: input.month,
           });
         }
+        if (input.actionCode === "cdr.tariff.rate") {
+          return await processCdrTariffRate({
+            trigger: input.trigger,
+            actorUserId: input.actorUserId,
+          });
+        }
         return await processRegsPoll({
           trigger: input.trigger,
           actorUserId: input.actorUserId,
@@ -166,6 +187,17 @@ export class PQueueJobRuntime implements JobRuntime {
           result.replay
         ) {
           requestCdrSidesRefresh("schedule");
+        }
+        if (input.actionCode === "cdr.tariff.rate") {
+          const failed = result?.status === "failed";
+          const delay = tariffRateRetryDelay(failed);
+          if (delay != null) {
+            setTimeout(() => {
+              void import("@/modules/traffic/tariff-rate/enqueue").then(
+                ({ requestCdrTariffRate }) => requestCdrTariffRate("schedule"),
+              );
+            }, delay);
+          }
         }
       },
       (error) => {

@@ -3,6 +3,8 @@
  * Order is part of the contract — header mismatch fails the import.
  */
 
+import { CDR_TARIFF_COLUMNS } from "@/modules/traffic/cdr-tariff";
+
 export const CDR_COLUMNS = [
   "cdr_id",
   "cdr_date",
@@ -358,6 +360,7 @@ const ENRICH_AFTER: Record<string, readonly CdrEnrichColumn[]> = {
 
 export const RAW_TABLE_COLUMNS: readonly string[] = [
   ...CALL_CLASS_COLUMNS,
+  ...CDR_TARIFF_COLUMNS,
   ...CDR_COLUMNS.flatMap((col) => [
     col,
     ...(col === "cdr_id" ? [...VOIPMONITOR_COLUMNS] : []),
@@ -370,6 +373,7 @@ const TRAFFIC_COLUMN_SET = new Set<string>([
   ...CDR_ENRICH_COLUMNS,
   ...CDR_DATETIME_SPLIT_COLUMNS,
   ...CALL_CLASS_COLUMNS,
+  ...CDR_TARIFF_COLUMNS,
 ]);
 
 export const CDR_INSERT_BATCH_SIZE = 400;

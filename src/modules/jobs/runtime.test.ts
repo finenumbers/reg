@@ -34,6 +34,10 @@ vi.mock("@/modules/traffic/purge/processor", () => ({
   processCdrPurgeMonth: (...args: unknown[]) => processCdrPurgeMonth(...args),
 }));
 
+vi.mock("@/modules/traffic/tariff-rate/processor", () => ({
+  processCdrTariffRate: vi.fn(),
+}));
+
 vi.mock("@/modules/traffic/sides-refresh/enqueue", () => ({
   requestCdrSidesRefresh: (...args: unknown[]) =>
     requestCdrSidesRefresh(...args),
