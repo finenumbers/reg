@@ -4,6 +4,7 @@ import {
   CDR_COLUMN_COUNT,
   CDR_ENRICH_COLUMNS,
   RAW_TABLE_COLUMNS,
+  BILLING_MINUTES_COLUMN,
   TRAFFIC_BILLING_COLUMNS,
   TRAFFIC_BILLING_LABELS,
   TRAFFIC_GEOGRAPHY_COLUMNS,
@@ -95,6 +96,7 @@ describe("CDR column contract", () => {
       "out_orig_dnis",
       "tariff_direction",
       "elapsed_time",
+      "billable_minutes",
       "tariff_charge",
       "tariff_cost",
       "tariff_profit",
@@ -107,9 +109,13 @@ describe("CDR column contract", () => {
     expect(TRAFFIC_BILLING_LABELS.tariff_charge).toBe("Стоимость");
     expect(TRAFFIC_BILLING_LABELS.tariff_cost).toBe("Себестоимость");
     expect(TRAFFIC_BILLING_LABELS.tariff_profit).toBe("Прибыль");
+    expect(TRAFFIC_BILLING_LABELS.elapsed_time).toBe("Секунды");
+    expect(TRAFFIC_BILLING_LABELS.billable_minutes).toBe("Минуты");
     expect(TRAFFIC_BILLING_COLUMNS).not.toContain("voipmonitor_url_in");
     expect(TRAFFIC_BILLING_COLUMNS).not.toContain("voipmonitor_url_out");
+    expect(isTrafficColumn(BILLING_MINUTES_COLUMN)).toBe(false);
     for (const col of TRAFFIC_BILLING_COLUMNS) {
+      if (col === BILLING_MINUTES_COLUMN) continue;
       expect(isTrafficColumn(col)).toBe(true);
     }
   });

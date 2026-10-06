@@ -7,7 +7,12 @@ import { formatCount } from "@/lib/format-count";
 import { EMPTY_FILTER_TOKEN } from "@/components/column-filters/types";
 import { csvTimeToDisplay } from "@/modules/enrich/dates";
 import { formatCdrDayDisplay } from "@/modules/traffic/cdr-date-parts";
-import { MISSING_BILLING_LABEL, MISSING_PSTN_LABEL } from "@/modules/enrich/types";
+import {
+  MISSING_BILLING_LABEL,
+  MISSING_PSTN_LABEL,
+  billableMinutes,
+} from "@/modules/enrich/types";
+import { elapsedMsToSeconds } from "@/modules/traffic/month-export-types";
 
 export { formatCdrDayDisplay };
 
@@ -24,6 +29,12 @@ export function formatDurationSeconds(raw: string): string {
   const n = Number(trimmed);
   if (!Number.isFinite(n) || n < 0) return raw;
   return formatCount(Math.ceil(n / 1000));
+}
+
+/** Billing «Минуты»: same ceil as the month sheet. Blank seconds stay blank. */
+export function formatBillableMinutesCell(elapsedRaw: string): string {
+  if (!elapsedRaw.trim()) return "";
+  return formatCount(billableMinutes(elapsedMsToSeconds(elapsedRaw)));
 }
 
 export function displayTrafficFacet(column: string, value: string): string {

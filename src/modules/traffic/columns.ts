@@ -213,11 +213,14 @@ export const TRAFFIC_SUMMARY_LABELS: Record<
   src_name: "Инициирующее устройство",
   dst_name: "Терминирующее устройство",
   dp_name: "Объект набора",
-  elapsed_time: "Длительность",
+  elapsed_time: "Секунды",
   disconnect_code_string: "Код завершения",
   voipmonitor_url_in: VOIPMONITOR_TRAFFIC_LABELS.voipmonitor_url_in,
   voipmonitor_url_out: VOIPMONITOR_TRAFFIC_LABELS.voipmonitor_url_out,
 };
+
+/** Display-only billing column. Not a CDR field and not filterable. */
+export const BILLING_MINUTES_COLUMN = "billable_minutes";
 
 /** Billing screen: traffic summary without Calltrace, plus tariff cells. */
 export const TRAFFIC_BILLING_COLUMNS = [
@@ -232,6 +235,7 @@ export const TRAFFIC_BILLING_COLUMNS = [
   "out_orig_dnis",
   "tariff_direction",
   "elapsed_time",
+  "billable_minutes",
   "tariff_charge",
   "tariff_cost",
   "tariff_profit",
@@ -255,7 +259,8 @@ export const TRAFFIC_BILLING_LABELS: Record<
   side_b: "Сторона B",
   out_orig_dnis: "Переадресация",
   tariff_direction: CDR_TARIFF_LABELS.tariff_direction,
-  elapsed_time: "Длительность",
+  elapsed_time: "Секунды",
+  billable_minutes: "Минуты",
   tariff_charge: CDR_TARIFF_LABELS.tariff_charge,
   tariff_cost: CDR_TARIFF_LABELS.tariff_cost,
   tariff_profit: CDR_TARIFF_LABELS.tariff_profit,
@@ -306,7 +311,7 @@ export const TRAFFIC_GEOGRAPHY_LABELS: Record<
   src_name: "Инициирующее устройство",
   dst_name: "Терминирующее устройство",
   dp_name: "Объект набора",
-  elapsed_time: "Длительность",
+  elapsed_time: "Секунды",
   disconnect_code_string: "Код завершения",
 };
 
@@ -359,7 +364,7 @@ export const TRAFFIC_OPERATORS_LABELS: Record<
   src_name: "Инициирующее устройство",
   dst_name: "Терминирующее устройство",
   dp_name: "Объект набора",
-  elapsed_time: "Длительность",
+  elapsed_time: "Секунды",
   disconnect_code_string: "Код завершения",
 };
 

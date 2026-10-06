@@ -7,6 +7,7 @@ import {
 import {
   composeTrafficBanner,
   displayTrafficFacet,
+  formatBillableMinutesCell,
   formatCdrDateDisplay,
   formatDurationSeconds,
   formatTrafficCell,
@@ -44,6 +45,15 @@ describe("traffic UI date display", () => {
     expect(formatTrafficCell("elapsed_time", "24383")).toBe("25");
     expect(formatTrafficCell("term_elapsed_time", "1500")).toBe("2");
     expect(displayTrafficFacet("elapsed_time", "9900")).toBe("10");
+  });
+
+  it("ceils billing minutes from raw milliseconds and keeps a blank duration blank", () => {
+    expect(formatBillableMinutesCell("")).toBe("");
+    expect(formatBillableMinutesCell("   ")).toBe("");
+    expect(formatBillableMinutesCell("0")).toBe("0");
+    expect(formatBillableMinutesCell("22000")).toBe("1");
+    expect(formatBillableMinutesCell("60000")).toBe("1");
+    expect(formatBillableMinutesCell("61000")).toBe("2");
   });
 
   it("shows empty facet token as (пусто) and formats cdr_date facets", () => {

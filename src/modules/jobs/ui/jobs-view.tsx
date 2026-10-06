@@ -340,7 +340,7 @@ export function JobsView({ initial }: Props) {
                   <TableHead>Статус</TableHead>
                   <TableHead>Старт</TableHead>
                   <TableHead>Завершение</TableHead>
-                  <TableHead>Длительность</TableHead>
+                  <TableHead>Секунды</TableHead>
                   <TableHead>Результат</TableHead>
                 </TableRow>
               </TableHeader>

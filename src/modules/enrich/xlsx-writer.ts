@@ -322,7 +322,7 @@ const DETAIL_PHONE_COLS = new Set([5, 9]);
 const TRAFFIC_CHARGE_COL = TRAFFIC_HEADERS.indexOf("Стоимость") + 1;
 const TRAFFIC_BOLD_COLS = new Set([...TRAFFIC_PHONE_COLS, TRAFFIC_CHARGE_COL]);
 const TRAFFIC_MONEY_COLS = new Set(
-  (["Стоимость", "Себестоимость", "Прибыль"] as const).map(
+  (["Цена", "Стоимость", "Себестоимость", "Прибыль"] as const).map(
     (header) => TRAFFIC_HEADERS.indexOf(header) + 1,
   ),
 );
@@ -394,7 +394,7 @@ async function writeResolvedSheets(opts: {
       text(row.tariffDirection ?? ""),
       row.seconds,
       billableMinutes(row.seconds),
-      text(row.tariffPrice ?? ""),
+      excelMoney(row.tariffPrice),
       excelMoney(row.tariffCharge),
       excelMoney(row.tariffCost),
       excelMoney(row.tariffProfit),

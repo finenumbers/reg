@@ -1,7 +1,15 @@
-# Current Phase — production (v1.83.0)
+# Current Phase — production (v1.84.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, call billing.  
 **Date:** 2026-10-06
+
+## v1.84.0 — Seconds label and per-call minutes on billing
+
+CDR screens and the jobs table say «Секунды» where they said «Длительность». The stored field stays `elapsed_time`, and the cell is still `CEIL(ms/1000)`.
+
+«Биллинг звонков» shows «Минуты» after «Секунды». Minutes are `CEIL(ceiled seconds / 60)` per call, the same rule as the month sheet. A blank duration stays blank in both cells. Zero milliseconds stays 0 and 0. The column is not stored and has no filter.
+
+The month sheet writes «Цена» as a number with format `0.00`, the same as «Стоимость», «Себестоимость», and «Прибыль». A blank price stays blank.
 
 ## v1.83.0 — Month purge holds the file and clears that month's jobs and audit
 
@@ -21,7 +29,7 @@ Month filters, purge, statistics, detail, and the month sheet still use the UTC 
 
 ## v1.80.0 — Call billing
 
-«Биллинг звонков» (`/billing`, `phones:read`) sits in the CDR nav between «Телефонный трафик» and «Операторы связи». The table is the traffic summary without Calltrace. «Направление» follows «Переадресация». «Стоимость», «Себестоимость», and «Прибыль» follow «Длительность». «Стоимость» values are bold on this screen only. «Цена» is not a column here.
+«Биллинг звонков» (`/billing`, `phones:read`) sits in the CDR nav between «Телефонный трафик» and «Операторы связи». The table is the traffic summary without Calltrace. «Направление» follows «Переадресация». «Стоимость», «Себестоимость», and «Прибыль» follow «Секунды». «Стоимость» values are bold on this screen only. «Цена» is not a column here.
 
 The month sheet and the enrich traffic sheet replace «Тариф» with «Цена» from the tariff snapshot (`tariff_price`, the same text as «Тарификация»). «Направление» follows «Сторона В». «Себестоимость» and «Прибыль» follow «Стоимость». «Цена» is text. The three sums are numbers with format `0.00`. An unrated call leaves those cells blank. «Стоимость» values and both phone-number columns are bold on the traffic sheet and on «Детализация» (numbers only; that sheet's columns are unchanged). API keys still cannot download the file. The price column is a new migration; the v1.79.0 rating migration is unchanged. The migrator backfill writes the price on the next deploy.
 
@@ -201,7 +209,7 @@ Toolbar labels «Фантомный трафик», «Ошибки звонко�
 
 ## v1.45.0 — Gray «Недозвон» rows and checkbox
 
-CDR tables (traffic / geography / operators / raw) paint a row gray when side A or B is a known catalog description, «Длительность» is empty (`elapsed_time === ""`), and the row is not phantom / parking / call-error. Toolbar checkbox «Недозвон» keeps that class (OR with the other three). Month XLSX uses the same fill (`#E5E7EB`); `seconds === 0` alone is not empty. The hint under traffic export buttons is gone.
+CDR tables (traffic / geography / operators / raw) paint a row gray when side A or B is a known catalog description, «Секунды» is empty (`elapsed_time === ""`), and the row is not phantom / parking / call-error. Toolbar checkbox «Недозвон» keeps that class (OR with the other three). Month XLSX uses the same fill (`#E5E7EB`); `seconds === 0` alone is not empty. The hint under traffic export buttons is gone.
 
 ## v1.44.0 — Month XLSX fill note and OOXML regression
 

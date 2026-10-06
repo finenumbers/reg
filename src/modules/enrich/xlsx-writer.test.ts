@@ -335,4 +335,70 @@ describe("writeResolvedEnrichedXlsx", () => {
       .filter(Boolean);
     expect(used.some((xf) => xf.applyFill && xf.fillId >= 2)).toBe(true);
   });
+
+  it("writes price and money columns as numbers with two decimal places", async () => {
+    dir = await mkdtemp(path.join(tmpdir(), "xlsx-writer-"));
+    const jsonlPath = path.join(dir, "rows.jsonl");
+    const outputPath = path.join(dir, "out.xlsx");
+    const rated: ResolvedEnrichedRow = {
+      ...ROW,
+      tariffPrice: "1.5",
+      tariffCharge: "3.00",
+      tariffCost: "0.00",
+      tariffProfit: "3.00",
+    };
+    await writeFile(
+      jsonlPath,
+      `${JSON.stringify(rated)}\n${JSON.stringify(ROW)}\n`,
+      "utf8",
+    );
+    await writeResolvedEnrichedXlsx({
+      jsonlPath,
+      outputPath,
+      rowCount: 2,
+      trafficSheetName: "Август 2026 года",
+      includeDetail: false,
+    });
+
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.readFile(outputPath);
+    const traffic = workbook.getWorksheet("Август 2026 года")!;
+    const headers = ["Цена", "Стоимость", "Себестоимость", "Прибыль"] as const;
+    const expected = [1.5, 3, 0, 3];
+    headers.forEach((header, i) => {
+      const col = TRAFFIC_HEADERS.indexOf(header) + 1;
+      const filled = traffic.getRow(2).getCell(col);
+      const blank = traffic.getRow(3).getCell(col);
+      expect(filled.value).toBe(expected[i]);
+      expect(filled.numFmt).toBe("0.00");
+      expect(blank.value == null || blank.value === "").toBe(true);
+    });
+
+    const sheetXml = readXlsxEntry(outputPath, "xl/worksheets/sheet1.xml");
+    const stylesXml = readXlsxEntry(outputPath, "xl/styles.xml");
+    const cellXfs =
+      /<cellXfs\b[^>]*>([\s\S]*?)<\/cellXfs>/.exec(stylesXml)?.[1] ?? "";
+    const xfs = [...cellXfs.matchAll(/<xf\b([^>]*)\/?>/g)].map((match) => match[1] ?? "");
+    const row = /<row r="2"[^>]*>([\s\S]*?)<\/row>/.exec(sheetXml)?.[1] ?? "";
+    for (const header of headers) {
+      const col = TRAFFIC_HEADERS.indexOf(header) + 1;
+      const letter = columnLetter(col);
+      const cell = new RegExp(`<c r="${letter}2"([^>]*)>([\\s\\S]*?)</c>`).exec(row);
+      expect(cell?.[1] ?? "").not.toMatch(/\bt=/);
+      expect(cell?.[2]).toMatch(/<v>/);
+      const styleId = Number(/\bs="(\d+)"/.exec(cell?.[1] ?? "")?.[1]);
+      expect(xfs[styleId]).toMatch(/numFmtId="2"/);
+    }
+  });
 });
+
+function columnLetter(col: number): string {
+  let n = col;
+  let out = "";
+  while (n > 0) {
+    const rem = (n - 1) % 26;
+    out = String.fromCharCode(65 + rem) + out;
+    n = Math.floor((n - 1) / 26);
+  }
+  return out;
+}

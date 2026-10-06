@@ -11,6 +11,7 @@ import {
 import { ColumnFilterDropdown, type ColumnFilters } from "@/components/column-filters";
 import { HighlightText } from "@/components/highlight-text";
 import {
+  BILLING_MINUTES_COLUMN,
   CDR_PHONE_COLUMNS,
   TRAFFIC_BOLD_COLUMNS,
   VOIPMONITOR_COLUMN_IN,
@@ -27,6 +28,7 @@ import {
 } from "@/modules/traffic/traffic-sort";
 import {
   displayTrafficFacet,
+  formatBillableMinutesCell,
   formatTrafficCell,
   trafficMissingLabelClass,
 } from "@/modules/traffic/ui-format";
@@ -97,7 +99,7 @@ export function TrafficTable({
                   timeSort={timeSort}
                   onChange={onTimeSortChange}
                 />
-              ) : VOIPMONITOR_COLUMN_SET.has(h) ? (
+              ) : VOIPMONITOR_COLUMN_SET.has(h) || h === BILLING_MINUTES_COLUMN ? (
                 (headerLabels?.[h] ?? h)
               ) : (
                 <ColumnFilterDropdown
@@ -167,7 +169,10 @@ export function TrafficTable({
               >
                 {headers.map((h) => {
                   const raw = row.data[h] ?? "";
-                  const shown = formatTrafficCell(h, raw);
+                  const shown =
+                    h === BILLING_MINUTES_COLUMN
+                      ? formatBillableMinutesCell(row.data.elapsed_time ?? "")
+                      : formatTrafficCell(h, raw);
                   return (
                     <TableCell
                       key={h}
