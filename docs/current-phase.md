@@ -1,7 +1,11 @@
-# Current Phase — production (v1.75.0)
+# Current Phase — production (v1.76.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail.  
 **Date:** 2026-10-06
+
+## v1.76.0 — Call and minute columns are 70px
+
+«Звонки» and «Минуты» on Детализация and Статистика are 70px wide, and those headers are centered. Numbers in the cells and the totals row stay right-aligned. The Детализация client column still grows from 250px to the longest name. The Статистика name column stays 210px.
 
 ## v1.75.0 — Plain «Успешные» checkbox label
 

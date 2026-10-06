@@ -47,7 +47,7 @@ const FOOTER_CELL = "sticky bottom-0 z-10 bg-background font-bold";
 const SORT_BTN =
   "inline-flex h-7 max-h-7 w-full items-center justify-center bg-transparent px-0 text-inherit";
 const SORT_ACTIVE = "text-blue-600";
-const METRIC_COL_PX = 90;
+const METRIC_COL_PX = 70;
 const CLIENT_COL_MIN_PX = 250;
 const CLIENT_CELL_PAD_PX = 16;
 
@@ -238,10 +238,10 @@ function DetailTable({
         </TableRow>
         <TableRow>
           {GROUPS.flatMap((group) => [
-            <TableHead key={`${group.key}-calls`} className="top-7 text-right">
+            <TableHead key={`${group.key}-calls`} className="top-7 text-center">
               Звонки
             </TableHead>,
-            <TableHead key={`${group.key}-minutes`} className="top-7 text-right">
+            <TableHead key={`${group.key}-minutes`} className="top-7 text-center">
               Минуты
             </TableHead>,
           ])}

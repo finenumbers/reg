@@ -41,7 +41,7 @@ const MINUTES_TOTAL_CELL =
   "text-right font-bold bg-yellow-300 text-black hover:bg-yellow-300";
 
 const NAME_COL_PX = 210;
-const METRIC_COL_PX = 90;
+const METRIC_COL_PX = 70;
 
 type MetricPair = { calls: number; minutes: number };
 
@@ -216,10 +216,10 @@ function GroupedMetricTable({
             </TableRow>
             <TableRow>
               {groupLabels.flatMap((group) => [
-                <TableHead key={`${group}-calls`} className="top-7 text-right">
+                <TableHead key={`${group}-calls`} className="top-7 text-center">
                   Звонки
                 </TableHead>,
-                <TableHead key={`${group}-minutes`} className="top-7 text-right">
+                <TableHead key={`${group}-minutes`} className="top-7 text-center">
                   Минуты
                 </TableHead>,
               ])}
