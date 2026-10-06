@@ -1,7 +1,11 @@
-# Current Phase — production (v1.80.0)
+# Current Phase — production (v1.81.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, call billing.  
 **Date:** 2026-10-06
+
+## v1.81.0 — Remove unused month window and legacy Calltrace rewrite
+
+Month filters, purge, statistics, detail, and the month sheet still use the UTC `cdr_date` prefix. Calltrace links are still official `fcallid` URLs after a confirmed match. The old timezone month window (v1.14 export buttons) and the unused `fId` card rewriter are gone. Screens, filters, and stored links are unchanged.
 
 ## v1.80.0 — Call billing
 

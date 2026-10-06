@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  buildCardUrl,
-  isSafeVoipmonitorHref,
-  rewriteLegacyCardUrl,
-} from "@/modules/voipmonitor/url";
+import { buildCardUrl, isSafeVoipmonitorHref } from "@/modules/voipmonitor/url";
 
 describe("buildCardUrl", () => {
   it("uses official fcallid and never fId", () => {
@@ -29,16 +25,6 @@ describe("buildCardUrl", () => {
     expect(decoded).toContain("fdatefrom");
     expect(decoded).toContain("2026-07-26T12:00:00");
     expect(decoded).toContain("2026-07-28T12:00:00");
-  });
-});
-
-describe("rewriteLegacyCardUrl", () => {
-  it("rewrites undocumented fId filters", () => {
-    const legacy = `https://vm.example/admin.php?cdr_filter=${encodeURIComponent("{fId:42}")}`;
-    const got = rewriteLegacyCardUrl(legacy, "", "sip-abc", null);
-    expect(got).not.toContain("fId");
-    expect(got).toContain("fcallid");
-    expect(got).toContain("sip-abc");
   });
 });
 

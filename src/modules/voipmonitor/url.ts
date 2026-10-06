@@ -21,25 +21,6 @@ export function buildCardUrl(
   return encodeCdrFilterQuery(replaced);
 }
 
-export function rewriteLegacyCardUrl(
-  cardUrl: string,
-  guiBase: string,
-  vmCallId: string,
-  callDate: Date | null,
-): string {
-  if (!vmCallId) return cardUrl;
-  const legacy =
-    cardUrl === "" ||
-    cardUrl.includes("fId:") ||
-    cardUrl.includes("fId%3A") ||
-    cardUrl.includes("fId%3a");
-  if (!legacy) return cardUrl;
-  let base = guiBase;
-  if (!base) base = guiBaseFromCardUrl(cardUrl);
-  if (!base) return cardUrl;
-  return buildCardUrl("", base, { callId: vmCallId, callDate });
-}
-
 export function cardFilter(parts: CardUrlParts): string {
   if (!parts.callId) return "";
   let quoted: string;
@@ -65,16 +46,6 @@ function formatFilterDate(value: Date): string {
   const utc = new Date(value.getTime());
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${utc.getUTCFullYear()}-${pad(utc.getUTCMonth() + 1)}-${pad(utc.getUTCDate())}T${pad(utc.getUTCHours())}:${pad(utc.getUTCMinutes())}:${pad(utc.getUTCSeconds())}`;
-}
-
-function guiBaseFromCardUrl(cardUrl: string): string {
-  try {
-    const parsed = new URL(cardUrl);
-    if (!parsed.protocol || !parsed.host) return "";
-    return `${parsed.protocol}//${parsed.host}`;
-  } catch {
-    return "";
-  }
 }
 
 function encodeCdrFilterQuery(raw: string): string {
