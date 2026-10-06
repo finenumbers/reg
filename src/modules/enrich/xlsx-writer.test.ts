@@ -344,8 +344,6 @@ describe("writeResolvedEnrichedXlsx", () => {
       ...ROW,
       tariffPrice: "1.5",
       tariffCharge: "3.00",
-      tariffCost: "0.00",
-      tariffProfit: "3.00",
     };
     await writeFile(
       jsonlPath,
@@ -363,8 +361,8 @@ describe("writeResolvedEnrichedXlsx", () => {
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.readFile(outputPath);
     const traffic = workbook.getWorksheet("Август 2026 года")!;
-    const headers = ["Цена", "Стоимость", "Себестоимость", "Прибыль"] as const;
-    const expected = [1.5, 3, 0, 3];
+    const headers = ["Цена", "Стоимость"] as const;
+    const expected = [1.5, 3];
     headers.forEach((header, i) => {
       const col = TRAFFIC_HEADERS.indexOf(header) + 1;
       const filled = traffic.getRow(2).getCell(col);

@@ -1,6 +1,6 @@
 /**
  * Tariff routes are session-only. API keys carry phones:read and must not
- * read cost or replace the snapshot.
+ * read or replace the snapshot.
  */
 
 import { NextResponse } from "next/server";

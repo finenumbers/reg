@@ -29,7 +29,6 @@ export async function applyTariffSnapshot(
           direction: row.direction,
           abc: row.abc,
           price: row.price,
-          cost: row.cost,
         })),
       });
     }

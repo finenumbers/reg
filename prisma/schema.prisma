@@ -442,7 +442,6 @@ model TariffRate {
   /// Digit fragment of a phone number. Text so a leading zero survives.
   abc       String
   price     Decimal @db.Decimal(18, 6)
-  cost      Decimal @db.Decimal(18, 6)
 
   @@unique([sortIndex])
   @@index([abc])
@@ -609,8 +608,6 @@ model CdrRecord {
   callStatus                 String    @default("") @map("call_status")
   tariffDirection            String    @default("") @map("tariff_direction")
   tariffCharge               String    @default("") @map("tariff_charge")
-  tariffCost                 String    @default("") @map("tariff_cost")
-  tariffProfit               String    @default("") @map("tariff_profit")
   /// Catalog per-minute price (formatTariffDecimal). Not shown on raw or billing screens.
   tariffPrice                String    @default("") @map("tariff_price")
   enrichedAt                 DateTime? @map("enriched_at")

@@ -98,8 +98,6 @@ describe("CDR column contract", () => {
       "elapsed_time",
       "billable_minutes",
       "tariff_charge",
-      "tariff_cost",
-      "tariff_profit",
       "src_name",
       "dst_name",
       "dp_name",
@@ -107,8 +105,6 @@ describe("CDR column contract", () => {
     ]);
     expect(TRAFFIC_BILLING_LABELS.tariff_direction).toBe("Направление");
     expect(TRAFFIC_BILLING_LABELS.tariff_charge).toBe("Стоимость");
-    expect(TRAFFIC_BILLING_LABELS.tariff_cost).toBe("Себестоимость");
-    expect(TRAFFIC_BILLING_LABELS.tariff_profit).toBe("Прибыль");
     expect(TRAFFIC_BILLING_LABELS.elapsed_time).toBe("Секунды");
     expect(TRAFFIC_BILLING_LABELS.billable_minutes).toBe("Минуты");
     expect(TRAFFIC_BILLING_COLUMNS).not.toContain("voipmonitor_url_in");
@@ -188,13 +184,13 @@ describe("CDR column contract", () => {
 
   it("places enrich columns next to source fields without changing the dump contract", () => {
     expect(CDR_ENRICH_COLUMNS).toHaveLength(12);
-    expect(RAW_TABLE_COLUMNS).toHaveLength(140);
+    expect(RAW_TABLE_COLUMNS).toHaveLength(138);
     expect(RAW_TABLE_COLUMNS[0]).toBe("call_category");
     expect(RAW_TABLE_COLUMNS[1]).toBe("call_status");
     expect(RAW_TABLE_COLUMNS[2]).toBe("tariff_direction");
-    expect(RAW_TABLE_COLUMNS[5]).toBe("tariff_profit");
-    expect(RAW_TABLE_COLUMNS[7]).toBe("voipmonitor_url_in");
-    expect(RAW_TABLE_COLUMNS[8]).toBe("voipmonitor_url_out");
+    expect(RAW_TABLE_COLUMNS[3]).toBe("tariff_charge");
+    expect(RAW_TABLE_COLUMNS[5]).toBe("voipmonitor_url_in");
+    expect(RAW_TABLE_COLUMNS[6]).toBe("voipmonitor_url_out");
     for (const col of CDR_COLUMNS) {
       expect(RAW_TABLE_COLUMNS).toContain(col);
     }

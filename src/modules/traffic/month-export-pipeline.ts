@@ -74,8 +74,6 @@ const CDR_SELECT = {
   tariffDirection: true,
   tariffPrice: true,
   tariffCharge: true,
-  tariffCost: true,
-  tariffProfit: true,
 } satisfies Prisma.CdrRecordSelect;
 
 type CdrExportRow = Prisma.CdrRecordGetPayload<{ select: typeof CDR_SELECT }>;
@@ -139,8 +137,6 @@ type TariffCells = Pick<
   | "tariffDirection"
   | "tariffPrice"
   | "tariffCharge"
-  | "tariffCost"
-  | "tariffProfit"
 >;
 
 const TARIFF_SELECT = {
@@ -148,8 +144,6 @@ const TARIFF_SELECT = {
   tariffDirection: true,
   tariffPrice: true,
   tariffCharge: true,
-  tariffCost: true,
-  tariffProfit: true,
 } as const;
 
 /** Side fill rerates in the DB trigger. The file must use that result, not the pre-update SELECT. */
@@ -163,8 +157,6 @@ export function withStoredTariff<T extends TariffCells>(
     tariffDirection: updated.tariffDirection,
     tariffPrice: updated.tariffPrice,
     tariffCharge: updated.tariffCharge,
-    tariffCost: updated.tariffCost,
-    tariffProfit: updated.tariffProfit,
   };
 }
 
@@ -196,8 +188,6 @@ function toResolved(row: CdrExportRow, stored: StoredEnrichRow): ResolvedEnriche
     tariffDirection: row.tariffDirection,
     tariffPrice: row.tariffPrice,
     tariffCharge: row.tariffCharge,
-    tariffCost: row.tariffCost,
-    tariffProfit: row.tariffProfit,
   };
 }
 

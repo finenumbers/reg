@@ -1,7 +1,7 @@
 /**
- * Fill tariff_direction / tariff_charge / tariff_cost / tariff_profit / tariff_price
+ * Fill tariff_direction / tariff_charge / tariff_price
  * on every existing cdr_records row. Idempotent: a row is rewritten only
- * when the five cells change. Compose migrator runs this after migrate
+ * when the three cells change. Compose migrator runs this after migrate
  * deploy. The app must not start until this script exits 0.
  *
  * The batch SQL is kept identical to src/modules/traffic/tariff-rate/sql.ts.
@@ -28,8 +28,6 @@ rated AS (
     b.id,
     r.direction,
     r.charge,
-    r.cost,
-    r.profit,
     r.price
   FROM batch AS b
   CROSS JOIN LATERAL cdr_rate_call(
@@ -44,13 +42,11 @@ updated AS (
   SET
     tariff_direction = rated.direction,
     tariff_charge = rated.charge,
-    tariff_cost = rated.cost,
-    tariff_profit = rated.profit,
     tariff_price = rated.price
   FROM rated
   WHERE c.id = rated.id
-    AND (c.tariff_direction, c.tariff_charge, c.tariff_cost, c.tariff_profit, c.tariff_price)
-      IS DISTINCT FROM (rated.direction, rated.charge, rated.cost, rated.profit, rated.price)
+    AND (c.tariff_direction, c.tariff_charge, c.tariff_price)
+      IS DISTINCT FROM (rated.direction, rated.charge, rated.price)
   RETURNING c.id
 )
 SELECT

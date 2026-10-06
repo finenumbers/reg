@@ -310,8 +310,6 @@ function resolveFromMaps(
     tariffDirection: rated.direction,
     tariffPrice: rated.price,
     tariffCharge: rated.charge,
-    tariffCost: rated.cost,
-    tariffProfit: rated.profit,
   };
 }
 
@@ -322,7 +320,7 @@ const DETAIL_PHONE_COLS = new Set([5, 9]);
 const TRAFFIC_CHARGE_COL = TRAFFIC_HEADERS.indexOf("Стоимость") + 1;
 const TRAFFIC_BOLD_COLS = new Set([...TRAFFIC_PHONE_COLS, TRAFFIC_CHARGE_COL]);
 const TRAFFIC_MONEY_COLS = new Set(
-  (["Цена", "Стоимость", "Себестоимость", "Прибыль"] as const).map(
+  (["Цена", "Стоимость"] as const).map(
     (header) => TRAFFIC_HEADERS.indexOf(header) + 1,
   ),
 );
@@ -396,8 +394,6 @@ async function writeResolvedSheets(opts: {
       billableMinutes(row.seconds),
       excelMoney(row.tariffPrice),
       excelMoney(row.tariffCharge),
-      excelMoney(row.tariffCost),
-      excelMoney(row.tariffProfit),
       text(row.initDevice),
       text(row.termDevice),
       text(row.dialObject),

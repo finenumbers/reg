@@ -6,21 +6,16 @@ const stored = {
   tariffDirection: "Россия",
   tariffPrice: "1.50",
   tariffCharge: "3.00",
-  tariffCost: "1.20",
-  tariffProfit: "1.80",
 };
 
 describe("month export tariff after a side fill", () => {
-  it("uses the post-update money when the side changed", () => {
+  it("uses the post-update tariff when the side changed", () => {
     const updated = {
-      ...stored,
-      tariffCost: "0.00",
-      tariffProfit: "3.00",
+      tariffDirection: "Москва",
+      tariffPrice: "2",
+      tariffCharge: "4.00",
     };
-    expect(withStoredTariff(stored, updated)).toMatchObject({
-      tariffCost: "0.00",
-      tariffProfit: "3.00",
-    });
+    expect(withStoredTariff(stored, updated)).toEqual(updated);
   });
 
   it("leaves the selected tariff when the side did not change", () => {

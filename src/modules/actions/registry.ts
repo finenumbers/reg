@@ -137,7 +137,7 @@ export const ACTION_REGISTRY: Record<AllowedActionCode, AllowedActionDefinition>
     remotePath: "/opt/scripts/cdr_tariff_rate",
     argv: [],
     module: "traffic",
-    description: "Recompute CDR direction, price, cost, and profit from the tariff snapshot",
+    description: "Recompute CDR direction, price, and charge from the tariff snapshot",
     usesPlatformExecWrapper: true,
     elevateWithSudo: false,
     needsPty: false,

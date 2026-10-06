@@ -1,7 +1,15 @@
-# Current Phase — production (v1.84.0)
+# Current Phase — production (v1.85.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, call billing.  
 **Date:** 2026-10-06
+
+## v1.85.0 — Drop cost and profit
+
+«Себестоимость» is gone from «Тарификация», the tariff snapshot, and the XLSX upload. The file headers are «Направления», «ABC», and «Цена». A file that still has «Себестоимость» does not replace the snapshot. The snapshot already in the database keeps its directions and prices.
+
+«Сырые данные», «Биллинг звонков», the month sheet, and the enrich traffic sheet no longer show «Себестоимость» or «Прибыль». «Направление», «Цена», and «Стоимость» stay. «Стоимость» is still CEIL(seconds/60) × price per minute, ceiled to a kopeck. Successful outgoing, internal, redirect, and parking calls with an 11-digit B-number starting with 7 still rate. A failed call stays blank. «Детализация» never had those columns.
+
+Stored `tariff_cost`, `tariff_profit`, and `tariff_rates.cost` are dropped. The rating function is replaced in a new migration; the v1.79.0 through v1.82.0 migrations stay as shipped. Existing direction, price, and charge cells are not rewritten. API keys still cannot open tariffs.
 
 ## v1.84.0 — Seconds label and per-call minutes on billing
 

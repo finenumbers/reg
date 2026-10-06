@@ -7,30 +7,18 @@
 import { formatTariffDecimal } from "@/modules/tariffs/parse-xlsx";
 import { CALL_CATEGORY, CALL_STATUS } from "@/modules/traffic/call-class";
 
-export const CDR_TARIFF_COLUMNS = [
-  "tariff_direction",
-  "tariff_charge",
-  "tariff_cost",
-  "tariff_profit",
-] as const;
+export const CDR_TARIFF_COLUMNS = ["tariff_direction", "tariff_charge"] as const;
 
 export type CdrTariffColumn = (typeof CDR_TARIFF_COLUMNS)[number];
 
 export const CDR_TARIFF_LABELS: Record<CdrTariffColumn, string> = {
   tariff_direction: "Направление",
   tariff_charge: "Стоимость",
-  tariff_cost: "Себестоимость",
-  tariff_profit: "Прибыль",
 };
-
-/** Hidden from API keys. Profit reveals cost once charge is known. */
-export const CDR_TARIFF_SECRET_COLUMNS = ["tariff_cost", "tariff_profit"] as const;
 
 export type CdrTariffCells = {
   direction: string;
   charge: string;
-  cost: string;
-  profit: string;
   /** Catalog per-minute price, same text as «Тарификация». */
   price: string;
 };
@@ -38,24 +26,20 @@ export type CdrTariffCells = {
 export const EMPTY_CDR_TARIFF: CdrTariffCells = {
   direction: "",
   charge: "",
-  cost: "",
-  profit: "",
   price: "",
 };
 
-/** Charge from the tariff; cost is always 0.00. Status must still be successful. */
-const ZERO_COST = new Set<string>([
-  CALL_CATEGORY.outgoingParking,
+const RATED = new Set<string>([
+  CALL_CATEGORY.outgoing,
   CALL_CATEGORY.internal,
+  CALL_CATEGORY.redirect,
+  CALL_CATEGORY.outgoingParking,
 ]);
-
-const RATED_FULL = new Set<string>([CALL_CATEGORY.outgoing, CALL_CATEGORY.redirect]);
 
 /** 12 integer digits: abs(kopecks) >= 100 * 10^12. */
 const KOPECK_OVERFLOW = BigInt("100000000000000");
 const PRICE_SCALE = BigInt(1000000);
 const CHARGE_DIVISOR = BigInt(10000);
-const COST_DIVISOR = BigInt(600000);
 const ZERO = BigInt(0);
 const ONE = BigInt(1);
 const TEN = BigInt(10);
@@ -67,29 +51,8 @@ export type TariffRateLookup = {
   direction: string;
   abc: string;
   price: string;
-  cost: string;
   sortIndex: number;
 };
-
-export function isCdrTariffSecretColumn(column: string): boolean {
-  return (CDR_TARIFF_SECRET_COLUMNS as readonly string[]).includes(column);
-}
-
-export function stripCdrTariffSecrets<T extends Record<string, string>>(data: T): T {
-  const next = { ...data };
-  delete next.tariff_cost;
-  delete next.tariff_profit;
-  return next;
-}
-
-export function omitCdrTariffSecretFilters<T extends Record<string, unknown>>(
-  filters: T,
-): T {
-  const next = { ...filters };
-  delete next.tariff_cost;
-  delete next.tariff_profit;
-  return next;
-}
 
 /** CEIL(ms/1000). Non-numeric and negative durations are 0 seconds. */
 export function elapsedMsToCeiledSeconds(raw: string): bigint {
@@ -162,9 +125,8 @@ export function rateCdrCall(input: {
   elapsedTime: string;
   rates: readonly TariffRateLookup[];
 }): CdrTariffCells {
-  const zeroCost = ZERO_COST.has(input.category);
   if (input.status !== CALL_STATUS.success) return EMPTY_CDR_TARIFF;
-  if (!zeroCost && !RATED_FULL.has(input.category)) return EMPTY_CDR_TARIFF;
+  if (!RATED.has(input.category)) return EMPTY_CDR_TARIFF;
 
   const number = input.billDnis.trim();
   if (!/^7\d{10}$/.test(number)) return EMPTY_CDR_TARIFF;
@@ -173,27 +135,17 @@ export function rateCdrCall(input: {
   if (!rate) return EMPTY_CDR_TARIFF;
 
   const price6 = parseScale6(rate.price);
-  const cost6 = parseScale6(rate.cost);
-  if (price6 == null || cost6 == null) return EMPTY_CDR_TARIFF;
+  if (price6 == null) return EMPTY_CDR_TARIFF;
 
   const seconds = elapsedMsToCeiledSeconds(input.elapsedTime);
   const minutes = divCeilPositive(seconds, SIXTY);
   const chargeK = kopecksFromScale6(minutes * price6, CHARGE_DIVISOR, BigInt(9999));
-  const costK = zeroCost
-    ? ZERO
-    : kopecksFromScale6(seconds * cost6, COST_DIVISOR, BigInt(599999));
-  const profitK = chargeK - costK;
-
   const charge = formatKopecks(chargeK);
-  const cost = formatKopecks(costK);
-  const profit = formatKopecks(profitK);
-  if (charge == null || cost == null || profit == null) return EMPTY_CDR_TARIFF;
+  if (charge == null) return EMPTY_CDR_TARIFF;
 
   return {
     direction: rate.direction,
     charge,
-    cost,
-    profit,
     price: formatTariffDecimal(rate.price),
   };
 }

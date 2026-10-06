@@ -20,8 +20,6 @@ export const TRAFFIC_HEADERS = [
   "Минуты",
   "Цена",
   "Стоимость",
-  "Себестоимость",
-  "Прибыль",
   "Инициирующее устройство",
   "Терминирующее устройство",
   "Объект набора",
@@ -58,7 +56,7 @@ export const DETAIL_HEADERS = [
 
 export const TRAFFIC_WIDTHS = [
   12, 11.5703125, 22, 14, 15.140625, 41.140625, 15.140625, 41.140625, 41.140625,
-  13.85546875, 13.140625, 11.28515625, 15.28515625, 19.7109375, 14, 31.42578125,
+  13.85546875, 13.140625, 11.28515625, 15.28515625, 31.42578125,
   32.42578125, 33.42578125, 37.42578125,
 ];
 
@@ -167,8 +165,6 @@ export type ResolvedEnrichedRow = {
   /** Catalog per-minute price, formatTariffDecimal text. */
   tariffPrice?: string;
   tariffCharge?: string;
-  tariffCost?: string;
-  tariffProfit?: string;
 };
 
 export type EnrichJobView = {

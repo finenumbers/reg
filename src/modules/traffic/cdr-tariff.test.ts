@@ -5,9 +5,7 @@ import { CALL_CATEGORY, CALL_STATUS } from "@/modules/traffic/call-class";
 import {
   EMPTY_CDR_TARIFF,
   elapsedMsToCeiledSeconds,
-  omitCdrTariffSecretFilters,
   rateCdrCall,
-  stripCdrTariffSecrets,
   type TariffRateLookup,
 } from "@/modules/traffic/cdr-tariff";
 import { CDR_TARIFF_BATCH_SQL } from "@/modules/traffic/tariff-rate/sql";
@@ -24,12 +22,16 @@ const INTERNAL_ZERO_COST_MIGRATION = path.join(
   process.cwd(),
   "prisma/migrations/20261006225000_cdr_internal_zero_cost/migration.sql",
 );
+const DROP_COST_MIGRATION = path.join(
+  process.cwd(),
+  "prisma/migrations/20261006233000_drop_tariff_cost_profit/migration.sql",
+);
 
 const RATES: TariffRateLookup[] = [
-  { direction: "Россия", abc: "7", price: "1", cost: "0.5", sortIndex: 0 },
-  { direction: "Москва", abc: "7495", price: "2", cost: "1.2", sortIndex: 1 },
-  { direction: "Москва-центр", abc: "74951", price: "3", cost: "1", sortIndex: 2 },
-  { direction: "Москва-позже", abc: "74951", price: "9", cost: "9", sortIndex: 5 },
+  { direction: "Россия", abc: "7", price: "1", sortIndex: 0 },
+  { direction: "Москва", abc: "7495", price: "2", sortIndex: 1 },
+  { direction: "Москва-центр", abc: "74951", price: "3", sortIndex: 2 },
+  { direction: "Москва-позже", abc: "74951", price: "9", sortIndex: 5 },
 ];
 
 function rate(
@@ -63,13 +65,11 @@ describe("elapsedMsToCeiledSeconds", () => {
 });
 
 describe("rateCdrCall", () => {
-  it("uses the longest ABC and minute charge versus per-second cost", () => {
+  it("uses the longest ABC and a whole-minute charge", () => {
     expect(rate()).toEqual({
       direction: "Москва-центр",
       price: "3",
       charge: "3.00",
-      cost: "1.00",
-      profit: "2.00",
     });
   });
 
@@ -77,29 +77,27 @@ describe("rateCdrCall", () => {
     expect(
       rate({
         rates: [
-          { direction: "Позже", abc: "7495", price: "9", cost: "9", sortIndex: 4 },
-          { direction: "Раньше", abc: "7495", price: "2", cost: "1.2", sortIndex: 1 },
+          { direction: "Позже", abc: "7495", price: "9", sortIndex: 4 },
+          { direction: "Раньше", abc: "7495", price: "2", sortIndex: 1 },
         ],
         billDnis: "74950000000",
         elapsedTime: "61000",
       }),
-    ).toMatchObject({ direction: "Раньше", charge: "4.00", cost: "1.22", profit: "2.78" });
+    ).toEqual({ direction: "Раньше", price: "2", charge: "4.00" });
   });
 
   it("rates a redirect the same way as an outgoing call", () => {
     expect(rate({ category: CALL_CATEGORY.redirect })).toEqual(rate());
   });
 
-  it("sets parking and successful internal cost to zero", () => {
-    const zeroCost = {
+  it("rates parking and a successful internal call", () => {
+    const rated = {
       direction: "Москва-центр",
       price: "3",
       charge: "3.00",
-      cost: "0.00",
-      profit: "3.00",
     };
-    expect(rate({ category: CALL_CATEGORY.outgoingParking })).toEqual(zeroCost);
-    expect(rate({ category: CALL_CATEGORY.internal })).toEqual(zeroCost);
+    expect(rate({ category: CALL_CATEGORY.outgoingParking })).toEqual(rated);
+    expect(rate({ category: CALL_CATEGORY.internal })).toEqual(rated);
     expect(
       rate({ category: CALL_CATEGORY.internal, status: CALL_STATUS.failed, elapsedTime: "" }),
     ).toEqual(EMPTY_CDR_TARIFF);
@@ -120,14 +118,12 @@ describe("rateCdrCall", () => {
       rate({
         billDnis: " 74950000000 ",
         elapsedTime: "1000",
-        rates: [{ direction: "Москва", abc: "7495", price: "1.001", cost: "1", sortIndex: 0 }],
+        rates: [{ direction: "Москва", abc: "7495", price: "1.001", sortIndex: 0 }],
       }),
     ).toEqual({
       direction: "Москва",
       price: "1.001",
       charge: "1.01",
-      cost: "0.02",
-      profit: "0.99",
     });
   });
 
@@ -135,14 +131,12 @@ describe("rateCdrCall", () => {
     expect(
       rate({
         elapsedTime: "60000",
-        rates: [{ direction: "Москва", abc: "7495", price: "1.22", cost: "1.22", sortIndex: 0 }],
+        rates: [{ direction: "Москва", abc: "7495", price: "1.22", sortIndex: 0 }],
       }),
-    ).toMatchObject({ charge: "1.22", cost: "1.22", profit: "0.00" });
+    ).toMatchObject({ charge: "1.22" });
     expect(rate({ elapsedTime: "0" })).toMatchObject({
       price: "3",
       charge: "0.00",
-      cost: "0.00",
-      profit: "0.00",
     });
   });
 
@@ -150,33 +144,13 @@ describe("rateCdrCall", () => {
     expect(
       rate({
         elapsedTime: "60000",
-        rates: [{ direction: "Минус", abc: "7495", price: "-1.221", cost: "0", sortIndex: 0 }],
+        rates: [{ direction: "Минус", abc: "7495", price: "-1.221", sortIndex: 0 }],
       }),
-    ).toMatchObject({ charge: "-1.22", cost: "0.00", profit: "-1.22" });
+    ).toMatchObject({ charge: "-1.22" });
   });
 
   it("leaves the row empty when the amount does not fit twelve integer digits", () => {
     expect(rate({ elapsedTime: "1" + "0".repeat(20) })).toEqual(EMPTY_CDR_TARIFF);
-  });
-});
-
-describe("API key redaction", () => {
-  it("drops cost and profit from the row and from filters", () => {
-    expect(
-      stripCdrTariffSecrets({
-        tariff_direction: "Москва",
-        tariff_charge: "1.00",
-        tariff_cost: "0.02",
-        tariff_profit: "0.98",
-      }),
-    ).toEqual({ tariff_direction: "Москва", tariff_charge: "1.00" });
-    expect(
-      omitCdrTariffSecretFilters({
-        tariff_cost: ["0.02"],
-        tariff_profit: ["0.98"],
-        call_status: ["Успешный"],
-      }),
-    ).toEqual({ call_status: ["Успешный"] });
   });
 });
 
@@ -203,6 +177,21 @@ describe("cdr tariff migration", () => {
     expect(readFileSync(MIGRATION, "utf8")).toContain("IF category = 'Исходящий паркинг' THEN");
     expect(readFileSync(PRICE_MIGRATION, "utf8")).toContain(
       "IF category = 'Исходящий паркинг' THEN",
+    );
+  });
+
+  it("drops cost and profit without rewriting the shipped rating functions", () => {
+    const sql = readFileSync(DROP_COST_MIGRATION, "utf8");
+    expect(sql).toContain("DROP FUNCTION cdr_rate_call(text, text, text, text)");
+    expect(sql).toContain('DROP COLUMN "tariff_cost"');
+    expect(sql).toContain('DROP COLUMN "tariff_profit"');
+    expect(sql).toContain('DROP COLUMN "cost"');
+    expect(sql).not.toContain("t.cost");
+    expect(sql).not.toContain("NEW.tariff_cost");
+    expect(sql).toContain(CALL_CATEGORY.internal);
+    expect(sql).toContain(CALL_CATEGORY.outgoingParking);
+    expect(readFileSync(INTERNAL_ZERO_COST_MIGRATION, "utf8")).toContain(
+      "category IN ('Исходящий паркинг', 'Внутренний звонок')",
     );
   });
 

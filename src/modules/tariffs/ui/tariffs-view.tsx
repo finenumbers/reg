@@ -185,19 +185,18 @@ export function TariffsView({ initial }: { initial: ListTariffsResult }) {
                 <TableHead>Направления</TableHead>
                 <TableHead>ABC</TableHead>
                 <TableHead>Цена</TableHead>
-                <TableHead>Себестоимость</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading && items.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-muted-foreground h-24">
+                  <TableCell colSpan={3} className="text-muted-foreground h-24">
                     Загрузка…
                   </TableCell>
                 </TableRow>
               ) : showEmpty ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-muted-foreground h-24">
+                  <TableCell colSpan={3} className="text-muted-foreground h-24">
                     Нет данных. Нажмите «Загрузить данные».
                   </TableCell>
                 </TableRow>
@@ -207,7 +206,6 @@ export function TariffsView({ initial }: { initial: ListTariffsResult }) {
                     <TableCell>{row.direction}</TableCell>
                     <TableCell>{row.abc}</TableCell>
                     <TableCell>{row.price}</TableCell>
-                    <TableCell>{row.cost}</TableCell>
                   </TableRow>
                 ))
               )}

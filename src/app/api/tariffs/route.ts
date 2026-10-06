@@ -4,7 +4,7 @@ import { listTariffRates } from "@/modules/tariffs/service";
 
 /**
  * GET /api/tariffs — current tariff snapshot. Session + phones:read.
- * API keys are rejected: the payload includes cost.
+ * API keys are rejected.
  */
 export async function GET(request: Request) {
   const gate = await requireTariffSession();

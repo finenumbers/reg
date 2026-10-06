@@ -27,23 +27,23 @@ describe("parseTariffXlsx", () => {
   it("keeps a text ABC prefix and comma prices", async () => {
     const buf = await workbook([
       header,
-      ["Москва", "0495", "1,50", "0,75"],
+      ["Москва", "0495", "1,50"],
       [],
-      ["Казань", "843", "10", "9,5"],
+      ["Казань", "843", "10"],
     ]);
     const result = await parseTariffXlsx(buf);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.rows).toEqual([
-      { sortIndex: 0, direction: "Москва", abc: "0495", price: "1.5", cost: "0.75" },
-      { sortIndex: 1, direction: "Казань", abc: "843", price: "10", cost: "9.5" },
+      { sortIndex: 0, direction: "Москва", abc: "0495", price: "1.5" },
+      { sortIndex: 1, direction: "Казань", abc: "843", price: "10" },
     ]);
   });
 
   it("accepts columns in any order and a numeric ABC cell", async () => {
     const buf = await workbook([
-      ["Себестоимость", "Цена", "ABC", "Направления"],
-      [1.25, "1 234,50", 495, "Москва"],
+      ["Цена", "ABC", "Направления"],
+      ["1 234,50", 495, "Москва"],
     ]);
     const result = await parseTariffXlsx(buf);
     expect(result.ok).toBe(true);
@@ -53,12 +53,15 @@ describe("parseTariffXlsx", () => {
       direction: "Москва",
       abc: "495",
       price: "1234.5",
-      cost: "1.25",
     });
   });
 
   it("stores a numeric direction as text and allows zero and negative money", async () => {
-    const buf = await workbook([header, [100, "812", 0, -0.5]]);
+    const buf = await workbook([
+      header,
+      [100, "812", 0],
+      ["Скидка", "812", -0.5],
+    ]);
     const result = await parseTariffXlsx(buf);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -66,8 +69,8 @@ describe("parseTariffXlsx", () => {
       direction: "100",
       abc: "812",
       price: "0",
-      cost: "-0.5",
     });
+    expect(result.rows[1]).toMatchObject({ direction: "Скидка", price: "-0.5" });
   });
 
   it("rejects a broken header without reading rows as data", async () => {
@@ -81,10 +84,10 @@ describe("parseTariffXlsx", () => {
     expect(result.details[0]).toMatch(/первой строке/);
   });
 
-  it("rejects an extra column", async () => {
+  it("rejects a file that still has Себестоимость", async () => {
     const buf = await workbook([
-      [...header, "Комментарий"],
-      ["Москва", "495", "1", "1", "x"],
+      [...header, "Себестоимость"],
+      ["Москва", "495", "1", "0.5"],
     ]);
     const result = await parseTariffXlsx(buf);
     expect(result.ok).toBe(false);
@@ -93,9 +96,9 @@ describe("parseTariffXlsx", () => {
   it("rejects plus, spaces and a fraction in ABC", async () => {
     const buf = await workbook([
       header,
-      ["А", "+7495", "1", "1"],
-      ["Б", "7 495", "1", "1"],
-      ["В", 12.5, "1", "1"],
+      ["А", "+7495", "1"],
+      ["Б", "7 495", "1"],
+      ["В", 12.5, "1"],
     ]);
     const result = await parseTariffXlsx(buf);
     expect(result.ok).toBe(false);
@@ -105,7 +108,7 @@ describe("parseTariffXlsx", () => {
   });
 
   it("rejects a text price with more than 6 fractional digits", async () => {
-    const buf = await workbook([header, ["Москва", "495", "1.23456789", "1"]]);
+    const buf = await workbook([header, ["Москва", "495", "1.23456789"]]);
     const result = await parseTariffXlsx(buf);
     expect(result.ok).toBe(false);
     if (result.ok) return;
@@ -113,12 +116,11 @@ describe("parseTariffXlsx", () => {
   });
 
   it("keeps a float that only has binary noise", async () => {
-    const buf = await workbook([header, ["Москва", "495", 1.15, 1.1]]);
+    const buf = await workbook([header, ["Москва", "495", 1.15]]);
     const result = await parseTariffXlsx(buf);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.rows[0]?.price).toBe("1.15");
-    expect(result.rows[0]?.cost).toBe("1.1");
   });
 
   it("rejects a header-only sheet", async () => {
@@ -131,7 +133,7 @@ describe("parseTariffXlsx", () => {
   it("stops after 30 row errors", async () => {
     const rows: unknown[][] = [header];
     for (let i = 0; i < TARIFF_MAX_ERRORS + 5; i++) {
-      rows.push(["Москва", "abc", "1", "1"]);
+      rows.push(["Москва", "abc", "1"]);
     }
     const result = await parseTariffXlsx(await workbook(rows));
     expect(result.ok).toBe(false);

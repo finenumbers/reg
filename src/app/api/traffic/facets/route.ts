@@ -2,10 +2,6 @@ import { NextResponse } from "next/server";
 import { parseFiltersParam } from "@/components/column-filters/types";
 import { requireApiPermission } from "@/modules/auth/guards";
 import { parseTrafficFlagParam } from "@/modules/traffic/row-flags";
-import {
-  isCdrTariffSecretColumn,
-  omitCdrTariffSecretFilters,
-} from "@/modules/traffic/cdr-tariff";
 import { listTrafficFacets } from "@/modules/traffic/service";
 
 /**
@@ -24,15 +20,7 @@ export async function GET(request: Request) {
     );
   }
 
-  if (gate.ctx.authKind !== "session" && isCdrTariffSecretColumn(column)) {
-    return NextResponse.json({ items: [], truncated: false });
-  }
-
-  const parsedFilters = parseFiltersParam(url.searchParams.get("filters"));
-  const filters =
-    gate.ctx.authKind === "session"
-      ? parsedFilters
-      : omitCdrTariffSecretFilters(parsedFilters);
+  const filters = parseFiltersParam(url.searchParams.get("filters"));
   const phoneQ = url.searchParams.get("phoneQ") ?? undefined;
   const month = url.searchParams.get("month") ?? undefined;
   const phantom = parseTrafficFlagParam(url.searchParams.get("phantom"));

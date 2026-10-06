@@ -1,12 +1,12 @@
 /**
  * Parse a tariff XLSX snapshot.
  * Direction is text, ABC is a digit fragment of a phone number,
- * price and cost are decimals with at most 6 fractional digits.
+ * price is a decimal with at most 6 fractional digits.
  */
 
 import ExcelJS from "exceljs";
 
-export const TARIFF_HEADERS = ["Направления", "ABC", "Цена", "Себестоимость"] as const;
+export const TARIFF_HEADERS = ["Направления", "ABC", "Цена"] as const;
 
 export const TARIFF_MAX_ROWS = 50_000;
 export const TARIFF_MAX_ERRORS = 30;
@@ -22,7 +22,6 @@ export type TariffParsedRow = {
   direction: string;
   abc: string;
   price: string;
-  cost: string;
 };
 
 export type TariffParseResult =
@@ -202,7 +201,7 @@ export async function parseTariffXlsx(
   const block = readHeaderBlock(ws);
   if (!block || !headersMatch(block)) {
     return fail([
-      "В первой строке должны быть столбцы «Направления», «ABC», «Цена», «Себестоимость» и больше ничего",
+      "В первой строке должны быть столбцы «Направления», «ABC», «Цена» и больше ничего",
     ]);
   }
 
@@ -229,13 +228,7 @@ export async function parseTariffXlsx(
     const directionCell = row.getCell(col.get("Направления")!).value;
     const abcCell = row.getCell(col.get("ABC")!).value;
     const priceCell = row.getCell(col.get("Цена")!).value;
-    const costCell = row.getCell(col.get("Себестоимость")!).value;
-    if (
-      isBlank(directionCell) &&
-      isBlank(abcCell) &&
-      isBlank(priceCell) &&
-      isBlank(costCell)
-    ) {
+    if (isBlank(directionCell) && isBlank(abcCell) && isBlank(priceCell)) {
       return;
     }
     if (rows.length >= TARIFF_MAX_ROWS) {
@@ -247,7 +240,6 @@ export async function parseTariffXlsx(
     const direction = parseDirection(directionCell);
     const abc = parseAbc(abcCell);
     const price = parseMoney(priceCell);
-    const cost = parseMoney(costCell);
     if (!direction) {
       push(
         `Строка ${rowNumber}: «Направления» должно быть непустым текстом до ${MAX_DIRECTION} символов`,
@@ -259,16 +251,12 @@ export async function parseTariffXlsx(
     if (!price) {
       push(`Строка ${rowNumber}: «Цена» должна быть числом`);
     }
-    if (!cost) {
-      push(`Строка ${rowNumber}: «Себестоимость» должна быть числом`);
-    }
-    if (direction && abc && price && cost) {
+    if (direction && abc && price) {
       rows.push({
         sortIndex: rows.length,
         direction,
         abc,
         price,
-        cost,
       });
     }
   });
