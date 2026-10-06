@@ -342,7 +342,7 @@ describe("writeResolvedEnrichedXlsx", () => {
     const outputPath = path.join(dir, "out.xlsx");
     const rated: ResolvedEnrichedRow = {
       ...ROW,
-      tariffPrice: "1.5",
+      tariffPrice: "1234.5",
       tariffCharge: "3.00",
     };
     await writeFile(
@@ -362,13 +362,13 @@ describe("writeResolvedEnrichedXlsx", () => {
     await workbook.xlsx.readFile(outputPath);
     const traffic = workbook.getWorksheet("Август 2026 года")!;
     const headers = ["Цена", "Стоимость"] as const;
-    const expected = [1.5, 3];
+    const expected = [1234.5, 3];
     headers.forEach((header, i) => {
       const col = TRAFFIC_HEADERS.indexOf(header) + 1;
       const filled = traffic.getRow(2).getCell(col);
       const blank = traffic.getRow(3).getCell(col);
       expect(filled.value).toBe(expected[i]);
-      expect(filled.numFmt).toBe("0.00");
+      expect(filled.numFmt).toBe("#,##0.00");
       expect(blank.value == null || blank.value === "").toBe(true);
     });
 
@@ -385,10 +385,21 @@ describe("writeResolvedEnrichedXlsx", () => {
       expect(cell?.[1] ?? "").not.toMatch(/\bt=/);
       expect(cell?.[2]).toMatch(/<v>/);
       const styleId = Number(/\bs="(\d+)"/.exec(cell?.[1] ?? "")?.[1]);
-      expect(xfs[styleId]).toMatch(/numFmtId="2"/);
+      expect(moneyFormatId(stylesXml, xfs[styleId] ?? "")).toBe("#,##0.00");
     }
   });
 });
+
+function moneyFormatId(stylesXml: string, xf: string): string {
+  const id = /\bnumFmtId="(\d+)"/.exec(xf)?.[1] ?? "";
+  if (id === "4") return "#,##0.00";
+  const formats =
+    /<numFmts\b[^>]*>([\s\S]*?)<\/numFmts>/.exec(stylesXml)?.[1] ?? "";
+  const code = new RegExp(`<numFmt\\b[^>]*numFmtId="${id}"[^>]*formatCode="([^"]*)"`).exec(
+    formats,
+  );
+  return code?.[1]?.replace(/&quot;/g, '"') ?? "";
+}
 
 function columnLetter(col: number): string {
   let n = col;

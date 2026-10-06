@@ -14,6 +14,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatCount } from "@/lib/format-count";
+import { formatMoney2 } from "@/lib/format-money";
 import { formatDisplayTimestamp } from "@/lib/format-display-time";
 import { TABLE_PAGE_SIZE } from "@/lib/table-pagination";
 import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
@@ -205,7 +206,7 @@ export function TariffsView({ initial }: { initial: ListTariffsResult }) {
                   <TableRow key={row.id}>
                     <TableCell>{row.direction}</TableCell>
                     <TableCell>{row.abc}</TableCell>
-                    <TableCell>{row.price}</TableCell>
+                    <TableCell>{formatMoney2(row.price)}</TableCell>
                   </TableRow>
                 ))
               )}

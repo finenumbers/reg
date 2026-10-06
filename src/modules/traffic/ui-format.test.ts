@@ -33,6 +33,10 @@ describe("traffic UI date display", () => {
     expect(formatTrafficCell("cdr_day", "2026-08-30")).toBe("30.08.2026");
     expect(formatTrafficCell("cdr_time", "14:22:52")).toBe("14:22:52");
     expect(formatTrafficCell("bill_ani", "79001234567")).toBe("79001234567");
+    expect(formatTrafficCell("tariff_charge", "1.5")).toBe("1.50");
+    expect(formatTrafficCell("tariff_charge", "10")).toBe("10.00");
+    expect(formatTrafficCell("tariff_charge", "-1.221")).toBe("-1.22");
+    expect(formatTrafficCell("tariff_charge", "")).toBe("");
   });
 
   it("converts millisecond duration columns to ceiled seconds", () => {
@@ -67,6 +71,8 @@ describe("traffic UI date display", () => {
     expect(displayTrafficFacet("cdr_day", "2026-08-30")).toBe("30.08.2026");
     expect(displayTrafficFacet("cdr_time", "14:22:52")).toBe("14:22:52");
     expect(displayTrafficFacet("bill_ani", "79001234567")).toBe("79001234567");
+    expect(displayTrafficFacet("tariff_charge", "1234.5")).toBe("1234.50");
+    expect(displayTrafficFacet("tariff_charge", "")).toBe("(пусто)");
   });
 
   it("colors billing and PSTN miss labels", () => {

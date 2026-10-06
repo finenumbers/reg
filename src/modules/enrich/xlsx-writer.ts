@@ -123,7 +123,7 @@ function applyStyle(
     cell.numFmt = "0";
   }
   if (opts.money) {
-    cell.numFmt = "0.00";
+    cell.numFmt = "#,##0.00";
   }
   if (!opts.header) applyMissFont(cell, Boolean(opts.billingSide));
 }

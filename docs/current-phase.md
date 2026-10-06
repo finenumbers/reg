@@ -1,7 +1,13 @@
-# Current Phase — production (v1.85.0)
+# Current Phase — production (v1.86.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, call billing.  
 **Date:** 2026-10-06
+
+## v1.86.0 — Two decimal places for price and charge
+
+«Тарификация» shows «Цена» with two decimal places. «Сырые данные» and «Биллинг звонков» show «Стоимость» the same way. A blank cell stays blank. The stored catalog price still keeps up to six fractional digits; only the table text is rounded to a kopeck.
+
+The month sheet and the enrich traffic sheet write «Цена» and «Стоимость» as numbers with format `#,##0.00`: a thousands separator and two decimal places. An unrated call still leaves those cells blank.
 
 ## v1.85.0 — Drop cost and profit
 

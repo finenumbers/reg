@@ -4,6 +4,7 @@
  */
 
 import { formatCount } from "@/lib/format-count";
+import { formatMoney2 } from "@/lib/format-money";
 import { EMPTY_FILTER_TOKEN } from "@/components/column-filters/types";
 import { csvTimeToDisplay } from "@/modules/enrich/dates";
 import { formatCdrDayDisplay } from "@/modules/traffic/cdr-date-parts";
@@ -21,6 +22,7 @@ export function formatCdrDateDisplay(raw: string): string {
 }
 
 const DURATION_COLUMNS = new Set(["elapsed_time", "term_elapsed_time"]);
+const MONEY_COLUMNS = new Set(["tariff_charge"]);
 
 /** Softswitch `elapsed_time` is milliseconds; display whole seconds (ceil). */
 export function formatDurationSeconds(raw: string): string {
@@ -42,6 +44,7 @@ export function displayTrafficFacet(column: string, value: string): string {
   if (column === "cdr_date") return formatCdrDateDisplay(value);
   if (column === "cdr_day") return formatCdrDayDisplay(value);
   if (DURATION_COLUMNS.has(column)) return formatDurationSeconds(value);
+  if (MONEY_COLUMNS.has(column)) return formatMoney2(value);
   return value;
 }
 
@@ -49,6 +52,7 @@ export function formatTrafficCell(column: string, raw: string): string {
   if (column === "cdr_date") return formatCdrDateDisplay(raw);
   if (column === "cdr_day") return formatCdrDayDisplay(raw);
   if (DURATION_COLUMNS.has(column)) return formatDurationSeconds(raw);
+  if (MONEY_COLUMNS.has(column)) return formatMoney2(raw);
   return raw;
 }
 
