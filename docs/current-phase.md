@@ -1,7 +1,11 @@
-# Current Phase — production (v1.86.0)
+# Current Phase — production (v1.86.1)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, call billing.  
 **Date:** 2026-10-06
+
+## v1.86.1 — Money formatter typechecks on the image build
+
+The two-decimal formatter no longer uses BigInt literals. The image build targets ES2017, and those literals failed `next build` for v1.86.0. Display is unchanged.
 
 ## v1.86.0 — Two decimal places for price and charge
 

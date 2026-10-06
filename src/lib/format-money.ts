@@ -13,16 +13,21 @@ export function formatMoney2(raw: string): string {
   const digits = `${intRaw}${fracRaw}`.replace(/^0+(?=\d)/, "") || "0";
   const scale = fracRaw.length;
   const target = scale - 2;
+  const zero = BigInt(0);
+  const one = BigInt(1);
+  const two = BigInt(2);
+  const ten = BigInt(10);
+  const hundred = BigInt(100);
   let scaled = BigInt(digits);
   if (target > 0) {
-    const div = 10n ** BigInt(target);
+    const div = ten ** BigInt(target);
     const rem = scaled % div;
     scaled /= div;
-    if (rem * 2n >= div) scaled += 1n;
+    if (rem * two >= div) scaled += one;
   } else if (target < 0) {
-    scaled *= 10n ** BigInt(-target);
+    scaled *= ten ** BigInt(-target);
   }
-  const whole = scaled / 100n;
-  const frac = (scaled % 100n).toString().padStart(2, "0");
-  return `${neg && scaled !== 0n ? "-" : ""}${whole.toString()}.${frac}`;
+  const whole = scaled / hundred;
+  const frac = (scaled % hundred).toString().padStart(2, "0");
+  return `${neg && scaled !== zero ? "-" : ""}${whole.toString()}.${frac}`;
 }
