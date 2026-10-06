@@ -1,7 +1,11 @@
-# Current Phase — production (v1.74.0)
+# Current Phase — production (v1.75.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail.  
 **Date:** 2026-10-06
+
+## v1.75.0 — Plain «Успешные» checkbox label
+
+The CDR toolbar checkbox «Успешные» is plain 12px text. The transparent badge is gone, so the label no longer takes the colored-mark padding. It stays vertically centered with the checkbox and the neighboring marks. The other row-color checkboxes keep their fills. The success filter is unchanged.
 
 ## v1.74.0 — Main column left inset is 16px
 

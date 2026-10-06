@@ -6,7 +6,6 @@ import { FitSelect } from "@/components/fit-select";
 import { FILTER_TOOLBAR_TEXT } from "@/components/filter-toolbar";
 import { PhoneSearchInput } from "@/components/phone-search-input";
 import { RowColorMark } from "@/components/row-color-legend";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
@@ -660,13 +659,11 @@ export function TrafficView({
               checked={success}
               onChange={(e) => onSuccessChange(e.target.checked)}
             />
-            <Label htmlFor={`${searchInputId}-success`}>
-              <Badge
-                variant="outline"
-                className={`text-foreground border-transparent bg-transparent ${FILTER_TOOLBAR_TEXT} leading-none`}
-              >
-                Успешные
-              </Badge>
+            <Label
+              htmlFor={`${searchInputId}-success`}
+              className={FILTER_TOOLBAR_TEXT}
+            >
+              Успешные
             </Label>
           </div>
           <Button
