@@ -50,6 +50,7 @@ const ACTION_LABELS: Record<string, string> = {
   "cdr.purge_finish": "Завершение удаления месяца телефонного трафика",
   "api_key.create": "Создание API-ключа",
   "api_key.revoke": "Отзыв API-ключа",
+  "tariffs.import": "Загрузка тарификации",
   "users.change": "Изменение пользователя",
 };
 

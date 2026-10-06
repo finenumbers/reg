@@ -6,6 +6,7 @@ import type { PermissionCode } from "@/modules/rbac/permissions";
 
 export type FeatureModuleId =
   | "settings"
+  | "tariffs"
   | "jobs"
   | "registrations"
   | "phones"
@@ -126,6 +127,14 @@ export const FEATURE_MODULES: FeatureModuleDefinition[] = [
     description: "SSH-профиль, интервал опроса, месяцы CDR",
     href: "/settings",
     navPermission: "settings:write",
+    navGroup: "admin",
+  },
+  {
+    id: "tariffs",
+    title: "Тарификация",
+    description: "Направления, ABC, цена и себестоимость из XLSX",
+    href: "/tariffs",
+    navPermission: "phones:read",
     navGroup: "admin",
   },
   {

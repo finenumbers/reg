@@ -433,6 +433,33 @@ model RoutingGroupImportState {
   @@map("routing_group_import_state")
 }
 
+/// Tariff snapshot from an uploaded XLSX. Each import replaces every row.
+model TariffRate {
+  id        String  @id @default(cuid())
+  /// Order in the uploaded file (empty rows omitted).
+  sortIndex Int
+  direction String
+  /// Digit fragment of a phone number. Text so a leading zero survives.
+  abc       String
+  price     Decimal @db.Decimal(18, 6)
+  cost      Decimal @db.Decimal(18, 6)
+
+  @@unique([sortIndex])
+  @@index([abc])
+  @@index([direction])
+  @@map("tariff_rates")
+}
+
+model TariffImportState {
+  id        Int       @id @default(1)
+  rowCount  Int       @default(0)
+  filename  String?
+  loadedAt  DateTime?
+  updatedAt DateTime  @updatedAt
+
+  @@map("tariff_import_state")
+}
+
 // ---------------------------------------------------------------------------
 // Phone traffic (full softswitch CDR dump)
 // ---------------------------------------------------------------------------

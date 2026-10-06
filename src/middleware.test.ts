@@ -53,6 +53,13 @@ describe("middleware protected routes", () => {
     expect(res.headers.get("location")).toContain("next=%2Foperators");
   });
 
+  it("redirects anonymous users from /tariffs to /login", () => {
+    const res = middleware(makeRequest("/tariffs"));
+    expect(res.status).toBe(307);
+    expect(res.headers.get("location")).toContain("/login");
+    expect(res.headers.get("location")).toContain("next=%2Ftariffs");
+  });
+
   it("redirects anonymous users from /settings to /login", () => {
     const res = middleware(makeRequest("/settings"));
     expect(res.status).toBe(307);
@@ -135,4 +142,3 @@ describe("middleware matcher", () => {
     expect(middlewareMatcherHits("/api/settings")).toBe(true);
   });
 });
-

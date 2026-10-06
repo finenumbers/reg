@@ -1,7 +1,11 @@
-# Current Phase — production (v1.77.0)
+# Current Phase — production (v1.78.0)
 
-**Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail.  
+**Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs.  
 **Date:** 2026-10-06
+
+## v1.78.0 — Tariff catalog
+
+«Тарификация» sits in the admin nav between «Настройки» and «Задачи». Admin and operator (`phones:read`) can open it. API keys cannot. The table lists Направления, ABC, Цена, and Себестоимость. «Загрузить данные» replaces the whole snapshot from an XLSX with those four headers. A file that fails validation leaves the previous snapshot in place. ABC is a digit fragment of a phone number (leading zeros kept when the cell is text). Price and cost are decimals with up to 6 fractional digits.
 
 ## v1.77.0 — Call and minute columns are 80px
 

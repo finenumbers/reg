@@ -49,6 +49,7 @@ export const AUDIT_ACTIONS = {
   VOIPMONITOR_TEST: "voipmonitor.test",
   API_KEY_CREATE: "api_key.create",
   API_KEY_REVOKE: "api_key.revoke",
+  TARIFFS_IMPORT: "tariffs.import",
 } as const;
 
 export type AuditAction =

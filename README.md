@@ -2,7 +2,7 @@
 
 Internal telecom ops platform for monitoring SIP registrations on an operator softswitch via allowlisted SSH scripts under `/opt/scripts/`.
 
-**Repository:** [github.com/finenumbers/reg](https://github.com/finenumbers/reg) · **Release:** [v1.77.0](https://github.com/finenumbers/reg/releases/tag/v1.77.0)
+**Repository:** [github.com/finenumbers/reg](https://github.com/finenumbers/reg) · **Release:** [v1.78.0](https://github.com/finenumbers/reg/releases/tag/v1.78.0)
 
 ## Stack (approved)
 
@@ -97,7 +97,7 @@ Do not hand-author conflicting auth table definitions. App RBAC (`roles` / `perm
 - Auto-poll is Settings-only (`regsPollEnabled` + interval); in-process loop starts at boot; single `app` replica required
 - Admin/settings/audit routes require RBAC permissions; anonymous users are redirected or rejected
 - Mutating APIs require same-origin Origin/Referer; login/poll/SSH-test are rate-limited (in-memory; single replica)
-- Machine API keys (Settings → API-ключи): read-only `regs:read` + `phones:read`; `Authorization: Bearer` / `X-Api-Key`; 10 000 req/min per key; no poll/sync/settings/SSH/RTU-import
+- Machine API keys (Settings → API-ключи): read-only `regs:read` + `phones:read`; `Authorization: Bearer` / `X-Api-Key`; 10 000 req/min per key; no poll/sync/settings/SSH/RTU-import/tariffs
 - Softswitch host hardening: see [remote-server-setup.md](docs/remote-server-setup.md)
 
 ## Settings / SSH APIs
@@ -115,7 +115,7 @@ Do not hand-author conflicting auth table definitions. App RBAC (`roles` / `perm
 Authorization: Bearer reg_<secret>
 ```
 
-Allowed with `regs:read` / `phones:read`: `GET /api/regs*`, `GET /api/phones*` (except RTU POST), `GET /api/groups*`, `GET /api/jobs`.
+Allowed with `regs:read` / `phones:read`: `GET /api/regs*`, `GET /api/phones*` (except RTU POST), `GET /api/groups*`, `GET /api/jobs`. Tariff routes (`/api/tariffs`, `/api/tariffs/import`) are session-only and are not open to API keys.
 
 APIs:
 
@@ -162,6 +162,15 @@ UI (`/groups`):
 
 - Read-only ID / Name table (sorted by ID ascending)
 - **Загрузить данные** runs the same read-only `export.py`, applies only `groups[]`
+
+## Tariffs
+
+Session only (`phones:read`). API keys are rejected.
+
+- `GET /api/tariffs` — current snapshot, paging
+- `POST /api/tariffs/import` — replace the snapshot from an XLSX (`Направления`, `ABC`, `Цена`, `Себестоимость`)
+
+UI (`/tariffs`): table plus **Загрузить данные**. A failed file leaves the previous snapshot in place.
 
 ## Jobs / Audit (Phase 6)
 

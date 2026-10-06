@@ -22,7 +22,7 @@ describe("FEATURE_MODULES nav groups", () => {
   });
 
   it("keeps admin without Статистика", () => {
-    expect(idsInGroup("admin")).toEqual(["settings", "jobs", "audit"]);
+    expect(idsInGroup("admin")).toEqual(["settings", "tariffs", "jobs", "audit"]);
   });
 
   it("uses only known nav groups", () => {
