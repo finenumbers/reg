@@ -4,6 +4,7 @@
  * Money is integer kopecks: CEIL toward +infinity, always two decimal places.
  */
 
+import { formatTariffDecimal } from "@/modules/tariffs/parse-xlsx";
 import { CALL_CATEGORY, CALL_STATUS } from "@/modules/traffic/call-class";
 
 export const CDR_TARIFF_COLUMNS = [
@@ -30,6 +31,8 @@ export type CdrTariffCells = {
   charge: string;
   cost: string;
   profit: string;
+  /** Catalog per-minute price, same text as «Тарификация». */
+  price: string;
 };
 
 export const EMPTY_CDR_TARIFF: CdrTariffCells = {
@@ -37,6 +40,7 @@ export const EMPTY_CDR_TARIFF: CdrTariffCells = {
   charge: "",
   cost: "",
   profit: "",
+  price: "",
 };
 
 const RATED_FULL = new Set<string>([
@@ -188,5 +192,6 @@ export function rateCdrCall(input: {
     charge,
     cost,
     profit,
+    price: formatTariffDecimal(rate.price),
   };
 }

@@ -16,6 +16,10 @@ const MIGRATION = path.join(
   process.cwd(),
   "prisma/migrations/20261006210000_cdr_tariff_rating/migration.sql",
 );
+const PRICE_MIGRATION = path.join(
+  process.cwd(),
+  "prisma/migrations/20261006223000_cdr_tariff_price/migration.sql",
+);
 
 const RATES: TariffRateLookup[] = [
   { direction: "Россия", abc: "7", price: "1", cost: "0.5", sortIndex: 0 },
@@ -58,6 +62,7 @@ describe("rateCdrCall", () => {
   it("uses the longest ABC and minute charge versus per-second cost", () => {
     expect(rate()).toEqual({
       direction: "Москва-центр",
+      price: "3",
       charge: "3.00",
       cost: "1.00",
       profit: "2.00",
@@ -85,6 +90,7 @@ describe("rateCdrCall", () => {
   it("sets parking cost to zero", () => {
     expect(rate({ category: CALL_CATEGORY.outgoingParking })).toEqual({
       direction: "Москва-центр",
+      price: "3",
       charge: "3.00",
       cost: "0.00",
       profit: "3.00",
@@ -110,6 +116,7 @@ describe("rateCdrCall", () => {
       }),
     ).toEqual({
       direction: "Москва",
+      price: "1.001",
       charge: "1.01",
       cost: "0.02",
       profit: "0.99",
@@ -124,6 +131,7 @@ describe("rateCdrCall", () => {
       }),
     ).toMatchObject({ charge: "1.22", cost: "1.22", profit: "0.00" });
     expect(rate({ elapsedTime: "0" })).toMatchObject({
+      price: "3",
       charge: "0.00",
       cost: "0.00",
       profit: "0.00",
@@ -175,6 +183,16 @@ describe("cdr tariff migration", () => {
     expect(sql).toContain(CALL_STATUS.success);
     expect(sql).toContain("OLD.call_category");
     expect(sql).toContain("cdr_rate_call");
+    expect(sql).not.toContain("tariff_price");
+    expect(sql).not.toContain("formatTariffDecimal");
+  });
+
+  it("adds the catalog price without rewriting the shipped rating migration", () => {
+    const sql = readFileSync(PRICE_MIGRATION, "utf8");
+    expect(sql).toContain('ADD COLUMN "tariff_price"');
+    expect(sql).toContain("cdr_tariff_price_text");
+    expect(sql).toContain("DROP FUNCTION cdr_rate_call(text, text, text, text)");
+    expect(sql).toContain("NEW.tariff_price");
     expect(sql).not.toContain("formatTariffDecimal");
   });
 });

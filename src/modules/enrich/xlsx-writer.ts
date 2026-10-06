@@ -9,6 +9,7 @@ import { excelPhoneValue } from "@/modules/enrich/excel-phone";
 import { xlsxCdrDateTimeCells } from "@/modules/traffic/cdr-date-parts";
 import { guardExcelText } from "@/modules/enrich/formula-guard";
 import { classifyCallCategory, classifyExportStatus } from "@/modules/traffic/call-class";
+import { rateCdrCall, type TariffRateLookup } from "@/modules/traffic/cdr-tariff";
 import { cdrRowTone } from "@/modules/traffic/row-tone";
 import {
   DETAIL_HEADERS,
@@ -111,7 +112,7 @@ function applyMissFont(cell: ExcelJS.Cell, billingSide: boolean): void {
 function applyStyle(
   cell: ExcelJS.Cell,
   role: BorderRole,
-  opts: { header?: boolean; phone?: boolean; billingSide?: boolean },
+  opts: { header?: boolean; phone?: boolean; money?: boolean; billingSide?: boolean },
 ): void {
   cell.border = bordersFor(role);
   if (opts.header) {
@@ -120,6 +121,9 @@ function applyStyle(
   }
   if (opts.phone) {
     cell.numFmt = "0";
+  }
+  if (opts.money) {
+    cell.numFmt = "0.00";
   }
   if (!opts.header) applyMissFont(cell, Boolean(opts.billingSide));
 }
@@ -151,13 +155,19 @@ function styleBodyRow(
   phoneCols: ReadonlySet<number>,
   sideCols: ReadonlySet<number>,
   fill: ExcelJS.Fill | undefined,
+  boldCols: ReadonlySet<number>,
+  moneyCols: ReadonlySet<number>,
 ): void {
   for (let c = 1; c <= colCount; c++) {
     const cell = excelRow.getCell(c);
     applyStyle(cell, roleFor(c - 1), {
       phone: phoneCols.has(c) && typeof cell.value === "number",
+      money: moneyCols.has(c) && typeof cell.value === "number",
       billingSide: sideCols.has(c),
     });
+    if (boldCols.has(c)) {
+      cell.font = { ...BODY_FONT, ...(cell.font ?? {}), bold: true };
+    }
     if (fill) cell.fill = fill;
   }
 }
@@ -204,12 +214,55 @@ async function eachJsonlRow<T>(
   }
 }
 
+function excelMoney(raw: string | undefined): number | "" {
+  const trimmed = raw?.trim() ?? "";
+  if (!trimmed) return "";
+  const n = Number(trimmed);
+  return Number.isFinite(n) ? n : "";
+}
+
+function rateExportRow(
+  row: Pick<
+    ResolvedEnrichedRow,
+    | "sideA"
+    | "sideB"
+    | "initDevice"
+    | "termDevice"
+    | "dialObject"
+    | "cause"
+    | "elapsedTime"
+    | "seconds"
+    | "bNumber"
+  >,
+  rates: readonly TariffRateLookup[],
+): ReturnType<typeof rateCdrCall> {
+  const elapsed =
+    row.elapsedTime !== undefined
+      ? row.elapsedTime
+      : String(Math.max(0, Math.trunc(row.seconds)) * 1000);
+  return rateCdrCall({
+    category: classifyCallCategory(
+      row.sideA,
+      row.sideB,
+      row.termDevice,
+      row.initDevice,
+      row.cause,
+      row.dialObject,
+    ),
+    status: classifyExportStatus(row.elapsedTime),
+    billDnis: row.bNumber,
+    elapsedTime: elapsed,
+    rates,
+  });
+}
+
 function resolveFromMaps(
   row: CdrJsonlRow,
   maps: {
     descriptions: Map<string, string>;
     pstn: Map<string, PstnFields>;
     geo: Map<string, GeoFields>;
+    rates: readonly TariffRateLookup[];
   },
 ): ResolvedEnrichedRow {
   const sideA = descriptionOrMissing(maps.descriptions.get(row.aNumber));
@@ -218,6 +271,19 @@ function resolveFromMaps(
   const pstnB = pstnOrMissing(maps.pstn.get(row.bNumber));
   const geoA = geoBits(row.initIp ? maps.geo.get(row.initIp) : undefined);
   const geoB = geoBits(row.termIp ? maps.geo.get(row.termIp) : undefined);
+  const rated = rateExportRow(
+    {
+      sideA,
+      sideB,
+      initDevice: row.initDevice,
+      termDevice: row.termDevice,
+      dialObject: row.dialObject,
+      cause: row.cause,
+      seconds: row.seconds,
+      bNumber: row.bNumber,
+    },
+    maps.rates,
+  );
   return {
     time: row.time,
     aNumber: row.aNumber,
@@ -241,6 +307,11 @@ function resolveFromMaps(
     countryB: geoB.country,
     cityB: geoB.city,
     providerB: geoB.isp,
+    tariffDirection: rated.direction,
+    tariffPrice: rated.price,
+    tariffCharge: rated.charge,
+    tariffCost: rated.cost,
+    tariffProfit: rated.profit,
   };
 }
 
@@ -248,6 +319,13 @@ const PROGRESS_EVERY = 250;
 /** 1-based Excel columns: А-номер and В-номер, after Категория and Статус. */
 const TRAFFIC_PHONE_COLS = new Set([5, 7]);
 const DETAIL_PHONE_COLS = new Set([5, 9]);
+const TRAFFIC_CHARGE_COL = TRAFFIC_HEADERS.indexOf("Стоимость") + 1;
+const TRAFFIC_BOLD_COLS = new Set([...TRAFFIC_PHONE_COLS, TRAFFIC_CHARGE_COL]);
+const TRAFFIC_MONEY_COLS = new Set(
+  (["Стоимость", "Себестоимость", "Прибыль"] as const).map(
+    (header) => TRAFFIC_HEADERS.indexOf(header) + 1,
+  ),
+);
 /** 1-based «Сторона A/B» columns. Blue billing-miss text stays on these only. */
 const TRAFFIC_SIDE_COLS = new Set([6, 8]);
 const DETAIL_SIDE_COLS = new Set([6, 10]);
@@ -313,10 +391,13 @@ async function writeResolvedSheets(opts: {
       sideText(row.sideA),
       bPhone,
       sideText(row.sideB),
+      text(row.tariffDirection ?? ""),
       row.seconds,
       billableMinutes(row.seconds),
-      "",
-      "",
+      text(row.tariffPrice ?? ""),
+      excelMoney(row.tariffCharge),
+      excelMoney(row.tariffCost),
+      excelMoney(row.tariffProfit),
       text(row.initDevice),
       text(row.termDevice),
       text(row.dialObject),
@@ -330,6 +411,8 @@ async function writeResolvedSheets(opts: {
       TRAFFIC_PHONE_COLS,
       TRAFFIC_SIDE_COLS,
       rowFill(row),
+      TRAFFIC_BOLD_COLS,
+      TRAFFIC_MONEY_COLS,
     );
     excelRow.commit();
     report("traffic", index + 1, last);
@@ -394,6 +477,8 @@ async function writeResolvedSheets(opts: {
       DETAIL_PHONE_COLS,
       DETAIL_SIDE_COLS,
       rowFill(row),
+      DETAIL_PHONE_COLS,
+      new Set(),
     );
     excelRow.commit();
     report("detail", index + 1, last);
@@ -413,6 +498,7 @@ export async function writeEnrichedXlsx(opts: {
   descriptions: Map<string, string>;
   pstn: Map<string, PstnFields>;
   geo: Map<string, GeoFields>;
+  rates?: readonly TariffRateLookup[];
   trafficSheetName?: string;
   onProgress?: (info: XlsxSheetProgress) => void;
 }): Promise<void> {
@@ -423,7 +509,7 @@ export async function writeEnrichedXlsx(opts: {
     onProgress: opts.onProgress,
     eachRow: (visit) =>
       eachJsonlRow<CdrJsonlRow>(opts.jsonlPath, (row, index) => {
-        visit(resolveFromMaps(row, opts), index);
+        visit(resolveFromMaps(row, { ...opts, rates: opts.rates ?? [] }), index);
       }),
   });
 }

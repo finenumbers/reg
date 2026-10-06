@@ -23,7 +23,8 @@ rated AS (
     r.direction,
     r.charge,
     r.cost,
-    r.profit
+    r.profit,
+    r.price
   FROM batch AS b
   CROSS JOIN LATERAL cdr_rate_call(
     b.call_category,
@@ -38,11 +39,12 @@ updated AS (
     tariff_direction = rated.direction,
     tariff_charge = rated.charge,
     tariff_cost = rated.cost,
-    tariff_profit = rated.profit
+    tariff_profit = rated.profit,
+    tariff_price = rated.price
   FROM rated
   WHERE c.id = rated.id
-    AND (c.tariff_direction, c.tariff_charge, c.tariff_cost, c.tariff_profit)
-      IS DISTINCT FROM (rated.direction, rated.charge, rated.cost, rated.profit)
+    AND (c.tariff_direction, c.tariff_charge, c.tariff_cost, c.tariff_profit, c.tariff_price)
+      IS DISTINCT FROM (rated.direction, rated.charge, rated.cost, rated.profit, rated.price)
   RETURNING c.id
 )
 SELECT

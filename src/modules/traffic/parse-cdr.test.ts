@@ -4,6 +4,8 @@ import {
   CDR_COLUMN_COUNT,
   CDR_ENRICH_COLUMNS,
   RAW_TABLE_COLUMNS,
+  TRAFFIC_BILLING_COLUMNS,
+  TRAFFIC_BILLING_LABELS,
   TRAFFIC_GEOGRAPHY_COLUMNS,
   TRAFFIC_GEOGRAPHY_LABELS,
   TRAFFIC_OPERATORS_COLUMNS,
@@ -76,6 +78,38 @@ describe("CDR column contract", () => {
         expect(isTrafficColumn(col)).toBe(false);
         continue;
       }
+      expect(isTrafficColumn(col)).toBe(true);
+    }
+  });
+
+  it("keeps billing view columns inside the dump or enrich set", () => {
+    expect(TRAFFIC_BILLING_COLUMNS).toEqual([
+      "cdr_day",
+      "cdr_time",
+      "call_category",
+      "call_status",
+      "bill_ani",
+      "side_a",
+      "bill_dnis",
+      "side_b",
+      "out_orig_dnis",
+      "tariff_direction",
+      "elapsed_time",
+      "tariff_charge",
+      "tariff_cost",
+      "tariff_profit",
+      "src_name",
+      "dst_name",
+      "dp_name",
+      "disconnect_code_string",
+    ]);
+    expect(TRAFFIC_BILLING_LABELS.tariff_direction).toBe("Направление");
+    expect(TRAFFIC_BILLING_LABELS.tariff_charge).toBe("Стоимость");
+    expect(TRAFFIC_BILLING_LABELS.tariff_cost).toBe("Себестоимость");
+    expect(TRAFFIC_BILLING_LABELS.tariff_profit).toBe("Прибыль");
+    expect(TRAFFIC_BILLING_COLUMNS).not.toContain("voipmonitor_url_in");
+    expect(TRAFFIC_BILLING_COLUMNS).not.toContain("voipmonitor_url_out");
+    for (const col of TRAFFIC_BILLING_COLUMNS) {
       expect(isTrafficColumn(col)).toBe(true);
     }
   });

@@ -15,10 +15,13 @@ export const TRAFFIC_HEADERS = [
   "Сторона А",
   "В-номер",
   "Сторона В",
+  "Направление",
   "Секунды",
   "Минуты",
-  "Тариф",
+  "Цена",
   "Стоимость",
+  "Себестоимость",
+  "Прибыль",
   "Инициирующее устройство",
   "Терминирующее устройство",
   "Объект набора",
@@ -54,8 +57,9 @@ export const DETAIL_HEADERS = [
 ] as const;
 
 export const TRAFFIC_WIDTHS = [
-  12, 10, 22, 14, 15.1640625, 41.1640625, 15.1640625, 41.1640625, 13.83203125,
-  13.1640625, 11.33203125, 15.33203125, 31.5, 32.5, 33.5, 37.5,
+  12, 11.5703125, 22, 14, 15.140625, 41.140625, 15.140625, 41.140625, 41.140625,
+  13.85546875, 13.140625, 11.28515625, 15.28515625, 19.7109375, 14, 31.42578125,
+  32.42578125, 33.42578125, 37.42578125,
 ];
 
 export const DETAIL_WIDTHS = [
@@ -158,6 +162,13 @@ export type ResolvedEnrichedRow = {
   countryB: string;
   cityB: string;
   providerB: string;
+  /** Stored catalog direction. Empty when the call is not rated. */
+  tariffDirection?: string;
+  /** Catalog per-minute price, formatTariffDecimal text. */
+  tariffPrice?: string;
+  tariffCharge?: string;
+  tariffCost?: string;
+  tariffProfit?: string;
 };
 
 export type EnrichJobView = {

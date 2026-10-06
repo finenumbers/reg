@@ -13,6 +13,7 @@ export type FeatureModuleId =
   | "groups"
   | "raw"
   | "traffic"
+  | "billing"
   | "geography"
   | "operators"
   | "audit"
@@ -78,6 +79,14 @@ export const FEATURE_MODULES: FeatureModuleDefinition[] = [
     title: "Телефонный трафик",
     description: "Сокращённая таблица CDR из локальной БД",
     href: "/traffic",
+    navPermission: "phones:read",
+    navGroup: "cdr",
+  },
+  {
+    id: "billing",
+    title: "Биллинг звонков",
+    description: "Направление, стоимость, себестоимость и прибыль по сырым CDR",
+    href: "/billing",
     navPermission: "phones:read",
     navGroup: "cdr",
   },

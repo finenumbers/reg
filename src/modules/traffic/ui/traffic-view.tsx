@@ -70,6 +70,7 @@ type Props = {
   columns: readonly string[];
   headerLabels: Record<string, string>;
   highlightColumns?: readonly string[];
+  boldColumns?: readonly string[];
   showOps: boolean;
   canRetry: boolean;
   emptyUnfiltered: string;
@@ -84,6 +85,7 @@ export function TrafficView({
   columns,
   headerLabels,
   highlightColumns,
+  boldColumns,
   showOps,
   canRetry,
   emptyUnfiltered,
@@ -705,6 +707,7 @@ export function TrafficView({
             headers={[...columns]}
             headerLabels={headerLabels}
             highlightColumns={highlightColumns}
+            boldColumns={boldColumns}
             data={items}
             loading={loading && items.length === 0}
             emptyMessage={filtersActive ? FILTERED_EMPTY : emptyUnfiltered}

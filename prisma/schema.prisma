@@ -611,6 +611,8 @@ model CdrRecord {
   tariffCharge               String    @default("") @map("tariff_charge")
   tariffCost                 String    @default("") @map("tariff_cost")
   tariffProfit               String    @default("") @map("tariff_profit")
+  /// Catalog per-minute price (formatTariffDecimal). Not shown on raw or billing screens.
+  tariffPrice                String    @default("") @map("tariff_price")
   enrichedAt                 DateTime? @map("enriched_at")
   sourceFilename             String
   importedAt                 DateTime  @default(now())

@@ -70,6 +70,11 @@ const CDR_SELECT = {
   cityB: true,
   providerB: true,
   enrichedAt: true,
+  tariffDirection: true,
+  tariffPrice: true,
+  tariffCharge: true,
+  tariffCost: true,
+  tariffProfit: true,
 } satisfies Prisma.CdrRecordSelect;
 
 type CdrExportRow = Prisma.CdrRecordGetPayload<{ select: typeof CDR_SELECT }>;
@@ -153,6 +158,11 @@ function toResolved(row: CdrExportRow, stored: StoredEnrichRow): ResolvedEnriche
     countryB: stored.countryB,
     cityB: stored.cityB,
     providerB: stored.providerB,
+    tariffDirection: row.tariffDirection,
+    tariffPrice: row.tariffPrice,
+    tariffCharge: row.tariffCharge,
+    tariffCost: row.tariffCost,
+    tariffProfit: row.tariffProfit,
   };
 }
 

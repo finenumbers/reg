@@ -15,6 +15,7 @@ import {
   loadDescriptionsForPhones,
 } from "@/modules/enrich/lookups";
 import { writeEnrichedXlsx } from "@/modules/enrich/xlsx-writer";
+import { loadTariffRateLookup } from "@/modules/tariffs/service";
 import {
   enrichJsonlPath,
   enrichOutputPath,
@@ -113,6 +114,7 @@ export async function runEnrichPipeline(input: {
 
     stages = setStage(stages, "xlsx", { status: "running" });
     await persist({ stages });
+    const rates = await loadTariffRateLookup();
     await writeEnrichedXlsx({
       jsonlPath: enrichJsonlPath(jobId),
       outputPath: enrichOutputPath(jobId),
@@ -120,6 +122,7 @@ export async function runEnrichPipeline(input: {
       descriptions,
       pstn: pstn.byOriginal,
       geo: geo.byIp,
+      rates,
     });
     stages = setStage(stages, "xlsx", { status: "done" });
     stages = setStage(stages, "download", { status: "done" });

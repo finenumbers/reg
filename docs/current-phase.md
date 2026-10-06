@@ -1,7 +1,13 @@
-# Current Phase — production (v1.79.0)
+# Current Phase — production (v1.80.0)
 
-**Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs.  
+**Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, call billing.  
 **Date:** 2026-10-06
+
+## v1.80.0 — Call billing
+
+«Биллинг звонков» (`/billing`, `phones:read`) sits in the CDR nav between «Телефонный трафик» and «Операторы связи». The table is the traffic summary without Calltrace. «Направление» follows «Переадресация». «Стоимость», «Себестоимость», and «Прибыль» follow «Длительность». «Стоимость» values are bold on this screen only. «Цена» is not a column here.
+
+The month sheet and the enrich traffic sheet replace «Тариф» with «Цена» from the tariff snapshot (`tariff_price`, the same text as «Тарификация»). «Направление» follows «Сторона В». «Себестоимость» and «Прибыль» follow «Стоимость». «Цена» is text. The three sums are numbers with format `0.00`. An unrated call leaves those cells blank. «Стоимость» values and both phone-number columns are bold on the traffic sheet and on «Детализация» (numbers only; that sheet's columns are unchanged). API keys still cannot download the file. The price column is a new migration; the v1.79.0 rating migration is unchanged. The migrator backfill writes the price on the next deploy.
 
 ## v1.79.0 — CDR tariff columns
 

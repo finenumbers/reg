@@ -33,7 +33,7 @@ export function trafficBodyRole(col: number, lastRow: boolean): BorderRole {
     5: ["groupEnd", "groupLastEnd"],
     6: ["groupStart", "groupLastStart"],
     7: ["groupEnd", "groupLastEnd"],
-    8: ["noLeft", "noLeft"],
+    8: ["groupStart", "groupStart"],
   };
   const pair = map[col];
   if (pair) return lastRow ? pair[1] : pair[0];
@@ -48,7 +48,7 @@ export function trafficHeaderRole(col: number): BorderRole {
     5: "headerGroupEnd",
     6: "headerGroupStart",
     7: "headerGroupEnd",
-    8: "headerNoLeft",
+    8: "groupStart",
   };
   return map[col] ?? "headerPlain";
 }

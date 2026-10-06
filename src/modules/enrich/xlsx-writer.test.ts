@@ -114,6 +114,14 @@ describe("writeResolvedEnrichedXlsx", () => {
     expect(detail.getRow(2).getCell(2).value).toBe("12:00:00");
     expect(detail.getRow(2).getCell(3).value).toBe(CALL_CATEGORY.internal);
     expect(detail.getRow(2).getCell(4).value).toBe(CALL_STATUS.success);
+    const chargeCol = TRAFFIC_HEADERS.indexOf("Стоимость") + 1;
+    expect(traffic.getRow(2).getCell(5).font?.bold).toBe(true);
+    expect(traffic.getRow(2).getCell(7).font?.bold).toBe(true);
+    expect(traffic.getRow(2).getCell(chargeCol).font?.bold).toBe(true);
+    expect(traffic.getRow(2).getCell(chargeCol).font?.name).toBe("Calibri");
+    expect(detail.getRow(2).getCell(5).font?.bold).toBe(true);
+    expect(detail.getRow(2).getCell(9).font?.bold).toBe(true);
+    expect(detail.getRow(2).getCell(6).font?.bold).not.toBe(true);
   });
 
   it("writes redirect from the initiating device on both sheets", async () => {

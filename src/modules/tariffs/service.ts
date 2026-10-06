@@ -4,6 +4,7 @@
 
 import { prisma } from "@/lib/db";
 import { formatTariffDecimal } from "@/modules/tariffs/parse-xlsx";
+import type { TariffRateLookup } from "@/modules/traffic/cdr-tariff";
 
 export type TariffListItem = {
   id: string;
@@ -22,6 +23,27 @@ export type ListTariffsResult = {
   filename: string | null;
   rowCount: number;
 };
+
+/** Full snapshot for CDR rating. Not paged. */
+export async function loadTariffRateLookup(): Promise<TariffRateLookup[]> {
+  const rows = await prisma.tariffRate.findMany({
+    orderBy: { sortIndex: "asc" },
+    select: {
+      direction: true,
+      abc: true,
+      price: true,
+      cost: true,
+      sortIndex: true,
+    },
+  });
+  return rows.map((row) => ({
+    direction: row.direction,
+    abc: row.abc,
+    price: formatTariffDecimal(row.price.toString()),
+    cost: formatTariffDecimal(row.cost.toString()),
+    sortIndex: row.sortIndex,
+  }));
+}
 
 export async function listTariffRates(opts: {
   page?: number;

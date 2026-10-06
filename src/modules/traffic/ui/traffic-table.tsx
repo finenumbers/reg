@@ -32,12 +32,12 @@ import {
 } from "@/modules/traffic/ui-format";
 
 const DEFAULT_HIGHLIGHT = new Set<string>(CDR_PHONE_COLUMNS);
-const DEFAULT_BOLD = new Set<string>(TRAFFIC_BOLD_COLUMNS);
 
 type Props = {
   headers: string[];
   headerLabels?: Record<string, string>;
   highlightColumns?: readonly string[];
+  boldColumns?: readonly string[];
   data: TrafficListItem[];
   loading?: boolean;
   emptyMessage?: string;
@@ -61,6 +61,7 @@ export function TrafficTable({
   headers,
   headerLabels,
   highlightColumns,
+  boldColumns,
   data,
   loading = false,
   emptyMessage = "Нет данных.",
@@ -79,6 +80,7 @@ export function TrafficTable({
   timeSort = null,
   onTimeSortChange,
 }: Props) {
+  const boldSet = new Set<string>(boldColumns ?? TRAFFIC_BOLD_COLUMNS);
   const showEmpty = !loading && data.length === 0;
   const colCount = Math.max(headers.length, 1);
   const highlightSet = highlightColumns ? new Set(highlightColumns) : DEFAULT_HIGHLIGHT;
@@ -171,7 +173,7 @@ export function TrafficTable({
                       key={h}
                       className={cn(
                         "whitespace-nowrap",
-                        DEFAULT_BOLD.has(h) && "font-bold",
+                        boldSet.has(h) && "font-bold",
                         trafficMissingLabelClass(h, shown),
                       )}
                     >

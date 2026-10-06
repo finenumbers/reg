@@ -28,7 +28,9 @@ describe("traffic border roles", () => {
     expect(trafficBodyRole(2, false)).toBe("plain");
     expect(trafficBodyRole(4, false)).toBe("groupStart");
     expect(trafficBodyRole(5, true)).toBe("groupLastEnd");
-    expect(trafficBodyRole(8, false)).toBe("noLeft");
+    expect(trafficHeaderRole(8)).toBe("groupStart");
+    expect(trafficBodyRole(8, false)).toBe("groupStart");
+    expect(trafficBodyRole(8, true)).toBe("groupStart");
     expect(trafficBodyRole(9, false)).toBe("plain");
   });
 });
@@ -60,9 +62,9 @@ describe("column widths", () => {
     expect(TRAFFIC_WIDTHS).toHaveLength(TRAFFIC_HEADERS.length);
     expect(DETAIL_WIDTHS).toHaveLength(DETAIL_HEADERS.length);
     expect(TRAFFIC_WIDTHS).toEqual([
-      12, 10, 22, 14, 15.1640625, 41.1640625, 15.1640625, 41.1640625,
-      13.83203125, 13.1640625, 11.33203125, 15.33203125, 31.5, 32.5, 33.5,
-      37.5,
+      12, 11.5703125, 22, 14, 15.140625, 41.140625, 15.140625, 41.140625,
+      41.140625, 13.85546875, 13.140625, 11.28515625, 15.28515625, 19.7109375,
+      14, 31.42578125, 32.42578125, 33.42578125, 37.42578125,
     ]);
     expect(DETAIL_WIDTHS).toEqual([
       12, 10, 22, 14, 15.1640625, 41.1640625, 29.83203125, 29.83203125,
