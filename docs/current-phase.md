@@ -1,7 +1,15 @@
-# Current Phase — production (v1.86.1)
+# Current Phase — production (v1.87.0)
 
-**Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, call billing.  
+**Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs.  
 **Date:** 2026-10-06
+
+## v1.87.0 — Tariff columns on traffic; billing screen and /storage redirect removed
+
+«Телефонный трафик» shows «Направление» after «Переадресация», then «Секунды», «Минуты», and «Стоимость». «Стоимость» stays bold, together with the phone-number columns. «Минуты» are still `CEIL(ceiled seconds / 60)` per call, not stored, and not filterable. A blank duration stays blank. «Цена» is not a column on this screen. Calltrace stays at the end.
+
+«Биллинг звонков» (`/billing`) and its nav item are gone. There is no redirect. The rating function, stored direction, price, and charge, the raw table, and the month and enrich sheets are unchanged.
+
+The old `/storage` page redirect is gone, including the `#cdr-storage` anchor. The month table stays at the bottom of «Настройки» and still loads through `GET /api/storage` and `POST /api/storage/purge`.
 
 ## v1.86.1 — Money formatter typechecks on the image build
 

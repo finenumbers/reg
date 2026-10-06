@@ -33,7 +33,7 @@ export function formatDurationSeconds(raw: string): string {
   return formatCount(Math.ceil(n / 1000));
 }
 
-/** Billing «Минуты»: same ceil as the month sheet. Blank seconds stay blank. */
+/** Traffic «Минуты»: same ceil as the month sheet. Blank seconds stay blank. */
 export function formatBillableMinutesCell(elapsedRaw: string): string {
   if (!elapsedRaw.trim()) return "";
   return formatCount(billableMinutes(elapsedMsToSeconds(elapsedRaw)));

@@ -189,7 +189,10 @@ export const TRAFFIC_SUMMARY_COLUMNS = [
   "bill_dnis",
   "side_b",
   "out_orig_dnis",
+  "tariff_direction",
   "elapsed_time",
+  "billable_minutes",
+  "tariff_charge",
   "src_name",
   "dst_name",
   "dp_name",
@@ -210,61 +213,20 @@ export const TRAFFIC_SUMMARY_LABELS: Record<
   bill_dnis: "В-номер",
   side_b: "Сторона B",
   out_orig_dnis: "Переадресация",
+  tariff_direction: CDR_TARIFF_LABELS.tariff_direction,
   src_name: "Инициирующее устройство",
   dst_name: "Терминирующее устройство",
   dp_name: "Объект набора",
   elapsed_time: "Секунды",
+  billable_minutes: "Минуты",
+  tariff_charge: CDR_TARIFF_LABELS.tariff_charge,
   disconnect_code_string: "Код завершения",
   voipmonitor_url_in: VOIPMONITOR_TRAFFIC_LABELS.voipmonitor_url_in,
   voipmonitor_url_out: VOIPMONITOR_TRAFFIC_LABELS.voipmonitor_url_out,
 };
 
-/** Display-only billing column. Not a CDR field and not filterable. */
+/** Display-only traffic column. Not a CDR field and not filterable. */
 export const BILLING_MINUTES_COLUMN = "billable_minutes";
-
-/** Billing screen: traffic summary without Calltrace, plus tariff cells. */
-export const TRAFFIC_BILLING_COLUMNS = [
-  "cdr_day",
-  "cdr_time",
-  "call_category",
-  "call_status",
-  "bill_ani",
-  "side_a",
-  "bill_dnis",
-  "side_b",
-  "out_orig_dnis",
-  "tariff_direction",
-  "elapsed_time",
-  "billable_minutes",
-  "tariff_charge",
-  "src_name",
-  "dst_name",
-  "dp_name",
-  "disconnect_code_string",
-] as const;
-
-export const TRAFFIC_BILLING_LABELS: Record<
-  (typeof TRAFFIC_BILLING_COLUMNS)[number],
-  string
-> = {
-  cdr_day: "Дата",
-  cdr_time: "Время",
-  call_category: "Категория",
-  call_status: "Статус",
-  bill_ani: "А-номер",
-  side_a: "Сторона A",
-  bill_dnis: "В-номер",
-  side_b: "Сторона B",
-  out_orig_dnis: "Переадресация",
-  tariff_direction: CDR_TARIFF_LABELS.tariff_direction,
-  elapsed_time: "Секунды",
-  billable_minutes: "Минуты",
-  tariff_charge: CDR_TARIFF_LABELS.tariff_charge,
-  src_name: "Инициирующее устройство",
-  dst_name: "Терминирующее устройство",
-  dp_name: "Объект набора",
-  disconnect_code_string: "Код завершения",
-};
 
 export const TRAFFIC_GEOGRAPHY_COLUMNS = [
   "cdr_day",

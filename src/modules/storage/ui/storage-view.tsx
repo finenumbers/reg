@@ -89,7 +89,7 @@ export function StorageView() {
   return (
     <section className="space-y-4">
       <div>
-        <h2 id="cdr-storage" className="text-base font-semibold">
+        <h2 className="text-base font-semibold">
           Хранение данных
         </h2>
         <p className="text-sm text-muted-foreground">

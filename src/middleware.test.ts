@@ -46,13 +46,6 @@ describe("middleware protected routes", () => {
     expect(res.headers.get("location")).toContain("next=%2Fgeography");
   });
 
-  it("redirects anonymous users from /billing to /login", () => {
-    const res = middleware(makeRequest("/billing"));
-    expect(res.status).toBe(307);
-    expect(res.headers.get("location")).toContain("/login");
-    expect(res.headers.get("location")).toContain("next=%2Fbilling");
-  });
-
   it("redirects anonymous users from /operators to /login", () => {
     const res = middleware(makeRequest("/operators"));
     expect(res.status).toBe(307);
@@ -85,13 +78,6 @@ describe("middleware protected routes", () => {
     expect(res.status).toBe(307);
     expect(res.headers.get("location")).toContain("/login");
     expect(res.headers.get("location")).toContain("next=%2Fstats");
-  });
-
-  it("redirects anonymous users from /storage to /login", () => {
-    const res = middleware(makeRequest("/storage"));
-    expect(res.status).toBe(307);
-    expect(res.headers.get("location")).toContain("/login");
-    expect(res.headers.get("location")).toContain("next=%2Fstorage");
   });
 
   it("returns 401 JSON for anonymous /api/regs", async () => {

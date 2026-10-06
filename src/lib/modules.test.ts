@@ -15,7 +15,6 @@ describe("FEATURE_MODULES nav groups", () => {
   it("keeps CDR without Детализация", () => {
     expect(idsInGroup("cdr")).toEqual([
       "traffic",
-      "billing",
       "operators",
       "geography",
       "raw",

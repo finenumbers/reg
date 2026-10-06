@@ -5,8 +5,6 @@ import {
   CDR_ENRICH_COLUMNS,
   RAW_TABLE_COLUMNS,
   BILLING_MINUTES_COLUMN,
-  TRAFFIC_BILLING_COLUMNS,
-  TRAFFIC_BILLING_LABELS,
   TRAFFIC_GEOGRAPHY_COLUMNS,
   TRAFFIC_GEOGRAPHY_LABELS,
   TRAFFIC_OPERATORS_COLUMNS,
@@ -58,7 +56,10 @@ describe("CDR column contract", () => {
       "bill_dnis",
       "side_b",
       "out_orig_dnis",
+      "tariff_direction",
       "elapsed_time",
+      "billable_minutes",
+      "tariff_charge",
       "src_name",
       "dst_name",
       "dp_name",
@@ -69,49 +70,25 @@ describe("CDR column contract", () => {
     expect(TRAFFIC_SUMMARY_LABELS.cdr_day).toBe("Дата");
     expect(TRAFFIC_SUMMARY_LABELS.cdr_time).toBe("Время");
     expect(TRAFFIC_SUMMARY_LABELS.side_a).toBe("Сторона A");
+    expect(TRAFFIC_SUMMARY_LABELS.tariff_direction).toBe("Направление");
+    expect(TRAFFIC_SUMMARY_LABELS.elapsed_time).toBe("Секунды");
+    expect(TRAFFIC_SUMMARY_LABELS.billable_minutes).toBe("Минуты");
+    expect(TRAFFIC_SUMMARY_LABELS.tariff_charge).toBe("Стоимость");
     expect(TRAFFIC_SUMMARY_LABELS.disconnect_code_string).toBe(
       "Код завершения",
     );
     expect(TRAFFIC_SUMMARY_LABELS.voipmonitor_url_in).toBe("Calltrace In");
     expect(TRAFFIC_SUMMARY_LABELS.voipmonitor_url_out).toBe("Calltrace Out");
+    expect(isTrafficColumn(BILLING_MINUTES_COLUMN)).toBe(false);
     for (const col of TRAFFIC_SUMMARY_COLUMNS) {
-      if (col === "voipmonitor_url_in" || col === "voipmonitor_url_out") {
+      if (
+        col === "voipmonitor_url_in" ||
+        col === "voipmonitor_url_out" ||
+        col === BILLING_MINUTES_COLUMN
+      ) {
         expect(isTrafficColumn(col)).toBe(false);
         continue;
       }
-      expect(isTrafficColumn(col)).toBe(true);
-    }
-  });
-
-  it("keeps billing view columns inside the dump or enrich set", () => {
-    expect(TRAFFIC_BILLING_COLUMNS).toEqual([
-      "cdr_day",
-      "cdr_time",
-      "call_category",
-      "call_status",
-      "bill_ani",
-      "side_a",
-      "bill_dnis",
-      "side_b",
-      "out_orig_dnis",
-      "tariff_direction",
-      "elapsed_time",
-      "billable_minutes",
-      "tariff_charge",
-      "src_name",
-      "dst_name",
-      "dp_name",
-      "disconnect_code_string",
-    ]);
-    expect(TRAFFIC_BILLING_LABELS.tariff_direction).toBe("Направление");
-    expect(TRAFFIC_BILLING_LABELS.tariff_charge).toBe("Стоимость");
-    expect(TRAFFIC_BILLING_LABELS.elapsed_time).toBe("Секунды");
-    expect(TRAFFIC_BILLING_LABELS.billable_minutes).toBe("Минуты");
-    expect(TRAFFIC_BILLING_COLUMNS).not.toContain("voipmonitor_url_in");
-    expect(TRAFFIC_BILLING_COLUMNS).not.toContain("voipmonitor_url_out");
-    expect(isTrafficColumn(BILLING_MINUTES_COLUMN)).toBe(false);
-    for (const col of TRAFFIC_BILLING_COLUMNS) {
-      if (col === BILLING_MINUTES_COLUMN) continue;
       expect(isTrafficColumn(col)).toBe(true);
     }
   });
