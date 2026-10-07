@@ -4,7 +4,12 @@
  */
 
 import type { Prisma } from "@/generated/prisma/client";
-import { CALL_CATEGORY, CALL_STATUS } from "@/modules/traffic/call-class";
+import {
+  CALL_CATEGORY,
+  CALL_STATUS,
+  PARKING_ROW_CATEGORIES,
+  SUCCESS_ROW_CATEGORIES,
+} from "@/modules/traffic/call-class";
 
 export type TrafficRowFlags = {
   phantom?: boolean;
@@ -34,7 +39,7 @@ export function trafficFlagWhere(
   if (flags.parking) {
     parts.push({
       callCategory: {
-        in: [CALL_CATEGORY.incomingParking, CALL_CATEGORY.outgoingParking],
+        in: [...PARKING_ROW_CATEGORIES],
       },
     });
   }
@@ -43,7 +48,7 @@ export function trafficFlagWhere(
   if (flags.success) {
     parts.push({
       callCategory: {
-        in: [CALL_CATEGORY.incoming, CALL_CATEGORY.outgoing, CALL_CATEGORY.internal],
+        in: [...SUCCESS_ROW_CATEGORIES],
       },
       callStatus: CALL_STATUS.success,
     });

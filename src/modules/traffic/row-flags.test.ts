@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { CALL_CATEGORY, CALL_STATUS } from "@/modules/traffic/call-class";
+import {
+  CALL_CATEGORY,
+  CALL_STATUS,
+  PARKING_ROW_CATEGORIES,
+  SUCCESS_ROW_CATEGORIES,
+} from "@/modules/traffic/call-class";
 import { parseTrafficFlagParam, trafficFlagWhere } from "@/modules/traffic/row-flags";
 import { applyPhoneQ } from "@/modules/traffic/service";
 
@@ -11,7 +16,7 @@ const callErrorsWhere = {
 
 const parkingWhere = {
   callCategory: {
-    in: [CALL_CATEGORY.incomingParking, CALL_CATEGORY.outgoingParking],
+    in: [...PARKING_ROW_CATEGORIES],
   },
 };
 
@@ -54,7 +59,7 @@ describe("trafficFlagWhere", () => {
     });
     expect(trafficFlagWhere({ success: true })).toEqual({
       callCategory: {
-        in: [CALL_CATEGORY.incoming, CALL_CATEGORY.outgoing, CALL_CATEGORY.internal],
+        in: [...SUCCESS_ROW_CATEGORIES],
       },
       callStatus: CALL_STATUS.success,
     });
@@ -72,7 +77,7 @@ describe("trafficFlagWhere", () => {
         { callStatus: CALL_STATUS.failed },
         {
           callCategory: {
-            in: [CALL_CATEGORY.incoming, CALL_CATEGORY.outgoing, CALL_CATEGORY.internal],
+            in: [...SUCCESS_ROW_CATEGORIES],
           },
           callStatus: CALL_STATUS.success,
         },

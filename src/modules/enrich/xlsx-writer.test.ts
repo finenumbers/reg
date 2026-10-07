@@ -108,11 +108,11 @@ describe("writeResolvedEnrichedXlsx", () => {
     ]);
     expect(traffic.getRow(2).getCell(1).value).toBe("01.08.2026");
     expect(traffic.getRow(2).getCell(2).value).toBe("12:00:00");
-    expect(traffic.getRow(2).getCell(3).value).toBe(CALL_CATEGORY.internal);
+    expect(traffic.getRow(2).getCell(3).value).toBe(CALL_CATEGORY.outgoingIntercity);
     expect(traffic.getRow(2).getCell(4).value).toBe(CALL_STATUS.success);
     expect(detail.getRow(2).getCell(1).value).toBe("01.08.2026");
     expect(detail.getRow(2).getCell(2).value).toBe("12:00:00");
-    expect(detail.getRow(2).getCell(3).value).toBe(CALL_CATEGORY.internal);
+    expect(detail.getRow(2).getCell(3).value).toBe(CALL_CATEGORY.outgoingIntercity);
     expect(detail.getRow(2).getCell(4).value).toBe(CALL_STATUS.success);
     const chargeCol = TRAFFIC_HEADERS.indexOf("Стоимость") + 1;
     expect(traffic.getRow(2).getCell(5).font?.bold).toBe(true);
@@ -264,8 +264,8 @@ describe("writeResolvedEnrichedXlsx", () => {
     expect(traffic!.getRow(2).getCell(3).value).toBe(CALL_CATEGORY.phantom);
     expect(traffic!.getRow(2).getCell(4).value).toBe(CALL_STATUS.failed);
     expect(traffic!.getRow(3).getCell(3).value).toBe(CALL_CATEGORY.routeError);
-    expect(traffic!.getRow(5).getCell(3).value).toBe(CALL_CATEGORY.outgoingParking);
-    expect(traffic!.getRow(6).getCell(3).value).toBe(CALL_CATEGORY.outgoing);
+    expect(traffic!.getRow(5).getCell(3).value).toBe(CALL_CATEGORY.parkingIntercity);
+    expect(traffic!.getRow(6).getCell(3).value).toBe(CALL_CATEGORY.outgoingIntercity);
     expect(traffic!.getRow(6).getCell(4).value).toBe(CALL_STATUS.failed);
     expect(traffic!.getRow(7).getCell(4).value).toBe(CALL_STATUS.success);
   });
@@ -374,8 +374,7 @@ describe("writeResolvedEnrichedXlsx", () => {
 
     const sheetXml = readXlsxEntry(outputPath, "xl/worksheets/sheet1.xml");
     const stylesXml = readXlsxEntry(outputPath, "xl/styles.xml");
-    const cellXfs =
-      /<cellXfs\b[^>]*>([\s\S]*?)<\/cellXfs>/.exec(stylesXml)?.[1] ?? "";
+    const cellXfs = /<cellXfs\b[^>]*>([\s\S]*?)<\/cellXfs>/.exec(stylesXml)?.[1] ?? "";
     const xfs = [...cellXfs.matchAll(/<xf\b([^>]*)\/?>/g)].map((match) => match[1] ?? "");
     const row = /<row r="2"[^>]*>([\s\S]*?)<\/row>/.exec(sheetXml)?.[1] ?? "";
     for (const header of headers) {
@@ -393,11 +392,10 @@ describe("writeResolvedEnrichedXlsx", () => {
 function moneyFormatId(stylesXml: string, xf: string): string {
   const id = /\bnumFmtId="(\d+)"/.exec(xf)?.[1] ?? "";
   if (id === "4") return "#,##0.00";
-  const formats =
-    /<numFmts\b[^>]*>([\s\S]*?)<\/numFmts>/.exec(stylesXml)?.[1] ?? "";
-  const code = new RegExp(`<numFmt\\b[^>]*numFmtId="${id}"[^>]*formatCode="([^"]*)"`).exec(
-    formats,
-  );
+  const formats = /<numFmts\b[^>]*>([\s\S]*?)<\/numFmts>/.exec(stylesXml)?.[1] ?? "";
+  const code = new RegExp(
+    `<numFmt\\b[^>]*numFmtId="${id}"[^>]*formatCode="([^"]*)"`,
+  ).exec(formats);
   return code?.[1]?.replace(/&quot;/g, '"') ?? "";
 }
 

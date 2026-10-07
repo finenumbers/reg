@@ -44,7 +44,7 @@ function rate(
   }> = {},
 ) {
   return rateCdrCall({
-    category: CALL_CATEGORY.outgoing,
+    category: CALL_CATEGORY.outgoingIntercity,
     status: CALL_STATUS.success,
     billDnis: "74951234567",
     elapsedTime: "60000",
@@ -90,23 +90,48 @@ describe("rateCdrCall", () => {
     expect(rate({ category: CALL_CATEGORY.redirect })).toEqual(rate());
   });
 
-  it("rates parking and a successful internal call", () => {
+  it("writes a fixed direction and no money for a local call", () => {
+    const local = {
+      direction: "Местный звонок",
+      charge: "",
+      price: "",
+    };
+    expect(rate({ category: CALL_CATEGORY.outgoingLocal })).toEqual(local);
+    expect(
+      rate({
+        category: CALL_CATEGORY.parkingLocal,
+        status: CALL_STATUS.failed,
+        elapsedTime: "",
+      }),
+    ).toEqual(local);
+  });
+
+  it("rates intercity and international parking the same way as an outgoing call", () => {
     const rated = {
       direction: "Москва-центр",
       price: "3",
       charge: "3.00",
     };
-    expect(rate({ category: CALL_CATEGORY.outgoingParking })).toEqual(rated);
-    expect(rate({ category: CALL_CATEGORY.internal })).toEqual(rated);
+    expect(rate({ category: CALL_CATEGORY.outgoingIntercity })).toEqual(rated);
+    expect(rate({ category: CALL_CATEGORY.parkingIntercity })).toEqual(rated);
     expect(
-      rate({ category: CALL_CATEGORY.internal, status: CALL_STATUS.failed, elapsedTime: "" }),
+      rate({ category: CALL_CATEGORY.outgoingInternational, billDnis: "74951234567" }),
+    ).toEqual(rated);
+    expect(
+      rate({
+        category: CALL_CATEGORY.outgoingIntercity,
+        status: CALL_STATUS.failed,
+        elapsedTime: "",
+      }),
     ).toEqual(EMPTY_CDR_TARIFF);
   });
 
   it("leaves every other category and failed calls empty", () => {
     expect(rate({ category: CALL_CATEGORY.incoming })).toEqual(EMPTY_CDR_TARIFF);
     expect(rate({ category: CALL_CATEGORY.incomingParking })).toEqual(EMPTY_CDR_TARIFF);
-    expect(rate({ status: CALL_STATUS.failed, elapsedTime: "" })).toEqual(EMPTY_CDR_TARIFF);
+    expect(rate({ status: CALL_STATUS.failed, elapsedTime: "" })).toEqual(
+      EMPTY_CDR_TARIFF,
+    );
     expect(rate({ billDnis: "84951234567" })).toEqual(EMPTY_CDR_TARIFF);
     expect(rate({ billDnis: "7495123456" })).toEqual(EMPTY_CDR_TARIFF);
     expect(rate({ billDnis: "+74951234567" })).toEqual(EMPTY_CDR_TARIFF);
@@ -158,10 +183,10 @@ describe("cdr tariff migration", () => {
   const sql = readFileSync(MIGRATION, "utf8");
 
   it("rates only the agreed categories and guards unrelated updates", () => {
-    expect(sql).toContain(CALL_CATEGORY.outgoing);
-    expect(sql).toContain(CALL_CATEGORY.internal);
-    expect(sql).toContain(CALL_CATEGORY.redirect);
-    expect(sql).toContain(CALL_CATEGORY.outgoingParking);
+    expect(sql).toContain("Исходящий звонок");
+    expect(sql).toContain("Внутренний звонок");
+    expect(sql).toContain("Редирект");
+    expect(sql).toContain("Исходящий паркинг");
     expect(sql).toContain(CALL_STATUS.success);
     expect(sql).toContain("OLD.call_category");
     expect(sql).toContain("cdr_rate_call");
@@ -174,7 +199,9 @@ describe("cdr tariff migration", () => {
     expect(sql).toContain("CREATE OR REPLACE FUNCTION cdr_rate_call");
     expect(sql).toContain("category IN ('Исходящий паркинг', 'Внутренний звонок')");
     expect(sql).toContain(CALL_STATUS.success);
-    expect(readFileSync(MIGRATION, "utf8")).toContain("IF category = 'Исходящий паркинг' THEN");
+    expect(readFileSync(MIGRATION, "utf8")).toContain(
+      "IF category = 'Исходящий паркинг' THEN",
+    );
     expect(readFileSync(PRICE_MIGRATION, "utf8")).toContain(
       "IF category = 'Исходящий паркинг' THEN",
     );
@@ -188,8 +215,8 @@ describe("cdr tariff migration", () => {
     expect(sql).toContain('DROP COLUMN "cost"');
     expect(sql).not.toContain("t.cost");
     expect(sql).not.toContain("NEW.tariff_cost");
-    expect(sql).toContain(CALL_CATEGORY.internal);
-    expect(sql).toContain(CALL_CATEGORY.outgoingParking);
+    expect(sql).toContain("Внутренний звонок");
+    expect(sql).toContain("Исходящий паркинг");
     expect(readFileSync(INTERNAL_ZERO_COST_MIGRATION, "utf8")).toContain(
       "category IN ('Исходящий паркинг', 'Внутренний звонок')",
     );

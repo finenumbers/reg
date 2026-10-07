@@ -11,6 +11,7 @@ import { cdrMonthPrefix } from "@/lib/month-window";
 import { parseMonthKey } from "@/modules/traffic/cdr-month";
 import { EXCEL_MAX_ROWS, type ResolvedEnrichedRow } from "@/modules/enrich/types";
 import { writeResolvedEnrichedXlsx } from "@/modules/enrich/xlsx-writer";
+import { loadTariffRateLookup } from "@/modules/tariffs/service";
 import { getEnrichReadyFlags } from "@/modules/pstn/credentials";
 import { loadCdrImportEnrichment } from "@/modules/traffic/enrich-import";
 import {
@@ -89,10 +90,7 @@ export function windowWhere(
   };
 }
 
-function keysetAfter(
-  lastDate: string,
-  lastId: string,
-): Prisma.CdrRecordWhereInput {
+function keysetAfter(lastDate: string, lastId: string): Prisma.CdrRecordWhereInput {
   return {
     OR: [
       { cdrDate: { gt: lastDate } },
@@ -101,10 +99,7 @@ function keysetAfter(
   };
 }
 
-async function writeJsonlLine(
-  stream: WriteStream,
-  line: string,
-): Promise<void> {
+async function writeJsonlLine(stream: WriteStream, line: string): Promise<void> {
   if (!stream.write(line)) {
     await once(stream, "drain");
   }
@@ -132,12 +127,7 @@ function toStored(row: CdrExportRow): StoredEnrichRow {
   };
 }
 
-type TariffCells = Pick<
-  CdrExportRow,
-  | "tariffDirection"
-  | "tariffPrice"
-  | "tariffCharge"
->;
+type TariffCells = Pick<CdrExportRow, "tariffDirection" | "tariffPrice" | "tariffCharge">;
 
 const TARIFF_SELECT = {
   id: true,
@@ -414,12 +404,14 @@ export async function runMonthExportPipeline(jobId: string): Promise<void> {
     });
     persist(stages);
 
+    const rates = await loadTariffRateLookup();
     await writeResolvedEnrichedXlsx({
       jsonlPath,
       outputPath,
       rowCount: processed,
       trafficSheetName,
       includeDetail,
+      rates,
       onProgress: (info) => {
         if (info.sheet === "detail" && includeDetail) {
           stages = setMonthExportStage(stages, "traffic", {

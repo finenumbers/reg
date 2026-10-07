@@ -128,18 +128,38 @@ function applyStyle(
   if (!opts.header) applyMissFont(cell, Boolean(opts.billingSide));
 }
 
-function rowFill(row: ResolvedEnrichedRow): ExcelJS.Fill | undefined {
-  const tone = cdrRowTone(
-    classifyCallCategory(
-      row.sideA,
-      row.sideB,
-      row.termDevice,
-      row.initDevice,
-      row.cause,
-      row.dialObject,
-    ),
-    classifyExportStatus(row.elapsedTime),
+function categoryOf(
+  row: Pick<
+    ResolvedEnrichedRow,
+    | "sideA"
+    | "sideB"
+    | "termDevice"
+    | "initDevice"
+    | "cause"
+    | "dialObject"
+    | "aNumber"
+    | "bNumber"
+  >,
+  rates: readonly TariffRateLookup[],
+): string {
+  return classifyCallCategory(
+    row.sideA,
+    row.sideB,
+    row.termDevice,
+    row.initDevice,
+    row.cause,
+    row.dialObject,
+    row.aNumber,
+    row.bNumber,
+    rates,
   );
+}
+
+function rowFill(
+  row: ResolvedEnrichedRow,
+  rates: readonly TariffRateLookup[],
+): ExcelJS.Fill | undefined {
+  const tone = cdrRowTone(categoryOf(row, rates), classifyExportStatus(row.elapsedTime));
   if (tone === "phantom") return XLSX_PHANTOM_FILL;
   if (tone === "call_error") return XLSX_CALL_ERROR_FILL;
   if (tone === "parking") return XLSX_PARKING_KNOWN_FILL;
@@ -232,6 +252,7 @@ function rateExportRow(
     | "cause"
     | "elapsedTime"
     | "seconds"
+    | "aNumber"
     | "bNumber"
   >,
   rates: readonly TariffRateLookup[],
@@ -241,14 +262,7 @@ function rateExportRow(
       ? row.elapsedTime
       : String(Math.max(0, Math.trunc(row.seconds)) * 1000);
   return rateCdrCall({
-    category: classifyCallCategory(
-      row.sideA,
-      row.sideB,
-      row.termDevice,
-      row.initDevice,
-      row.cause,
-      row.dialObject,
-    ),
+    category: categoryOf(row, rates),
     status: classifyExportStatus(row.elapsedTime),
     billDnis: row.bNumber,
     elapsedTime: elapsed,
@@ -280,6 +294,7 @@ function resolveFromMaps(
       dialObject: row.dialObject,
       cause: row.cause,
       seconds: row.seconds,
+      aNumber: row.aNumber,
       bNumber: row.bNumber,
     },
     maps.rates,
@@ -320,28 +335,17 @@ const DETAIL_PHONE_COLS = new Set([5, 9]);
 const TRAFFIC_CHARGE_COL = TRAFFIC_HEADERS.indexOf("Стоимость") + 1;
 const TRAFFIC_BOLD_COLS = new Set([...TRAFFIC_PHONE_COLS, TRAFFIC_CHARGE_COL]);
 const TRAFFIC_MONEY_COLS = new Set(
-  (["Цена", "Стоимость"] as const).map(
-    (header) => TRAFFIC_HEADERS.indexOf(header) + 1,
-  ),
+  (["Цена", "Стоимость"] as const).map((header) => TRAFFIC_HEADERS.indexOf(header) + 1),
 );
 /** 1-based «Сторона A/B» columns. Blue billing-miss text stays on these only. */
 const TRAFFIC_SIDE_COLS = new Set([6, 8]);
 const DETAIL_SIDE_COLS = new Set([6, 10]);
 
-function callClassCells(row: ResolvedEnrichedRow): [string, string] {
-  return [
-    text(
-      classifyCallCategory(
-        row.sideA,
-        row.sideB,
-        row.termDevice,
-        row.initDevice,
-        row.cause,
-        row.dialObject,
-      ),
-    ),
-    text(classifyExportStatus(row.elapsedTime)),
-  ];
+function callClassCells(
+  row: ResolvedEnrichedRow,
+  rates: readonly TariffRateLookup[],
+): [string, string] {
+  return [text(categoryOf(row, rates)), text(classifyExportStatus(row.elapsedTime))];
 }
 
 async function writeResolvedSheets(opts: {
@@ -349,10 +353,12 @@ async function writeResolvedSheets(opts: {
   outputPath: string;
   rowCount: number;
   includeDetail?: boolean;
+  rates?: readonly TariffRateLookup[];
   onProgress?: (info: XlsxSheetProgress) => void;
   eachRow: (visit: (row: ResolvedEnrichedRow, index: number) => void) => Promise<void>;
 }): Promise<void> {
   const includeDetail = opts.includeDetail !== false;
+  const rates = opts.rates ?? [];
   const workbook = new ExcelJS.stream.xlsx.WorkbookWriter({
     filename: opts.outputPath,
     useStyles: true,
@@ -384,7 +390,7 @@ async function writeResolvedSheets(opts: {
     const values: Array<string | number> = [
       text(callAt.day),
       text(callAt.time),
-      ...callClassCells(row),
+      ...callClassCells(row, rates),
       aPhone,
       sideText(row.sideA),
       bPhone,
@@ -406,7 +412,7 @@ async function writeResolvedSheets(opts: {
       (col) => trafficBodyRole(col, last),
       TRAFFIC_PHONE_COLS,
       TRAFFIC_SIDE_COLS,
-      rowFill(row),
+      rowFill(row, rates),
       TRAFFIC_BOLD_COLS,
       TRAFFIC_MONEY_COLS,
     );
@@ -442,7 +448,7 @@ async function writeResolvedSheets(opts: {
     const values: Array<string | number> = [
       text(callAt.day),
       text(callAt.time),
-      ...callClassCells(row),
+      ...callClassCells(row, rates),
       aPhone,
       sideText(row.sideA),
       text(row.operatorA),
@@ -472,7 +478,7 @@ async function writeResolvedSheets(opts: {
       (col) => detailBodyRole(col, last),
       DETAIL_PHONE_COLS,
       DETAIL_SIDE_COLS,
-      rowFill(row),
+      rowFill(row, rates),
       DETAIL_PHONE_COLS,
       new Set(),
     );
@@ -502,6 +508,7 @@ export async function writeEnrichedXlsx(opts: {
     trafficSheetName: opts.trafficSheetName ?? "Трафик",
     outputPath: opts.outputPath,
     rowCount: opts.rowCount,
+    rates: opts.rates ?? [],
     onProgress: opts.onProgress,
     eachRow: (visit) =>
       eachJsonlRow<CdrJsonlRow>(opts.jsonlPath, (row, index) => {
@@ -516,6 +523,7 @@ export async function writeResolvedEnrichedXlsx(opts: {
   rowCount: number;
   trafficSheetName: string;
   includeDetail?: boolean;
+  rates?: readonly TariffRateLookup[];
   onProgress?: (info: XlsxSheetProgress) => void;
 }): Promise<void> {
   await writeResolvedSheets({
@@ -523,6 +531,7 @@ export async function writeResolvedEnrichedXlsx(opts: {
     outputPath: opts.outputPath,
     rowCount: opts.rowCount,
     includeDetail: opts.includeDetail,
+    rates: opts.rates ?? [],
     onProgress: opts.onProgress,
     eachRow: (visit) => eachJsonlRow<ResolvedEnrichedRow>(opts.jsonlPath, visit),
   });

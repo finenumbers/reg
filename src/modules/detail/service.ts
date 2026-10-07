@@ -1,10 +1,7 @@
 import { prisma } from "@/lib/db";
 import { clientMonthStatsSql } from "@/modules/detail/sql";
 import type { DetailMetricRow } from "@/modules/detail/sort";
-import {
-  resolveMonthKey,
-  type CdrMonth,
-} from "@/modules/traffic/cdr-month";
+import { resolveMonthKey, type CdrMonth } from "@/modules/traffic/cdr-month";
 import { listCachedMonthCounts } from "@/modules/traffic/cdr-month-stats";
 
 export type { DetailMetricRow };
@@ -30,6 +27,7 @@ type ClientStatRow = {
   external_minutes: number;
   ldc_calls: number;
   ldc_minutes: number;
+  mgmn_kopecks: bigint | number | string;
 };
 
 const EMPTY_TOTALS: DetailTableTotals = {
@@ -43,10 +41,18 @@ const EMPTY_TOTALS: DetailTableTotals = {
   externalMinutes: 0,
   ldcCalls: 0,
   ldcMinutes: 0,
+  mgmnKopecks: 0,
 };
 
 function asInt(n: number): number {
   return Number(n) || 0;
+}
+
+function asKopecks(value: bigint | number | string): number {
+  if (typeof value === "bigint") return Number(value);
+  if (typeof value === "number") return value;
+  if (value.trim() === "") return 0;
+  return Number(value);
 }
 
 function toMetricRow(row: ClientStatRow): DetailMetricRow {
@@ -62,6 +68,7 @@ function toMetricRow(row: ClientStatRow): DetailMetricRow {
     externalMinutes: asInt(row.external_minutes),
     ldcCalls: asInt(row.ldc_calls),
     ldcMinutes: asInt(row.ldc_minutes),
+    mgmnKopecks: asKopecks(row.mgmn_kopecks),
   };
 }
 
@@ -78,6 +85,7 @@ function buildTotals(rows: DetailMetricRow[]): DetailTableTotals {
       externalMinutes: acc.externalMinutes + row.externalMinutes,
       ldcCalls: acc.ldcCalls + row.ldcCalls,
       ldcMinutes: acc.ldcMinutes + row.ldcMinutes,
+      mgmnKopecks: acc.mgmnKopecks + row.mgmnKopecks,
     }),
     { ...EMPTY_TOTALS },
   );

@@ -5,7 +5,12 @@
  */
 
 import { formatTariffDecimal } from "@/modules/tariffs/parse-xlsx";
-import { CALL_CATEGORY, CALL_STATUS } from "@/modules/traffic/call-class";
+import {
+  CALL_CATEGORY,
+  CALL_STATUS,
+  LOCAL_TARIFF_DIRECTION,
+} from "@/modules/traffic/call-class";
+import { matchTariffAbc } from "@/modules/traffic/tariff-match";
 
 export const CDR_TARIFF_COLUMNS = ["tariff_direction", "tariff_charge"] as const;
 
@@ -30,11 +35,18 @@ export const EMPTY_CDR_TARIFF: CdrTariffCells = {
 };
 
 const RATED = new Set<string>([
-  CALL_CATEGORY.outgoing,
-  CALL_CATEGORY.internal,
+  CALL_CATEGORY.outgoingIntercity,
+  CALL_CATEGORY.outgoingInternational,
   CALL_CATEGORY.redirect,
-  CALL_CATEGORY.outgoingParking,
+  CALL_CATEGORY.parkingIntercity,
+  CALL_CATEGORY.parkingInternational,
 ]);
+
+const LOCAL_DIRECTION: CdrTariffCells = {
+  direction: LOCAL_TARIFF_DIRECTION,
+  charge: "",
+  price: "",
+};
 
 /** 12 integer digits: abs(kopecks) >= 100 * 10^12. */
 const KOPECK_OVERFLOW = BigInt("100000000000000");
@@ -103,21 +115,6 @@ function formatKopecks(k: bigint): string | null {
   return `${k < ZERO ? "-" : ""}${whole.toString()}.${frac}`;
 }
 
-function matchAbc(number: string, rates: readonly TariffRateLookup[]): TariffRateLookup | null {
-  let best: TariffRateLookup | null = null;
-  for (const rate of rates) {
-    if (!rate.abc || !number.startsWith(rate.abc)) continue;
-    if (
-      !best ||
-      rate.abc.length > best.abc.length ||
-      (rate.abc.length === best.abc.length && rate.sortIndex < best.sortIndex)
-    ) {
-      best = rate;
-    }
-  }
-  return best;
-}
-
 export function rateCdrCall(input: {
   category: string;
   status: string;
@@ -125,13 +122,19 @@ export function rateCdrCall(input: {
   elapsedTime: string;
   rates: readonly TariffRateLookup[];
 }): CdrTariffCells {
+  if (
+    input.category === CALL_CATEGORY.outgoingLocal ||
+    input.category === CALL_CATEGORY.parkingLocal
+  ) {
+    return LOCAL_DIRECTION;
+  }
   if (input.status !== CALL_STATUS.success) return EMPTY_CDR_TARIFF;
   if (!RATED.has(input.category)) return EMPTY_CDR_TARIFF;
 
   const number = input.billDnis.trim();
   if (!/^7\d{10}$/.test(number)) return EMPTY_CDR_TARIFF;
 
-  const rate = matchAbc(number, input.rates);
+  const rate = matchTariffAbc(number, input.rates);
   if (!rate) return EMPTY_CDR_TARIFF;
 
   const price6 = parseScale6(rate.price);

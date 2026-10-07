@@ -66,5 +66,9 @@ describe("clientMonthStatsSql", () => {
     expect(text).toContain("CEIL(");
     expect(text.split("CEIL(").length).toBeGreaterThan(2);
     expect(text).not.toMatch(/SUM\s*\([^)]+\)\s*\/\s*60/);
+    expect(text).toContain("tariff_charge");
+    expect(text).toContain("LEFT JOIN charges");
+    expect(text).toContain("mgmn_kopecks");
+    expect(text).toContain("ca.phone = m.ani");
   });
 });

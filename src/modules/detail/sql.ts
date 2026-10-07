@@ -43,6 +43,7 @@ export function clientMonthStatsSql(year: number, month: number): Prisma.Sql {
         TRIM(bill_ani) AS ani,
         TRIM(bill_dnis) AS dnis,
         dst_name,
+        tariff_charge,
         ${billableMinutesSql()} AS minutes
       FROM cdr_records
       WHERE cdr_day LIKE ${detailMonthDayPrefix(year, month)}
@@ -74,20 +75,51 @@ export function clientMonthStatsSql(year: number, month: number): Prisma.Sql {
       FROM month_calls m
       JOIN clients ca ON ca.phone = m.ani
       WHERE ${outgoingMatch}
+    ),
+    charges AS (
+      SELECT
+        ca.client,
+        ROUND(SUM(
+          CASE
+            WHEN btrim(m.tariff_charge) ~ '^-?[0-9]+([.][0-9]+)?$'
+            THEN btrim(m.tariff_charge)::numeric
+            ELSE 0
+          END
+        ) * 100)::bigint AS mgmn_kopecks
+      FROM month_calls m
+      JOIN clients ca ON ca.phone = m.ani
+      GROUP BY ca.client
+    ),
+    legs_by_client AS (
+      SELECT
+        client,
+        SUM(in_c)::int AS in_calls,
+        SUM(in_c * minutes)::bigint AS in_minutes,
+        SUM(local_c)::int AS out_calls,
+        SUM(local_c * minutes)::bigint AS out_minutes,
+        SUM(park_c)::int AS parking_calls,
+        SUM(park_c * minutes)::bigint AS parking_minutes,
+        SUM(trunk_c)::int AS external_calls,
+        SUM(trunk_c * minutes)::bigint AS external_minutes,
+        SUM(ldc_c)::int AS ldc_calls,
+        SUM(ldc_c * minutes)::bigint AS ldc_minutes
+      FROM legs
+      GROUP BY client
     )
     SELECT
-      client,
-      SUM(in_c)::int AS in_calls,
-      SUM(in_c * minutes)::bigint AS in_minutes,
-      SUM(local_c)::int AS out_calls,
-      SUM(local_c * minutes)::bigint AS out_minutes,
-      SUM(park_c)::int AS parking_calls,
-      SUM(park_c * minutes)::bigint AS parking_minutes,
-      SUM(trunk_c)::int AS external_calls,
-      SUM(trunk_c * minutes)::bigint AS external_minutes,
-      SUM(ldc_c)::int AS ldc_calls,
-      SUM(ldc_c * minutes)::bigint AS ldc_minutes
-    FROM legs
-    GROUP BY client
+      legs_by_client.client,
+      legs_by_client.in_calls,
+      legs_by_client.in_minutes,
+      legs_by_client.out_calls,
+      legs_by_client.out_minutes,
+      legs_by_client.parking_calls,
+      legs_by_client.parking_minutes,
+      legs_by_client.external_calls,
+      legs_by_client.external_minutes,
+      legs_by_client.ldc_calls,
+      legs_by_client.ldc_minutes,
+      COALESCE(charges.mgmn_kopecks, 0)::bigint AS mgmn_kopecks
+    FROM legs_by_client
+    LEFT JOIN charges ON charges.client = legs_by_client.client
   `;
 }

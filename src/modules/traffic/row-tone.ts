@@ -3,7 +3,11 @@
  * Category colors outrank a failed status. Redirect and plain directions have none.
  */
 
-import { CALL_CATEGORY, CALL_STATUS } from "@/modules/traffic/call-class";
+import {
+  CALL_CATEGORY,
+  CALL_STATUS,
+  PARKING_ROW_CATEGORIES,
+} from "@/modules/traffic/call-class";
 
 export type CdrRowTone = "phantom" | "call_error" | "parking" | "check" | "failed";
 
@@ -12,10 +16,7 @@ export function cdrRowTone(category: string, status: string): CdrRowTone | null 
   if (category === CALL_CATEGORY.routeError || category === CALL_CATEGORY.unregistered) {
     return "call_error";
   }
-  if (
-    category === CALL_CATEGORY.incomingParking ||
-    category === CALL_CATEGORY.outgoingParking
-  ) {
+  if ((PARKING_ROW_CATEGORIES as readonly string[]).includes(category)) {
     return "parking";
   }
   if (category === CALL_CATEGORY.check) return "check";

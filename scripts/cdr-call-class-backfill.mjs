@@ -6,6 +6,8 @@
  * 4. Reclassify dial-object Service_Check and billing sides «Тест …».
  * 5. Rewrite leftover «Фантомный звонок» and «Удачный» / «Неудачный» labels.
  * 6. Rewrite stored status «Неуспешный» to «Неуспешные» (status only).
+ * 7. Replace «Исходящий звонок», «Внутренний звонок», «Исходящий паркинг»,
+ *    and «Входящий звонок» with the geography categories.
  *
  * Idempotent. A partial index exists only while old billing-miss rows remain.
  * The label pass walks the text primary key once and does not build an index.
@@ -18,7 +20,7 @@ const BATCH = 5000;
 const EMPTY_INDEX = "cdr_records_call_category_empty_idx";
 const MISS_INDEX = "cdr_records_billing_miss_idx";
 const OLD_BILLING = "Нет в биллинге";
-const CATEGORY_FN = `cdr_call_category(side_a, side_b, dst_name, src_name, disconnect_code_string, dp_name)`;
+const CATEGORY_FN = `cdr_call_category(side_a, side_b, dst_name, src_name, disconnect_code_string, dp_name, bill_ani, bill_dnis)`;
 const CHECK_DP = "Service_Check";
 const CHECK_SIDE_PREFIX = "Тест ";
 const EXTRA_PREDICATE = `
@@ -384,6 +386,69 @@ async function renameFailedStatusPlural() {
   console.log("cdr failed status plural: nothing to rewrite");
 }
 
+const LEGACY_CATEGORIES = [
+  "Исходящий звонок",
+  "Внутренний звонок",
+  "Исходящий паркинг",
+  "Входящий звонок",
+];
+
+/** Geography categories replace the four legacy labels. Idempotent. */
+async function reclassifyLegacyCategories() {
+  let cursor = "";
+  let rewritten = 0;
+  for (;;) {
+    const preview = await client.query(
+      `SELECT id FROM cdr_records
+       WHERE id > $1
+         AND call_category = ANY($2::text[])
+       ORDER BY id
+       LIMIT $3`,
+      [cursor, LEGACY_CATEGORIES, BATCH],
+    );
+    if ((preview.rowCount ?? 0) === 0) break;
+
+    const ids = preview.rows.map((row) => row.id);
+    const firstId = ids[0];
+    const lastId = ids[ids.length - 1];
+    await client.query("BEGIN");
+    try {
+      const updated = await client.query(
+        `UPDATE cdr_records
+         SET call_category = ${CATEGORY_FN}
+         WHERE id = ANY($1::text[])`,
+        [ids],
+      );
+      await client.query("COMMIT");
+      const touched = updated.rowCount ?? 0;
+      if (touched !== ids.length) {
+        throw new Error(`cdr call class geography updated ${touched} of ${ids.length}`);
+      }
+      const still = await client.query(
+        `SELECT 1 FROM cdr_records
+         WHERE id = $1
+           AND call_category = ANY($2::text[])`,
+        [firstId, LEGACY_CATEGORIES],
+      );
+      if ((still.rowCount ?? 0) > 0) {
+        throw new Error(`cdr call class geography left ${firstId} unchanged`);
+      }
+      rewritten += touched;
+      console.log(`cdr call class geography: updated ${touched}`);
+      cursor = lastId;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    }
+  }
+  if (rewritten > 0) {
+    await client.query("ANALYZE cdr_records");
+    console.log("cdr call class geography: complete");
+    return;
+  }
+  console.log("cdr call class geography: nothing to rewrite");
+}
+
 try {
   await client.connect();
   await replaceBillingMiss();
@@ -392,6 +457,7 @@ try {
   await reclassifyCheckDialAndSides();
   await renameCallClassLabels();
   await renameFailedStatusPlural();
+  await reclassifyLegacyCategories();
 } catch (error) {
   console.error(error instanceof Error ? error.message : error);
   process.exitCode = 1;

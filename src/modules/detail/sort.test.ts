@@ -17,6 +17,7 @@ function row(
     externalMinutes: 0,
     ldcCalls: 0,
     ldcMinutes: minutes.ldcMinutes ?? 0,
+    mgmnKopecks: 0,
   };
 }
 

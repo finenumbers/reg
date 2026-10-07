@@ -2,10 +2,7 @@
 
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { FitSelect } from "@/components/fit-select";
-import {
-  TableCountFooter,
-  TableInfiniteBody,
-} from "@/components/table-infinite-body";
+import { TableCountFooter, TableInfiniteBody } from "@/components/table-infinite-body";
 import {
   Table,
   TableBody,
@@ -48,6 +45,7 @@ const SORT_BTN =
   "inline-flex h-7 max-h-7 w-full items-center justify-center bg-transparent px-0 text-inherit";
 const SORT_ACTIVE = "text-blue-600";
 const METRIC_COL_PX = 80;
+const MGMN_COL_PX = 96;
 const CLIENT_COL_MIN_PX = 250;
 const CLIENT_CELL_PAD_PX = 16;
 
@@ -90,12 +88,9 @@ export function DetailView({ initial }: Props) {
     setClientColPx(Math.max(CLIENT_COL_MIN_PX, measured + CLIENT_CELL_PAD_PX));
   }, [longestClient]);
 
-  const sorted = useMemo(
-    () => sortDetailRows(data.rows, sortKey),
-    [data.rows, sortKey],
-  );
+  const sorted = useMemo(() => sortDetailRows(data.rows, sortKey), [data.rows, sortKey]);
   const visible = sorted.slice(0, shown);
-  const tableWidth = clientColPx + GROUPS.length * METRIC_COL_PX * 2;
+  const tableWidth = clientColPx + GROUPS.length * METRIC_COL_PX * 2 + MGMN_COL_PX;
 
   const loadMore = useCallback(() => {
     setShown((current) => Math.min(sorted.length, current + TABLE_PAGE_SIZE));
@@ -130,7 +125,9 @@ export function DetailView({ initial }: Props) {
     <div className="flex h-full min-h-0 flex-1 flex-col gap-4">
       <div className="flex shrink-0 flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight [text-box:trim-start_cap_alphabetic]">Детализация</h1>
+          <h1 className="text-xl font-semibold tracking-tight [text-box:trim-start_cap_alphabetic]">
+            Детализация
+          </h1>
           <p className="text-muted-foreground text-sm">
             Звонки и минуты по клиентам каталога номеров за календарный месяц.
           </p>
@@ -198,7 +195,7 @@ function DetailTable({
   totals: DetailTableTotals;
   empty: boolean;
 }) {
-  const colSpan = 1 + GROUPS.length * 2;
+  const colSpan = 2 + GROUPS.length * 2;
   return (
     <Table className="table-fixed" style={{ width: tableWidth }}>
       <colgroup>
@@ -207,6 +204,7 @@ function DetailTable({
           <col key={`${group.key}-c`} style={{ width: METRIC_COL_PX }} />,
           <col key={`${group.key}-m`} style={{ width: METRIC_COL_PX }} />,
         ])}
+        <col style={{ width: MGMN_COL_PX }} />
       </colgroup>
       <TableHeader>
         <TableRow>
@@ -235,6 +233,17 @@ function DetailTable({
               />
             </TableHead>
           ))}
+          <TableHead
+            rowSpan={2}
+            className="h-auto align-middle"
+            aria-sort={sortKey === "mgmn" ? "descending" : "none"}
+          >
+            <SortButton
+              active={sortKey === "mgmn"}
+              label="МГ/МН"
+              onClick={() => onSort("mgmn")}
+            />
+          </TableHead>
         </TableRow>
         <TableRow>
           {GROUPS.flatMap((group) => [
@@ -261,6 +270,9 @@ function DetailTable({
               {metricPairs(row).map((pair, i) => (
                 <MetricCells key={`${row.client}-${GROUPS[i]?.key ?? i}`} pair={pair} />
               ))}
+              <TableCell className={MINUTES_CELL}>
+                {formatMgmn(row.mgmnKopecks)}
+              </TableCell>
             </TableRow>
           ))
         )}
@@ -270,12 +282,11 @@ function DetailTable({
           <TableRow>
             <TableCell className={FOOTER_CELL}>Итого</TableCell>
             {metricPairs(totals).map((pair, i) => (
-              <MetricCells
-                key={`total-${GROUPS[i]?.key ?? i}`}
-                pair={pair}
-                total
-              />
+              <MetricCells key={`total-${GROUPS[i]?.key ?? i}`} pair={pair} total />
             ))}
+            <TableCell className={MINUTES_TOTAL_CELL}>
+              {formatMgmn(totals.mgmnKopecks)}
+            </TableCell>
           </TableRow>
         </TableFooter>
       ) : null}
@@ -314,13 +325,7 @@ function metricPairs(row: DetailMetricRow | DetailTableTotals): MetricPair[] {
   ];
 }
 
-function MetricCells({
-  pair,
-  total = false,
-}: {
-  pair: MetricPair;
-  total?: boolean;
-}) {
+function MetricCells({ pair, total = false }: { pair: MetricPair; total?: boolean }) {
   return (
     <>
       <TableCell className={cn("text-right", total && FOOTER_CELL)}>
@@ -335,4 +340,13 @@ function MetricCells({
 
 function formatStatCount(n: number): string {
   return n === 0 ? "-" : formatCount(n);
+}
+
+function formatMgmn(kopecks: number): string {
+  if (kopecks === 0) return "-";
+  const neg = kopecks < 0;
+  const abs = Math.abs(kopecks);
+  const whole = Math.trunc(abs / 100);
+  const frac = String(abs % 100).padStart(2, "0");
+  return `${neg ? "-" : ""}${whole}.${frac}`;
 }

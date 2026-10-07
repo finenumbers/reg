@@ -1,7 +1,19 @@
-# Current Phase — production (v1.87.0)
+# Current Phase — production (v1.88.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs.  
-**Date:** 2026-10-06
+**Date:** 2026-10-07
+
+## v1.88.0 — Local, intercity, and international call categories
+
+«Исходящий звонок», «Внутренний звонок», and «Исходящий паркинг» are gone. A known side A is «Исходящий местный», «Исходящий междугородный», or «Исходящий международный». The same split on `Service_Parking` is «Паркинг местный», «Паркинг междугородный», or «Паркинг международный». «Входящий звонок» is now «Входящий». An unknown side A stays incoming, incoming parking, phantom, or error.
+
+A local call needs both numbers to be 11 digits starting with 73, 74, or 78, and the longest tariff ABC of each number must share one direction that starts with «г. ». Anything else with a national B-number (73, 74, 78, or 79) is intercity. A B-number outside that shape is international. The month sheet and the enrich workbook recompute the category from the same rule, using the loaded tariff snapshot.
+
+«Исходящий местный» and «Паркинг местный» store direction «Местный звонок» and leave price and charge blank, including failed calls. Successful intercity, international, redirect, and the matching parking categories still take the longest ABC when the B-number is 11 digits starting with 7.
+
+«Детализация» adds «МГ/МН» after «Межгород». The cell is the sum of stored charges for the month's calls whose A-number belongs to that client. Zero is a dash. The yellow total is the sum of those cells.
+
+Stored rows are rewritten by the category and tariff backfills after migrate. The v1.79.0 through v1.87.0 migrations stay as shipped.
 
 ## v1.87.0 — Tariff columns on traffic; billing screen and /storage redirect removed
 

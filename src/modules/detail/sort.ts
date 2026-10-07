@@ -1,14 +1,8 @@
-export const DETAIL_SORT_GROUPS = [
-  "in",
-  "out",
-  "parking",
-  "external",
-  "ldc",
-] as const;
+export const DETAIL_SORT_GROUPS = ["in", "out", "parking", "external", "ldc"] as const;
 
 export type DetailSortGroup = (typeof DETAIL_SORT_GROUPS)[number];
 
-export type DetailSortKey = "client" | DetailSortGroup;
+export type DetailSortKey = "client" | "mgmn" | DetailSortGroup;
 
 export type DetailMetricRow = {
   client: string;
@@ -22,6 +16,7 @@ export type DetailMetricRow = {
   externalMinutes: number;
   ldcCalls: number;
   ldcMinutes: number;
+  mgmnKopecks: number;
 };
 
 function minutesOf(row: DetailMetricRow, key: DetailSortGroup): number {
@@ -50,6 +45,14 @@ export function sortDetailRows(
   const copy = rows.slice();
   if (key === "client") {
     copy.sort((a, b) => compareClients(a.client, b.client));
+    return copy;
+  }
+  if (key === "mgmn") {
+    copy.sort((a, b) => {
+      const diff = b.mgmnKopecks - a.mgmnKopecks;
+      if (diff !== 0) return diff;
+      return compareClients(a.client, b.client);
+    });
     return copy;
   }
   copy.sort((a, b) => {
