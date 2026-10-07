@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { MINUTE_GRACE_SECONDS } from "@/modules/enrich/types";
 import { CALL_CATEGORY, CALL_STATUS, CALL_TYPE } from "@/modules/traffic/call-class";
 import {
   EMPTY_CDR_TARIFF,
@@ -25,6 +26,10 @@ const INTERNAL_ZERO_COST_MIGRATION = path.join(
 const DROP_COST_MIGRATION = path.join(
   process.cwd(),
   "prisma/migrations/20261006233000_drop_tariff_cost_profit/migration.sql",
+);
+const GRACE_MIGRATION = path.join(
+  process.cwd(),
+  "prisma/migrations/20261008001000_cdr_minute_grace/migration.sql",
 );
 
 const RATES: TariffRateLookup[] = [
@@ -181,7 +186,7 @@ describe("rateCdrCall", () => {
     expect(
       rate({
         billDnis: " 74950000000 ",
-        elapsedTime: "1000",
+        elapsedTime: "4000",
         rates: [{ direction: "Москва", abc: "7495", price: "1.001", sortIndex: 0 }],
       }),
     ).toEqual({
@@ -215,6 +220,16 @@ describe("rateCdrCall", () => {
 
   it("leaves the row empty when the amount does not fit twelve integer digits", () => {
     expect(rate({ elapsedTime: "1" + "0".repeat(20) })).toEqual(EMPTY_CDR_TARIFF);
+  });
+
+  it("charges zero through three seconds and one minute from the fourth", () => {
+    const priced = { direction: "Москва-центр", price: "3" };
+    expect(rate({ elapsedTime: "1000" })).toEqual({ ...priced, charge: "0.00" });
+    expect(rate({ elapsedTime: "2000" })).toEqual({ ...priced, charge: "0.00" });
+    expect(rate({ elapsedTime: "3000" })).toEqual({ ...priced, charge: "0.00" });
+    expect(rate({ elapsedTime: "3001" })).toEqual({ ...priced, charge: "3.00" });
+    expect(rate({ elapsedTime: "4000" })).toEqual({ ...priced, charge: "3.00" });
+    expect(rate({ elapsedTime: "61000" })).toEqual({ ...priced, charge: "6.00" });
   });
 });
 
@@ -259,6 +274,18 @@ describe("cdr tariff migration", () => {
     expect(readFileSync(INTERNAL_ZERO_COST_MIGRATION, "utf8")).toContain(
       "category IN ('Исходящий паркинг', 'Внутренний звонок')",
     );
+  });
+
+  it("applies the minute grace without dropping the rater", () => {
+    const sql = readFileSync(GRACE_MIGRATION, "utf8");
+    expect(sql).toContain("CREATE OR REPLACE FUNCTION cdr_rate_call");
+    expect(sql).not.toContain("DROP FUNCTION");
+    expect(sql).toContain(`seconds <= ${MINUTE_GRACE_SECONDS}`);
+    expect(sql).toContain("minutes := 0");
+    expect(sql).toContain("minutes := ceil(seconds / 60)");
+    expect(sql).toContain("Исходящие");
+    expect(sql).toContain("Местный");
+    expect(sql).toContain("Междугородный");
   });
 
   it("adds the catalog price without rewriting the shipped rating migration", () => {

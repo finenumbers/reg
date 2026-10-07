@@ -204,8 +204,12 @@ export function failOpenEnrichStages(
   );
 }
 
+/** Ceiled seconds at or below this stay 0 minutes. The SQL rater uses the same bound. */
+export const MINUTE_GRACE_SECONDS = 3;
+
+/** Per-call minutes from ceiled seconds. 0–3 seconds are 0; otherwise CEIL(seconds / 60). */
 export function billableMinutes(seconds: number): number {
-  if (!Number.isFinite(seconds) || seconds <= 0) return 0;
+  if (!Number.isFinite(seconds) || seconds <= MINUTE_GRACE_SECONDS) return 0;
   return Math.ceil(seconds / 60);
 }
 

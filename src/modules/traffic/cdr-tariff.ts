@@ -4,6 +4,7 @@
  * Money is integer kopecks: CEIL toward +infinity, always two decimal places.
  */
 
+import { MINUTE_GRACE_SECONDS } from "@/modules/enrich/types";
 import { formatTariffDecimal } from "@/modules/tariffs/parse-xlsx";
 import { CALL_CATEGORY, CALL_STATUS, CALL_TYPE } from "@/modules/traffic/call-class";
 import { matchTariffAbc } from "@/modules/traffic/tariff-match";
@@ -46,6 +47,7 @@ const TEN = BigInt(10);
 const HUNDRED = BigInt(100);
 const THOUSAND = BigInt(1000);
 const SIXTY = BigInt(60);
+const MINUTE_GRACE = BigInt(MINUTE_GRACE_SECONDS);
 
 export type TariffRateLookup = {
   direction: string;
@@ -137,7 +139,7 @@ export function rateCdrCall(input: {
   if (price6 == null) return EMPTY_CDR_TARIFF;
 
   const seconds = elapsedMsToCeiledSeconds(input.elapsedTime);
-  const minutes = divCeilPositive(seconds, SIXTY);
+  const minutes = seconds <= MINUTE_GRACE ? ZERO : divCeilPositive(seconds, SIXTY);
   const chargeK = kopecksFromScale6(minutes * price6, CHARGE_DIVISOR, BigInt(9999));
   const charge = formatKopecks(chargeK);
   if (charge == null) return EMPTY_CDR_TARIFF;

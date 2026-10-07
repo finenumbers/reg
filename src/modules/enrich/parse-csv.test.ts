@@ -33,6 +33,9 @@ describe("CDR CSV parser", () => {
 describe("billable minutes", () => {
   it("ceils to full minutes", () => {
     expect(billableMinutes(0)).toBe(0);
+    expect(billableMinutes(1)).toBe(0);
+    expect(billableMinutes(3)).toBe(0);
+    expect(billableMinutes(4)).toBe(1);
     expect(billableMinutes(22)).toBe(1);
     expect(billableMinutes(60)).toBe(1);
     expect(billableMinutes(61)).toBe(2);

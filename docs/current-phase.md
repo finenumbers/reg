@@ -1,7 +1,17 @@
-# Current Phase — production (v1.91.0)
+# Current Phase — production (v1.92.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs.  
-**Date:** 2026-10-07
+**Date:** 2026-10-08
+
+## v1.92.0 — Three-second grace before a billed minute
+
+Minutes stay derived from ceiled seconds and are still not stored. A call of 0, 1, 2, or 3 seconds is 0 minutes. From 4 seconds, minutes are still `CEIL(seconds / 60)`. 3000 ms is 3 seconds and 0 minutes. 3001 ms is 4 seconds and 1 minute. 61 seconds is still 2 minutes. A blank duration stays blank.
+
+«Стоимость» of a rated call is those minutes times the per-minute price, ceiled to a kopeck. Zero minutes store `0.00` and keep direction and price. Who is rated does not change.
+
+Every «Минуты» surface uses the grace: phone traffic, statistics, detail, the month table on settings, and both XLSX sheets. Call counts stay. Historical minute totals drop for calls of 1–3 seconds. Stored charges for rated calls of 1–3 seconds change from one minute to `0.00`, so «МГ/МН» drops for past months. Already downloaded workbooks stay as they were.
+
+The new migration replaces `cdr_rate_call` only. The v1.91.0 migration stays as shipped. The tariff backfill rewrites changed charge cells before the app starts. `npx prisma migrate deploy` alone leaves stored charges unchanged. The tariff-rate job does not redo this pass while the tariff generation is already current.
 
 ## v1.91.0 — Call type column
 

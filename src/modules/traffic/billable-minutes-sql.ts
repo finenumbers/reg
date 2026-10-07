@@ -1,4 +1,5 @@
 import { Prisma } from "@/generated/prisma/client";
+import { MINUTE_GRACE_SECONDS } from "@/modules/enrich/types";
 
 /** Softswitch `elapsed_time` milliseconds as numeric, or 0. */
 export function elapsedMsNumericSql(): Prisma.Sql {
@@ -16,7 +17,16 @@ export function billableSecondsSql(): Prisma.Sql {
   return Prisma.sql`CEIL(${elapsedMsNumericSql()} / 1000)`;
 }
 
-/** Per-call minutes: CEIL(CEIL(ms / 1000) / 60). Not SUM(seconds) / 60. */
+/**
+ * Per-call minutes from ceiled seconds.
+ * 0 through MINUTE_GRACE_SECONDS stay 0. Longer calls are CEIL(seconds / 60).
+ * Not SUM(seconds) / 60.
+ */
 export function billableMinutesSql(): Prisma.Sql {
-  return Prisma.sql`CEIL(${billableSecondsSql()} / 60)`;
+  return Prisma.sql`
+    CASE
+      WHEN ${billableSecondsSql()} <= ${MINUTE_GRACE_SECONDS} THEN 0
+      ELSE CEIL(${billableSecondsSql()} / 60)
+    END
+  `;
 }

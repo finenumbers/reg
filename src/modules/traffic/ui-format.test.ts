@@ -55,6 +55,10 @@ describe("traffic UI date display", () => {
     expect(formatBillableMinutesCell("")).toBe("");
     expect(formatBillableMinutesCell("   ")).toBe("");
     expect(formatBillableMinutesCell("0")).toBe("0");
+    expect(formatBillableMinutesCell("1000")).toBe("0");
+    expect(formatBillableMinutesCell("3000")).toBe("0");
+    expect(formatBillableMinutesCell("3001")).toBe("1");
+    expect(formatBillableMinutesCell("4000")).toBe("1");
     expect(formatBillableMinutesCell("22000")).toBe("1");
     expect(formatBillableMinutesCell("60000")).toBe("1");
     expect(formatBillableMinutesCell("61000")).toBe("2");
