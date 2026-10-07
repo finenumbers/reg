@@ -30,6 +30,10 @@ const LABEL_RENAME_MIGRATION = path.join(
   process.cwd(),
   "prisma/migrations/20261007160000_cdr_call_category_labels/migration.sql",
 );
+const PARKING_STATUS_MIGRATION = path.join(
+  process.cwd(),
+  "prisma/migrations/20261007200000_cdr_parking_status/migration.sql",
+);
 
 describe("classifyCallCategory", () => {
   const known = "Офис";
@@ -53,8 +57,8 @@ describe("classifyCallCategory", () => {
     expect(
       classifyCallCategory(known, known, "PSTN_A", "", "", "", nsk, nskOther, cityRates),
     ).toBe(CALL_CATEGORY.outgoingLocal);
-    expect(classifyCallCategory("", "", "PSTN_A")).toBe(CALL_CATEGORY.error);
-    expect(classifyCallCategory(unknown, unknown, "PSTN_A")).toBe(CALL_CATEGORY.error);
+    expect(classifyCallCategory("", "", "PSTN_A")).toBe(CALL_CATEGORY.verify);
+    expect(classifyCallCategory(unknown, unknown, "PSTN_A")).toBe(CALL_CATEGORY.verify);
   });
 
   it("splits a known side A by numbers and one city direction", () => {
@@ -94,10 +98,10 @@ describe("classifyCallCategory", () => {
         nskOther,
         cityRates,
       ),
-    ).toBe(CALL_CATEGORY.parkingLocal);
+    ).toBe(CALL_CATEGORY.outgoingLocal);
     expect(
       classifyCallCategory(known, known, PARKING_DST, "", "", "", nsk, moscow, cityRates),
-    ).toBe(CALL_CATEGORY.parkingIntercity);
+    ).toBe(CALL_CATEGORY.outgoingIntercity);
     expect(
       classifyCallCategory(
         known,
@@ -110,7 +114,7 @@ describe("classifyCallCategory", () => {
         "4420712345",
         cityRates,
       ),
-    ).toBe(CALL_CATEGORY.parkingInternational);
+    ).toBe(CALL_CATEGORY.outgoingInternational);
   });
 
   it("classifies parking from the exact terminating device", () => {
@@ -119,7 +123,7 @@ describe("classifyCallCategory", () => {
     );
     expect(classifyCallCategory("", "", PARKING_DST)).toBe(CALL_CATEGORY.phantom);
     expect(classifyCallCategory(unknown, known, PARKING_DST)).toBe(
-      CALL_CATEGORY.incomingParking,
+      CALL_CATEGORY.incoming,
     );
     expect(
       classifyCallCategory(
@@ -133,7 +137,7 @@ describe("classifyCallCategory", () => {
         moscow,
         cityRates,
       ),
-    ).toBe(CALL_CATEGORY.parkingIntercity);
+    ).toBe(CALL_CATEGORY.outgoingIntercity);
     expect(
       classifyCallCategory(
         known,
@@ -146,7 +150,7 @@ describe("classifyCallCategory", () => {
         mobile,
         cityRates,
       ),
-    ).toBe(CALL_CATEGORY.parkingIntercity);
+    ).toBe(CALL_CATEGORY.outgoingIntercity);
     expect(classifyCallCategory(known, known, "Service_Parking_1")).toBe(
       CALL_CATEGORY.outgoingInternational,
     );
@@ -220,12 +224,45 @@ describe("classifyCallCategory", () => {
 });
 
 describe("classifyCallStatus", () => {
+  const known = "Офис";
+  const unknown = MISSING_BILLING_LABEL;
+  const routeError = "Class4, 40 - Gateway Is Invalid";
+
   it("treats only an empty string as failed", () => {
     expect(classifyCallStatus("")).toBe(CALL_STATUS.failed);
     expect(classifyCallStatus("0")).toBe(CALL_STATUS.success);
     expect(classifyCallStatus("24383")).toBe(CALL_STATUS.success);
     expect(classifyExportStatus(undefined)).toBe(CALL_STATUS.success);
     expect(classifyExportStatus("")).toBe(CALL_STATUS.failed);
+    expect(classifyCallStatus("", known, known, PARKING_DST)).toBe(CALL_STATUS.failed);
+  });
+
+  it("marks successful parking, including redirect and check", () => {
+    expect(classifyCallStatus("1", known, unknown, PARKING_DST)).toBe(
+      CALL_STATUS.parking,
+    );
+    expect(classifyCallStatus("0", unknown, known, PARKING_DST)).toBe(
+      CALL_STATUS.parking,
+    );
+    expect(classifyCallStatus("1", unknown, unknown, PARKING_DST)).toBe(
+      CALL_STATUS.success,
+    );
+    expect(classifyCallStatus("1", known, known, "PSTN_A")).toBe(CALL_STATUS.success);
+    expect(
+      classifyCallStatus("1", known, known, PARKING_DST, "Redirect_1", routeError),
+    ).toBe(CALL_STATUS.parking);
+    expect(classifyCallStatus("1", known, known, PARKING_DST, "gw", routeError)).toBe(
+      CALL_STATUS.success,
+    );
+    expect(
+      classifyCallStatus("1", "Тест 1", unknown, PARKING_DST, "gw", routeError),
+    ).toBe(CALL_STATUS.parking);
+    expect(classifyExportStatus(undefined, known, unknown, PARKING_DST)).toBe(
+      CALL_STATUS.parking,
+    );
+    expect(classifyExportStatus("", known, unknown, PARKING_DST)).toBe(
+      CALL_STATUS.failed,
+    );
   });
 });
 
@@ -233,15 +270,26 @@ describe("call class SQL", () => {
   it("is the function body stored in the migration", () => {
     const geography = readFileSync(CHECK_MIGRATION, "utf8");
     const renamed = readFileSync(LABEL_RENAME_MIGRATION, "utf8");
+    const parking = readFileSync(PARKING_STATUS_MIGRATION, "utf8");
     const labels = readFileSync(LABEL_MIGRATION, "utf8");
-    expect(renamed).toContain(renderCallCategoryCaseSql());
+    const failedPlural = readFileSync(FAILED_PLURAL_MIGRATION, "utf8");
+    expect(parking).toContain(renderCallCategoryCaseSql());
+    expect(parking).toContain(renderCallStatusCaseSql());
+    expect(parking).toContain(
+      "status IS DISTINCT FROM 'Успешный' AND status IS DISTINCT FROM 'Паркинг'",
+    );
+    expect(parking.indexOf("CREATE FUNCTION cdr_call_status")).toBeLessThan(
+      parking.indexOf("DROP FUNCTION cdr_call_status(text)"),
+    );
     expect(renamed).toContain("category IN ('Местный', 'Местный (П)')");
     expect(renamed).toContain("'Местный звонок'");
     expect(renamed).not.toContain("'Исходящий местный'");
     expect(renamed).not.toContain("DROP FUNCTION");
-    expect(readFileSync(FAILED_PLURAL_MIGRATION, "utf8")).toContain(
-      renderCallStatusCaseSql(),
+    expect(renamed).not.toContain(renderCallCategoryCaseSql());
+    expect(failedPlural).toContain(
+      "CASE WHEN elapsed_time = '' THEN 'Неуспешные' ELSE 'Успешный' END",
     );
+    expect(failedPlural).not.toContain(renderCallStatusCaseSql());
     expect(labels).toContain("'Неуспешный'");
     expect(labels).not.toContain("'Неуспешные'");
     expect(geography).toContain("'Исходящий местный'");

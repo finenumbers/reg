@@ -99,23 +99,48 @@ describe("rateCdrCall", () => {
     expect(rate({ category: CALL_CATEGORY.outgoingLocal })).toEqual(local);
     expect(
       rate({
-        category: CALL_CATEGORY.parkingLocal,
+        category: CALL_CATEGORY.outgoingLocal,
+        status: CALL_STATUS.parking,
+        elapsedTime: "60000",
+      }),
+    ).toEqual(local);
+    expect(
+      rate({
+        category: CALL_CATEGORY.outgoingLocal,
         status: CALL_STATUS.failed,
         elapsedTime: "",
       }),
     ).toEqual(local);
   });
 
-  it("rates intercity and international parking the same way as an outgoing call", () => {
+  it("rates intercity, international, and redirect parking the same way as a success", () => {
     const rated = {
       direction: "Москва-центр",
       price: "3",
       charge: "3.00",
     };
     expect(rate({ category: CALL_CATEGORY.outgoingIntercity })).toEqual(rated);
-    expect(rate({ category: CALL_CATEGORY.parkingIntercity })).toEqual(rated);
+    expect(
+      rate({
+        category: CALL_CATEGORY.outgoingIntercity,
+        status: CALL_STATUS.parking,
+      }),
+    ).toEqual(rated);
+    expect(
+      rate({
+        category: CALL_CATEGORY.redirect,
+        status: CALL_STATUS.parking,
+      }),
+    ).toEqual(rated);
     expect(
       rate({ category: CALL_CATEGORY.outgoingInternational, billDnis: "74951234567" }),
+    ).toEqual(rated);
+    expect(
+      rate({
+        category: CALL_CATEGORY.outgoingInternational,
+        status: CALL_STATUS.parking,
+        billDnis: "74951234567",
+      }),
     ).toEqual(rated);
     expect(
       rate({
@@ -128,7 +153,13 @@ describe("rateCdrCall", () => {
 
   it("leaves every other category and failed calls empty", () => {
     expect(rate({ category: CALL_CATEGORY.incoming })).toEqual(EMPTY_CDR_TARIFF);
-    expect(rate({ category: CALL_CATEGORY.incomingParking })).toEqual(EMPTY_CDR_TARIFF);
+    expect(
+      rate({ category: CALL_CATEGORY.incoming, status: CALL_STATUS.parking }),
+    ).toEqual(EMPTY_CDR_TARIFF);
+    expect(rate({ category: CALL_CATEGORY.check, status: CALL_STATUS.parking })).toEqual(
+      EMPTY_CDR_TARIFF,
+    );
+    expect(rate({ category: CALL_CATEGORY.verify })).toEqual(EMPTY_CDR_TARIFF);
     expect(rate({ status: CALL_STATUS.failed, elapsedTime: "" })).toEqual(
       EMPTY_CDR_TARIFF,
     );

@@ -19,6 +19,7 @@ import {
   XLSX_FAILED_FILL,
   XLSX_PARKING_KNOWN_FILL,
   XLSX_PHANTOM_FILL,
+  XLSX_VERIFY_FILL,
 } from "@/modules/enrich/xlsx-styles";
 import {
   readXlsxEntry,
@@ -264,7 +265,8 @@ describe("writeResolvedEnrichedXlsx", () => {
     expect(traffic!.getRow(2).getCell(3).value).toBe(CALL_CATEGORY.phantom);
     expect(traffic!.getRow(2).getCell(4).value).toBe(CALL_STATUS.failed);
     expect(traffic!.getRow(3).getCell(3).value).toBe(CALL_CATEGORY.routeError);
-    expect(traffic!.getRow(5).getCell(3).value).toBe(CALL_CATEGORY.parkingIntercity);
+    expect(traffic!.getRow(5).getCell(3).value).toBe(CALL_CATEGORY.outgoingIntercity);
+    expect(traffic!.getRow(5).getCell(4).value).toBe(CALL_STATUS.parking);
     expect(traffic!.getRow(6).getCell(3).value).toBe(CALL_CATEGORY.outgoingIntercity);
     expect(traffic!.getRow(6).getCell(4).value).toBe(CALL_STATUS.failed);
     expect(traffic!.getRow(7).getCell(4).value).toBe(CALL_STATUS.success);
@@ -299,17 +301,22 @@ describe("writeResolvedEnrichedXlsx", () => {
     const check: ResolvedEnrichedRow = {
       ...ROW,
       dialObject: "Service_Check",
+    };
+    const verify: ResolvedEnrichedRow = {
+      ...ROW,
+      sideA: MISSING_BILLING_LABEL,
+      sideB: MISSING_BILLING_LABEL,
       elapsedTime: "",
     };
     await writeFile(
       jsonlPath,
-      `${JSON.stringify(phantom)}\n${JSON.stringify(errorRow)}\n${JSON.stringify(ROW)}\n${JSON.stringify(parkingKnown)}\n${JSON.stringify(failed)}\n${JSON.stringify(check)}\n`,
+      `${JSON.stringify(phantom)}\n${JSON.stringify(errorRow)}\n${JSON.stringify(ROW)}\n${JSON.stringify(parkingKnown)}\n${JSON.stringify(failed)}\n${JSON.stringify(check)}\n${JSON.stringify(verify)}\n`,
       "utf8",
     );
     await writeResolvedEnrichedXlsx({
       jsonlPath,
       outputPath,
-      rowCount: 6,
+      rowCount: 7,
       trafficSheetName: "Август 2026 года",
       includeDetail: false,
     });
@@ -324,6 +331,7 @@ describe("writeResolvedEnrichedXlsx", () => {
         "FFBFDBFE",
         "FFE5E7EB",
         (XLSX_CHECK_FILL as ExcelJS.FillPattern).fgColor?.argb,
+        (XLSX_VERIFY_FILL as ExcelJS.FillPattern).fgColor?.argb,
       ]),
     );
 

@@ -7,7 +7,6 @@ import type { Prisma } from "@/generated/prisma/client";
 import {
   CALL_CATEGORY,
   CALL_STATUS,
-  PARKING_ROW_CATEGORIES,
   SUCCESS_ROW_CATEGORIES,
 } from "@/modules/traffic/call-class";
 
@@ -36,13 +35,7 @@ export function trafficFlagWhere(
       },
     });
   }
-  if (flags.parking) {
-    parts.push({
-      callCategory: {
-        in: [...PARKING_ROW_CATEGORIES],
-      },
-    });
-  }
+  if (flags.parking) parts.push({ callStatus: CALL_STATUS.parking });
   if (flags.failed) parts.push({ callStatus: CALL_STATUS.failed });
   if (flags.check) parts.push({ callCategory: CALL_CATEGORY.check });
   if (flags.success) {

@@ -38,8 +38,6 @@ const RATED = new Set<string>([
   CALL_CATEGORY.outgoingIntercity,
   CALL_CATEGORY.outgoingInternational,
   CALL_CATEGORY.redirect,
-  CALL_CATEGORY.parkingIntercity,
-  CALL_CATEGORY.parkingInternational,
 ]);
 
 const LOCAL_DIRECTION: CdrTariffCells = {
@@ -122,13 +120,12 @@ export function rateCdrCall(input: {
   elapsedTime: string;
   rates: readonly TariffRateLookup[];
 }): CdrTariffCells {
-  if (
-    input.category === CALL_CATEGORY.outgoingLocal ||
-    input.category === CALL_CATEGORY.parkingLocal
-  ) {
+  if (input.category === CALL_CATEGORY.outgoingLocal) {
     return LOCAL_DIRECTION;
   }
-  if (input.status !== CALL_STATUS.success) return EMPTY_CDR_TARIFF;
+  if (input.status !== CALL_STATUS.success && input.status !== CALL_STATUS.parking) {
+    return EMPTY_CDR_TARIFF;
+  }
   if (!RATED.has(input.category)) return EMPTY_CDR_TARIFF;
 
   const number = input.billDnis.trim();

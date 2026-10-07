@@ -37,6 +37,7 @@ import {
   XLSX_FAILED_FILL,
   XLSX_PARKING_KNOWN_FILL,
   XLSX_PHANTOM_FILL,
+  XLSX_VERIFY_FILL,
   XLSX_PSTN_FONT_ARGB,
   type BorderRole,
 } from "@/modules/enrich/xlsx-styles";
@@ -155,13 +156,37 @@ function categoryOf(
   );
 }
 
+function statusOf(
+  row: Pick<
+    ResolvedEnrichedRow,
+    | "elapsedTime"
+    | "sideA"
+    | "sideB"
+    | "termDevice"
+    | "initDevice"
+    | "cause"
+    | "dialObject"
+  >,
+): string {
+  return classifyExportStatus(
+    row.elapsedTime,
+    row.sideA,
+    row.sideB,
+    row.termDevice,
+    row.initDevice,
+    row.cause,
+    row.dialObject,
+  );
+}
+
 function rowFill(
   row: ResolvedEnrichedRow,
   rates: readonly TariffRateLookup[],
 ): ExcelJS.Fill | undefined {
-  const tone = cdrRowTone(categoryOf(row, rates), classifyExportStatus(row.elapsedTime));
+  const tone = cdrRowTone(categoryOf(row, rates), statusOf(row));
   if (tone === "phantom") return XLSX_PHANTOM_FILL;
   if (tone === "call_error") return XLSX_CALL_ERROR_FILL;
+  if (tone === "verify") return XLSX_VERIFY_FILL;
   if (tone === "parking") return XLSX_PARKING_KNOWN_FILL;
   if (tone === "check") return XLSX_CHECK_FILL;
   if (tone === "failed") return XLSX_FAILED_FILL;
@@ -263,7 +288,7 @@ function rateExportRow(
       : String(Math.max(0, Math.trunc(row.seconds)) * 1000);
   return rateCdrCall({
     category: categoryOf(row, rates),
-    status: classifyExportStatus(row.elapsedTime),
+    status: statusOf(row),
     billDnis: row.bNumber,
     elapsedTime: elapsed,
     rates,
@@ -345,7 +370,7 @@ function callClassCells(
   row: ResolvedEnrichedRow,
   rates: readonly TariffRateLookup[],
 ): [string, string] {
-  return [text(categoryOf(row, rates)), text(classifyExportStatus(row.elapsedTime))];
+  return [text(categoryOf(row, rates)), text(statusOf(row))];
 }
 
 async function writeResolvedSheets(opts: {

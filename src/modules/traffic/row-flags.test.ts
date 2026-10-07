@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   CALL_CATEGORY,
   CALL_STATUS,
-  PARKING_ROW_CATEGORIES,
   SUCCESS_ROW_CATEGORIES,
 } from "@/modules/traffic/call-class";
 import { parseTrafficFlagParam, trafficFlagWhere } from "@/modules/traffic/row-flags";
@@ -15,9 +14,7 @@ const callErrorsWhere = {
 };
 
 const parkingWhere = {
-  callCategory: {
-    in: [...PARKING_ROW_CATEGORIES],
-  },
+  callStatus: CALL_STATUS.parking,
 };
 
 describe("parseTrafficFlagParam", () => {
@@ -49,7 +46,7 @@ describe("trafficFlagWhere", () => {
       callCategory: CALL_CATEGORY.phantom,
     });
     expect(trafficFlagWhere({ callErrors: true })).toEqual(callErrorsWhere);
-    expect(callErrorsWhere.callCategory.in).not.toContain(CALL_CATEGORY.error);
+    expect(callErrorsWhere.callCategory.in).not.toContain(CALL_CATEGORY.verify);
     expect(trafficFlagWhere({ parking: true })).toEqual(parkingWhere);
     expect(trafficFlagWhere({ failed: true })).toEqual({
       callStatus: CALL_STATUS.failed,

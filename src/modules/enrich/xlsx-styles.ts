@@ -181,7 +181,14 @@ export const XLSX_PARKING_KNOWN_FILL: ExcelJS.Fill = {
   fgColor: { argb: "FFBFDBFE" },
 };
 
-/** Tailwind yellow-200 — category «Проверка». */
+/** Tailwind purple-200 — category «Проверить». */
+export const XLSX_VERIFY_FILL: ExcelJS.Fill = {
+  type: "pattern",
+  pattern: "solid",
+  fgColor: { argb: "FFE9D5FF" },
+};
+
+/** Tailwind yellow-200 — successful category «Проверка». */
 export const XLSX_CHECK_FILL: ExcelJS.Fill = {
   type: "pattern",
   pattern: "solid",

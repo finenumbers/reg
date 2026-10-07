@@ -9,6 +9,9 @@
  * 7. Replace «Исходящий звонок», «Внутренний звонок», «Исходящий паркинг»,
  *    and «Входящий звонок» with the geography categories.
  * 8. Rewrite the eight v1.88.0 labels to the short names.
+ * 9. Move «Местный (П)», «Междугородный (П)», «Международный (П)»,
+ *    «Паркинг», and leftover «Ошибка» onto the current category.
+ * 10. Mark successful redirect and check on Service_Parking as «Паркинг».
  *
  * Idempotent. A partial index exists only while old billing-miss rows remain.
  * The label pass walks the text primary key once and does not build an index.
@@ -22,6 +25,7 @@ const EMPTY_INDEX = "cdr_records_call_category_empty_idx";
 const MISS_INDEX = "cdr_records_billing_miss_idx";
 const OLD_BILLING = "Нет в биллинге";
 const CATEGORY_FN = `cdr_call_category(side_a, side_b, dst_name, src_name, disconnect_code_string, dp_name, bill_ani, bill_dnis)`;
+const STATUS_FN = `cdr_call_status(elapsed_time, side_a, side_b, dst_name, src_name, disconnect_code_string, dp_name)`;
 const CHECK_DP = "Service_Check";
 const CHECK_SIDE_PREFIX = "Тест ";
 const EXTRA_PREDICATE = `
@@ -144,7 +148,7 @@ async function fillEmptyCategories() {
     updateSql: `
       UPDATE cdr_records
       SET call_category = ${CATEGORY_FN},
-          call_status = cdr_call_status(elapsed_time)
+          call_status = ${STATUS_FN}
       WHERE id IN (
         SELECT id FROM cdr_records
         WHERE call_category = ''
@@ -292,7 +296,7 @@ async function renameCallClassLabels() {
       const updated = await client.query(
         `UPDATE cdr_records
          SET call_category = ${CATEGORY_FN},
-             call_status = cdr_call_status(elapsed_time)
+             call_status = ${STATUS_FN}
          WHERE id = ANY($1::text[])`,
         [ids],
       );
@@ -353,7 +357,7 @@ async function renameFailedStatusPlural() {
     try {
       const updated = await client.query(
         `UPDATE cdr_records
-         SET call_status = cdr_call_status(elapsed_time)
+         SET call_status = ${STATUS_FN}
          WHERE id = ANY($1::text[])`,
         [ids],
       );
@@ -517,6 +521,144 @@ async function reclassifyV188Labels() {
   console.log("cdr call class labels: nothing to rewrite");
 }
 
+const PARKING_CATEGORY_LABELS = [
+  "Местный (П)",
+  "Междугородный (П)",
+  "Международный (П)",
+  "Паркинг",
+  "Ошибка",
+];
+
+/** Parking categories and leftover «Ошибка» use the current category. Idempotent. */
+async function reclassifyParkingCategories() {
+  let cursor = "";
+  let rewritten = 0;
+  for (;;) {
+    const preview = await client.query(
+      `SELECT id FROM cdr_records
+       WHERE id > $1
+         AND call_category = ANY($2::text[])
+       ORDER BY id
+       LIMIT $3`,
+      [cursor, PARKING_CATEGORY_LABELS, BATCH],
+    );
+    if ((preview.rowCount ?? 0) === 0) break;
+
+    const ids = preview.rows.map((row) => row.id);
+    const firstId = ids[0];
+    const lastId = ids[ids.length - 1];
+    await client.query("BEGIN");
+    try {
+      const updated = await client.query(
+        `UPDATE cdr_records
+         SET call_category = ${CATEGORY_FN},
+             call_status = ${STATUS_FN}
+         WHERE id = ANY($1::text[])`,
+        [ids],
+      );
+      await client.query("COMMIT");
+      const touched = updated.rowCount ?? 0;
+      if (touched !== ids.length) {
+        throw new Error(`cdr parking category updated ${touched} of ${ids.length}`);
+      }
+      const still = await client.query(
+        `SELECT 1 FROM cdr_records
+         WHERE id = $1
+           AND call_category = ANY($2::text[])`,
+        [firstId, PARKING_CATEGORY_LABELS],
+      );
+      if ((still.rowCount ?? 0) > 0) {
+        throw new Error(`cdr parking category left ${firstId} unchanged`);
+      }
+      rewritten += touched;
+      console.log(`cdr parking category: updated ${touched}`);
+      cursor = lastId;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    }
+  }
+  if (rewritten > 0) {
+    await client.query("ANALYZE cdr_records");
+    console.log("cdr parking category: complete");
+    return;
+  }
+  console.log("cdr parking category: nothing to rewrite");
+}
+
+/**
+ * Successful redirect and check on exact Service_Parking.
+ * dst_name is indexed. Category is already correct, so earlier passes skip them.
+ */
+async function reclassifyParkingRedirectAndCheck() {
+  let cursor = "";
+  let rewritten = 0;
+  for (;;) {
+    const preview = await client.query(
+      `SELECT id FROM cdr_records
+       WHERE id > $1
+         AND dst_name = $2
+         AND call_status = 'Успешный'
+         AND (
+           starts_with(src_name, 'Redirect_')
+           OR dp_name = 'Service_Check'
+           OR starts_with(side_a, 'Тест ')
+           OR starts_with(side_b, 'Тест ')
+         )
+       ORDER BY id
+       LIMIT $3`,
+      [cursor, "Service_Parking", BATCH],
+    );
+    if ((preview.rowCount ?? 0) === 0) break;
+
+    const ids = preview.rows.map((row) => row.id);
+    const firstId = ids[0];
+    const lastId = ids[ids.length - 1];
+    await client.query("BEGIN");
+    try {
+      const updated = await client.query(
+        `UPDATE cdr_records
+         SET call_status = ${STATUS_FN}
+         WHERE id = ANY($1::text[])`,
+        [ids],
+      );
+      await client.query("COMMIT");
+      const touched = updated.rowCount ?? 0;
+      if (touched !== ids.length) {
+        throw new Error(`cdr parking redirect updated ${touched} of ${ids.length}`);
+      }
+      const still = await client.query(
+        `SELECT 1 FROM cdr_records
+         WHERE id = $1
+           AND dst_name = $2
+           AND call_status = 'Успешный'
+           AND (
+             starts_with(src_name, 'Redirect_')
+             OR dp_name = 'Service_Check'
+             OR starts_with(side_a, 'Тест ')
+             OR starts_with(side_b, 'Тест ')
+           )`,
+        [firstId, "Service_Parking"],
+      );
+      if ((still.rowCount ?? 0) > 0) {
+        throw new Error(`cdr parking redirect left ${firstId} unchanged`);
+      }
+      rewritten += touched;
+      console.log(`cdr parking redirect: updated ${touched}`);
+      cursor = lastId;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    }
+  }
+  if (rewritten > 0) {
+    await client.query("ANALYZE cdr_records");
+    console.log("cdr parking redirect: complete");
+    return;
+  }
+  console.log("cdr parking redirect: nothing to rewrite");
+}
+
 try {
   await client.connect();
   await replaceBillingMiss();
@@ -527,6 +669,8 @@ try {
   await renameFailedStatusPlural();
   await reclassifyLegacyCategories();
   await reclassifyV188Labels();
+  await reclassifyParkingCategories();
+  await reclassifyParkingRedirectAndCheck();
 } catch (error) {
   console.error(error instanceof Error ? error.message : error);
   process.exitCode = 1;

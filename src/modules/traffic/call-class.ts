@@ -18,11 +18,7 @@ export const CALL_CATEGORY = {
   outgoingInternational: "Международный",
   incoming: "Входящий",
   phantom: "Фантомный",
-  incomingParking: "Паркинг",
-  parkingLocal: "Местный (П)",
-  parkingIntercity: "Междугородный (П)",
-  parkingInternational: "Международный (П)",
-  error: "Ошибка",
+  verify: "Проверить",
 } as const;
 
 /** Fixed «Направление» for a local call. Not a catalog direction name. */
@@ -30,13 +26,6 @@ export const LOCAL_TARIFF_DIRECTION = "Местный звонок";
 
 /** Tariff direction prefix for one city. Letter, dot, space. */
 export const CITY_DIRECTION_PREFIX = "г. ";
-
-export const PARKING_ROW_CATEGORIES = [
-  CALL_CATEGORY.incomingParking,
-  CALL_CATEGORY.parkingLocal,
-  CALL_CATEGORY.parkingIntercity,
-  CALL_CATEGORY.parkingInternational,
-] as const;
 
 export const SUCCESS_ROW_CATEGORIES = [
   CALL_CATEGORY.incoming,
@@ -59,6 +48,7 @@ const NATIONAL_NUMBER = /^(73|74|78|79)\d{9}$/;
 export const CALL_STATUS = {
   success: "Успешный",
   failed: "Неуспешные",
+  parking: "Паркинг",
 } as const;
 
 export type CallClass = {
@@ -80,15 +70,49 @@ function sideKnownSql(column: "side_a" | "side_b"): string {
   return `${column} NOT IN (${sqlLiteral("")}, ${sqlLiteral(MISSING_BILLING_LABEL)})`;
 }
 
-function geographyLabel(parking: boolean, geography: CallGeography): string {
-  if (parking) {
-    if (geography === "local") return CALL_CATEGORY.parkingLocal;
-    if (geography === "international") return CALL_CATEGORY.parkingInternational;
-    return CALL_CATEGORY.parkingIntercity;
-  }
+function geographyLabel(geography: CallGeography): string {
   if (geography === "local") return CALL_CATEGORY.outgoingLocal;
   if (geography === "international") return CALL_CATEGORY.outgoingInternational;
   return CALL_CATEGORY.outgoingIntercity;
+}
+
+function isRedirect(srcName: string): boolean {
+  return srcName.startsWith(REDIRECT_SRC_PREFIX);
+}
+
+function isCheckCall(sideA: string, sideB: string, dpName: string): boolean {
+  return (
+    dpName === CHECK_DP ||
+    sideA.startsWith(CHECK_SIDE_PREFIX) ||
+    sideB.startsWith(CHECK_SIDE_PREFIX)
+  );
+}
+
+function isWinningDisconnect(disconnectCode: string): boolean {
+  return (
+    disconnectCode === UNREGISTERED_DISCONNECT ||
+    disconnectCode === ROUTE_ERROR_DISCONNECT
+  );
+}
+
+/**
+ * Successful parking mark. Redirect and check win over a disconnect code.
+ * A disconnect code blocks parking only when it is the category.
+ * Both unknown sides without redirect or check stay phantom, not parking.
+ */
+function isParkingStatus(
+  sideA: string,
+  sideB: string,
+  dstName: string,
+  srcName: string,
+  disconnectCode: string,
+  dpName: string,
+): boolean {
+  if (dstName !== PARKING_DST) return false;
+  if (isRedirect(srcName) || isCheckCall(sideA, sideB, dpName)) return true;
+  if (isWinningDisconnect(disconnectCode)) return false;
+  if (!isSideKnown(sideA) && !isSideKnown(sideB)) return false;
+  return true;
 }
 
 /**
@@ -131,21 +155,27 @@ export function renderCallCategoryCaseSql(): string {
     WHEN disconnect_code_string = ${sqlLiteral(UNREGISTERED_DISCONNECT)} THEN ${sqlLiteral(CALL_CATEGORY.unregistered)}
     WHEN disconnect_code_string = ${sqlLiteral(ROUTE_ERROR_DISCONNECT)} THEN ${sqlLiteral(CALL_CATEGORY.routeError)}
     WHEN ${parking} AND ${sideUnknownSql("side_a")} AND ${sideUnknownSql("side_b")} THEN ${sqlLiteral(CALL_CATEGORY.phantom)}
-    WHEN ${parking} AND ${sideUnknownSql("side_a")} AND ${sideKnownSql("side_b")} THEN ${sqlLiteral(CALL_CATEGORY.incomingParking)}
-    WHEN ${parking} AND ${sideA} AND ${local} THEN ${sqlLiteral(CALL_CATEGORY.parkingLocal)}
-    WHEN ${parking} AND ${sideA} AND ${international} THEN ${sqlLiteral(CALL_CATEGORY.parkingInternational)}
-    WHEN ${parking} AND ${sideA} THEN ${sqlLiteral(CALL_CATEGORY.parkingIntercity)}
     WHEN ${sideA} AND ${local} THEN ${sqlLiteral(CALL_CATEGORY.outgoingLocal)}
     WHEN ${sideA} AND ${international} THEN ${sqlLiteral(CALL_CATEGORY.outgoingInternational)}
     WHEN ${sideA} THEN ${sqlLiteral(CALL_CATEGORY.outgoingIntercity)}
     WHEN ${sideUnknownSql("side_a")} AND ${sideKnownSql("side_b")} THEN ${sqlLiteral(CALL_CATEGORY.incoming)}
-    ELSE ${sqlLiteral(CALL_CATEGORY.error)}
+    ELSE ${sqlLiteral(CALL_CATEGORY.verify)}
   END`;
 }
 
 /** Status CASE. Embedded verbatim in the migration function body. */
 export function renderCallStatusCaseSql(): string {
-  return `CASE WHEN elapsed_time = ${sqlLiteral("")} THEN ${sqlLiteral(CALL_STATUS.failed)} ELSE ${sqlLiteral(CALL_STATUS.success)} END`;
+  const parking = `dst_name = ${sqlLiteral(PARKING_DST)}`;
+  const redirectOrCheck = `starts_with(src_name, ${sqlLiteral(REDIRECT_SRC_PREFIX)}) OR dp_name = ${sqlLiteral(CHECK_DP)} OR starts_with(side_a, ${sqlLiteral(CHECK_SIDE_PREFIX)}) OR starts_with(side_b, ${sqlLiteral(CHECK_SIDE_PREFIX)})`;
+  const disconnect = `disconnect_code_string IN (${sqlLiteral(UNREGISTERED_DISCONNECT)}, ${sqlLiteral(ROUTE_ERROR_DISCONNECT)})`;
+  const bothUnknown = `${sideUnknownSql("side_a")} AND ${sideUnknownSql("side_b")}`;
+  return `CASE
+    WHEN elapsed_time = ${sqlLiteral("")} THEN ${sqlLiteral(CALL_STATUS.failed)}
+    WHEN ${parking} AND (${redirectOrCheck}) THEN ${sqlLiteral(CALL_STATUS.parking)}
+    WHEN ${parking} AND (${disconnect} OR (${bothUnknown})) THEN ${sqlLiteral(CALL_STATUS.success)}
+    WHEN ${parking} THEN ${sqlLiteral(CALL_STATUS.parking)}
+    ELSE ${sqlLiteral(CALL_STATUS.success)}
+  END`;
 }
 
 export function classifyCallCategory(
@@ -159,41 +189,57 @@ export function classifyCallCategory(
   billDnis = "",
   rates: readonly TariffAbcRate[] = [],
 ): string {
-  if (srcName.startsWith(REDIRECT_SRC_PREFIX)) return CALL_CATEGORY.redirect;
-  if (
-    dpName === CHECK_DP ||
-    sideA.startsWith(CHECK_SIDE_PREFIX) ||
-    sideB.startsWith(CHECK_SIDE_PREFIX)
-  ) {
-    return CALL_CATEGORY.check;
-  }
+  if (isRedirect(srcName)) return CALL_CATEGORY.redirect;
+  if (isCheckCall(sideA, sideB, dpName)) return CALL_CATEGORY.check;
   if (disconnectCode === UNREGISTERED_DISCONNECT) return CALL_CATEGORY.unregistered;
   if (disconnectCode === ROUTE_ERROR_DISCONNECT) return CALL_CATEGORY.routeError;
   const a = isSideKnown(sideA);
   const b = isSideKnown(sideB);
   const parking = dstName === PARKING_DST;
   if (parking && !a && !b) return CALL_CATEGORY.phantom;
-  if (parking && !a && b) return CALL_CATEGORY.incomingParking;
-  if (parking && a) {
-    return geographyLabel(true, classifyCallGeography(billAni, billDnis, rates));
-  }
-  if (a) return geographyLabel(false, classifyCallGeography(billAni, billDnis, rates));
+  if (a) return geographyLabel(classifyCallGeography(billAni, billDnis, rates));
   if (!a && b) return CALL_CATEGORY.incoming;
-  return CALL_CATEGORY.error;
+  return CALL_CATEGORY.verify;
 }
 
-/** Raw elapsed_time. Exactly "" is failed; "0" and any other text are success. */
-export function classifyCallStatus(elapsedTime: string): string {
-  return elapsedTime === "" ? CALL_STATUS.failed : CALL_STATUS.success;
+/**
+ * Raw elapsed_time. Exactly "" is failed; "0" and any other text are success.
+ * Non-empty parking, including redirect and check, is «Паркинг».
+ */
+export function classifyCallStatus(
+  elapsedTime: string,
+  sideA = "",
+  sideB = "",
+  dstName = "",
+  srcName = "",
+  disconnectCode = "",
+  dpName = "",
+): string {
+  if (elapsedTime === "") return CALL_STATUS.failed;
+  if (isParkingStatus(sideA, sideB, dstName, srcName, disconnectCode, dpName)) {
+    return CALL_STATUS.parking;
+  }
+  return CALL_STATUS.success;
 }
 
 /**
  * Upload XLSX rows have integer seconds and no raw elapsed_time.
- * Missing elapsed_time is not an empty duration.
+ * Missing elapsed_time is not an empty duration, so parking still applies.
  */
-export function classifyExportStatus(elapsedTime: string | undefined): string {
-  if (elapsedTime === undefined) return CALL_STATUS.success;
-  return classifyCallStatus(elapsedTime);
+export function classifyExportStatus(
+  elapsedTime: string | undefined,
+  sideA = "",
+  sideB = "",
+  dstName = "",
+  srcName = "",
+  disconnectCode = "",
+  dpName = "",
+): string {
+  if (elapsedTime === "") return CALL_STATUS.failed;
+  if (isParkingStatus(sideA, sideB, dstName, srcName, disconnectCode, dpName)) {
+    return CALL_STATUS.parking;
+  }
+  return CALL_STATUS.success;
 }
 
 export function classifyCall(
@@ -220,6 +266,14 @@ export function classifyCall(
       billDnis,
       rates,
     ),
-    status: classifyCallStatus(elapsedTime),
+    status: classifyCallStatus(
+      elapsedTime,
+      sideA,
+      sideB,
+      dstName,
+      srcName,
+      disconnectCode,
+      dpName,
+    ),
   };
 }

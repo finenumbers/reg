@@ -1,7 +1,17 @@
-# Current Phase — production (v1.89.0)
+# Current Phase — production (v1.90.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs.  
 **Date:** 2026-10-07
+
+## v1.90.0 — Parking is a status
+
+Successful calls on exact `Service_Parking` keep their ordinary category and store status «Паркинг». «Местный (П)», «Междугородный (П)», «Международный (П)», and category «Паркинг» are gone. A known side A is «Местный», «Междугородный», or «Международный». An unknown side A with a known side B is «Входящий». «Редирект» and «Проверка» on that device are «Паркинг» too, even when a disconnect code is present. An empty duration stays «Неуспешные» and loses the parking mark. «0» is still success. Phantom stays «Фантомный» with «Успешный» or «Неуспешные». «Нет регистрации» and «Ошибка маршрута» stay their own categories and do not become «Паркинг».
+
+«Паркинг» is blue on «Местный», «Междугородный», «Международный», «Входящий», «Редирект», and «Проверка». The parking checkbox matches that status. Successful non-parking «Проверка» stays yellow. A failed «Проверка» is gray. A call that matches no category rule is «Проверить» and purple, including when it is failed. It is not part of «Ошибки звонков». There is no new checkbox.
+
+«Местный» still stores direction «Местный звонок» with no price or charge. Successful «Междугородный», «Международный», and «Редирект» with status «Паркинг» rate the same way as «Успешный». «Входящий» and «Проверка» stay unrated. Statistics and the detail group «Входящий паркинг» still count the device, not the category text.
+
+The new migration replaces the status function and the rating function. The v1.89.0 migration stays as shipped. The category backfill rewrites the four removed labels and stored «Ошибка», then marks successful redirect and check rows on `Service_Parking`. The app does not start until that script exits. `npx prisma migrate deploy` alone leaves the old labels in place.
 
 ## v1.89.0 — Short call category labels
 

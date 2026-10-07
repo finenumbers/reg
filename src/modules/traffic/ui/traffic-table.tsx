@@ -159,6 +159,8 @@ export function TrafficTable({
                   tone === "phantom" &&
                     "bg-green-200 hover:bg-green-300/90 dark:bg-green-950 dark:hover:bg-green-900",
                   tone === "call_error" && "bg-destructive/25 hover:bg-destructive/35",
+                  tone === "verify" &&
+                    "bg-purple-200 hover:bg-purple-300/90 dark:bg-purple-950 dark:hover:bg-purple-900",
                   tone === "parking" &&
                     "bg-blue-200 hover:bg-blue-300/90 dark:bg-blue-950 dark:hover:bg-blue-900",
                   tone === "check" &&
