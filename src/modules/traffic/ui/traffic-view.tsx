@@ -518,7 +518,9 @@ export function TrafficView({
     <div className="flex h-full min-h-0 flex-col gap-4">
       <div className="flex shrink-0 flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight [text-box:trim-start_cap_alphabetic]">{title}</h1>
+          <h1 className="text-xl font-semibold tracking-tight [text-box:trim-start_cap_alphabetic]">
+            {title}
+          </h1>
           <p className="text-muted-foreground text-sm">{subtitle}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -602,7 +604,7 @@ export function TrafficView({
               onChange={(e) => onPhantomChange(e.target.checked)}
             />
             <Label htmlFor={`${searchInputId}-phantom`}>
-              <RowColorMark tone="phantom">Фантомный трафик</RowColorMark>
+              <RowColorMark tone="phantom">Фантомный</RowColorMark>
             </Label>
           </div>
           <div className="flex items-center gap-2">
@@ -661,10 +663,7 @@ export function TrafficView({
               checked={success}
               onChange={(e) => onSuccessChange(e.target.checked)}
             />
-            <Label
-              htmlFor={`${searchInputId}-success`}
-              className={FILTER_TOOLBAR_TEXT}
-            >
+            <Label htmlFor={`${searchInputId}-success`} className={FILTER_TOOLBAR_TEXT}>
               Успешные
             </Label>
           </div>

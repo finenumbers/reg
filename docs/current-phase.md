@@ -1,7 +1,17 @@
-# Current Phase — production (v1.88.0)
+# Current Phase — production (v1.89.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs.  
 **Date:** 2026-10-07
+
+## v1.89.0 — Short call category labels
+
+The eight geography labels are shorter. Rules are unchanged. «Исходящий местный» is «Местный», «Исходящий междугородный» is «Междугородный», «Исходящий международный» is «Международный». Parking with a known side A is «Местный (П)», «Междугородный (П)», or «Международный (П)». «Входящий паркинг» is «Паркинг». «Фантомный трафик» is «Фантомный». The traffic filter uses the same phantom label.
+
+«Местный» and «Местный (П)» still store direction «Местный звонок» and leave price and charge blank. The month sheet and the enrich workbook recompute the category, so both sheets use the short names.
+
+«Детализация» groups «МГ/МН» the same way as the other counts, with a narrow no-break space. Zero stays a dash. The «Минуты» cell under «Межгород» keeps its right border.
+
+Stored rows are rewritten by the category backfill after migrate. The v1.88.0 migration stays as shipped. Statistics headers and the detail group «Входящий паркинг» are slice names, not call categories.
 
 ## v1.88.0 — Local, intercity, and international call categories
 

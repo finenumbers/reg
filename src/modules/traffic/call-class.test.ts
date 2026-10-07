@@ -26,6 +26,10 @@ const CHECK_MIGRATION = path.join(
   process.cwd(),
   "prisma/migrations/20261007143000_cdr_call_geography/migration.sql",
 );
+const LABEL_RENAME_MIGRATION = path.join(
+  process.cwd(),
+  "prisma/migrations/20261007160000_cdr_call_category_labels/migration.sql",
+);
 
 describe("classifyCallCategory", () => {
   const known = "Офис";
@@ -227,19 +231,25 @@ describe("classifyCallStatus", () => {
 
 describe("call class SQL", () => {
   it("is the function body stored in the migration", () => {
-    const sql = readFileSync(CHECK_MIGRATION, "utf8");
+    const geography = readFileSync(CHECK_MIGRATION, "utf8");
+    const renamed = readFileSync(LABEL_RENAME_MIGRATION, "utf8");
     const labels = readFileSync(LABEL_MIGRATION, "utf8");
-    expect(sql).toContain(renderCallCategoryCaseSql());
+    expect(renamed).toContain(renderCallCategoryCaseSql());
+    expect(renamed).toContain("category IN ('Местный', 'Местный (П)')");
+    expect(renamed).toContain("'Местный звонок'");
+    expect(renamed).not.toContain("'Исходящий местный'");
+    expect(renamed).not.toContain("DROP FUNCTION");
     expect(readFileSync(FAILED_PLURAL_MIGRATION, "utf8")).toContain(
       renderCallStatusCaseSql(),
     );
     expect(labels).toContain("'Неуспешный'");
     expect(labels).not.toContain("'Неуспешные'");
-    expect(sql).toContain("NEW.bill_ani");
-    expect(sql).toContain("NEW.bill_dnis");
-    expect(sql).toContain(
+    expect(geography).toContain("'Исходящий местный'");
+    expect(geography).toContain("NEW.bill_ani");
+    expect(geography).toContain("NEW.bill_dnis");
+    expect(geography).toContain(
       "DROP FUNCTION cdr_call_category(text, text, text, text, text, text);",
     );
-    expect(sql).not.toContain("CASCADE");
+    expect(geography).not.toContain("CASCADE");
   });
 });

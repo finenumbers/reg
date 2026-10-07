@@ -8,6 +8,7 @@
  * 6. Rewrite stored status «Неуспешный» to «Неуспешные» (status only).
  * 7. Replace «Исходящий звонок», «Внутренний звонок», «Исходящий паркинг»,
  *    and «Входящий звонок» with the geography categories.
+ * 8. Rewrite the eight v1.88.0 labels to the short names.
  *
  * Idempotent. A partial index exists only while old billing-miss rows remain.
  * The label pass walks the text primary key once and does not build an index.
@@ -449,6 +450,73 @@ async function reclassifyLegacyCategories() {
   console.log("cdr call class geography: nothing to rewrite");
 }
 
+const V188_CATEGORY_LABELS = [
+  "Исходящий местный",
+  "Исходящий междугородный",
+  "Исходящий международный",
+  "Паркинг местный",
+  "Паркинг междугородный",
+  "Паркинг международный",
+  "Входящий паркинг",
+  "Фантомный трафик",
+];
+
+/** Short labels replace the eight v1.88.0 names. Idempotent. */
+async function reclassifyV188Labels() {
+  let cursor = "";
+  let rewritten = 0;
+  for (;;) {
+    const preview = await client.query(
+      `SELECT id FROM cdr_records
+       WHERE id > $1
+         AND call_category = ANY($2::text[])
+       ORDER BY id
+       LIMIT $3`,
+      [cursor, V188_CATEGORY_LABELS, BATCH],
+    );
+    if ((preview.rowCount ?? 0) === 0) break;
+
+    const ids = preview.rows.map((row) => row.id);
+    const firstId = ids[0];
+    const lastId = ids[ids.length - 1];
+    await client.query("BEGIN");
+    try {
+      const updated = await client.query(
+        `UPDATE cdr_records
+         SET call_category = ${CATEGORY_FN}
+         WHERE id = ANY($1::text[])`,
+        [ids],
+      );
+      await client.query("COMMIT");
+      const touched = updated.rowCount ?? 0;
+      if (touched !== ids.length) {
+        throw new Error(`cdr call class labels updated ${touched} of ${ids.length}`);
+      }
+      const still = await client.query(
+        `SELECT 1 FROM cdr_records
+         WHERE id = $1
+           AND call_category = ANY($2::text[])`,
+        [firstId, V188_CATEGORY_LABELS],
+      );
+      if ((still.rowCount ?? 0) > 0) {
+        throw new Error(`cdr call class labels left ${firstId} unchanged`);
+      }
+      rewritten += touched;
+      console.log(`cdr call class labels: updated ${touched}`);
+      cursor = lastId;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    }
+  }
+  if (rewritten > 0) {
+    await client.query("ANALYZE cdr_records");
+    console.log("cdr call class labels: complete");
+    return;
+  }
+  console.log("cdr call class labels: nothing to rewrite");
+}
+
 try {
   await client.connect();
   await replaceBillingMiss();
@@ -458,6 +526,7 @@ try {
   await renameCallClassLabels();
   await renameFailedStatusPlural();
   await reclassifyLegacyCategories();
+  await reclassifyV188Labels();
 } catch (error) {
   console.error(error instanceof Error ? error.message : error);
   process.exitCode = 1;

@@ -246,11 +246,18 @@ function DetailTable({
           </TableHead>
         </TableRow>
         <TableRow>
-          {GROUPS.flatMap((group) => [
+          {GROUPS.flatMap((group, index) => [
             <TableHead key={`${group.key}-calls`} className="top-7 text-center">
               Звонки
             </TableHead>,
-            <TableHead key={`${group.key}-minutes`} className="top-7 text-center">
+            <TableHead
+              key={`${group.key}-minutes`}
+              className={cn(
+                "top-7 text-center",
+                index === GROUPS.length - 1 &&
+                  "shadow-[inset_-1px_-1px_0_0_var(--border)]!",
+              )}
+            >
               Минуты
             </TableHead>,
           ])}
@@ -348,5 +355,5 @@ function formatMgmn(kopecks: number): string {
   const abs = Math.abs(kopecks);
   const whole = Math.trunc(abs / 100);
   const frac = String(abs % 100).padStart(2, "0");
-  return `${neg ? "-" : ""}${whole}.${frac}`;
+  return `${neg ? "-" : ""}${formatCount(whole)}.${frac}`;
 }

@@ -160,7 +160,7 @@ export function xlsxMissFontRole(value: string): MissFontRole {
   return null;
 }
 
-/** Tailwind green-200 — category «Фантомный трафик». */
+/** Tailwind green-200 — category «Фантомный». */
 export const XLSX_PHANTOM_FILL: ExcelJS.Fill = {
   type: "pattern",
   pattern: "solid",
