@@ -167,7 +167,7 @@ export const XLSX_PHANTOM_FILL: ExcelJS.Fill = {
   fgColor: { argb: "FFBBF7D0" },
 };
 
-/** Tailwind red-200 — «Ошибка маршрута» and «Нет регистрации». */
+/** Tailwind red-200 — category «Ошибки». */
 export const XLSX_CALL_ERROR_FILL: ExcelJS.Fill = {
   type: "pattern",
   pattern: "solid",
@@ -179,13 +179,6 @@ export const XLSX_PARKING_KNOWN_FILL: ExcelJS.Fill = {
   type: "pattern",
   pattern: "solid",
   fgColor: { argb: "FFBFDBFE" },
-};
-
-/** Tailwind purple-200 — category «Проверить». */
-export const XLSX_VERIFY_FILL: ExcelJS.Fill = {
-  type: "pattern",
-  pattern: "solid",
-  fgColor: { argb: "FFE9D5FF" },
 };
 
 /** Tailwind yellow-200 — successful category «Проверка». */

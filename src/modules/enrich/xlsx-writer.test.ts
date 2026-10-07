@@ -19,7 +19,6 @@ import {
   XLSX_FAILED_FILL,
   XLSX_PARKING_KNOWN_FILL,
   XLSX_PHANTOM_FILL,
-  XLSX_VERIFY_FILL,
 } from "@/modules/enrich/xlsx-styles";
 import {
   readXlsxEntry,
@@ -110,12 +109,12 @@ describe("writeResolvedEnrichedXlsx", () => {
     expect(traffic.getRow(2).getCell(1).value).toBe("01.08.2026");
     expect(traffic.getRow(2).getCell(2).value).toBe("12:00:00");
     expect(traffic.getRow(2).getCell(3).value).toBe(CALL_CATEGORY.outgoing);
-    expect(traffic.getRow(2).getCell(4).value).toBe(CALL_TYPE.intercity);
+    expect(traffic.getRow(2).getCell(4).value).toBe(CALL_TYPE.mobile);
     expect(traffic.getRow(2).getCell(5).value).toBe(CALL_STATUS.success);
     expect(detail.getRow(2).getCell(1).value).toBe("01.08.2026");
     expect(detail.getRow(2).getCell(2).value).toBe("12:00:00");
     expect(detail.getRow(2).getCell(3).value).toBe(CALL_CATEGORY.outgoing);
-    expect(detail.getRow(2).getCell(4).value).toBe(CALL_TYPE.intercity);
+    expect(detail.getRow(2).getCell(4).value).toBe(CALL_TYPE.mobile);
     expect(detail.getRow(2).getCell(5).value).toBe(CALL_STATUS.success);
     const chargeCol = TRAFFIC_HEADERS.indexOf("Стоимость") + 1;
     expect(traffic.getRow(2).getCell(6).font?.bold).toBe(true);
@@ -133,7 +132,7 @@ describe("writeResolvedEnrichedXlsx", () => {
     const outputPath = path.join(dir, "out.xlsx");
     await writeFile(
       jsonlPath,
-      `${JSON.stringify({ ...ROW, initDevice: "Redirect_1", dialObject: "Service_Check", cause: "Class4, 40 - Gateway Is Invalid" })}\n`,
+      `${JSON.stringify({ ...ROW, initDevice: "Redirect_1", dialObject: "Service_Check" })}\n`,
       "utf8",
     );
     await writeResolvedEnrichedXlsx({
@@ -271,12 +270,12 @@ describe("writeResolvedEnrichedXlsx", () => {
     expect(detail!.getRow(2).getCell(11).font?.color?.argb).toBe(XLSX_BILLING_FONT_ARGB);
     expect(traffic!.getRow(5).getCell(9).font?.color?.argb).toBe(XLSX_BILLING_FONT_ARGB);
     expect(traffic!.getRow(2).getCell(3).value).toBe(CALL_CATEGORY.phantom);
-    expect(traffic!.getRow(2).getCell(4).value).toBe(CALL_TYPE.intercity);
+    expect(traffic!.getRow(2).getCell(4).value).toBe(CALL_TYPE.mobile);
     expect(traffic!.getRow(2).getCell(5).value).toBe(CALL_STATUS.failed);
-    expect(traffic!.getRow(3).getCell(3).value).toBe(CALL_CATEGORY.routeError);
-    expect(traffic!.getRow(3).getCell(4).value).toBe(CALL_TYPE.error);
+    expect(traffic!.getRow(3).getCell(3).value).toBe(CALL_CATEGORY.errors);
+    expect(traffic!.getRow(3).getCell(4).value).toBe(CALL_TYPE.routeError);
     expect(traffic!.getRow(5).getCell(3).value).toBe(CALL_CATEGORY.outgoing);
-    expect(traffic!.getRow(5).getCell(4).value).toBe(CALL_TYPE.intercity);
+    expect(traffic!.getRow(5).getCell(4).value).toBe(CALL_TYPE.mobile);
     expect(traffic!.getRow(5).getCell(5).value).toBe(CALL_STATUS.parking);
     expect(traffic!.getRow(6).getCell(3).value).toBe(CALL_CATEGORY.outgoing);
     expect(traffic!.getRow(6).getCell(5).value).toBe(CALL_STATUS.failed);
@@ -342,7 +341,6 @@ describe("writeResolvedEnrichedXlsx", () => {
         "FFBFDBFE",
         "FFE5E7EB",
         (XLSX_CHECK_FILL as ExcelJS.FillPattern).fgColor?.argb,
-        (XLSX_VERIFY_FILL as ExcelJS.FillPattern).fgColor?.argb,
       ]),
     );
 

@@ -5,13 +5,9 @@ import { cdrRowTone } from "@/modules/traffic/row-tone";
 describe("cdrRowTone", () => {
   it("keeps phantom and call errors ahead of a failed status", () => {
     expect(cdrRowTone(CALL_CATEGORY.phantom, CALL_STATUS.failed)).toBe("phantom");
-    expect(cdrRowTone(CALL_CATEGORY.routeError, CALL_STATUS.failed)).toBe("call_error");
-    expect(cdrRowTone(CALL_CATEGORY.unregistered, CALL_STATUS.failed)).toBe("call_error");
-  });
-
-  it("paints verify purple ahead of a failed status", () => {
-    expect(cdrRowTone(CALL_CATEGORY.verify, CALL_STATUS.failed)).toBe("verify");
-    expect(cdrRowTone(CALL_CATEGORY.verify, CALL_STATUS.success)).toBe("verify");
+    expect(cdrRowTone(CALL_CATEGORY.errors, CALL_STATUS.failed)).toBe("call_error");
+    expect(cdrRowTone(CALL_CATEGORY.errors, CALL_STATUS.parking)).toBe("call_error");
+    expect(cdrRowTone(CALL_CATEGORY.errors, CALL_STATUS.success)).toBe("call_error");
   });
 
   it("paints parking status blue, including redirect and check", () => {

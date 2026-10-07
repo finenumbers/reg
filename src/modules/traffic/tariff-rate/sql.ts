@@ -2,7 +2,7 @@
  * One batch of the historical tariff pass.
  * scripts/cdr-tariff-backfill.mjs embeds this text. A test keeps them equal.
  * $1 is the previous id cursor ('' on the first batch). $2 is the batch size.
- * Category and type are recomputed because local versus intercity follows the tariff snapshot.
+ * Category, type, and status are recomputed. Local versus intercity follows the tariff snapshot.
  */
 
 export const CDR_TARIFF_BATCH_SQL = `
@@ -27,7 +27,6 @@ WITH batch AS (
 classified AS (
   SELECT
     b.id,
-    b.call_status,
     b.bill_dnis,
     b.elapsed_time,
     cdr_call_category(
@@ -49,7 +48,16 @@ classified AS (
       b.dp_name,
       b.bill_ani,
       b.bill_dnis
-    ) AS new_type
+    ) AS new_type,
+    cdr_call_status(
+      b.elapsed_time,
+      b.side_a,
+      b.side_b,
+      b.dst_name,
+      b.src_name,
+      b.disconnect_code_string,
+      b.dp_name
+    ) AS new_status
   FROM batch AS b
 ),
 rated AS (
@@ -57,6 +65,7 @@ rated AS (
     c.id,
     c.new_category,
     c.new_type,
+    c.new_status,
     r.direction,
     r.charge,
     r.price
@@ -64,7 +73,7 @@ rated AS (
   CROSS JOIN LATERAL cdr_rate_call(
     c.new_category,
     c.new_type,
-    c.call_status,
+    c.new_status,
     c.bill_dnis,
     c.elapsed_time
   ) AS r
@@ -74,13 +83,14 @@ updated AS (
   SET
     call_category = rated.new_category,
     call_type = rated.new_type,
+    call_status = rated.new_status,
     tariff_direction = rated.direction,
     tariff_charge = rated.charge,
     tariff_price = rated.price
   FROM rated
   WHERE u.id = rated.id
-    AND (u.call_category, u.call_type, u.tariff_direction, u.tariff_charge, u.tariff_price)
-      IS DISTINCT FROM (rated.new_category, rated.new_type, rated.direction, rated.charge, rated.price)
+    AND (u.call_category, u.call_type, u.call_status, u.tariff_direction, u.tariff_charge, u.tariff_price)
+      IS DISTINCT FROM (rated.new_category, rated.new_type, rated.new_status, rated.direction, rated.charge, rated.price)
   RETURNING u.id
 )
 SELECT

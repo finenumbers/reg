@@ -126,6 +126,36 @@ describe("rateCdrCall", () => {
     ).toEqual(EMPTY_CDR_TARIFF);
   });
 
+  it("rates an outgoing mobile call from the catalog row of the B-number", () => {
+    const rates = [
+      { direction: "Россия", abc: "7", price: "1", sortIndex: 0 },
+      { direction: "Билайн", abc: "7913", price: "4", sortIndex: 1 },
+    ];
+    expect(
+      rate({ callType: CALL_TYPE.mobile, billDnis: "79131234567", rates, elapsedTime: "60000" }),
+    ).toEqual({ direction: "Билайн", price: "4", charge: "4.00" });
+    expect(
+      rate({
+        callType: CALL_TYPE.mobile,
+        billDnis: "79131234567",
+        rates,
+        status: CALL_STATUS.parking,
+        elapsedTime: "60000",
+      }),
+    ).toEqual({ direction: "Билайн", price: "4", charge: "4.00" });
+    expect(
+      rate({
+        callType: CALL_TYPE.mobile,
+        billDnis: "79131234567",
+        rates,
+        elapsedTime: "3000",
+      }),
+    ).toEqual({ direction: "Билайн", price: "4", charge: "0.00" });
+    expect(rate({ category: CALL_CATEGORY.incoming, callType: CALL_TYPE.mobile })).toEqual(
+      EMPTY_CDR_TARIFF,
+    );
+  });
+
   it("rates intercity, international, and redirect parking the same way as a success", () => {
     const rated = {
       direction: "Москва-центр",
@@ -172,7 +202,9 @@ describe("rateCdrCall", () => {
     expect(rate({ category: CALL_CATEGORY.check, status: CALL_STATUS.parking })).toEqual(
       EMPTY_CDR_TARIFF,
     );
-    expect(rate({ category: CALL_CATEGORY.verify })).toEqual(EMPTY_CDR_TARIFF);
+    expect(rate({ category: CALL_CATEGORY.errors, callType: CALL_TYPE.capacity })).toEqual(
+      EMPTY_CDR_TARIFF,
+    );
     expect(rate({ status: CALL_STATUS.failed, elapsedTime: "" })).toEqual(
       EMPTY_CDR_TARIFF,
     );
@@ -274,6 +306,18 @@ describe("cdr tariff migration", () => {
     expect(readFileSync(INTERNAL_ZERO_COST_MIGRATION, "utf8")).toContain(
       "category IN ('Исходящий паркинг', 'Внутренний звонок')",
     );
+  });
+
+  it("rates mobile calls without dropping the grace or the rater", () => {
+    const sql = readFileSync(
+      path.join(process.cwd(), "prisma/migrations/20261008020000_cdr_mobile_and_errors/migration.sql"),
+      "utf8",
+    );
+    expect(sql).toContain("CREATE OR REPLACE FUNCTION cdr_rate_call");
+    expect(sql).not.toContain("DROP FUNCTION");
+    expect(sql).toContain(`seconds <= ${MINUTE_GRACE_SECONDS}`);
+    expect(sql).toContain("'Мобильный'");
+    expect(readFileSync(GRACE_MIGRATION, "utf8")).not.toContain("'Мобильный'");
   });
 
   it("applies the minute grace without dropping the rater", () => {

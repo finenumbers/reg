@@ -8,9 +8,7 @@ import { parseTrafficFlagParam, trafficFlagWhere } from "@/modules/traffic/row-f
 import { applyPhoneQ } from "@/modules/traffic/service";
 
 const callErrorsWhere = {
-  callCategory: {
-    in: [CALL_CATEGORY.routeError, CALL_CATEGORY.unregistered],
-  },
+  callCategory: CALL_CATEGORY.errors,
 };
 
 const parkingWhere = {
@@ -57,7 +55,6 @@ describe("trafficFlagWhere", () => {
       callCategory: CALL_CATEGORY.phantom,
     });
     expect(trafficFlagWhere({ callErrors: true })).toEqual(callErrorsWhere);
-    expect(callErrorsWhere.callCategory.in).not.toContain(CALL_CATEGORY.verify);
     expect(trafficFlagWhere({ parking: true })).toEqual(parkingWhere);
     expect(trafficFlagWhere({ failed: true })).toEqual({
       callStatus: CALL_STATUS.failed,

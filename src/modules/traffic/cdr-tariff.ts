@@ -34,6 +34,7 @@ export const EMPTY_CDR_TARIFF: CdrTariffCells = {
 const RATED_TYPES = new Set<string>([
   CALL_TYPE.intercity,
   CALL_TYPE.international,
+  CALL_TYPE.mobile,
   CALL_TYPE.redirect,
 ]);
 

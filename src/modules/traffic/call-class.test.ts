@@ -41,6 +41,10 @@ const CALL_TYPE_MIGRATION = path.join(
   process.cwd(),
   "prisma/migrations/20261007210000_cdr_call_type/migration.sql",
 );
+const MOBILE_MIGRATION = path.join(
+  process.cwd(),
+  "prisma/migrations/20261008020000_cdr_mobile_and_errors/migration.sql",
+);
 
 describe("classifyCallCategory", () => {
   const known = "Офис";
@@ -55,19 +59,24 @@ describe("classifyCallCategory", () => {
   const nskOther = "73839876543";
   const moscow = "74951234567";
   const mobile = "79131234567";
+  const abroad = "442071234567";
 
   it("classifies direction when the terminator is not parking", () => {
-    expect(classifyCallCategory(known, unknown, "PSTN_A")).toBe(CALL_CATEGORY.outgoing);
+    expect(classifyCallCategory(known, unknown, "PSTN_A", "", "", "", moscow)).toBe(
+      CALL_CATEGORY.outgoing,
+    );
     expect(classifyCallCategory(unknown, known, "PSTN_A")).toBe(CALL_CATEGORY.incoming);
-    expect(classifyCallCategory(known, known, "PSTN_A")).toBe(CALL_CATEGORY.outgoing);
-    expect(classifyCallCategory("", "", "PSTN_A")).toBe(CALL_CATEGORY.verify);
-    expect(classifyCallCategory(unknown, unknown, "PSTN_A")).toBe(CALL_CATEGORY.verify);
+    expect(classifyCallCategory(known, known, "PSTN_A", "", "", "", moscow)).toBe(
+      CALL_CATEGORY.outgoing,
+    );
+    expect(classifyCallCategory("", "", "PSTN_A")).toBe(CALL_CATEGORY.errors);
+    expect(classifyCallCategory(unknown, unknown, "PSTN_A")).toBe(CALL_CATEGORY.errors);
   });
 
   it("splits a known side A by numbers and one city direction", () => {
     expect(classifyCallGeography(nsk, nskOther, cityRates)).toBe("local");
     expect(classifyCallGeography(nsk, moscow, cityRates)).toBe("intercity");
-    expect(classifyCallGeography(nsk, mobile, cityRates)).toBe("intercity");
+    expect(classifyCallGeography(nsk, mobile, cityRates)).toBe("mobile");
     expect(classifyCallGeography(nsk, "4420712345", cityRates)).toBe("international");
     expect(classifyCallGeography("100", nsk, cityRates)).toBe("intercity");
     expect(classifyCallGeography(nsk, nskOther, [])).toBe("intercity");
@@ -88,7 +97,9 @@ describe("classifyCallCategory", () => {
     expect(
       classifyCallType(known, known, PARKING_DST, "", "", "", nsk, "4420712345", cityRates),
     ).toBe(CALL_TYPE.international);
-    expect(classifyCallCategory(known, known, PARKING_DST)).toBe(CALL_CATEGORY.outgoing);
+    expect(classifyCallCategory(known, known, PARKING_DST, "", "", "", moscow)).toBe(
+      CALL_CATEGORY.outgoing,
+    );
   });
 
   it("reads the A-number for incoming and phantom geography", () => {
@@ -122,20 +133,24 @@ describe("classifyCallCategory", () => {
     expect(classifyCallCategory(unknown, known, PARKING_DST)).toBe(
       CALL_CATEGORY.incoming,
     );
-    expect(classifyCallCategory(known, unknown, PARKING_DST)).toBe(CALL_CATEGORY.outgoing);
-    expect(
-      classifyCallType(known, known, PARKING_DST, "", "", "", mobile, mobile, cityRates),
-    ).toBe(CALL_TYPE.intercity);
-    expect(classifyCallCategory(known, known, "Service_Parking_1")).toBe(
+    expect(classifyCallCategory(known, unknown, PARKING_DST, "", "", "", moscow)).toBe(
       CALL_CATEGORY.outgoing,
     );
-    expect(classifyCallType(known, known, "Service_Parking_1")).toBe(CALL_TYPE.international);
-    expect(classifyCallCategory(known, known, " Service_Parking")).toBe(
+    expect(
+      classifyCallType(known, known, PARKING_DST, "", "", "", mobile, mobile, cityRates),
+    ).toBe(CALL_TYPE.mobile);
+    expect(classifyCallCategory(known, known, "Service_Parking_1", "", "", "", abroad)).toBe(
+      CALL_CATEGORY.outgoing,
+    );
+    expect(classifyCallType(known, known, "Service_Parking_1", "", "", "", nsk, abroad)).toBe(
+      CALL_TYPE.international,
+    );
+    expect(classifyCallCategory(known, known, " Service_Parking", "", "", "", moscow)).toBe(
       CALL_CATEGORY.outgoing,
     );
   });
 
-  it("prefers redirect, check, and disconnect codes over side direction", () => {
+  it("prefers disconnect codes over redirect, check, and side direction", () => {
     const unregistered = "Class4, 1 - Unregistered IP Address";
     const routeError = "Class4, 40 - Gateway Is Invalid";
     expect(
@@ -147,10 +162,10 @@ describe("classifyCallCategory", () => {
         unregistered,
         "Service_Check",
       ),
-    ).toBe(CALL_CATEGORY.outgoing);
+    ).toBe(CALL_CATEGORY.errors);
     expect(
       classifyCallType(known, known, "gw", "Redirect_1", unregistered, "Service_Check"),
-    ).toBe(CALL_TYPE.redirect);
+    ).toBe(CALL_TYPE.unregistered);
     expect(
       classifyCallCategory(known, known, "gw", "Redirect_1", "", "Service_Check"),
     ).toBe(CALL_CATEGORY.outgoing);
@@ -158,44 +173,80 @@ describe("classifyCallCategory", () => {
       CALL_CATEGORY.check,
     );
     expect(classifyCallCategory("Тест 1", known, PARKING_DST, "gw", unregistered)).toBe(
-      CALL_CATEGORY.check,
+      CALL_CATEGORY.errors,
     );
     expect(classifyCallCategory(known, "Тест ", "gw", "gw", routeError)).toBe(
-      CALL_CATEGORY.check,
+      CALL_CATEGORY.errors,
     );
-    expect(classifyCallCategory(known, known, "Service_Check", "gw", "")).toBe(
+    expect(classifyCallCategory(known, known, "Service_Check", "gw", "", "", abroad)).toBe(
       CALL_CATEGORY.outgoing,
     );
-    expect(classifyCallType(known, known, "Service_Check", "gw", "")).toBe(
+    expect(classifyCallType(known, known, "Service_Check", "gw", "", "", nsk, abroad)).toBe(
       CALL_TYPE.international,
     );
-    expect(classifyCallCategory(known, known, "gw", "RedirectX", "")).toBe(
+    expect(classifyCallCategory(known, known, "gw", "RedirectX", "", "", moscow)).toBe(
       CALL_CATEGORY.outgoing,
     );
-    expect(classifyCallCategory(known, known, "gw", "gw", "", "Service_Check_1")).toBe(
+    expect(classifyCallCategory(known, known, "gw", "gw", "", "Service_Check_1", moscow)).toBe(
       CALL_CATEGORY.outgoing,
     );
-    expect(classifyCallCategory(known, known, "gw", "gw", "", " Service_Check")).toBe(
+    expect(classifyCallCategory(known, known, "gw", "gw", "", " Service_Check", moscow)).toBe(
       CALL_CATEGORY.outgoing,
     );
-    expect(classifyCallCategory(known, known, "gw", "gw", "", "Service_Check ")).toBe(
+    expect(classifyCallCategory(known, known, "gw", "gw", "", "Service_Check ", moscow)).toBe(
       CALL_CATEGORY.outgoing,
     );
-    expect(classifyCallCategory("Тест", known, "gw")).toBe(CALL_CATEGORY.outgoing);
-    expect(classifyCallCategory("Тест_1", known, "gw")).toBe(CALL_CATEGORY.outgoing);
-    expect(classifyCallCategory("Тестовый", known, "gw")).toBe(CALL_CATEGORY.outgoing);
-    expect(classifyCallCategory(" Тест 1", known, "gw")).toBe(CALL_CATEGORY.outgoing);
-    expect(classifyCallCategory("тест 1", known, "gw")).toBe(CALL_CATEGORY.outgoing);
-    expect(classifyCallType(known, known, "gw", "gw", unregistered)).toBe(CALL_TYPE.error);
+    expect(classifyCallCategory("Тест", known, "gw", "", "", "", moscow)).toBe(
+      CALL_CATEGORY.outgoing,
+    );
+    expect(classifyCallCategory("Тест_1", known, "gw", "", "", "", moscow)).toBe(
+      CALL_CATEGORY.outgoing,
+    );
+    expect(classifyCallCategory("Тестовый", known, "gw", "", "", "", moscow)).toBe(
+      CALL_CATEGORY.outgoing,
+    );
+    expect(classifyCallCategory(" Тест 1", known, "gw", "", "", "", moscow)).toBe(
+      CALL_CATEGORY.outgoing,
+    );
+    expect(classifyCallCategory("тест 1", known, "gw", "", "", "", moscow)).toBe(
+      CALL_CATEGORY.outgoing,
+    );
+    expect(classifyCallType(known, known, "gw", "gw", unregistered)).toBe(CALL_TYPE.unregistered);
     expect(classifyCallType(known, known, "gw", "gw", "", "Service_Check")).toBe(
       CALL_TYPE.check,
     );
     expect(classifyCallType("", "", "PSTN_A", "gw", "")).toBe(CALL_TYPE.verify);
     expect(classifyCallCategory(known, known, "gw", "gw", unregistered)).toBe(
-      CALL_CATEGORY.unregistered,
+      CALL_CATEGORY.errors,
     );
+    expect(classifyCallType(known, known, "gw", "gw", routeError)).toBe(CALL_TYPE.routeError);
     expect(classifyCallCategory(known, known, PARKING_DST, "gw", routeError)).toBe(
-      CALL_CATEGORY.routeError,
+      CALL_CATEGORY.errors,
+    );
+    expect(
+      classifyCallCategory(known, known, "gw", "Redirect_1", "Class4, 4 - Originator Capacity Exceeded"),
+    ).toBe(CALL_CATEGORY.errors);
+    expect(
+      classifyCallType(known, known, "gw", "Redirect_1", "Class4, 4 - Originator Capacity Exceeded"),
+    ).toBe(CALL_TYPE.capacity);
+    expect(classifyCallCategory(known, known, "gw", "", "", "", "79")).toBe(CALL_CATEGORY.errors);
+    expect(classifyCallType(known, known, "gw", "", "", "", nsk, "79")).toBe(CALL_TYPE.verify);
+    expect(classifyCallType(known, known, "gw", "", "", "", nsk, "7123456789")).toBe(
+      CALL_TYPE.verify,
+    );
+    expect(classifyCallType(known, known, "gw", "", "", "", nsk, "7 901")).toBe(CALL_TYPE.verify);
+    expect(classifyCallType(known, known, "gw", "", "", "", nsk, "")).toBe(CALL_TYPE.verify);
+    expect(classifyCallType(known, known, "gw", "", "", "", nsk, "1".repeat(16))).toBe(
+      CALL_TYPE.verify,
+    );
+    expect(classifyCallType(known, known, "gw", "", "", "", nsk, abroad)).toBe(
+      CALL_TYPE.international,
+    );
+    expect(classifyCallType(unknown, known, "gw", "", "", "", "79", nsk)).toBe(
+      CALL_TYPE.international,
+    );
+    expect(classifyCallType(known, known, "gw", "", "", "", nsk, ` ${mobile} `)).toBe(
+      CALL_TYPE.mobile,
     );
   });
 });
@@ -222,14 +273,14 @@ describe("classifyCallStatus", () => {
       CALL_STATUS.parking,
     );
     expect(classifyCallStatus("1", unknown, unknown, PARKING_DST)).toBe(
-      CALL_STATUS.success,
+      CALL_STATUS.parking,
     );
     expect(classifyCallStatus("1", known, known, "PSTN_A")).toBe(CALL_STATUS.success);
     expect(
       classifyCallStatus("1", known, known, PARKING_DST, "Redirect_1", routeError),
     ).toBe(CALL_STATUS.parking);
     expect(classifyCallStatus("1", known, known, PARKING_DST, "gw", routeError)).toBe(
-      CALL_STATUS.success,
+      CALL_STATUS.parking,
     );
     expect(
       classifyCallStatus("1", "Тест 1", unknown, PARKING_DST, "gw", routeError),
@@ -251,9 +302,19 @@ describe("call class SQL", () => {
     const labels = readFileSync(LABEL_MIGRATION, "utf8");
     const failedPlural = readFileSync(FAILED_PLURAL_MIGRATION, "utf8");
     const callType = readFileSync(CALL_TYPE_MIGRATION, "utf8");
-    expect(callType).toContain(renderCallCategoryCaseSql());
-    expect(callType).toContain(renderCallTypeCaseSql());
-    expect(callType).toContain(renderCallStatusCaseSql());
+    const mobile = readFileSync(MOBILE_MIGRATION, "utf8");
+    expect(mobile).toContain(renderCallCategoryCaseSql());
+    expect(mobile).toContain(renderCallTypeCaseSql());
+    expect(mobile).toContain(renderCallStatusCaseSql());
+    expect(mobile.indexOf("RETURN 'mobile'")).toBeLessThan(mobile.indexOf("RETURN 'international'"));
+    expect(mobile).toContain("'Мобильный'");
+    expect(mobile).toContain("seconds <= 3");
+    expect(mobile).not.toContain("73|74|78|79");
+    expect(mobile).not.toContain("DROP FUNCTION");
+    expect(readFileSync(
+      path.join(process.cwd(), "prisma/migrations/20261008001000_cdr_minute_grace/migration.sql"),
+      "utf8",
+    )).not.toContain("'Мобильный'");
     expect(callType.indexOf("CREATE FUNCTION cdr_rate_call")).toBeLessThan(
       callType.indexOf("DROP FUNCTION cdr_rate_call(text, text, text, text)"),
     );

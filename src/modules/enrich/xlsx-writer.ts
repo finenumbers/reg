@@ -41,7 +41,6 @@ import {
   XLSX_FAILED_FILL,
   XLSX_PARKING_KNOWN_FILL,
   XLSX_PHANTOM_FILL,
-  XLSX_VERIFY_FILL,
   XLSX_PSTN_FONT_ARGB,
   type BorderRole,
 } from "@/modules/enrich/xlsx-styles";
@@ -163,7 +162,7 @@ function typeOf(
 function categoryOf(
   row: Pick<
     ResolvedEnrichedRow,
-    "sideA" | "sideB" | "termDevice" | "initDevice" | "cause" | "dialObject"
+    "sideA" | "sideB" | "termDevice" | "initDevice" | "cause" | "dialObject" | "bNumber"
   >,
 ): string {
   return classifyCallCategory(
@@ -173,6 +172,7 @@ function categoryOf(
     row.initDevice,
     row.cause,
     row.dialObject,
+    row.bNumber,
   );
 }
 
@@ -206,7 +206,6 @@ function rowFill(
   const tone = cdrRowTone(categoryOf(row), statusOf(row));
   if (tone === "phantom") return XLSX_PHANTOM_FILL;
   if (tone === "call_error") return XLSX_CALL_ERROR_FILL;
-  if (tone === "verify") return XLSX_VERIFY_FILL;
   if (tone === "parking") return XLSX_PARKING_KNOWN_FILL;
   if (tone === "check") return XLSX_CHECK_FILL;
   if (tone === "failed") return XLSX_FAILED_FILL;

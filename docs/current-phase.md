@@ -1,7 +1,25 @@
-# Current Phase — production (v1.92.0)
+# Current Phase — production (v1.93.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs.  
 **Date:** 2026-10-08
+
+## v1.93.0 — Mobile type and one «Ошибки» category
+
+«Мобильный» is a call type. An 11-digit number starting with 79 is mobile, and 79 is no longer intercity. Outgoing and redirect look at the B-number. Incoming and phantom look at the A-number. The check sits after a local pair and before international, so a 79 number is not international.
+
+Outgoing mobile is rated from the tariff catalog: the longest ABC on the B-number, that row's direction and price. Incoming and phantom mobile stay unrated. «Мобильный» is included in the «Успешные» checkbox. The three-second grace is unchanged: 0–3 ceiled seconds are 0 minutes and store `0.00` with direction and price.
+
+«Ошибка маршрута», «Нет регистрации», and «Проверить» are one category, «Ошибки». Those first two phrases, plus the new type «Канальность», are types. Type «Ошибка» is gone. «Канальность» is the exact disconnect code `Class4, 4 - Originator Capacity Exceeded`. The three codes are checked first and beat redirect, check, phantom, outgoing, and incoming. «Проверить» is the leftover type and is checked last. Its category is still «Ошибки».
+
+An outgoing call with a known side A is «Ошибки» / «Проверить» before geography when the B-number starts with 7 and is not exactly 11 digits, is all digits and shorter than 10 (including empty), or is all digits and longer than 15. Exactly 11 digits starting with 7 stay local, mobile, intercity, or international. 10–15 digits that do not start with 7 stay international. Incoming looks at A and is not affected. Redirect and check without an error code stay themselves even when B is short.
+
+An empty duration is «Неуспешный», including on exact `Service_Parking`. «0» is non-empty. Every other call on exact `Service_Parking` is «Паркинг». `Service_Parking_1` and a name with a space are not parking.
+
+«Ошибки» use the existing light-red fill and outrank parking blue and failed gray. Phantom stays green. There is no purple fill. The checkbox «Ошибки звонков» matches category «Ошибки». The parking checkbox is status «Паркинг», including phantom and errors on that device.
+
+Rated redirects that carried an error code, and outgoing calls with the capacity code, lose direction, price, and charge because they become «Ошибки». «МГ/МН» is the sum of stored charges, so that sum drops for those rows. Mobile charges stay.
+
+The new migration replaces geography, category, type, status, and the rater. The v1.91.0 and v1.92.0 migrations stay as shipped. The tariff backfill rewrites category, type, status, and charge before the app starts. `npx prisma migrate deploy` alone leaves stored rows unchanged.
 
 ## v1.92.0 — Three-second grace before a billed minute
 

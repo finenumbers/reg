@@ -28,13 +28,7 @@ export function trafficFlagWhere(
 ): Prisma.CdrRecordWhereInput | null {
   const parts: Prisma.CdrRecordWhereInput[] = [];
   if (flags.phantom) parts.push({ callCategory: CALL_CATEGORY.phantom });
-  if (flags.callErrors) {
-    parts.push({
-      callCategory: {
-        in: [CALL_CATEGORY.routeError, CALL_CATEGORY.unregistered],
-      },
-    });
-  }
+  if (flags.callErrors) parts.push({ callCategory: CALL_CATEGORY.errors });
   if (flags.parking) parts.push({ callStatus: CALL_STATUS.parking });
   if (flags.failed) parts.push({ callStatus: CALL_STATUS.failed });
   if (flags.check) parts.push({ callCategory: CALL_CATEGORY.check });
