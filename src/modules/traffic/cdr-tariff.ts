@@ -5,11 +5,7 @@
  */
 
 import { formatTariffDecimal } from "@/modules/tariffs/parse-xlsx";
-import {
-  CALL_CATEGORY,
-  CALL_STATUS,
-  LOCAL_TARIFF_DIRECTION,
-} from "@/modules/traffic/call-class";
+import { CALL_CATEGORY, CALL_STATUS, CALL_TYPE } from "@/modules/traffic/call-class";
 import { matchTariffAbc } from "@/modules/traffic/tariff-match";
 
 export const CDR_TARIFF_COLUMNS = ["tariff_direction", "tariff_charge"] as const;
@@ -34,17 +30,11 @@ export const EMPTY_CDR_TARIFF: CdrTariffCells = {
   price: "",
 };
 
-const RATED = new Set<string>([
-  CALL_CATEGORY.outgoingIntercity,
-  CALL_CATEGORY.outgoingInternational,
-  CALL_CATEGORY.redirect,
+const RATED_TYPES = new Set<string>([
+  CALL_TYPE.intercity,
+  CALL_TYPE.international,
+  CALL_TYPE.redirect,
 ]);
-
-const LOCAL_DIRECTION: CdrTariffCells = {
-  direction: LOCAL_TARIFF_DIRECTION,
-  charge: "",
-  price: "",
-};
 
 /** 12 integer digits: abs(kopecks) >= 100 * 10^12. */
 const KOPECK_OVERFLOW = BigInt("100000000000000");
@@ -113,26 +103,35 @@ function formatKopecks(k: bigint): string | null {
   return `${k < ZERO ? "-" : ""}${whole.toString()}.${frac}`;
 }
 
+function matchedDirection(
+  billDnis: string,
+  rates: readonly TariffRateLookup[],
+): TariffRateLookup | null {
+  const number = billDnis.trim();
+  if (!/^7\d{10}$/.test(number)) return null;
+  return matchTariffAbc(number, rates) ?? null;
+}
+
 export function rateCdrCall(input: {
   category: string;
+  callType: string;
   status: string;
   billDnis: string;
   elapsedTime: string;
   rates: readonly TariffRateLookup[];
 }): CdrTariffCells {
-  if (input.category === CALL_CATEGORY.outgoingLocal) {
-    return LOCAL_DIRECTION;
-  }
+  if (input.category !== CALL_CATEGORY.outgoing) return EMPTY_CDR_TARIFF;
   if (input.status !== CALL_STATUS.success && input.status !== CALL_STATUS.parking) {
     return EMPTY_CDR_TARIFF;
   }
-  if (!RATED.has(input.category)) return EMPTY_CDR_TARIFF;
 
-  const number = input.billDnis.trim();
-  if (!/^7\d{10}$/.test(number)) return EMPTY_CDR_TARIFF;
-
-  const rate = matchTariffAbc(number, input.rates);
+  const rate = matchedDirection(input.billDnis, input.rates);
   if (!rate) return EMPTY_CDR_TARIFF;
+
+  if (input.callType === CALL_TYPE.local) {
+    return { direction: rate.direction, charge: "", price: "" };
+  }
+  if (!RATED_TYPES.has(input.callType)) return EMPTY_CDR_TARIFF;
 
   const price6 = parseScale6(rate.price);
   if (price6 == null) return EMPTY_CDR_TARIFF;

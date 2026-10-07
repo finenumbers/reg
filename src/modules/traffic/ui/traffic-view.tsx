@@ -652,7 +652,7 @@ export function TrafficView({
               onChange={(e) => onFailedChange(e.target.checked)}
             />
             <Label htmlFor={`${searchInputId}-failed`}>
-              <RowColorMark tone="failed">Неуспешные</RowColorMark>
+              <RowColorMark tone="failed">Неуспешный</RowColorMark>
             </Label>
           </div>
           <div className="flex items-center gap-2">

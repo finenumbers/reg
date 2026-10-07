@@ -2,7 +2,7 @@
  * One batch of the historical tariff pass.
  * scripts/cdr-tariff-backfill.mjs embeds this text. A test keeps them equal.
  * $1 is the previous id cursor ('' on the first batch). $2 is the batch size.
- * Category is recomputed because local versus intercity follows the tariff snapshot.
+ * Category and type are recomputed because local versus intercity follows the tariff snapshot.
  */
 
 export const CDR_TARIFF_BATCH_SQL = `
@@ -39,19 +39,31 @@ classified AS (
       b.dp_name,
       b.bill_ani,
       b.bill_dnis
-    ) AS new_category
+    ) AS new_category,
+    cdr_call_type(
+      b.side_a,
+      b.side_b,
+      b.dst_name,
+      b.src_name,
+      b.disconnect_code_string,
+      b.dp_name,
+      b.bill_ani,
+      b.bill_dnis
+    ) AS new_type
   FROM batch AS b
 ),
 rated AS (
   SELECT
     c.id,
     c.new_category,
+    c.new_type,
     r.direction,
     r.charge,
     r.price
   FROM classified AS c
   CROSS JOIN LATERAL cdr_rate_call(
     c.new_category,
+    c.new_type,
     c.call_status,
     c.bill_dnis,
     c.elapsed_time
@@ -61,13 +73,14 @@ updated AS (
   UPDATE cdr_records AS u
   SET
     call_category = rated.new_category,
+    call_type = rated.new_type,
     tariff_direction = rated.direction,
     tariff_charge = rated.charge,
     tariff_price = rated.price
   FROM rated
   WHERE u.id = rated.id
-    AND (u.call_category, u.tariff_direction, u.tariff_charge, u.tariff_price)
-      IS DISTINCT FROM (rated.new_category, rated.direction, rated.charge, rated.price)
+    AND (u.call_category, u.call_type, u.tariff_direction, u.tariff_charge, u.tariff_price)
+      IS DISTINCT FROM (rated.new_category, rated.new_type, rated.direction, rated.charge, rated.price)
   RETURNING u.id
 )
 SELECT

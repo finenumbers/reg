@@ -605,6 +605,7 @@ model CdrRecord {
   cityB                      String    @default("") @map("city_b")
   providerB                  String    @default("") @map("provider_b")
   callCategory               String    @default("") @map("call_category")
+  callType                   String    @default("") @map("call_type")
   callStatus                 String    @default("") @map("call_status")
   tariffDirection            String    @default("") @map("tariff_direction")
   tariffCharge               String    @default("") @map("tariff_charge")

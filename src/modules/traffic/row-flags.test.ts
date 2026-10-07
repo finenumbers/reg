@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   CALL_CATEGORY,
   CALL_STATUS,
-  SUCCESS_ROW_CATEGORIES,
+  SUCCESS_CALL_TYPES,
 } from "@/modules/traffic/call-class";
 import { parseTrafficFlagParam, trafficFlagWhere } from "@/modules/traffic/row-flags";
 import { applyPhoneQ } from "@/modules/traffic/service";
@@ -15,6 +15,17 @@ const callErrorsWhere = {
 
 const parkingWhere = {
   callStatus: CALL_STATUS.parking,
+};
+
+const successWhere = {
+  callStatus: CALL_STATUS.success,
+  OR: [
+    { callCategory: CALL_CATEGORY.incoming },
+    {
+      callCategory: CALL_CATEGORY.outgoing,
+      callType: { in: [...SUCCESS_CALL_TYPES] },
+    },
+  ],
 };
 
 describe("parseTrafficFlagParam", () => {
@@ -54,12 +65,7 @@ describe("trafficFlagWhere", () => {
     expect(trafficFlagWhere({ check: true })).toEqual({
       callCategory: CALL_CATEGORY.check,
     });
-    expect(trafficFlagWhere({ success: true })).toEqual({
-      callCategory: {
-        in: [...SUCCESS_ROW_CATEGORIES],
-      },
-      callStatus: CALL_STATUS.success,
-    });
+    expect(trafficFlagWhere({ success: true })).toEqual(successWhere);
   });
 
   it("ORs classes when several flags are on", () => {
@@ -72,12 +78,7 @@ describe("trafficFlagWhere", () => {
     expect(trafficFlagWhere({ success: true, failed: true })).toEqual({
       OR: [
         { callStatus: CALL_STATUS.failed },
-        {
-          callCategory: {
-            in: [...SUCCESS_ROW_CATEGORIES],
-          },
-          callStatus: CALL_STATUS.success,
-        },
+        successWhere,
       ],
     });
   });

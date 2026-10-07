@@ -15,9 +15,9 @@ describe("cdrRowTone", () => {
   });
 
   it("paints parking status blue, including redirect and check", () => {
-    expect(cdrRowTone(CALL_CATEGORY.outgoingLocal, CALL_STATUS.parking)).toBe("parking");
+    expect(cdrRowTone(CALL_CATEGORY.outgoing, CALL_STATUS.parking)).toBe("parking");
     expect(cdrRowTone(CALL_CATEGORY.incoming, CALL_STATUS.parking)).toBe("parking");
-    expect(cdrRowTone(CALL_CATEGORY.redirect, CALL_STATUS.parking)).toBe("parking");
+    expect(cdrRowTone(CALL_CATEGORY.outgoing, CALL_STATUS.parking)).toBe("parking");
     expect(cdrRowTone(CALL_CATEGORY.check, CALL_STATUS.parking)).toBe("parking");
   });
 
@@ -27,11 +27,9 @@ describe("cdrRowTone", () => {
   });
 
   it("paints only a failed status gray when the category has no color", () => {
-    expect(cdrRowTone(CALL_CATEGORY.redirect, CALL_STATUS.failed)).toBe("failed");
-    expect(cdrRowTone(CALL_CATEGORY.outgoingIntercity, CALL_STATUS.failed)).toBe(
-      "failed",
-    );
-    expect(cdrRowTone(CALL_CATEGORY.redirect, CALL_STATUS.success)).toBeNull();
-    expect(cdrRowTone(CALL_CATEGORY.outgoingLocal, CALL_STATUS.success)).toBeNull();
+    expect(cdrRowTone(CALL_CATEGORY.outgoing, CALL_STATUS.failed)).toBe("failed");
+    expect(cdrRowTone(CALL_CATEGORY.outgoing, CALL_STATUS.failed)).toBe("failed");
+    expect(cdrRowTone(CALL_CATEGORY.outgoing, CALL_STATUS.success)).toBeNull();
+    expect(cdrRowTone(CALL_CATEGORY.outgoing, CALL_STATUS.success)).toBeNull();
   });
 });

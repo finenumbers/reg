@@ -7,7 +7,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import {
   CALL_CATEGORY,
   CALL_STATUS,
-  SUCCESS_ROW_CATEGORIES,
+  SUCCESS_CALL_TYPES,
 } from "@/modules/traffic/call-class";
 
 export type TrafficRowFlags = {
@@ -40,10 +40,14 @@ export function trafficFlagWhere(
   if (flags.check) parts.push({ callCategory: CALL_CATEGORY.check });
   if (flags.success) {
     parts.push({
-      callCategory: {
-        in: [...SUCCESS_ROW_CATEGORIES],
-      },
       callStatus: CALL_STATUS.success,
+      OR: [
+        { callCategory: CALL_CATEGORY.incoming },
+        {
+          callCategory: CALL_CATEGORY.outgoing,
+          callType: { in: [...SUCCESS_CALL_TYPES] },
+        },
+      ],
     });
   }
   if (parts.length === 0) return null;

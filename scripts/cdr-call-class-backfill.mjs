@@ -12,6 +12,8 @@
  * 9. Move «Местный (П)», «Междугородный (П)», «Международный (П)»,
  *    «Паркинг», and leftover «Ошибка» onto the current category.
  * 10. Mark successful redirect and check on Service_Parking as «Паркинг».
+ * 11. Collapse geography categories into «Исходящие» and fill call_type.
+ * 12. Rewrite stored status «Неуспешные» to «Неуспешный».
  *
  * Idempotent. A partial index exists only while old billing-miss rows remain.
  * The label pass walks the text primary key once and does not build an index.
@@ -25,6 +27,7 @@ const EMPTY_INDEX = "cdr_records_call_category_empty_idx";
 const MISS_INDEX = "cdr_records_billing_miss_idx";
 const OLD_BILLING = "Нет в биллинге";
 const CATEGORY_FN = `cdr_call_category(side_a, side_b, dst_name, src_name, disconnect_code_string, dp_name, bill_ani, bill_dnis)`;
+const TYPE_FN = `cdr_call_type(side_a, side_b, dst_name, src_name, disconnect_code_string, dp_name, bill_ani, bill_dnis)`;
 const STATUS_FN = `cdr_call_status(elapsed_time, side_a, side_b, dst_name, src_name, disconnect_code_string, dp_name)`;
 const CHECK_DP = "Service_Check";
 const CHECK_SIDE_PREFIX = "Тест ";
@@ -333,62 +336,12 @@ async function renameCallClassLabels() {
   console.log("cdr call class rename: nothing to rewrite");
 }
 
-const OLD_FAILED_STATUS = "Неуспешный";
-
-/** Status text only. Do not recompute call_category. */
+/**
+ * The singular label is current again. Calling the live status function here
+ * would write «Неуспешный» and then fail the "row changed" check.
+ */
 async function renameFailedStatusPlural() {
-  let cursor = "";
-  let renamed = 0;
-  for (;;) {
-    const preview = await client.query(
-      `SELECT id FROM cdr_records
-       WHERE id > $1
-         AND call_status = $2
-       ORDER BY id
-       LIMIT $3`,
-      [cursor, OLD_FAILED_STATUS, BATCH],
-    );
-    if ((preview.rowCount ?? 0) === 0) break;
-
-    const ids = preview.rows.map((row) => row.id);
-    const firstId = ids[0];
-    const lastId = ids[ids.length - 1];
-    await client.query("BEGIN");
-    try {
-      const updated = await client.query(
-        `UPDATE cdr_records
-         SET call_status = ${STATUS_FN}
-         WHERE id = ANY($1::text[])`,
-        [ids],
-      );
-      await client.query("COMMIT");
-      const touched = updated.rowCount ?? 0;
-      if (touched !== ids.length) {
-        throw new Error(`cdr failed status plural updated ${touched} of ${ids.length}`);
-      }
-      const still = await client.query(
-        `SELECT 1 FROM cdr_records
-         WHERE id = $1
-           AND call_status = $2`,
-        [firstId, OLD_FAILED_STATUS],
-      );
-      if ((still.rowCount ?? 0) > 0) {
-        throw new Error(`cdr failed status plural left ${firstId} unchanged`);
-      }
-      renamed += touched;
-      console.log(`cdr failed status plural: updated ${touched}`);
-      cursor = lastId;
-    } catch (error) {
-      await client.query("ROLLBACK");
-      throw error;
-    }
-  }
-  if (renamed > 0) {
-    await client.query("ANALYZE cdr_records");
-    console.log("cdr failed status plural: complete");
-    return;
-  }
-  console.log("cdr failed status plural: nothing to rewrite");
+  console.log("cdr failed status plural: singular label is current, skip");
 }
 
 const LEGACY_CATEGORIES = [
@@ -659,6 +612,122 @@ async function reclassifyParkingRedirectAndCheck() {
   console.log("cdr parking redirect: nothing to rewrite");
 }
 
+const STALE_GEO_CATEGORIES = ["Местный", "Междугородный", "Международный", "Редирект"];
+const PLURAL_FAILED_STATUS = "Неуспешные";
+
+/** Fill call_type and collapse the four geography labels into «Исходящие». */
+async function reclassifyCallType() {
+  let cursor = "";
+  let rewritten = 0;
+  for (;;) {
+    const preview = await client.query(
+      `SELECT id FROM cdr_records
+       WHERE id > $1
+         AND (call_category = ANY($2::text[]) OR call_type = '')
+       ORDER BY id
+       LIMIT $3`,
+      [cursor, STALE_GEO_CATEGORIES, BATCH],
+    );
+    if ((preview.rowCount ?? 0) === 0) break;
+
+    const ids = preview.rows.map((row) => row.id);
+    const firstId = ids[0];
+    const lastId = ids[ids.length - 1];
+    await client.query("BEGIN");
+    try {
+      const updated = await client.query(
+        `UPDATE cdr_records
+         SET call_category = ${CATEGORY_FN},
+             call_type = ${TYPE_FN}
+         WHERE id = ANY($1::text[])`,
+        [ids],
+      );
+      await client.query("COMMIT");
+      const touched = updated.rowCount ?? 0;
+      if (touched !== ids.length) {
+        throw new Error(`cdr call type updated ${touched} of ${ids.length}`);
+      }
+      const still = await client.query(
+        `SELECT 1 FROM cdr_records
+         WHERE id = $1
+           AND (call_category = ANY($2::text[]) OR call_type = '')`,
+        [firstId, STALE_GEO_CATEGORIES],
+      );
+      if ((still.rowCount ?? 0) > 0) {
+        throw new Error(`cdr call type left ${firstId} unchanged`);
+      }
+      rewritten += touched;
+      console.log(`cdr call type: updated ${touched}`);
+      cursor = lastId;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    }
+  }
+  if (rewritten > 0) {
+    await client.query("ANALYZE cdr_records");
+    console.log("cdr call type: complete");
+    return;
+  }
+  console.log("cdr call type: nothing to rewrite");
+}
+
+/** Empty duration is «Неуспешный». A non-empty row follows the status function. */
+async function renameFailedStatusSingular() {
+  let cursor = "";
+  let renamed = 0;
+  for (;;) {
+    const preview = await client.query(
+      `SELECT id FROM cdr_records
+       WHERE id > $1
+         AND call_status = $2
+       ORDER BY id
+       LIMIT $3`,
+      [cursor, PLURAL_FAILED_STATUS, BATCH],
+    );
+    if ((preview.rowCount ?? 0) === 0) break;
+
+    const ids = preview.rows.map((row) => row.id);
+    const firstId = ids[0];
+    const lastId = ids[ids.length - 1];
+    await client.query("BEGIN");
+    try {
+      const updated = await client.query(
+        `UPDATE cdr_records
+         SET call_status = ${STATUS_FN}
+         WHERE id = ANY($1::text[])`,
+        [ids],
+      );
+      await client.query("COMMIT");
+      const touched = updated.rowCount ?? 0;
+      if (touched !== ids.length) {
+        throw new Error(`cdr failed status singular updated ${touched} of ${ids.length}`);
+      }
+      const still = await client.query(
+        `SELECT 1 FROM cdr_records
+         WHERE id = $1
+           AND call_status = $2`,
+        [firstId, PLURAL_FAILED_STATUS],
+      );
+      if ((still.rowCount ?? 0) > 0) {
+        throw new Error(`cdr failed status singular left ${firstId} unchanged`);
+      }
+      renamed += touched;
+      console.log(`cdr failed status singular: updated ${touched}`);
+      cursor = lastId;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    }
+  }
+  if (renamed > 0) {
+    await client.query("ANALYZE cdr_records");
+    console.log("cdr failed status singular: complete");
+    return;
+  }
+  console.log("cdr failed status singular: nothing to rewrite");
+}
+
 try {
   await client.connect();
   await replaceBillingMiss();
@@ -671,6 +740,8 @@ try {
   await reclassifyV188Labels();
   await reclassifyParkingCategories();
   await reclassifyParkingRedirectAndCheck();
+  await reclassifyCallType();
+  await renameFailedStatusSingular();
 } catch (error) {
   console.error(error instanceof Error ? error.message : error);
   process.exitCode = 1;

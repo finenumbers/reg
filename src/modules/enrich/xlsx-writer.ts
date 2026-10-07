@@ -8,7 +8,11 @@ import ExcelJS from "exceljs";
 import { excelPhoneValue } from "@/modules/enrich/excel-phone";
 import { xlsxCdrDateTimeCells } from "@/modules/traffic/cdr-date-parts";
 import { guardExcelText } from "@/modules/enrich/formula-guard";
-import { classifyCallCategory, classifyExportStatus } from "@/modules/traffic/call-class";
+import {
+  classifyCallCategory,
+  classifyCallType,
+  classifyExportStatus,
+} from "@/modules/traffic/call-class";
 import { rateCdrCall, type TariffRateLookup } from "@/modules/traffic/cdr-tariff";
 import { cdrRowTone } from "@/modules/traffic/row-tone";
 import {
@@ -129,7 +133,7 @@ function applyStyle(
   if (!opts.header) applyMissFont(cell, Boolean(opts.billingSide));
 }
 
-function categoryOf(
+function typeOf(
   row: Pick<
     ResolvedEnrichedRow,
     | "sideA"
@@ -143,7 +147,7 @@ function categoryOf(
   >,
   rates: readonly TariffRateLookup[],
 ): string {
-  return classifyCallCategory(
+  return classifyCallType(
     row.sideA,
     row.sideB,
     row.termDevice,
@@ -153,6 +157,22 @@ function categoryOf(
     row.aNumber,
     row.bNumber,
     rates,
+  );
+}
+
+function categoryOf(
+  row: Pick<
+    ResolvedEnrichedRow,
+    "sideA" | "sideB" | "termDevice" | "initDevice" | "cause" | "dialObject"
+  >,
+): string {
+  return classifyCallCategory(
+    row.sideA,
+    row.sideB,
+    row.termDevice,
+    row.initDevice,
+    row.cause,
+    row.dialObject,
   );
 }
 
@@ -183,7 +203,7 @@ function rowFill(
   row: ResolvedEnrichedRow,
   rates: readonly TariffRateLookup[],
 ): ExcelJS.Fill | undefined {
-  const tone = cdrRowTone(categoryOf(row, rates), statusOf(row));
+  const tone = cdrRowTone(categoryOf(row), statusOf(row));
   if (tone === "phantom") return XLSX_PHANTOM_FILL;
   if (tone === "call_error") return XLSX_CALL_ERROR_FILL;
   if (tone === "verify") return XLSX_VERIFY_FILL;
@@ -287,7 +307,8 @@ function rateExportRow(
       ? row.elapsedTime
       : String(Math.max(0, Math.trunc(row.seconds)) * 1000);
   return rateCdrCall({
-    category: categoryOf(row, rates),
+    category: categoryOf(row),
+    callType: typeOf(row, rates),
     status: statusOf(row),
     billDnis: row.bNumber,
     elapsedTime: elapsed,
@@ -354,23 +375,23 @@ function resolveFromMaps(
 }
 
 const PROGRESS_EVERY = 250;
-/** 1-based Excel columns: А-номер and В-номер, after Категория and Статус. */
-const TRAFFIC_PHONE_COLS = new Set([5, 7]);
-const DETAIL_PHONE_COLS = new Set([5, 9]);
+/** 1-based Excel columns: А-номер and В-номер, after Категория, Тип, and Статус. */
+const TRAFFIC_PHONE_COLS = new Set([6, 8]);
+const DETAIL_PHONE_COLS = new Set([6, 10]);
 const TRAFFIC_CHARGE_COL = TRAFFIC_HEADERS.indexOf("Стоимость") + 1;
 const TRAFFIC_BOLD_COLS = new Set([...TRAFFIC_PHONE_COLS, TRAFFIC_CHARGE_COL]);
 const TRAFFIC_MONEY_COLS = new Set(
   (["Цена", "Стоимость"] as const).map((header) => TRAFFIC_HEADERS.indexOf(header) + 1),
 );
 /** 1-based «Сторона A/B» columns. Blue billing-miss text stays on these only. */
-const TRAFFIC_SIDE_COLS = new Set([6, 8]);
-const DETAIL_SIDE_COLS = new Set([6, 10]);
+const TRAFFIC_SIDE_COLS = new Set([7, 9]);
+const DETAIL_SIDE_COLS = new Set([7, 11]);
 
 function callClassCells(
   row: ResolvedEnrichedRow,
   rates: readonly TariffRateLookup[],
-): [string, string] {
-  return [text(categoryOf(row, rates)), text(statusOf(row))];
+): [string, string, string] {
+  return [text(categoryOf(row)), text(typeOf(row, rates)), text(statusOf(row))];
 }
 
 async function writeResolvedSheets(opts: {

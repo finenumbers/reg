@@ -1,7 +1,21 @@
-# Current Phase — production (v1.90.0)
+# Current Phase — production (v1.91.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs.  
 **Date:** 2026-10-07
+
+## v1.91.0 — Call type column
+
+«Местный», «Междугородный», «Международный», and «Редирект» are one category, «Исходящие». The new stored column «Тип» sits between «Категория» and «Статус» on raw data, phone traffic, geography, operators, and both XLSX sheets. It is filterable. There is no new index.
+
+Type is «Местный», «Междугородный», or «Международный» from the same geography rules. Outgoing and redirect use the B-number. Incoming and phantom use the A-number. «Редирект» is a type of «Исходящие», including when side A is unknown. «Проверка» has type «Проверка». «Нет регистрации» and «Ошибка маршрута» have type «Ошибка» and stay separate categories. «Проверить» has type «Проверить». Phantom keeps category «Фантомный»; its type is the geography, not the word «Фантомный».
+
+An empty duration stores «Неуспешный». «0» is still success. Exact `Service_Parking` with a non-empty duration is «Паркинг», including redirect and check even when a winning disconnect code is present. Phantom on that device is «Успешный» or «Неуспешный».
+
+Only «Исходящие» with type «Междугородный», «Международный», or «Редирект» and status «Успешный» or «Паркинг» get a price and charge. «Исходящие» / «Местный» stores the catalog direction from the B-number and leaves price and charge empty. A failed local call stores no direction. Every other category stores no direction, price, or charge. The МГ/МН total is still the sum of stored charges. Statistics and device slices are unchanged.
+
+The checkbox «Успешные» is status «Успешный» and either «Входящий» or «Исходящие» with type «Местный», «Междугородный», or «Международный». Redirect is excluded. Row colors still follow category and status. A successful redirect stays unfilled. Parking stays blue.
+
+The new migration adds `call_type` and replaces the functions. The v1.90.0 migration stays as shipped. The category backfill rewrites the four old geography labels, fills empty types, and renames stored «Неуспешные». The app does not start until that script exits. `npx prisma migrate deploy` alone leaves the old labels in place.
 
 ## v1.90.0 — Parking is a status
 

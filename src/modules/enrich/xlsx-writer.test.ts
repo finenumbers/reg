@@ -10,7 +10,7 @@ import {
   TRAFFIC_HEADERS,
 } from "@/modules/enrich/types";
 import type { ResolvedEnrichedRow } from "@/modules/enrich/types";
-import { CALL_CATEGORY, CALL_STATUS } from "@/modules/traffic/call-class";
+import { CALL_CATEGORY, CALL_STATUS, CALL_TYPE } from "@/modules/traffic/call-class";
 import { PARKING_DST } from "@/modules/stats/classify";
 import {
   XLSX_BILLING_FONT_ARGB,
@@ -109,20 +109,22 @@ describe("writeResolvedEnrichedXlsx", () => {
     ]);
     expect(traffic.getRow(2).getCell(1).value).toBe("01.08.2026");
     expect(traffic.getRow(2).getCell(2).value).toBe("12:00:00");
-    expect(traffic.getRow(2).getCell(3).value).toBe(CALL_CATEGORY.outgoingIntercity);
-    expect(traffic.getRow(2).getCell(4).value).toBe(CALL_STATUS.success);
+    expect(traffic.getRow(2).getCell(3).value).toBe(CALL_CATEGORY.outgoing);
+    expect(traffic.getRow(2).getCell(4).value).toBe(CALL_TYPE.intercity);
+    expect(traffic.getRow(2).getCell(5).value).toBe(CALL_STATUS.success);
     expect(detail.getRow(2).getCell(1).value).toBe("01.08.2026");
     expect(detail.getRow(2).getCell(2).value).toBe("12:00:00");
-    expect(detail.getRow(2).getCell(3).value).toBe(CALL_CATEGORY.outgoingIntercity);
-    expect(detail.getRow(2).getCell(4).value).toBe(CALL_STATUS.success);
+    expect(detail.getRow(2).getCell(3).value).toBe(CALL_CATEGORY.outgoing);
+    expect(detail.getRow(2).getCell(4).value).toBe(CALL_TYPE.intercity);
+    expect(detail.getRow(2).getCell(5).value).toBe(CALL_STATUS.success);
     const chargeCol = TRAFFIC_HEADERS.indexOf("Стоимость") + 1;
-    expect(traffic.getRow(2).getCell(5).font?.bold).toBe(true);
-    expect(traffic.getRow(2).getCell(7).font?.bold).toBe(true);
+    expect(traffic.getRow(2).getCell(6).font?.bold).toBe(true);
+    expect(traffic.getRow(2).getCell(8).font?.bold).toBe(true);
     expect(traffic.getRow(2).getCell(chargeCol).font?.bold).toBe(true);
     expect(traffic.getRow(2).getCell(chargeCol).font?.name).toBe("Calibri");
-    expect(detail.getRow(2).getCell(5).font?.bold).toBe(true);
-    expect(detail.getRow(2).getCell(9).font?.bold).toBe(true);
-    expect(detail.getRow(2).getCell(6).font?.bold).not.toBe(true);
+    expect(detail.getRow(2).getCell(6).font?.bold).toBe(true);
+    expect(detail.getRow(2).getCell(10).font?.bold).toBe(true);
+    expect(detail.getRow(2).getCell(7).font?.bold).not.toBe(true);
   });
 
   it("writes redirect from the initiating device on both sheets", async () => {
@@ -143,10 +145,16 @@ describe("writeResolvedEnrichedXlsx", () => {
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.readFile(outputPath);
     expect(workbook.getWorksheet("Август 2026 года")!.getRow(2).getCell(3).value).toBe(
-      CALL_CATEGORY.redirect,
+      CALL_CATEGORY.outgoing,
+    );
+    expect(workbook.getWorksheet("Август 2026 года")!.getRow(2).getCell(4).value).toBe(
+      CALL_TYPE.redirect,
     );
     expect(workbook.getWorksheet("Детализация")!.getRow(2).getCell(3).value).toBe(
-      CALL_CATEGORY.redirect,
+      CALL_CATEGORY.outgoing,
+    );
+    expect(workbook.getWorksheet("Детализация")!.getRow(2).getCell(4).value).toBe(
+      CALL_TYPE.redirect,
     );
   });
 
@@ -255,21 +263,24 @@ describe("writeResolvedEnrichedXlsx", () => {
       }
     }
 
-    expect(traffic!.getRow(2).getCell(6).value).toBe(MISSING_BILLING_LABEL);
-    expect(String(traffic!.getRow(2).getCell(6).value).startsWith("'")).toBe(false);
-    expect(traffic!.getRow(2).getCell(6).font?.color?.argb).toBe(XLSX_BILLING_FONT_ARGB);
-    expect(traffic!.getRow(2).getCell(8).font?.color?.argb).toBe(XLSX_BILLING_FONT_ARGB);
-    expect(detail!.getRow(2).getCell(6).font?.color?.argb).toBe(XLSX_BILLING_FONT_ARGB);
-    expect(detail!.getRow(2).getCell(10).font?.color?.argb).toBe(XLSX_BILLING_FONT_ARGB);
-    expect(traffic!.getRow(5).getCell(8).font?.color?.argb).toBe(XLSX_BILLING_FONT_ARGB);
+    expect(traffic!.getRow(2).getCell(7).value).toBe(MISSING_BILLING_LABEL);
+    expect(String(traffic!.getRow(2).getCell(7).value).startsWith("'")).toBe(false);
+    expect(traffic!.getRow(2).getCell(7).font?.color?.argb).toBe(XLSX_BILLING_FONT_ARGB);
+    expect(traffic!.getRow(2).getCell(9).font?.color?.argb).toBe(XLSX_BILLING_FONT_ARGB);
+    expect(detail!.getRow(2).getCell(7).font?.color?.argb).toBe(XLSX_BILLING_FONT_ARGB);
+    expect(detail!.getRow(2).getCell(11).font?.color?.argb).toBe(XLSX_BILLING_FONT_ARGB);
+    expect(traffic!.getRow(5).getCell(9).font?.color?.argb).toBe(XLSX_BILLING_FONT_ARGB);
     expect(traffic!.getRow(2).getCell(3).value).toBe(CALL_CATEGORY.phantom);
-    expect(traffic!.getRow(2).getCell(4).value).toBe(CALL_STATUS.failed);
+    expect(traffic!.getRow(2).getCell(4).value).toBe(CALL_TYPE.intercity);
+    expect(traffic!.getRow(2).getCell(5).value).toBe(CALL_STATUS.failed);
     expect(traffic!.getRow(3).getCell(3).value).toBe(CALL_CATEGORY.routeError);
-    expect(traffic!.getRow(5).getCell(3).value).toBe(CALL_CATEGORY.outgoingIntercity);
-    expect(traffic!.getRow(5).getCell(4).value).toBe(CALL_STATUS.parking);
-    expect(traffic!.getRow(6).getCell(3).value).toBe(CALL_CATEGORY.outgoingIntercity);
-    expect(traffic!.getRow(6).getCell(4).value).toBe(CALL_STATUS.failed);
-    expect(traffic!.getRow(7).getCell(4).value).toBe(CALL_STATUS.success);
+    expect(traffic!.getRow(3).getCell(4).value).toBe(CALL_TYPE.error);
+    expect(traffic!.getRow(5).getCell(3).value).toBe(CALL_CATEGORY.outgoing);
+    expect(traffic!.getRow(5).getCell(4).value).toBe(CALL_TYPE.intercity);
+    expect(traffic!.getRow(5).getCell(5).value).toBe(CALL_STATUS.parking);
+    expect(traffic!.getRow(6).getCell(3).value).toBe(CALL_CATEGORY.outgoing);
+    expect(traffic!.getRow(6).getCell(5).value).toBe(CALL_STATUS.failed);
+    expect(traffic!.getRow(7).getCell(5).value).toBe(CALL_STATUS.success);
   });
 
   it("writes solid fill xfs that Excel can apply (OOXML, not ExcelJS getter)", async () => {

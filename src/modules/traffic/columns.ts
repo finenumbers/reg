@@ -169,13 +169,14 @@ export const VOIPMONITOR_TRAFFIC_LABELS: Record<
 
 export const CDR_DATETIME_SPLIT_COLUMNS = ["cdr_day", "cdr_time"] as const;
 
-export const CALL_CLASS_COLUMNS = ["call_category", "call_status"] as const;
+export const CALL_CLASS_COLUMNS = ["call_category", "call_type", "call_status"] as const;
 
 export const CALL_CLASS_LABELS: Record<
   (typeof CALL_CLASS_COLUMNS)[number],
   string
 > = {
   call_category: "Категория",
+  call_type: "Тип",
   call_status: "Статус",
 };
 
@@ -183,6 +184,7 @@ export const TRAFFIC_SUMMARY_COLUMNS = [
   "cdr_day",
   "cdr_time",
   "call_category",
+  "call_type",
   "call_status",
   "bill_ani",
   "side_a",
@@ -207,6 +209,7 @@ export const TRAFFIC_SUMMARY_LABELS: Record<
   cdr_day: "Дата",
   cdr_time: "Время",
   call_category: "Категория",
+  call_type: "Тип",
   call_status: "Статус",
   bill_ani: "А-номер",
   side_a: "Сторона A",
@@ -232,6 +235,7 @@ export const TRAFFIC_GEOGRAPHY_COLUMNS = [
   "cdr_day",
   "cdr_time",
   "call_category",
+  "call_type",
   "call_status",
   "bill_ani",
   "side_a",
@@ -256,6 +260,7 @@ export const TRAFFIC_GEOGRAPHY_LABELS: Record<
   cdr_day: "Дата",
   cdr_time: "Время",
   call_category: "Категория",
+  call_type: "Тип",
   call_status: "Статус",
   bill_ani: "А-номер",
   side_a: "Сторона A",
@@ -277,6 +282,7 @@ export const TRAFFIC_OPERATORS_COLUMNS = [
   "cdr_day",
   "cdr_time",
   "call_category",
+  "call_type",
   "call_status",
   "bill_ani",
   "side_a",
@@ -305,6 +311,7 @@ export const TRAFFIC_OPERATORS_LABELS: Record<
   cdr_day: "Дата",
   cdr_time: "Время",
   call_category: "Категория",
+  call_type: "Тип",
   call_status: "Статус",
   bill_ani: "А-номер",
   side_a: "Сторона A",

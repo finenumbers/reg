@@ -1,5 +1,5 @@
 /**
- * Persisted CDR category and status.
+ * Persisted CDR category, type, and status.
  * The SQL CASE in the migration is rendered from the same labels and order.
  */
 
@@ -9,29 +9,33 @@ import { PARKING_DST } from "@/modules/stats/classify";
 import { matchTariffAbc, type TariffAbcRate } from "@/modules/traffic/tariff-match";
 
 export const CALL_CATEGORY = {
-  redirect: "Редирект",
+  outgoing: "Исходящие",
   check: "Проверка",
   unregistered: "Нет регистрации",
   routeError: "Ошибка маршрута",
-  outgoingLocal: "Местный",
-  outgoingIntercity: "Междугородный",
-  outgoingInternational: "Международный",
   incoming: "Входящий",
   phantom: "Фантомный",
   verify: "Проверить",
 } as const;
 
-/** Fixed «Направление» for a local call. Not a catalog direction name. */
-export const LOCAL_TARIFF_DIRECTION = "Местный звонок";
+export const CALL_TYPE = {
+  local: "Местный",
+  intercity: "Междугородный",
+  international: "Международный",
+  redirect: "Редирект",
+  check: "Проверка",
+  error: "Ошибка",
+  verify: "Проверить",
+} as const;
 
 /** Tariff direction prefix for one city. Letter, dot, space. */
 export const CITY_DIRECTION_PREFIX = "г. ";
 
-export const SUCCESS_ROW_CATEGORIES = [
-  CALL_CATEGORY.incoming,
-  CALL_CATEGORY.outgoingLocal,
-  CALL_CATEGORY.outgoingIntercity,
-  CALL_CATEGORY.outgoingInternational,
+/** Outgoing geography types that stay in the «Успешные» checkbox. Redirect does not. */
+export const SUCCESS_CALL_TYPES = [
+  CALL_TYPE.local,
+  CALL_TYPE.intercity,
+  CALL_TYPE.international,
 ] as const;
 
 /** Literal prefix. `Redirect` and `Service_Redirect_` do not match. No trim. */
@@ -47,16 +51,20 @@ const NATIONAL_NUMBER = /^(73|74|78|79)\d{9}$/;
 
 export const CALL_STATUS = {
   success: "Успешный",
-  failed: "Неуспешные",
+  failed: "Неуспешный",
   parking: "Паркинг",
 } as const;
 
 export type CallClass = {
   category: string;
+  type: string;
   status: string;
 };
 
 export type CallGeography = "local" | "intercity" | "international";
+
+/** Outgoing geography reads the B-number. Incoming and phantom read the A-number. */
+export type CallVector = "outgoing" | "incoming";
 
 function sqlLiteral(value: string): string {
   return `'${value.replaceAll("'", "''")}'`;
@@ -70,10 +78,19 @@ function sideKnownSql(column: "side_a" | "side_b"): string {
   return `${column} NOT IN (${sqlLiteral("")}, ${sqlLiteral(MISSING_BILLING_LABEL)})`;
 }
 
-function geographyLabel(geography: CallGeography): string {
-  if (geography === "local") return CALL_CATEGORY.outgoingLocal;
-  if (geography === "international") return CALL_CATEGORY.outgoingInternational;
-  return CALL_CATEGORY.outgoingIntercity;
+function geographyType(geography: CallGeography): string {
+  if (geography === "local") return CALL_TYPE.local;
+  if (geography === "international") return CALL_TYPE.international;
+  return CALL_TYPE.intercity;
+}
+
+function geographyTypeSql(vector: CallVector): string {
+  const geography = `cdr_call_geography(bill_ani, bill_dnis, ${sqlLiteral(vector)})`;
+  return `CASE ${geography}
+      WHEN ${sqlLiteral("local")} THEN ${sqlLiteral(CALL_TYPE.local)}
+      WHEN ${sqlLiteral("international")} THEN ${sqlLiteral(CALL_TYPE.international)}
+      ELSE ${sqlLiteral(CALL_TYPE.intercity)}
+    END`;
 }
 
 function isRedirect(srcName: string): boolean {
@@ -116,16 +133,19 @@ function isParkingStatus(
 }
 
 /**
- * Local, intercity, or international for a call whose side A is already known.
+ * Local, intercity, or international.
  * One city is the longest ABC of each number, same direction, starting with «г. ».
+ * The far number is the B-number for outgoing calls and the A-number for incoming and phantom.
  */
 export function classifyCallGeography(
   billAni: string,
   billDnis: string,
   rates: readonly TariffAbcRate[],
+  vector: CallVector = "outgoing",
 ): CallGeography {
   const ani = billAni.trim();
   const dnis = billDnis.trim();
+  const far = vector === "incoming" ? ani : dnis;
   if (LOCAL_NUMBER.test(ani) && LOCAL_NUMBER.test(dnis)) {
     const directionA = matchTariffAbc(ani, rates)?.direction;
     const directionB = matchTariffAbc(dnis, rates)?.direction;
@@ -137,7 +157,7 @@ export function classifyCallGeography(
       return "local";
     }
   }
-  if (!NATIONAL_NUMBER.test(dnis)) return "international";
+  if (!NATIONAL_NUMBER.test(far)) return "international";
   return "intercity";
 }
 
@@ -145,21 +165,35 @@ export function classifyCallGeography(
 export function renderCallCategoryCaseSql(): string {
   const parking = `dst_name = ${sqlLiteral(PARKING_DST)}`;
   const check = `dp_name = ${sqlLiteral(CHECK_DP)} OR starts_with(side_a, ${sqlLiteral(CHECK_SIDE_PREFIX)}) OR starts_with(side_b, ${sqlLiteral(CHECK_SIDE_PREFIX)})`;
-  const geography = "cdr_call_geography(bill_ani, bill_dnis)";
-  const local = `${geography} = ${sqlLiteral("local")}`;
-  const international = `${geography} = ${sqlLiteral("international")}`;
   const sideA = sideKnownSql("side_a");
   return `CASE
-    WHEN starts_with(src_name, ${sqlLiteral(REDIRECT_SRC_PREFIX)}) THEN ${sqlLiteral(CALL_CATEGORY.redirect)}
+    WHEN starts_with(src_name, ${sqlLiteral(REDIRECT_SRC_PREFIX)}) THEN ${sqlLiteral(CALL_CATEGORY.outgoing)}
     WHEN ${check} THEN ${sqlLiteral(CALL_CATEGORY.check)}
     WHEN disconnect_code_string = ${sqlLiteral(UNREGISTERED_DISCONNECT)} THEN ${sqlLiteral(CALL_CATEGORY.unregistered)}
     WHEN disconnect_code_string = ${sqlLiteral(ROUTE_ERROR_DISCONNECT)} THEN ${sqlLiteral(CALL_CATEGORY.routeError)}
     WHEN ${parking} AND ${sideUnknownSql("side_a")} AND ${sideUnknownSql("side_b")} THEN ${sqlLiteral(CALL_CATEGORY.phantom)}
-    WHEN ${sideA} AND ${local} THEN ${sqlLiteral(CALL_CATEGORY.outgoingLocal)}
-    WHEN ${sideA} AND ${international} THEN ${sqlLiteral(CALL_CATEGORY.outgoingInternational)}
-    WHEN ${sideA} THEN ${sqlLiteral(CALL_CATEGORY.outgoingIntercity)}
+    WHEN ${sideA} THEN ${sqlLiteral(CALL_CATEGORY.outgoing)}
     WHEN ${sideUnknownSql("side_a")} AND ${sideKnownSql("side_b")} THEN ${sqlLiteral(CALL_CATEGORY.incoming)}
     ELSE ${sqlLiteral(CALL_CATEGORY.verify)}
+  END`;
+}
+
+/** Type CASE. Embedded verbatim in the migration function body. */
+export function renderCallTypeCaseSql(): string {
+  const parking = `dst_name = ${sqlLiteral(PARKING_DST)}`;
+  const check = `dp_name = ${sqlLiteral(CHECK_DP)} OR starts_with(side_a, ${sqlLiteral(CHECK_SIDE_PREFIX)}) OR starts_with(side_b, ${sqlLiteral(CHECK_SIDE_PREFIX)})`;
+  const disconnect = `disconnect_code_string IN (${sqlLiteral(UNREGISTERED_DISCONNECT)}, ${sqlLiteral(ROUTE_ERROR_DISCONNECT)})`;
+  const sideA = sideKnownSql("side_a");
+  const phantom = `${parking} AND ${sideUnknownSql("side_a")} AND ${sideUnknownSql("side_b")}`;
+  const incoming = `${sideUnknownSql("side_a")} AND ${sideKnownSql("side_b")}`;
+  return `CASE
+    WHEN starts_with(src_name, ${sqlLiteral(REDIRECT_SRC_PREFIX)}) THEN ${sqlLiteral(CALL_TYPE.redirect)}
+    WHEN ${check} THEN ${sqlLiteral(CALL_TYPE.check)}
+    WHEN ${disconnect} THEN ${sqlLiteral(CALL_TYPE.error)}
+    WHEN ${phantom} THEN ${geographyTypeSql("incoming")}
+    WHEN ${sideA} THEN ${geographyTypeSql("outgoing")}
+    WHEN ${incoming} THEN ${geographyTypeSql("incoming")}
+    ELSE ${sqlLiteral(CALL_TYPE.verify)}
   END`;
 }
 
@@ -185,11 +219,8 @@ export function classifyCallCategory(
   srcName = "",
   disconnectCode = "",
   dpName = "",
-  billAni = "",
-  billDnis = "",
-  rates: readonly TariffAbcRate[] = [],
 ): string {
-  if (isRedirect(srcName)) return CALL_CATEGORY.redirect;
+  if (isRedirect(srcName)) return CALL_CATEGORY.outgoing;
   if (isCheckCall(sideA, sideB, dpName)) return CALL_CATEGORY.check;
   if (disconnectCode === UNREGISTERED_DISCONNECT) return CALL_CATEGORY.unregistered;
   if (disconnectCode === ROUTE_ERROR_DISCONNECT) return CALL_CATEGORY.routeError;
@@ -197,9 +228,36 @@ export function classifyCallCategory(
   const b = isSideKnown(sideB);
   const parking = dstName === PARKING_DST;
   if (parking && !a && !b) return CALL_CATEGORY.phantom;
-  if (a) return geographyLabel(classifyCallGeography(billAni, billDnis, rates));
+  if (a) return CALL_CATEGORY.outgoing;
   if (!a && b) return CALL_CATEGORY.incoming;
   return CALL_CATEGORY.verify;
+}
+
+export function classifyCallType(
+  sideA: string,
+  sideB: string,
+  dstName: string,
+  srcName = "",
+  disconnectCode = "",
+  dpName = "",
+  billAni = "",
+  billDnis = "",
+  rates: readonly TariffAbcRate[] = [],
+): string {
+  if (isRedirect(srcName)) return CALL_TYPE.redirect;
+  if (isCheckCall(sideA, sideB, dpName)) return CALL_TYPE.check;
+  if (isWinningDisconnect(disconnectCode)) return CALL_TYPE.error;
+  const a = isSideKnown(sideA);
+  const b = isSideKnown(sideB);
+  const parking = dstName === PARKING_DST;
+  if (parking && !a && !b) {
+    return geographyType(classifyCallGeography(billAni, billDnis, rates, "incoming"));
+  }
+  if (a) return geographyType(classifyCallGeography(billAni, billDnis, rates, "outgoing"));
+  if (!a && b) {
+    return geographyType(classifyCallGeography(billAni, billDnis, rates, "incoming"));
+  }
+  return CALL_TYPE.verify;
 }
 
 /**
@@ -255,7 +313,8 @@ export function classifyCall(
   rates: readonly TariffAbcRate[] = [],
 ): CallClass {
   return {
-    category: classifyCallCategory(
+    category: classifyCallCategory(sideA, sideB, dstName, srcName, disconnectCode, dpName),
+    type: classifyCallType(
       sideA,
       sideB,
       dstName,

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { CALL_CATEGORY, CALL_STATUS } from "@/modules/traffic/call-class";
+import { CALL_CATEGORY, CALL_STATUS, CALL_TYPE } from "@/modules/traffic/call-class";
 import {
   EMPTY_CDR_TARIFF,
   elapsedMsToCeiledSeconds,
@@ -37,6 +37,7 @@ const RATES: TariffRateLookup[] = [
 function rate(
   patch: Partial<{
     category: string;
+    callType: string;
     status: string;
     billDnis: string;
     elapsedTime: string;
@@ -44,7 +45,8 @@ function rate(
   }> = {},
 ) {
   return rateCdrCall({
-    category: CALL_CATEGORY.outgoingIntercity,
+    category: CALL_CATEGORY.outgoing,
+    callType: CALL_TYPE.intercity,
     status: CALL_STATUS.success,
     billDnis: "74951234567",
     elapsedTime: "60000",
@@ -86,31 +88,37 @@ describe("rateCdrCall", () => {
     ).toEqual({ direction: "Раньше", price: "2", charge: "4.00" });
   });
 
-  it("rates a redirect the same way as an outgoing call", () => {
-    expect(rate({ category: CALL_CATEGORY.redirect })).toEqual(rate());
+  it("rates a redirect the same way as an intercity call", () => {
+    expect(rate({ callType: CALL_TYPE.redirect })).toEqual(rate());
   });
 
-  it("writes a fixed direction and no money for a local call", () => {
+  it("writes the catalog direction and no money for a local outgoing call", () => {
     const local = {
-      direction: "Местный звонок",
+      direction: "Москва-центр",
       charge: "",
       price: "",
     };
-    expect(rate({ category: CALL_CATEGORY.outgoingLocal })).toEqual(local);
+    expect(rate({ callType: CALL_TYPE.local })).toEqual(local);
     expect(
       rate({
-        category: CALL_CATEGORY.outgoingLocal,
+        callType: CALL_TYPE.local,
         status: CALL_STATUS.parking,
         elapsedTime: "60000",
       }),
     ).toEqual(local);
     expect(
       rate({
-        category: CALL_CATEGORY.outgoingLocal,
+        callType: CALL_TYPE.local,
         status: CALL_STATUS.failed,
         elapsedTime: "",
       }),
-    ).toEqual(local);
+    ).toEqual(EMPTY_CDR_TARIFF);
+    expect(
+      rate({ category: CALL_CATEGORY.incoming, callType: CALL_TYPE.local }),
+    ).toEqual(EMPTY_CDR_TARIFF);
+    expect(
+      rate({ category: CALL_CATEGORY.phantom, callType: CALL_TYPE.local }),
+    ).toEqual(EMPTY_CDR_TARIFF);
   });
 
   it("rates intercity, international, and redirect parking the same way as a success", () => {
@@ -119,32 +127,32 @@ describe("rateCdrCall", () => {
       price: "3",
       charge: "3.00",
     };
-    expect(rate({ category: CALL_CATEGORY.outgoingIntercity })).toEqual(rated);
+    expect(rate({ callType: CALL_TYPE.intercity })).toEqual(rated);
     expect(
       rate({
-        category: CALL_CATEGORY.outgoingIntercity,
+        callType: CALL_TYPE.intercity,
         status: CALL_STATUS.parking,
       }),
     ).toEqual(rated);
     expect(
       rate({
-        category: CALL_CATEGORY.redirect,
+        callType: CALL_TYPE.redirect,
         status: CALL_STATUS.parking,
       }),
     ).toEqual(rated);
-    expect(
-      rate({ category: CALL_CATEGORY.outgoingInternational, billDnis: "74951234567" }),
-    ).toEqual(rated);
+    expect(rate({ callType: CALL_TYPE.international, billDnis: "74951234567" })).toEqual(
+      rated,
+    );
     expect(
       rate({
-        category: CALL_CATEGORY.outgoingInternational,
+        callType: CALL_TYPE.international,
         status: CALL_STATUS.parking,
         billDnis: "74951234567",
       }),
     ).toEqual(rated);
     expect(
       rate({
-        category: CALL_CATEGORY.outgoingIntercity,
+        callType: CALL_TYPE.intercity,
         status: CALL_STATUS.failed,
         elapsedTime: "",
       }),
