@@ -117,7 +117,7 @@ describe("rateCdrCall", () => {
         status: CALL_STATUS.failed,
         elapsedTime: "",
       }),
-    ).toEqual(EMPTY_CDR_TARIFF);
+    ).toEqual(local);
     expect(
       rate({ category: CALL_CATEGORY.incoming, callType: CALL_TYPE.local }),
     ).toEqual(EMPTY_CDR_TARIFF);
@@ -185,16 +185,31 @@ describe("rateCdrCall", () => {
         billDnis: "74951234567",
       }),
     ).toEqual(rated);
+    const directed = { direction: "Москва-центр", charge: "", price: "" };
+    for (const callType of [
+      CALL_TYPE.intercity,
+      CALL_TYPE.international,
+      CALL_TYPE.mobile,
+      CALL_TYPE.redirect,
+    ]) {
+      expect(
+        rate({
+          callType,
+          status: CALL_STATUS.failed,
+          elapsedTime: "",
+          billDnis: "74951234567",
+        }),
+      ).toEqual(directed);
+    }
     expect(
       rate({
-        callType: CALL_TYPE.intercity,
-        status: CALL_STATUS.failed,
-        elapsedTime: "",
+        callType: CALL_TYPE.verify,
+        status: CALL_STATUS.success,
       }),
-    ).toEqual(EMPTY_CDR_TARIFF);
+    ).toEqual(directed);
   });
 
-  it("leaves every other category and failed calls empty", () => {
+  it("leaves every other category and an unmatched B-number empty", () => {
     expect(rate({ category: CALL_CATEGORY.incoming })).toEqual(EMPTY_CDR_TARIFF);
     expect(
       rate({ category: CALL_CATEGORY.incoming, status: CALL_STATUS.parking }),
@@ -205,9 +220,9 @@ describe("rateCdrCall", () => {
     expect(rate({ category: CALL_CATEGORY.errors, callType: CALL_TYPE.capacity })).toEqual(
       EMPTY_CDR_TARIFF,
     );
-    expect(rate({ status: CALL_STATUS.failed, elapsedTime: "" })).toEqual(
-      EMPTY_CDR_TARIFF,
-    );
+    expect(
+      rate({ status: CALL_STATUS.failed, elapsedTime: "", billDnis: "84951234567" }),
+    ).toEqual(EMPTY_CDR_TARIFF);
     expect(rate({ billDnis: "84951234567" })).toEqual(EMPTY_CDR_TARIFF);
     expect(rate({ billDnis: "7495123456" })).toEqual(EMPTY_CDR_TARIFF);
     expect(rate({ billDnis: "+74951234567" })).toEqual(EMPTY_CDR_TARIFF);
@@ -250,8 +265,12 @@ describe("rateCdrCall", () => {
     ).toMatchObject({ charge: "-1.22" });
   });
 
-  it("leaves the row empty when the amount does not fit twelve integer digits", () => {
-    expect(rate({ elapsedTime: "1" + "0".repeat(20) })).toEqual(EMPTY_CDR_TARIFF);
+  it("keeps the direction when the amount does not fit twelve integer digits", () => {
+    expect(rate({ elapsedTime: "1" + "0".repeat(20) })).toEqual({
+      direction: "Москва-центр",
+      charge: "",
+      price: "",
+    });
   });
 
   it("charges zero through three seconds and one minute from the fourth", () => {
@@ -306,6 +325,31 @@ describe("cdr tariff migration", () => {
     expect(readFileSync(INTERNAL_ZERO_COST_MIGRATION, "utf8")).toContain(
       "category IN ('Исходящий паркинг', 'Внутренний звонок')",
     );
+  });
+
+  it("fills outgoing direction for every status without dropping the rater", () => {
+    const sql = readFileSync(
+      path.join(
+        process.cwd(),
+        "prisma/migrations/20261008170000_cdr_outgoing_direction/migration.sql",
+      ),
+      "utf8",
+    );
+    expect(sql).toContain("CREATE OR REPLACE FUNCTION cdr_rate_call");
+    expect(sql).toContain("CREATE OR REPLACE FUNCTION cdr_call_category");
+    expect(sql).not.toContain("DROP FUNCTION");
+    expect(sql).toContain("IF category IS DISTINCT FROM 'Исходящий' THEN");
+    expect(sql).not.toContain("category IS DISTINCT FROM 'Исходящий'\n     OR");
+    const directionAt = sql.indexOf("direction := v_dir;");
+    const statusAt = sql.indexOf(
+      "status IS DISTINCT FROM 'Успешный' AND status IS DISTINCT FROM 'Паркинг'",
+    );
+    expect(directionAt).toBeGreaterThan(-1);
+    expect(directionAt).toBeLessThan(statusAt);
+    expect(sql).toContain(`seconds <= ${MINUTE_GRACE_SECONDS}`);
+    expect(sql).toContain("'Мобильный'");
+    expect(sql).toContain("'Исходящий'");
+    expect(sql).not.toContain("'Исходящие'");
   });
 
   it("rates mobile calls without dropping the grace or the rater", () => {

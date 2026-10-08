@@ -45,6 +45,10 @@ const MOBILE_MIGRATION = path.join(
   process.cwd(),
   "prisma/migrations/20261008020000_cdr_mobile_and_errors/migration.sql",
 );
+const DIRECTION_MIGRATION = path.join(
+  process.cwd(),
+  "prisma/migrations/20261008170000_cdr_outgoing_direction/migration.sql",
+);
 
 describe("classifyCallCategory", () => {
   const known = "Офис";
@@ -303,7 +307,14 @@ describe("call class SQL", () => {
     const failedPlural = readFileSync(FAILED_PLURAL_MIGRATION, "utf8");
     const callType = readFileSync(CALL_TYPE_MIGRATION, "utf8");
     const mobile = readFileSync(MOBILE_MIGRATION, "utf8");
-    expect(mobile).toContain(renderCallCategoryCaseSql());
+    const direction = readFileSync(DIRECTION_MIGRATION, "utf8");
+    expect(direction).toContain(renderCallCategoryCaseSql());
+    expect(direction).not.toContain("DROP FUNCTION");
+    expect(direction).not.toContain("CREATE OR REPLACE FUNCTION cdr_call_type");
+    expect(direction).not.toContain("CREATE OR REPLACE FUNCTION cdr_call_geography");
+    expect(mobile).not.toContain(renderCallCategoryCaseSql());
+    expect(mobile).toContain("'Исходящие'");
+    expect(mobile).toContain("'Ошибки'");
     expect(mobile).toContain(renderCallTypeCaseSql());
     expect(mobile).toContain(renderCallStatusCaseSql());
     expect(mobile.indexOf("RETURN 'mobile'")).toBeLessThan(mobile.indexOf("RETURN 'international'"));
@@ -349,5 +360,16 @@ describe("call class SQL", () => {
       "DROP FUNCTION cdr_call_category(text, text, text, text, text, text);",
     );
     expect(geography).not.toContain("CASCADE");
+  });
+
+  it("does not treat the live error category as a stale parking label", () => {
+    const script = readFileSync(
+      path.join(process.cwd(), "scripts/cdr-call-class-backfill.mjs"),
+      "utf8",
+    );
+    const labels = script.match(/const PARKING_CATEGORY_LABELS = \[([\s\S]*?)\];/);
+    expect(labels?.[1]).toBeDefined();
+    expect(labels?.[1]).not.toContain(CALL_CATEGORY.errors);
+    expect(labels?.[1]).not.toContain('"Ошибка"');
   });
 });

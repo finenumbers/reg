@@ -1,7 +1,17 @@
-# Current Phase — production (v1.93.0)
+# Current Phase — production (v1.94.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs.  
 **Date:** 2026-10-08
+
+## v1.94.0 — Outgoing direction on every status
+
+«Исходящие» is «Исходящий». «Ошибки» is «Ошибка». The checkbox «Ошибки звонков», the type «Ошибка маршрута», and the group «Исходящий трафик» keep their names.
+
+Every «Исходящий» call stores the catalog direction when the B-number is 11 digits starting with 7 and an ABC row matches. That includes «Местный», «Мобильный», «Междугородный», «Международный», and «Редирект», and it includes status «Неуспешный». A number outside that shape, or with no ABC row, still stores an empty direction. «Входящий», «Фантомный», «Проверка», and «Ошибка» stay unrated.
+
+Price and charge are unchanged: only «Исходящий» with status «Успешный» or «Паркинг». «Местный» stores direction and leaves price and charge empty. «Междугородный», «Международный», «Мобильный», and «Редирект» store direction, price, and charge, including the three-second grace. A failed outgoing call stores direction and leaves price and charge empty, not `0.00`. «МГ/МН» does not change.
+
+The category backfill no longer selects stored «Ошибка». That word is the live error category, and the old still-check would stop the migrator on the next restart. The tariff backfill rewrites the two labels and fills direction on failed outgoing rows. The v1.93.0 functions stay as shipped. `npx prisma migrate deploy` alone leaves stored rows unchanged.
 
 ## v1.93.0 — Mobile type and one «Ошибки» category
 

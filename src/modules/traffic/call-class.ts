@@ -9,11 +9,11 @@ import { PARKING_DST } from "@/modules/stats/classify";
 import { matchTariffAbc, type TariffAbcRate } from "@/modules/traffic/tariff-match";
 
 export const CALL_CATEGORY = {
-  outgoing: "Исходящие",
+  outgoing: "Исходящий",
   check: "Проверка",
   incoming: "Входящий",
   phantom: "Фантомный",
-  errors: "Ошибки",
+  errors: "Ошибка",
 } as const;
 
 export const CALL_TYPE = {

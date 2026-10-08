@@ -10,9 +10,10 @@
  *    and «Входящий звонок» with the geography categories.
  * 8. Rewrite the eight v1.88.0 labels to the short names.
  * 9. Move «Местный (П)», «Междугородный (П)», «Международный (П)»,
- *    «Паркинг», and leftover «Ошибка» onto the current category.
+ *    and «Паркинг» onto the current category. «Ошибка» is a live category
+ *    and is not selected: the still-check would fail and the migrator would stop.
  * 10. Mark successful redirect and check on Service_Parking as «Паркинг».
- * 11. Collapse geography categories into «Исходящие» and fill call_type.
+ * 11. Collapse geography categories into the live outgoing category and fill call_type.
  * 12. Rewrite stored status «Неуспешные» to «Неуспешный».
  *
  * Idempotent. A partial index exists only while old billing-miss rows remain.
@@ -479,10 +480,13 @@ const PARKING_CATEGORY_LABELS = [
   "Междугородный (П)",
   "Международный (П)",
   "Паркинг",
-  "Ошибка",
 ];
 
-/** Parking categories and leftover «Ошибка» use the current category. Idempotent. */
+/**
+ * Parking geography labels and category «Паркинг» use the current category.
+ * «Ошибка» is the live error category and must stay out of this list.
+ * Idempotent.
+ */
 async function reclassifyParkingCategories() {
   let cursor = "";
   let rewritten = 0;
@@ -615,7 +619,7 @@ async function reclassifyParkingRedirectAndCheck() {
 const STALE_GEO_CATEGORIES = ["Местный", "Междугородный", "Международный", "Редирект"];
 const PLURAL_FAILED_STATUS = "Неуспешные";
 
-/** Fill call_type and collapse the four geography labels into «Исходящие». */
+/** Fill call_type and collapse the four geography labels into the live outgoing category. */
 async function reclassifyCallType() {
   let cursor = "";
   let rewritten = 0;

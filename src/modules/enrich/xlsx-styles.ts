@@ -167,7 +167,7 @@ export const XLSX_PHANTOM_FILL: ExcelJS.Fill = {
   fgColor: { argb: "FFBBF7D0" },
 };
 
-/** Tailwind red-200 — category «Ошибки». */
+/** Tailwind red-200 — category «Ошибка». */
 export const XLSX_CALL_ERROR_FILL: ExcelJS.Fill = {
   type: "pattern",
   pattern: "solid",

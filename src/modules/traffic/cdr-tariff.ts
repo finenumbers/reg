@@ -124,26 +124,28 @@ export function rateCdrCall(input: {
   rates: readonly TariffRateLookup[];
 }): CdrTariffCells {
   if (input.category !== CALL_CATEGORY.outgoing) return EMPTY_CDR_TARIFF;
-  if (input.status !== CALL_STATUS.success && input.status !== CALL_STATUS.parking) {
-    return EMPTY_CDR_TARIFF;
-  }
 
   const rate = matchedDirection(input.billDnis, input.rates);
   if (!rate) return EMPTY_CDR_TARIFF;
 
-  if (input.callType === CALL_TYPE.local) {
-    return { direction: rate.direction, charge: "", price: "" };
-  }
-  if (!RATED_TYPES.has(input.callType)) return EMPTY_CDR_TARIFF;
+  const directionOnly: CdrTariffCells = {
+    direction: rate.direction,
+    charge: "",
+    price: "",
+  };
+  const billable =
+    (input.status === CALL_STATUS.success || input.status === CALL_STATUS.parking) &&
+    RATED_TYPES.has(input.callType);
+  if (!billable) return directionOnly;
 
   const price6 = parseScale6(rate.price);
-  if (price6 == null) return EMPTY_CDR_TARIFF;
+  if (price6 == null) return directionOnly;
 
   const seconds = elapsedMsToCeiledSeconds(input.elapsedTime);
   const minutes = seconds <= MINUTE_GRACE ? ZERO : divCeilPositive(seconds, SIXTY);
   const chargeK = kopecksFromScale6(minutes * price6, CHARGE_DIVISOR, BigInt(9999));
   const charge = formatKopecks(chargeK);
-  if (charge == null) return EMPTY_CDR_TARIFF;
+  if (charge == null) return directionOnly;
 
   return {
     direction: rate.direction,

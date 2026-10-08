@@ -1,6 +1,6 @@
 /**
  * Row fill shared by CDR tables and month/enrich XLSX.
- * Phantom and «Ошибки» outrank status.
+ * Phantom and «Ошибка» outrank status.
  * Parking status outranks a successful check. Yellow is only a successful check.
  */
 
