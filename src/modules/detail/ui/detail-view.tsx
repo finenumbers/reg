@@ -45,6 +45,7 @@ const SORT_BTN =
   "inline-flex h-7 max-h-7 w-full items-center justify-center bg-transparent px-0 text-inherit";
 const SORT_ACTIVE = "text-blue-600";
 const METRIC_COL_PX = 80;
+const CHANNEL_COL_PX = 112;
 const MGMN_COL_PX = 96;
 const CLIENT_COL_MIN_PX = 250;
 const CLIENT_CELL_PAD_PX = 16;
@@ -90,7 +91,8 @@ export function DetailView({ initial }: Props) {
 
   const sorted = useMemo(() => sortDetailRows(data.rows, sortKey), [data.rows, sortKey]);
   const visible = sorted.slice(0, shown);
-  const tableWidth = clientColPx + GROUPS.length * METRIC_COL_PX * 2 + MGMN_COL_PX;
+  const tableWidth =
+    clientColPx + GROUPS.length * METRIC_COL_PX * 2 + CHANNEL_COL_PX + MGMN_COL_PX;
 
   const loadMore = useCallback(() => {
     setShown((current) => Math.min(sorted.length, current + TABLE_PAGE_SIZE));
@@ -195,7 +197,7 @@ function DetailTable({
   totals: DetailTableTotals;
   empty: boolean;
 }) {
-  const colSpan = 2 + GROUPS.length * 2;
+  const colSpan = 3 + GROUPS.length * 2;
   return (
     <Table className="table-fixed" style={{ width: tableWidth }}>
       <colgroup>
@@ -204,6 +206,7 @@ function DetailTable({
           <col key={`${group.key}-c`} style={{ width: METRIC_COL_PX }} />,
           <col key={`${group.key}-m`} style={{ width: METRIC_COL_PX }} />,
         ])}
+        <col style={{ width: CHANNEL_COL_PX }} />
         <col style={{ width: MGMN_COL_PX }} />
       </colgroup>
       <TableHeader>
@@ -233,6 +236,17 @@ function DetailTable({
               />
             </TableHead>
           ))}
+          <TableHead
+            rowSpan={2}
+            className="h-auto align-middle"
+            aria-sort={sortKey === "capacity" ? "descending" : "none"}
+          >
+            <SortButton
+              active={sortKey === "capacity"}
+              label="Канальность"
+              onClick={() => onSort("capacity")}
+            />
+          </TableHead>
           <TableHead
             rowSpan={2}
             className="h-auto align-middle"
@@ -277,6 +291,9 @@ function DetailTable({
               {metricPairs(row).map((pair, i) => (
                 <MetricCells key={`${row.client}-${GROUPS[i]?.key ?? i}`} pair={pair} />
               ))}
+              <TableCell className="text-right">
+                {formatStatCount(row.capacityCalls)}
+              </TableCell>
               <TableCell className={MINUTES_CELL}>
                 {formatMgmn(row.mgmnKopecks)}
               </TableCell>
@@ -291,6 +308,9 @@ function DetailTable({
             {metricPairs(totals).map((pair, i) => (
               <MetricCells key={`total-${GROUPS[i]?.key ?? i}`} pair={pair} total />
             ))}
+            <TableCell className={cn(FOOTER_CELL, "text-right")}>
+              {formatStatCount(totals.capacityCalls)}
+            </TableCell>
             <TableCell className={MINUTES_TOTAL_CELL}>
               {formatMgmn(totals.mgmnKopecks)}
             </TableCell>

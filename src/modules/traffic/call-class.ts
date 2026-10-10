@@ -48,7 +48,8 @@ const CHECK_DP = "Service_Check";
 const CHECK_SIDE_PREFIX = "Тест ";
 const UNREGISTERED_DISCONNECT = "Class4, 1 - Unregistered IP Address";
 const ROUTE_ERROR_DISCONNECT = "Class4, 40 - Gateway Is Invalid";
-const CAPACITY_DISCONNECT = "Class4, 4 - Originator Capacity Exceeded";
+export const ORIGINATOR_CAPACITY_DISCONNECT = "Class4, 4 - Originator Capacity Exceeded";
+export const TERMINATOR_CAPACITY_DISCONNECT = "Class4, 5 - Terminator Capacity Exceeded";
 const LOCAL_NUMBER = /^(73|74|78)\d{9}$/;
 const NATIONAL_NUMBER = /^(73|74|78)\d{9}$/;
 const MOBILE_NUMBER = /^79\d{9}$/;
@@ -130,6 +131,12 @@ function isRedirect(srcName: string): boolean {
   return srcName.startsWith(REDIRECT_SRC_PREFIX);
 }
 
+function isCapacityDisconnect(code: string): boolean {
+  return (
+    code === ORIGINATOR_CAPACITY_DISCONNECT || code === TERMINATOR_CAPACITY_DISCONNECT
+  );
+}
+
 function isCheckCall(sideA: string, sideB: string, dpName: string): boolean {
   return (
     dpName === CHECK_DP ||
@@ -178,7 +185,8 @@ export function renderCallCategoryCaseSql(): string {
   return `CASE
     WHEN disconnect_code_string = ${sqlLiteral(UNREGISTERED_DISCONNECT)} THEN ${sqlLiteral(CALL_CATEGORY.errors)}
     WHEN disconnect_code_string = ${sqlLiteral(ROUTE_ERROR_DISCONNECT)} THEN ${sqlLiteral(CALL_CATEGORY.errors)}
-    WHEN disconnect_code_string = ${sqlLiteral(CAPACITY_DISCONNECT)} THEN ${sqlLiteral(CALL_CATEGORY.errors)}
+    WHEN disconnect_code_string = ${sqlLiteral(ORIGINATOR_CAPACITY_DISCONNECT)} THEN ${sqlLiteral(CALL_CATEGORY.errors)}
+    WHEN disconnect_code_string = ${sqlLiteral(TERMINATOR_CAPACITY_DISCONNECT)} THEN ${sqlLiteral(CALL_CATEGORY.errors)}
     WHEN starts_with(src_name, ${sqlLiteral(REDIRECT_SRC_PREFIX)}) THEN ${sqlLiteral(CALL_CATEGORY.outgoing)}
     WHEN ${check} THEN ${sqlLiteral(CALL_CATEGORY.check)}
     WHEN ${parking} AND ${sideUnknownSql("side_a")} AND ${sideUnknownSql("side_b")} THEN ${sqlLiteral(CALL_CATEGORY.phantom)}
@@ -200,7 +208,8 @@ export function renderCallTypeCaseSql(): string {
   return `CASE
     WHEN disconnect_code_string = ${sqlLiteral(UNREGISTERED_DISCONNECT)} THEN ${sqlLiteral(CALL_TYPE.unregistered)}
     WHEN disconnect_code_string = ${sqlLiteral(ROUTE_ERROR_DISCONNECT)} THEN ${sqlLiteral(CALL_TYPE.routeError)}
-    WHEN disconnect_code_string = ${sqlLiteral(CAPACITY_DISCONNECT)} THEN ${sqlLiteral(CALL_TYPE.capacity)}
+    WHEN disconnect_code_string = ${sqlLiteral(ORIGINATOR_CAPACITY_DISCONNECT)} THEN ${sqlLiteral(CALL_TYPE.capacity)}
+    WHEN disconnect_code_string = ${sqlLiteral(TERMINATOR_CAPACITY_DISCONNECT)} THEN ${sqlLiteral(CALL_TYPE.capacity)}
     WHEN starts_with(src_name, ${sqlLiteral(REDIRECT_SRC_PREFIX)}) THEN ${sqlLiteral(CALL_TYPE.redirect)}
     WHEN ${check} THEN ${sqlLiteral(CALL_TYPE.check)}
     WHEN ${phantom} THEN ${geographyTypeSql("incoming")}
@@ -232,7 +241,7 @@ export function classifyCallCategory(
 ): string {
   if (disconnectCode === UNREGISTERED_DISCONNECT) return CALL_CATEGORY.errors;
   if (disconnectCode === ROUTE_ERROR_DISCONNECT) return CALL_CATEGORY.errors;
-  if (disconnectCode === CAPACITY_DISCONNECT) return CALL_CATEGORY.errors;
+  if (isCapacityDisconnect(disconnectCode)) return CALL_CATEGORY.errors;
   if (isRedirect(srcName)) return CALL_CATEGORY.outgoing;
   if (isCheckCall(sideA, sideB, dpName)) return CALL_CATEGORY.check;
   const a = isSideKnown(sideA);
@@ -258,7 +267,7 @@ export function classifyCallType(
 ): string {
   if (disconnectCode === UNREGISTERED_DISCONNECT) return CALL_TYPE.unregistered;
   if (disconnectCode === ROUTE_ERROR_DISCONNECT) return CALL_TYPE.routeError;
-  if (disconnectCode === CAPACITY_DISCONNECT) return CALL_TYPE.capacity;
+  if (isCapacityDisconnect(disconnectCode)) return CALL_TYPE.capacity;
   if (isRedirect(srcName)) return CALL_TYPE.redirect;
   if (isCheckCall(sideA, sideB, dpName)) return CALL_TYPE.check;
   const a = isSideKnown(sideA);
@@ -268,7 +277,8 @@ export function classifyCallType(
     return geographyType(classifyCallGeography(billAni, billDnis, rates, "incoming"));
   }
   if (a && isMalformedOutgoingB(billDnis)) return CALL_TYPE.verify;
-  if (a) return geographyType(classifyCallGeography(billAni, billDnis, rates, "outgoing"));
+  if (a)
+    return geographyType(classifyCallGeography(billAni, billDnis, rates, "outgoing"));
   if (!a && b) {
     return geographyType(classifyCallGeography(billAni, billDnis, rates, "incoming"));
   }

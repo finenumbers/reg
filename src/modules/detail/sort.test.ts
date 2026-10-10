@@ -17,6 +17,7 @@ function row(
     externalMinutes: 0,
     ldcCalls: 0,
     ldcMinutes: minutes.ldcMinutes ?? 0,
+    capacityCalls: 0,
     mgmnKopecks: 0,
   };
 }
@@ -46,6 +47,18 @@ describe("sortDetailRows", () => {
       "Альфа",
       "Ягода",
       "Бета",
+    ]);
+  });
+
+  it("sorts capacity counts desc with client tie-break", () => {
+    const withCapacity = rows.map((item, index) => ({
+      ...item,
+      capacityCalls: index === 0 || index === 2 ? 2 : 0,
+    }));
+    expect(sortDetailRows(withCapacity, "capacity").map((item) => item.client)).toEqual([
+      "Бета",
+      "Ягода",
+      "Альфа",
     ]);
   });
 

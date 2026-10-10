@@ -2,7 +2,7 @@ export const DETAIL_SORT_GROUPS = ["in", "out", "parking", "external", "ldc"] as
 
 export type DetailSortGroup = (typeof DETAIL_SORT_GROUPS)[number];
 
-export type DetailSortKey = "client" | "mgmn" | DetailSortGroup;
+export type DetailSortKey = "client" | "capacity" | "mgmn" | DetailSortGroup;
 
 export type DetailMetricRow = {
   client: string;
@@ -16,6 +16,7 @@ export type DetailMetricRow = {
   externalMinutes: number;
   ldcCalls: number;
   ldcMinutes: number;
+  capacityCalls: number;
   mgmnKopecks: number;
 };
 
@@ -47,9 +48,12 @@ export function sortDetailRows(
     copy.sort((a, b) => compareClients(a.client, b.client));
     return copy;
   }
-  if (key === "mgmn") {
+  if (key === "mgmn" || key === "capacity") {
     copy.sort((a, b) => {
-      const diff = b.mgmnKopecks - a.mgmnKopecks;
+      const diff =
+        key === "mgmn"
+          ? b.mgmnKopecks - a.mgmnKopecks
+          : b.capacityCalls - a.capacityCalls;
       if (diff !== 0) return diff;
       return compareClients(a.client, b.client);
     });

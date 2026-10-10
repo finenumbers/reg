@@ -1,7 +1,15 @@
-# Current Phase — production (v1.95.0)
+# Current Phase — production (v1.96.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs.  
 **Date:** 2026-10-10
+
+## v1.96.0 — Terminator capacity is «Канальность»
+
+`Class4, 5 - Terminator Capacity Exceeded` is category «Ошибка» and type «Канальность». The check sits immediately after `Class4, 4 - Originator Capacity Exceeded` and beats redirect, check, phantom, outgoing, and incoming. Status is unchanged. The row uses the same red fill as every other «Ошибка».
+
+«Детализация» adds «Канальность» before «МГ/МН». The cell is the month's count of those calls. Originator capacity counts for the client of the A-number. Terminator capacity counts for the client of the B-number. Zero is a dash. The total is the sum of the cells and is not yellow. A client with only these calls still appears. The other columns keep the call. The per-call XLSX sheet does not add this column. Its category and type are recomputed from the same rules.
+
+A historical terminator-capacity call that was rated outgoing loses direction, price, and charge, so «МГ/МН» drops for the A-number client. Originator-capacity rows already store an empty tariff. The tariff backfill rewrites category, type, and those cells before the app starts. The v1.94.0 functions stay as shipped. `npx prisma migrate deploy` alone leaves stored rows unchanged.
 
 ## v1.95.0 — Канальность reads terminating capacity
 

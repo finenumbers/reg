@@ -9,6 +9,12 @@ import {
   PARKING_DST,
 } from "@/modules/detail/classify";
 import { billableMinutesSql } from "@/modules/traffic/billable-minutes-sql";
+import {
+  CALL_CATEGORY,
+  CALL_TYPE,
+  ORIGINATOR_CAPACITY_DISCONNECT,
+  TERMINATOR_CAPACITY_DISCONNECT,
+} from "@/modules/traffic/call-class";
 
 export function detailMonthDayPrefix(year: number, month: number): string {
   return `${cdrMonthPrefix(year, month)}%`;
@@ -44,6 +50,9 @@ export function clientMonthStatsSql(year: number, month: number): Prisma.Sql {
         TRIM(bill_dnis) AS dnis,
         dst_name,
         tariff_charge,
+        call_category,
+        call_type,
+        disconnect_code_string,
         ${billableMinutesSql()} AS minutes
       FROM cdr_records
       WHERE cdr_day LIKE ${detailMonthDayPrefix(year, month)}
@@ -105,21 +114,50 @@ export function clientMonthStatsSql(year: number, month: number): Prisma.Sql {
         SUM(ldc_c * minutes)::bigint AS ldc_minutes
       FROM legs
       GROUP BY client
+    ),
+    capacity AS (
+      SELECT
+        client,
+        COUNT(*)::int AS capacity_calls
+      FROM (
+        SELECT ca.client
+        FROM month_calls m
+        JOIN clients ca ON ca.phone = m.ani
+        WHERE m.call_category = ${CALL_CATEGORY.errors}
+          AND m.call_type = ${CALL_TYPE.capacity}
+          AND m.disconnect_code_string = ${ORIGINATOR_CAPACITY_DISCONNECT}
+        UNION ALL
+        SELECT cb.client
+        FROM month_calls m
+        JOIN clients cb ON cb.phone = m.dnis
+        WHERE m.call_category = ${CALL_CATEGORY.errors}
+          AND m.call_type = ${CALL_TYPE.capacity}
+          AND m.disconnect_code_string = ${TERMINATOR_CAPACITY_DISCONNECT}
+      ) hits
+      GROUP BY client
+    ),
+    clients_present AS (
+      SELECT client FROM legs_by_client
+      UNION
+      SELECT client FROM capacity
     )
     SELECT
-      legs_by_client.client,
-      legs_by_client.in_calls,
-      legs_by_client.in_minutes,
-      legs_by_client.out_calls,
-      legs_by_client.out_minutes,
-      legs_by_client.parking_calls,
-      legs_by_client.parking_minutes,
-      legs_by_client.external_calls,
-      legs_by_client.external_minutes,
-      legs_by_client.ldc_calls,
-      legs_by_client.ldc_minutes,
-      COALESCE(charges.mgmn_kopecks, 0)::bigint AS mgmn_kopecks
-    FROM legs_by_client
-    LEFT JOIN charges ON charges.client = legs_by_client.client
+      clients_present.client,
+      COALESCE(legs_by_client.in_calls, 0)::int AS in_calls,
+      COALESCE(legs_by_client.in_minutes, 0)::bigint AS in_minutes,
+      COALESCE(legs_by_client.out_calls, 0)::int AS out_calls,
+      COALESCE(legs_by_client.out_minutes, 0)::bigint AS out_minutes,
+      COALESCE(legs_by_client.parking_calls, 0)::int AS parking_calls,
+      COALESCE(legs_by_client.parking_minutes, 0)::bigint AS parking_minutes,
+      COALESCE(legs_by_client.external_calls, 0)::int AS external_calls,
+      COALESCE(legs_by_client.external_minutes, 0)::bigint AS external_minutes,
+      COALESCE(legs_by_client.ldc_calls, 0)::int AS ldc_calls,
+      COALESCE(legs_by_client.ldc_minutes, 0)::bigint AS ldc_minutes,
+      COALESCE(charges.mgmn_kopecks, 0)::bigint AS mgmn_kopecks,
+      COALESCE(capacity.capacity_calls, 0)::int AS capacity_calls
+    FROM clients_present
+    LEFT JOIN legs_by_client ON legs_by_client.client = clients_present.client
+    LEFT JOIN charges ON charges.client = clients_present.client
+    LEFT JOIN capacity ON capacity.client = clients_present.client
   `;
 }

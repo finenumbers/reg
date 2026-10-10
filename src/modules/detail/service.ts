@@ -27,6 +27,7 @@ type ClientStatRow = {
   external_minutes: number;
   ldc_calls: number;
   ldc_minutes: number;
+  capacity_calls: number;
   mgmn_kopecks: bigint | number | string;
 };
 
@@ -41,6 +42,7 @@ const EMPTY_TOTALS: DetailTableTotals = {
   externalMinutes: 0,
   ldcCalls: 0,
   ldcMinutes: 0,
+  capacityCalls: 0,
   mgmnKopecks: 0,
 };
 
@@ -68,6 +70,7 @@ function toMetricRow(row: ClientStatRow): DetailMetricRow {
     externalMinutes: asInt(row.external_minutes),
     ldcCalls: asInt(row.ldc_calls),
     ldcMinutes: asInt(row.ldc_minutes),
+    capacityCalls: asInt(row.capacity_calls),
     mgmnKopecks: asKopecks(row.mgmn_kopecks),
   };
 }
@@ -85,6 +88,7 @@ function buildTotals(rows: DetailMetricRow[]): DetailTableTotals {
       externalMinutes: acc.externalMinutes + row.externalMinutes,
       ldcCalls: acc.ldcCalls + row.ldcCalls,
       ldcMinutes: acc.ldcMinutes + row.ldcMinutes,
+      capacityCalls: acc.capacityCalls + row.capacityCalls,
       mgmnKopecks: acc.mgmnKopecks + row.mgmnKopecks,
     }),
     { ...EMPTY_TOTALS },

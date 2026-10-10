@@ -9,6 +9,12 @@ import {
   PARKING_DST,
 } from "@/modules/detail/classify";
 import { clientMonthStatsSql } from "@/modules/detail/sql";
+import {
+  CALL_CATEGORY,
+  CALL_TYPE,
+  ORIGINATOR_CAPACITY_DISCONNECT,
+  TERMINATOR_CAPACITY_DISCONNECT,
+} from "@/modules/traffic/call-class";
 
 function flattenSql(sql: Prisma.Sql): { text: string; values: unknown[] } {
   const text: string[] = [];
@@ -70,5 +76,26 @@ describe("clientMonthStatsSql", () => {
     expect(text).toContain("LEFT JOIN charges");
     expect(text).toContain("mgmn_kopecks");
     expect(text).toContain("ca.phone = m.ani");
+  });
+
+  it("counts capacity errors on the side named by the disconnect code", () => {
+    const { text, values } = flattenSql(clientMonthStatsSql(2026, 8));
+    const capacityAt = text.indexOf("capacity AS");
+    expect(capacityAt).toBeGreaterThan(-1);
+    const capacitySql = text.slice(capacityAt, text.indexOf("clients_present"));
+    expect(capacitySql.indexOf("ca.phone = m.ani")).toBeGreaterThan(-1);
+    expect(capacitySql.indexOf("ca.phone = m.ani")).toBeLessThan(
+      capacitySql.indexOf("cb.phone = m.dnis"),
+    );
+    expect(capacitySql).not.toMatch(/cb\.phone = m\.dnis[\s\S]*ca\.phone = m\.ani/);
+    const bound = values.map(String).join("|");
+    expect(bound).toContain(
+      `${CALL_CATEGORY.errors}|${CALL_TYPE.capacity}|${ORIGINATOR_CAPACITY_DISCONNECT}`,
+    );
+    expect(bound).toContain(
+      `${CALL_CATEGORY.errors}|${CALL_TYPE.capacity}|${TERMINATOR_CAPACITY_DISCONNECT}`,
+    );
+    expect(text).toContain("capacity_calls");
+    expect(text).toContain("clients_present");
   });
 });
