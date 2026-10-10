@@ -4,7 +4,8 @@
  */
 
 const DESCRIPTION_FIELD = "Описание";
-const INIT_CAPACITY_FIELD = "ИНИЦ. емкость";
+/** Catalog key with е. The RTU CSV header «ТЕРМ. Ёмкость» is a different field. */
+const TERM_CAPACITY_FIELD = "ТЕРМ. емкость";
 
 export type PhoneEndpointDescriptionSource = {
   endpointNumber: string | null;
@@ -38,10 +39,10 @@ function readDescription(data: unknown): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
-function readInitCapacity(data: unknown): string | null {
+function readTermCapacity(data: unknown): string | null {
   if (!data || typeof data !== "object" || Array.isArray(data)) return null;
   const raw = catalogCellString(
-    (data as Record<string, unknown>)[INIT_CAPACITY_FIELD],
+    (data as Record<string, unknown>)[TERM_CAPACITY_FIELD],
   );
   return raw.trim().length > 0 ? raw : null;
 }
@@ -67,8 +68,8 @@ export function buildPhoneDescriptionMap(
 
 /**
  * Phone → Описание + Канальность. First row wins after callers sort (e.g. by name).
- * Канальность is the raw catalog ИНИЦ. емкость (same as Телефонные номера).
- * Trim-empty field or no catalog row → null.
+ * Канальность is the raw catalog ТЕРМ. емкость (same as Телефонные номера).
+ * ИНИЦ. емкость is not a fallback. Trim-empty field or no catalog row → null.
  */
 export function buildPhoneEndpointEnrichmentMap(
   rows: PhoneEndpointDescriptionSource[],
@@ -79,7 +80,7 @@ export function buildPhoneEndpointEnrichmentMap(
     if (!number || map.has(number)) continue;
     map.set(number, {
       description: readDescription(row.data),
-      channelality: readInitCapacity(row.data),
+      channelality: readTermCapacity(row.data),
     });
   }
   return map;

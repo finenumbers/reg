@@ -1,7 +1,11 @@
-# Current Phase — production (v1.94.0)
+# Current Phase — production (v1.95.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs.  
-**Date:** 2026-10-08
+**Date:** 2026-10-10
+
+## v1.95.0 — Канальность reads terminating capacity
+
+«Канальность» on «Регистрации» copies `phone_endpoints.data["ТЕРМ. емкость"]` (the letter е), the same cell as «Телефонные номера». «ИНИЦ. емкость» is not a fallback. The RTU CSV header «ТЕРМ. Ёмкость» is not read. Empty, whitespace-only, and a missing catalog row stay empty («—», empty facet / XLSX cell). `"0"` stays `"0"`. Match by SIP number and first-row-by-name are unchanged. No migration. CDR type «Канальность» is unchanged.
 
 ## v1.94.0 — Outgoing direction on every status
 

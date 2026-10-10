@@ -52,17 +52,17 @@ describe("buildPhoneDescriptionMap", () => {
 });
 
 describe("buildPhoneEndpointEnrichmentMap", () => {
-  it("reads ИНИЦ. емкость as string or number", () => {
+  it("reads ТЕРМ. емкость as string or number", () => {
     const map = buildPhoneEndpointEnrichmentMap([
       {
         endpointNumber: "100",
         name: "a",
-        data: { "ИНИЦ. емкость": " 10 ", Описание: "Клиент" },
+        data: { "ТЕРМ. емкость": " 10 ", Описание: "Клиент" },
       },
       {
         endpointNumber: "200",
         name: "b",
-        data: { "ИНИЦ. емкость": 30 },
+        data: { "ТЕРМ. емкость": 30 },
       },
     ]);
     expect(map.get("100")).toEqual({
@@ -77,10 +77,10 @@ describe("buildPhoneEndpointEnrichmentMap", () => {
 
   it("keeps empty capacity as null, including whitespace-only and missing key", () => {
     const map = buildPhoneEndpointEnrichmentMap([
-      { endpointNumber: "100", name: "empty", data: { "ИНИЦ. емкость": "" } },
-      { endpointNumber: "200", name: "spaces", data: { "ИНИЦ. емкость": "   " } },
+      { endpointNumber: "100", name: "empty", data: { "ТЕРМ. емкость": "" } },
+      { endpointNumber: "200", name: "spaces", data: { "ТЕРМ. емкость": "   " } },
       { endpointNumber: "300", name: "missing", data: { Описание: "X" } },
-      { endpointNumber: "400", name: "zero", data: { "ИНИЦ. емкость": "0" } },
+      { endpointNumber: "400", name: "zero", data: { "ТЕРМ. емкость": "0" } },
     ]);
     expect(map.get("100")?.channelality).toBeNull();
     expect(map.get("200")?.channelality).toBeNull();
@@ -95,20 +95,46 @@ describe("buildPhoneEndpointEnrichmentMap", () => {
       {
         endpointNumber: null,
         name: "skip",
-        data: { "ИНИЦ. емкость": "1" },
+        data: { "ТЕРМ. емкость": "1" },
       },
       {
         endpointNumber: "100",
         name: "first",
-        data: { "ИНИЦ. емкость": "2" },
+        data: { "ТЕРМ. емкость": "2" },
       },
       {
         endpointNumber: "100",
         name: "second",
-        data: { "ИНИЦ. емкость": "9" },
+        data: { "ТЕРМ. емкость": "9" },
       },
     ]);
     expect(map.get("100")?.channelality).toBe("2");
     expect(map.size).toBe(1);
+  });
+
+  it("uses ТЕРМ. емкость and does not fall back to ИНИЦ. емкость or the RTU ё header", () => {
+    const map = buildPhoneEndpointEnrichmentMap([
+      {
+        endpointNumber: "100",
+        name: "both",
+        data: {
+          "ИНИЦ. емкость": "1",
+          "ТЕРМ. Ёмкость": "5",
+          "ТЕРМ. емкость": "2",
+          Описание: "Клиент",
+        },
+      },
+      {
+        endpointNumber: "200",
+        name: "init-only",
+        data: { "ИНИЦ. емкость": "9", "ТЕРМ. Ёмкость": "8" },
+      },
+    ]);
+    expect(map.get("100")).toEqual({
+      description: "Клиент",
+      channelality: "2",
+    });
+    expect(map.get("200")?.channelality).toBeNull();
+    expect(map.get("200")?.description).toBeNull();
   });
 });

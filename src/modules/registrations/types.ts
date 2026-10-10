@@ -6,7 +6,7 @@ export type RegistrationListItem = {
   phone: string;
   /** From phone_endpoints.data["Описание"] when endpoint number matches */
   description: string | null;
-  /** Raw phone_endpoints.data["ИНИЦ. емкость"]; null if empty or no catalog row */
+  /** Raw phone_endpoints.data["ТЕРМ. емкость"]; null if empty or no catalog row */
   channelality: string | null;
   status: "Registered" | "Unregistered";
   ip: string | null;
