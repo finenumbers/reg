@@ -1,7 +1,19 @@
-# Current Phase — production (v1.96.0)
+# Current Phase — production (v1.97.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs.  
 **Date:** 2026-10-10
+
+## v1.97.0 — Month purge shows its stages
+
+The storage banner lists the purge in order: calls, then job runs for that UTC month, then audit rows. The active stage shows done / total. A finished stage shows its result. A later stage shows that it is waiting and its total. A stage whose total is 0 is already done. The banner disappears when the job leaves the in-process queue. There is no «done» panel on the storage page.
+
+Counts are taken once, before the first delete, with the same bounds the deletes use. The loop still stops when a batch returns 0. A mismatch between the count and the deletes is shown and does not fail the job. An older running row without `stages` still shows the single calls line.
+
+A restart still drops the job (`interrupted: process restarted`). The next purge deletes the oldest month that still has calls. It does not finish jobs and audit for a month whose calls are already gone.
+
+The migration only adds indexes: `job_runs.startedAt`, `cdr_records.lastJobRunId`, `reg_change_events.jobRunId`, and the smaller foreign keys that point at `job_runs`. It does not rewrite stored CDR rows. `CREATE INDEX` blocks writes on each table until it finishes. On `cdr_records` that lock is the long one. Deploy when CDR import can wait. Do not deploy while a purge is still running if that purge should finish its own job and audit stages: the process restart aborts it.
+
+Autovacuum is still not part of the purge. Ordinary autovacuum marks freed pages for reuse. It does not shrink the file.
 
 ## v1.96.0 — Terminator capacity is «Канальность»
 

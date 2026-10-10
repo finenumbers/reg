@@ -2,8 +2,10 @@ import { Prisma } from "@/generated/prisma/client";
 import { describe, expect, it } from "vitest";
 import {
   purgeAuditBatchSql,
+  purgeAuditCountSql,
   purgeDeleteBatchSql,
   purgeJobsBatchSql,
+  purgeJobsCountSql,
   purgeMonthPrefixSql,
   utcMonthInterval,
 } from "@/modules/traffic/purge/sql";
@@ -48,15 +50,25 @@ describe("utc month history purge", () => {
     expect(end.toISOString()).toBe("2026-08-01T00:00:00.000Z");
 
     const jobs = flattenSql(purgeJobsBatchSql(start, end, "job_purge"));
-    expect(jobs.text).toContain('DELETE FROM job_runs');
+    expect(jobs.text).toContain("DELETE FROM job_runs");
     expect(jobs.text).toContain('"startedAt"');
     expect(jobs.text).toContain("id <>");
-    expect(jobs.values).toContain("job_purge");
+    expect(jobs.values).toEqual([start, end, "job_purge", 2000]);
+
+    const jobsCount = flattenSql(purgeJobsCountSql(start, end, "job_purge"));
+    expect(jobsCount.text).toContain("COUNT(*)::bigint");
+    expect(jobsCount.text).toContain('"startedAt"');
+    expect(jobsCount.text).toContain("id <>");
+    expect(jobsCount.values).toEqual([start, end, "job_purge"]);
 
     const audit = flattenSql(purgeAuditBatchSql(start, end));
     expect(audit.text).toContain("DELETE FROM audit_logs");
     expect(audit.text).toContain('"createdAt"');
-    expect(audit.values).toContain(start);
-    expect(audit.values).toContain(end);
+    expect(audit.values).toEqual([start, end, 2000]);
+
+    const auditCount = flattenSql(purgeAuditCountSql(start, end));
+    expect(auditCount.text).toContain("COUNT(*)::bigint");
+    expect(auditCount.text).toContain('"createdAt"');
+    expect(auditCount.values).toEqual([start, end]);
   });
 });

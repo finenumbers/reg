@@ -4,11 +4,11 @@ import { jobRuntime } from "@/modules/jobs/runtime";
 import {
   currentUtcMonth,
   deletableMonthKey,
-  parseMonthKey,
   withCurrentMonth,
   type CdrMonth,
 } from "@/modules/traffic/cdr-month";
 import { queryMonthStatsWithMinutes } from "@/modules/traffic/cdr-month-stats";
+import { purgeProgressFromJob } from "@/modules/traffic/purge/progress";
 
 export type StorageMonthRow = CdrMonth & {
   calls: number;
@@ -18,11 +18,7 @@ export type StorageMonthRow = CdrMonth & {
   canDelete: boolean;
 };
 
-export type StoragePurgeProgress = {
-  month: string;
-  deleted: number;
-  target: number;
-} | null;
+export type StoragePurgeProgress = ReturnType<typeof purgeProgressFromJob>;
 
 export type StorageSnapshot = {
   months: StorageMonthRow[];
@@ -71,22 +67,10 @@ export async function listStorageSnapshot(): Promise<StorageSnapshot> {
       orderBy: { startedAt: "desc" },
       select: { meta: true, phonesParsed: true },
     });
-    const meta =
-      running?.meta && typeof running.meta === "object"
-        ? (running.meta as Record<string, unknown>)
-        : null;
-    const month =
-      typeof meta?.month === "string" ? parseMonthKey(meta.month)?.key : null;
-    if (month) {
-      purge = {
-        month,
-        deleted: running?.phonesParsed ?? 0,
-        target:
-          typeof meta?.targetCount === "number"
-            ? meta.targetCount
-            : Number(meta?.targetCount) || 0,
-      };
-    }
+    purge = purgeProgressFromJob({
+      phonesParsed: running?.phonesParsed ?? null,
+      meta: running?.meta ?? null,
+    });
   }
 
   const rows: StorageMonthRow[] = months.map((item) => ({

@@ -18,6 +18,32 @@ export function utcMonthInterval(
   };
 }
 
+/** Same bounds as purgeJobsBatchSql. Excludes the live purge job. */
+export function purgeJobsWhereSql(start: Date, end: Date, keepJobId: string): Prisma.Sql {
+  return Prisma.sql`"startedAt" >= ${start} AND "startedAt" < ${end} AND id <> ${keepJobId}`;
+}
+
+/** Same bounds as purgeAuditBatchSql. */
+export function purgeAuditWhereSql(start: Date, end: Date): Prisma.Sql {
+  return Prisma.sql`"createdAt" >= ${start} AND "createdAt" < ${end}`;
+}
+
+export function purgeJobsCountSql(start: Date, end: Date, keepJobId: string): Prisma.Sql {
+  return Prisma.sql`
+    SELECT COUNT(*)::bigint AS n
+    FROM job_runs
+    WHERE ${purgeJobsWhereSql(start, end, keepJobId)}
+  `;
+}
+
+export function purgeAuditCountSql(start: Date, end: Date): Prisma.Sql {
+  return Prisma.sql`
+    SELECT COUNT(*)::bigint AS n
+    FROM audit_logs
+    WHERE ${purgeAuditWhereSql(start, end)}
+  `;
+}
+
 export function purgeJobsBatchSql(
   start: Date,
   end: Date,
@@ -28,8 +54,7 @@ export function purgeJobsBatchSql(
     DELETE FROM job_runs
     WHERE id IN (
       SELECT id FROM job_runs
-      WHERE "startedAt" >= ${start} AND "startedAt" < ${end}
-        AND id <> ${keepJobId}
+      WHERE ${purgeJobsWhereSql(start, end, keepJobId)}
       LIMIT ${limit}
     )
   `;
@@ -44,7 +69,7 @@ export function purgeAuditBatchSql(
     DELETE FROM audit_logs
     WHERE id IN (
       SELECT id FROM audit_logs
-      WHERE "createdAt" >= ${start} AND "createdAt" < ${end}
+      WHERE ${purgeAuditWhereSql(start, end)}
       LIMIT ${limit}
     )
   `;

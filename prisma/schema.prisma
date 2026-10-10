@@ -198,6 +198,7 @@ model JobRun {
 
   @@index([actionCode, startedAt(sort: Desc)])
   @@index([status, startedAt(sort: Desc)])
+  @@index([startedAt])
   @@map("job_runs")
 }
 
@@ -231,6 +232,7 @@ model SshConnectionTest {
   createdAt   DateTime      @default(now())
 
   @@index([profileId, createdAt(sort: Desc)])
+  @@index([jobRunId])
   @@map("ssh_connection_tests")
 }
 
@@ -275,6 +277,7 @@ model RegistrationCurrent {
 
   @@index([status])
   @@index([lastChangedAt(sort: Desc)])
+  @@index([lastJobRunId])
   @@map("reg_current")
 }
 
@@ -292,6 +295,7 @@ model RegistrationEvent {
   jobRun    JobRun?    @relation(fields: [jobRunId], references: [id])
 
   @@index([phone, changedAt(sort: Desc)])
+  @@index([jobRunId])
   @@map("reg_change_events")
 }
 
@@ -371,6 +375,7 @@ model PhoneEndpoint {
   @@index([name])
   @@index([endpointNumber])
   @@index([lastSyncedAt(sort: Desc)])
+  @@index([lastJobRunId])
   @@map("phone_endpoints")
 }
 
@@ -387,6 +392,7 @@ model PhoneGateway {
 
   @@index([name])
   @@index([lastSyncedAt(sort: Desc)])
+  @@index([lastJobRunId])
   @@map("phone_gateways")
 }
 
@@ -420,6 +426,7 @@ model RoutingGroup {
   updatedAt    DateTime @updatedAt
 
   @@index([sortOrder])
+  @@index([lastJobRunId])
   @@map("routing_groups")
 }
 
@@ -628,6 +635,7 @@ model CdrRecord {
   @@index([srcName])
   @@index([dstName])
   @@index([disconnectCodeString])
+  @@index([lastJobRunId])
   @@map("cdr_records")
 }
 

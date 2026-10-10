@@ -14,12 +14,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatCount } from "@/lib/format-count";
-import {
-  fetchStorageSnapshot,
-  postStoragePurge,
-} from "@/modules/storage/api-client";
+import { fetchStorageSnapshot, postStoragePurge } from "@/modules/storage/api-client";
 import type { StorageMonthRow, StorageSnapshot } from "@/modules/storage/service";
 import { formatMonthNominative } from "@/modules/traffic/month-labels";
+import { PURGE_INTERRUPT_NOTE, purgeStageLine } from "@/modules/traffic/purge/progress";
 
 const POLL_MS = 3000;
 
@@ -89,61 +87,68 @@ export function StorageView() {
   return (
     <section className="space-y-4">
       <div>
-        <h2 className="text-base font-semibold">
-          Хранение данных
-        </h2>
-        <p className="text-sm text-muted-foreground">
-          Месяцы CDR в локальной базе (по колонке «Дата»). Вместе со звонками
-          удаляются задачи и записи аудита этого месяца UTC. Удалить можно
-          только самый старый полный месяц, по одному. Текущий месяц трогать
-          нельзя. Место на диске вернётся после очистки базы (autovacuum), не
-          сразу.
+        <h2 className="text-base font-semibold">Хранение данных</h2>
+        <p className="text-muted-foreground text-sm">
+          Месяцы CDR в локальной базе (по колонке «Дата»). Вместе со звонками удаляются
+          задачи и записи аудита этого месяца UTC. Удалить можно только самый старый
+          полный месяц, по одному. Текущий месяц трогать нельзя. Место на диске вернётся
+          после очистки базы (autovacuum), не сразу.
         </p>
       </div>
 
       {error ? (
         <div
           role="alert"
-          className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+          className="border-destructive/30 bg-destructive/10 text-destructive rounded-md border px-3 py-2 text-sm"
         >
           {error}
         </div>
       ) : null}
 
       {!data && !error ? (
-        <p className="text-sm text-muted-foreground">Загрузка…</p>
+        <p className="text-muted-foreground text-sm">Загрузка…</p>
       ) : null}
 
       {data?.purgeInFlight && data.purge ? (
         <div
           role="status"
-          className="rounded-md border border-border bg-muted/40 px-3 py-2 text-sm"
+          className="border-border bg-muted/40 rounded-md border px-3 py-2 text-sm"
         >
-          Удаляется {data.purge.month}… {formatCount(data.purge.deleted)}
-          {data.purge.target > 0
-            ? ` / ${formatCount(data.purge.target)}`
-            : ""}
-          . Если прервётся — запустите ещё раз.
+          {data.purge.mode === "legacy" ? (
+            <p>
+              Удаляется {data.purge.month}… {formatCount(data.purge.deleted)}
+              {data.purge.target > 0 ? ` / ${formatCount(data.purge.target)}` : ""}.{" "}
+              {PURGE_INTERRUPT_NOTE}
+            </p>
+          ) : (
+            <div className="space-y-1">
+              <p>Удаляется {data.purge.month}</p>
+              <ol className="list-decimal space-y-0.5 pl-5">
+                {data.purge.stages.map((stage) => (
+                  <li key={stage.id}>{purgeStageLine(stage)}</li>
+                ))}
+              </ol>
+              <p>{PURGE_INTERRUPT_NOTE}</p>
+            </div>
+          )}
         </div>
       ) : null}
 
       {data?.importInFlight && !data.purgeInFlight ? (
         <div
           role="status"
-          className="rounded-md border border-border bg-muted/40 px-3 py-2 text-sm"
+          className="border-border bg-muted/40 rounded-md border px-3 py-2 text-sm"
         >
-          Идёт импорт CDR. Удаление месяца будет доступно после окончания
-          загрузки.
+          Идёт импорт CDR. Удаление месяца будет доступно после окончания загрузки.
         </div>
       ) : null}
 
       {data ? (
         <>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-muted-foreground text-sm">
             Всего {formatCount(data.totalCalls)} звонков ·{" "}
-            {formatCount(data.totalSeconds)} сек ·{" "}
-            {formatCount(data.totalMinutes)} мин · таблицы CDR{" "}
-            {formatBytes(data.tableBytes)}
+            {formatCount(data.totalSeconds)} сек · {formatCount(data.totalMinutes)} мин ·
+            таблицы CDR {formatBytes(data.tableBytes)}
           </p>
 
           <div className="overflow-auto">
@@ -161,9 +166,7 @@ export function StorageView() {
                 {data.months.map((row) => (
                   <TableRow key={row.key}>
                     <TableCell>{monthLabel(row)}</TableCell>
-                    <TableCell className="text-right">
-                      {formatCount(row.calls)}
-                    </TableCell>
+                    <TableCell className="text-right">{formatCount(row.calls)}</TableCell>
                     <TableCell className="text-right">
                       {formatCount(row.seconds)}
                     </TableCell>
@@ -200,18 +203,16 @@ export function StorageView() {
           aria-modal="true"
           aria-labelledby="storage-purge-title"
         >
-          <div className="w-full max-w-md space-y-4 rounded-lg border bg-background p-4 shadow-lg">
+          <div className="bg-background w-full max-w-md space-y-4 rounded-lg border p-4 shadow-lg">
             <div>
               <h2 id="storage-purge-title" className="text-base font-semibold">
                 Удалить {monthLabel(confirm)}?
               </h2>
-              <p className="mt-2 text-sm text-muted-foreground">
+              <p className="text-muted-foreground mt-2 text-sm">
                 Будут безвозвратно удалены {formatCount(confirm.calls)} звонков (
-                {formatCount(confirm.seconds)} сек,{" "}
-                {formatCount(confirm.minutes)} мин), связанные ссылки
-                VoIPmonitor, а также задачи и записи аудита за этот месяц UTC.
-                Введите ключ месяца{" "}
-                <span className="font-mono">{confirm.key}</span>.
+                {formatCount(confirm.seconds)} сек, {formatCount(confirm.minutes)} мин),
+                связанные ссылки VoIPmonitor, а также задачи и записи аудита за этот месяц
+                UTC. Введите ключ месяца <span className="font-mono">{confirm.key}</span>.
               </p>
             </div>
             <div className="space-y-1.5">

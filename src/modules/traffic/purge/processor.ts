@@ -19,11 +19,14 @@ import {
 } from "@/modules/traffic/cdr-month";
 import { formatMonthNominative } from "@/modules/traffic/month-labels";
 import { clearPurgeHolds } from "@/modules/traffic/poison";
+import type { PurgeStageId, PurgeStagesMeta } from "@/modules/traffic/purge/progress";
 import {
   CDR_PURGE_BATCH_SIZE,
   purgeAuditBatchSql,
+  purgeAuditCountSql,
   purgeDeleteBatchSql,
   purgeJobsBatchSql,
+  purgeJobsCountSql,
   utcMonthInterval,
 } from "@/modules/traffic/purge/sql";
 import { setPurgeTargetMonth } from "@/modules/traffic/purge/target";
@@ -52,15 +55,67 @@ function rawCount(result: unknown): number {
   return Number.isFinite(batch) ? batch : 0;
 }
 
-/** Jobs and audit whose timestamps fall in the CDR month. Never the purge job itself. */
-async function deleteMonthHistory(
+function sqlCount(value: unknown): number {
+  if (typeof value === "bigint") return Number(value);
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return 0;
+}
+
+async function publishPurgeProgress(
+  jobRunId: string,
+  month: string,
+  phase: PurgeStageId,
+  stages: PurgeStagesMeta,
+): Promise<void> {
+  await prisma.jobRun.update({
+    where: { id: jobRunId },
+    data: {
+      phonesParsed: stages.calls.done,
+      meta: {
+        month,
+        phase,
+        targetCount: stages.calls.total,
+        deletedCount: stages.calls.done,
+        stages,
+      },
+    },
+  });
+}
+
+async function countMonthHistory(
   year: number,
   month: number,
   keepJobId: string,
 ): Promise<{ jobs: number; audit: number }> {
   const { start, end } = utcMonthInterval(year, month);
+  const [jobRows, auditRows] = await Promise.all([
+    prisma.$queryRaw<{ n: unknown }[]>(purgeJobsCountSql(start, end, keepJobId)),
+    prisma.$queryRaw<{ n: unknown }[]>(purgeAuditCountSql(start, end)),
+  ]);
+  return {
+    jobs: sqlCount(jobRows[0]?.n),
+    audit: sqlCount(auditRows[0]?.n),
+  };
+}
+
+/** Jobs and audit whose timestamps fall in the CDR month. Never the purge job itself. */
+async function deleteMonthHistory(
+  year: number,
+  month: number,
+  keepJobId: string,
+  hooks: {
+    onPhase: (phase: "jobs" | "audit") => Promise<void>;
+    onProgress: (phase: "jobs" | "audit", deleted: number) => Promise<void>;
+  },
+): Promise<{ jobs: number; audit: number }> {
+  const { start, end } = utcMonthInterval(year, month);
   let jobs = 0;
   let audit = 0;
+  await hooks.onPhase("jobs");
   while (true) {
     const batch = rawCount(
       await prisma.$executeRaw(
@@ -69,15 +124,16 @@ async function deleteMonthHistory(
     );
     if (batch <= 0) break;
     jobs += batch;
+    await hooks.onProgress("jobs", jobs);
   }
+  await hooks.onPhase("audit");
   while (true) {
     const batch = rawCount(
-      await prisma.$executeRaw(
-        purgeAuditBatchSql(start, end, CDR_PURGE_BATCH_SIZE),
-      ),
+      await prisma.$executeRaw(purgeAuditBatchSql(start, end, CDR_PURGE_BATCH_SIZE)),
     );
     if (batch <= 0) break;
     audit += batch;
+    await hooks.onProgress("audit", audit);
   }
   return { jobs, audit };
 }
@@ -117,15 +173,15 @@ export async function processCdrPurgeMonth(
         : !deletable
           ? "Нет полного месяца для удаления"
           : `Удалить можно только самый старый полный месяц (${deletable})`;
-    await finish(jobRun.id, startedAt, input, {
-      status: "failed",
-      deleted: 0,
-      deletedJobs: 0,
-      deletedAudit: 0,
-      targetCount: 0,
-      month: target?.key ?? null,
-      errorMessage: message,
-    });
+      await finish(jobRun.id, startedAt, input, {
+        status: "failed",
+        deleted: 0,
+        deletedJobs: 0,
+        deletedAudit: 0,
+        targetCount: 0,
+        month: target?.key ?? null,
+        errorMessage: message,
+      });
       return {
         status: "failed",
         jobRunId: jobRun.id,
@@ -154,9 +210,18 @@ export async function processCdrPurgeMonth(
     }
 
     setPurgeTargetMonth(target.key);
-    targetCount = await prisma.cdrRecord.count({
-      where: { cdrDate: { startsWith: `${target.key}-` } },
-    });
+    const [callTotal, historyTotals] = await Promise.all([
+      prisma.cdrRecord.count({
+        where: { cdrDate: { startsWith: `${target.key}-` } },
+      }),
+      countMonthHistory(target.year, target.month, jobRun.id),
+    ]);
+    targetCount = callTotal;
+    const stages: PurgeStagesMeta = {
+      calls: { done: 0, total: targetCount },
+      jobs: { done: 0, total: historyTotals.jobs },
+      audit: { done: 0, total: historyTotals.audit },
+    };
 
     await auditService.append({
       actorUserId: input.actorUserId,
@@ -170,7 +235,11 @@ export async function processCdrPurgeMonth(
       jobRunId: jobRun.id,
       month: target.key,
       targetCount,
+      jobs: historyTotals.jobs,
+      audit: historyTotals.audit,
     });
+
+    await publishPurgeProgress(jobRun.id, target.key, "calls", stages);
 
     while (true) {
       if (currentUtcMonth().key === target.key) {
@@ -183,21 +252,20 @@ export async function processCdrPurgeMonth(
       );
       if (batch <= 0) break;
       deleted += batch;
-      await prisma.jobRun.update({
-        where: { id: jobRun.id },
-        data: {
-          phonesParsed: deleted,
-          meta: {
-            month: target.key,
-            targetCount,
-            deletedCount: deleted,
-          },
-        },
-      });
+      stages.calls.done = deleted;
+      await publishPurgeProgress(jobRun.id, target.key, "calls", stages);
       await sleep(BATCH_PAUSE_MS);
     }
 
-    const history = await deleteMonthHistory(target.year, target.month, jobRun.id);
+    const history = await deleteMonthHistory(target.year, target.month, jobRun.id, {
+      onPhase: async (phase) => {
+        await publishPurgeProgress(jobRun.id, target.key, phase, stages);
+      },
+      onProgress: async (phase, deletedCount) => {
+        stages[phase].done = deletedCount;
+        await publishPurgeProgress(jobRun.id, target.key, phase, stages);
+      },
+    });
     deletedJobs = history.jobs;
     deletedAudit = history.audit;
 
@@ -271,9 +339,7 @@ async function finish(
   const label = result.month
     ? (() => {
         const parsed = parseMonthKey(result.month);
-        return parsed
-          ? formatMonthNominative(parsed.year, parsed.month)
-          : result.month;
+        return parsed ? formatMonthNominative(parsed.year, parsed.month) : result.month;
       })()
     : "";
   await prisma.jobRun.update({
