@@ -120,8 +120,8 @@ describe("purgeProgressFromJob", () => {
     expect(purgeProgressFromJob({ phonesParsed: 1, meta: null })).toBeNull();
   });
 
-  it("states that a restart does not resume the same month", () => {
+  it("states that a restart continues jobs and audit after the calls are gone", () => {
     expect(PURGE_INTERRUPT_NOTE).toContain("обрывается");
-    expect(PURGE_INTERRUPT_NOTE).toContain("следующий месяц");
+    expect(PURGE_INTERRUPT_NOTE).toContain("продолжаются");
   });
 });

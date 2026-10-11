@@ -13,7 +13,7 @@ export type PurgeStageCounts = {
 export type PurgeStagesMeta = Record<PurgeStageId, PurgeStageCounts>;
 
 export const PURGE_INTERRUPT_NOTE =
-  "При перезапуске сервера удаление обрывается. Новый запуск берёт следующий месяц, в котором ещё есть звонки.";
+  "При перезапуске сервера текущий запрос обрывается. Если звонки месяца уже удалены, задачи и аудит этого месяца продолжаются после старта.";
 
 const STAGE_LABEL: Record<PurgeStageId, string> = {
   calls: "Звонки",

@@ -378,4 +378,31 @@ describe("PQueueJobRuntime anti-overlap", () => {
     await accepted;
     resetPurgeTargetForTests();
   });
+
+  it("forwards a history-only purge with the previous call count", async () => {
+    resetPurgeTargetForTests();
+    processCdrPurgeMonth.mockResolvedValue({
+      status: "success",
+      jobRunId: "purge-history",
+      phonesParsed: 209554,
+    });
+    const runtime = new PQueueJobRuntime();
+    await runtime.enqueue({
+      actionCode: "cdr.purge.month",
+      trigger: "schedule",
+      month: "2026-08",
+      historyOnly: true,
+      deletedCalls: 209554,
+    });
+    await new Promise((r) => setTimeout(r, 20));
+    expect(processCdrPurgeMonth).toHaveBeenCalledWith(
+      expect.objectContaining({
+        month: "2026-08",
+        historyOnly: true,
+        deletedCalls: 209554,
+        trigger: "schedule",
+      }),
+    );
+    resetPurgeTargetForTests();
+  });
 });

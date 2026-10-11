@@ -35,7 +35,7 @@ Optional publish ports: `APP_PUBLISH_PORT`, `POSTGRES_PUBLISH_PORT`.
 1. Follow [deploy-portainer.md](./deploy-portainer.md): stack from `docker-compose.portainer.yml`, images `ghcr.io/finenumbers/reg:latest` + `:latest-migrator` only.
 2. External network `proxy` must already exist (NPM).
 3. Confirm: `db` healthy → `migrate` exits 0 → `app` healthy (`/api/readyz`).
-4. **Replicas:** keep a single `app` container (do not scale).
+4. **Replicas:** keep a single `app` container (do not scale). v1.98.0 resumes an interrupted month purge on startup when that month's calls are already gone; a second replica would start the same resume twice.
 
 ### Local build (optional)
 

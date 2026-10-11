@@ -45,6 +45,9 @@ export type JobEnqueueInput = {
   trigger: "schedule" | "manual" | "test";
   actorUserId?: string;
   month?: string;
+  /** Internal. Resume jobs and audit after calls for this month are already gone. */
+  historyOnly?: boolean;
+  deletedCalls?: number;
 };
 
 export type JobEnqueueResult = {
@@ -144,6 +147,8 @@ export class PQueueJobRuntime implements JobRuntime {
             trigger: input.trigger,
             actorUserId: input.actorUserId,
             month: input.month,
+            historyOnly: input.historyOnly,
+            deletedCalls: input.deletedCalls,
           });
         }
         if (input.actionCode === "cdr.tariff.rate") {

@@ -29,6 +29,7 @@ import {
   purgeJobsCountSql,
   utcMonthInterval,
 } from "@/modules/traffic/purge/sql";
+import { assertPurgeFkIndexes } from "@/modules/traffic/purge/resume";
 import { setPurgeTargetMonth } from "@/modules/traffic/purge/target";
 
 const BATCH_PAUSE_MS = 50;
@@ -37,6 +38,9 @@ export type CdrPurgeProcessorInput = {
   trigger: "schedule" | "manual" | "test";
   actorUserId?: string;
   month?: string;
+  /** Jobs and audit only. Calls for this month are already gone. Not set by the HTTP route. */
+  historyOnly?: boolean;
+  deletedCalls?: number;
 };
 
 export type CdrPurgeProcessorResult = {
@@ -148,6 +152,13 @@ export async function processCdrPurgeMonth(
 ): Promise<CdrPurgeProcessorResult> {
   const startedAt = new Date();
   const requested = parseMonthKey(input.month);
+  const priorCalls =
+    input.historyOnly &&
+    typeof input.deletedCalls === "number" &&
+    Number.isFinite(input.deletedCalls) &&
+    input.deletedCalls > 0
+      ? Math.trunc(input.deletedCalls)
+      : 0;
   const jobRun = await prisma.jobRun.create({
     data: {
       actionCode: "cdr.purge.month",
@@ -155,7 +166,17 @@ export async function processCdrPurgeMonth(
       status: "running",
       startedAt,
       actorUserId: input.actorUserId ?? null,
-      meta: { month: requested?.key ?? input.month ?? null, phase: "started" },
+      // Written before the first DELETE so a second restart still finds this month.
+      phonesParsed: input.historyOnly ? priorCalls : undefined,
+      meta: input.historyOnly
+        ? {
+            month: requested?.key ?? input.month ?? null,
+            phase: "jobs",
+            targetCount: priorCalls,
+            deletedCount: priorCalls,
+            historyOnly: true,
+          }
+        : { month: requested?.key ?? input.month ?? null, phase: "started" },
     },
   });
 
@@ -166,6 +187,112 @@ export async function processCdrPurgeMonth(
   const target = requested;
 
   try {
+    if (input.historyOnly) {
+      if (!target) {
+        const message = "Укажите месяц в формате YYYY-MM";
+        await finish(jobRun.id, startedAt, input, {
+          status: "failed",
+          deleted: 0,
+          deletedJobs: 0,
+          deletedAudit: 0,
+          targetCount: 0,
+          month: null,
+          errorMessage: message,
+        });
+        return {
+          status: "failed",
+          jobRunId: jobRun.id,
+          phonesParsed: 0,
+          errorMessage: message,
+        };
+      }
+      if (target.key === currentUtcMonth().key) {
+        const message = "Текущий месяц удалить нельзя";
+        await finish(jobRun.id, startedAt, input, {
+          status: "failed",
+          deleted: priorCalls,
+          deletedJobs: 0,
+          deletedAudit: 0,
+          targetCount: priorCalls,
+          month: target.key,
+          errorMessage: message,
+        });
+        return {
+          status: "failed",
+          jobRunId: jobRun.id,
+          phonesParsed: priorCalls,
+          errorMessage: message,
+        };
+      }
+
+      setPurgeTargetMonth(target.key);
+      await assertPurgeFkIndexes();
+      const callsLeft = await prisma.cdrRecord.count({
+        where: { cdrDate: { startsWith: `${target.key}-` } },
+      });
+      if (callsLeft > 0) {
+        throw new Error("В месяце ещё есть звонки — доудаление истории остановлено");
+      }
+
+      deleted = priorCalls;
+      targetCount = priorCalls;
+      const historyTotals = await countMonthHistory(target.year, target.month, jobRun.id);
+      const stages: PurgeStagesMeta = {
+        calls: { done: priorCalls, total: priorCalls },
+        jobs: { done: 0, total: historyTotals.jobs },
+        audit: { done: 0, total: historyTotals.audit },
+      };
+
+      await auditService.append({
+        actorUserId: input.actorUserId,
+        action: AUDIT_ACTIONS.CDR_PURGE_START,
+        entityType: "cdr_month",
+        entityId: target.key,
+        meta: {
+          month: target.key,
+          targetCount: priorCalls,
+          jobRunId: jobRun.id,
+          historyOnly: true,
+        },
+      });
+      logger.info("cdr.purge.month.history_resume", {
+        jobRunId: jobRun.id,
+        month: target.key,
+        deletedCalls: priorCalls,
+        jobs: historyTotals.jobs,
+        audit: historyTotals.audit,
+      });
+      await publishPurgeProgress(jobRun.id, target.key, "jobs", stages);
+
+      const history = await deleteMonthHistory(target.year, target.month, jobRun.id, {
+        onPhase: async (phase) => {
+          await publishPurgeProgress(jobRun.id, target.key, phase, stages);
+        },
+        onProgress: async (phase, deletedCount) => {
+          stages[phase].done = deletedCount;
+          await publishPurgeProgress(jobRun.id, target.key, phase, stages);
+        },
+      });
+      deletedJobs = history.jobs;
+      deletedAudit = history.audit;
+
+      invalidateCdrMonthCountCache();
+      await finish(jobRun.id, startedAt, input, {
+        status: "success",
+        deleted: priorCalls,
+        deletedJobs,
+        deletedAudit,
+        targetCount: priorCalls,
+        month: target.key,
+        errorMessage: null,
+      });
+      return {
+        status: "success",
+        jobRunId: jobRun.id,
+        phonesParsed: priorCalls,
+      };
+    }
+
     const deletable = await resolveDeletableMonthKey();
     if (!target || !deletable || target.key !== deletable) {
       const message = !target
@@ -210,6 +337,7 @@ export async function processCdrPurgeMonth(
     }
 
     setPurgeTargetMonth(target.key);
+    await assertPurgeFkIndexes();
     const [callTotal, historyTotals] = await Promise.all([
       prisma.cdrRecord.count({
         where: { cdrDate: { startsWith: `${target.key}-` } },

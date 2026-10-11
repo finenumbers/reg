@@ -1,7 +1,15 @@
-# Current Phase — production (v1.97.0)
+# Current Phase — production (v1.98.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs.  
-**Date:** 2026-10-10
+**Date:** 2026-10-11
+
+## v1.98.0 — Interrupted month purge finishes jobs and audit
+
+A purge that was interrupted after its calls were already deleted resumes on the next process start. Startup reclaims the running row (`interrupted: process restarted`) and keeps its month and call count. If that month has no CDR rows left and still has job runs or audit rows in its UTC window, the app enqueues one history-only `cdr.purge.month`. It does not delete calls. It does not touch a month that has no interrupted purge of its own. A purge interrupted while calls remain stays on the storage table; the operator starts it again.
+
+The resumed job writes the previous call count before the first history delete, so a second restart still finds the month. It checks that every foreign-key index from `20261010200000_purge_fk_indexes` exists and fails immediately when one is missing. The interrupted row stays eligible, so the next start tries again. The banner shows calls as already done, then moves through jobs and audit. Resume is armed after purge holds are cleared and before the CDR import drain, and the month is held so import cannot write those calls back while history is deleting. One app replica remains required.
+
+There is no new migration. `CREATE INDEX` from v1.97.0 still has to finish before the app starts. Redeploying an older image over this purge drops the banner and leaves that month's jobs and audit in place.
 
 ## v1.97.0 — Month purge shows its stages
 
@@ -9,7 +17,7 @@ The storage banner lists the purge in order: calls, then job runs for that UTC m
 
 Counts are taken once, before the first delete, with the same bounds the deletes use. The loop still stops when a batch returns 0. A mismatch between the count and the deletes is shown and does not fail the job. An older running row without `stages` still shows the single calls line.
 
-A restart still drops the job (`interrupted: process restarted`). The next purge deletes the oldest month that still has calls. It does not finish jobs and audit for a month whose calls are already gone.
+A restart still drops the job (`interrupted: process restarted`). On v1.97.0 the next purge deletes the oldest month that still has calls and does not finish jobs and audit for a month whose calls are already gone. v1.98.0 resumes that history on the next start.
 
 The migration only adds indexes: `job_runs.startedAt`, `cdr_records.lastJobRunId`, `reg_change_events.jobRunId`, and the smaller foreign keys that point at `job_runs`. It does not rewrite stored CDR rows. `CREATE INDEX` blocks writes on each table until it finishes. On `cdr_records` that lock is the long one. Deploy when CDR import can wait. Do not deploy while a purge is still running if that purge should finish its own job and audit stages: the process restart aborts it.
 

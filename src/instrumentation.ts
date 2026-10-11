@@ -5,8 +5,10 @@
  * 1. Validate server env (fail loud on invalid / weak production secrets)
  * 2. Ensure platform baseline (RBAC, allowlist, app_settings)
  * 3. Idempotent admin bootstrap from ADMIN_* env
- * 4. Reclaim orphan running job_runs (process restart)
- * 5. Start Settings-gated scheduler loop (always-on timer; ticks respect regsPollEnabled)
+ * 4. Reclaim orphan running job_runs (process restart) and clear purge holds
+ * 5. Resume jobs and audit for a purge whose calls are already gone
+ * 6. Start Settings-gated scheduler loop (always-on timer; ticks respect regsPollEnabled)
+ * 7. Tariff reconcile, then FTP and the CDR import drain
  */
 
 export async function register() {
@@ -72,6 +74,23 @@ export async function register() {
       }
     } catch (error) {
       logger.error("jobs.reclaim_orphans.failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    try {
+      const { enqueueAbandonedPurgeHistory } = await import(
+        "@/modules/traffic/purge/resume"
+      );
+      const { jobRuntime } = await import("@/modules/jobs/runtime");
+      const resumed = await enqueueAbandonedPurgeHistory((input) =>
+        jobRuntime.enqueue(input),
+      );
+      if (resumed.month) {
+        logger.info("cdr.purge.resume", resumed);
+      }
+    } catch (error) {
+      logger.error("cdr.purge.resume_failed", {
         error: error instanceof Error ? error.message : String(error),
       });
     }
