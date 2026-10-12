@@ -47,9 +47,34 @@ export type ClassifiedCdrLine =
   | { ok: true; row: ParsedCdrRow }
   | { ok: false; reason: CdrParseReject };
 
+/**
+ * Softswitch dump framing: every field is quoted and joined by `";"`.
+ * A raw quote inside a value does not move those boundaries.
+ * Used only after the quote-state split failed, so a row it already
+ * accepts cannot change columns.
+ */
+function splitDumpQuotedSemicolon(line: string): string[] | null {
+  const trimmed = stripBom(line).trim();
+  if (trimmed.length < 2 || !trimmed.startsWith('"') || !trimmed.endsWith('"')) {
+    return null;
+  }
+  return trimmed
+    .slice(1, -1)
+    .split('";"')
+    .map((field) => field.replaceAll('""', '"'));
+}
+
+function dumpFieldValues(line: string): string[] | null {
+  const primary = splitQuotedSemicolon(stripBom(line).trim());
+  if (primary.length === CDR_COLUMN_COUNT) return primary;
+  const recovered = splitDumpQuotedSemicolon(line);
+  if (recovered?.length === CDR_COLUMN_COUNT) return recovered;
+  return null;
+}
+
 export function classifyCdrDataLine(line: string): ClassifiedCdrLine {
-  const values = splitQuotedSemicolon(stripBom(line).trim());
-  if (values.length !== CDR_COLUMN_COUNT) {
+  const values = dumpFieldValues(line);
+  if (!values) {
     return { ok: false, reason: "width" };
   }
   const fields: Record<string, string> = {};

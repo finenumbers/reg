@@ -1,7 +1,15 @@
-# Current Phase — production (v1.100.0)
+# Current Phase — production (v1.101.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs.  
 **Date:** 2026-10-12
+
+## v1.101.0 — Load a CDR row whose Call-ID contains a raw quote
+
+A softswitch dump quotes every field and joins them with `";"`. A SIP Call-ID can contain a raw `"` that is not doubled. The quote-state split then loses the rest of the line and reports the wrong field count, so the file stays in the inbox.
+
+Rows that already split into 120 fields keep that result. The header and the 10-column enrich parser are unchanged. Only a rejected data line is split again on `";"`. That second result is kept when it has exactly 120 fields. `""` inside a field is still one quote. A short or truncated line still fails. The stored Call-ID keeps the quote.
+
+There is no new migration. Retry import on the held file inserts the rows that this recovers and then deletes the file.
 
 ## v1.100.0 — Download a failed CDR dump from raw data
 

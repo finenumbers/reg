@@ -226,6 +226,62 @@ describe("parseCdrDataLine", () => {
     ).toBeNull();
   });
 
+  it("keeps a raw quote inside a call id and the columns after it", () => {
+    const callId = 'sbcthLNQ]`lCHBcnaBLBaB9"lx9qWpPRgvsIS@example';
+    const line = CDR_COLUMNS.map((col) => {
+      const raw =
+        col === "cdr_id"
+          ? "202610120000004008"
+          : col === "cdr_date"
+            ? "2026-10-12 06:42:18"
+            : col === "bill_dnis"
+              ? "79030768600"
+              : col === "src_in_leg_call_id"
+                ? callId
+                : col === "disconnect_code_string"
+                  ? "SIP, 486 - Busy Here"
+                  : col === "disconnect_code"
+                    ? "262630"
+                    : "";
+      return `"${raw}"`;
+    }).join(";");
+
+    const row = parseCdrDataLine(line);
+    expect(row).not.toBeNull();
+    expect(row!.cdrId).toBe("202610120000004008");
+    expect(row!.prisma.billDnis).toBe("79030768600");
+    expect(row!.fields.src_in_leg_call_id).toBe(callId);
+    expect(row!.fields.disconnect_code_string).toBe("SIP, 486 - Busy Here");
+    expect(row!.fields.disconnect_code).toBe("262630");
+  });
+
+  it("keeps an escaped quote-semicolon inside one field", () => {
+    const row = parseCdrDataLine(
+      quotedRow({
+        cdr_id: "id-escaped",
+        cdr_date: "2026-10-12 06:42:18",
+        src_in_leg_call_id: 'foo";"bar',
+        disconnect_code: "65546",
+      }),
+    );
+    expect(row).not.toBeNull();
+    expect(row!.fields.src_in_leg_call_id).toBe('foo";"bar');
+    expect(row!.fields.disconnect_code).toBe("65546");
+  });
+
+  it("keeps a semicolon inside a quoted field on the primary split", () => {
+    const row = parseCdrDataLine(
+      quotedRow({
+        cdr_id: "id-semi",
+        cdr_date: "2026-10-12 06:42:18",
+        src_name: "PSTN;Local",
+        disconnect_code: "65546",
+      }),
+    );
+    expect(row!.fields.src_name).toBe("PSTN;Local");
+    expect(row!.fields.disconnect_code).toBe("65546");
+  });
+
   it("keeps empty optional fields", () => {
     const row = parseCdrDataLine(
       quotedRow({
