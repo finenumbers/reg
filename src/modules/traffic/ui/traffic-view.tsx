@@ -19,6 +19,7 @@ import { TableCountFooter, TableInfiniteBody } from "@/components/table-infinite
 import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
 import { TABLE_PAGE_SIZE } from "@/lib/table-pagination";
 import {
+  downloadPoisonedInboxFile,
   fetchTrafficList,
   fetchTrafficStatus,
   postTrafficRetry,
@@ -117,6 +118,10 @@ export function TrafficView({
   const [poisonFiles, setPoisonFiles] = useState<
     Array<{ filename: string; error: string; heldForPurge: boolean }>
   >([]);
+  const [downloadingNames, setDownloadingNames] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  const downloadingRef = useRef(new Set<string>());
   const [syncState, setSyncState] = useState<SyncUiState>(IDLE_SYNC_STATE);
   const syncInFlightRef = useRef(false);
   const refreshSeq = useRef(0);
@@ -441,6 +446,21 @@ export function TrafficView({
     void loadList({ page: 1, replace: true, timeSort: next });
   }
 
+  async function onDownloadPoison(filename: string) {
+    if (downloadingRef.current.has(filename)) return;
+    downloadingRef.current.add(filename);
+    setDownloadingNames(new Set(downloadingRef.current));
+    try {
+      const result = await downloadPoisonedInboxFile(filename);
+      if (!result.ok) toast.error(result.message);
+    } catch {
+      toast.error("Не удалось скачать файл");
+    } finally {
+      downloadingRef.current.delete(filename);
+      setDownloadingNames(new Set(downloadingRef.current));
+    }
+  }
+
   async function onRetry() {
     if (!showOps || !canRetry || syncInFlightRef.current || isSyncInFlight(syncState)) {
       return;
@@ -548,10 +568,20 @@ export function TrafficView({
           aria-label="Файлы с ошибкой импорта"
         >
           {poisonFiles.map((file) => (
-            <li key={file.filename}>
-              <span className="font-medium">{file.filename}</span>
-              {": "}
-              {file.error}
+            <li key={file.filename} className="space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-medium">{file.filename}</span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={downloadingNames.has(file.filename)}
+                  onClick={() => void onDownloadPoison(file.filename)}
+                >
+                  Скачать
+                </Button>
+              </div>
+              <p>{file.error}</p>
             </li>
           ))}
         </ul>

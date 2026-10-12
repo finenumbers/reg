@@ -1,4 +1,5 @@
 import { encodeFilters, type ColumnFilters } from "@/components/column-filters/types";
+import { downloadXlsxFromUrl } from "@/lib/download-xlsx";
 import {
   interpretSyncResponse,
   type SyncApiResult,
@@ -119,6 +120,13 @@ export async function fetchTrafficStatus(): Promise<
     return { ok: false, message: errorMessage(body, "Не удалось загрузить статус") };
   }
   return { ok: true, data: body as TrafficOperationalStatus };
+}
+
+export function downloadPoisonedInboxFile(filename: string) {
+  return downloadXlsxFromUrl(
+    `/api/traffic/inbox/${encodeURIComponent(filename)}`,
+    filename,
+  );
 }
 
 export async function postTrafficRetry(): Promise<SyncApiResult> {

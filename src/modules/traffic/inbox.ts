@@ -1,8 +1,8 @@
-import { readdir, stat } from "node:fs/promises";
+import { readdir, realpath, stat } from "node:fs/promises";
 import path from "node:path";
 import { CDR_MAX_FILE_BYTES } from "@/modules/traffic/columns";
 import { cdrInboxRoot, POISON_FILENAME } from "@/modules/traffic/paths";
-import { isPoisoned } from "@/modules/traffic/poison";
+import { isPoisoned, listPoisonEntries } from "@/modules/traffic/poison";
 
 export type InboxFile = {
   filename: string;
@@ -66,6 +66,56 @@ export async function countInboxFiles(
     else pending += 1;
   }
   return { pending, poisoned };
+}
+
+export type PoisonedInboxFile = {
+  filename: string;
+  absPath: string;
+  size: number;
+};
+
+function isInsideRoot(root: string, candidate: string): boolean {
+  const relative = path.relative(root, candidate);
+  return (
+    relative !== "" &&
+    !relative.startsWith("..") &&
+    !path.isAbsolute(relative)
+  );
+}
+
+/**
+ * Current bytes of a dump the import journal has already held back.
+ * A waiting inbox file and a path that leaves the inbox are not opened.
+ * mtime is not compared: the journal name is what the error block shows.
+ */
+export async function openPoisonedInboxFile(
+  filename: string,
+  cwd?: string,
+): Promise<PoisonedInboxFile | null> {
+  if (!isInboxDataFile(filename)) return null;
+  const held = listPoisonEntries(cwd).some((entry) => entry.filename === filename);
+  if (!held) return null;
+
+  const root = cdrInboxRoot(cwd);
+  let rootReal: string;
+  try {
+    rootReal = await realpath(root);
+  } catch {
+    return null;
+  }
+
+  const joined = path.resolve(rootReal, filename);
+  if (!isInsideRoot(rootReal, joined)) return null;
+
+  try {
+    const fileReal = await realpath(joined);
+    if (!isInsideRoot(rootReal, fileReal)) return null;
+    const fileStat = await stat(fileReal);
+    if (!fileStat.isFile()) return null;
+    return { filename, absPath: fileReal, size: fileStat.size };
+  } catch {
+    return null;
+  }
 }
 
 export function inboxFileError(file: InboxFile): string | null {

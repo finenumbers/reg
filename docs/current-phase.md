@@ -1,7 +1,13 @@
-# Current Phase — production (v1.99.0)
+# Current Phase — production (v1.100.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs.  
 **Date:** 2026-10-12
+
+## v1.100.0 — Download a failed CDR dump from raw data
+
+«Сырые данные» lists each file the CDR import held back. Each row has «Скачать». The download is that inbox dump, with its original name and no extension. The route serves it only when the name is a softswitch dump (`YYYYMMDD_HHMMSS`) and that name is in the poison journal, including a file held while a month is deleted. A file still waiting for import is not served. The resolved path must stay inside the inbox, so a symlink that leaves the directory is refused. The bytes are the file on disk now; the journal mtime is not required to match. Database compression does not block this download: the file is not in the CDR tables.
+
+There is no new migration.
 
 ## v1.99.0 — Compress the database after a month delete
 
