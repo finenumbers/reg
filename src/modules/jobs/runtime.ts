@@ -25,6 +25,10 @@ import { parseMonthKey } from "@/modules/traffic/cdr-month";
 import { processCdrPurgeMonth } from "@/modules/traffic/purge/processor";
 import { setPurgeTargetMonth } from "@/modules/traffic/purge/target";
 import { processCdrTariffRate } from "@/modules/traffic/tariff-rate/processor";
+import { requestCdrImportDrain } from "@/modules/traffic/enqueue";
+import { isMonthExportRunning } from "@/modules/traffic/month-export-job";
+import { processDatabaseVacuum } from "@/modules/storage/vacuum/processor";
+import { setDatabaseVacuumActive } from "@/modules/storage/vacuum/gate";
 import {
   evaluateSchedulerBootstrap as evaluateSchedulerBootstrapImpl,
 } from "@/modules/jobs/scheduler";
@@ -38,7 +42,16 @@ const SUPPORTED_JOB_ACTIONS = new Set<AllowedActionCode>([
   "cdr.sides.refresh",
   "cdr.purge.month",
   "cdr.tariff.rate",
+  "db.vacuum",
 ]);
+
+const CDR_BLOCKS_VACUUM: readonly AllowedActionCode[] = [
+  "cdr.import",
+  "voipmonitor.match",
+  "cdr.sides.refresh",
+  "cdr.purge.month",
+  "cdr.tariff.rate",
+];
 
 export type JobEnqueueInput = {
   actionCode: AllowedActionCode;
@@ -104,7 +117,41 @@ export class PQueueJobRuntime implements JobRuntime {
       };
     }
 
+    if (
+      input.actionCode === "db.vacuum" &&
+      isMonthExportRunning()
+    ) {
+      return {
+        accepted: false,
+        reason: "anti-overlap: month export in flight",
+      };
+    }
+
+    if (input.actionCode === "db.vacuum") {
+      for (const code of CDR_BLOCKS_VACUUM) {
+        if (this.isInFlight(code)) {
+          return {
+            accepted: false,
+            reason: `anti-overlap: ${code} in flight`,
+          };
+        }
+      }
+    }
+
+    if (
+      (CDR_BLOCKS_VACUUM as readonly string[]).includes(input.actionCode) &&
+      this.isInFlight("db.vacuum")
+    ) {
+      return {
+        accepted: false,
+        reason: "anti-overlap: db.vacuum in flight",
+      };
+    }
+
     this.inFlight.add(input.actionCode);
+    if (input.actionCode === "db.vacuum") {
+      setDatabaseVacuumActive(true);
+    }
     if (input.actionCode === "cdr.purge.month") {
       const month = parseMonthKey(input.month);
       if (month) setPurgeTargetMonth(month.key);
@@ -157,12 +204,27 @@ export class PQueueJobRuntime implements JobRuntime {
             actorUserId: input.actorUserId,
           });
         }
+        if (input.actionCode === "db.vacuum") {
+          return await processDatabaseVacuum({
+            trigger: input.trigger,
+            actorUserId: input.actorUserId,
+          });
+        }
         return await processRegsPoll({
           trigger: input.trigger,
           actorUserId: input.actorUserId,
         });
       } finally {
+        if (input.actionCode === "db.vacuum") {
+          setDatabaseVacuumActive(false);
+        }
         this.inFlight.delete(input.actionCode);
+      }
+    });
+
+    void runPromise.finally(() => {
+      if (input.actionCode === "db.vacuum") {
+        requestCdrImportDrain("schedule");
       }
     });
 

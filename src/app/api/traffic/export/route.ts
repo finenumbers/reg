@@ -7,11 +7,13 @@ import { parseMonthKey } from "@/modules/traffic/cdr-month";
 import {
   createMonthExportJob,
   MonthExportActiveConflictError,
+  MonthExportVacuumConflictError,
   startMonthExport,
   toJobView,
 } from "@/modules/traffic/month-export-job";
 import { runMonthExportPipeline } from "@/modules/traffic/month-export-pipeline";
 import { pruneMonthExportArtifacts } from "@/modules/traffic/month-export-reclaim";
+import { cdrVacuumBusyResponse } from "@/modules/storage/vacuum/http";
 
 export const runtime = "nodejs";
 
@@ -36,6 +38,8 @@ export async function POST(request: Request) {
 
   const gate = await requireApiPermission("phones:read");
   if (!gate.ok) return gate.response;
+  const busy = cdrVacuumBusyResponse();
+  if (busy) return busy;
 
   let userId: string;
   try {
@@ -87,6 +91,12 @@ export async function POST(request: Request) {
     job = createMonthExportJob({ actorUserId: userId, month, includeDetail });
   } catch (error) {
     if (error instanceof MonthExportActiveConflictError) {
+      return NextResponse.json(
+        { error: error.message, code: "CONFLICT" },
+        { status: 409 },
+      );
+    }
+    if (error instanceof MonthExportVacuumConflictError) {
       return NextResponse.json(
         { error: error.message, code: "CONFLICT" },
         { status: 409 },

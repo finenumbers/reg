@@ -38,3 +38,25 @@ export async function postStoragePurge(
   }
   return { ok: true };
 }
+
+export async function postStorageVacuum(
+  confirm: string,
+): Promise<{ ok: true } | { ok: false; message: string; status: number }> {
+  const res = await fetch("/api/storage/vacuum", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ confirm }),
+  });
+  const body = (await res.json().catch(() => null)) as {
+    error?: string;
+    reason?: string;
+  } | null;
+  if (!res.ok) {
+    return {
+      ok: false,
+      message: body?.error ?? body?.reason ?? "Не удалось начать сжатие",
+      status: res.status,
+    };
+  }
+  return { ok: true };
+}

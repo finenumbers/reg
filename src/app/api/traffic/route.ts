@@ -4,6 +4,7 @@ import { requireApiPermission } from "@/modules/auth/guards";
 import { parseTrafficFlagParam } from "@/modules/traffic/row-flags";
 import { listTraffic } from "@/modules/traffic/service";
 import { parseTimeSort } from "@/modules/traffic/traffic-sort";
+import { cdrVacuumBusyResponse } from "@/modules/storage/vacuum/http";
 
 /**
  * GET /api/traffic — list CDR records from local DB.
@@ -11,6 +12,8 @@ import { parseTimeSort } from "@/modules/traffic/traffic-sort";
 export async function GET(request: Request) {
   const gate = await requireApiPermission("phones:read");
   if (!gate.ok) return gate.response;
+  const busy = cdrVacuumBusyResponse();
+  if (busy) return busy;
 
   const url = new URL(request.url);
   const filters = parseFiltersParam(url.searchParams.get("filters"));

@@ -19,6 +19,7 @@ import type { AllowedActionCode } from "@/modules/actions/registry";
 import { prisma } from "@/lib/db";
 import { logger } from "@/lib/logger";
 import { listInboxFiles } from "@/modules/traffic/inbox";
+import { isDatabaseVacuumActive } from "@/modules/storage/vacuum/gate";
 import { requestCdrImportDrain } from "@/modules/traffic/enqueue";
 import {
   canEnqueueVoipmonitorMatch,
@@ -179,6 +180,7 @@ async function readScheduleSettings(): Promise<ScheduleSettings | null> {
 }
 
 async function drainVoipmonitorMatch(): Promise<void> {
+  if (isDatabaseVacuumActive()) return;
   try {
     const state = schedulerState();
     const allowed = await canEnqueueVoipmonitorMatch(

@@ -2,12 +2,18 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   createMonthExportJob,
   getMonthExportForOwner,
+  MonthExportVacuumConflictError,
   resetMonthExportJobsForTests,
   toJobView,
 } from "@/modules/traffic/month-export-job";
+import {
+  resetDatabaseVacuumForTests,
+  setDatabaseVacuumActive,
+} from "@/modules/storage/vacuum/gate";
 
 afterEach(() => {
   resetMonthExportJobsForTests();
+  resetDatabaseVacuumForTests();
 });
 
 describe("month export job registry", () => {
@@ -31,5 +37,12 @@ describe("month export job registry", () => {
     });
     expect(job.includeDetail).toBe(true);
     expect(job.stages.some((stage) => stage.id === "detail")).toBe(true);
+  });
+
+  it("refuses to start while the database vacuum flag is set", () => {
+    setDatabaseVacuumActive(true);
+    expect(() =>
+      createMonthExportJob({ actorUserId: "user-a", month: "2026-07" }),
+    ).toThrow(MonthExportVacuumConflictError);
   });
 });

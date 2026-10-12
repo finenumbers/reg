@@ -76,6 +76,17 @@ vi.mock("@/modules/jobs/scheduler", () => ({
   rescheduleAfterSettingsChange: vi.fn(),
 }));
 
+const processDatabaseVacuum = vi.fn();
+const requestCdrImportDrain = vi.fn();
+
+vi.mock("@/modules/storage/vacuum/processor", () => ({
+  processDatabaseVacuum: (...args: unknown[]) => processDatabaseVacuum(...args),
+}));
+
+vi.mock("@/modules/traffic/enqueue", () => ({
+  requestCdrImportDrain: (...args: unknown[]) => requestCdrImportDrain(...args),
+}));
+
 vi.mock("@/lib/logger", () => ({
   logger: {
     info: vi.fn(),
@@ -87,6 +98,14 @@ vi.mock("@/lib/logger", () => ({
 
 import { PQueueJobRuntime } from "@/modules/jobs/runtime";
 import {
+  isDatabaseVacuumActive,
+  resetDatabaseVacuumForTests,
+} from "@/modules/storage/vacuum/gate";
+import {
+  createMonthExportJob,
+  resetMonthExportJobsForTests,
+} from "@/modules/traffic/month-export-job";
+import {
   getPurgeTargetMonth,
   resetPurgeTargetForTests,
 } from "@/modules/traffic/purge/target";
@@ -94,6 +113,12 @@ import {
 describe("PQueueJobRuntime anti-overlap", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    resetDatabaseVacuumForTests();
+    resetMonthExportJobsForTests();
+    processDatabaseVacuum.mockResolvedValue({
+      status: "success",
+      jobRunId: "vacuum-1",
+    });
     processRegsPoll.mockImplementation(
       () =>
         new Promise((resolve) => {
@@ -404,5 +429,83 @@ describe("PQueueJobRuntime anti-overlap", () => {
       }),
     );
     resetPurgeTargetForTests();
+  });
+
+  it("rejects db.vacuum while cdr.import is in flight", async () => {
+    processCdrImport.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          setTimeout(
+            () =>
+              resolve({
+                status: "success",
+                jobRunId: "cdr-slow",
+                phonesParsed: 1,
+                linesBad: 0,
+                changesCount: 0,
+              }),
+            80,
+          );
+        }),
+    );
+    const runtime = new PQueueJobRuntime();
+    const importResult = await runtime.enqueue({
+      actionCode: "cdr.import",
+      trigger: "schedule",
+    });
+    const vacuumResult = await runtime.enqueue({
+      actionCode: "db.vacuum",
+      trigger: "manual",
+    });
+    expect(importResult.accepted).toBe(true);
+    expect(vacuumResult.accepted).toBe(false);
+    expect(vacuumResult.reason).toMatch(/cdr.import/);
+    expect(processDatabaseVacuum).not.toHaveBeenCalled();
+    await new Promise((r) => setTimeout(r, 100));
+  });
+
+  it("rejects cdr.import while db.vacuum is in flight and drains after the flag drops", async () => {
+    let drainSawVacuum = true;
+    processDatabaseVacuum.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          setTimeout(
+            () => resolve({ status: "success", jobRunId: "vacuum-slow" }),
+            40,
+          );
+        }),
+    );
+    requestCdrImportDrain.mockImplementation(() => {
+      drainSawVacuum = isDatabaseVacuumActive();
+    });
+    const runtime = new PQueueJobRuntime();
+    const vacuumResult = await runtime.enqueue({
+      actionCode: "db.vacuum",
+      trigger: "manual",
+    });
+    const importResult = await runtime.enqueue({
+      actionCode: "cdr.import",
+      trigger: "schedule",
+    });
+    expect(vacuumResult.accepted).toBe(true);
+    expect(isDatabaseVacuumActive()).toBe(true);
+    expect(importResult.accepted).toBe(false);
+    expect(importResult.reason).toMatch(/db.vacuum/);
+    await new Promise((r) => setTimeout(r, 80));
+    expect(requestCdrImportDrain).toHaveBeenCalledWith("schedule");
+    expect(drainSawVacuum).toBe(false);
+    expect(isDatabaseVacuumActive()).toBe(false);
+  });
+
+  it("rejects db.vacuum while a month export is running", async () => {
+    createMonthExportJob({ actorUserId: "user-a", month: "2026-07" });
+    const runtime = new PQueueJobRuntime();
+    const vacuumResult = await runtime.enqueue({
+      actionCode: "db.vacuum",
+      trigger: "manual",
+    });
+    expect(vacuumResult.accepted).toBe(false);
+    expect(vacuumResult.reason).toMatch(/month export/);
+    expect(processDatabaseVacuum).not.toHaveBeenCalled();
   });
 });

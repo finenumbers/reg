@@ -17,6 +17,7 @@ const JOB_ACTION_LABELS: Record<string, string> = {
   "cdr.sides.refresh": "Описания сторон",
   "cdr.purge.month": "Удаление месяца",
   "cdr.tariff.rate": "Пересчёт тарифов",
+  "db.vacuum": "Сжатие базы",
 };
 
 const META_FILES_CAP = 8;
@@ -321,6 +322,8 @@ export function summarizeJobResult(job: JobRunListItem): string {
       return job.changesCount
         ? `Обновлено ${formatCount(job.changesCount)} звонков`
         : "Звонки пересчитаны";
+    case "db.vacuum":
+      return "Таблицы звонков сжаты. Живые строки сохранены.";
     default:
       return summarizeUnknownSuccess(job);
   }
@@ -590,6 +593,8 @@ export function formatJobMessage(
       return job.changesCount
         ? `Пересчитано звонков: ${formatCount(job.changesCount)}.`
         : "Звонки пересчитаны по текущим тарифам.";
+    case "db.vacuum":
+      return "Таблицы звонков сжаты. Живые строки сохранены.";
     default:
       return null;
   }

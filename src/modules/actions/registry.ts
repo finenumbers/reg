@@ -13,7 +13,8 @@ export type AllowedActionCode =
   | "voipmonitor.match"
   | "cdr.sides.refresh"
   | "cdr.purge.month"
-  | "cdr.tariff.rate";
+  | "cdr.tariff.rate"
+  | "db.vacuum";
 
 /** Absolute sudo binary used for non-interactive elevation (never from UI). */
 const REMOTE_SUDO_BIN = "/usr/bin/sudo";
@@ -138,6 +139,17 @@ export const ACTION_REGISTRY: Record<AllowedActionCode, AllowedActionDefinition>
     argv: [],
     module: "traffic",
     description: "Recompute CDR direction, price, and charge from the tariff snapshot",
+    usesPlatformExecWrapper: true,
+    elevateWithSudo: false,
+    needsPty: false,
+  },
+  "db.vacuum": {
+    code: "db.vacuum",
+    kind: "local",
+    remotePath: "/opt/scripts/db_vacuum",
+    argv: [],
+    module: "traffic",
+    description: "VACUUM FULL cdr_voipmonitor_links and cdr_records",
     usesPlatformExecWrapper: true,
     elevateWithSudo: false,
     needsPty: false,

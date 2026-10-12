@@ -13,6 +13,7 @@ import {
   type MonthExportStageView,
 } from "@/modules/traffic/month-export-types";
 import { removeMonthExportJobDir } from "@/modules/traffic/month-export-reclaim";
+import { isDatabaseVacuumActive } from "@/modules/storage/vacuum/gate";
 
 const KEY = "__reg_month_export_jobs__";
 
@@ -92,12 +93,22 @@ export class MonthExportActiveConflictError extends Error {
   }
 }
 
+export class MonthExportVacuumConflictError extends Error {
+  constructor() {
+    super("Идёт сжатие базы. Выгрузка откроется после окончания.");
+    this.name = "MonthExportVacuumConflictError";
+  }
+}
+
 export function createMonthExportJob(input: {
   actorUserId: string;
   month: string;
   includeDetail?: boolean;
 }): MonthExportJobRecord {
   const s = store();
+  if (isDatabaseVacuumActive()) {
+    throw new MonthExportVacuumConflictError();
+  }
   if (s.running) {
     throw new MonthExportActiveConflictError();
   }

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { hasVoipmonitorWork } from "@/modules/voipmonitor/count";
+import { isDatabaseVacuumActive } from "@/modules/storage/vacuum/gate";
 
 export type VoipmonitorContinueHint = {
   status: "success" | "failed";
@@ -22,6 +23,7 @@ export async function canEnqueueVoipmonitorMatch(
   isInFlight: () => boolean,
 ): Promise<boolean> {
   if (isInFlight()) return false;
+  if (isDatabaseVacuumActive()) return false;
   const settings = await prisma.appSetting.findUnique({
     where: { id: 1 },
     select: {

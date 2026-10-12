@@ -48,6 +48,8 @@ const ACTION_LABELS: Record<string, string> = {
   "cdr.sides.refresh_finish": "Завершение обновления описаний в журнале звонков",
   "cdr.purge_start": "Старт удаления месяца телефонного трафика",
   "cdr.purge_finish": "Завершение удаления месяца телефонного трафика",
+  "db.vacuum_start": "Старт сжатия базы телефонного трафика",
+  "db.vacuum_finish": "Завершение сжатия базы телефонного трафика",
   "api_key.create": "Создание API-ключа",
   "api_key.revoke": "Отзыв API-ключа",
   "tariffs.import": "Загрузка тарификации",

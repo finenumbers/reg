@@ -7,6 +7,7 @@ import { requireSessionUserId } from "@/modules/auth/session";
 import { clearPoisonExceptMonthHold } from "@/modules/traffic/poison";
 import { getPurgeTargetMonth } from "@/modules/traffic/purge/target";
 import { markCdrInboxDirty } from "@/modules/traffic/drain-flag";
+import { CDR_VACUUM_BUSY_MESSAGE } from "@/modules/storage/vacuum/gate";
 
 /**
  * POST /api/traffic/retry — clear poison guard and drain the CDR inbox.
@@ -53,10 +54,12 @@ export async function POST(request: Request) {
   });
 
   if (!result.accepted) {
+    const vacuum = result.reason?.includes("db.vacuum") === true;
     return NextResponse.json(
       {
         accepted: false,
         reason: result.reason ?? "rejected",
+        error: vacuum ? CDR_VACUUM_BUSY_MESSAGE : undefined,
       },
       { status: 409 },
     );

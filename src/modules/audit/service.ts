@@ -45,6 +45,8 @@ export const AUDIT_ACTIONS = {
   CDR_SIDES_REFRESH_FINISH: "cdr.sides.refresh_finish",
   CDR_PURGE_START: "cdr.purge_start",
   CDR_PURGE_FINISH: "cdr.purge_finish",
+  DB_VACUUM_START: "db.vacuum_start",
+  DB_VACUUM_FINISH: "db.vacuum_finish",
   VOIPMONITOR_KEY_REPLACE: "voipmonitor.key_replace",
   VOIPMONITOR_TEST: "voipmonitor.test",
   API_KEY_CREATE: "api_key.create",

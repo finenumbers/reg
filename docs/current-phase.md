@@ -1,7 +1,17 @@
-# Current Phase — production (v1.98.0)
+# Current Phase — production (v1.99.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs.  
-**Date:** 2026-10-11
+**Date:** 2026-10-12
+
+## v1.99.0 — Compress the database after a month delete
+
+«Сжать базу» on «Хранение данных» runs `VACUUM FULL` on `cdr_voipmonitor_links`, then `cdr_records`. It copies live rows and swaps each file at the end of that command. It does not delete rows. It does not rewrite `job_runs` or `audit_logs`. A month delete still removes that month's calls, job runs, and audit rows; this button only returns the disk those calls occupied.
+
+The operator types `СЖАТЬ`. The job starts only when CDR import, month purge, VoIPmonitor match, side refresh, tariff rating, and month export are idle. While it runs, those jobs stay queued out, and traffic, stats, detail, and the jobs-list CDR probes answer immediately instead of waiting on the lock. The app pool uses a 5 second `lock_timeout` so a missed reader releases its connection. The vacuum session uses its own connection, with `statement_timeout` off and `lock_timeout` of 60 seconds. If that lock is not available, the job fails and the current table is unchanged.
+
+The storage page lists the two tables. The active line shows the Postgres phase from `pg_stat_progress_cluster` when that view has a row. A failure, including `interrupted: process restarted`, stays on the page until the next start. A restart does not resume the rewrite. Inbox files are imported after the in-process flag drops, and again on process start. Free space on the Postgres volume must be at least twice the size of the two relations. The app cannot see that free space. One app replica remains required.
+
+There is no new migration.
 
 ## v1.98.0 — Interrupted month purge finishes jobs and audit
 

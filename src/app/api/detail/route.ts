@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireApiPermission } from "@/modules/auth/guards";
 import { listDetailSnapshot } from "@/modules/detail/service";
+import { cdrVacuumBusyResponse } from "@/modules/storage/vacuum/http";
 
 /**
  * GET /api/detail — monthly client CDR slices (phones:read).
@@ -8,6 +9,8 @@ import { listDetailSnapshot } from "@/modules/detail/service";
 export async function GET(request: Request) {
   const gate = await requireApiPermission("phones:read");
   if (!gate.ok) return gate.response;
+  const busy = cdrVacuumBusyResponse();
+  if (busy) return busy;
 
   const url = new URL(request.url);
   const month = url.searchParams.get("month") ?? undefined;

@@ -9,6 +9,7 @@ import { logger } from "@/lib/logger";
 import { truncateUtf8 } from "@/lib/utf8-truncate";
 import { sanitizeAuditMeta } from "@/modules/audit/sanitize";
 import { countUnenrichedCdrEnrich } from "@/modules/traffic/enrich-import";
+import { isDatabaseVacuumActive } from "@/modules/storage/vacuum/gate";
 import {
   countParkedVoipmonitor,
   countUnenrichedVoipmonitor,
@@ -23,6 +24,7 @@ async function settleProbe<T>(
   fn: () => Promise<T>,
   fallback: T,
 ): Promise<T> {
+  if (isDatabaseVacuumActive()) return fallback;
   try {
     return await fn();
   } catch (error) {

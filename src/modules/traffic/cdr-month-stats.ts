@@ -15,6 +15,7 @@ import {
   billableMinutesSql,
   billableSecondsSql,
 } from "@/modules/traffic/billable-minutes-sql";
+import { isDatabaseVacuumActive } from "@/modules/storage/vacuum/gate";
 
 const CACHE_TTL_MS = 60_000;
 const KEY = "__reg_cdr_month_counts__";
@@ -37,6 +38,9 @@ export function invalidateCdrMonthCountCache(): void {
 type MonthCountRow = { month_key: string; calls: number };
 
 export async function queryMonthCallCounts(): Promise<CdrMonth[]> {
+  if (isDatabaseVacuumActive()) {
+    return [];
+  }
   const rows = await prisma.$queryRaw<MonthCountRow[]>(Prisma.sql`
     SELECT left(cdr_day, 7) AS month_key, COUNT(*)::int AS calls
     FROM cdr_records
@@ -71,6 +75,7 @@ export function monthStatsWithDurationSql(): Prisma.Sql {
 export async function queryMonthStatsWithMinutes(): Promise<
   Array<CdrMonth & { seconds: number; minutes: number }>
 > {
+  if (isDatabaseVacuumActive()) return [];
   const rows = await prisma.$queryRaw<MonthStatRow[]>(
     monthStatsWithDurationSql(),
   );
@@ -103,6 +108,10 @@ export async function listCachedMonthCounts(
 ): Promise<CdrMonth[]> {
   const store = cacheStore();
   const hit = store.slot;
+  if (isDatabaseVacuumActive()) {
+    if (hit) return withCurrentMonth(hit.months, currentUtcMonth());
+    return withCurrentMonth([], currentUtcMonth());
+  }
   if (hit && now - hit.at < CACHE_TTL_MS) {
     return withCurrentMonth(hit.months, currentUtcMonth());
   }

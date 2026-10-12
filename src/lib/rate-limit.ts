@@ -85,3 +85,9 @@ export const storagePurgeRateLimiter = new SlidingWindowRateLimiter(
   3,
   60 * 1000,
 );
+
+/** Database vacuum starts per admin: 3 / minute */
+export const storageVacuumRateLimiter = new SlidingWindowRateLimiter(
+  3,
+  60 * 1000,
+);

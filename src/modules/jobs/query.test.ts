@@ -50,6 +50,10 @@ import {
   JOB_LIST_ERROR_MAX_BYTES,
   listJobRuns,
 } from "@/modules/jobs/query";
+import {
+  resetDatabaseVacuumForTests,
+  setDatabaseVacuumActive,
+} from "@/modules/storage/vacuum/gate";
 
 function jobRow(errorMessage: string | null) {
   return {
@@ -74,6 +78,7 @@ function jobRow(errorMessage: string | null) {
 describe("listJobRuns", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    resetDatabaseVacuumForTests();
     jobRunCount.mockResolvedValue(1);
     jobRunFindMany.mockResolvedValue([jobRow("short")]);
     appSettingFindUnique.mockResolvedValue({ voipmonitorEnabled: true });
@@ -93,6 +98,17 @@ describe("listJobRuns", () => {
     expect(result.items[0]?.id).toBe("j1");
     expect(result.voipmonitorHasWork).toBe(false);
     expect(loggerWarn).toHaveBeenCalled();
+  });
+
+  it("skips CDR probes while vacuum is active", async () => {
+    setDatabaseVacuumActive(true);
+    const result = await listJobRuns({ status: "failed" });
+    expect(hasVoipmonitorWork).not.toHaveBeenCalled();
+    expect(countUnenrichedVoipmonitor).not.toHaveBeenCalled();
+    expect(countParkedVoipmonitor).not.toHaveBeenCalled();
+    expect(countUnenrichedCdrEnrich).not.toHaveBeenCalled();
+    expect(result.items).toHaveLength(1);
+    expect(result.voipmonitorHasWork).toBe(false);
   });
 
   it("truncates huge errorMessage on read", async () => {

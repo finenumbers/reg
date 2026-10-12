@@ -188,6 +188,22 @@ export async function ensurePlatformBaseline(): Promise<{ ok: true }> {
   });
 
   await prisma.allowedAction.upsert({
+    where: { code: "db.vacuum" },
+    create: {
+      code: "db.vacuum",
+      remotePath: "/opt/scripts/db_vacuum",
+      description: "VACUUM FULL cdr_voipmonitor_links and cdr_records",
+      enabled: true,
+      module: "traffic",
+    },
+    update: {
+      remotePath: "/opt/scripts/db_vacuum",
+      enabled: true,
+      module: "traffic",
+    },
+  });
+
+  await prisma.allowedAction.upsert({
     where: { code: "cdr.purge.month" },
     create: {
       code: "cdr.purge.month",

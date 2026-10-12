@@ -14,10 +14,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatCount } from "@/lib/format-count";
-import { fetchStorageSnapshot, postStoragePurge } from "@/modules/storage/api-client";
+import { fetchStorageSnapshot, postStoragePurge, postStorageVacuum } from "@/modules/storage/api-client";
 import type { StorageMonthRow, StorageSnapshot } from "@/modules/storage/service";
 import { formatMonthNominative } from "@/modules/traffic/month-labels";
 import { PURGE_INTERRUPT_NOTE, purgeStageLine } from "@/modules/traffic/purge/progress";
+import { DATABASE_VACUUM_CONFIRM } from "@/modules/storage/vacuum/sql";
+import { vacuumStageLine } from "@/modules/storage/vacuum/progress";
 
 const POLL_MS = 3000;
 
@@ -44,6 +46,8 @@ export function StorageView() {
   const [confirm, setConfirm] = useState<StorageMonthRow | null>(null);
   const [typed, setTyped] = useState("");
   const [pending, setPending] = useState(false);
+  const [vacuumOpen, setVacuumOpen] = useState(false);
+  const [vacuumTyped, setVacuumTyped] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
@@ -61,12 +65,27 @@ export function StorageView() {
   }, [reload]);
 
   useEffect(() => {
-    if (!data?.purgeInFlight && !data?.importInFlight) return;
+    if (!data?.purgeInFlight && !data?.importInFlight && !data?.vacuumInFlight) return;
     const timer = window.setInterval(() => {
       void reload();
     }, POLL_MS);
     return () => window.clearInterval(timer);
-  }, [data?.purgeInFlight, data?.importInFlight, reload]);
+  }, [data?.purgeInFlight, data?.importInFlight, data?.vacuumInFlight, reload]);
+
+  async function onConfirmVacuum() {
+    if (vacuumTyped.trim() !== DATABASE_VACUUM_CONFIRM) return;
+    setPending(true);
+    const result = await postStorageVacuum(DATABASE_VACUUM_CONFIRM);
+    setPending(false);
+    if (!result.ok) {
+      toast.error(result.message);
+      return;
+    }
+    toast.success("Сжатие базы запущено");
+    setVacuumOpen(false);
+    setVacuumTyped("");
+    await reload();
+  }
 
   async function onConfirmDelete() {
     if (!confirm) return;
@@ -91,8 +110,8 @@ export function StorageView() {
         <p className="text-muted-foreground text-sm">
           Месяцы CDR в локальной базе (по колонке «Дата»). Вместе со звонками удаляются
           задачи и записи аудита этого месяца UTC. Удалить можно только самый старый
-          полный месяц, по одному. Текущий месяц трогать нельзя. Место на диске вернётся
-          после очистки базы (autovacuum), не сразу.
+          полный месяц, по одному. Текущий месяц трогать нельзя. Место на диске
+          после удаления возвращает кнопка «Сжать базу», когда она закончится.
         </p>
       </div>
 
@@ -134,7 +153,60 @@ export function StorageView() {
         </div>
       ) : null}
 
-      {data?.importInFlight && !data.purgeInFlight ? (
+      <div>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={
+            !data ||
+            data.purgeInFlight ||
+            data.importInFlight ||
+            data.vacuumInFlight ||
+            pending
+          }
+          onClick={() => {
+            setVacuumOpen(true);
+            setVacuumTyped("");
+          }}
+        >
+          Сжать базу
+        </Button>
+      </div>
+
+      {data?.vacuumInFlight && data.vacuum ? (
+        <div
+          role="status"
+          className="border-border bg-muted/40 rounded-md border px-3 py-2 text-sm"
+        >
+          <div className="space-y-1">
+            <p>Сжимается база</p>
+            <ol className="list-decimal space-y-0.5 pl-5">
+              {data.vacuum.stages.map((stage) => (
+                <li key={stage.id}>{vacuumStageLine(stage)}</li>
+              ))}
+            </ol>
+            <p>{data.vacuum.note}</p>
+          </div>
+        </div>
+      ) : null}
+
+      {data?.vacuumFailure && !data.vacuumInFlight ? (
+        <div
+          role="alert"
+          className="border-destructive/30 bg-destructive/10 text-destructive rounded-md border px-3 py-2 text-sm"
+        >
+          <div className="space-y-1">
+            <p>{data.vacuumFailure.message}</p>
+            <ol className="list-decimal space-y-0.5 pl-5">
+              {data.vacuumFailure.stages.map((stage) => (
+                <li key={stage.id}>{vacuumStageLine(stage)}</li>
+              ))}
+            </ol>
+          </div>
+        </div>
+      ) : null}
+
+      {data?.importInFlight && !data.purgeInFlight && !data.vacuumInFlight ? (
         <div
           role="status"
           className="border-border bg-muted/40 rounded-md border px-3 py-2 text-sm"
@@ -143,7 +215,7 @@ export function StorageView() {
         </div>
       ) : null}
 
-      {data ? (
+      {data && !data.monthsHidden ? (
         <>
           <p className="text-muted-foreground text-sm">
             Всего {formatCount(data.totalCalls)} звонков ·{" "}
@@ -244,6 +316,64 @@ export function StorageView() {
                 onClick={() => void onConfirmDelete()}
               >
                 {pending ? "Запуск…" : "Удалить"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {vacuumOpen && data ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="storage-vacuum-title"
+        >
+          <div className="bg-background w-full max-w-md space-y-4 rounded-lg border p-4 shadow-lg">
+            <div>
+              <h2 id="storage-vacuum-title" className="text-base font-semibold">
+                Сжать базу?
+              </h2>
+              <p className="text-muted-foreground mt-2 text-sm">
+                Живые звонки останутся. Уже удалённый месяц в копию не входит. Пока идёт
+                сжатие, страницы трафика, статистики и детализации отвечают отказом и не
+                ждут. Новые файлы CDR остаются в очереди и загружаются после окончания.
+                На томе базы нужно свободно не меньше{" "}
+                {formatBytes(data.tableBytes * 2)} — это удвоенный размер таблиц звонков,
+                новая копия и её журнал. Перезапуск обрывает текущую таблицу и не стирает
+                живые строки. Введите <span className="font-mono">{DATABASE_VACUUM_CONFIRM}</span>.
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="vacuum-confirm">Подтверждение</Label>
+              <Input
+                id="vacuum-confirm"
+                value={vacuumTyped}
+                onChange={(e) => setVacuumTyped(e.target.value)}
+                autoComplete="off"
+                aria-invalid={
+                  vacuumTyped.length > 0 && vacuumTyped.trim() !== DATABASE_VACUUM_CONFIRM
+                }
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setVacuumOpen(false);
+                  setVacuumTyped("");
+                }}
+                disabled={pending}
+              >
+                Отмена
+              </Button>
+              <Button
+                type="button"
+                disabled={pending || vacuumTyped.trim() !== DATABASE_VACUUM_CONFIRM}
+                onClick={() => void onConfirmVacuum()}
+              >
+                {pending ? "Запуск…" : "Сжать"}
               </Button>
             </div>
           </div>

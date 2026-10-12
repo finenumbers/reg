@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireApiPermission } from "@/modules/auth/guards";
 import { getTrafficStatus } from "@/modules/traffic/service";
+import { cdrVacuumBusyResponse } from "@/modules/storage/vacuum/http";
 
 /**
  * GET /api/traffic/status — last cdr.import job status.
@@ -8,6 +9,8 @@ import { getTrafficStatus } from "@/modules/traffic/service";
 export async function GET() {
   const gate = await requireApiPermission("phones:read");
   if (!gate.ok) return gate.response;
+  const busy = cdrVacuumBusyResponse();
+  if (busy) return busy;
 
   const data = await getTrafficStatus();
   return NextResponse.json(data);

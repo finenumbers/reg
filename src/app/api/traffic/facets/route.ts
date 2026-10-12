@@ -3,6 +3,7 @@ import { parseFiltersParam } from "@/components/column-filters/types";
 import { requireApiPermission } from "@/modules/auth/guards";
 import { parseTrafficFlagParam } from "@/modules/traffic/row-flags";
 import { listTrafficFacets } from "@/modules/traffic/service";
+import { cdrVacuumBusyResponse } from "@/modules/storage/vacuum/http";
 
 /**
  * GET /api/traffic/facets — distinct values + counts for one CDR column.
@@ -10,6 +11,8 @@ import { listTrafficFacets } from "@/modules/traffic/service";
 export async function GET(request: Request) {
   const gate = await requireApiPermission("phones:read");
   if (!gate.ok) return gate.response;
+  const busy = cdrVacuumBusyResponse();
+  if (busy) return busy;
 
   const url = new URL(request.url);
   const column = url.searchParams.get("column")?.trim() ?? "";
