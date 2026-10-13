@@ -95,6 +95,43 @@ describe("parseSmgText", () => {
     expect(parsed.error).toMatch(/неизвестный заголовок/);
   });
 
+  it("ignores a repeated header on an otherwise empty file", () => {
+    const header = headerLine("full");
+    const parsed = parseSmgText(
+      [BANNER, header, "", header].join("\n"),
+      "20261013172246.cdr",
+    );
+    expect(parsed.error).toBeNull();
+    expect(parsed.rows).toEqual([]);
+    expect(parsed.linesBad).toBe(0);
+  });
+
+  it("keeps a call that follows a repeated header", () => {
+    const header = headerLine("full");
+    const parsed = parseSmgText(
+      [BANNER, header, "", header, dataLine("full", CALL)].join("\n"),
+      "20261013172246.cdr",
+    );
+    expect(parsed.error).toBeNull();
+    expect(parsed.rows).toHaveLength(1);
+    expect(parsed.rows[0]?.fields.deviceSign).toBe("mts");
+  });
+
+  it("still rejects a call whose disconnect time is not a timestamp", () => {
+    const parsed = parseSmgText(
+      [
+        BANNER,
+        headerLine("full"),
+        dataLine("full", { ...CALL, disconnectTime: "Disconnect time" }),
+      ].join("\n"),
+      "20261013172246.cdr",
+    );
+    expect(parsed.rows).toEqual([]);
+    expect(parsed.linesBad).toBe(1);
+    expect(parsed.error).toMatch(/строка 3/);
+    expect(parsed.error).toMatch(/нераспознано время разъединения/);
+  });
+
   it("accepts a header-only file", () => {
     const parsed = parseSmgText(
       `${BANNER}\n${headerLine("short")}\n`,

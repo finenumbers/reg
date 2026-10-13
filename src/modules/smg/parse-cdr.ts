@@ -7,6 +7,7 @@ import {
   emptySmgFields,
   matchSmgHeader,
   SMG_COLUMNS,
+  smgHeadersEqual,
   smgRecordKey,
   type SmgField,
 } from "@/modules/smg/columns";
@@ -93,6 +94,7 @@ export function parseSmgText(text: string, filename: string): ParseSmgResult {
     if (!raw.trim()) continue;
     const lineNo = index + 1;
     const values = splitSmgRow(raw);
+    if (smgHeadersEqual(values, header)) continue;
     if (values.length > header.length) {
       linesBad += 1;
       if (firstBadLine == null) {

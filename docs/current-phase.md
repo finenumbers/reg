@@ -1,7 +1,11 @@
-# Current Phase — production (v1.105.0)
+# Current Phase — production (v1.106.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, Eltex SMG CDR.  
 **Date:** 2026-10-13
+
+## v1.106.0 — An empty SMG file may repeat its header
+
+Eltex sometimes closes a CDR file that has no calls as a banner, the column header, a blank line, and the same header again. The second header was read as a call, so the file stayed in the error list with «нераспознано время разъединения». A line that matches the file header is now skipped. A real row with a bad disconnect time is still reported. After this image is deployed, use «Повторить импорт» once so the held file is cleared. There is no new migration.
 
 ## v1.105.0 — SMG calls refresh after an import that wrote rows
 
