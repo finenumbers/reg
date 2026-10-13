@@ -1,7 +1,13 @@
-# Current Phase — production (v1.103.0)
+# Current Phase — production (v1.104.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, Eltex SMG CDR.  
 **Date:** 2026-10-13
+
+## v1.104.0 — Passive FTP data ports for the SMG upload
+
+Eltex SMG opens the file channel with `PASV` on the same listener the softswitch uses. Without an advertised address that command is rejected and the file never starts. Settings → FTP now has «Внешний IPv4 для пассивного режима». An empty value stores nothing and passive mode stays rejected, so the softswitch active upload is unchanged. A hostname is rejected. The reply uses that IPv4 and a port from 50100–50109.
+
+Docker publishes `50100-50109:50100-50109`. Those host ports must be free before the stack update, and the host firewall must allow them the same way it allows 2121. Clearing the address turns passive mode off again without rolling back the image. There is no new migration.
 
 ## v1.103.0 — SMG CDR uses the softswitch FTP inbox
 

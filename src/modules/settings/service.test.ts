@@ -76,6 +76,21 @@ describe("settings schemas and masked view contract", () => {
     ).toThrow();
   });
 
+  it("accepts an empty passive address and a dotted IPv4 only", () => {
+    expect(settingsUpdateSchema.parse({ ftpPasvAddress: "" })).toMatchObject({
+      ftpPasvAddress: "",
+    });
+    expect(
+      settingsUpdateSchema.parse({ ftpPasvAddress: "5.227.161.190" }),
+    ).toMatchObject({ ftpPasvAddress: "5.227.161.190" });
+    expect(() =>
+      settingsUpdateSchema.parse({ ftpPasvAddress: "reg.finenumbers.com" }),
+    ).toThrow();
+    expect(() =>
+      settingsUpdateSchema.parse({ ftpPasvAddress: "ftp://5.227.161.190" }),
+    ).toThrow();
+  });
+
   it("allows empty GeoIP URL (server stores the default origin)", () => {
     expect(settingsUpdateSchema.parse({ geoipBaseUrl: "" })).toMatchObject({
       geoipBaseUrl: "",

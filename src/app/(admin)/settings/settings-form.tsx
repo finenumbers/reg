@@ -100,6 +100,9 @@ export function SettingsForm({ initial }: Props) {
   const [ftpListenPort, setFtpListenPort] = useState(
     String(initial.ftpListenPort),
   );
+  const [ftpPasvAddress, setFtpPasvAddress] = useState(
+    initial.ftpPasvAddress ?? "",
+  );
   const [ftpTestResult, setFtpTestResult] = useState<TestResultView | null>(
     null,
   );
@@ -167,6 +170,7 @@ export function SettingsForm({ initial }: Props) {
     setFtpEnabled(next.ftpEnabled);
     setFtpUsername(next.ftpUsername ?? "");
     setFtpListenPort(String(next.ftpListenPort));
+    setFtpPasvAddress(next.ftpPasvAddress ?? "");
     router.refresh();
   }
 
@@ -613,6 +617,7 @@ export function SettingsForm({ initial }: Props) {
             ftpEnabled,
             ftpUsername: ftpUsername.trim() || undefined,
             ftpListenPort: Number(ftpListenPort),
+            ftpPasvAddress,
             displayTimezone,
           }),
         });
@@ -1404,6 +1409,21 @@ export function SettingsForm({ initial }: Props) {
             />
             <p className="text-xs text-muted-foreground">
               Софтсвитч подключается на IP хоста и этот порт. По умолчанию 2121.
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="ftp-pasv-address">Внешний IPv4 для пассивного режима</Label>
+            <Input
+              id="ftp-pasv-address"
+              value={ftpPasvAddress}
+              onChange={(e) => setFtpPasvAddress(e.target.value)}
+              placeholder="5.227.161.190"
+              autoComplete="off"
+            />
+            <p className="text-xs text-muted-foreground">
+              IPv4 Docker-хоста, тот же адрес, что у порта 2121. Нужен шлюзу SMG.
+              Пустое поле выключает пассивный режим, активная выгрузка софтсвитча
+              остаётся. Проверка слушателя смотрит только порт 2121.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">

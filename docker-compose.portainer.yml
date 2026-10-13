@@ -79,10 +79,11 @@ services:
       - reg_cdr_inbox:/app/data/cdr-inbox
       - reg_smg_cdr_inbox:/app/data/smg-cdr-inbox
       - reg_traffic_export:/app/data/traffic-export
-    # Softswitch uses active FTP to the host IP:2121. No PASV range.
-    # SMG CDR is uploaded to the same listener, path /smg.
+    # Softswitch uses active FTP to the host IP:2121.
+    # SMG uses the same listener (path /smg) and passive data ports 50100–50109.
     ports:
       - "${FTP_PUBLISH_PORT:-2121}:2121"
+      - "50100-50109:50100-50109"
     deploy:
       replicas: 1
     networks:

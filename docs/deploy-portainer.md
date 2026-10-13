@@ -87,11 +87,13 @@ Set `BETTER_AUTH_URL` to the exact public origin (`https://regs.example.com`) an
 4. **Phones:** sync once after softswitch `export.py` is installed.
 5. Only then enable Settings auto-poll (`regsPollEnabled`) — still one replica.
 6. **Телефонный трафик:** софтсвитч заливает CDR активным FTP на **IP Docker-хоста:2121** (не HTTPS NPM). В стеке опубликован `2121`. В Настройках: логин, пароль, порт 2121.
-7. **Звонки на SMG:** шлюз заливает CDR на тот же FTP, порт **2121**, тот же логин и пароль. Путь на шлюзе `/smg`. Отдельного порта и блока настроек нет.
+7. **Звонки на SMG:** шлюз заливает CDR на тот же FTP, порт **2121**, тот же логин и пароль. Путь на шлюзе `/smg`. В Настройках, блок FTP, поле «Внешний IPv4» — адрес этого хоста. На файрволе открыты TCP 2121 и 50100–50109.
 
 ## 5a. FTP port 2121 (CDR inbox)
 
-NPM cannot proxy FTP. The `app` service publishes host port `2121`. The softswitch uses **active FTP** from its real IP — no PASV range.
+NPM cannot proxy FTP. The `app` service publishes host port `2121` and the passive data range `50100–50109` onto the same host ports. The softswitch keeps active FTP. Eltex SMG uses passive mode on that range. In Settings the passive address is the host IPv4, not a hostname. Clearing that field turns passive mode off again; active uploads keep working. The listener check only reports port 2121.
+
+Before updating the stack, confirm `50100–50109` are free. If the new container does not start, remove those port lines and bring the previous stack back up.
 
 If `Bind for 0.0.0.0:2121 failed: port is already allocated`, something else owns TCP 2121:
 

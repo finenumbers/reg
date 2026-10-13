@@ -29,6 +29,18 @@ function httpOriginSchema(label: string) {
 const geoipBaseUrlSchema = httpOriginSchema("GeoIP");
 const pstnBaseUrlSchema = httpOriginSchema("PSTN");
 
+const IPV4_RE =
+  /^(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)$/;
+
+/** Empty clears PASV. A hostname would be split on dots in the 227 reply. */
+export const ftpPasvAddressSchema = z
+  .string()
+  .max(255)
+  .refine((value) => {
+    const trimmed = value.trim();
+    return trimmed.length === 0 || IPV4_RE.test(trimmed);
+  }, "Внешний адрес пассивного режима должен быть IPv4");
+
 export const settingsUpdateSchema = z.object({
   host: z.string().min(1).max(255).optional(),
   port: z.number().int().min(1).max(65535).optional(),
@@ -53,7 +65,7 @@ export const settingsUpdateSchema = z.object({
   ftpListenPort: z.number().int().min(1).max(65535).optional(),
   ftpPasvMinPort: z.number().int().min(1024).max(65535).optional(),
   ftpPasvMaxPort: z.number().int().min(1024).max(65535).optional(),
-  ftpPasvAddress: z.string().max(255).optional(),
+  ftpPasvAddress: ftpPasvAddressSchema.optional(),
   voipmonitorEnabled: z.boolean().optional(),
   voipmonitorApiUrl: httpOriginSchema("VoIPmonitor API").optional(),
   voipmonitorUser: z.string().max(255).optional(),

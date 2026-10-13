@@ -82,6 +82,7 @@ services:
     ports:
       - "${APP_PUBLISH_PORT:-3000}:3000"
       - "${FTP_PUBLISH_PORT:-2121}:2121"
+      - "50100-50109:50100-50109"
     healthcheck:
       test:
         [
