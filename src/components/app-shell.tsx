@@ -70,6 +70,7 @@ export function AppShell({
   );
   const primaryNav = visible.filter((m) => (m.navGroup ?? "primary") === "primary");
   const cdrNav = visible.filter((m) => m.navGroup === "cdr");
+  const smgNav = visible.filter((m) => m.navGroup === "smg");
   const analyticsNav = visible.filter((m) => m.navGroup === "analytics");
   const adminNav = visible.filter((m) => m.navGroup === "admin");
 
@@ -104,6 +105,19 @@ export function AppShell({
             <>
               <Separator className="my-1.5 shrink-0" />
               {cdrNav.map((item) => (
+                <NavLink
+                  key={item.href}
+                  href={item.href!}
+                  label={item.title}
+                  active={isNavActive(pathname, item.href!)}
+                />
+              ))}
+            </>
+          ) : null}
+          {smgNav.length > 0 ? (
+            <>
+              <Separator className="my-1.5 shrink-0" />
+              {smgNav.map((item) => (
                 <NavLink
                   key={item.href}
                   href={item.href!}

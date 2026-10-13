@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   geoipKeyReplaceSchema,
   keyReplaceSchema,
+  listenPortsConflict,
   pstnKeyReplaceSchema,
   settingsUpdateSchema,
   type SettingsView,
@@ -18,12 +19,14 @@ function assertMaskedSettings(view: SettingsView) {
   expect(json).not.toMatch(/geoipApiKeyCiphertext/i);
   expect(json).not.toMatch(/pstnApiKeyCiphertext/i);
   expect(json).not.toMatch(/ftpPasswordCiphertext/i);
+  expect(json).not.toMatch(/smgFtpPasswordCiphertext/i);
   expect(json).not.toMatch(/voipmonitorPasswordCiphertext/i);
   expect(typeof view.hasVoipmonitorPassword).toBe("boolean");
   expect(typeof view.hasPrivateKey).toBe("boolean");
   expect(typeof view.hasGeoipApiKey).toBe("boolean");
   expect(typeof view.hasPstnApiKey).toBe("boolean");
   expect(typeof view.hasFtpPassword).toBe("boolean");
+  expect(typeof view.hasSmgFtpPassword).toBe("boolean");
   expect(view).toHaveProperty("keyFingerprint");
   expect(view).toHaveProperty("keyAlgo");
   expect(view).toHaveProperty("geoipBaseUrl");
@@ -142,6 +145,11 @@ describe("settings schemas and masked view contract", () => {
       ftpPasvMaxPort: 50109,
       ftpPasvAddress: null,
       ftpListenerActive: false,
+      smgFtpEnabled: false,
+      smgFtpUsername: null,
+      hasSmgFtpPassword: false,
+      smgFtpListenPort: 2122,
+      smgFtpListenerActive: false,
       voipmonitorEnabled: false,
       voipmonitorApiUrl: null,
       voipmonitorUser: null,
@@ -149,6 +157,13 @@ describe("settings schemas and masked view contract", () => {
       voipmonitorGuiUrl: null,
     };
     assertMaskedSettings(view);
+  });
+});
+
+describe("FTP listen ports", () => {
+  it("rejects only an identical RTU and SMG port", () => {
+    expect(listenPortsConflict(2121, 2121)).toBe(true);
+    expect(listenPortsConflict(2121, 2122)).toBe(false);
   });
 });
 

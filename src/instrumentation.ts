@@ -151,5 +151,26 @@ export async function register() {
         error: error instanceof Error ? error.message : String(error),
       });
     }
+
+    try {
+      const { ensureSmgInbox } = await import("@/modules/smg/paths");
+      ensureSmgInbox();
+      const { startSmgFtpServer } = await import("@/modules/smg/ftp-server");
+      const smgFtp = await startSmgFtpServer();
+      logger.info("smg.ftp.bootstrap", smgFtp);
+    } catch (error) {
+      logger.error("smg.ftp.bootstrap.failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    try {
+      const { requestSmgImportDrain } = await import("@/modules/smg/enqueue");
+      requestSmgImportDrain("schedule");
+    } catch (error) {
+      logger.error("smg.import.bootstrap_failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 }

@@ -67,6 +67,7 @@ describe("listStorageSnapshot during vacuum", () => {
     expect(snapshot.vacuum?.stages.map((stage) => stage.state)).toEqual([
       "done",
       "active",
+      "pending",
     ]);
   });
 });

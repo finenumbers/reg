@@ -13,6 +13,7 @@ const JOB_ACTION_LABELS: Record<string, string> = {
   "phones.sync": "Синхронизация телефонов",
   "groups.sync": "Загрузка групп",
   "cdr.import": "Импорт CDR",
+  "smg.import": "Импорт CDR SMG",
   "voipmonitor.match": "VoIPmonitor",
   "cdr.sides.refresh": "Описания сторон",
   "cdr.purge.month": "Удаление месяца",
@@ -312,6 +313,10 @@ export function summarizeJobResult(job: JobRunListItem): string {
       return summarizeGroupsSync(job);
     case "cdr.import":
       return summarizeCdrImport(job);
+    case "smg.import":
+      return (job.linesBad ?? 0) > 0
+        ? `Загружено ${formatCount(job.phonesParsed ?? 0)} звонков, ${formatCount(job.linesBad ?? 0)} битых строк`
+        : `Загружено ${formatCount(job.phonesParsed ?? 0)} звонков`;
     case "voipmonitor.match":
       return summarizeVoipmonitor(job);
     case "cdr.sides.refresh":

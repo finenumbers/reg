@@ -1,7 +1,17 @@
-# Current Phase — production (v1.101.0)
+# Current Phase — production (v1.102.0)
 
-**Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs.  
-**Date:** 2026-10-12
+**Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, Eltex SMG CDR.  
+**Date:** 2026-10-13
+
+## v1.102.0 — Ingest Eltex SMG-1016M CDR
+
+«Звонки на SMG» lists calls from Eltex SMG-1016M. The gateways upload CDR by active FTP into a directory of their own (`reg_smg_cdr_inbox`, host port 2122). Settings has a separate block: enable, login, write-only password, port. The port cannot be the softswitch FTP port. PASV is not published.
+
+Short firmware files have 50 columns. Full firmware files add «Время в очереди» and «Тип переадресации». A missing column is stored empty. The node is «Узел» (`Device Sign`). A clean file, including a header with no calls, is deleted. A bad line keeps the file, inserts the good rows, and shows the file name with «Скачать» and «Повторить импорт». A file that is still being written waits two seconds.
+
+The month selector counts calls by the civil date of «Время разъединения вызова». Database compression includes `smg_cdr_records` after the softswitch CDR tables. Deleting an RTU month does not touch this table.
+
+Migration: `20261013140000_smg_cdr`.
 
 ## v1.101.0 — Load a CDR row whose Call-ID contains a raw quote
 

@@ -87,6 +87,14 @@ vi.mock("@/modules/traffic/enqueue", () => ({
   requestCdrImportDrain: (...args: unknown[]) => requestCdrImportDrain(...args),
 }));
 
+vi.mock("@/modules/smg/import-processor", () => ({
+  processSmgImport: vi.fn(),
+}));
+
+vi.mock("@/modules/smg/enqueue", () => ({
+  requestSmgImportDrain: vi.fn(),
+}));
+
 vi.mock("@/lib/logger", () => ({
   logger: {
     info: vi.fn(),

@@ -10,6 +10,7 @@ export type AllowedActionCode =
   | "phones.sync"
   | "groups.sync"
   | "cdr.import"
+  | "smg.import"
   | "voipmonitor.match"
   | "cdr.sides.refresh"
   | "cdr.purge.month"
@@ -37,7 +38,7 @@ export type AllowedActionDefinition = {
   remotePath: string;
   /** Always empty in v1 — no user-controlled argv */
   argv: readonly string[];
-  module: "registrations" | "phones" | "groups" | "traffic";
+  module: "registrations" | "phones" | "groups" | "traffic" | "smg";
   description: string;
   /** Remote wrapper token channel uses the same absolute path */
   usesPlatformExecWrapper: true;
@@ -99,6 +100,17 @@ export const ACTION_REGISTRY: Record<AllowedActionCode, AllowedActionDefinition>
     elevateWithSudo: false,
     needsPty: false,
   },
+  "smg.import": {
+    code: "smg.import",
+    kind: "local",
+    remotePath: "/opt/scripts/smg_import",
+    argv: [],
+    module: "smg",
+    description: "Import Eltex SMG CDR files from the local FTP inbox",
+    usesPlatformExecWrapper: true,
+    elevateWithSudo: false,
+    needsPty: false,
+  },
   "voipmonitor.match": {
     code: "voipmonitor.match",
     kind: "local",
@@ -149,7 +161,7 @@ export const ACTION_REGISTRY: Record<AllowedActionCode, AllowedActionDefinition>
     remotePath: "/opt/scripts/db_vacuum",
     argv: [],
     module: "traffic",
-    description: "VACUUM FULL cdr_voipmonitor_links and cdr_records",
+    description: "VACUUM FULL cdr_voipmonitor_links, cdr_records, and smg_cdr_records",
     usesPlatformExecWrapper: true,
     elevateWithSudo: false,
     needsPty: false,

@@ -124,6 +124,22 @@ export async function ensurePlatformBaseline(): Promise<{ ok: true }> {
   });
 
   await prisma.allowedAction.upsert({
+    where: { code: "smg.import" },
+    create: {
+      code: "smg.import",
+      remotePath: "/opt/scripts/smg_import",
+      description: "Import Eltex SMG CDR files from the local FTP inbox",
+      enabled: true,
+      module: "smg",
+    },
+    update: {
+      remotePath: "/opt/scripts/smg_import",
+      enabled: true,
+      module: "smg",
+    },
+  });
+
+  await prisma.allowedAction.upsert({
     where: { code: "cdr.import" },
     create: {
       code: "cdr.import",
@@ -192,12 +208,13 @@ export async function ensurePlatformBaseline(): Promise<{ ok: true }> {
     create: {
       code: "db.vacuum",
       remotePath: "/opt/scripts/db_vacuum",
-      description: "VACUUM FULL cdr_voipmonitor_links and cdr_records",
+      description: "VACUUM FULL cdr_voipmonitor_links, cdr_records, and smg_cdr_records",
       enabled: true,
       module: "traffic",
     },
     update: {
       remotePath: "/opt/scripts/db_vacuum",
+      description: "VACUUM FULL cdr_voipmonitor_links, cdr_records, and smg_cdr_records",
       enabled: true,
       module: "traffic",
     },

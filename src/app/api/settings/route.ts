@@ -6,6 +6,7 @@ import { getRequestIp } from "@/lib/request-ip";
 import {
   getSettingsView,
   settingsUpdateSchema,
+  SettingsValidationError,
   updateSettings,
 } from "@/modules/settings";
 import { requireSessionUserId } from "@/modules/auth/session";
@@ -66,6 +67,8 @@ export async function PUT(request: Request) {
       "apiKey",
       "ftpPassword",
       "ftpPasswordCiphertext",
+      "smgFtpPassword",
+      "smgFtpPasswordCiphertext",
       "voipmonitorPassword",
       "voipmonitorPasswordCiphertext",
     ] as const;
@@ -94,6 +97,12 @@ export async function PUT(request: Request) {
       createdProfile: result.createdProfile,
     });
   } catch (error) {
+    if (error instanceof SettingsValidationError) {
+      return NextResponse.json(
+        { error: error.message, code: "VALIDATION_ERROR" },
+        { status: 400 },
+      );
+    }
     if (error instanceof ZodError) {
       return NextResponse.json(
         {

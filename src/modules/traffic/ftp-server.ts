@@ -15,6 +15,17 @@ import { ensureCdrInbox } from "@/modules/traffic/paths";
 
 const FTP_GLOBAL_KEY = "__reg_ftp_server__";
 
+export type FtpBind = {
+  globalKey: string;
+  greeting: string;
+  logScope: string;
+  ensureInbox: () => string;
+  loadConfig: () => Promise<FtpRuntimeConfig | null>;
+  onStored: () => void;
+  disabledDetail: string;
+  missingCredentialsDetail: string;
+};
+
 const FTP_WHITELIST = [
   "USER",
   "PASS",
@@ -41,18 +52,22 @@ type FtpGlobalState = {
   listening: boolean;
 };
 
-function ftpState(): FtpGlobalState {
+function ftpState(globalKey: string): FtpGlobalState {
   const g = globalThis as typeof globalThis & {
-    [FTP_GLOBAL_KEY]?: FtpGlobalState;
+    [key: string]: FtpGlobalState | undefined;
   };
-  if (!g[FTP_GLOBAL_KEY]) {
-    g[FTP_GLOBAL_KEY] = { server: null, listening: false };
+  if (!g[globalKey]) {
+    g[globalKey] = { server: null, listening: false };
   }
-  return g[FTP_GLOBAL_KEY];
+  return g[globalKey];
+}
+
+export function isBoundFtpActive(globalKey: string): boolean {
+  return ftpState(globalKey).listening;
 }
 
 export function isFtpListenerActive(): boolean {
-  return ftpState().listening;
+  return isBoundFtpActive(FTP_GLOBAL_KEY);
 }
 
 export type FtpRuntimeConfig = {
@@ -93,8 +108,8 @@ export async function loadFtpRuntimeConfig(): Promise<FtpRuntimeConfig | null> {
   };
 }
 
-export async function stopFtpServer(): Promise<void> {
-  const state = ftpState();
+export async function stopBoundFtp(globalKey: string): Promise<void> {
+  const state = ftpState(globalKey);
   const server = state.server;
   state.server = null;
   state.listening = false;
@@ -102,31 +117,35 @@ export async function stopFtpServer(): Promise<void> {
   try {
     await server.close();
   } catch (error) {
-    logger.warn("ftp.stop_failed", {
+    logger.warn(`${globalKey}.stop_failed`, {
       error: error instanceof Error ? error.message : String(error),
     });
   }
 }
 
-export async function startFtpServer(): Promise<{
-  started: boolean;
-  detail: string;
-}> {
-  const config = await loadFtpRuntimeConfig();
-  if (!config?.enabled) {
-    await stopFtpServer();
-    return { started: false, detail: "FTP выключен в Настройках" };
+export async function stopFtpServer(): Promise<void> {
+  await stopBoundFtp(FTP_GLOBAL_KEY);
+}
+
+export async function startBoundFtp(
+  bind: FtpBind,
+): Promise<{ started: boolean; detail: string }> {
+  const config = await bind.loadConfig();
+  if (!config) {
+    await stopBoundFtp(bind.globalKey);
+    return { started: false, detail: "Настройки FTP недоступны" };
+  }
+  if (!config.enabled) {
+    await stopBoundFtp(bind.globalKey);
+    return { started: false, detail: bind.disabledDetail };
   }
   if (!config.username || !config.password) {
-    await stopFtpServer();
-    return {
-      started: false,
-      detail: "Задайте логин и пароль FTP в Настройках",
-    };
+    await stopBoundFtp(bind.globalKey);
+    return { started: false, detail: bind.missingCredentialsDetail };
   }
 
-  await stopFtpServer();
-  const inbox = ensureCdrInbox();
+  await stopBoundFtp(bind.globalKey);
+  const inbox = bind.ensureInbox();
   const server = new FtpSrv({
     url: `ftp://0.0.0.0:${config.listenPort}`,
     pasv_min: config.pasvMinPort,
@@ -134,7 +153,7 @@ export async function startFtpServer(): Promise<{
     ...(config.pasvAddress ? { pasv_url: config.pasvAddress } : {}),
     anonymous: false,
     whitelist: FTP_WHITELIST,
-    greeting: "Reg CDR inbox",
+    greeting: bind.greeting,
   });
 
   server.on("login", ({ connection, username, password }, resolve, reject) => {
@@ -144,30 +163,30 @@ export async function startFtpServer(): Promise<{
     }
     connection.on("STOR", (error: Error | null) => {
       if (error) {
-        logger.warn("ftp.stor_failed", { error: error.message });
+        logger.warn(`${bind.logScope}.stor_failed`, { error: error.message });
         return;
       }
-      requestCdrImportDrain("schedule");
+      bind.onStored();
     });
     resolve({ root: inbox });
   });
 
   server.on("client-error", ({ error }) => {
-    logger.warn("ftp.client_error", { error: error.message });
+    logger.warn(`${bind.logScope}.client_error`, { error: error.message });
   });
 
   try {
     await server.listen();
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
-    logger.error("ftp.listen_failed", { error: detail });
+    logger.error(`${bind.logScope}.listen_failed`, { error: detail });
     return { started: false, detail };
   }
 
-  const state = ftpState();
+  const state = ftpState(bind.globalKey);
   state.server = server;
   state.listening = true;
-  logger.info("ftp.listening", {
+  logger.info(`${bind.logScope}.listening`, {
     port: config.listenPort,
     pasv: `${config.pasvMinPort}-${config.pasvMaxPort}`,
     pasvAddress: config.pasvAddress,
@@ -176,6 +195,24 @@ export async function startFtpServer(): Promise<{
     started: true,
     detail: `FTP слушает 0.0.0.0:${config.listenPort}`,
   };
+}
+
+const RTU_FTP_BIND: FtpBind = {
+  globalKey: FTP_GLOBAL_KEY,
+  greeting: "Reg CDR inbox",
+  logScope: "ftp",
+  ensureInbox: () => ensureCdrInbox(),
+  loadConfig: () => loadFtpRuntimeConfig(),
+  onStored: () => requestCdrImportDrain("schedule"),
+  disabledDetail: "FTP выключен в Настройках",
+  missingCredentialsDetail: "Задайте логин и пароль FTP в Настройках",
+};
+
+export async function startFtpServer(): Promise<{
+  started: boolean;
+  detail: string;
+}> {
+  return startBoundFtp(RTU_FTP_BIND);
 }
 
 export async function restartFtpServer(): Promise<{

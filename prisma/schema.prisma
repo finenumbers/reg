@@ -129,6 +129,16 @@ model AppSetting {
   ftpPasvMaxPort        Int         @default(50109)
   /// Optional PASV advertise address — unused when the softswitch uses active FTP.
   ftpPasvAddress        String?
+  /// In-process FTP listener for Eltex SMG CDR uploads.
+  smgFtpEnabled            Boolean @default(false)
+  smgFtpUsername           String?
+  /// AES-256-GCM ciphertext of the SMG FTP password. Never plaintext.
+  smgFtpPasswordCiphertext String?
+  smgFtpListenPort         Int     @default(2122)
+  smgFtpPasvMinPort        Int     @default(50110)
+  smgFtpPasvMaxPort        Int     @default(50119)
+  /// Optional PASV advertise address — unused when the gateway uses active FTP.
+  smgFtpPasvAddress        String?
   /// VoIPmonitor WEB API correlation (independent of Collector).
   voipmonitorEnabled              Boolean @default(false)
   voipmonitorApiUrl               String?
@@ -195,6 +205,7 @@ model JobRun {
   routingGroups   RoutingGroup[]
   connectionTests SshConnectionTest[]
   cdrRecords      CdrRecord[]
+  smgCdrRecords   SmgCdrRecord[]
 
   @@index([actionCode, startedAt(sort: Desc)])
   @@index([status, startedAt(sort: Desc)])
@@ -736,6 +747,81 @@ model Account {
 
   @@index([userId])
   @@map("account")
+}
+
+// ---------------------------------------------------------------------------
+// Eltex SMG-1016M CDR (separate from softswitch cdr_records)
+// ---------------------------------------------------------------------------
+
+model SmgCdrRecord {
+  id                        String   @id @default(cuid())
+  recordKey                 String   @unique @map("record_key")
+  disconnectDay             String   @default("") @map("disconnect_day")
+  deviceSign                String   @default("") @map("device_sign")
+  setupTime                 String   @default("") @map("setup_time")
+  connectTime               String   @default("") @map("connect_time")
+  disconnectTime            String   @default("") @map("disconnect_time")
+  duration                  String   @default("")
+  releaseCause              String   @default("") @map("release_cause")
+  callReleaseInfo           String   @default("") @map("call_release_info")
+  incomingIp                String   @default("") @map("incoming_ip")
+  incomingType              String   @default("") @map("incoming_type")
+  incomingDescription       String   @default("") @map("incoming_description")
+  outgoingIp                String   @default("") @map("outgoing_ip")
+  outgoingType              String   @default("") @map("outgoing_type")
+  outgoingDescription       String   @default("") @map("outgoing_description")
+  incomingCgpn              String   @default("") @map("incoming_cgpn")
+  outgoingCgpn              String   @default("") @map("outgoing_cgpn")
+  incomingCdpn              String   @default("") @map("incoming_cdpn")
+  outgoingCdpn              String   @default("") @map("outgoing_cdpn")
+  redirectingMark           String   @default("") @map("redirecting_mark")
+  pickupMark                String   @default("") @map("pickup_mark")
+  releaseSideMark           String   @default("") @map("release_side_mark")
+  incomingSs7Cic            String   @default("") @map("incoming_ss7_cic")
+  incomingSipCallId         String   @default("") @map("incoming_sip_call_id")
+  outgoingSs7Cic            String   @default("") @map("outgoing_ss7_cic")
+  outgoingSipCallId         String   @default("") @map("outgoing_sip_call_id")
+  incomingSs7Category       String   @default("") @map("incoming_ss7_category")
+  incomingCidCategory       String   @default("") @map("incoming_cid_category")
+  outgoingSs7Category       String   @default("") @map("outgoing_ss7_category")
+  outgoingCidCategory       String   @default("") @map("outgoing_cid_category")
+  incomingE1Stream          String   @default("") @map("incoming_e1_stream")
+  incomingE1Channel         String   @default("") @map("incoming_e1_channel")
+  outgoingE1Stream          String   @default("") @map("outgoing_e1_stream")
+  outgoingE1Channel         String   @default("") @map("outgoing_e1_channel")
+  sequenceNumber            String   @default("") @map("sequence_number")
+  incomingRedirectingNumber String   @default("") @map("incoming_redirecting_number")
+  outgoingRedirectingNumber String   @default("") @map("outgoing_redirecting_number")
+  radiusSessionId           String   @default("") @map("radius_session_id")
+  globalCallref             String   @default("") @map("global_callref")
+  incomingNumplan           String   @default("") @map("incoming_numplan")
+  outgoingNumplan           String   @default("") @map("outgoing_numplan")
+  uniqueTag                 String   @default("") @map("unique_tag")
+  callingNai                String   @default("") @map("calling_nai")
+  calledNai                 String   @default("") @map("called_nai")
+  incomingRedirectingNai    String   @default("") @map("incoming_redirecting_nai")
+  outgoingRedirectingNai    String   @default("") @map("outgoing_redirecting_nai")
+  callTransferMark          String   @default("") @map("call_transfer_mark")
+  callRecordPath            String   @default("") @map("call_record_path")
+  ivrCallRecordPath         String   @default("") @map("ivr_call_record_path")
+  rejectingRadiusAddress    String   @default("") @map("rejecting_radius_address")
+  callingNaiOriginal        String   @default("") @map("calling_nai_original")
+  calledNaiOriginal         String   @default("") @map("called_nai_original")
+  timeInQueue               String   @default("") @map("time_in_queue")
+  redirectionType           String   @default("") @map("redirection_type")
+  sourceFilename            String   @default("") @map("source_filename")
+  importedAt                DateTime @default(now()) @map("imported_at")
+  lastJobRunId              String?  @map("last_job_run_id")
+  lastJobRun                JobRun?  @relation(fields: [lastJobRunId], references: [id], onDelete: SetNull)
+
+  @@index([disconnectDay])
+  @@index([deviceSign])
+  @@index([incomingCgpn])
+  @@index([outgoingCgpn])
+  @@index([incomingCdpn])
+  @@index([outgoingCdpn])
+  @@index([lastJobRunId])
+  @@map("smg_cdr_records")
 }
 
 model Verification {

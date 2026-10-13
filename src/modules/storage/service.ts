@@ -159,7 +159,8 @@ export async function listStorageSnapshot(): Promise<StorageSnapshot> {
       SELECT
         (
           pg_total_relation_size('cdr_records') +
-          pg_total_relation_size('cdr_voipmonitor_links')
+          pg_total_relation_size('cdr_voipmonitor_links') +
+          pg_total_relation_size('smg_cdr_records')
         )::bigint AS bytes
     `),
   ]);

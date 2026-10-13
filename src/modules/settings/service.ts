@@ -26,8 +26,13 @@ import {
 import { isKeyImportError, KeyImportError } from "@/modules/ssh/errors";
 import { isFtpListenerActive, restartFtpServer } from "@/modules/traffic/ftp-server";
 import {
+  isSmgFtpListenerActive,
+  restartSmgFtpServer,
+} from "@/modules/smg/ftp-server";
+import {
   DEFAULT_SSH_PROFILE_NAME,
   ftpPasswordReplaceSchema,
+  listenPortsConflict,
   geoipKeyReplaceSchema,
   keyReplaceSchema,
   pstnKeyReplaceSchema,
@@ -96,6 +101,11 @@ function toSettingsView(
     ftpPasvMaxPort: settings.ftpPasvMaxPort,
     ftpPasvAddress: settings.ftpPasvAddress ?? null,
     ftpListenerActive: isFtpListenerActive(),
+    smgFtpEnabled: settings.smgFtpEnabled,
+    smgFtpUsername: settings.smgFtpUsername ?? null,
+    hasSmgFtpPassword: Boolean(settings.smgFtpPasswordCiphertext),
+    smgFtpListenPort: settings.smgFtpListenPort,
+    smgFtpListenerActive: isSmgFtpListenerActive(),
     voipmonitorEnabled: settings.voipmonitorEnabled,
     voipmonitorApiUrl: settings.voipmonitorApiUrl ?? null,
     voipmonitorUser: settings.voipmonitorUser ?? null,
@@ -206,6 +216,9 @@ export async function updateSettings(
     ftpPasvMinPort?: number;
     ftpPasvMaxPort?: number;
     ftpPasvAddress?: string | null;
+    smgFtpEnabled?: boolean;
+    smgFtpUsername?: string | null;
+    smgFtpListenPort?: number;
     voipmonitorEnabled?: boolean;
     voipmonitorApiUrl?: string | null;
     voipmonitorUser?: string | null;
@@ -275,6 +288,15 @@ export async function updateSettings(
     const trimmed = parsed.ftpPasvAddress.trim();
     settingsData.ftpPasvAddress = trimmed.length > 0 ? trimmed : null;
   }
+  if (parsed.smgFtpEnabled !== undefined) {
+    settingsData.smgFtpEnabled = parsed.smgFtpEnabled;
+  }
+  if (parsed.smgFtpUsername !== undefined) {
+    settingsData.smgFtpUsername = parsed.smgFtpUsername.trim();
+  }
+  if (parsed.smgFtpListenPort !== undefined) {
+    settingsData.smgFtpListenPort = parsed.smgFtpListenPort;
+  }
   if (parsed.voipmonitorEnabled !== undefined) {
     settingsData.voipmonitorEnabled = parsed.voipmonitorEnabled;
   }
@@ -297,6 +319,18 @@ export async function updateSettings(
     parsed.ftpPasvMinPort !== undefined ||
     parsed.ftpPasvMaxPort !== undefined ||
     parsed.ftpPasvAddress !== undefined;
+  const smgFtpChanged =
+    parsed.smgFtpEnabled !== undefined ||
+    parsed.smgFtpUsername !== undefined ||
+    parsed.smgFtpListenPort !== undefined;
+
+  const nextRtuPort = settingsData.ftpListenPort ?? settings.ftpListenPort;
+  const nextSmgPort = settingsData.smgFtpListenPort ?? settings.smgFtpListenPort;
+  if (listenPortsConflict(nextRtuPort, nextSmgPort)) {
+    throw new SettingsValidationError(
+      "Порт FTP SMG совпадает с портом FTP телефонного трафика",
+    );
+  }
 
   if (Object.keys(settingsData).length > 0 || sshFieldsProvided) {
     await prisma.appSetting.update({
@@ -315,6 +349,13 @@ export async function updateSettings(
   }
   if (ftpChanged) {
     await restartFtpServer();
+    settings = await prisma.appSetting.findUniqueOrThrow({
+      where: { id: 1 },
+      include: { activeSshProfile: true },
+    });
+  }
+  if (smgFtpChanged) {
+    await restartSmgFtpServer();
     settings = await prisma.appSetting.findUniqueOrThrow({
       where: { id: 1 },
       include: { activeSshProfile: true },
@@ -353,6 +394,10 @@ export async function updateSettings(
       ftpUsername: view.ftpUsername,
       ftpListenPort: view.ftpListenPort,
       ftpListenerActive: view.ftpListenerActive,
+      smgFtpEnabled: view.smgFtpEnabled,
+      smgFtpUsername: view.smgFtpUsername,
+      smgFtpListenPort: view.smgFtpListenPort,
+      smgFtpListenerActive: view.smgFtpListenerActive,
       voipmonitorEnabled: view.voipmonitorEnabled,
       voipmonitorApiUrl: view.voipmonitorApiUrl,
       voipmonitorGuiUrl: view.voipmonitorGuiUrl,
@@ -545,6 +590,13 @@ export async function replacePstnApiKey(
   return view;
 }
 
+export class SettingsValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "SettingsValidationError";
+  }
+}
+
 /**
  * Replace FTP inbox password. Never returns plaintext.
  */
@@ -574,6 +626,40 @@ export async function replaceFtpPassword(
     entityId: "1",
     ip: actor.ip,
     meta: { hasFtpPassword: true, ftpEnabled: view.ftpEnabled },
+  });
+
+  return view;
+}
+
+/**
+ * Replace the SMG FTP inbox password. Never returns plaintext.
+ */
+export async function replaceSmgFtpPassword(
+  input: FtpPasswordReplaceInput,
+  actor: { userId: string; ip?: string | null },
+): Promise<SettingsView> {
+  const parsed = ftpPasswordReplaceSchema.parse(input);
+  const encryption = getSecretEncryptionService();
+  const ciphertext = serializeEncryptedSecret(
+    encryption.encrypt(parsed.password),
+  );
+
+  await prisma.appSetting.upsert({
+    where: { id: 1 },
+    create: { id: 1, smgFtpPasswordCiphertext: ciphertext },
+    update: { smgFtpPasswordCiphertext: ciphertext },
+  });
+
+  await restartSmgFtpServer();
+  const view = await getSettingsView();
+
+  await auditService.append({
+    actorUserId: actor.userId,
+    action: AUDIT_ACTIONS.SMG_FTP_PASSWORD_REPLACE,
+    entityType: "app_settings",
+    entityId: "1",
+    ip: actor.ip,
+    meta: { hasSmgFtpPassword: true, smgFtpEnabled: view.smgFtpEnabled },
   });
 
   return view;

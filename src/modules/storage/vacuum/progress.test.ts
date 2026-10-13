@@ -14,15 +14,19 @@ import {
 } from "@/modules/storage/vacuum/sql";
 
 describe("database vacuum statements", () => {
-  it("is exactly two VACUUM FULL commands and nothing that deletes rows", () => {
+  it("is exactly three VACUUM FULL commands and nothing that deletes rows", () => {
     expect(VACUUM_TABLE_ORDER).toEqual([
       "cdr_voipmonitor_links",
       "cdr_records",
+      "smg_cdr_records",
     ]);
     expect(DATABASE_VACUUM_SQL.cdr_voipmonitor_links).toBe(
       "VACUUM (FULL) cdr_voipmonitor_links",
     );
     expect(DATABASE_VACUUM_SQL.cdr_records).toBe("VACUUM (FULL) cdr_records");
+    expect(DATABASE_VACUUM_SQL.smg_cdr_records).toBe(
+      "VACUUM (FULL) smg_cdr_records",
+    );
     const text = Object.values(DATABASE_VACUUM_SQL).join("\n");
     expect(text).not.toMatch(/\bDELETE\b|\bTRUNCATE\b/i);
     expect(text).not.toMatch(/VACUUM FULL;/);
@@ -44,7 +48,11 @@ describe("vacuum progress", () => {
         written: 4,
       }),
     });
-    expect(view.stages.map((stage) => stage.state)).toEqual(["done", "active"]);
+    expect(view.stages.map((stage) => stage.state)).toEqual([
+      "done",
+      "active",
+      "pending",
+    ]);
     expect(vacuumStageLine(view.stages[1])).toBe(
       "Звонки — идёт, запись новой кучи — просмотрено 10, записано 4",
     );
@@ -78,7 +86,11 @@ describe("vacuum progress", () => {
       errorMessage: VACUUM_RESTART_MARK,
       failed: true,
     });
-    expect(view.stages.map((stage) => stage.state)).toEqual(["done", "failed"]);
+    expect(view.stages.map((stage) => stage.state)).toEqual([
+      "done",
+      "failed",
+      "pending",
+    ]);
     expect(view.stages[1]?.error).toBe(message);
     expect(vacuumStageLine(view.stages[1]!)).toContain("ошибка");
   });

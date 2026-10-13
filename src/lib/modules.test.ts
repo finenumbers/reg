@@ -1,9 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { EXTERNAL_NAV_LINKS, FEATURE_MODULES } from "@/lib/modules";
 
-const KNOWN_NAV_GROUPS = new Set(["primary", "cdr", "analytics", "admin"]);
+const KNOWN_NAV_GROUPS = new Set([
+  "primary",
+  "cdr",
+  "smg",
+  "analytics",
+  "admin",
+]);
 
-function idsInGroup(group: "cdr" | "analytics" | "admin"): string[] {
+function idsInGroup(group: "cdr" | "smg" | "analytics" | "admin"): string[] {
   return FEATURE_MODULES.filter((m) => m.navGroup === group).map((m) => m.id);
 }
 
@@ -19,6 +25,13 @@ describe("FEATURE_MODULES nav groups", () => {
       "geography",
       "raw",
     ]);
+  });
+
+  it("keeps Звонки на SMG in their own group after CDR", () => {
+    expect(idsInGroup("smg")).toEqual(["smg"]);
+    const hrefs = FEATURE_MODULES.map((module) => module.href);
+    expect(hrefs.indexOf("/raw")).toBeLessThan(hrefs.indexOf("/smg"));
+    expect(hrefs.indexOf("/smg")).toBeLessThan(hrefs.indexOf("/detail"));
   });
 
   it("keeps admin without Статистика", () => {

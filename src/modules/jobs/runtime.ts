@@ -26,6 +26,8 @@ import { processCdrPurgeMonth } from "@/modules/traffic/purge/processor";
 import { setPurgeTargetMonth } from "@/modules/traffic/purge/target";
 import { processCdrTariffRate } from "@/modules/traffic/tariff-rate/processor";
 import { requestCdrImportDrain } from "@/modules/traffic/enqueue";
+import { processSmgImport } from "@/modules/smg/import-processor";
+import { requestSmgImportDrain } from "@/modules/smg/enqueue";
 import { isMonthExportRunning } from "@/modules/traffic/month-export-job";
 import { processDatabaseVacuum } from "@/modules/storage/vacuum/processor";
 import { setDatabaseVacuumActive } from "@/modules/storage/vacuum/gate";
@@ -38,6 +40,7 @@ const SUPPORTED_JOB_ACTIONS = new Set<AllowedActionCode>([
   "phones.sync",
   "groups.sync",
   "cdr.import",
+  "smg.import",
   "voipmonitor.match",
   "cdr.sides.refresh",
   "cdr.purge.month",
@@ -47,6 +50,7 @@ const SUPPORTED_JOB_ACTIONS = new Set<AllowedActionCode>([
 
 const CDR_BLOCKS_VACUUM: readonly AllowedActionCode[] = [
   "cdr.import",
+  "smg.import",
   "voipmonitor.match",
   "cdr.sides.refresh",
   "cdr.purge.month",
@@ -177,6 +181,12 @@ export class PQueueJobRuntime implements JobRuntime {
             actorUserId: input.actorUserId,
           });
         }
+        if (input.actionCode === "smg.import") {
+          return await processSmgImport({
+            trigger: input.trigger,
+            actorUserId: input.actorUserId,
+          });
+        }
         if (input.actionCode === "voipmonitor.match") {
           return await processVoipmonitorMatch({
             trigger: input.trigger,
@@ -225,6 +235,7 @@ export class PQueueJobRuntime implements JobRuntime {
     void runPromise.finally(() => {
       if (input.actionCode === "db.vacuum") {
         requestCdrImportDrain("schedule");
+        requestSmgImportDrain("schedule");
       }
     });
 
@@ -236,6 +247,15 @@ export class PQueueJobRuntime implements JobRuntime {
           status: result?.status,
           jobRunId: result?.jobRunId,
         });
+        if (
+          input.actionCode === "smg.import" &&
+          result &&
+          "requeueAfterMs" in result &&
+          typeof result.requeueAfterMs === "number"
+        ) {
+          const delay = result.requeueAfterMs;
+          setTimeout(() => requestSmgImportDrain("schedule"), delay);
+        }
         if (
           input.actionCode === "voipmonitor.match" &&
           shouldChainVoipmonitorMatch(result)

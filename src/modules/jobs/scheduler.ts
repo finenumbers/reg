@@ -21,6 +21,8 @@ import { logger } from "@/lib/logger";
 import { listInboxFiles } from "@/modules/traffic/inbox";
 import { isDatabaseVacuumActive } from "@/modules/storage/vacuum/gate";
 import { requestCdrImportDrain } from "@/modules/traffic/enqueue";
+import { requestSmgImportDrain } from "@/modules/smg/enqueue";
+import { listSmgInboxFiles } from "@/modules/smg/inbox";
 import {
   canEnqueueVoipmonitorMatch,
   requestVoipmonitorMatch,
@@ -207,6 +209,19 @@ async function drainPendingInbox(): Promise<void> {
   }
 }
 
+async function drainPendingSmgInbox(): Promise<void> {
+  if (isDatabaseVacuumActive()) return;
+  try {
+    const { ready } = await listSmgInboxFiles();
+    if (ready.length === 0) return;
+    requestSmgImportDrain("schedule");
+  } catch (error) {
+    logger.warn("scheduler.smg_inbox_scan_failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
 async function enqueueScheduled(
   actionCode: AllowedActionCode,
 ): Promise<void> {
@@ -230,6 +245,7 @@ async function tick(): Promise<void> {
   let intervalSec = DEFAULT_REGS_INTERVAL_SEC;
   try {
     await drainPendingInbox();
+    await drainPendingSmgInbox();
     await drainVoipmonitorMatch();
 
     const settings = await readScheduleSettings();

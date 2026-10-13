@@ -18,9 +18,10 @@ export type FeatureModuleId =
   | "audit"
   | "enrich"
   | "stats"
-  | "detail";
+  | "detail"
+  | "smg";
 
-export type FeatureNavGroup = "primary" | "cdr" | "analytics" | "admin";
+export type FeatureNavGroup = "primary" | "cdr" | "smg" | "analytics" | "admin";
 
 type FeatureModuleDefinition = {
   id: FeatureModuleId;
@@ -104,6 +105,14 @@ export const FEATURE_MODULES: FeatureModuleDefinition[] = [
     href: "/raw",
     navPermission: "phones:read",
     navGroup: "cdr",
+  },
+  {
+    id: "smg",
+    title: "Звонки на SMG",
+    description: "CDR цифровых шлюзов Eltex SMG-1016M из локальной БД",
+    href: "/smg",
+    navPermission: "phones:read",
+    navGroup: "smg",
   },
   {
     id: "detail",
