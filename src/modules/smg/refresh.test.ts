@@ -57,6 +57,30 @@ describe("decideSmgRefresh", () => {
     ).toEqual({ reload: false, since: "job-1" });
   });
 
+  it("reloads an empty history when a later import wrote rows", () => {
+    expect(
+      decideSmgRefresh({
+        ok: true,
+        since: null,
+        cursor: "job-1",
+        changed: true,
+        baselineEmpty: true,
+      }),
+    ).toEqual({ reload: true, since: "job-1" });
+  });
+
+  it("keeps an empty history in place when the import wrote nothing", () => {
+    expect(
+      decideSmgRefresh({
+        ok: true,
+        since: null,
+        cursor: "job-1",
+        changed: false,
+        baselineEmpty: true,
+      }),
+    ).toEqual({ reload: false, since: "job-1" });
+  });
+
   it("keeps the previous cursor when the response has none", () => {
     expect(
       decideSmgRefresh({

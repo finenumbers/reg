@@ -1,7 +1,17 @@
-# Current Phase — production (v1.106.0)
+# Current Phase — production (v1.107.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, Eltex SMG CDR.  
-**Date:** 2026-10-13
+**Date:** 2026-10-14
+
+## v1.107.0 — SMG month list follows disconnect time
+
+«Звонки на SMG» selects a month by the range of «Время разъединения вызова»: from `YYYY-MM-01 00:00:00` inclusive to the first instant of the next month exclusive. December rolls into January. For rows this importer writes, that is the same month as the civil date stored in `disconnect_day`. The list order uses a new index on `disconnect_time` and `id`, both descending. `CREATE INDEX` blocks writes on `smg_cdr_records` until it finishes and does not block reads. Do not deploy while a database compression of that table is running. The month switcher is not recounted while the next page of the table loads.
+
+A CDR row shorter than its header by more than one field is a bad line. The file stays in the error list. One missing trailing field still loads: that is the empty last column collapsed into the terminator. Rows already inserted stay. There is no rewrite of stored calls.
+
+The open page reads the latest finished `smg.import` before it reads the table. A call that lands after that read shows up on the next poll. The first import after an empty history does the same when it inserted rows or recorded bad lines. An empty import still leaves the rows in place.
+
+Migration: `20261014020000_smg_disconnect_time_idx`.
 
 ## v1.106.0 — An empty SMG file may repeat its header
 

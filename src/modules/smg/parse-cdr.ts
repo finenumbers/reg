@@ -103,6 +103,14 @@ export function parseSmgText(text: string, filename: string): ParseSmgResult {
       }
       continue;
     }
+    if (values.length < header.length - 1) {
+      linesBad += 1;
+      if (firstBadLine == null) {
+        firstBadLine = lineNo;
+        firstReason = "строка короче заголовка";
+      }
+      continue;
+    }
 
     const fields = emptySmgFields();
     for (const column of SMG_COLUMNS) {

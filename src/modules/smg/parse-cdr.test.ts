@@ -89,6 +89,21 @@ describe("parseSmgText", () => {
     expect(parsed.rows[0]?.fields.incomingCgpn).toBe("79001112233");
   });
 
+  it("rejects a row shorter than the header by more than one field", () => {
+    const text = [
+      BANNER,
+      headerLine("full"),
+      dataLine("full", CALL),
+      dataLine("full", { ...CALL, uniqueTag: "tag-2" }, 45),
+    ].join("\n");
+    const parsed = parseSmgText(text, "20261013120000.cdr");
+    expect(parsed.rows).toHaveLength(1);
+    expect(parsed.rows[0]?.fields.uniqueTag).toBe("tag-1");
+    expect(parsed.linesBad).toBe(1);
+    expect(parsed.error).toMatch(/строка 4/);
+    expect(parsed.error).toMatch(/строка короче заголовка/);
+  });
+
   it("rejects an unknown header without rows", () => {
     const parsed = parseSmgText(`${BANNER}\nNope;\n`, "20261013.cdr");
     expect(parsed.rows).toEqual([]);

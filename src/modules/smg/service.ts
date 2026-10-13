@@ -21,6 +21,7 @@ import {
   SMG_PHONE_FIELDS,
   type SmgField,
 } from "@/modules/smg/columns";
+import { smgMonthTimeRange } from "@/modules/smg/month-range";
 import { listSmgPoisonEntries, type SmgPoisonItem } from "@/modules/smg/poison";
 
 export type SmgListItem = Record<SmgField, string> & {
@@ -40,7 +41,8 @@ export type SmgListResult = {
 type MonthCountRow = { key: string; count: number };
 
 function monthWhere(month: CdrMonth): Prisma.SmgCdrRecordWhereInput {
-  return { disconnectDay: { startsWith: month.key } };
+  const range = smgMonthTimeRange(month);
+  return { disconnectTime: { gte: range.gte, lt: range.lt } };
 }
 
 function applyColumnFilters(
@@ -147,7 +149,7 @@ export async function listSmgCalls(input: {
       skip: (page - 1) * TABLE_PAGE_SIZE,
       take: TABLE_PAGE_SIZE,
     }),
-    querySmgMonthCounts(),
+    page === 1 ? querySmgMonthCounts() : Promise.resolve([]),
   ]);
 
   return {
@@ -217,12 +219,34 @@ export type SmgStatus = {
 
 const SMG_IMPORT_DONE: JobStatus[] = ["success", "failed"];
 
+const SMG_IMPORT_MEANINGFUL: Prisma.JobRunWhereInput = {
+  OR: [{ phonesParsed: { gt: 0 } }, { linesBad: { gt: 0 } }],
+};
+
+/**
+ * Id of the latest completed smg.import. Read this before listing calls so a
+ * job that finishes afterwards is still visible to the next status poll.
+ */
+export async function latestSmgImportCursor(): Promise<string | null> {
+  const latest = await prisma.jobRun.findFirst({
+    where: { actionCode: "smg.import", status: { in: SMG_IMPORT_DONE } },
+    orderBy: { startedAt: "desc" },
+    select: { id: true },
+  });
+  return latest?.id ?? null;
+}
+
 /**
  * Latest completed smg.import, and whether a job after `sinceId` wrote rows
  * or bad lines. An unknown id is an empty cursor: changed stays false.
+ * `baselineEmpty` is a page rendered before any completed import. Then any
+ * later meaningful job counts, including one that was already running.
  * Comparison uses the stored startedAt, not a rounded timestamp.
  */
-export async function getSmgStatus(sinceId?: string | null): Promise<SmgStatus> {
+export async function getSmgStatus(
+  sinceId?: string | null,
+  opts?: { baselineEmpty?: boolean },
+): Promise<SmgStatus> {
   const poisonFiles = listSmgPoisonEntries();
   const id = sinceId?.trim() || null;
   const [latest, cursorJob] = await Promise.all([
@@ -247,7 +271,17 @@ export async function getSmgStatus(sinceId?: string | null): Promise<SmgStatus> 
         status: { in: SMG_IMPORT_DONE },
         id: { not: cursorJob.id },
         startedAt: { gte: cursorJob.startedAt },
-        OR: [{ phonesParsed: { gt: 0 } }, { linesBad: { gt: 0 } }],
+        ...SMG_IMPORT_MEANINGFUL,
+      },
+      select: { id: true },
+    });
+    changed = meaningful != null;
+  } else if (opts?.baselineEmpty && !id) {
+    const meaningful = await prisma.jobRun.findFirst({
+      where: {
+        actionCode: "smg.import",
+        status: { in: SMG_IMPORT_DONE },
+        ...SMG_IMPORT_MEANINGFUL,
       },
       select: { id: true },
     });

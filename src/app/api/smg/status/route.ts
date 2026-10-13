@@ -12,7 +12,10 @@ export async function GET(request: Request) {
   const busy = cdrVacuumBusyResponse();
   if (busy) return busy;
 
-  const since = new URL(request.url).searchParams.get("since");
-  const data = await getSmgStatus(since);
+  const url = new URL(request.url);
+  const since = url.searchParams.get("since");
+  const data = await getSmgStatus(since, {
+    baselineEmpty: url.searchParams.get("baseline") === "empty",
+  });
   return NextResponse.json(data);
 }

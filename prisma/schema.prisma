@@ -815,6 +815,7 @@ model SmgCdrRecord {
   lastJobRun                JobRun?  @relation(fields: [lastJobRunId], references: [id], onDelete: SetNull)
 
   @@index([disconnectDay])
+  @@index([disconnectTime(sort: Desc), id(sort: Desc)])
   @@index([deviceSign])
   @@index([incomingCgpn])
   @@index([outgoingCgpn])

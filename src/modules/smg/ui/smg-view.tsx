@@ -87,9 +87,11 @@ async function readJson(res: Response): Promise<SmgListResult | null> {
 export function SmgView({
   canRetry,
   initial,
+  initialSince,
 }: {
   canRetry: boolean;
   initial: SmgListResult;
+  initialSince: string | null;
 }) {
   const [filters, setFilters] = useState<ColumnFilters>({});
   const [phoneInput, setPhoneInput] = useState("");
@@ -108,7 +110,8 @@ export function SmgView({
   const [pending, setPending] = useState(false);
   const [scrollRoot, setScrollRoot] = useState<Element | null>(null);
   const refreshSeq = useRef(0);
-  const sinceRef = useRef<string | null>(null);
+  const sinceRef = useRef<string | null>(initialSince);
+  const baselineEmptyRef = useRef(initialSince == null);
   const filtersRef = useRef(filters);
   const phoneQRef = useRef(phoneQ);
   const monthRef = useRef(month);
@@ -153,7 +156,7 @@ export function SmgView({
       }
       setPage(data.page);
       setTotal(data.total);
-      setMonths(data.months);
+      if (replace) setMonths(data.months);
       setPoisonFiles(data.poisonFiles);
       setItems((current) => (replace ? data.items : [...current, ...data.items]));
       setListError(null);
@@ -196,6 +199,7 @@ export function SmgView({
       try {
         const params = new URLSearchParams();
         if (sinceRef.current) params.set("since", sinceRef.current);
+        else if (baselineEmptyRef.current) params.set("baseline", "empty");
         const query = params.toString();
         const res = await fetch(`/api/smg/status${query ? `?${query}` : ""}`, {
           cache: "no-store",
@@ -208,9 +212,11 @@ export function SmgView({
           since: sinceRef.current,
           cursor: status?.cursor ?? null,
           changed: status?.changed ?? false,
+          baselineEmpty: sinceRef.current == null && baselineEmptyRef.current,
         });
         if (cancelled) return;
         sinceRef.current = decision.since;
+        if (decision.since) baselineEmptyRef.current = false;
         if (status) setPoisonFiles(status.poisonFiles);
         if (decision.reload) {
           void loadListRef.current({ page: 1, replace: true, background: true });
