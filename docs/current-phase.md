@@ -1,7 +1,11 @@
-# Current Phase — production (v1.104.0)
+# Current Phase — production (v1.105.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, Eltex SMG CDR.  
 **Date:** 2026-10-13
+
+## v1.105.0 — SMG calls refresh after an import that wrote rows
+
+«Звонки на SMG» polls while the tab is visible, on the same 4 second rhythm as the softswitch traffic table. The list reloads when a later `smg.import` inserted rows or recorded bad lines. An empty import, including one started by a softswitch file on the shared FTP, advances the cursor and leaves the table in place. A hidden tab stops polling. A background failure does not clear the rows. There is no new migration.
 
 ## v1.104.0 — Passive FTP data ports for the SMG upload
 

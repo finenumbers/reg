@@ -1,4 +1,4 @@
-import type { Prisma } from "@/generated/prisma/client";
+import { Prisma, type JobStatus } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
 import { TABLE_PAGE_SIZE } from "@/lib/table-pagination";
 import {
@@ -207,4 +207,56 @@ export async function listSmgFacets(input: {
     };
   });
   return { items, truncated };
+}
+
+export type SmgStatus = {
+  cursor: string | null;
+  changed: boolean;
+  poisonFiles: SmgPoisonItem[];
+};
+
+const SMG_IMPORT_DONE: JobStatus[] = ["success", "failed"];
+
+/**
+ * Latest completed smg.import, and whether a job after `sinceId` wrote rows
+ * or bad lines. An unknown id is an empty cursor: changed stays false.
+ * Comparison uses the stored startedAt, not a rounded timestamp.
+ */
+export async function getSmgStatus(sinceId?: string | null): Promise<SmgStatus> {
+  const poisonFiles = listSmgPoisonEntries();
+  const id = sinceId?.trim() || null;
+  const [latest, cursorJob] = await Promise.all([
+    prisma.jobRun.findFirst({
+      where: { actionCode: "smg.import", status: { in: SMG_IMPORT_DONE } },
+      orderBy: { startedAt: "desc" },
+      select: { id: true },
+    }),
+    id
+      ? prisma.jobRun.findFirst({
+          where: { id, actionCode: "smg.import" },
+          select: { id: true, startedAt: true },
+        })
+      : Promise.resolve(null),
+  ]);
+
+  let changed = false;
+  if (cursorJob) {
+    const meaningful = await prisma.jobRun.findFirst({
+      where: {
+        actionCode: "smg.import",
+        status: { in: SMG_IMPORT_DONE },
+        id: { not: cursorJob.id },
+        startedAt: { gte: cursorJob.startedAt },
+        OR: [{ phonesParsed: { gt: 0 } }, { linesBad: { gt: 0 } }],
+      },
+      select: { id: true },
+    });
+    changed = meaningful != null;
+  }
+
+  return {
+    cursor: latest?.id ?? null,
+    changed,
+    poisonFiles,
+  };
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   ActiveFiltersBar,
@@ -28,11 +28,13 @@ import {
 import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
 import { downloadXlsxFromUrl } from "@/lib/download-xlsx";
 import { SMG_FIELDS, SMG_HEADER_LABELS, SMG_PHONE_FIELDS } from "@/modules/smg/columns";
-import type { SmgListItem, SmgListResult } from "@/modules/smg/service";
+import { decideSmgRefresh } from "@/modules/smg/refresh";
+import type { SmgListItem, SmgListResult, SmgStatus } from "@/modules/smg/service";
 import { currentUtcMonth, parseMonthKey } from "@/modules/traffic/cdr-month";
 import { formatMonthOption } from "@/modules/traffic/month-labels";
 
 const PHONE_SEARCH_DEBOUNCE_MS = 300;
+const STATUS_POLL_MS = 4000;
 const PHONE_FIELDS = new Set<string>(SMG_PHONE_FIELDS);
 
 type LoadOpts = {
@@ -41,7 +43,23 @@ type LoadOpts = {
   filters?: ColumnFilters;
   phoneQ?: string;
   month?: string;
+  background?: boolean;
 };
+
+function readSmgStatus(body: unknown): SmgStatus | null {
+  if (!body || typeof body !== "object") return null;
+  const row = body as Record<string, unknown>;
+  if (row.cursor !== null && typeof row.cursor !== "string") return null;
+  if (typeof row.changed !== "boolean" || !Array.isArray(row.poisonFiles)) return null;
+  const poisonFiles: SmgStatus["poisonFiles"] = [];
+  for (const item of row.poisonFiles) {
+    if (!item || typeof item !== "object") return null;
+    const file = item as Record<string, unknown>;
+    if (typeof file.filename !== "string" || typeof file.error !== "string") return null;
+    poisonFiles.push({ filename: file.filename, error: file.error });
+  }
+  return { cursor: row.cursor, changed: row.changed, poisonFiles };
+}
 
 function buildListUrl(opts: {
   page: number;
@@ -89,18 +107,34 @@ export function SmgView({
   const [downloading, setDownloading] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [scrollRoot, setScrollRoot] = useState<Element | null>(null);
+  const refreshSeq = useRef(0);
+  const sinceRef = useRef<string | null>(null);
+  const filtersRef = useRef(filters);
+  const phoneQRef = useRef(phoneQ);
+  const monthRef = useRef(month);
+  const loadListRef = useRef<(opts?: LoadOpts) => Promise<void>>(async () => {});
+
+  filtersRef.current = filters;
+  phoneQRef.current = phoneQ;
+  monthRef.current = month;
 
   const hasMore = items.length < total;
 
   const loadList = useCallback(async (opts: LoadOpts = {}) => {
+    const background = opts.background ?? false;
     const nextPage = opts.page ?? 1;
     const replace = opts.replace ?? nextPage === 1;
-    const nextFilters = opts.filters ?? filters;
-    const nextPhone = opts.phoneQ ?? phoneQ;
-    const nextMonth = opts.month ?? month;
-    if (replace) setLoading(true);
-    else setLoadingMore(true);
-    setListError(null);
+    const nextFilters = opts.filters ?? filtersRef.current;
+    const nextPhone = opts.phoneQ ?? phoneQRef.current;
+    const nextMonth = opts.month ?? monthRef.current;
+    const seq = ++refreshSeq.current;
+    if (replace) {
+      setLoading(true);
+      setLoadingMore(false);
+    } else {
+      setLoadingMore(true);
+    }
+    if (!background) setListError(null);
     try {
       const res = await fetch(
         buildListUrl({
@@ -112,8 +146,9 @@ export function SmgView({
         { cache: "no-store" },
       );
       const data = await readJson(res);
+      if (seq !== refreshSeq.current) return;
       if (!res.ok || !data) {
-        setListError("Не удалось загрузить звонки");
+        if (!background) setListError("Не удалось загрузить звонки");
         return;
       }
       setPage(data.page);
@@ -121,13 +156,17 @@ export function SmgView({
       setMonths(data.months);
       setPoisonFiles(data.poisonFiles);
       setItems((current) => (replace ? data.items : [...current, ...data.items]));
+      setListError(null);
     } catch {
-      setListError("Не удалось загрузить звонки");
+      if (seq !== refreshSeq.current) return;
+      if (!background) setListError("Не удалось загрузить звонки");
     } finally {
+      if (seq !== refreshSeq.current) return;
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [filters, month, phoneQ]);
+  }, []);
+  loadListRef.current = loadList;
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -138,6 +177,76 @@ export function SmgView({
     }, PHONE_SEARCH_DEBOUNCE_MS);
     return () => window.clearTimeout(timer);
   }, [phoneInput, phoneQ, loadList]);
+
+  useEffect(() => {
+    let cancelled = false;
+    let timer: number | null = null;
+    let pulling = false;
+
+    const stop = () => {
+      if (timer != null) {
+        window.clearInterval(timer);
+        timer = null;
+      }
+    };
+
+    const pull = async () => {
+      if (pulling) return;
+      pulling = true;
+      try {
+        const params = new URLSearchParams();
+        if (sinceRef.current) params.set("since", sinceRef.current);
+        const query = params.toString();
+        const res = await fetch(`/api/smg/status${query ? `?${query}` : ""}`, {
+          cache: "no-store",
+        });
+        if (cancelled) return;
+        const body = await res.json().catch(() => null);
+        const status = res.ok ? readSmgStatus(body) : null;
+        const decision = decideSmgRefresh({
+          ok: status != null,
+          since: sinceRef.current,
+          cursor: status?.cursor ?? null,
+          changed: status?.changed ?? false,
+        });
+        if (cancelled) return;
+        sinceRef.current = decision.since;
+        if (status) setPoisonFiles(status.poisonFiles);
+        if (decision.reload) {
+          void loadListRef.current({ page: 1, replace: true, background: true });
+        }
+      } catch {
+        // Leave the cursor so the next poll can still see the missed import.
+      } finally {
+        pulling = false;
+      }
+    };
+
+    const start = () => {
+      if (cancelled || timer != null) return;
+      timer = window.setInterval(() => {
+        void pull();
+      }, STATUS_POLL_MS);
+    };
+
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        stop();
+        return;
+      }
+      void pull();
+      start();
+    };
+
+    void pull();
+    if (document.visibilityState !== "hidden") start();
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      cancelled = true;
+      stop();
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, []);
 
   const onLoadMore = useCallback(() => {
     if (!hasMore || loading || loadingMore) return;
@@ -319,7 +428,7 @@ export function SmgView({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {loading ? (
+            {loading && items.length === 0 ? (
               <TableRow>
                 <TableCell
                   colSpan={SMG_FIELDS.length}
