@@ -1,4 +1,4 @@
-import { mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -7,17 +7,19 @@ import { markSmgPoisoned } from "@/modules/smg/poison";
 
 describe("openPoisonedSmgFile", () => {
   let inbox: string;
-  const previous = process.env.SMG_CDR_INBOX_DIR;
+  const previous = process.env.CDR_INBOX_DIR;
 
   beforeEach(async () => {
     inbox = await mkdtemp(path.join(tmpdir(), "smg-download-"));
-    process.env.SMG_CDR_INBOX_DIR = inbox;
+    process.env.CDR_INBOX_DIR = inbox;
+    inbox = path.join(inbox, "smg");
+    await mkdir(inbox);
   });
 
   afterEach(async () => {
-    if (previous == null) delete process.env.SMG_CDR_INBOX_DIR;
-    else process.env.SMG_CDR_INBOX_DIR = previous;
-    await rm(inbox, { recursive: true, force: true });
+    if (previous == null) delete process.env.CDR_INBOX_DIR;
+    else process.env.CDR_INBOX_DIR = previous;
+    await rm(path.dirname(inbox), { recursive: true, force: true });
   });
 
   it("serves a journaled file and refuses a path that leaves the inbox", async () => {

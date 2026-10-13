@@ -87,7 +87,7 @@ Set `BETTER_AUTH_URL` to the exact public origin (`https://regs.example.com`) an
 4. **Phones:** sync once after softswitch `export.py` is installed.
 5. Only then enable Settings auto-poll (`regsPollEnabled`) — still one replica.
 6. **Телефонный трафик:** софтсвитч заливает CDR активным FTP на **IP Docker-хоста:2121** (не HTTPS NPM). В стеке опубликован `2121`. В Настройках: логин, пароль, порт 2121.
-7. **Звонки на SMG:** шлюзы Eltex заливают CDR активным FTP на **IP Docker-хоста:2122**, каталог отдельный от CDR софтсвитча. В Настройках, блок «FTP — звонки SMG»: логин, пароль, порт 2122. На SMG путь выгрузки `/` или пустой.
+7. **Звонки на SMG:** шлюз заливает CDR на тот же FTP, порт **2121**, тот же логин и пароль. Путь на шлюзе `/smg`. Отдельного порта и блока настроек нет.
 
 ## 5a. FTP port 2121 (CDR inbox)
 
@@ -100,15 +100,7 @@ ss -lntup | grep ':2121'
 docker ps --format '{{.Names}} {{.Ports}}' | grep '2121'
 ```
 
-Override with `FTP_PUBLISH_PORT` only if you also change Settings → FTP → порт to the same number. On the softswitch point the FTP client at `host:2121`.
-
-## 5b. FTP port 2122 (SMG CDR inbox)
-
-NPM cannot proxy this FTP either. The `app` service publishes host port `2122` into the container port `2122`. Eltex SMG-1016M uses **active FTP** from its real IP. Do not publish a PASV range: the container address is not reachable from the gateway.
-
-The named volume `reg_smg_cdr_inbox` is mounted at `/app/data/smg-cdr-inbox`. It is not the softswitch inbox. On the SMG upserver the path is `/` or empty, so files land in that directory with no extra folders.
-
-If `Bind for 0.0.0.0:2122 failed: port is already allocated`, something else owns TCP 2122. Override with `SMG_FTP_PUBLISH_PORT` only together with Settings → FTP — звонки SMG → порт. That port must differ from the softswitch FTP port.
+Override with `FTP_PUBLISH_PORT` only if you also change Settings → FTP → порт to the same number. On the softswitch point the FTP client at `host:2121`. On an Eltex SMG use the same host and port, and set the path to `/smg`.
 
 ## 6. GeoIP on the same Docker host
 

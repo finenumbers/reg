@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -63,22 +63,23 @@ const CALL = {
 
 describe("processSmgImport", () => {
   let inbox: string;
-  const previous = process.env.SMG_CDR_INBOX_DIR;
+  const previous = process.env.CDR_INBOX_DIR;
 
   beforeEach(async () => {
     inbox = await mkdtemp(path.join(tmpdir(), "smg-inbox-"));
-    process.env.SMG_CDR_INBOX_DIR = inbox;
+    await mkdir(path.join(inbox, "smg"));
+    process.env.CDR_INBOX_DIR = inbox;
     createMany.mockClear();
   });
 
   afterEach(async () => {
-    if (previous == null) delete process.env.SMG_CDR_INBOX_DIR;
-    else process.env.SMG_CDR_INBOX_DIR = previous;
+    if (previous == null) delete process.env.CDR_INBOX_DIR;
+    else process.env.CDR_INBOX_DIR = previous;
     await rm(inbox, { recursive: true, force: true });
   });
 
   async function put(name: string, body: string, aged = true): Promise<string> {
-    const abs = path.join(inbox, name);
+    const abs = path.join(inbox, "smg", name);
     await writeFile(abs, body, "utf8");
     if (aged) await ageSmgInboxFile(abs);
     return abs;

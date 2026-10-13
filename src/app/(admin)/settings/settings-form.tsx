@@ -103,16 +103,6 @@ export function SettingsForm({ initial }: Props) {
   const [ftpTestResult, setFtpTestResult] = useState<TestResultView | null>(
     null,
   );
-  const [smgFtpEnabled, setSmgFtpEnabled] = useState(initial.smgFtpEnabled);
-  const [smgFtpUsername, setSmgFtpUsername] = useState(
-    initial.smgFtpUsername ?? "",
-  );
-  const [smgFtpPassword, setSmgFtpPassword] = useState("");
-  const [smgFtpListenPort, setSmgFtpListenPort] = useState(
-    String(initial.smgFtpListenPort),
-  );
-  const [smgFtpTestResult, setSmgFtpTestResult] =
-    useState<TestResultView | null>(null);
   const [passphrase, setPassphrase] = useState("");
   const [keyPaste, setKeyPaste] = useState("");
   const [keyFileLabel, setKeyFileLabel] = useState<string | null>(null);
@@ -177,9 +167,6 @@ export function SettingsForm({ initial }: Props) {
     setFtpEnabled(next.ftpEnabled);
     setFtpUsername(next.ftpUsername ?? "");
     setFtpListenPort(String(next.ftpListenPort));
-    setSmgFtpEnabled(next.smgFtpEnabled);
-    setSmgFtpUsername(next.smgFtpUsername ?? "");
-    setSmgFtpListenPort(String(next.smgFtpListenPort));
     router.refresh();
   }
 
@@ -685,81 +672,6 @@ export function SettingsForm({ initial }: Props) {
         toast.error(data.detail ?? data.error ?? "Тест FTP не удался");
       } catch {
         toast.error("Тест FTP не удался");
-      }
-    });
-  }
-
-  async function onSaveSmgFtp() {
-    startTransition(async () => {
-      try {
-        const res = await fetch("/api/settings", {
-          method: "PUT",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            smgFtpEnabled,
-            smgFtpUsername: smgFtpUsername.trim() || undefined,
-            smgFtpListenPort: Number(smgFtpListenPort),
-            displayTimezone,
-          }),
-        });
-        const data = (await res.json()) as {
-          settings?: SettingsView;
-          error?: string;
-        };
-        if (!res.ok || !data.settings) {
-          toast.error(data.error ?? "Не удалось сохранить FTP SMG");
-          return;
-        }
-        applySettings(data.settings);
-        if (smgFtpPassword.trim()) {
-          const keyRes = await fetch("/api/settings/smg-ftp/key", {
-            method: "PUT",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ password: smgFtpPassword }),
-          });
-          const keyData = (await keyRes.json()) as {
-            settings?: SettingsView;
-            error?: string;
-          };
-          if (!keyRes.ok || !keyData.settings) {
-            toast.error(keyData.error ?? "Не удалось сохранить пароль FTP SMG");
-            return;
-          }
-          applySettings(keyData.settings);
-          setSmgFtpPassword("");
-          toast.success("Настройки и пароль FTP SMG сохранены");
-          return;
-        }
-        toast.success("Настройки FTP SMG сохранены");
-      } catch {
-        toast.error("Не удалось сохранить FTP SMG");
-      }
-    });
-  }
-
-  async function onTestSmgFtp() {
-    startTransition(async () => {
-      try {
-        const res = await fetch("/api/settings/smg-ftp/test", {
-          method: "POST",
-        });
-        const data = (await res.json()) as {
-          test?: TestResultView;
-          error?: string;
-          detail?: string;
-        };
-        if (data.test) {
-          setSmgFtpTestResult(data.test);
-          if (data.test.result === "success") {
-            toast.success("FTP-слушатель SMG активен");
-          } else {
-            toast.error(data.test.detail ?? "Тест FTP SMG не удался");
-          }
-          return;
-        }
-        toast.error(data.detail ?? data.error ?? "Тест FTP SMG не удался");
-      } catch {
-        toast.error("Тест FTP SMG не удался");
       }
     });
   }
@@ -1431,8 +1343,9 @@ export function SettingsForm({ initial }: Props) {
         <h2 className="text-base font-semibold">FTP — телефонный трафик</h2>
         <p className="text-sm text-muted-foreground">
           Софтсвитч — FTP-клиент на своём реальном IP, активный режим, порт
-          2121 на хосте Docker (не через NPM). Пароль хранится зашифрованным и
-          в UI не показывается.
+          2121 на хосте Docker (не через NPM). Шлюз SMG заливает CDR тем же
+          логином на этот порт, путь на шлюзе /smg. Пароль хранится
+          зашифрованным и в UI не показывается.
         </p>
         <div className="grid gap-4">
           <div className="flex items-center gap-2">
@@ -1527,114 +1440,6 @@ export function SettingsForm({ initial }: Props) {
               {ftpTestResult.detail ? (
                 <p className="mt-2 text-muted-foreground">
                   {ftpTestResult.detail}
-                </p>
-              ) : null}
-            </div>
-          ) : null}
-        </div>
-      </section>
-
-      <section className="space-y-4">
-        <h2 className="text-base font-semibold">FTP — звонки SMG</h2>
-        <p className="text-sm text-muted-foreground">
-          Шлюзы Eltex SMG-1016M заливают CDR активным FTP в отдельный каталог,
-          порт 2122 на хосте Docker. Пароль хранится зашифрованным и в UI не
-          показывается.
-        </p>
-        <div className="grid gap-4">
-          <div className="flex items-center gap-2">
-            <input
-              id="smg-ftp-enabled"
-              type="checkbox"
-              className="size-4 rounded border"
-              checked={smgFtpEnabled}
-              onChange={(e) => setSmgFtpEnabled(e.target.checked)}
-            />
-            <Label htmlFor="smg-ftp-enabled">Включить FTP-приёмник SMG</Label>
-            {settings.smgFtpListenerActive ? (
-              <Badge variant="secondary">слушатель активен</Badge>
-            ) : (
-              <Badge variant="outline">слушатель выключен</Badge>
-            )}
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="smg-ftp-username">Логин</Label>
-            <Input
-              id="smg-ftp-username"
-              value={smgFtpUsername}
-              onChange={(e) => setSmgFtpUsername(e.target.value)}
-              autoComplete="off"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="smg-ftp-password">Пароль</Label>
-            <Input
-              id="smg-ftp-password"
-              type="password"
-              value={smgFtpPassword}
-              onChange={(e) => setSmgFtpPassword(e.target.value)}
-              placeholder={
-                settings.hasSmgFtpPassword
-                  ? "Пароль сохранён — вставьте новый, чтобы заменить"
-                  : "Задайте пароль для SMG"
-              }
-              autoComplete="new-password"
-            />
-            <p className="text-xs text-muted-foreground">
-              {settings.hasSmgFtpPassword ? (
-                <Badge variant="secondary">пароль сохранён</Badge>
-              ) : (
-                "Пароль ещё не задан"
-              )}
-            </p>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="smg-ftp-port">Порт</Label>
-            <Input
-              id="smg-ftp-port"
-              value={smgFtpListenPort}
-              onChange={(e) => setSmgFtpListenPort(e.target.value)}
-              autoComplete="off"
-            />
-            <p className="text-xs text-muted-foreground">
-              SMG подключается на IP хоста и этот порт. По умолчанию 2122. Порт
-              не должен совпадать с FTP телефонного трафика.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button type="button" disabled={pending} onClick={onSaveSmgFtp}>
-              Сохранить FTP SMG
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={pending}
-              onClick={onTestSmgFtp}
-            >
-              Проверить слушатель
-            </Button>
-          </div>
-          {smgFtpTestResult ? (
-            <div className="rounded-md border p-3 text-sm">
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge
-                  variant={
-                    smgFtpTestResult.result === "success"
-                      ? "default"
-                      : "destructive"
-                  }
-                >
-                  {formatTestResultLabel(smgFtpTestResult.result)}
-                </Badge>
-                {smgFtpTestResult.durationMs != null ? (
-                  <span className="text-xs text-muted-foreground">
-                    {smgFtpTestResult.durationMs} мс
-                  </span>
-                ) : null}
-              </div>
-              {smgFtpTestResult.detail ? (
-                <p className="mt-2 text-muted-foreground">
-                  {smgFtpTestResult.detail}
                 </p>
               ) : null}
             </div>

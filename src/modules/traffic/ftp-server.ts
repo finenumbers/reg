@@ -10,6 +10,7 @@ import {
   deserializeEncryptedSecret,
   getSecretEncryptionService,
 } from "@/modules/ssh/secrets";
+import { requestSmgImportDrain } from "@/modules/smg/enqueue";
 import { requestCdrImportDrain } from "@/modules/traffic/enqueue";
 import { ensureCdrInbox } from "@/modules/traffic/paths";
 
@@ -203,7 +204,16 @@ const RTU_FTP_BIND: FtpBind = {
   logScope: "ftp",
   ensureInbox: () => ensureCdrInbox(),
   loadConfig: () => loadFtpRuntimeConfig(),
-  onStored: () => requestCdrImportDrain("schedule"),
+  onStored: () => {
+    requestCdrImportDrain("schedule");
+    try {
+      requestSmgImportDrain("schedule");
+    } catch (error) {
+      logger.warn("ftp.smg_drain_failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  },
   disabledDetail: "FTP выключен в Настройках",
   missingCredentialsDetail: "Задайте логин и пароль FTP в Настройках",
 };

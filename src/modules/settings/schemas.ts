@@ -54,9 +54,6 @@ export const settingsUpdateSchema = z.object({
   ftpPasvMinPort: z.number().int().min(1024).max(65535).optional(),
   ftpPasvMaxPort: z.number().int().min(1024).max(65535).optional(),
   ftpPasvAddress: z.string().max(255).optional(),
-  smgFtpEnabled: z.boolean().optional(),
-  smgFtpUsername: z.string().min(1).max(128).optional(),
-  smgFtpListenPort: z.number().int().min(1).max(65535).optional(),
   voipmonitorEnabled: z.boolean().optional(),
   voipmonitorApiUrl: httpOriginSchema("VoIPmonitor API").optional(),
   voipmonitorUser: z.string().max(255).optional(),
@@ -83,10 +80,6 @@ export const pstnKeyReplaceSchema = z.object({
 });
 
 export type PstnKeyReplaceInput = z.infer<typeof pstnKeyReplaceSchema>;
-
-export function listenPortsConflict(left: number, right: number): boolean {
-  return left === right;
-}
 
 export const ftpPasswordReplaceSchema = z.object({
   password: z.string().min(1).max(1024),
@@ -137,11 +130,6 @@ export type SettingsView = {
   ftpPasvMaxPort: number;
   ftpPasvAddress: string | null;
   ftpListenerActive: boolean;
-  smgFtpEnabled: boolean;
-  smgFtpUsername: string | null;
-  hasSmgFtpPassword: boolean;
-  smgFtpListenPort: number;
-  smgFtpListenerActive: boolean;
   voipmonitorEnabled: boolean;
   voipmonitorApiUrl: string | null;
   voipmonitorUser: string | null;

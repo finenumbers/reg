@@ -1,7 +1,13 @@
-# Current Phase — production (v1.102.0)
+# Current Phase — production (v1.103.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, Eltex SMG CDR.  
 **Date:** 2026-10-13
+
+## v1.103.0 — SMG CDR uses the softswitch FTP inbox
+
+Eltex SMG-1016M uploads CDR through the same FTP listener as the softswitch, port 2121, with the same login. On the gateway the path is `/smg`. Files land in `cdr-inbox/smg`. The softswitch importer still reads only `YYYYMMDD_HHMMSS` names in the inbox root.
+
+The separate SMG listener, host port 2122, and the Settings block «FTP — звонки SMG» are gone. The `smgFtp*` columns stay in `app_settings` so an image from v1.102.0 can still boot. There is no new migration. The unused volume `reg_smg_cdr_inbox` stays mounted.
 
 ## v1.102.0 — Ingest Eltex SMG-1016M CDR
 

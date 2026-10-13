@@ -12,6 +12,7 @@ export function cdrInboxRoot(cwd: string = process.cwd()): string {
 export function ensureCdrInbox(cwd?: string): string {
   const root = cdrInboxRoot(cwd);
   mkdirSync(root, { recursive: true });
+  mkdirSync(path.join(root, "smg"), { recursive: true });
   return root;
 }
 

@@ -7,7 +7,5 @@ export {
   replaceGeoipApiKey,
   replacePstnApiKey,
   replaceFtpPassword,
-  replaceSmgFtpPassword,
   replaceVoipmonitorPassword,
-  SettingsValidationError,
 } from "@/modules/settings/service";
