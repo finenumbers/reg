@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/table";
 import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
 import { downloadXlsxFromUrl } from "@/lib/download-xlsx";
+import { formatCount } from "@/lib/format-count";
 import { SMG_FIELDS, SMG_HEADER_LABELS, SMG_PHONE_FIELDS } from "@/modules/smg/columns";
 import { decideSmgRefresh } from "@/modules/smg/refresh";
 import type { SmgListItem, SmgListResult, SmgStatus } from "@/modules/smg/service";
@@ -43,6 +44,8 @@ type LoadOpts = {
   filters?: ColumnFilters;
   phoneQ?: string;
   month?: string;
+  device?: string;
+  includeDevices?: boolean;
   background?: boolean;
 };
 
@@ -64,12 +67,16 @@ function readSmgStatus(body: unknown): SmgStatus | null {
 function buildListUrl(opts: {
   page: number;
   month: string;
+  device: string;
   phoneQ: string;
   filters: ColumnFilters;
+  includeDevices: boolean;
 }): string {
   const params = new URLSearchParams();
   params.set("page", String(opts.page));
   params.set("month", opts.month);
+  if (opts.device) params.set("device", opts.device);
+  if (opts.includeDevices) params.set("devices", "1");
   if (opts.phoneQ.trim()) params.set("phoneQ", opts.phoneQ.trim());
   const encoded = encodeFilters(opts.filters);
   if (encoded) params.set("filters", encoded);
@@ -98,6 +105,8 @@ export function SmgView({
   const [phoneQ, setPhoneQ] = useState("");
   const [month, setMonth] = useState(initial.month || currentUtcMonth().key);
   const [months, setMonths] = useState(initial.months);
+  const [device, setDevice] = useState(initial.device);
+  const [devices, setDevices] = useState(initial.devices ?? []);
   const [openColumn, setOpenColumn] = useState<string | null>(null);
   const [page, setPage] = useState(initial.page);
   const [items, setItems] = useState<SmgListItem[]>(initial.items);
@@ -115,11 +124,13 @@ export function SmgView({
   const filtersRef = useRef(filters);
   const phoneQRef = useRef(phoneQ);
   const monthRef = useRef(month);
+  const deviceRef = useRef(device);
   const loadListRef = useRef<(opts?: LoadOpts) => Promise<void>>(async () => {});
 
   filtersRef.current = filters;
   phoneQRef.current = phoneQ;
   monthRef.current = month;
+  deviceRef.current = device;
 
   const hasMore = items.length < total;
 
@@ -130,6 +141,8 @@ export function SmgView({
     const nextFilters = opts.filters ?? filtersRef.current;
     const nextPhone = opts.phoneQ ?? phoneQRef.current;
     const nextMonth = opts.month ?? monthRef.current;
+    const nextDevice = opts.device ?? deviceRef.current;
+    const includeDevices = opts.includeDevices ?? false;
     const seq = ++refreshSeq.current;
     if (replace) {
       setLoading(true);
@@ -143,13 +156,16 @@ export function SmgView({
         buildListUrl({
           page: nextPage,
           month: nextMonth,
+          device: nextDevice,
           phoneQ: nextPhone,
           filters: nextFilters,
+          includeDevices,
         }),
         { cache: "no-store" },
       );
       const data = await readJson(res);
       if (seq !== refreshSeq.current) return;
+      if (monthRef.current !== nextMonth || deviceRef.current !== nextDevice) return;
       if (!res.ok || !data) {
         if (!background) setListError("Не удалось загрузить звонки");
         return;
@@ -157,6 +173,11 @@ export function SmgView({
       setPage(data.page);
       setTotal(data.total);
       if (replace) setMonths(data.months);
+      if (data.devices !== null) setDevices(data.devices);
+      if (data.device !== deviceRef.current) {
+        deviceRef.current = data.device;
+        setDevice(data.device);
+      }
       setPoisonFiles(data.poisonFiles);
       setItems((current) => (replace ? data.items : [...current, ...data.items]));
       setListError(null);
@@ -219,7 +240,12 @@ export function SmgView({
         if (decision.since) baselineEmptyRef.current = false;
         if (status) setPoisonFiles(status.poisonFiles);
         if (decision.reload) {
-          void loadListRef.current({ page: 1, replace: true, background: true });
+          void loadListRef.current({
+            page: 1,
+            replace: true,
+            background: true,
+            includeDevices: true,
+          });
         }
       } catch {
         // Leave the cursor so the next poll can still see the missed import.
@@ -297,6 +323,13 @@ export function SmgView({
     value: item.key,
     label: formatMonthOption(item.year, item.month, item.count),
   }));
+  const gatewayOptions =
+    devices.length > 0
+      ? devices.map((item) => ({
+          value: item.sign,
+          label: `${item.sign} (${formatCount(item.count)})`,
+        }))
+      : [{ value: "", label: "Нет шлюзов" }];
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
@@ -316,24 +349,53 @@ export function SmgView({
         ) : null}
       </div>
 
-      <div className="flex shrink-0 flex-wrap items-center gap-2">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
         <PhoneSearchInput
           id="smg-phone-search"
           value={phoneInput}
           onChange={setPhoneInput}
         />
-        <FitSelect
-          id="smg-month"
-          aria-label="Месяц"
-          textClassName={FILTER_TOOLBAR_TEXT}
-          value={month}
-          options={monthOptions}
-          onChange={(nextKey) => {
-            if (!parseMonthKey(nextKey)) return;
-            setMonth(nextKey);
-            void loadList({ page: 1, replace: true, month: nextKey });
-          }}
-        />
+        <div className="flex flex-wrap items-center gap-2">
+          <FitSelect
+            id="smg-gateway"
+            aria-label="Шлюз"
+            textClassName={FILTER_TOOLBAR_TEXT}
+            value={devices.length > 0 ? device : ""}
+            options={gatewayOptions}
+            disabled={devices.length === 0}
+            onChange={(next) => {
+              if (!next || next === deviceRef.current) return;
+              deviceRef.current = next;
+              setDevice(next);
+              setFilters({});
+              setOpenColumn(null);
+              void loadList({
+                page: 1,
+                replace: true,
+                device: next,
+                filters: {},
+              });
+            }}
+          />
+          <FitSelect
+            id="smg-month"
+            aria-label="Месяц"
+            textClassName={FILTER_TOOLBAR_TEXT}
+            value={month}
+            options={monthOptions}
+            onChange={(nextKey) => {
+              if (!parseMonthKey(nextKey) || nextKey === monthRef.current) return;
+              monthRef.current = nextKey;
+              setMonth(nextKey);
+              void loadList({
+                page: 1,
+                replace: true,
+                month: nextKey,
+                includeDevices: true,
+              });
+            }}
+          />
+        </div>
       </div>
 
       {hasActiveFilters(filters) || phoneQ ? (
@@ -398,37 +460,40 @@ export function SmgView({
             <TableRow>
               {SMG_FIELDS.map((field) => (
                 <TableHead key={field} className="font-medium">
-                  <ColumnFilterDropdown
-                    column={field}
-                    header={SMG_HEADER_LABELS[field]}
-                    open={openColumn === field}
-                    selected={filters[field] ?? []}
-                    filters={filters}
-                    buildFacetsUrl={({ column, filters: nextFilters, q }) => {
-                      const params = new URLSearchParams();
-                      params.set("column", column);
-                      params.set("month", month);
-                      if (phoneQ.trim()) params.set("phoneQ", phoneQ.trim());
-                      if (q.trim()) params.set("q", q.trim());
-                      const encoded = encodeFilters(nextFilters);
-                      if (encoded) params.set("filters", encoded);
-                      return `/api/smg/facets?${params.toString()}`;
-                    }}
-                    formatValue={displayFacetValue}
-                    onToggle={() =>
-                      setOpenColumn(openColumn === field ? null : field)
-                    }
-                    onChange={(values) => {
-                      const next = setColumnFilterValues(filters, field, values);
-                      setFilters(next);
-                      void loadList({ page: 1, replace: true, filters: next });
-                    }}
-                    onClear={() => {
-                      const next = setColumnFilterValues(filters, field, []);
-                      setFilters(next);
-                      void loadList({ page: 1, replace: true, filters: next });
-                    }}
-                  />
+                  {field === "deviceSign" ? (
+                    SMG_HEADER_LABELS[field]
+                  ) : (
+                    <ColumnFilterDropdown
+                      column={field}
+                      header={SMG_HEADER_LABELS[field]}
+                      open={openColumn === field}
+                      selected={filters[field] ?? []}
+                      filters={filters}
+                      buildFacetsUrl={({ column, filters: nextFilters, q }) => {
+                        const params = new URLSearchParams();
+                        params.set("column", column);
+                        params.set("month", month);
+                        if (device) params.set("device", device);
+                        if (phoneQ.trim()) params.set("phoneQ", phoneQ.trim());
+                        if (q.trim()) params.set("q", q.trim());
+                        const encoded = encodeFilters(nextFilters);
+                        if (encoded) params.set("filters", encoded);
+                        return `/api/smg/facets?${params.toString()}`;
+                      }}
+                      formatValue={displayFacetValue}
+                      onToggle={() => setOpenColumn(openColumn === field ? null : field)}
+                      onChange={(values) => {
+                        const next = setColumnFilterValues(filters, field, values);
+                        setFilters(next);
+                        void loadList({ page: 1, replace: true, filters: next });
+                      }}
+                      onClear={() => {
+                        const next = setColumnFilterValues(filters, field, []);
+                        setFilters(next);
+                        void loadList({ page: 1, replace: true, filters: next });
+                      }}
+                    />
+                  )}
                 </TableHead>
               ))}
             </TableRow>

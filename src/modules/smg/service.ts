@@ -21,6 +21,7 @@ import {
   SMG_PHONE_FIELDS,
   type SmgField,
 } from "@/modules/smg/columns";
+import { pickSmgDevice, type SmgDeviceOption } from "@/modules/smg/device";
 import { smgMonthTimeRange } from "@/modules/smg/month-range";
 import { listSmgPoisonEntries, type SmgPoisonItem } from "@/modules/smg/poison";
 
@@ -35,6 +36,9 @@ export type SmgListResult = {
   pageSize: number;
   month: string;
   months: CdrMonth[];
+  device: string;
+  /** Null when this response did not recount the gateway menu. */
+  devices: SmgDeviceOption[] | null;
   poisonFiles: SmgPoisonItem[];
 };
 
@@ -52,6 +56,7 @@ function applyColumnFilters(
 ): Prisma.SmgCdrRecordWhereInput {
   const extras: Prisma.SmgCdrRecordWhereInput[] = [];
   for (const [column, values] of Object.entries(filters)) {
+    if (column === "deviceSign") continue;
     if (opts.excludeColumn && column === opts.excludeColumn) continue;
     if (!values?.length || !isSmgField(column)) continue;
     extras.push({
@@ -82,13 +87,40 @@ function applyPhoneQ(
   };
 }
 
+function applyDevice(
+  base: Prisma.SmgCdrRecordWhereInput,
+  device: string,
+): Prisma.SmgCdrRecordWhereInput {
+  // Stored ids are cuids. An empty id matches nothing when the month has no gateway.
+  if (!device) return { AND: [base, { id: "" }] };
+  return { AND: [base, { deviceSign: device }] };
+}
+
 function buildWhere(
   month: CdrMonth,
+  device: string,
   filters: ColumnFilters,
   phoneQ: string,
   opts: { excludeColumn?: string } = {},
 ): Prisma.SmgCdrRecordWhereInput {
-  return applyPhoneQ(applyColumnFilters(monthWhere(month), filters, opts), phoneQ);
+  return applyPhoneQ(
+    applyColumnFilters(applyDevice(monthWhere(month), device), filters, opts),
+    phoneQ,
+  );
+}
+
+async function querySmgDevices(month: CdrMonth): Promise<SmgDeviceOption[]> {
+  const range = smgMonthTimeRange(month);
+  const grouped = await prisma.smgCdrRecord.groupBy({
+    by: ["deviceSign"],
+    where: {
+      disconnectTime: { gte: range.gte, lt: range.lt },
+      deviceSign: { not: "" },
+    },
+    _count: { id: true },
+    orderBy: { deviceSign: "asc" },
+  });
+  return grouped.map((row) => ({ sign: row.deviceSign, count: row._count.id }));
 }
 
 export async function querySmgMonthCounts(): Promise<CdrMonth[]> {
@@ -111,9 +143,7 @@ export async function querySmgMonthCounts(): Promise<CdrMonth[]> {
   );
 }
 
-function toListItem(
-  row: { id: string } & Record<SmgField, string>,
-): SmgListItem {
+function toListItem(row: { id: string } & Record<SmgField, string>): SmgListItem {
   const item = { id: row.id } as SmgListItem;
   for (const field of SMG_FIELDS) item[field] = row[field] ?? "";
   return item;
@@ -124,10 +154,14 @@ export async function listSmgCalls(input: {
   page?: number;
   phoneQ?: string;
   filters?: ColumnFilters;
+  device?: string;
+  includeDevices?: boolean;
 }): Promise<SmgListResult> {
   const month = resolveMonthKey(input.month);
   const page = Math.max(1, input.page ?? 1);
   const poisonFiles = listSmgPoisonEntries();
+  const requested = input.device?.trim() ?? "";
+  const includeDevices = input.includeDevices === true || requested === "";
   if (isDatabaseVacuumActive()) {
     return {
       items: [],
@@ -136,11 +170,15 @@ export async function listSmgCalls(input: {
       pageSize: TABLE_PAGE_SIZE,
       month: month.key,
       months: [currentUtcMonth()],
+      device: "",
+      devices: includeDevices ? [] : null,
       poisonFiles,
     };
   }
 
-  const where = buildWhere(month, input.filters ?? {}, input.phoneQ ?? "");
+  const devices = includeDevices ? await querySmgDevices(month) : null;
+  const device = includeDevices ? pickSmgDevice(devices ?? [], requested) : requested;
+  const where = buildWhere(month, device, input.filters ?? {}, input.phoneQ ?? "");
   const [total, rows, months] = await Promise.all([
     prisma.smgCdrRecord.count({ where }),
     prisma.smgCdrRecord.findMany({
@@ -159,6 +197,8 @@ export async function listSmgCalls(input: {
     pageSize: TABLE_PAGE_SIZE,
     month: month.key,
     months,
+    device,
+    devices,
     poisonFiles,
   };
 }
@@ -168,16 +208,18 @@ export async function listSmgFacets(input: {
   month?: string;
   phoneQ?: string;
   filters?: ColumnFilters;
+  device?: string;
   q?: string;
   limit?: number;
 }): Promise<FacetResponse> {
-  if (!isSmgField(input.column) || isDatabaseVacuumActive()) {
+  const device = input.device?.trim() ?? "";
+  if (!isSmgField(input.column) || !device || isDatabaseVacuumActive()) {
     return { items: [], truncated: false };
   }
   const month = resolveMonthKey(input.month);
   const limit = Math.min(200, Math.max(1, input.limit ?? 200));
   const q = input.q?.trim() ?? "";
-  let where = buildWhere(month, input.filters ?? {}, input.phoneQ ?? "", {
+  let where = buildWhere(month, device, input.filters ?? {}, input.phoneQ ?? "", {
     excludeColumn: input.column,
   });
   if (q) {

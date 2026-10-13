@@ -5,7 +5,7 @@ import { listSmgFacets } from "@/modules/smg/service";
 import { cdrVacuumBusyResponse } from "@/modules/storage/vacuum/http";
 
 /**
- * GET /api/smg/facets — distinct values for one SMG CDR column in the month.
+ * GET /api/smg/facets — distinct values for one SMG CDR column on one gateway.
  */
 export async function GET(request: Request) {
   const gate = await requireApiPermission("phones:read");
@@ -27,6 +27,7 @@ export async function GET(request: Request) {
     filters: parseFiltersParam(url.searchParams.get("filters")),
     phoneQ: url.searchParams.get("phoneQ") ?? undefined,
     month: url.searchParams.get("month") ?? undefined,
+    device: url.searchParams.get("device") ?? undefined,
     q: url.searchParams.get("q") ?? undefined,
     limit: Number.isFinite(limitRaw) ? limitRaw : 200,
   });

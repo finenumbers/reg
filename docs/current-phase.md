@@ -1,7 +1,17 @@
-# Current Phase — production (v1.107.0)
+# Current Phase — production (v1.108.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, Eltex SMG CDR.  
 **Date:** 2026-10-14
+
+## v1.108.0 — SMG calls are one gateway at a time
+
+«Звонки на SMG» shows one gateway. The gateway menu is the «Узел» column (`device_sign`). There is no mixed table. The month menu sits at the right of the filter row, and the gateway menu sits immediately to its left. A gateway label is the node name and that node's call count for the month. The count ignores the phone search and the column filters. The number under the table includes them. Menu order is the database order of `device_sign`.
+
+The first open, a month change, and a poll after an import recount the menu. Search, a column filter, the next page, and a gateway change do not. A month that no longer has the selected node switches to the first node of that month in the same response. Column filters stay when the month changes. Changing the gateway clears them and keeps the phone search. The «Узел» column stays in the table and is not a column filter.
+
+The page query is equality on `device_sign` plus the disconnect-time range, ordered by `disconnect_time` and `id`, both descending. The new index is `(device_sign, disconnect_time DESC, id DESC)`. The index on `device_sign` alone is dropped in the same migration. The index on `disconnect_time, id` stays, so the gateway menu can walk one month. `CREATE INDEX` blocks writes on `smg_cdr_records` until it finishes and does not block reads. Do not deploy while a database compression of that table is running. The app pool waits 5 seconds for a lock. An `smg.import` that hits this build fails, leaves the file in the inbox, and does not mark it as a bad file. The next import inserts the rest of that file. Softswitch CDR writes are not blocked.
+
+Migration: `20261014030000_smg_device_disconnect_idx`.
 
 ## v1.107.0 — SMG month list follows disconnect time
 

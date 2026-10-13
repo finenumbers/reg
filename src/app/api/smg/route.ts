@@ -5,7 +5,8 @@ import { listSmgCalls } from "@/modules/smg/service";
 import { cdrVacuumBusyResponse } from "@/modules/storage/vacuum/http";
 
 /**
- * GET /api/smg — list Eltex SMG CDR rows for one calendar month.
+ * GET /api/smg — list Eltex SMG CDR rows for one gateway and calendar month.
+ * `devices=1` recounts the gateway menu. A missing device does that too.
  */
 export async function GET(request: Request) {
   const gate = await requireApiPermission("phones:read");
@@ -18,6 +19,8 @@ export async function GET(request: Request) {
     filters: parseFiltersParam(url.searchParams.get("filters")),
     phoneQ: url.searchParams.get("phoneQ") ?? undefined,
     month: url.searchParams.get("month") ?? undefined,
+    device: url.searchParams.get("device") ?? undefined,
+    includeDevices: url.searchParams.get("devices") === "1",
     page: Number(url.searchParams.get("page") ?? "1"),
   });
   return NextResponse.json(data);
