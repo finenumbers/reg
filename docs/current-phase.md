@@ -1,7 +1,11 @@
-# Current Phase — production (v1.112.0)
+# Current Phase — production (v1.113.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, Eltex SMG CDR.  
 **Date:** 2026-10-14
+
+## v1.113.0 — SMG counter uses the same colors as softswitch CDR
+
+«Звонки на SMG» keeps the same counter and the same reset rules. The digits are now green after a file that contained calls, yellow after a file with no calls, and red after a later scan that found neither a ready nor a young file in the SMG folder. Several files from different gateways share one counter. The gateway menu does not change it. One pass that takes any file with calls is green. A pass whose files have no calls is yellow. A file that is still being written does not turn the counter red. A quiet gateway does not turn it red while another gateway's file was last or is still in the folder. Green or yellow lasts until the next empty SMG scan, on the same interval as the softswitch scan. The two clocks stay separate. There is no new migration.
 
 ## v1.112.0 — Call journals show time since the last file
 

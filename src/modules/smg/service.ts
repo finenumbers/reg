@@ -25,6 +25,7 @@ import { pickSmgDevice, type SmgDeviceOption } from "@/modules/smg/device";
 import { smgMonthTimeRange } from "@/modules/smg/month-range";
 import { listSmgPoisonEntries, type SmgPoisonItem } from "@/modules/smg/poison";
 import { findLastFileImport } from "@/modules/jobs/last-file-import";
+import { lastSmgEmptyScanAt } from "@/modules/jobs/scheduler";
 
 export type SmgListItem = Record<SmgField, string> & {
   id: string;
@@ -259,6 +260,8 @@ export type SmgStatus = {
   changed: boolean;
   poisonFiles: SmgPoisonItem[];
   lastPassAt: string | null;
+  hadCalls: boolean;
+  lastCheckedAt: string | null;
 };
 
 const SMG_IMPORT_DONE: JobStatus[] = ["success", "failed"];
@@ -333,10 +336,13 @@ export async function getSmgStatus(
     changed = meaningful != null;
   }
 
+  const checkedAt = lastSmgEmptyScanAt();
   return {
     cursor: latest?.id ?? null,
     changed,
     poisonFiles,
     lastPassAt: filePass.lastPassAt,
+    hadCalls: filePass.hadCalls,
+    lastCheckedAt: checkedAt == null ? null : new Date(checkedAt).toISOString(),
   };
 }

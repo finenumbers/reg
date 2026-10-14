@@ -4,7 +4,7 @@ import {
   formatElapsed,
   isFilePassJob,
   passTone,
-  shouldStampRtuEmptyScan,
+  shouldStampEmptyScan,
 } from "@/modules/traffic/load-age";
 
 const MINUTE = 60_000;
@@ -77,10 +77,10 @@ describe("file pass selection", () => {
   });
 });
 
-describe("shouldStampRtuEmptyScan", () => {
+describe("shouldStampEmptyScan", () => {
   it("stamps only when the inbox has no ready and no young file", () => {
-    expect(shouldStampRtuEmptyScan(0, 0)).toBe(true);
-    expect(shouldStampRtuEmptyScan(1, 0)).toBe(false);
-    expect(shouldStampRtuEmptyScan(0, 1)).toBe(false);
+    expect(shouldStampEmptyScan(0, 0)).toBe(true);
+    expect(shouldStampEmptyScan(1, 0)).toBe(false);
+    expect(shouldStampEmptyScan(0, 1)).toBe(false);
   });
 });

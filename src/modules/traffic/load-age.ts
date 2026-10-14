@@ -24,11 +24,12 @@ export function filePassHadCalls(job: {
 }
 
 /**
- * Red only after a scan that found neither a ready nor a young RTU file.
+ * Red only after a scan that found neither a ready nor a young file.
  * A job that finished with no file must not stamp: that also happens while
- * a dump is still younger than the settle window.
+ * a dump is still younger than the settle window, and when the other side's
+ * upload wakes an empty import.
  */
-export function shouldStampRtuEmptyScan(ready: number, young: number): boolean {
+export function shouldStampEmptyScan(ready: number, young: number): boolean {
   return ready === 0 && young === 0;
 }
 

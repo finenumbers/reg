@@ -34,6 +34,8 @@ describe("getSmgStatus", () => {
       changed: true,
       poisonFiles: [],
       lastPassAt: null,
+      hadCalls: false,
+      lastCheckedAt: null,
     });
   });
 

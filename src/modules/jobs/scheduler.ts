@@ -19,7 +19,7 @@ import type { AllowedActionCode } from "@/modules/actions/registry";
 import { prisma } from "@/lib/db";
 import { logger } from "@/lib/logger";
 import { partitionInboxFiles } from "@/modules/traffic/inbox";
-import { shouldStampRtuEmptyScan } from "@/modules/traffic/load-age";
+import { shouldStampEmptyScan } from "@/modules/traffic/load-age";
 import { isDatabaseVacuumActive } from "@/modules/storage/vacuum/gate";
 import { requestCdrImportDrain } from "@/modules/traffic/enqueue";
 import { requestSmgImportDrain } from "@/modules/smg/enqueue";
@@ -59,8 +59,9 @@ type SchedulerGlobalState = {
   runtimeRef: SchedulerJobRuntime | null;
   lastExportSync: ExportSyncAction | null;
   sidesUsedInitialDelay: boolean;
-  /** Set when an RTU inbox scan finds neither a ready nor a young file. */
+  /** Set when an inbox scan finds neither a ready nor a young file. */
   lastRtuEmptyScanAt: number | null;
+  lastSmgEmptyScanAt: number | null;
 };
 
 const DEFAULT_REGS_INTERVAL_SEC = 60;
@@ -128,6 +129,7 @@ function schedulerState(): SchedulerGlobalState {
       lastExportSync: null,
       sidesUsedInitialDelay: false,
       lastRtuEmptyScanAt: null,
+      lastSmgEmptyScanAt: null,
     };
   }
   return g[SCHEDULER_GLOBAL_KEY];
@@ -201,10 +203,14 @@ export function lastRtuEmptyScanAt(): number | null {
   return schedulerState().lastRtuEmptyScanAt;
 }
 
+export function lastSmgEmptyScanAt(): number | null {
+  return schedulerState().lastSmgEmptyScanAt;
+}
+
 async function drainPendingInbox(): Promise<void> {
   try {
     const { ready, young } = await partitionInboxFiles();
-    if (shouldStampRtuEmptyScan(ready.length, young.length)) {
+    if (shouldStampEmptyScan(ready.length, young.length)) {
       schedulerState().lastRtuEmptyScanAt = Date.now();
       return;
     }
@@ -219,7 +225,11 @@ async function drainPendingInbox(): Promise<void> {
 async function drainPendingSmgInbox(): Promise<void> {
   if (isDatabaseVacuumActive()) return;
   try {
-    const { ready } = await listSmgInboxFiles();
+    const { ready, young } = await listSmgInboxFiles();
+    if (shouldStampEmptyScan(ready.length, young.length)) {
+      schedulerState().lastSmgEmptyScanAt = Date.now();
+      return;
+    }
     if (ready.length === 0) return;
     requestSmgImportDrain("schedule");
   } catch (error) {
@@ -484,6 +494,7 @@ export function stopAutoScheduler(): void {
   state.lastExportSync = null;
   state.sidesUsedInitialDelay = false;
   state.lastRtuEmptyScanAt = null;
+  state.lastSmgEmptyScanAt = null;
   if (state.timer) {
     clearTimeout(state.timer);
     state.timer = null;

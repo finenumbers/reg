@@ -67,6 +67,8 @@ function readSmgStatus(body: unknown): SmgStatus | null {
     changed: row.changed,
     poisonFiles,
     lastPassAt: readLastPassAt(row),
+    hadCalls: row.hadCalls === true,
+    lastCheckedAt: readLastPassAt({ lastPassAt: row.lastCheckedAt }),
   };
 }
 
@@ -128,7 +130,11 @@ export function SmgView({
   const [poisonFiles, setPoisonFiles] = useState(initial.poisonFiles);
   const [downloading, setDownloading] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
-  const [lastPassAt, setLastPassAt] = useState<string | null | undefined>(undefined);
+  const [loadAge, setLoadAge] = useState<{
+    lastPassAt: string | null;
+    hadCalls: boolean;
+    lastCheckedAt: string | null;
+  } | null>(null);
   const [scrollRoot, setScrollRoot] = useState<Element | null>(null);
   const refreshSeq = useRef(0);
   const sinceRef = useRef<string | null>(initialSince);
@@ -252,7 +258,11 @@ export function SmgView({
         if (decision.since) baselineEmptyRef.current = false;
         if (status) {
           setPoisonFiles(status.poisonFiles);
-          setLastPassAt(status.lastPassAt);
+          setLoadAge({
+            lastPassAt: status.lastPassAt,
+            hadCalls: status.hadCalls,
+            lastCheckedAt: status.lastCheckedAt,
+          });
         }
         if (decision.reload) {
           void loadListRef.current({
@@ -358,8 +368,13 @@ export function SmgView({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {lastPassAt !== undefined ? (
-            <LoadAgeChip lastPassAt={lastPassAt} colored={false} />
+          {loadAge ? (
+            <LoadAgeChip
+              lastPassAt={loadAge.lastPassAt}
+              hadCalls={loadAge.hadCalls}
+              lastCheckedAt={loadAge.lastCheckedAt}
+              colored
+            />
           ) : null}
           {canRetry ? (
             <Button type="button" onClick={() => void onRetry()} disabled={pending}>
