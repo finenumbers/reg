@@ -13,6 +13,8 @@ import {
 import { prisma } from "@/lib/db";
 import { TABLE_PAGE_SIZE } from "@/lib/table-pagination";
 import { getJobRunSummary } from "@/modules/jobs/query";
+import { findLastFileImport } from "@/modules/jobs/last-file-import";
+import { lastRtuEmptyScanAt } from "@/modules/jobs/scheduler";
 import {
   applyMonthFilter,
   currentUtcMonth,
@@ -73,6 +75,9 @@ export type TrafficOperationalStatus = {
   recordCount: number;
   pendingInboxCount: number;
   poisonedCount: number;
+  lastPassAt: string | null;
+  hadCalls: boolean;
+  lastCheckedAt: string | null;
   poisonFiles?: Array<{
     filename: string;
     error: string;
@@ -387,12 +392,14 @@ export async function listTrafficFacets(opts: {
 }
 
 export async function getTrafficStatus(): Promise<TrafficOperationalStatus> {
-  const [summary, months, inbox] = await Promise.all([
+  const [summary, months, inbox, filePass] = await Promise.all([
     getJobRunSummary("cdr.import"),
     listCachedMonthCounts(),
     countInboxFiles(),
+    findLastFileImport("cdr.import"),
   ]);
   const last = summary.lastAny;
+  const checkedAt = lastRtuEmptyScanAt();
   return {
     lastJobStatus: last ? last.status : summary.runningCount > 0 ? "running" : "never",
     lastError: last?.status === "failed" ? last.errorMessage : null,
@@ -402,6 +409,9 @@ export async function getTrafficStatus(): Promise<TrafficOperationalStatus> {
     recordCount: sumMonthRecordCounts(months),
     pendingInboxCount: inbox.pending,
     poisonedCount: inbox.poisoned,
+    lastPassAt: filePass.lastPassAt,
+    hadCalls: filePass.hadCalls,
+    lastCheckedAt: checkedAt == null ? null : new Date(checkedAt).toISOString(),
     poisonFiles: listPoisonEntries(),
   };
 }

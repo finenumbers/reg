@@ -24,6 +24,7 @@ import {
 import { pickSmgDevice, type SmgDeviceOption } from "@/modules/smg/device";
 import { smgMonthTimeRange } from "@/modules/smg/month-range";
 import { listSmgPoisonEntries, type SmgPoisonItem } from "@/modules/smg/poison";
+import { findLastFileImport } from "@/modules/jobs/last-file-import";
 
 export type SmgListItem = Record<SmgField, string> & {
   id: string;
@@ -257,6 +258,7 @@ export type SmgStatus = {
   cursor: string | null;
   changed: boolean;
   poisonFiles: SmgPoisonItem[];
+  lastPassAt: string | null;
 };
 
 const SMG_IMPORT_DONE: JobStatus[] = ["success", "failed"];
@@ -291,7 +293,7 @@ export async function getSmgStatus(
 ): Promise<SmgStatus> {
   const poisonFiles = listSmgPoisonEntries();
   const id = sinceId?.trim() || null;
-  const [latest, cursorJob] = await Promise.all([
+  const [latest, cursorJob, filePass] = await Promise.all([
     prisma.jobRun.findFirst({
       where: { actionCode: "smg.import", status: { in: SMG_IMPORT_DONE } },
       orderBy: { startedAt: "desc" },
@@ -303,6 +305,7 @@ export async function getSmgStatus(
           select: { id: true, startedAt: true },
         })
       : Promise.resolve(null),
+    findLastFileImport("smg.import"),
   ]);
 
   let changed = false;
@@ -334,5 +337,6 @@ export async function getSmgStatus(
     cursor: latest?.id ?? null,
     changed,
     poisonFiles,
+    lastPassAt: filePass.lastPassAt,
   };
 }

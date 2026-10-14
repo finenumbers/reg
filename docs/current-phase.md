@@ -1,7 +1,13 @@
-# Current Phase — production (v1.111.0)
+# Current Phase — production (v1.112.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, Eltex SMG CDR.  
 **Date:** 2026-10-14
+
+## v1.112.0 — Call journals show time since the last file
+
+«Телефонный трафик», «Операторы связи», «География звонков», «Сырые данные», and «Звонки на SMG» show how long it has been since the importer took a file. The counter sits in the title row, to the left of that row's buttons. Under an hour it reads `mm:ss`. From one hour it reads `h:mm:ss`. A file that contains call rows resets it, including a file whose calls were already in the database. A file with no call rows resets it too. A look that finds no new file does not.
+
+On the softswitch pages the digits are green after a file that contained calls, yellow after a file with no calls, and red after a later scan that found neither a ready nor a young file. Green or yellow lasts until that empty scan. The scan runs on the registration interval, 60 seconds by default, and can land immediately after an import. «Звонки на SMG» uses the same counter with no color. The two sides do not share a clock. «Детализация» and «Статистика» do not show it. Hovering names the state and the time of that file. There is no new migration.
 
 ## v1.111.0 — One month delete covers CDR and SMG
 

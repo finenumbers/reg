@@ -39,6 +39,7 @@ import {
 import { formatMonthOption } from "@/modules/traffic/month-labels";
 import type { ListTrafficResult, TrafficListItem } from "@/modules/traffic/service";
 import { MonthExportButtons } from "@/modules/traffic/ui/month-export-buttons";
+import { LoadAgeChip } from "@/modules/traffic/ui/load-age-chip";
 import { TrafficTable } from "@/modules/traffic/ui/traffic-table";
 import type { TimeSort } from "@/modules/traffic/traffic-sort";
 import { composeTrafficBanner, displayTrafficFacet } from "@/modules/traffic/ui-format";
@@ -140,6 +141,11 @@ export function TrafficView({
   const wasBusyRef = useRef(false);
   const lastFinishedAtRef = useRef<string | null | undefined>(undefined);
   const [scrollRoot, setScrollRoot] = useState<Element | null>(null);
+  const [loadAge, setLoadAge] = useState<{
+    lastPassAt: string | null;
+    hadCalls: boolean;
+    lastCheckedAt: string | null;
+  } | null>(null);
 
   filtersRef.current = filters;
   phoneQRef.current = phoneQ;
@@ -288,6 +294,11 @@ export function TrafficView({
       const status = await fetchTrafficStatus();
       if (cancelled || !status.ok) return;
       applyStatusBanner(status.data);
+      setLoadAge({
+        lastPassAt: status.data.lastPassAt,
+        hadCalls: status.data.hadCalls,
+        lastCheckedAt: status.data.lastCheckedAt,
+      });
       const busy = isBusy(status.data);
       const finishedAt = status.data.lastFinishedAt ?? null;
       const finishedChanged =
@@ -544,6 +555,14 @@ export function TrafficView({
           <p className="text-muted-foreground text-sm">{subtitle}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {loadAge ? (
+            <LoadAgeChip
+              lastPassAt={loadAge.lastPassAt}
+              hadCalls={loadAge.hadCalls}
+              lastCheckedAt={loadAge.lastCheckedAt}
+              colored
+            />
+          ) : null}
           {showMonthExport ? <MonthExportButtons month={month} /> : null}
           {showRetry ? (
             <Button type="button" onClick={() => void onRetry()} disabled={pending}>

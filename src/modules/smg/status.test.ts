@@ -33,6 +33,7 @@ describe("getSmgStatus", () => {
       cursor: "job-wrote",
       changed: true,
       poisonFiles: [],
+      lastPassAt: null,
     });
   });
 

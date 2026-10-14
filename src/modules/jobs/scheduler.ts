@@ -18,7 +18,8 @@
 import type { AllowedActionCode } from "@/modules/actions/registry";
 import { prisma } from "@/lib/db";
 import { logger } from "@/lib/logger";
-import { listInboxFiles, listYoungInboxFiles } from "@/modules/traffic/inbox";
+import { partitionInboxFiles } from "@/modules/traffic/inbox";
+import { shouldStampRtuEmptyScan } from "@/modules/traffic/load-age";
 import { isDatabaseVacuumActive } from "@/modules/storage/vacuum/gate";
 import { requestCdrImportDrain } from "@/modules/traffic/enqueue";
 import { requestSmgImportDrain } from "@/modules/smg/enqueue";
@@ -58,6 +59,8 @@ type SchedulerGlobalState = {
   runtimeRef: SchedulerJobRuntime | null;
   lastExportSync: ExportSyncAction | null;
   sidesUsedInitialDelay: boolean;
+  /** Set when an RTU inbox scan finds neither a ready nor a young file. */
+  lastRtuEmptyScanAt: number | null;
 };
 
 const DEFAULT_REGS_INTERVAL_SEC = 60;
@@ -124,6 +127,7 @@ function schedulerState(): SchedulerGlobalState {
       runtimeRef: null,
       lastExportSync: null,
       sidesUsedInitialDelay: false,
+      lastRtuEmptyScanAt: null,
     };
   }
   return g[SCHEDULER_GLOBAL_KEY];
@@ -193,10 +197,17 @@ async function drainVoipmonitorMatch(): Promise<void> {
   }
 }
 
+export function lastRtuEmptyScanAt(): number | null {
+  return schedulerState().lastRtuEmptyScanAt;
+}
+
 async function drainPendingInbox(): Promise<void> {
   try {
-    const [pending, young] = await Promise.all([listInboxFiles(), listYoungInboxFiles()]);
-    if (pending.length === 0 && young.length === 0) return;
+    const { ready, young } = await partitionInboxFiles();
+    if (shouldStampRtuEmptyScan(ready.length, young.length)) {
+      schedulerState().lastRtuEmptyScanAt = Date.now();
+      return;
+    }
     requestCdrImportDrain("schedule");
   } catch (error) {
     logger.warn("scheduler.inbox_scan_failed", {
@@ -472,6 +483,7 @@ export function stopAutoScheduler(): void {
   state.runtimeRef = null;
   state.lastExportSync = null;
   state.sidesUsedInitialDelay = false;
+  state.lastRtuEmptyScanAt = null;
   if (state.timer) {
     clearTimeout(state.timer);
     state.timer = null;

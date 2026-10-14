@@ -31,6 +31,7 @@ import { formatCount } from "@/lib/format-count";
 import { SMG_FIELDS, SMG_HEADER_LABELS, SMG_PHONE_FIELDS } from "@/modules/smg/columns";
 import { decideSmgRefresh } from "@/modules/smg/refresh";
 import type { SmgListItem, SmgListResult, SmgStatus } from "@/modules/smg/service";
+import { LoadAgeChip } from "@/modules/traffic/ui/load-age-chip";
 import { currentUtcMonth, parseMonthKey } from "@/modules/traffic/cdr-month";
 import { formatMonthOption } from "@/modules/traffic/month-labels";
 
@@ -61,7 +62,17 @@ function readSmgStatus(body: unknown): SmgStatus | null {
     if (typeof file.filename !== "string" || typeof file.error !== "string") return null;
     poisonFiles.push({ filename: file.filename, error: file.error });
   }
-  return { cursor: row.cursor, changed: row.changed, poisonFiles };
+  return {
+    cursor: row.cursor,
+    changed: row.changed,
+    poisonFiles,
+    lastPassAt: readLastPassAt(row),
+  };
+}
+
+function readLastPassAt(row: Record<string, unknown>): string | null {
+  if (row.lastPassAt === null || typeof row.lastPassAt === "string") return row.lastPassAt;
+  return null;
 }
 
 function buildListUrl(opts: {
@@ -117,6 +128,7 @@ export function SmgView({
   const [poisonFiles, setPoisonFiles] = useState(initial.poisonFiles);
   const [downloading, setDownloading] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [lastPassAt, setLastPassAt] = useState<string | null | undefined>(undefined);
   const [scrollRoot, setScrollRoot] = useState<Element | null>(null);
   const refreshSeq = useRef(0);
   const sinceRef = useRef<string | null>(initialSince);
@@ -238,7 +250,10 @@ export function SmgView({
         if (cancelled) return;
         sinceRef.current = decision.since;
         if (decision.since) baselineEmptyRef.current = false;
-        if (status) setPoisonFiles(status.poisonFiles);
+        if (status) {
+          setPoisonFiles(status.poisonFiles);
+          setLastPassAt(status.lastPassAt);
+        }
         if (decision.reload) {
           void loadListRef.current({
             page: 1,
@@ -342,11 +357,16 @@ export function SmgView({
             CDR цифровых шлюзов Eltex SMG-1016M из локальной базы.
           </p>
         </div>
-        {canRetry ? (
-          <Button type="button" onClick={() => void onRetry()} disabled={pending}>
-            {pending ? "Импорт…" : "Повторить импорт"}
-          </Button>
-        ) : null}
+        <div className="flex flex-wrap items-center gap-2">
+          {lastPassAt !== undefined ? (
+            <LoadAgeChip lastPassAt={lastPassAt} colored={false} />
+          ) : null}
+          {canRetry ? (
+            <Button type="button" onClick={() => void onRetry()} disabled={pending}>
+              {pending ? "Импорт…" : "Повторить импорт"}
+            </Button>
+          ) : null}
+        </div>
       </div>
 
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
