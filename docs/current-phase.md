@@ -1,7 +1,11 @@
-# Current Phase — production (v1.114.0)
+# Current Phase — production (v1.115.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, Eltex SMG CDR.  
 **Date:** 2026-10-14
+
+## v1.115.0 — Load counters hold while the feed stays quiet
+
+The RTU and SMG load counters no longer return to zero when the next attempt is the same kind of miss. Another file with no calls leaves the yellow digits on the first empty file of that run. Another scan that finds no file leaves the red digits where they are and only keeps the color. A scan after a file that had calls turns the digits red without zeroing them. A file with calls always starts the counter over, including when the previous file also had calls. An empty file that arrives after a red scan starts a new yellow run. That split is remembered in the process; a restart keeps the digits on the run stored in job history instead of jumping to zero. There is no new migration.
 
 ## v1.114.0 — Storage totals and month columns line up
 

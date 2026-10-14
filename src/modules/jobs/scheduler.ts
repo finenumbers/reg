@@ -19,7 +19,11 @@ import type { AllowedActionCode } from "@/modules/actions/registry";
 import { prisma } from "@/lib/db";
 import { logger } from "@/lib/logger";
 import { partitionInboxFiles } from "@/modules/traffic/inbox";
-import { shouldStampEmptyScan } from "@/modules/traffic/load-age";
+import {
+  nextLoadEpisode,
+  shouldStampEmptyScan,
+  type LoadEpisode,
+} from "@/modules/traffic/load-age";
 import { isDatabaseVacuumActive } from "@/modules/storage/vacuum/gate";
 import { requestCdrImportDrain } from "@/modules/traffic/enqueue";
 import { requestSmgImportDrain } from "@/modules/smg/enqueue";
@@ -62,6 +66,9 @@ type SchedulerGlobalState = {
   /** Set when an inbox scan finds neither a ready nor a young file. */
   lastRtuEmptyScanAt: number | null;
   lastSmgEmptyScanAt: number | null;
+  /** Yellow file that ended a red episode. Lost on process restart. */
+  rtuEpisode: LoadEpisode | null;
+  smgEpisode: LoadEpisode | null;
 };
 
 const DEFAULT_REGS_INTERVAL_SEC = 60;
@@ -130,6 +137,8 @@ function schedulerState(): SchedulerGlobalState {
       sidesUsedInitialDelay: false,
       lastRtuEmptyScanAt: null,
       lastSmgEmptyScanAt: null,
+      rtuEpisode: null,
+      smgEpisode: null,
     };
   }
   return g[SCHEDULER_GLOBAL_KEY];
@@ -205,6 +214,29 @@ export function lastRtuEmptyScanAt(): number | null {
 
 export function lastSmgEmptyScanAt(): number | null {
   return schedulerState().lastSmgEmptyScanAt;
+}
+
+export type LoadCounterSide = "rtu" | "smg";
+
+/** Empty-file time that ended red, if this process saw that gap. */
+export function loadStreakBreakAt(side: LoadCounterSide): number | null {
+  const episode =
+    side === "rtu" ? schedulerState().rtuEpisode : schedulerState().smgEpisode;
+  if (!episode || episode.hadCalls || !episode.brokeRed) return null;
+  return episode.anchor;
+}
+
+/** Remember a file pass. A later empty scan does not erase a yellow break. */
+export function noteLoadFilePass(
+  side: LoadCounterSide,
+  pass: { at: number; hadCalls: boolean },
+): void {
+  const state = schedulerState();
+  const episode = side === "rtu" ? state.rtuEpisode : state.smgEpisode;
+  const scanAt = side === "rtu" ? state.lastRtuEmptyScanAt : state.lastSmgEmptyScanAt;
+  const next = nextLoadEpisode(episode, scanAt, pass);
+  if (side === "rtu") state.rtuEpisode = next;
+  else state.smgEpisode = next;
 }
 
 async function drainPendingInbox(): Promise<void> {
@@ -495,6 +527,8 @@ export function stopAutoScheduler(): void {
   state.sidesUsedInitialDelay = false;
   state.lastRtuEmptyScanAt = null;
   state.lastSmgEmptyScanAt = null;
+  state.rtuEpisode = null;
+  state.smgEpisode = null;
   if (state.timer) {
     clearTimeout(state.timer);
     state.timer = null;

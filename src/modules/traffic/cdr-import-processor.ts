@@ -22,6 +22,8 @@ import {
 } from "@/modules/traffic/inbox";
 import { consumeCdrInboxDirty } from "@/modules/traffic/drain-flag";
 import { failJobRunIfStillRunning } from "@/modules/jobs/finalize";
+import { noteLoadFilePass } from "@/modules/jobs/scheduler";
+import { filePassHadCalls, isFilePassJob } from "@/modules/traffic/load-age";
 import { requestCdrImportDrain } from "@/modules/traffic/enqueue";
 import { requestVoipmonitorMatch } from "@/modules/voipmonitor/enqueue";
 import { invalidateCdrMonthCountCache } from "@/modules/traffic/cdr-month-stats";
@@ -108,6 +110,19 @@ function truncateUtf8(value: string, maxBytes: number): string {
   const buf = Buffer.from(value, "utf8");
   if (buf.length <= maxBytes) return value;
   return buf.subarray(0, maxBytes).toString("utf8");
+}
+
+function rememberRtuPass(
+  at: Date,
+  fileCount: number,
+  phonesParsed: number,
+  changesCount: number,
+): void {
+  if (!isFilePassJob({ fileCount, phonesParsed, changesCount })) return;
+  noteLoadFilePass("rtu", {
+    at: at.getTime(),
+    hadCalls: filePassHadCalls({ phonesParsed, changesCount }),
+  });
 }
 
 function deferredFile(file: InboxFile): FileImportResult {
@@ -554,6 +569,7 @@ export async function processCdrImport(
         },
       });
       logger.warn("cdr.import.failed", { jobRunId: jobRun.id, error: errorMessage });
+      rememberRtuPass(finishedAt, fileResults.length, phonesParsed, changesCount);
       return {
         status: "failed",
         jobRunId: jobRun.id,
@@ -641,6 +657,8 @@ export async function processCdrImport(
       linesBad,
       fileCount: fileResults.length,
     });
+
+    rememberRtuPass(finishedAt, fileResults.length, phonesParsed, changesCount);
 
     if (phonesParsed > 0) {
       invalidateCdrMonthCountCache();

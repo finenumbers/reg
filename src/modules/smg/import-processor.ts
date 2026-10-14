@@ -8,6 +8,8 @@ import { prisma } from "@/lib/db";
 import { formatCount } from "@/lib/format-count";
 import { logger } from "@/lib/logger";
 import { AUDIT_ACTIONS, auditService } from "@/modules/audit";
+import { noteLoadFilePass } from "@/modules/jobs/scheduler";
+import { filePassHadCalls, isFilePassJob } from "@/modules/traffic/load-age";
 import { SMG_FILE_SETTLE_MS, SMG_INSERT_BATCH_SIZE } from "@/modules/smg/columns";
 import { consumeSmgInboxDirty } from "@/modules/smg/enqueue";
 import {
@@ -295,6 +297,7 @@ export async function processSmgImport(
       linesBad,
       fileCount: fileResults.length,
     });
+    rememberSmgPass(finishedAt, fileResults.length, phonesParsed, changesCount);
     return {
       status: failed ? "failed" : "success",
       jobRunId: jobRun.id,
@@ -335,6 +338,7 @@ export async function processSmgImport(
       },
     });
     logger.warn("smg.import.failed", { jobRunId: jobRun.id, error: errorMessage });
+    rememberSmgPass(finishedAt, fileResults.length, phonesParsed, changesCount);
     return {
       status: "failed",
       jobRunId: jobRun.id,
@@ -345,6 +349,19 @@ export async function processSmgImport(
       requeueAfterMs: sawYoung ? SMG_FILE_SETTLE_MS : undefined,
     };
   }
+}
+
+function rememberSmgPass(
+  at: Date,
+  fileCount: number,
+  phonesParsed: number,
+  changesCount: number,
+): void {
+  if (!isFilePassJob({ fileCount, phonesParsed, changesCount })) return;
+  noteLoadFilePass("smg", {
+    at: at.getTime(),
+    hadCalls: filePassHadCalls({ phonesParsed, changesCount }),
+  });
 }
 
 function truncateUtf8(value: string, maxBytes: number): string {
