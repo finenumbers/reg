@@ -1,7 +1,11 @@
-# Current Phase — production (v1.113.0)
+# Current Phase — production (v1.114.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, Eltex SMG CDR.  
 **Date:** 2026-10-14
+
+## v1.114.0 — Storage totals and month columns line up
+
+Settings → «Хранение данных» shows CDR and SMG totals in columns: calls, seconds, minutes, and table size. The month table groups «Звонки Satel RTU» and «Звонки Eltex SMG-1016M», each with calls, seconds, and minutes. The month column is as wide as the longest month name. The six number columns share the width of the largest figure. «Удаление» is as wide as the «Удалить» button, or as wide as the header when no month can be deleted. There is no new migration.
 
 ## v1.113.0 — SMG counter uses the same colors as softswitch CDR
 

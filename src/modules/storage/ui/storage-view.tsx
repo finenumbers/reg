@@ -1,8 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -14,7 +21,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatCount } from "@/lib/format-count";
-import { fetchStorageSnapshot, postStoragePurge, postStorageVacuum } from "@/modules/storage/api-client";
+import { cn } from "@/lib/utils";
+import {
+  fetchStorageSnapshot,
+  postStoragePurge,
+  postStorageVacuum,
+} from "@/modules/storage/api-client";
+import { formatByteParts, formatBytes } from "@/modules/storage/format-bytes";
 import type { StorageMonthRow, StorageSnapshot } from "@/modules/storage/service";
 import { formatMonthNominative } from "@/modules/traffic/month-labels";
 import { PURGE_INTERRUPT_NOTE, purgeStageLine } from "@/modules/traffic/purge/progress";
@@ -22,23 +35,236 @@ import { DATABASE_VACUUM_CONFIRM } from "@/modules/storage/vacuum/sql";
 import { vacuumStageLine } from "@/modules/storage/vacuum/progress";
 
 const POLL_MS = 3000;
+const CELL_PAD_PX = 16;
+const CELL_BORDER_PX = 1;
+const GUESS_CH_PX = 8;
 
-function formatBytes(n: number): string {
-  if (!Number.isFinite(n) || n <= 0) return "0 Б";
-  const units = ["Б", "КБ", "МБ", "ГБ", "ТБ"];
-  let value = n;
-  let i = 0;
-  while (value >= 1024 && i < units.length - 1) {
-    value /= 1024;
-    i += 1;
-  }
-  const digits = value >= 10 || i === 0 ? 0 : 1;
-  return `${value.toFixed(digits)} ${units[i]}`;
-}
+const METRIC_FIELDS = [
+  "cdrCalls",
+  "cdrSeconds",
+  "cdrMinutes",
+  "smgCalls",
+  "smgSeconds",
+  "smgMinutes",
+] as const;
+
+const METRIC_HEADS = ["Звонки", "Секунды", "Минуты"] as const;
+
+type ColumnWidths = {
+  month: number;
+  metric: number;
+  delete: number;
+};
 
 function monthLabel(row: StorageMonthRow): string {
   const name = formatMonthNominative(row.year, row.month);
   return row.incomplete ? `${name} (неполный)` : name;
+}
+
+function paddedWidth(textPx: number, border: boolean): number {
+  return textPx + CELL_PAD_PX + (border ? CELL_BORDER_PX : 0);
+}
+
+function guessWidth(text: string, border: boolean): number {
+  return paddedWidth(Math.ceil(Math.max(text.length, 1) * GUESS_CH_PX), border);
+}
+
+function maxMetric(months: readonly StorageMonthRow[]): number {
+  return months.reduce((max, row) => {
+    return METRIC_FIELDS.reduce((inner, field) => Math.max(inner, row[field]), max);
+  }, 0);
+}
+
+function guessColumns(months: readonly StorageMonthRow[]): ColumnWidths {
+  const longest = months.reduce((best, row) => {
+    const label = monthLabel(row);
+    return label.length > best.length ? label : best;
+  }, "");
+  const hasDelete = months.some((row) => row.canDelete);
+  const deleteGuess = hasDelete
+    ? paddedWidth(Math.ceil("Удалить".length * GUESS_CH_PX) + 20, false)
+    : guessWidth("Удаление", false);
+  return {
+    month: guessWidth(longest || "0", true),
+    metric: guessWidth(formatCount(maxMetric(months)), true),
+    delete: deleteGuess,
+  };
+}
+
+function SummaryMetric({ value, unit }: { value: string; unit: string }) {
+  return (
+    <span className="grid grid-cols-[1fr_auto] gap-x-1">
+      <span className="text-right">{value}</span>
+      <span>{unit}</span>
+    </span>
+  );
+}
+
+function StorageFigures({
+  data,
+  onDelete,
+}: {
+  data: StorageSnapshot;
+  onDelete: (row: StorageMonthRow) => void;
+}) {
+  const months = data.months;
+  const hasDelete = months.some((row) => row.canDelete);
+  const metricText = formatCount(maxMetric(months));
+  const measureKey = `${months.map((row) => monthLabel(row)).join("\n")}\n${metricText}\n${hasDelete ? "1" : "0"}`;
+  const guessed = useMemo(() => guessColumns(months), [months]);
+  const [measured, setMeasured] = useState<{ key: string; widths: ColumnWidths } | null>(
+    null,
+  );
+  const monthRefs = useRef<Array<HTMLSpanElement | null>>([]);
+  const metricRef = useRef<HTMLSpanElement>(null);
+  const deleteRef = useRef<HTMLSpanElement>(null);
+
+  useLayoutEffect(() => {
+    const monthPx = monthRefs.current
+      .slice(0, months.length)
+      .reduce((max, el) => Math.max(max, el?.offsetWidth ?? 0), 0);
+    const metricPx = metricRef.current?.offsetWidth ?? 0;
+    const deletePx = deleteRef.current?.offsetWidth ?? 0;
+    setMeasured({
+      key: measureKey,
+      widths: {
+        month: monthPx > 0 ? paddedWidth(monthPx, true) : guessed.month,
+        metric: metricPx > 0 ? paddedWidth(metricPx, true) : guessed.metric,
+        delete: deletePx > 0 ? paddedWidth(deletePx, false) : guessed.delete,
+      },
+    });
+  }, [guessed, measureKey, months.length]);
+
+  const widths = measured?.key === measureKey ? measured.widths : guessed;
+  const tableWidth = widths.month + widths.metric * 6 + widths.delete;
+  const cdrBytes = formatByteParts(data.cdrTableBytes);
+  const smgBytes = formatByteParts(data.smgTableBytes);
+
+  return (
+    <>
+      <div className="relative h-0 overflow-hidden" aria-hidden>
+        {months.map((row, index) => (
+          <span
+            key={row.key}
+            ref={(el) => {
+              monthRefs.current[index] = el;
+            }}
+            className="absolute top-0 left-0 text-xs whitespace-nowrap"
+          >
+            {monthLabel(row)}
+          </span>
+        ))}
+        <span
+          ref={metricRef}
+          className="absolute top-0 left-0 text-xs whitespace-nowrap tabular-nums"
+        >
+          {metricText}
+        </span>
+        <span
+          ref={deleteRef}
+          className={
+            hasDelete
+              ? cn(
+                  buttonVariants({ variant: "destructive", size: "sm" }),
+                  "absolute top-0 left-0",
+                )
+              : "absolute top-0 left-0 text-xs font-medium whitespace-nowrap"
+          }
+        >
+          {hasDelete ? "Удалить" : "Удаление"}
+        </span>
+      </div>
+
+      <div className="overflow-auto">
+        <div className="grid w-max grid-cols-[auto_auto_auto_auto_auto_auto] items-baseline gap-x-6 text-sm whitespace-nowrap tabular-nums">
+          <span>CDR:</span>
+          <SummaryMetric value={formatCount(data.totalCdrCalls)} unit="звонков" />
+          <SummaryMetric value={formatCount(data.totalCdrSeconds)} unit="сек" />
+          <SummaryMetric value={formatCount(data.totalCdrMinutes)} unit="мин" />
+          <span className="text-right">таблицы:</span>
+          <SummaryMetric value={cdrBytes.value} unit={cdrBytes.unit} />
+          <span>SMG:</span>
+          <SummaryMetric value={formatCount(data.totalSmgCalls)} unit="звонков" />
+          <SummaryMetric value={formatCount(data.totalSmgSeconds)} unit="сек" />
+          <SummaryMetric value={formatCount(data.totalSmgMinutes)} unit="мин" />
+          <span className="text-right">таблицы:</span>
+          <SummaryMetric value={smgBytes.value} unit={smgBytes.unit} />
+        </div>
+      </div>
+
+      <div className="overflow-auto">
+        <Table className="table-fixed" style={{ width: tableWidth }}>
+          <colgroup>
+            <col style={{ width: widths.month }} />
+            {METRIC_FIELDS.map((field) => (
+              <col key={field} style={{ width: widths.metric }} />
+            ))}
+            <col style={{ width: widths.delete }} />
+          </colgroup>
+          <TableHeader>
+            <TableRow>
+              <TableHead rowSpan={2} className="h-auto text-center align-middle">
+                Месяц
+              </TableHead>
+              <TableHead colSpan={3} className="text-center">
+                Звонки Satel RTU
+              </TableHead>
+              <TableHead colSpan={3} className="text-center">
+                Звонки Eltex SMG-1016M
+              </TableHead>
+              <TableHead
+                rowSpan={2}
+                className="h-auto overflow-hidden text-center align-middle"
+              >
+                Удаление
+              </TableHead>
+            </TableRow>
+            <TableRow>
+              {(["cdr", "smg"] as const).flatMap((side) =>
+                METRIC_HEADS.map((label, index) => (
+                  <TableHead
+                    key={`${side}-${label}`}
+                    className={cn(
+                      "top-7 text-center",
+                      side === "smg" &&
+                        index === METRIC_HEADS.length - 1 &&
+                        "shadow-[inset_-1px_-1px_0_0_var(--border)]!",
+                    )}
+                  >
+                    {label}
+                  </TableHead>
+                )),
+              )}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {months.map((row) => (
+              <TableRow key={row.key}>
+                <TableCell>{monthLabel(row)}</TableCell>
+                {METRIC_FIELDS.map((field) => (
+                  <TableCell key={field} className="text-right tabular-nums">
+                    {formatCount(row[field])}
+                  </TableCell>
+                ))}
+                <TableCell className="text-right">
+                  {row.canDelete ? (
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => onDelete(row)}
+                    >
+                      Удалить
+                    </Button>
+                  ) : null}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </>
+  );
 }
 
 export function StorageView() {
@@ -108,11 +334,11 @@ export function StorageView() {
       <div>
         <h2 className="text-base font-semibold">Хранение данных</h2>
         <p className="text-muted-foreground text-sm">
-          Месяцы CDR (колонка «Дата») и звонков SMG (день разъединения) в локальной
-          базе. Одно удаление снимает оба источника, задачи и записи аудита этого
-          месяца UTC. Удалить можно только самый старый полный месяц, по одному.
-          Текущий месяц трогать нельзя. Место на диске после удаления возвращает
-          кнопка «Сжать базу», когда она закончится.
+          Месяцы CDR (колонка «Дата») и звонков SMG (день разъединения) в локальной базе.
+          Одно удаление снимает оба источника, задачи и записи аудита этого месяца UTC.
+          Удалить можно только самый старый полный месяц, по одному. Текущий месяц трогать
+          нельзя. Место на диске после удаления возвращает кнопка «Сжать базу», когда она
+          закончится.
         </p>
       </div>
 
@@ -222,71 +448,13 @@ export function StorageView() {
       ) : null}
 
       {data && !data.monthsHidden ? (
-        <>
-          <p className="text-muted-foreground text-sm">
-            CDR: {formatCount(data.totalCdrCalls)} звонков ·{" "}
-            {formatCount(data.totalCdrSeconds)} сек · {formatCount(data.totalCdrMinutes)}{" "}
-            мин · таблицы {formatBytes(data.cdrTableBytes)}
-          </p>
-          <p className="text-muted-foreground text-sm">
-            SMG: {formatCount(data.totalSmgCalls)} звонков ·{" "}
-            {formatCount(data.totalSmgSeconds)} сек · {formatCount(data.totalSmgMinutes)}{" "}
-            мин · таблица {formatBytes(data.smgTableBytes)}
-          </p>
-
-          <div className="overflow-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Месяц</TableHead>
-                  <TableHead className="text-right">Звонки CDR</TableHead>
-                  <TableHead className="text-right">Сек. CDR</TableHead>
-                  <TableHead className="text-right">Мин. CDR</TableHead>
-                  <TableHead className="text-right">Звонки SMG</TableHead>
-                  <TableHead className="text-right">Сек. SMG</TableHead>
-                  <TableHead className="text-right">Мин. SMG</TableHead>
-                  <TableHead className="text-right">Удаление</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data.months.map((row) => (
-                  <TableRow key={row.key}>
-                    <TableCell>{monthLabel(row)}</TableCell>
-                    <TableCell className="text-right">{formatCount(row.cdrCalls)}</TableCell>
-                    <TableCell className="text-right">
-                      {formatCount(row.cdrSeconds)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {formatCount(row.cdrMinutes)}
-                    </TableCell>
-                    <TableCell className="text-right">{formatCount(row.smgCalls)}</TableCell>
-                    <TableCell className="text-right">
-                      {formatCount(row.smgSeconds)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {formatCount(row.smgMinutes)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {row.canDelete ? (
-                        <Button
-                          type="button"
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => {
-                            setConfirm(row);
-                            setTyped("");
-                          }}
-                        >
-                          Удалить
-                        </Button>
-                      ) : null}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </>
+        <StorageFigures
+          data={data}
+          onDelete={(row) => {
+            setConfirm(row);
+            setTyped("");
+          }}
+        />
       ) : null}
 
       {confirm ? (
@@ -304,10 +472,11 @@ export function StorageView() {
               <p className="text-muted-foreground mt-2 text-sm">
                 Будут безвозвратно удалены {formatCount(confirm.cdrCalls)} звонков CDR (
                 {formatCount(confirm.cdrSeconds)} сек, {formatCount(confirm.cdrMinutes)}{" "}
-                мин), связанные ссылки VoIPmonitor, {formatCount(confirm.smgCalls)} звонков
-                SMG ({formatCount(confirm.smgSeconds)} сек, {formatCount(confirm.smgMinutes)}{" "}
-                мин), а также задачи и записи аудита за этот месяц UTC. Введите ключ
-                месяца <span className="font-mono">{confirm.key}</span>.
+                мин), связанные ссылки VoIPmonitor, {formatCount(confirm.smgCalls)}{" "}
+                звонков SMG ({formatCount(confirm.smgSeconds)} сек,{" "}
+                {formatCount(confirm.smgMinutes)} мин), а также задачи и записи аудита за
+                этот месяц UTC. Введите ключ месяца{" "}
+                <span className="font-mono">{confirm.key}</span>.
               </p>
             </div>
             <div className="space-y-1.5">
