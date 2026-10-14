@@ -1,18 +1,18 @@
 /**
  * Eltex SMG-1016M CDR text.
- * Line 1 is the banner, line 2 is the English header, calls start at line 3.
+ * A section is a banner, then an English header, then calls.
+ * One upload may contain several sections.
  */
 
 import {
   emptySmgFields,
   matchSmgHeader,
   SMG_COLUMNS,
-  smgHeadersEqual,
   smgRecordKey,
   type SmgField,
 } from "@/modules/smg/columns";
 
-const BANNER_RE = /^SMG1016M\. CDR\. File started at '\d{14}'/;
+const BANNER_RE = /^SMG1016M\. CDR\. File started at '\d{14}'$/;
 const DISCONNECT_RE = /^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2})$/;
 
 export type ParsedSmgCall = {
@@ -69,7 +69,7 @@ export function parseSmgText(text: string, filename: string): ParseSmgResult {
     };
   }
 
-  const header = splitSmgRow(lines[1] ?? "");
+  let header = splitSmgRow(lines[1] ?? "");
   const kind = matchSmgHeader(header);
   if (!kind) {
     return {
@@ -81,7 +81,12 @@ export function parseSmgText(text: string, filename: string): ParseSmgResult {
   }
 
   const headerIndex = new Map<string, number>();
-  header.forEach((name, index) => headerIndex.set(name, index));
+  const bindHeader = (names: readonly string[]) => {
+    header = [...names];
+    headerIndex.clear();
+    names.forEach((name, index) => headerIndex.set(name, index));
+  };
+  bindHeader(header);
 
   const rows: ParsedSmgCall[] = [];
   const seen = new Set<string>();
@@ -93,8 +98,12 @@ export function parseSmgText(text: string, filename: string): ParseSmgResult {
     const raw = lines[index] ?? "";
     if (!raw.trim()) continue;
     const lineNo = index + 1;
+    if (BANNER_RE.test(raw)) continue;
     const values = splitSmgRow(raw);
-    if (smgHeadersEqual(values, header)) continue;
+    if (matchSmgHeader(values)) {
+      bindHeader(values);
+      continue;
+    }
     if (values.length > header.length) {
       linesBad += 1;
       if (firstBadLine == null) {

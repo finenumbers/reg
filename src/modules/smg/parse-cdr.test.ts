@@ -5,8 +5,7 @@ import { decodeSmgBytes, parseSmgText } from "@/modules/smg/parse-cdr";
 const BANNER = "SMG1016M. CDR. File started at '20261013120000'";
 
 function headerLine(kind: "short" | "full"): string {
-  const columns =
-    kind === "short" ? SMG_COLUMNS.slice(0, 50) : SMG_COLUMNS;
+  const columns = kind === "short" ? SMG_COLUMNS.slice(0, 50) : SMG_COLUMNS;
   return `${columns.map((column) => column.header).join(";")};`;
 }
 
@@ -15,8 +14,7 @@ function dataLine(
   patch: Record<string, string>,
   width?: number,
 ): string {
-  const columns =
-    kind === "short" ? SMG_COLUMNS.slice(0, 50) : SMG_COLUMNS;
+  const columns = kind === "short" ? SMG_COLUMNS.slice(0, 50) : SMG_COLUMNS;
   const values = columns.map((column) => patch[column.field] ?? "");
   const used = width == null ? values : values.slice(0, width);
   return `${used.join(";")};`;
@@ -32,9 +30,7 @@ const CALL = {
 
 describe("parseSmgText", () => {
   it("reads a short file and leaves the full-only columns empty", () => {
-    const text = [BANNER, headerLine("short"), dataLine("short", CALL)].join(
-      "\n",
-    );
+    const text = [BANNER, headerLine("short"), dataLine("short", CALL)].join("\n");
     const parsed = parseSmgText(text, "20261013.cdr");
     expect(parsed.error).toBeNull();
     expect(parsed.rows).toHaveLength(1);
@@ -147,11 +143,107 @@ describe("parseSmgText", () => {
     expect(parsed.error).toMatch(/нераспознано время разъединения/);
   });
 
-  it("accepts a header-only file", () => {
+  it("accepts two banners and two headers with no calls", () => {
+    const header = headerLine("full");
     const parsed = parseSmgText(
-      `${BANNER}\n${headerLine("short")}\n`,
-      "20261013.cdr",
+      [BANNER, header, "SMG1016M. CDR. File started at '20261014161854'", header].join(
+        "\n",
+      ),
+      "20261014161954.cdr",
     );
+    expect(parsed.error).toBeNull();
+    expect(parsed.rows).toEqual([]);
+    expect(parsed.linesBad).toBe(0);
+  });
+
+  it("keeps calls before and after a second banner", () => {
+    const header = headerLine("full");
+    const parsed = parseSmgText(
+      [
+        BANNER,
+        header,
+        dataLine("full", CALL),
+        "SMG1016M. CDR. File started at '20261014161854'",
+        header,
+        dataLine("full", { ...CALL, uniqueTag: "tag-2", incomingCgpn: "79009998877" }),
+      ].join("\n"),
+      "20261014161954.cdr",
+    );
+    expect(parsed.error).toBeNull();
+    expect(parsed.rows).toHaveLength(2);
+    expect(parsed.rows[0]?.fields.incomingCgpn).toBe("79001112233");
+    expect(parsed.rows[1]?.fields.uniqueTag).toBe("tag-2");
+    expect(parsed.rows[1]?.fields.incomingCgpn).toBe("79009998877");
+  });
+
+  it("reads a call that follows a second banner without a new header", () => {
+    const parsed = parseSmgText(
+      [
+        BANNER,
+        headerLine("full"),
+        "SMG1016M. CDR. File started at '20261014161854'",
+        dataLine("full", { ...CALL, timeInQueue: "4" }),
+      ].join("\n"),
+      "20261014161954.cdr",
+    );
+    expect(parsed.error).toBeNull();
+    expect(parsed.rows).toHaveLength(1);
+    expect(parsed.rows[0]?.fields.timeInQueue).toBe("4");
+  });
+
+  it("switches from a full header to a short header", () => {
+    const parsed = parseSmgText(
+      [
+        BANNER,
+        headerLine("full"),
+        "SMG1016M. CDR. File started at '20261014161854'",
+        headerLine("short"),
+        dataLine("short", CALL),
+      ].join("\n"),
+      "20261014161954.cdr",
+    );
+    expect(parsed.error).toBeNull();
+    expect(parsed.rows).toHaveLength(1);
+    expect(parsed.rows[0]?.fields.incomingCgpn).toBe("79001112233");
+    expect(parsed.rows[0]?.fields.timeInQueue).toBe("");
+    expect(parsed.rows[0]?.fields.redirectionType).toBe("");
+  });
+
+  it("switches from a short header to a full header", () => {
+    const parsed = parseSmgText(
+      [
+        BANNER,
+        headerLine("short"),
+        "SMG1016M. CDR. File started at '20261014161854'",
+        headerLine("full"),
+        dataLine("full", { ...CALL, timeInQueue: "7", redirectionType: "cfu" }),
+      ].join("\n"),
+      "20261014161954.cdr",
+    );
+    expect(parsed.error).toBeNull();
+    expect(parsed.rows).toHaveLength(1);
+    expect(parsed.rows[0]?.fields.incomingCgpn).toBe("79001112233");
+    expect(parsed.rows[0]?.fields.timeInQueue).toBe("7");
+    expect(parsed.rows[0]?.fields.redirectionType).toBe("cfu");
+  });
+
+  it("rejects a banner prefix that has trailing text", () => {
+    const parsed = parseSmgText(
+      [
+        BANNER,
+        headerLine("full"),
+        "SMG1016M. CDR. File started at '20261014161854' extra",
+      ].join("\n"),
+      "20261014161954.cdr",
+    );
+    expect(parsed.rows).toEqual([]);
+    expect(parsed.linesBad).toBe(1);
+    expect(parsed.error).toMatch(/строка 3/);
+    expect(parsed.error).toMatch(/строка короче заголовка/);
+  });
+
+  it("accepts a header-only file", () => {
+    const parsed = parseSmgText(`${BANNER}\n${headerLine("short")}\n`, "20261013.cdr");
     expect(parsed.rows).toEqual([]);
     expect(parsed.error).toBeNull();
   });

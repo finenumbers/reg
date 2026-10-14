@@ -1,7 +1,15 @@
-# Current Phase — production (v1.118.0)
+# Current Phase — production (v1.119.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, Eltex SMG CDR, Eltex SMG syslog.  
-**Date:** 2026-10-14
+**Date:** 2026-10-15
+
+## v1.119.0 — A second SMG CDR banner is not a call
+
+An Eltex upload can append another CDR into the same file: a banner, the 50- or 52-column header, then another banner and header. `20261014161954.cdr` is two empty sections and no calls. The second banner has no semicolons, so import counted it as a call shorter than the header and kept the file.
+
+A line that is only `SMG1016M. CDR. File started at 'YYYYMMDDHHMMSS'` starts the next section. A line that is exactly the 50-column or 52-column header selects that section's columns. Calls after the second banner are loaded. A call row shorter than its header by more than one field is still rejected. A clean file with no calls is deleted, as before.
+
+There is no new migration. The scheduler does not pick up a poisoned file. After deploy, «Повторить импорт» on «Звонки на SMG» clears `20261014161954.cdr`. Calls already stored stay. That empty pass turns the load counter yellow and starts it again.
 
 ## v1.118.0 — Save SMG syslog by source address
 
