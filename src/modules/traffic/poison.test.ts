@@ -6,6 +6,7 @@ import {
   clearAllPurgeHolds,
   clearPoisonExceptMonthHold,
   clearPurgeHolds,
+  isPoisoned,
   listPoisonEntries,
   markPoisoned,
   purgeHoldMessage,
@@ -63,5 +64,17 @@ describe("poison journal", () => {
 
     expect(clearAllPurgeHolds()).toBe(2);
     expect(listPoisonEntries()).toEqual([]);
+  });
+
+  it("releases an empty-file hold when the dump later has bytes", () => {
+    markPoisoned("20261014_035348", 10, "Файл пустой: 20261014_035348");
+    expect(isPoisoned("20261014_035348", 10, undefined, 0)).toBe(true);
+    expect(isPoisoned("20261014_035348", 10, undefined, 4096)).toBe(false);
+  });
+
+  it("keeps a hold when the size has not changed", () => {
+    markPoisoned("bad.csv", 10, "Нет даты", undefined, 80);
+    expect(isPoisoned("bad.csv", 10, undefined, 80)).toBe(true);
+    expect(isPoisoned("bad.csv", 10, undefined, 120)).toBe(false);
   });
 });

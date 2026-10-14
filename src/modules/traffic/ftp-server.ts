@@ -3,7 +3,8 @@
  * Singleton on globalThis — Next.js duplicates module instances.
  */
 
-import { FtpSrv } from "ftp-srv";
+import { statSync } from "node:fs";
+import { FileSystem, FtpSrv } from "ftp-srv";
 import { prisma } from "@/lib/db";
 import { logger } from "@/lib/logger";
 import {
@@ -13,8 +14,38 @@ import {
 import { requestSmgImportDrain } from "@/modules/smg/enqueue";
 import { requestCdrImportDrain } from "@/modules/traffic/enqueue";
 import { ensureCdrInbox } from "@/modules/traffic/paths";
+import { beginStor, completeStor, failStor } from "@/modules/traffic/stor-gate";
 
 const FTP_GLOBAL_KEY = "__reg_ftp_server__";
+
+/**
+ * Records STOR open/finish around ftp-srv's w+ truncate.
+ * The finish listener is attached inside write(), before stor.js, so the
+ * completion size is visible by the time the STOR event enqueues import.
+ */
+class StorTrackingFileSystem extends FileSystem {
+  override write(fileName: string, options?: { append?: boolean; start?: unknown }) {
+    const opened = super.write(fileName, options) as {
+      stream: NodeJS.WritableStream & { path?: string };
+      clientPath: string;
+    };
+    const absPath = opened.stream.path;
+    if (typeof absPath === "string" && absPath) {
+      const generation = beginStor(absPath);
+      opened.stream.once("finish", () => {
+        try {
+          completeStor(absPath, generation, statSync(absPath).size);
+        } catch {
+          failStor(absPath, generation);
+        }
+      });
+      opened.stream.once("error", () => {
+        failStor(absPath, generation);
+      });
+    }
+    return opened;
+  }
+}
 
 export type FtpBind = {
   globalKey: string;
@@ -169,7 +200,10 @@ export async function startBoundFtp(
       }
       bind.onStored();
     });
-    resolve({ root: inbox });
+    resolve({
+      root: inbox,
+      fs: new StorTrackingFileSystem(connection, { root: inbox, cwd: "/" }),
+    });
   });
 
   server.on("client-error", ({ error }) => {

@@ -1,7 +1,13 @@
-# Current Phase — production (v1.108.0)
+# Current Phase — production (v1.109.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, Eltex SMG CDR.  
 **Date:** 2026-10-14
+
+## v1.109.0 — Softswitch CDR waits until FTP has finished the file
+
+A softswitch dump can be marked «Файл пустой» while `STOR` has only just opened it. `ftp-srv` truncates the file before the bytes arrive, and the import of the previous file could record that zero size. If the clock did not move the modification time, later imports skipped the dump even after it was full. «Скачать» still returned the calls.
+
+Import now ignores a file whose `STOR` is open, and reads it as soon as that `STOR` finishes. A file that shows up without `STOR` waits two seconds so a copy still being written is not deleted. If the file grows during the read, it stays in the inbox. A journal row that says the file is empty does not hold it once the file has bytes, so the next import loads `20261014_035348` without «Повторить импорт». A `STOR` that really closed with no bytes is still an error. SMG import is unchanged. There is no new migration.
 
 ## v1.108.0 — SMG calls are one gateway at a time
 

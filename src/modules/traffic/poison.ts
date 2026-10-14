@@ -4,6 +4,8 @@ import { poisonStorePath } from "@/modules/traffic/paths";
 export type PoisonEntry = {
   mtimeMs: number;
   error: string;
+  /** Byte size observed when the file was held. Absent on older journal rows. */
+  size?: number;
 };
 
 type PoisonMap = Record<string, PoisonEntry>;
@@ -29,9 +31,16 @@ export function isPoisoned(
   filename: string,
   mtimeMs: number,
   cwd?: string,
+  size?: number,
 ): boolean {
   const entry = readMap(cwd)[filename];
-  return Boolean(entry && entry.mtimeMs === mtimeMs);
+  if (!entry || entry.mtimeMs !== mtimeMs) return false;
+  if (size == null) return true;
+  if (typeof entry.size === "number") return entry.size === size;
+  // A dump marked empty while STOR was still truncating it, then filled
+  // without an mtime change. The bytes on disk are a new version.
+  if (size > 0 && entry.error.startsWith("Файл пустой")) return false;
+  return true;
 }
 
 export function markPoisoned(
@@ -39,9 +48,10 @@ export function markPoisoned(
   mtimeMs: number,
   error: string,
   cwd?: string,
+  size?: number,
 ): void {
   const map = readMap(cwd);
-  map[filename] = { mtimeMs, error };
+  map[filename] = size == null ? { mtimeMs, error } : { mtimeMs, error, size };
   writeMap(map, cwd);
 }
 
@@ -118,10 +128,7 @@ export function clearAllPurgeHolds(cwd?: string): number {
  * Manual retry. While `month` is the live purge target, keep holds for that
  * month. A null month clears the whole journal, including stale holds.
  */
-export function clearPoisonExceptMonthHold(
-  month: string | null,
-  cwd?: string,
-): void {
+export function clearPoisonExceptMonthHold(month: string | null, cwd?: string): void {
   if (!month) {
     writeMap({}, cwd);
     return;

@@ -3,7 +3,7 @@
  */
 
 import { createReadStream } from "node:fs";
-import { unlink } from "node:fs/promises";
+import { stat, unlink } from "node:fs/promises";
 import { createInterface } from "node:readline";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
@@ -17,6 +17,7 @@ import {
 import {
   inboxFileError,
   listInboxFiles,
+  partitionInboxFiles,
   type InboxFile,
 } from "@/modules/traffic/inbox";
 import { consumeCdrInboxDirty } from "@/modules/traffic/drain-flag";
@@ -25,7 +26,8 @@ import { requestCdrImportDrain } from "@/modules/traffic/enqueue";
 import { requestVoipmonitorMatch } from "@/modules/voipmonitor/enqueue";
 import { invalidateCdrMonthCountCache } from "@/modules/traffic/cdr-month-stats";
 import { monthKeyFromCdrDay } from "@/modules/traffic/cdr-month";
-import { markPoisoned, purgeHoldMessage } from "@/modules/traffic/poison";
+import { clearPoison, markPoisoned, purgeHoldMessage } from "@/modules/traffic/poison";
+import { CDR_STOR_SETTLE_MS, isStorBusy } from "@/modules/traffic/stor-gate";
 import {
   activePurgeHold,
   monthIsHeld,
@@ -65,6 +67,8 @@ export type CdrImportProcessorResult = {
   linesBad: number;
   changesCount: number;
   errorMessage?: string;
+  /** Set when a dump is still being written. Enqueue again after this run. */
+  requeueAfterMs?: number;
 };
 
 type FileImportResult = {
@@ -86,10 +90,7 @@ const EMPTY_ENRICH_STATS: CdrEnrichLookupStats = {
   geoLiveLookups: 0,
 };
 
-function addEnrichStats(
-  into: CdrEnrichLookupStats,
-  add: CdrEnrichLookupStats,
-): void {
+function addEnrichStats(into: CdrEnrichLookupStats, add: CdrEnrichLookupStats): void {
   into.pstnCacheHits += add.pstnCacheHits;
   into.pstnLiveLookups += add.pstnLiveLookups;
   into.geoCacheHits += add.geoCacheHits;
@@ -109,7 +110,44 @@ function truncateUtf8(value: string, maxBytes: number): string {
   return buf.subarray(0, maxBytes).toString("utf8");
 }
 
+function deferredFile(file: InboxFile): FileImportResult {
+  return {
+    filename: file.filename,
+    inserted: 0,
+    skipped: 0,
+    linesBad: 0,
+    firstBadLine: null,
+    error: null,
+    leaveFile: true,
+    enrichStats: null,
+  };
+}
+
+/** True when the dump changed, vanished, or STOR reopened it since listing. */
+async function fileMoved(file: InboxFile): Promise<boolean> {
+  if (isStorBusy(file.absPath)) return true;
+  try {
+    const st = await stat(file.absPath);
+    if (!st.isFile()) return true;
+    return st.size !== file.size || st.mtimeMs !== file.mtimeMs;
+  } catch {
+    return true;
+  }
+}
+
 async function importOneFile(
+  file: InboxFile,
+  jobRunId: string,
+): Promise<FileImportResult> {
+  if (await fileMoved(file)) return deferredFile(file);
+  const result = await importStableFile(file, jobRunId);
+  if (await fileMoved(file)) {
+    return { ...result, error: null, leaveFile: true };
+  }
+  return result;
+}
+
+async function importStableFile(
   file: InboxFile,
   jobRunId: string,
 ): Promise<FileImportResult> {
@@ -153,8 +191,7 @@ async function importOneFile(
           assertCanonicalCdrHeader(parseCdrHeaderLine(raw));
           headerChecked = true;
         } catch (error) {
-          headerError =
-            error instanceof Error ? error.message : String(error);
+          headerError = error instanceof Error ? error.message : String(error);
           break;
         }
         continue;
@@ -290,8 +327,7 @@ async function importOneFile(
         try {
           assertCanonicalCdrHeader(parseCdrHeaderLine(raw));
         } catch (error) {
-          insertHeaderError =
-            error instanceof Error ? error.message : String(error);
+          insertHeaderError = error instanceof Error ? error.message : String(error);
           break;
         }
         continue;
@@ -359,8 +395,7 @@ async function importOneFile(
       ? ` ${formatCount(heldForPurge)} строк отложено (${purgeHoldMessage(live)}).`
       : "";
   if (linesBad > 0) {
-    const first =
-      firstBadLine != null ? ` (первая: ${firstBadLine})` : "";
+    const first = firstBadLine != null ? ` (первая: ${firstBadLine})` : "";
     const detail = reasons ? ` (${reasons})` : "";
     return {
       filename: file.filename,
@@ -422,196 +457,208 @@ export async function processCdrImport(
   });
 
   try {
-  await auditService.append({
-    actorUserId: input.actorUserId,
-    action:
-      input.trigger === "manual"
-        ? AUDIT_ACTIONS.CDR_IMPORT_MANUAL
-        : AUDIT_ACTIONS.CDR_IMPORT_START,
-    entityType: "job_run",
-    entityId: jobRun.id,
-    meta: { trigger: input.trigger, actionCode: "cdr.import", phase: "started" },
-  });
+    await auditService.append({
+      actorUserId: input.actorUserId,
+      action:
+        input.trigger === "manual"
+          ? AUDIT_ACTIONS.CDR_IMPORT_MANUAL
+          : AUDIT_ACTIONS.CDR_IMPORT_START,
+      entityType: "job_run",
+      entityId: jobRun.id,
+      meta: { trigger: input.trigger, actionCode: "cdr.import", phase: "started" },
+    });
 
-  logger.info("cdr.import.started", {
-    jobRunId: jobRun.id,
-    trigger: input.trigger,
-  });
+    logger.info("cdr.import.started", {
+      jobRunId: jobRun.id,
+      trigger: input.trigger,
+    });
 
-  const fileResults: FileImportResult[] = [];
-  let phonesParsed = 0;
-  let linesBad = 0;
-  let changesCount = 0;
-  const seen = new Set<string>();
-  const enrichStats: CdrEnrichLookupStats = { ...EMPTY_ENRICH_STATS };
-  let backfilled = 0;
-  let backfillRemaining = 0;
+    const fileResults: FileImportResult[] = [];
+    let phonesParsed = 0;
+    let linesBad = 0;
+    let changesCount = 0;
+    const seen = new Set<string>();
+    const enrichStats: CdrEnrichLookupStats = { ...EMPTY_ENRICH_STATS };
+    let backfilled = 0;
+    let backfillRemaining = 0;
+    let youngAtExit = false;
 
-  try {
-    await syncCdrAtFromCdrDate();
-    for (let pass = 0; pass < 16; pass += 1) {
-      consumeCdrInboxDirty();
-      const files = await listInboxFiles();
-      const fresh = files.filter((f) => !seen.has(`${f.filename}:${f.mtimeMs}`));
-      if (fresh.length > 0) {
-        for (const file of fresh) {
-          seen.add(`${file.filename}:${file.mtimeMs}`);
-          const result = await importOneFile(file, jobRun.id);
-          fileResults.push(result);
-          phonesParsed += result.inserted;
-          linesBad += result.linesBad;
-          changesCount += result.skipped;
-          if (result.enrichStats) addEnrichStats(enrichStats, result.enrichStats);
-          if (result.error) {
-            markPoisoned(file.filename, file.mtimeMs, result.error);
-          } else if (!result.leaveFile) {
-            await unlink(file.absPath);
+    try {
+      await syncCdrAtFromCdrDate();
+      for (let pass = 0; pass < 16; pass += 1) {
+        consumeCdrInboxDirty();
+        const { ready, young } = await partitionInboxFiles();
+        youngAtExit = young.length > 0;
+        const fresh = ready.filter(
+          (f) => !seen.has(`${f.filename}:${f.mtimeMs}:${f.size}`),
+        );
+        if (fresh.length > 0) {
+          for (const file of fresh) {
+            seen.add(`${file.filename}:${file.mtimeMs}:${file.size}`);
+            const result = await importOneFile(file, jobRun.id);
+            fileResults.push(result);
+            phonesParsed += result.inserted;
+            linesBad += result.linesBad;
+            changesCount += result.skipped;
+            if (result.enrichStats) addEnrichStats(enrichStats, result.enrichStats);
+            if (result.error) {
+              markPoisoned(
+                file.filename,
+                file.mtimeMs,
+                result.error,
+                undefined,
+                file.size,
+              );
+            } else if (!result.leaveFile) {
+              clearPoison(file.filename);
+              await unlink(file.absPath);
+            }
           }
+          continue;
         }
-        continue;
+        if (consumeCdrInboxDirty()) continue;
+        const backfill = await backfillUnenrichedCdrRecords({
+          maxRows: CDR_ENRICH_BACKFILL_MAX_ROWS,
+          shouldAbort: () => consumeCdrInboxDirty(),
+        });
+        backfilled += backfill.backfilled;
+        backfillRemaining = backfill.remaining;
+        addEnrichStats(enrichStats, backfill.stats);
+        logger.info("cdr.import.backfill", {
+          jobRunId: jobRun.id,
+          backfilled: backfill.backfilled,
+          remaining: backfill.remaining,
+          aborted: backfill.aborted,
+          ...backfill.stats,
+        });
+        if (backfill.aborted || consumeCdrInboxDirty()) continue;
+        break;
       }
-      if (consumeCdrInboxDirty()) continue;
-      const backfill = await backfillUnenrichedCdrRecords({
-        maxRows: CDR_ENRICH_BACKFILL_MAX_ROWS,
-        shouldAbort: () => consumeCdrInboxDirty(),
+      const leftover = await listInboxFiles();
+      if (leftover.length > 0) {
+        requestCdrImportDrain("schedule");
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const finishedAt = new Date();
+      await prisma.jobRun.update({
+        where: { id: jobRun.id },
+        data: {
+          status: "failed",
+          finishedAt,
+          durationMs: finishedAt.getTime() - startedAt.getTime(),
+          errorMessage,
+          phonesParsed,
+          linesBad,
+          changesCount,
+        },
       });
-      backfilled += backfill.backfilled;
-      backfillRemaining = backfill.remaining;
-      addEnrichStats(enrichStats, backfill.stats);
-      logger.info("cdr.import.backfill", {
+      logger.warn("cdr.import.failed", { jobRunId: jobRun.id, error: errorMessage });
+      return {
+        status: "failed",
         jobRunId: jobRun.id,
-        backfilled: backfill.backfilled,
-        remaining: backfill.remaining,
-        aborted: backfill.aborted,
-        ...backfill.stats,
-      });
-      if (backfill.aborted || consumeCdrInboxDirty()) continue;
-      break;
+        phonesParsed,
+        linesBad,
+        changesCount,
+        errorMessage,
+        requeueAfterMs: youngAtExit ? CDR_STOR_SETTLE_MS : undefined,
+      };
     }
-    const leftover = await listInboxFiles();
-    if (leftover.length > 0) {
-      requestCdrImportDrain("schedule");
-    }
-  } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : String(error);
+
+    const errors = fileResults.filter((r) => r.error).map((r) => r.error!);
+    const fileLines = fileResults.map(
+      (r) =>
+        `${r.filename}: inserted=${r.inserted} skipped=${r.skipped} bad=${r.linesBad}${r.error ? ` error=${r.error}` : ""}`,
+    );
+    const artifactBody = [
+      ...fileLines,
+      `backfill: backfilled=${backfilled} remaining=${backfillRemaining}`,
+      formatCdrEnrichStats(enrichStats),
+    ].join("\n");
+
     const finishedAt = new Date();
+    const failed = errors.length > 0;
+    const errorMessage = failed
+      ? errors.join(" · ")
+      : fileResults.length === 0
+        ? null
+        : null;
+
+    if (artifactBody) {
+      await prisma.jobRunArtifact.upsert({
+        where: { jobRunId: jobRun.id },
+        create: {
+          jobRunId: jobRun.id,
+          stdout: truncateUtf8(artifactBody, 200_000),
+          stderr: truncateUtf8(errors.join("\n"), 50_000),
+        },
+        update: {
+          stdout: truncateUtf8(artifactBody, 200_000),
+          stderr: truncateUtf8(errors.join("\n"), 50_000),
+        },
+      });
+    }
+
     await prisma.jobRun.update({
       where: { id: jobRun.id },
       data: {
-        status: "failed",
+        status: failed ? "failed" : "success",
         finishedAt,
         durationMs: finishedAt.getTime() - startedAt.getTime(),
         errorMessage,
         phonesParsed,
         linesBad,
         changesCount,
+        meta: {
+          files: fileResults.map((r) => r.filename),
+          fileCount: fileResults.length,
+          backfilled,
+          backfillRemaining,
+          enrich: enrichStats,
+        } as Prisma.InputJsonValue,
       },
     });
-    logger.warn("cdr.import.failed", { jobRunId: jobRun.id, error: errorMessage });
+
+    await auditService.append({
+      actorUserId: input.actorUserId,
+      action: AUDIT_ACTIONS.CDR_IMPORT_FINISH,
+      entityType: "job_run",
+      entityId: jobRun.id,
+      meta: {
+        trigger: input.trigger,
+        status: failed ? "failed" : "success",
+        phonesParsed,
+        linesBad,
+        changesCount,
+        fileCount: fileResults.length,
+      },
+    });
+
+    logger.info("cdr.import.finished", {
+      jobRunId: jobRun.id,
+      status: failed ? "failed" : "success",
+      phonesParsed,
+      linesBad,
+      fileCount: fileResults.length,
+    });
+
+    if (phonesParsed > 0) {
+      invalidateCdrMonthCountCache();
+    }
+
+    if (!failed && phonesParsed > 0) {
+      requestVoipmonitorMatch("schedule");
+    }
+
     return {
-      status: "failed",
+      status: failed ? "failed" : "success",
       jobRunId: jobRun.id,
       phonesParsed,
       linesBad,
       changesCount,
-      errorMessage,
+      errorMessage: errorMessage ?? undefined,
+      requeueAfterMs: youngAtExit ? CDR_STOR_SETTLE_MS : undefined,
     };
-  }
-
-  const errors = fileResults.filter((r) => r.error).map((r) => r.error!);
-  const fileLines = fileResults.map(
-    (r) =>
-      `${r.filename}: inserted=${r.inserted} skipped=${r.skipped} bad=${r.linesBad}${r.error ? ` error=${r.error}` : ""}`,
-  );
-  const artifactBody = [
-    ...fileLines,
-    `backfill: backfilled=${backfilled} remaining=${backfillRemaining}`,
-    formatCdrEnrichStats(enrichStats),
-  ].join("\n");
-
-  const finishedAt = new Date();
-  const failed = errors.length > 0;
-  const errorMessage = failed
-    ? errors.join(" · ")
-    : fileResults.length === 0
-      ? null
-      : null;
-
-  if (artifactBody) {
-    await prisma.jobRunArtifact.upsert({
-      where: { jobRunId: jobRun.id },
-      create: {
-        jobRunId: jobRun.id,
-        stdout: truncateUtf8(artifactBody, 200_000),
-        stderr: truncateUtf8(errors.join("\n"), 50_000),
-      },
-      update: {
-        stdout: truncateUtf8(artifactBody, 200_000),
-        stderr: truncateUtf8(errors.join("\n"), 50_000),
-      },
-    });
-  }
-
-  await prisma.jobRun.update({
-    where: { id: jobRun.id },
-    data: {
-      status: failed ? "failed" : "success",
-      finishedAt,
-      durationMs: finishedAt.getTime() - startedAt.getTime(),
-      errorMessage,
-      phonesParsed,
-      linesBad,
-      changesCount,
-      meta: {
-        files: fileResults.map((r) => r.filename),
-        fileCount: fileResults.length,
-        backfilled,
-        backfillRemaining,
-        enrich: enrichStats,
-      } as Prisma.InputJsonValue,
-    },
-  });
-
-  await auditService.append({
-    actorUserId: input.actorUserId,
-    action: AUDIT_ACTIONS.CDR_IMPORT_FINISH,
-    entityType: "job_run",
-    entityId: jobRun.id,
-    meta: {
-      trigger: input.trigger,
-      status: failed ? "failed" : "success",
-      phonesParsed,
-      linesBad,
-      changesCount,
-      fileCount: fileResults.length,
-    },
-  });
-
-  logger.info("cdr.import.finished", {
-    jobRunId: jobRun.id,
-    status: failed ? "failed" : "success",
-    phonesParsed,
-    linesBad,
-    fileCount: fileResults.length,
-  });
-
-  if (phonesParsed > 0) {
-    invalidateCdrMonthCountCache();
-  }
-
-  if (!failed && phonesParsed > 0) {
-    requestVoipmonitorMatch("schedule");
-  }
-
-  return {
-    status: failed ? "failed" : "success",
-    jobRunId: jobRun.id,
-    phonesParsed,
-    linesBad,
-    changesCount,
-    errorMessage: errorMessage ?? undefined,
-  };
   } finally {
     await failJobRunIfStillRunning(
       jobRun.id,
@@ -620,4 +667,3 @@ export async function processCdrImport(
     );
   }
 }
-

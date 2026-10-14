@@ -1,5 +1,5 @@
 import { existsSync, statSync } from "node:fs";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -33,8 +33,7 @@ vi.mock("@/lib/db", () => ({
 }));
 
 vi.mock("@/modules/traffic/enrich-import", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("@/modules/traffic/enrich-import")>();
+  const actual = await importOriginal<typeof import("@/modules/traffic/enrich-import")>();
   return {
     ...actual,
     loadCdrImportEnrichment: (...args: unknown[]) => loadEnrich(...args),
@@ -67,7 +66,13 @@ vi.mock("@/lib/logger", () => ({
 }));
 
 import { processCdrImport } from "@/modules/traffic/cdr-import-processor";
-import { isPoisoned, listPoisonEntries } from "@/modules/traffic/poison";
+import { isPoisoned, listPoisonEntries, markPoisoned } from "@/modules/traffic/poison";
+import {
+  beginStor,
+  CDR_STOR_SETTLE_MS,
+  completeStor,
+  resetStorGateForTests,
+} from "@/modules/traffic/stor-gate";
 import {
   resetPurgeTargetForTests,
   setPurgeTargetMonth,
@@ -77,6 +82,17 @@ const HEADER = CDR_COLUMNS.map((col) => `"${col}"`).join(";");
 
 function dumpPath(dir: string, name: string): string {
   return path.join(dir, name);
+}
+
+/** Dumps dropped on disk without STOR are imported once they are older than the settle window. */
+async function writeDump(
+  file: string,
+  body: string,
+  encoding: BufferEncoding = "utf8",
+): Promise<void> {
+  await writeFile(file, body, encoding);
+  const past = new Date(Date.now() - CDR_STOR_SETTLE_MS - 1_000);
+  await utimes(file, past, past);
 }
 
 describe("processCdrImport empty-minute dumps", () => {
@@ -119,6 +135,7 @@ describe("processCdrImport empty-minute dumps", () => {
 
   afterEach(async () => {
     resetPurgeTargetForTests();
+    resetStorGateForTests();
     if (prevInbox === undefined) delete process.env.CDR_INBOX_DIR;
     else process.env.CDR_INBOX_DIR = prevInbox;
     if (inboxDir) await rm(inboxDir, { recursive: true, force: true });
@@ -127,7 +144,7 @@ describe("processCdrImport empty-minute dumps", () => {
 
   it("treats a header-only dump as success and deletes the file", async () => {
     const file = dumpPath(inboxDir, "20260828_142001");
-    await writeFile(file, `${HEADER}\n`, "utf8");
+    await writeDump(file, `${HEADER}\n`, "utf8");
 
     const result = await processCdrImport({ trigger: "test" });
 
@@ -145,7 +162,7 @@ describe("processCdrImport empty-minute dumps", () => {
 
   it("treats a header plus blank lines as success", async () => {
     const file = dumpPath(inboxDir, "20260828_142601");
-    await writeFile(file, `${HEADER}\n\n`, "utf8");
+    await writeDump(file, `${HEADER}\n\n`, "utf8");
 
     const result = await processCdrImport({ trigger: "test" });
 
@@ -156,7 +173,7 @@ describe("processCdrImport empty-minute dumps", () => {
 
   it("fails a zero-byte file and keeps it", async () => {
     const file = dumpPath(inboxDir, "20260828_150001");
-    await writeFile(file, "", "utf8");
+    await writeDump(file, "", "utf8");
 
     const result = await processCdrImport({ trigger: "test" });
 
@@ -168,7 +185,7 @@ describe("processCdrImport empty-minute dumps", () => {
 
   it("fails a dump with only invalid data rows and keeps it", async () => {
     const file = dumpPath(inboxDir, "20260828_151001");
-    await writeFile(file, `${HEADER}\n"too";"few"\n`, "utf8");
+    await writeDump(file, `${HEADER}\n"too";"few"\n`, "utf8");
 
     const result = await processCdrImport({ trigger: "test" });
 
@@ -180,8 +197,8 @@ describe("processCdrImport empty-minute dumps", () => {
   it("deletes an empty minute and fails only the bad file in one run", async () => {
     const emptyFile = dumpPath(inboxDir, "20260828_142001");
     const badFile = dumpPath(inboxDir, "20260828_142601");
-    await writeFile(emptyFile, `${HEADER}\n`, "utf8");
-    await writeFile(badFile, `${HEADER}\n"too";"few"\n`, "utf8");
+    await writeDump(emptyFile, `${HEADER}\n`, "utf8");
+    await writeDump(badFile, `${HEADER}\n"too";"few"\n`, "utf8");
 
     const result = await processCdrImport({ trigger: "test" });
 
@@ -196,7 +213,7 @@ describe("processCdrImport empty-minute dumps", () => {
   it("skips the purge target month and does not unlink the file", async () => {
     setPurgeTargetMonth("2026-07");
     const file = dumpPath(inboxDir, "20260828_170001");
-    await writeFile(
+    await writeDump(
       file,
       `${HEADER}\n${quotedRow({
         cdr_id: "july-1",
@@ -216,9 +233,7 @@ describe("processCdrImport empty-minute dumps", () => {
       skipDuplicates: true,
     });
     expect(createManyCdr).not.toHaveBeenCalledWith({
-      data: expect.arrayContaining([
-        expect.objectContaining({ cdrId: "july-1" }),
-      ]),
+      data: expect.arrayContaining([expect.objectContaining({ cdrId: "july-1" })]),
       skipDuplicates: true,
     });
     expect(existsSync(file)).toBe(true);
@@ -250,7 +265,7 @@ describe("processCdrImport empty-minute dumps", () => {
       };
     });
     const file = dumpPath(inboxDir, "20260828_170002");
-    await writeFile(
+    await writeDump(
       file,
       `${HEADER}\n${quotedRow({
         cdr_id: "july-1",
@@ -270,14 +285,132 @@ describe("processCdrImport empty-minute dumps", () => {
       skipDuplicates: true,
     });
     expect(createManyCdr).not.toHaveBeenCalledWith({
-      data: expect.arrayContaining([
-        expect.objectContaining({ cdrId: "july-1" }),
-      ]),
+      data: expect.arrayContaining([expect.objectContaining({ cdrId: "july-1" })]),
       skipDuplicates: true,
     });
     expect(existsSync(file)).toBe(true);
     expect(isPoisoned("20260828_170002", statSync(file).mtimeMs)).toBe(false);
     expect(result.status).toBe("success");
+  });
+
+  it("leaves a file alone while STOR still has it open", async () => {
+    const file = dumpPath(inboxDir, "20261014_035348");
+    await writeDump(file, `${HEADER}\n`);
+    beginStor(file);
+
+    const result = await processCdrImport({ trigger: "test" });
+
+    expect(result.status).toBe("success");
+    expect(result.requeueAfterMs).toBe(CDR_STOR_SETTLE_MS);
+    expect(existsSync(file)).toBe(true);
+    expect(listPoisonEntries()).toEqual([]);
+    expect(result.phonesParsed).toBe(0);
+  });
+
+  it("imports a dump as soon as STOR finishes, even if mtime is fresh", async () => {
+    const file = dumpPath(inboxDir, "20261014_035401");
+    await writeFile(
+      file,
+      `${HEADER}\n${quotedRow({
+        cdr_id: "fresh-1",
+        cdr_date: "2026-10-14 03:54:01",
+      })}\n`,
+      "utf8",
+    );
+    const generation = beginStor(file);
+    completeStor(file, generation, statSync(file).size);
+    createManyCdr.mockResolvedValue({ count: 1 });
+
+    const result = await processCdrImport({ trigger: "test" });
+
+    expect(result.status).toBe("success");
+    expect(result.requeueAfterMs).toBeUndefined();
+    expect(existsSync(file)).toBe(false);
+    expect(createManyCdr).toHaveBeenCalled();
+    expect(listPoisonEntries()).toEqual([]);
+  });
+
+  it("poisons a STOR that finished empty", async () => {
+    const name = "20261014_035402";
+    const file = dumpPath(inboxDir, name);
+    await writeFile(file, "", "utf8");
+    const generation = beginStor(file);
+    completeStor(file, generation, 0);
+
+    const result = await processCdrImport({ trigger: "test" });
+
+    expect(result.status).toBe("failed");
+    expect(result.errorMessage).toMatch(/Файл пустой: 20261014_035402/);
+    expect(existsSync(file)).toBe(true);
+    expect(isPoisoned(name, statSync(file).mtimeMs, undefined, 0)).toBe(true);
+  });
+
+  it("imports a dump that was marked empty and then filled", async () => {
+    const name = "20261014_035348";
+    const file = dumpPath(inboxDir, name);
+    await writeDump(
+      file,
+      `${HEADER}\n${quotedRow({
+        cdr_id: "healed-1",
+        cdr_date: "2026-10-14 03:54:10",
+      })}\n`,
+    );
+    markPoisoned(name, statSync(file).mtimeMs, `Файл пустой: ${name}`);
+    createManyCdr.mockResolvedValue({ count: 1 });
+
+    const result = await processCdrImport({ trigger: "test" });
+
+    expect(result.status).toBe("success");
+    expect(existsSync(file)).toBe(false);
+    expect(listPoisonEntries()).toEqual([]);
+    expect(createManyCdr).toHaveBeenCalled();
+  });
+
+  it("does not import a dump that appeared without STOR and is still young", async () => {
+    const file = dumpPath(inboxDir, "20261014_035403");
+    await writeFile(file, `${HEADER}\n`, "utf8");
+
+    const result = await processCdrImport({ trigger: "test" });
+
+    expect(result.status).toBe("success");
+    expect(result.requeueAfterMs).toBe(CDR_STOR_SETTLE_MS);
+    expect(existsSync(file)).toBe(true);
+    expect(listPoisonEntries()).toEqual([]);
+  });
+
+  it("keeps a file whose size grows while it is read", async () => {
+    const file = dumpPath(inboxDir, "20261014_035404");
+    await writeDump(
+      file,
+      `${HEADER}\n${quotedRow({
+        cdr_id: "grow-1",
+        cdr_date: "2026-10-14 03:54:04",
+      })}\n`,
+    );
+    loadEnrich.mockImplementation(async () => {
+      const { readFile } = await import("node:fs/promises");
+      const body = await readFile(file, "utf8");
+      await writeFile(file, `${body}tail\n`, "utf8");
+      return {
+        descriptions: new Map(),
+        pstn: new Map(),
+        geo: new Map(),
+        stats: {
+          pstnCacheHits: 0,
+          pstnLiveLookups: 0,
+          geoCacheHits: 0,
+          geoLiveLookups: 0,
+        },
+      };
+    });
+    createManyCdr.mockResolvedValue({ count: 1 });
+
+    const result = await processCdrImport({ trigger: "test" });
+
+    expect(result.status).toBe("success");
+    expect(result.errorMessage).toBeUndefined();
+    expect(existsSync(file)).toBe(true);
+    expect(listPoisonEntries()).toEqual([]);
   });
 });
 
@@ -307,14 +440,8 @@ describe("processCdrImport enrich on insert", () => {
     loadEnrich.mockResolvedValue({
       descriptions: new Map([["79501112233", "Офис А"]]),
       pstn: new Map([
-        [
-          "79501112233",
-          { found: true, operator: "МТС", garTerritory: "г. Москва" },
-        ],
-        [
-          "78620000000",
-          { found: false, operator: null, garTerritory: null },
-        ],
+        ["79501112233", { found: true, operator: "МТС", garTerritory: "г. Москва" }],
+        ["78620000000", { found: false, operator: null, garTerritory: null }],
       ]),
       geo: new Map([
         [
@@ -350,6 +477,7 @@ describe("processCdrImport enrich on insert", () => {
 
   afterEach(async () => {
     resetPurgeTargetForTests();
+    resetStorGateForTests();
     if (prevInbox === undefined) delete process.env.CDR_INBOX_DIR;
     else process.env.CDR_INBOX_DIR = prevInbox;
     if (inboxDir) await rm(inboxDir, { recursive: true, force: true });
@@ -358,7 +486,7 @@ describe("processCdrImport enrich on insert", () => {
 
   it("writes enrich fields and enrichedAt on createMany", async () => {
     const file = dumpPath(inboxDir, "20260828_160001");
-    await writeFile(
+    await writeDump(
       file,
       `${HEADER}\n${quotedRow({
         cdr_id: "id-enrich-1",

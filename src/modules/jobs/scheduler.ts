@@ -18,7 +18,7 @@
 import type { AllowedActionCode } from "@/modules/actions/registry";
 import { prisma } from "@/lib/db";
 import { logger } from "@/lib/logger";
-import { listInboxFiles } from "@/modules/traffic/inbox";
+import { listInboxFiles, listYoungInboxFiles } from "@/modules/traffic/inbox";
 import { isDatabaseVacuumActive } from "@/modules/storage/vacuum/gate";
 import { requestCdrImportDrain } from "@/modules/traffic/enqueue";
 import { requestSmgImportDrain } from "@/modules/smg/enqueue";
@@ -92,11 +92,7 @@ export function scheduledSidesRefreshAction(input: {
   cdrImportInFlight: boolean;
 }): "cdr.sides.refresh" | null {
   if (!input.enabled) return null;
-  if (
-    input.refreshInFlight ||
-    input.phonesSyncInFlight ||
-    input.cdrImportInFlight
-  ) {
+  if (input.refreshInFlight || input.phonesSyncInFlight || input.cdrImportInFlight) {
     return null;
   }
   return "cdr.sides.refresh";
@@ -199,8 +195,8 @@ async function drainVoipmonitorMatch(): Promise<void> {
 
 async function drainPendingInbox(): Promise<void> {
   try {
-    const pending = await listInboxFiles();
-    if (pending.length === 0) return;
+    const [pending, young] = await Promise.all([listInboxFiles(), listYoungInboxFiles()]);
+    if (pending.length === 0 && young.length === 0) return;
     requestCdrImportDrain("schedule");
   } catch (error) {
     logger.warn("scheduler.inbox_scan_failed", {
@@ -222,9 +218,7 @@ async function drainPendingSmgInbox(): Promise<void> {
   }
 }
 
-async function enqueueScheduled(
-  actionCode: AllowedActionCode,
-): Promise<void> {
+async function enqueueScheduled(actionCode: AllowedActionCode): Promise<void> {
   const state = schedulerState();
   if (!state.runtimeRef) return;
   const result = await state.runtimeRef.enqueue({
@@ -448,8 +442,7 @@ export async function rescheduleAfterSettingsChange(): Promise<void> {
   }
   const settings = await readScheduleSettings();
   const regsIntervalSec = settings?.regsIntervalSec ?? DEFAULT_REGS_INTERVAL_SEC;
-  const exportIntervalSec =
-    settings?.exportIntervalSec ?? DEFAULT_EXPORT_INTERVAL_SEC;
+  const exportIntervalSec = settings?.exportIntervalSec ?? DEFAULT_EXPORT_INTERVAL_SEC;
   const sidesDelay = settings
     ? sidesRefreshDelaySec({
         hasSnapshot: settings.sidesHasSnapshot,

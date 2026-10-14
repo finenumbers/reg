@@ -26,8 +26,7 @@ vi.mock("@/modules/traffic/cdr-import-processor", () => ({
 }));
 
 vi.mock("@/modules/traffic/sides-refresh/processor", () => ({
-  processCdrSidesRefresh: (...args: unknown[]) =>
-    processCdrSidesRefresh(...args),
+  processCdrSidesRefresh: (...args: unknown[]) => processCdrSidesRefresh(...args),
 }));
 
 vi.mock("@/modules/traffic/purge/processor", () => ({
@@ -39,8 +38,7 @@ vi.mock("@/modules/traffic/tariff-rate/processor", () => ({
 }));
 
 vi.mock("@/modules/traffic/sides-refresh/enqueue", () => ({
-  requestCdrSidesRefresh: (...args: unknown[]) =>
-    requestCdrSidesRefresh(...args),
+  requestCdrSidesRefresh: (...args: unknown[]) => requestCdrSidesRefresh(...args),
 }));
 
 const processVoipmonitorMatch = vi.fn();
@@ -48,13 +46,11 @@ const canEnqueueVoipmonitorMatch = vi.fn();
 const requestVoipmonitorMatch = vi.fn();
 
 vi.mock("@/modules/voipmonitor/processor", () => ({
-  processVoipmonitorMatch: (...args: unknown[]) =>
-    processVoipmonitorMatch(...args),
+  processVoipmonitorMatch: (...args: unknown[]) => processVoipmonitorMatch(...args),
 }));
 
 vi.mock("@/modules/voipmonitor/continue", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("@/modules/voipmonitor/continue")>();
+  const actual = await importOriginal<typeof import("@/modules/voipmonitor/continue")>();
   return {
     ...actual,
     canEnqueueVoipmonitorMatch: (...args: unknown[]) =>
@@ -63,8 +59,7 @@ vi.mock("@/modules/voipmonitor/continue", async (importOriginal) => {
 });
 
 vi.mock("@/modules/voipmonitor/enqueue", () => ({
-  requestVoipmonitorMatch: (...args: unknown[]) =>
-    requestVoipmonitorMatch(...args),
+  requestVoipmonitorMatch: (...args: unknown[]) => requestVoipmonitorMatch(...args),
 }));
 
 vi.mock("@/modules/jobs/scheduler", () => ({
@@ -342,6 +337,24 @@ describe("PQueueJobRuntime anti-overlap", () => {
     expect(requestCdrSidesRefresh).toHaveBeenCalledWith("schedule");
   });
 
+  it("reenqueues cdr.import when a dump is still being written", async () => {
+    processCdrImport.mockResolvedValue({
+      status: "success",
+      jobRunId: "cdr-young",
+      phonesParsed: 0,
+      linesBad: 0,
+      changesCount: 0,
+      requeueAfterMs: 20,
+    });
+    const runtime = new PQueueJobRuntime();
+    await runtime.enqueue({
+      actionCode: "cdr.import",
+      trigger: "schedule",
+    });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(requestCdrImportDrain).toHaveBeenCalledWith("schedule");
+  });
+
   it("replays cdr.sides.refresh when the catalog moved mid-job", async () => {
     processCdrSidesRefresh.mockResolvedValue({
       status: "success",
@@ -477,10 +490,7 @@ describe("PQueueJobRuntime anti-overlap", () => {
     processDatabaseVacuum.mockImplementation(
       () =>
         new Promise((resolve) => {
-          setTimeout(
-            () => resolve({ status: "success", jobRunId: "vacuum-slow" }),
-            40,
-          );
+          setTimeout(() => resolve({ status: "success", jobRunId: "vacuum-slow" }), 40);
         }),
     );
     requestCdrImportDrain.mockImplementation(() => {

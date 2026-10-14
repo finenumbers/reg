@@ -31,9 +31,7 @@ import { requestSmgImportDrain } from "@/modules/smg/enqueue";
 import { isMonthExportRunning } from "@/modules/traffic/month-export-job";
 import { processDatabaseVacuum } from "@/modules/storage/vacuum/processor";
 import { setDatabaseVacuumActive } from "@/modules/storage/vacuum/gate";
-import {
-  evaluateSchedulerBootstrap as evaluateSchedulerBootstrapImpl,
-} from "@/modules/jobs/scheduler";
+import { evaluateSchedulerBootstrap as evaluateSchedulerBootstrapImpl } from "@/modules/jobs/scheduler";
 
 const SUPPORTED_JOB_ACTIONS = new Set<AllowedActionCode>([
   "regs.poll",
@@ -111,20 +109,14 @@ export class PQueueJobRuntime implements JobRuntime {
       return { accepted: false, reason: "anti-overlap: job already in flight" };
     }
 
-    if (
-      input.actionCode === "cdr.purge.month" &&
-      this.isInFlight("cdr.import")
-    ) {
+    if (input.actionCode === "cdr.purge.month" && this.isInFlight("cdr.import")) {
       return {
         accepted: false,
         reason: "anti-overlap: cdr.import in flight",
       };
     }
 
-    if (
-      input.actionCode === "db.vacuum" &&
-      isMonthExportRunning()
-    ) {
+    if (input.actionCode === "db.vacuum" && isMonthExportRunning()) {
       return {
         accepted: false,
         reason: "anti-overlap: month export in flight",
@@ -248,13 +240,17 @@ export class PQueueJobRuntime implements JobRuntime {
           jobRunId: result?.jobRunId,
         });
         if (
-          input.actionCode === "smg.import" &&
+          (input.actionCode === "smg.import" || input.actionCode === "cdr.import") &&
           result &&
           "requeueAfterMs" in result &&
           typeof result.requeueAfterMs === "number"
         ) {
           const delay = result.requeueAfterMs;
-          setTimeout(() => requestSmgImportDrain("schedule"), delay);
+          const drain =
+            input.actionCode === "smg.import"
+              ? requestSmgImportDrain
+              : requestCdrImportDrain;
+          setTimeout(() => drain("schedule"), delay);
         }
         if (
           input.actionCode === "voipmonitor.match" &&
@@ -267,8 +263,7 @@ export class PQueueJobRuntime implements JobRuntime {
           });
         }
         if (
-          (input.actionCode === "phones.sync" ||
-            input.actionCode === "cdr.import") &&
+          (input.actionCode === "phones.sync" || input.actionCode === "cdr.import") &&
           result?.status === "success"
         ) {
           requestCdrSidesRefresh("schedule");

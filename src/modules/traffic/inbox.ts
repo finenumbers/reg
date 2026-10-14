@@ -3,6 +3,11 @@ import path from "node:path";
 import { CDR_MAX_FILE_BYTES } from "@/modules/traffic/columns";
 import { cdrInboxRoot, POISON_FILENAME } from "@/modules/traffic/paths";
 import { isPoisoned, listPoisonEntries } from "@/modules/traffic/poison";
+import {
+  CDR_STOR_SETTLE_MS,
+  isStorBusy,
+  storCompletedSize,
+} from "@/modules/traffic/stor-gate";
 
 export type InboxFile = {
   filename: string;
@@ -20,18 +25,31 @@ export function isInboxDataFile(name: string): boolean {
   return CDR_DUMP_FILENAME_RE.test(name);
 }
 
-export async function listInboxFiles(
-  opts: { includePoisoned?: boolean; cwd?: string } = {},
-): Promise<InboxFile[]> {
+function isYoungDump(
+  absPath: string,
+  size: number,
+  mtimeMs: number,
+  now: number,
+): boolean {
+  if (isStorBusy(absPath, now)) return true;
+  if (storCompletedSize(absPath) === size) return false;
+  return now - mtimeMs < CDR_STOR_SETTLE_MS;
+}
+
+export async function partitionInboxFiles(
+  opts: { includePoisoned?: boolean; cwd?: string; now?: number } = {},
+): Promise<{ ready: InboxFile[]; young: InboxFile[] }> {
   const root = cdrInboxRoot(opts.cwd);
+  const now = opts.now ?? Date.now();
   let names: string[] = [];
   try {
     names = await readdir(root);
   } catch {
-    return [];
+    return { ready: [], young: [] };
   }
 
-  const out: InboxFile[] = [];
+  const ready: InboxFile[] = [];
+  const young: InboxFile[] = [];
   for (const filename of names.sort()) {
     if (!isInboxDataFile(filename)) continue;
     const absPath = path.join(root, filename);
@@ -42,28 +60,50 @@ export async function listInboxFiles(
       continue;
     }
     if (!st.isFile()) continue;
-    if (!opts.includePoisoned && isPoisoned(filename, st.mtimeMs, opts.cwd)) {
+    if (!opts.includePoisoned && isPoisoned(filename, st.mtimeMs, opts.cwd, st.size)) {
       continue;
     }
-    out.push({
+    const file: InboxFile = {
       filename,
       absPath,
       size: st.size,
       mtimeMs: st.mtimeMs,
-    });
+    };
+    if (isYoungDump(absPath, st.size, st.mtimeMs, now)) young.push(file);
+    else ready.push(file);
   }
-  return out;
+  return { ready, young };
+}
+
+export async function listInboxFiles(
+  opts: { includePoisoned?: boolean; cwd?: string; now?: number } = {},
+): Promise<InboxFile[]> {
+  const { ready } = await partitionInboxFiles(opts);
+  return ready;
+}
+
+export async function listYoungInboxFiles(
+  opts: { cwd?: string; now?: number } = {},
+): Promise<InboxFile[]> {
+  const { young } = await partitionInboxFiles(opts);
+  return young;
 }
 
 export async function countInboxFiles(
   cwd?: string,
 ): Promise<{ pending: number; poisoned: number }> {
-  const all = await listInboxFiles({ includePoisoned: true, cwd });
+  const { ready, young } = await partitionInboxFiles({
+    includePoisoned: true,
+    cwd,
+  });
   let pending = 0;
   let poisoned = 0;
-  for (const file of all) {
-    if (isPoisoned(file.filename, file.mtimeMs, cwd)) poisoned += 1;
+  for (const file of ready) {
+    if (isPoisoned(file.filename, file.mtimeMs, cwd, file.size)) poisoned += 1;
     else pending += 1;
+  }
+  for (const file of young) {
+    if (isPoisoned(file.filename, file.mtimeMs, cwd, file.size)) poisoned += 1;
   }
   return { pending, poisoned };
 }
@@ -76,11 +116,7 @@ export type PoisonedInboxFile = {
 
 function isInsideRoot(root: string, candidate: string): boolean {
   const relative = path.relative(root, candidate);
-  return (
-    relative !== "" &&
-    !relative.startsWith("..") &&
-    !path.isAbsolute(relative)
-  );
+  return relative !== "" && !relative.startsWith("..") && !path.isAbsolute(relative);
 }
 
 /**
