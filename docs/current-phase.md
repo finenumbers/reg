@@ -1,7 +1,11 @@
-# Current Phase — production (v1.109.0)
+# Current Phase — production (v1.110.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, Eltex SMG CDR.  
 **Date:** 2026-10-14
+
+## v1.110.0 — SMG import shows files and errors in Jobs and Audit
+
+«Задачи» and «Аудит» for `smg.import` now carry the same kind of detail as a softswitch CDR import. A clean run lists how many calls were inserted, how many files were read, how many lines were bad, and how many calls were already in the database. The expanded row names the file. A file left in the inbox with an error marks the job failed and puts that error in the result, including «Файл пустой» and «Частичная загрузка». The finish audit row stores status, file names, counts, and the error text. A run that only waited for a file still being written stays successful and has no error. There is no new migration.
 
 ## v1.109.0 — Softswitch CDR waits until FTP has finished the file
 

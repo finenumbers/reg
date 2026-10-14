@@ -142,6 +142,7 @@ export async function processSmgImport(
   let linesBad = 0;
   let changesCount = 0;
   let sawYoung = false;
+  const fileResults: FileImportResult[] = [];
 
   try {
     await auditService.append({
@@ -168,6 +169,7 @@ export async function processSmgImport(
       for (const file of fresh) {
         seen.add(`${file.filename}:${file.mtimeMs}`);
         const result = await importOneFile(file, jobRun.id);
+        fileResults.push(result);
         phonesParsed += result.inserted;
         linesBad += result.linesBad;
         changesCount += result.skipped;
@@ -180,16 +182,44 @@ export async function processSmgImport(
       }
     }
 
+    const errors = fileResults.filter((row) => row.error).map((row) => row.error!);
+    const failed = errors.length > 0;
+    const errorMessage = failed ? errors.join(" · ") : null;
     const finishedAt = new Date();
+    if (fileResults.length > 0) {
+      const artifactBody = fileResults
+        .map(
+          (row) =>
+            `${row.filename}: inserted=${row.inserted} skipped=${row.skipped} bad=${row.linesBad}${row.error ? ` error=${row.error}` : ""}`,
+        )
+        .join("\n");
+      await prisma.jobRunArtifact.upsert({
+        where: { jobRunId: jobRun.id },
+        create: {
+          jobRunId: jobRun.id,
+          stdout: truncateUtf8(artifactBody, 200_000),
+          stderr: truncateUtf8(errors.join("\n"), 50_000),
+        },
+        update: {
+          stdout: truncateUtf8(artifactBody, 200_000),
+          stderr: truncateUtf8(errors.join("\n"), 50_000),
+        },
+      });
+    }
     await prisma.jobRun.update({
       where: { id: jobRun.id },
       data: {
-        status: "success",
+        status: failed ? "failed" : "success",
         finishedAt,
         durationMs: finishedAt.getTime() - startedAt.getTime(),
+        errorMessage,
         phonesParsed,
         linesBad,
         changesCount,
+        meta: {
+          files: fileResults.map((row) => row.filename),
+          fileCount: fileResults.length,
+        } as Prisma.InputJsonValue,
       },
     });
     await auditService.append({
@@ -198,24 +228,31 @@ export async function processSmgImport(
       entityType: "job_run",
       entityId: jobRun.id,
       meta: {
-        trigger: input.trigger,
+        status: failed ? "failed" : "success",
         phonesParsed,
         linesBad,
         changesCount,
+        fileCount: fileResults.length,
+        files: fileResults.map((row) => row.filename),
+        ...(errorMessage ? { error: errorMessage } : {}),
+        trigger: input.trigger,
         phase: "finished",
       },
     });
     logger.info("smg.import.finished", {
       jobRunId: jobRun.id,
+      status: failed ? "failed" : "success",
       phonesParsed,
       linesBad,
+      fileCount: fileResults.length,
     });
     return {
-      status: "success",
+      status: failed ? "failed" : "success",
       jobRunId: jobRun.id,
       phonesParsed,
       linesBad,
       changesCount,
+      errorMessage: errorMessage ?? undefined,
       requeueAfterMs: sawYoung ? SMG_FILE_SETTLE_MS : undefined,
     };
   } catch (error) {
@@ -233,6 +270,21 @@ export async function processSmgImport(
         changesCount,
       },
     });
+    await auditService.append({
+      actorUserId: input.actorUserId,
+      action: AUDIT_ACTIONS.SMG_IMPORT_FINISH,
+      entityType: "job_run",
+      entityId: jobRun.id,
+      meta: {
+        status: "failed",
+        phonesParsed,
+        linesBad,
+        changesCount,
+        error: errorMessage,
+        trigger: input.trigger,
+        phase: "finished",
+      },
+    });
     logger.warn("smg.import.failed", { jobRunId: jobRun.id, error: errorMessage });
     return {
       status: "failed",
@@ -244,6 +296,12 @@ export async function processSmgImport(
       requeueAfterMs: sawYoung ? SMG_FILE_SETTLE_MS : undefined,
     };
   }
+}
+
+function truncateUtf8(value: string, maxBytes: number): string {
+  const buf = Buffer.from(value, "utf8");
+  if (buf.length <= maxBytes) return value;
+  return buf.subarray(0, maxBytes).toString("utf8");
 }
 
 /** Test helper: age a file past the STOR settle window. */

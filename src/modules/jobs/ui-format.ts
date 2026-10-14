@@ -171,10 +171,32 @@ function summarizeGroupsSync(job: JobRunListItem): string {
   return "Готово";
 }
 
+function summarizeSmgImport(job: JobRunListItem): string {
+  const meta = jobMeta(job);
+  const files = stringList(meta?.files);
+  const fileCount =
+    finiteNumber(meta?.fileCount) ?? (files.length > 0 ? files.length : null);
+  const parts: string[] = [];
+  if (job.phonesParsed != null) {
+    parts.push(`${formatCount(job.phonesParsed)} звонков`);
+  }
+  if (fileCount != null && fileCount > 0) {
+    parts.push(`${formatCount(fileCount)} файлов`);
+  }
+  if (job.linesBad != null && job.linesBad > 0) {
+    parts.push(`${formatCount(job.linesBad)} битых строк`);
+  }
+  if (job.changesCount != null && job.changesCount > 0) {
+    parts.push(`${formatCount(job.changesCount)} уже в базе`);
+  }
+  return parts.length > 0 ? joinParts(parts) : "Импорт CDR SMG завершён";
+}
+
 function summarizeCdrImport(job: JobRunListItem): string {
   const meta = jobMeta(job);
   const files = stringList(meta?.files);
-  const fileCount = finiteNumber(meta?.fileCount) ?? (files.length > 0 ? files.length : null);
+  const fileCount =
+    finiteNumber(meta?.fileCount) ?? (files.length > 0 ? files.length : null);
   const backfilled = finiteNumber(meta?.backfilled) ?? 0;
   const remaining = finiteNumber(meta?.backfillRemaining) ?? 0;
   const hasFiles = (fileCount != null && fileCount > 0) || files.length > 0;
@@ -239,12 +261,9 @@ function summarizeVoipmonitor(job: JobRunListItem): string {
 
 function summarizeSidesRefresh(job: JobRunListItem): string {
   const meta = jobMeta(job);
-  const noDiff =
-    (job.changesCount ?? 0) === 0 && (job.phonesParsed ?? 0) === 0;
+  const noDiff = (job.changesCount ?? 0) === 0 && (job.phonesParsed ?? 0) === 0;
   if (noDiff && job.changesCount != null && job.phonesParsed != null) {
-    return meta?.replay === true
-      ? "Без изменений · повторный прогон"
-      : "Без изменений";
+    return meta?.replay === true ? "Без изменений · повторный прогон" : "Без изменений";
   }
   const parts: string[] = [];
   if (job.changesCount != null) {
@@ -314,9 +333,7 @@ export function summarizeJobResult(job: JobRunListItem): string {
     case "cdr.import":
       return summarizeCdrImport(job);
     case "smg.import":
-      return (job.linesBad ?? 0) > 0
-        ? `Загружено ${formatCount(job.phonesParsed ?? 0)} звонков, ${formatCount(job.linesBad ?? 0)} битых строк`
-        : `Загружено ${formatCount(job.phonesParsed ?? 0)} звонков`;
+      return summarizeSmgImport(job);
     case "voipmonitor.match":
       return summarizeVoipmonitor(job);
     case "cdr.sides.refresh":
@@ -381,9 +398,7 @@ export function formatJobMetaDetails(
     details.push({
       label: "Файлы",
       value:
-        extra > 0
-          ? `${shown.join(", ")} · ещё ${formatCount(extra)}`
-          : shown.join(", "),
+        extra > 0 ? `${shown.join(", ")} · ещё ${formatCount(extra)}` : shown.join(", "),
     });
   } else {
     pushCountDetail(details, "Файлы", meta.fileCount, true);
@@ -473,6 +488,28 @@ function describeRegsMessage(job: JobRunListItem): string {
   return `${bits.join(". ")}.`;
 }
 
+function describeSmgImportMessage(job: JobRunListItem): string {
+  const meta = jobMeta(job);
+  const files = stringList(meta?.files);
+  const bits: string[] = [];
+  if (files.length === 1) {
+    bits.push(`файл ${files[0]}`);
+  } else if (files.length > 1) {
+    bits.push(`${formatCount(files.length)} файлов`);
+  }
+  if (job.phonesParsed != null) {
+    bits.push(`вставлено ${formatCount(job.phonesParsed)} звонков`);
+  }
+  if (job.changesCount != null && job.changesCount > 0) {
+    bits.push(`${formatCount(job.changesCount)} уже были в базе`);
+  }
+  if (job.linesBad != null && job.linesBad > 0) {
+    bits.push(`${formatCount(job.linesBad)} битых строк`);
+  }
+  if (bits.length === 0) return "Импорт CDR SMG завершён.";
+  return `${bits[0]!.charAt(0).toUpperCase()}${bits[0]!.slice(1)}${bits.length > 1 ? `: ${bits.slice(1).join(", ")}` : ""}.`;
+}
+
 function describeImportMessage(job: JobRunListItem): string {
   const meta = jobMeta(job);
   const files = stringList(meta?.files);
@@ -492,9 +529,7 @@ function describeImportMessage(job: JobRunListItem): string {
     bits.push(`${formatCount(job.linesBad)} битых строк`);
   }
   const enrich =
-    meta?.enrich &&
-    typeof meta.enrich === "object" &&
-    !Array.isArray(meta.enrich)
+    meta?.enrich && typeof meta.enrich === "object" && !Array.isArray(meta.enrich)
       ? formatEnrichLine(meta.enrich as Record<string, unknown>)
       : null;
   const head =
@@ -535,8 +570,7 @@ function describeVoipMessage(job: JobRunListItem, timeZone: string): string {
 }
 
 function describeSidesMessage(job: JobRunListItem): string {
-  const noDiff =
-    (job.changesCount ?? 0) === 0 && (job.phonesParsed ?? 0) === 0;
+  const noDiff = (job.changesCount ?? 0) === 0 && (job.phonesParsed ?? 0) === 0;
   if (noDiff) {
     return jobMeta(job)?.replay === true
       ? "Каталог описаний не менялся — журнал звонков не обновляли (повторный прогон)."
@@ -557,10 +591,7 @@ function describeSidesMessage(job: JobRunListItem): string {
  * Longer operator note for the expanded row.
  * Uses stored errorMessage when present; otherwise a sentence from counters/meta.
  */
-export function formatJobMessage(
-  job: JobRunListItem,
-  timeZone: string,
-): string | null {
+export function formatJobMessage(job: JobRunListItem, timeZone: string): string | null {
   const stored = job.errorMessage?.trim();
   if (stored) return stored;
   if (job.status !== "success") return null;
@@ -588,6 +619,8 @@ export function formatJobMessage(
         : "Загрузка групп завершена.";
     case "cdr.import":
       return describeImportMessage(job);
+    case "smg.import":
+      return describeSmgImportMessage(job);
     case "voipmonitor.match":
       return describeVoipMessage(job, timeZone);
     case "cdr.sides.refresh":

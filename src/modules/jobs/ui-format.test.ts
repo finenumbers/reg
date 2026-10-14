@@ -47,13 +47,9 @@ describe("jobs ui-format", () => {
   });
 
   it("summarizes running and failed without using meta", () => {
-    expect(summarizeJobResult(sample({ status: "running" }))).toBe(
-      "Выполняется…",
-    );
+    expect(summarizeJobResult(sample({ status: "running" }))).toBe("Выполняется…");
     expect(
-      summarizeJobResult(
-        sample({ status: "failed", errorMessage: "SSH timeout" }),
-      ),
+      summarizeJobResult(sample({ status: "failed", errorMessage: "SSH timeout" })),
     ).toBe("SSH timeout");
     expect(
       summarizeJobResult(
@@ -66,9 +62,7 @@ describe("jobs ui-format", () => {
       ),
     ).toMatch(/битых строк/);
     expect(
-      summarizeJobResult(
-        sample({ status: "failed", errorMessage: null, linesBad: 0 }),
-      ),
+      summarizeJobResult(sample({ status: "failed", errorMessage: null, linesBad: 0 })),
     ).toBe("Ошибка (без деталей)");
   });
 
@@ -142,6 +136,32 @@ describe("jobs ui-format", () => {
         }),
       ),
     ).toBe("дообогащено 40 · осталось обогатить 9");
+  });
+
+  it("summarizes smg.import with files, bad lines, and rows already stored", () => {
+    expect(
+      summarizeJobResult(
+        sample({
+          actionCode: "smg.import",
+          phonesParsed: 4,
+          linesBad: 1,
+          changesCount: 2,
+          meta: { fileCount: 1, files: ["20261013120000.cdr"] },
+        }),
+      ),
+    ).toBe("4 звонков · 1 файлов · 1 битых строк · 2 уже в базе");
+    expect(
+      summarizeJobResult(
+        sample({
+          actionCode: "smg.import",
+          status: "failed",
+          phonesParsed: 0,
+          linesBad: 0,
+          changesCount: 0,
+          errorMessage: "Файл пустой: 20261013120000.cdr",
+        }),
+      ),
+    ).toBe("Файл пустой: 20261013120000.cdr");
   });
 
   it("summarizes voipmonitor skip, empty queue, counters, and partial", () => {
@@ -257,7 +277,9 @@ describe("jobs ui-format", () => {
     ).toBe("Удалено 1 · nope");
     expect(
       formatJobMetaDetails(
-        sample({ meta: { month: "nope", files: "x" } as unknown as Record<string, unknown> }),
+        sample({
+          meta: { month: "nope", files: "x" } as unknown as Record<string, unknown>,
+        }),
         "UTC",
       ),
     ).toEqual([{ label: "Месяц", value: "nope" }]);
@@ -280,23 +302,14 @@ describe("jobs ui-format", () => {
       }),
       "UTC",
     );
-    expect(details.map((d) => d.label)).toEqual([
-      "Файлы",
-      "Дообогащено",
-      "Обогащение",
-    ]);
+    expect(details.map((d) => d.label)).toEqual(["Файлы", "Дообогащено", "Обогащение"]);
     expect(details[0]?.value).toContain("a.csv");
-    expect(details.find((d) => d.label === "Обогащение")?.value).toContain(
-      "из кэша",
-    );
+    expect(details.find((d) => d.label === "Обогащение")?.value).toContain("из кэша");
   });
 
   it("writes an expanded message when errorMessage is empty", () => {
     expect(
-      formatJobMessage(
-        sample({ phonesParsed: 13, changesCount: 0, linesBad: 0 }),
-        "UTC",
-      ),
+      formatJobMessage(sample({ phonesParsed: 13, changesCount: 0, linesBad: 0 }), "UTC"),
     ).toBe("Снимок 13 номеров. Изменений status/ip/port нет.");
     expect(
       formatJobMessage(
@@ -346,6 +359,20 @@ describe("jobs ui-format", () => {
         "UTC",
       ),
     ).toMatch(/Файл 20260901_035147/);
+    expect(
+      formatJobMessage(
+        sample({
+          actionCode: "smg.import",
+          phonesParsed: 4,
+          changesCount: 2,
+          linesBad: 1,
+          meta: { files: ["20261013120000.cdr"] },
+        }),
+        "UTC",
+      ),
+    ).toBe(
+      "Файл 20261013120000.cdr: вставлено 4 звонков, 2 уже были в базе, 1 битых строк.",
+    );
   });
 
   it("maps status badge variants", () => {

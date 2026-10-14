@@ -16,9 +16,11 @@ vi.mock("@/lib/db", () => ({
       create: vi.fn(async () => ({ id: "job_smg" })),
       update: vi.fn(async () => ({})),
     },
+    jobRunArtifact: {
+      upsert: vi.fn(async () => ({})),
+    },
     smgCdrRecord: {
-      createMany: (...args: unknown[]) =>
-        createMany(args[0] as { data: unknown[] }),
+      createMany: (...args: unknown[]) => createMany(args[0] as { data: unknown[] }),
     },
   },
 }));
@@ -36,6 +38,8 @@ vi.mock("@/lib/logger", () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 
+import { prisma } from "@/lib/db";
+import { auditService } from "@/modules/audit";
 import { ageSmgInboxFile, processSmgImport } from "@/modules/smg/import-processor";
 import { listSmgPoisonEntries } from "@/modules/smg/poison";
 
@@ -48,9 +52,7 @@ function headerLine(): string {
 }
 
 function dataLine(patch: Record<string, string>): string {
-  const values = SMG_COLUMNS.slice(0, 50).map(
-    (column) => patch[column.field] ?? "",
-  );
+  const values = SMG_COLUMNS.slice(0, 50).map((column) => patch[column.field] ?? "");
   return `${values.join(";")};`;
 }
 
@@ -90,10 +92,7 @@ describe("processSmgImport", () => {
       "20261013120000.cdr",
       [BANNER, headerLine(), dataLine(CALL)].join("\n"),
     );
-    const empty = await put(
-      "20261013.cdr",
-      `${BANNER}\n${headerLine()}\n`,
-    );
+    const empty = await put("20261013.cdr", `${BANNER}\n${headerLine()}\n`);
     const result = await processSmgImport({ trigger: "schedule" });
     expect(result.status).toBe("success");
     expect(result.phonesParsed).toBe(1);
@@ -114,10 +113,33 @@ describe("processSmgImport", () => {
       ].join("\n"),
     );
     const result = await processSmgImport({ trigger: "schedule" });
+    expect(result.status).toBe("failed");
     expect(result.phonesParsed).toBe(1);
     expect(result.linesBad).toBe(1);
+    expect(result.errorMessage).toMatch(/Частичная загрузка/);
     await expect(readFile(abs, "utf8")).resolves.toContain("tag-2");
     expect(listSmgPoisonEntries()[0]?.error).toMatch(/Частичная загрузка/);
+    expect(prisma.jobRun.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: "failed",
+          errorMessage: expect.stringMatching(/20261013120100\.cdr/),
+          meta: { files: ["20261013120100.cdr"], fileCount: 1 },
+        }),
+      }),
+    );
+    expect(auditService.append).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "smg.import_finish",
+        meta: expect.objectContaining({
+          status: "failed",
+          fileCount: 1,
+          files: ["20261013120100.cdr"],
+          phonesParsed: 1,
+          linesBad: 1,
+        }),
+      }),
+    );
   });
 
   it("keeps an unexpected name and does not insert it", async () => {
