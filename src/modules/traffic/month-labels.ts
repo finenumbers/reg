@@ -37,8 +37,12 @@ function monthIndex(month: number): number {
   return month - 1;
 }
 
+export function monthNominative(month: number): string {
+  return NOMINATIVE[monthIndex(month)];
+}
+
 export function formatMonthNominative(year: number, month: number): string {
-  return `${NOMINATIVE[monthIndex(month)]} ${year} года`;
+  return `${monthNominative(month)} ${year} года`;
 }
 
 export function formatMonthOption(

@@ -17,6 +17,7 @@ import {
   type SettingsView,
 } from "@/modules/settings/schemas";
 import { inspectKeyMaterial } from "@/modules/ssh/key-material-hint";
+import { SyslogSettings } from "@/modules/smg-syslog/ui/syslog-settings";
 
 type Props = {
   initial: SettingsView;
@@ -1343,6 +1344,8 @@ export function SettingsForm({ initial }: Props) {
           ) : null}
         </div>
       </section>
+
+      <SyslogSettings />
 
       <section className="space-y-4">
         <h2 className="text-base font-semibold">FTP — телефонный трафик</h2>

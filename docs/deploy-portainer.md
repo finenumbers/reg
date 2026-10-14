@@ -104,6 +104,16 @@ docker ps --format '{{.Names}} {{.Ports}}' | grep '2121'
 
 Override with `FTP_PUBLISH_PORT` only if you also change Settings → FTP → порт to the same number. On the softswitch point the FTP client at `host:2121`. On an Eltex SMG use the same host and port, and set the path to `/smg`.
 
+## 5b. SMG syslog UDP
+
+NPM cannot proxy syslog. The `smg-syslog` service publishes `${SYSLOG_PUBLISH_PORT:-514}/udp` to container port 5514. Settings shows that host port. On each SMG, point traces, command history, and the access log at this host and that UDP port. Add the gateway in Settings → «Syslog — SMG» by the source address of the packet, then turn reception on.
+
+The process must see that source address. Docker's default userland proxy rewrites it to the bridge gateway (`172.x.0.1`), and then every packet is treated as unknown. If the status line lists that bridge address, set `"userland-proxy": false` in `/etc/docker/daemon.json`, restart Docker, and recreate the stack. Confirm with `tcpdump` on the published UDP port that the source is the SMG, and that the packet is UDP.
+
+If `ss -lunp` shows something else already bound to 514, set `SYSLOG_PUBLISH_PORT` to a free port and use that same port on the SMG. Raise `net.core.rmem_max` if the kernel receive buffer cannot grow. The firewall should allow this UDP only from the SMG network. While the `smg-syslog` container is recreated, datagrams that arrive have nowhere to go; the gateway does not resend them.
+
+One `smg-syslog` replica. It does not use the HTTP health check.
+
 ## 6. GeoIP on the same Docker host
 
 The `app` container must not call the **public** GeoIP HTTPS origin (`https://geoip.finenumbers.com`). That resolves to the host’s public IP (`5.227.161.190:443` here). Docker hairpin NAT typically fails: Node `fetch` waits ~10s then `UND_ERR_CONNECT_TIMEOUT` / UI «fetch failed». The same URL works from a laptop (different path).

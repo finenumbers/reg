@@ -1,7 +1,19 @@
-# Current Phase — production (v1.117.0)
+# Current Phase — production (v1.118.0)
 
-**Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, Eltex SMG CDR.  
+**Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, Eltex SMG CDR, Eltex SMG syslog.  
 **Date:** 2026-10-14
+
+## v1.118.0 — Save SMG syslog by source address
+
+«Syslog» sits in the SMG block. Settings → «Syslog — SMG» adds each gateway by the IPv4 the UDP packet uses as its source, plus a name. A packet from any other address is not stored. Reception stays off until that switch is on.
+
+A separate `smg-syslog` process binds UDP 5514. Docker publishes `${SYSLOG_PUBLISH_PORT:-514}/udp` to that port. The image health check on port 3000 is disabled for this process, so a quiet receiver is not restarted. The web process only reads the files.
+
+Each accepted datagram is appended to the open 10-minute log and the batch already taken from the socket is synced before the next read. Folders are year, month, day, hour, and a 10-minute slot (`00` … `50`) in the display timezone. When the slot is in the past, the log becomes `50.log.gz`. The raw file is removed only after that archive is synced. The open slot downloads as text. A closed slot downloads as gzip.
+
+The source address must still be the gateway address when it reaches the process. If Docker's userland proxy rewrites it to the bridge gateway, no registered node matches. See the deploy note.
+
+Migration: `20261014180000_smg_syslog`.
 
 ## v1.117.0 — An open SMG upload and a held month stay intact
 

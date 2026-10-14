@@ -44,15 +44,16 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 # Prisma 7 custom client output (generator output = src/generated/prisma)
 COPY --from=builder /app/src/generated ./src/generated
 COPY --from=builder /app/scripts/docker-entrypoint.sh ./docker-entrypoint.sh
+COPY --from=builder /app/dist/smg-syslog-receiver.cjs ./smg-syslog-receiver.cjs
 COPY --from=builder --chown=nextjs:nodejs /app/ops/templates ./ops/templates
-RUN mkdir -p /app/data/enrich /app/data/cdr-inbox /app/data/traffic-export \
-  && chown nextjs:nodejs /app/data/enrich /app/data/cdr-inbox /app/data/traffic-export
+RUN mkdir -p /app/data/enrich /app/data/cdr-inbox /app/data/traffic-export /app/data/smg-syslog \
+  && chown nextjs:nodejs /app/data/enrich /app/data/cdr-inbox /app/data/traffic-export /app/data/smg-syslog
 COPY --from=builder /app/scripts/copy-module-tree.js /tmp/copy-module-tree.js
 COPY --from=deps /app/node_modules /tmp/all_modules
-RUN node /tmp/copy-module-tree.js /tmp/all_modules /app/node_modules exceljs ftp-srv \
+RUN node /tmp/copy-module-tree.js /tmp/all_modules /app/node_modules exceljs ftp-srv pg \
   && rm -rf /tmp/all_modules /tmp/copy-module-tree.js \
   && chown -R nextjs:nodejs /app/node_modules/exceljs /app/node_modules \
-  && chmod +x ./docker-entrypoint.sh && chown nextjs:nodejs ./docker-entrypoint.sh
+  && chmod +x ./docker-entrypoint.sh && chown nextjs:nodejs ./docker-entrypoint.sh ./smg-syslog-receiver.cjs
 USER nextjs
 EXPOSE 3000 2121
 ENV PORT=3000

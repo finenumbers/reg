@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 
 function isNavActive(pathname: string, href: string): boolean {
   if (href === "/") return pathname === "/";
+  if (href === "/smg") return pathname === "/smg";
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 

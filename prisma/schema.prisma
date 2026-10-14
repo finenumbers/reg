@@ -145,9 +145,21 @@ model AppSetting {
   voipmonitorUser                 String?
   voipmonitorPasswordCiphertext   String?
   voipmonitorGuiUrl               String?
+  /// UDP syslog receiver for registered SMG nodes. Off until an operator enables it.
+  syslogEnabled                   Boolean  @default(false) @map("syslog_enabled")
   updatedAt             DateTime    @updatedAt
 
   @@map("app_settings")
+}
+
+/// Eltex SMG allowed to send syslog. The ip is the UDP source address.
+model SmgSyslogNode {
+  ip        String   @id
+  name      String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("smg_syslog_nodes")
 }
 
 // ---------------------------------------------------------------------------

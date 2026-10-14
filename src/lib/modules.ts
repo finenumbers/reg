@@ -19,7 +19,8 @@ export type FeatureModuleId =
   | "enrich"
   | "stats"
   | "detail"
-  | "smg";
+  | "smg"
+  | "smg-syslog";
 
 export type FeatureNavGroup = "primary" | "cdr" | "smg" | "analytics" | "admin";
 
@@ -111,6 +112,14 @@ export const FEATURE_MODULES: FeatureModuleDefinition[] = [
     title: "Звонки на SMG",
     description: "CDR цифровых шлюзов Eltex SMG-1016M из локальной БД",
     href: "/smg",
+    navPermission: "phones:read",
+    navGroup: "smg",
+  },
+  {
+    id: "smg-syslog",
+    title: "Syslog",
+    description: "Журнал Syslog шлюзов Eltex SMG-1016M",
+    href: "/smg/syslog",
     navPermission: "phones:read",
     navGroup: "smg",
   },
