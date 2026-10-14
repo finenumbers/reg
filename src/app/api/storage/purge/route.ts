@@ -9,6 +9,19 @@ import { resolveDeletableMonthKey } from "@/modules/traffic/purge/processor";
 
 export const runtime = "nodejs";
 
+export function purgeConflictMessage(reason: string | undefined): string {
+  if (reason === "anti-overlap: cdr.import in flight") {
+    return "Дождитесь окончания импорта CDR";
+  }
+  if (reason === "anti-overlap: smg.import in flight") {
+    return "Дождитесь окончания импорта SMG";
+  }
+  if (reason === "anti-overlap: db.vacuum in flight") {
+    return "Дождитесь окончания сжатия базы";
+  }
+  return "Удаление уже выполняется";
+}
+
 /**
  * POST /api/storage/purge — delete the oldest complete CDR month.
  */
@@ -23,10 +36,7 @@ export async function POST(request: Request) {
   try {
     userId = requireSessionUserId(gate.ctx);
   } catch {
-    return NextResponse.json(
-      { error: "Forbidden", code: "FORBIDDEN" },
-      { status: 403 },
-    );
+    return NextResponse.json({ error: "Forbidden", code: "FORBIDDEN" }, { status: 403 });
   }
 
   const limited = storagePurgeRateLimiter.check(`storage-purge:${userId}`);
@@ -54,9 +64,7 @@ export async function POST(request: Request) {
     );
   }
   const raw =
-    json && typeof json === "object"
-      ? (json as { month?: unknown }).month
-      : null;
+    json && typeof json === "object" ? (json as { month?: unknown }).month : null;
   const month = typeof raw === "string" ? parseMonthKey(raw) : null;
   if (!month) {
     return NextResponse.json(
@@ -87,12 +95,7 @@ export async function POST(request: Request) {
   if (!result.accepted) {
     return NextResponse.json(
       {
-        error:
-          result.reason === "anti-overlap: cdr.import in flight"
-            ? "Дождитесь окончания импорта CDR"
-            : result.reason === "anti-overlap: smg.import in flight"
-              ? "Дождитесь окончания импорта SMG"
-              : "Удаление уже выполняется",
+        error: purgeConflictMessage(result.reason),
         code: "CONFLICT",
         reason: result.reason,
       },

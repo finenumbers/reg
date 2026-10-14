@@ -27,6 +27,7 @@ import {
 import { isDatabaseVacuumActive } from "@/modules/storage/vacuum/gate";
 import { requestCdrImportDrain } from "@/modules/traffic/enqueue";
 import { requestSmgImportDrain } from "@/modules/smg/enqueue";
+import { SMG_FILE_SETTLE_MS } from "@/modules/smg/columns";
 import { listSmgInboxFiles } from "@/modules/smg/inbox";
 import {
   canEnqueueVoipmonitorMatch,
@@ -60,6 +61,8 @@ type SchedulerGlobalState = {
   timer: ReturnType<typeof setTimeout> | null;
   exportTimer: ReturnType<typeof setTimeout> | null;
   sidesTimer: ReturnType<typeof setTimeout> | null;
+  /** One waiter while an SMG file is still inside the settle window. */
+  smgSettleTimer: ReturnType<typeof setTimeout> | null;
   runtimeRef: SchedulerJobRuntime | null;
   lastExportSync: ExportSyncAction | null;
   sidesUsedInitialDelay: boolean;
@@ -93,6 +96,36 @@ export function scheduledExportAction(input: {
   const nextExport: ExportSyncAction =
     input.lastExportSync === "phones.sync" ? "groups.sync" : "phones.sync";
   return { action: nextExport, nextLastExportSync: nextExport };
+}
+
+/**
+ * Advance the export alternation only after the queue accepts the job.
+ * A rejected enqueue keeps the previous leg so the next tick retries it.
+ */
+export function nextExportSyncAfterEnqueue(
+  lastExportSync: ExportSyncAction | null,
+  plannedNext: ExportSyncAction | null,
+  accepted: boolean,
+): ExportSyncAction | null {
+  if (!accepted || plannedNext == null) return lastExportSync;
+  return plannedNext;
+}
+
+export type SmgInboxDrainAction = "stamp-empty" | "enqueue" | "arm-timer" | "keep-timer";
+
+/**
+ * Ready files import now. A young-only inbox waits on one settle timer and
+ * does not enqueue smg.import until a file is ready.
+ */
+export function decideSmgInboxDrain(input: {
+  ready: number;
+  young: number;
+  settleTimerPending: boolean;
+}): SmgInboxDrainAction {
+  if (shouldStampEmptyScan(input.ready, input.young)) return "stamp-empty";
+  if (input.ready > 0) return "enqueue";
+  if (input.settleTimerPending) return "keep-timer";
+  return "arm-timer";
 }
 
 /** Next cdr.sides.refresh. Pure — used by tests. */
@@ -132,6 +165,7 @@ function schedulerState(): SchedulerGlobalState {
       timer: null,
       exportTimer: null,
       sidesTimer: null,
+      smgSettleTimer: null,
       runtimeRef: null,
       lastExportSync: null,
       sidesUsedInitialDelay: false,
@@ -254,16 +288,43 @@ async function drainPendingInbox(): Promise<void> {
   }
 }
 
+function clearSmgSettleTimer(): void {
+  const state = schedulerState();
+  if (!state.smgSettleTimer) return;
+  clearTimeout(state.smgSettleTimer);
+  state.smgSettleTimer = null;
+}
+
+function armSmgSettleTimer(): void {
+  const state = schedulerState();
+  if (state.smgSettleTimer) return;
+  state.smgSettleTimer = armTimer(null, SMG_FILE_SETTLE_MS, () => {
+    schedulerState().smgSettleTimer = null;
+    void drainPendingSmgInbox();
+  });
+}
+
 async function drainPendingSmgInbox(): Promise<void> {
   if (isDatabaseVacuumActive()) return;
   try {
     const { ready, young } = await listSmgInboxFiles();
-    if (shouldStampEmptyScan(ready.length, young.length)) {
-      schedulerState().lastSmgEmptyScanAt = Date.now();
+    const state = schedulerState();
+    const action = decideSmgInboxDrain({
+      ready: ready.length,
+      young: young.length,
+      settleTimerPending: state.smgSettleTimer != null,
+    });
+    if (action === "stamp-empty") {
+      clearSmgSettleTimer();
+      state.lastSmgEmptyScanAt = Date.now();
       return;
     }
-    if (ready.length === 0) return;
-    requestSmgImportDrain("schedule");
+    if (action === "enqueue") {
+      clearSmgSettleTimer();
+      requestSmgImportDrain("schedule");
+      return;
+    }
+    if (action === "arm-timer") armSmgSettleTimer();
   } catch (error) {
     logger.warn("scheduler.smg_inbox_scan_failed", {
       error: error instanceof Error ? error.message : String(error),
@@ -271,9 +332,11 @@ async function drainPendingSmgInbox(): Promise<void> {
   }
 }
 
-async function enqueueScheduled(actionCode: AllowedActionCode): Promise<void> {
+async function enqueueScheduled(
+  actionCode: AllowedActionCode,
+): Promise<{ accepted: boolean }> {
   const state = schedulerState();
-  if (!state.runtimeRef) return;
+  if (!state.runtimeRef) return { accepted: false };
   const result = await state.runtimeRef.enqueue({
     actionCode,
     trigger: "schedule",
@@ -283,6 +346,7 @@ async function enqueueScheduled(actionCode: AllowedActionCode): Promise<void> {
     accepted: result.accepted,
     reason: result.reason ?? null,
   });
+  return result;
 }
 
 async function tick(): Promise<void> {
@@ -345,12 +409,16 @@ async function tickExport(): Promise<void> {
       groupsSyncInFlight: state.runtimeRef.isInFlight("groups.sync"),
       lastExportSync: state.lastExportSync ?? null,
     });
-    state.lastExportSync = planned.nextLastExportSync;
     if (!planned.action) {
       logger.debug("scheduler.export.skipped", { reason: "anti-overlap" });
       return;
     }
-    await enqueueScheduled(planned.action);
+    const queued = await enqueueScheduled(planned.action);
+    state.lastExportSync = nextExportSyncAfterEnqueue(
+      state.lastExportSync,
+      planned.nextLastExportSync,
+      queued.accepted,
+    );
   } catch (error) {
     logger.error("scheduler.export.failed", {
       error: error instanceof Error ? error.message : String(error),
@@ -541,6 +609,7 @@ export function stopAutoScheduler(): void {
     clearTimeout(state.sidesTimer);
     state.sidesTimer = null;
   }
+  clearSmgSettleTimer();
 }
 
 /**

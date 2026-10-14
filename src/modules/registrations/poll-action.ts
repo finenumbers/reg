@@ -17,10 +17,7 @@ export type PollUiEvent =
 
 export const IDLE_POLL_STATE: PollUiState = { status: "idle", message: null };
 
-export function reducePollUiState(
-  state: PollUiState,
-  event: PollUiEvent,
-): PollUiState {
+export function reducePollUiState(state: PollUiState, event: PollUiEvent): PollUiState {
   switch (event.type) {
     case "START":
       if (state.status === "pending") return state;
@@ -50,8 +47,7 @@ export function isPollInFlight(state: PollUiState): boolean {
 }
 
 export type PollApiResult =
-  | { ok: true; message: string }
-  | { ok: false; conflict: boolean; message: string };
+  { ok: true; message: string } | { ok: false; conflict: boolean; message: string };
 
 /** Map POST /api/regs/poll response into a UI-friendly result. */
 export function interpretPollResponse(
@@ -87,9 +83,7 @@ export function interpretPollResponse(
     return {
       ok: false,
       conflict: true,
-      message: body?.reason
-        ? `Опрос не принят: ${body.reason}`
-        : "Опрос уже выполняется",
+      message: body?.reason ? `Опрос не принят: ${body.reason}` : "Опрос уже выполняется",
     };
   }
   if (status === 401 || status === 403) {
@@ -122,8 +116,7 @@ export type RegsPollStatusSnapshot = {
 };
 
 export type WaitForPollOutcomeResult =
-  | { ok: true; message: string }
-  | { ok: false; message: string };
+  { ok: true; message: string } | { ok: false; message: string };
 
 const DEFAULT_OUTCOME_TIMEOUT_MS = 90_000;
 const DEFAULT_OUTCOME_INTERVAL_MS = 750;
@@ -141,6 +134,11 @@ function sleep(ms: number): Promise<void> {
  */
 export async function waitForRegsPollOutcome(opts: {
   beforeFinishedAt: string | null;
+  /**
+   * False only when the status request failed. A known baseline with
+   * `beforeFinishedAt: null` still means no job has finished yet.
+   */
+  baselineKnown?: boolean;
   fetchStatus: () => Promise<RegsPollStatusSnapshot>;
   timeoutMs?: number;
   intervalMs?: number;
@@ -149,13 +147,13 @@ export async function waitForRegsPollOutcome(opts: {
   const timeoutMs = opts.timeoutMs ?? DEFAULT_OUTCOME_TIMEOUT_MS;
   const intervalMs = opts.intervalMs ?? DEFAULT_OUTCOME_INTERVAL_MS;
   const sleepFn = opts.sleepFn ?? sleep;
+  const baselineKnown = opts.baselineKnown !== false;
   const deadline = Date.now() + timeoutMs;
   let sawRunning = false;
 
   while (Date.now() < deadline) {
     const status = await opts.fetchStatus();
-    const isRunning =
-      status.runningCount > 0 || status.lastJobStatus === "running";
+    const isRunning = status.runningCount > 0 || status.lastJobStatus === "running";
 
     if (isRunning) {
       sawRunning = true;
@@ -165,7 +163,7 @@ export async function waitForRegsPollOutcome(opts: {
 
     const finishedAt = status.lastFinishedAt;
     const finishedNewer =
-      finishedAt != null && finishedAt !== opts.beforeFinishedAt;
+      baselineKnown && finishedAt != null && finishedAt !== opts.beforeFinishedAt;
 
     if (finishedNewer || (sawRunning && status.lastJobStatus !== "running")) {
       if (status.lastJobStatus === "success") {
@@ -175,9 +173,7 @@ export async function waitForRegsPollOutcome(opts: {
         return {
           ok: false,
           message:
-            status.lastError ??
-            status.lastFailedError ??
-            "Опрос завершился с ошибкой",
+            status.lastError ?? status.lastFailedError ?? "Опрос завершился с ошибкой",
         };
       }
     }

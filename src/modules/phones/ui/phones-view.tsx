@@ -339,7 +339,8 @@ export function PhonesView({
     setSyncState(reduceSyncUiState(syncState, { type: "START" }));
 
     try {
-      const before = await fetchPhonesStatus();
+      let before = await fetchPhonesStatus();
+      if (!before.ok) before = await fetchPhonesStatus();
       const beforeFinishedAt = before.ok ? before.data.lastFinishedAt : null;
 
       const enqueued = await postPhonesRequest();
@@ -356,6 +357,7 @@ export function PhonesView({
 
       const outcome = await waitForPhonesSyncOutcome({
         beforeFinishedAt,
+        baselineKnown: before.ok,
         fetchStatus: async () => {
           const status = await fetchPhonesStatus();
           if (!status.ok) {

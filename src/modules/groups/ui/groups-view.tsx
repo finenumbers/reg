@@ -71,7 +71,8 @@ export function GroupsView({ canRequest, initial }: Props) {
     setSyncState(reduceSyncUiState(syncState, { type: "START" }));
 
     try {
-      const before = await fetchGroupsStatus();
+      let before = await fetchGroupsStatus();
+      if (!before.ok) before = await fetchGroupsStatus();
       const beforeFinishedAt = before.ok ? before.data.lastFinishedAt : null;
 
       const enqueued = await postGroupsRequest();
@@ -88,6 +89,7 @@ export function GroupsView({ canRequest, initial }: Props) {
 
       const outcome = await waitForPhonesSyncOutcome({
         beforeFinishedAt,
+        baselineKnown: before.ok,
         fetchStatus: async () => {
           const status = await fetchGroupsStatus();
           if (!status.ok) {
@@ -117,9 +119,7 @@ export function GroupsView({ canRequest, initial }: Props) {
       }
     } catch {
       const message = "Не удалось выполнить запрос";
-      setSyncState(
-        reduceSyncUiState(IDLE_SYNC_STATE, { type: "ERROR", message }),
-      );
+      setSyncState(reduceSyncUiState(IDLE_SYNC_STATE, { type: "ERROR", message }));
       toast.error(message);
     } finally {
       syncInFlightRef.current = false;
@@ -135,7 +135,7 @@ export function GroupsView({ canRequest, initial }: Props) {
           <h1 className="text-xl font-semibold tracking-tight [text-box:trim-start_cap_alphabetic]">
             Входящие группы
           </h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-muted-foreground text-sm">
             Последняя загрузка: {formatSyncedAt(lastSyncedAt, timeZone)}. Всего:{" "}
             {formatCount(total)}.
           </p>
@@ -156,7 +156,7 @@ export function GroupsView({ canRequest, initial }: Props) {
           className={
             syncState.status === "success"
               ? "shrink-0 text-sm text-emerald-700"
-              : "shrink-0 text-sm text-destructive"
+              : "text-destructive shrink-0 text-sm"
           }
         >
           {syncState.message}
@@ -164,7 +164,7 @@ export function GroupsView({ canRequest, initial }: Props) {
       ) : null}
 
       {listError ? (
-        <p className="shrink-0 text-sm text-destructive" role="alert">
+        <p className="text-destructive shrink-0 text-sm" role="alert">
           {listError}
         </p>
       ) : null}

@@ -17,10 +17,7 @@ export type SyncUiEvent =
 
 export const IDLE_SYNC_STATE: SyncUiState = { status: "idle", message: null };
 
-export function reduceSyncUiState(
-  state: SyncUiState,
-  event: SyncUiEvent,
-): SyncUiState {
+export function reduceSyncUiState(state: SyncUiState, event: SyncUiEvent): SyncUiState {
   switch (event.type) {
     case "START":
       if (state.status === "pending") return state;
@@ -53,8 +50,7 @@ export function isSyncInFlight(state: SyncUiState): boolean {
 }
 
 export type SyncApiResult =
-  | { ok: true; message: string }
-  | { ok: false; conflict: boolean; message: string };
+  { ok: true; message: string } | { ok: false; conflict: boolean; message: string };
 
 export function interpretSyncResponse(
   status: number,
@@ -90,9 +86,7 @@ export function interpretSyncResponse(
     return {
       ok: false,
       conflict: true,
-      message: detail
-        ? `Запрос не принят: ${detail}`
-        : "Запрос уже выполняется",
+      message: detail ? `Запрос не принят: ${detail}` : "Запрос уже выполняется",
     };
   }
   if (status === 401 || status === 403) {
@@ -106,8 +100,7 @@ export function interpretSyncResponse(
     return {
       ok: false,
       conflict: false,
-      message:
-        body?.error ?? body?.reason ?? "Не удалось поставить запрос в очередь",
+      message: body?.error ?? body?.reason ?? "Не удалось поставить запрос в очередь",
     };
   }
   return {
@@ -125,8 +118,7 @@ export type PhonesSyncStatusSnapshot = {
 };
 
 export type WaitForSyncOutcomeResult =
-  | { ok: true; message: string }
-  | { ok: false; message: string };
+  { ok: true; message: string } | { ok: false; message: string };
 
 const DEFAULT_OUTCOME_TIMEOUT_MS = 150_000;
 const DEFAULT_OUTCOME_INTERVAL_MS = 750;
@@ -139,6 +131,11 @@ function sleep(ms: number): Promise<void> {
 
 export async function waitForPhonesSyncOutcome(opts: {
   beforeFinishedAt: string | null;
+  /**
+   * False only when the status request failed. A known baseline with
+   * `beforeFinishedAt: null` still means no job has finished yet.
+   */
+  baselineKnown?: boolean;
   fetchStatus: () => Promise<PhonesSyncStatusSnapshot>;
   timeoutMs?: number;
   intervalMs?: number;
@@ -147,13 +144,13 @@ export async function waitForPhonesSyncOutcome(opts: {
   const timeoutMs = opts.timeoutMs ?? DEFAULT_OUTCOME_TIMEOUT_MS;
   const intervalMs = opts.intervalMs ?? DEFAULT_OUTCOME_INTERVAL_MS;
   const sleepFn = opts.sleepFn ?? sleep;
+  const baselineKnown = opts.baselineKnown !== false;
   const deadline = Date.now() + timeoutMs;
   let sawRunning = false;
 
   while (Date.now() < deadline) {
     const status = await opts.fetchStatus();
-    const isRunning =
-      status.runningCount > 0 || status.lastJobStatus === "running";
+    const isRunning = status.runningCount > 0 || status.lastJobStatus === "running";
 
     if (isRunning) {
       sawRunning = true;
@@ -163,7 +160,7 @@ export async function waitForPhonesSyncOutcome(opts: {
 
     const finishedAt = status.lastFinishedAt;
     const finishedNewer =
-      finishedAt != null && finishedAt !== opts.beforeFinishedAt;
+      baselineKnown && finishedAt != null && finishedAt !== opts.beforeFinishedAt;
 
     if (finishedNewer || (sawRunning && status.lastJobStatus !== "running")) {
       if (status.lastJobStatus === "success") {
@@ -173,9 +170,7 @@ export async function waitForPhonesSyncOutcome(opts: {
         return {
           ok: false,
           message:
-            status.lastError ??
-            status.lastFailedError ??
-            "Запрос завершился с ошибкой",
+            status.lastError ?? status.lastFailedError ?? "Запрос завершился с ошибкой",
         };
       }
     }

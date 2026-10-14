@@ -29,4 +29,13 @@ describe("SlidingWindowRateLimiter", () => {
     expect(limiter.check("a", 0).allowed).toBe(true);
     expect(limiter.check("b", 0).allowed).toBe(true);
   });
+
+  it("isBlocked reads the window without recording a hit", () => {
+    expect(limiter.isBlocked("k", 0)).toBe(false);
+    expect(limiter.check("k", 0).allowed).toBe(true);
+    expect(limiter.check("k", 10).allowed).toBe(true);
+    expect(limiter.check("k", 20).allowed).toBe(true);
+    expect(limiter.isBlocked("k", 30)).toBe(true);
+    expect(limiter.check("k", 1010).allowed).toBe(true);
+  });
 });

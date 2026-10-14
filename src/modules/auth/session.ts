@@ -1,21 +1,15 @@
 import { headers } from "next/headers";
 import { auth } from "@/modules/auth/auth";
 import { AuthError } from "@/modules/auth/errors";
-import {
-  getUserAuthz,
-  type UserAuthz,
-} from "@/modules/rbac/service";
+import { getUserAuthz, type UserAuthz } from "@/modules/rbac/service";
 import { hasPermission, type PermissionCode } from "@/modules/rbac/permissions";
 import { prisma } from "@/lib/db";
-import {
-  authenticateApiKey,
-} from "@/modules/api-keys/service";
+import { authenticateApiKey } from "@/modules/api-keys/service";
 import { extractApiKeyFromHeaders } from "@/modules/api-keys/crypto";
-import { apiKeyRateLimiter } from "@/lib/rate-limit";
+import { apiKeyFailureRateLimiter, apiKeyRateLimiter } from "@/lib/rate-limit";
+import { trustedClientIp } from "@/lib/request-ip";
 
-export type AuthSession = NonNullable<
-  Awaited<ReturnType<typeof auth.api.getSession>>
->;
+export type AuthSession = NonNullable<Awaited<ReturnType<typeof auth.api.getSession>>>;
 
 export type SessionAuthzContext = {
   authKind: "session";
@@ -64,9 +58,7 @@ async function getSessionAuthzContext(): Promise<SessionAuthzContext | null> {
 
   const authz = await getUserAuthz(session.user.id);
   const username =
-    dbUser.username ??
-    (session.user as { username?: string | null }).username ??
-    null;
+    dbUser.username ?? (session.user as { username?: string | null }).username ?? null;
 
   return {
     authKind: "session",
@@ -77,21 +69,10 @@ async function getSessionAuthzContext(): Promise<SessionAuthzContext | null> {
   };
 }
 
-async function getApiKeyAuthzContext(): Promise<ApiKeyAuthzContext | null> {
-  const h = await headers();
-  const secret = extractApiKeyFromHeaders(h);
-  if (!secret) return null;
-
-  const key = await authenticateApiKey(secret);
-  if (!key) {
-    throw new AuthError("UNAUTHORIZED");
-  }
-
-  const limited = apiKeyRateLimiter.check(`api-key:${key.id}`);
-  if (!limited.allowed) {
-    throw new AuthError("RATE_LIMITED", "API key rate limit exceeded");
-  }
-
+function apiKeyAuthzContext(key: {
+  id: string;
+  permissions: UserAuthz["permissions"];
+}): ApiKeyAuthzContext {
   return {
     authKind: "api_key",
     session: null,
@@ -128,17 +109,34 @@ export async function requirePermission(
 
 /**
  * Session cookie OR API key. Used by Route Handlers via requireApiPermission.
+ * A valid key wins over a cookie. An unrecognized key falls through to the
+ * session when one exists. A key that is over its own limit does not.
  */
 export async function requireApiAuthz(): Promise<AuthzContext> {
   const h = await headers();
   const secret = extractApiKeyFromHeaders(h);
-  if (secret) {
-    const apiCtx = await getApiKeyAuthzContext();
-    if (!apiCtx) throw new AuthError("UNAUTHORIZED");
-    return apiCtx;
+  if (!secret) return requireAuthz();
+
+  const failKey = `api-key-fail:${trustedClientIp(h) ?? "unknown"}`;
+  if (apiKeyFailureRateLimiter.isBlocked(failKey)) {
+    const sessionCtx = await getSessionAuthzContext();
+    if (sessionCtx) return sessionCtx;
+    throw new AuthError("RATE_LIMITED", "API key rate limit exceeded");
   }
 
-  return requireAuthz();
+  const key = await authenticateApiKey(secret);
+  if (!key) {
+    apiKeyFailureRateLimiter.check(failKey);
+    const sessionCtx = await getSessionAuthzContext();
+    if (sessionCtx) return sessionCtx;
+    throw new AuthError("UNAUTHORIZED");
+  }
+
+  const limited = apiKeyRateLimiter.check(`api-key:${key.id}`);
+  if (!limited.allowed) {
+    throw new AuthError("RATE_LIMITED", "API key rate limit exceeded");
+  }
+  return apiKeyAuthzContext(key);
 }
 
 export async function requireApiAuthzPermission(

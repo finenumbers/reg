@@ -41,6 +41,13 @@ export class SlidingWindowRateLimiter {
     };
   }
 
+  /** True when the window is already full. Does not record a hit. */
+  isBlocked(key: string, now = Date.now()): boolean {
+    const cutoff = now - this.windowMs;
+    const recent = (this.hits.get(key) ?? []).filter((t) => t > cutoff);
+    return recent.length >= this.limit;
+  }
+
   /** Test helper */
   reset(): void {
     this.hits.clear();
@@ -79,6 +86,9 @@ export const voipmonitorTestRateLimiter = new SlidingWindowRateLimiter(
 
 /** Machine API key reads: 10_000 / minute per key (single-replica) */
 export const apiKeyRateLimiter = new SlidingWindowRateLimiter(10_000, 60 * 1000);
+
+/** Failed machine-key guesses per IP. Separate from login and from successful keys. */
+export const apiKeyFailureRateLimiter = new SlidingWindowRateLimiter(10, 5 * 60 * 1000);
 
 /** CDR month purge starts per admin: 3 / minute */
 export const storagePurgeRateLimiter = new SlidingWindowRateLimiter(

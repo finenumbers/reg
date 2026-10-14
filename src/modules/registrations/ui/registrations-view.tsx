@@ -274,8 +274,9 @@ export function RegistrationsView({ canPoll, initial }: Props) {
     setPollState((s) => reducePollUiState(s, { type: "START" }));
 
     try {
+      let beforeStatus = await fetchRegsStatus();
+      if (!beforeStatus.ok) beforeStatus = await fetchRegsStatus();
       let beforeFinishedAt: string | null = null;
-      const beforeStatus = await fetchRegsStatus();
       if (beforeStatus.ok) {
         beforeFinishedAt = beforeStatus.data.lastFinishedAt;
         setUnregisteredCount(beforeStatus.data.unregisteredCount);
@@ -296,6 +297,7 @@ export function RegistrationsView({ canPoll, initial }: Props) {
 
       const outcome = await waitForRegsPollOutcome({
         beforeFinishedAt,
+        baselineKnown: beforeStatus.ok,
         fetchStatus: async () => {
           const status = await fetchRegsStatus();
           if (!status.ok) {

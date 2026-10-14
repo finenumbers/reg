@@ -23,8 +23,10 @@ vi.mock("@/lib/logger", () => ({
 }));
 
 import {
+  decideSmgInboxDrain,
   evaluateSchedulerBootstrap,
   isAutoSchedulerRunning,
+  nextExportSyncAfterEnqueue,
   rescheduleAfterSettingsChange,
   scheduledExportAction,
   scheduledRegsAction,
@@ -144,6 +146,48 @@ describe("scheduledSidesRefreshAction", () => {
         cdrImportInFlight: true,
       }),
     ).toBeNull();
+  });
+});
+
+describe("nextExportSyncAfterEnqueue", () => {
+  it("keeps the previous leg when the queue rejects the job", () => {
+    expect(nextExportSyncAfterEnqueue(null, "phones.sync", false)).toBeNull();
+    expect(nextExportSyncAfterEnqueue("phones.sync", "groups.sync", false)).toBe(
+      "phones.sync",
+    );
+  });
+
+  it("advances only after the queue accepts the job", () => {
+    expect(nextExportSyncAfterEnqueue(null, "phones.sync", true)).toBe("phones.sync");
+    expect(nextExportSyncAfterEnqueue("phones.sync", "groups.sync", true)).toBe(
+      "groups.sync",
+    );
+  });
+});
+
+describe("decideSmgInboxDrain", () => {
+  it("stamps an empty scan and does not enqueue", () => {
+    expect(decideSmgInboxDrain({ ready: 0, young: 0, settleTimerPending: false })).toBe(
+      "stamp-empty",
+    );
+  });
+
+  it("enqueues when a file is ready", () => {
+    expect(decideSmgInboxDrain({ ready: 1, young: 0, settleTimerPending: false })).toBe(
+      "enqueue",
+    );
+    expect(decideSmgInboxDrain({ ready: 1, young: 2, settleTimerPending: true })).toBe(
+      "enqueue",
+    );
+  });
+
+  it("arms one settle timer for a young-only inbox and does not stack another", () => {
+    expect(decideSmgInboxDrain({ ready: 0, young: 1, settleTimerPending: false })).toBe(
+      "arm-timer",
+    );
+    expect(decideSmgInboxDrain({ ready: 0, young: 3, settleTimerPending: true })).toBe(
+      "keep-timer",
+    );
   });
 });
 

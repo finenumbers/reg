@@ -479,7 +479,8 @@ export function TrafficView({
     syncInFlightRef.current = true;
     setSyncState(reduceSyncUiState(syncState, { type: "START" }));
     try {
-      const before = await fetchTrafficStatus();
+      let before = await fetchTrafficStatus();
+      if (!before.ok) before = await fetchTrafficStatus();
       const beforeFinishedAt = before.ok ? before.data.lastFinishedAt : null;
       const enqueued = await postTrafficRetry();
       if (!enqueued.ok) {
@@ -494,6 +495,7 @@ export function TrafficView({
       }
       const outcome = await waitForPhonesSyncOutcome({
         beforeFinishedAt,
+        baselineKnown: before.ok,
         fetchStatus: async () => {
           const status = await fetchTrafficStatus();
           if (!status.ok) throw new Error(status.message);

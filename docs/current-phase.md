@@ -1,7 +1,21 @@
-# Current Phase — production (v1.119.0)
+# Current Phase — production (v1.120.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, Eltex SMG CDR, Eltex SMG syslog.  
 **Date:** 2026-10-15
+
+## v1.120.0 — A young SMG file waits without a job, and a bad API key does not hide the session
+
+A file that is still inside the two-second settle window no longer waits for the next registration tick, and it does not start `smg.import` while it is young. The scheduler keeps one timer. When the file is ready, one import runs. An empty scan still turns the counter red. A file that is already ready is unchanged.
+
+A scheduled phones or groups export moves to the other script only after the queue accepts that job. A rejected enqueue retries the same script on the next tick. A manual run of both scripts at once is unchanged.
+
+«Загрузить данные» on registrations, phones, and groups, and «Повторить импорт» on softswitch CDR, no longer report the previous success when the status read that should have captured the baseline failed. That read is tried once more before the job is queued. The first run, when nothing has finished yet, is unchanged.
+
+An unrecognized `reg_` key falls through to a valid browser session. A valid key still wins over the cookie. A key that is over its own limit stays limited and does not become the session. Failed guesses are counted per IP, separately from login and from successful keys, and a blocked address is turned away before the key lookup unless a session is present. Permissions stored on a key are reduced to `regs:read` and `phones:read`. A key created in Settings is unchanged.
+
+Deleting a month while the database is being compressed says to wait for that compression. The refusal itself is unchanged.
+
+There is no new migration.
 
 ## v1.119.0 — A second SMG CDR banner is not a call
 

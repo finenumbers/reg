@@ -5,25 +5,8 @@ import { nextCookies } from "better-auth/next-js";
 import { createAuthMiddleware, APIError } from "better-auth/api";
 import { prisma } from "@/lib/db";
 import { loginRateLimiter } from "@/lib/rate-limit";
+import { trustedClientIp } from "@/lib/request-ip";
 import { AUDIT_ACTIONS, auditService } from "@/modules/audit";
-
-function clientIp(headers: Headers | undefined): string | null {
-  if (!headers) return null;
-  const realIp = headers.get("x-real-ip")?.trim();
-  if (realIp) return realIp;
-
-  const forwarded = headers.get("x-forwarded-for");
-  if (forwarded && process.env.BETTER_AUTH_URL?.startsWith("https://")) {
-    const hops = forwarded
-      .split(",")
-      .map((h) => h.trim())
-      .filter(Boolean);
-    // Prefer the hop closest to our edge (last), not the spoofable first.
-    if (hops.length > 0) return hops[hops.length - 1]!;
-  }
-
-  return null;
-}
 
 /**
  * Better Auth server instance.
@@ -76,7 +59,7 @@ export const auth = betterAuth({
   hooks: {
     before: createAuthMiddleware(async (ctx) => {
       if (ctx.path === "/sign-in/username") {
-        const ip = clientIp(ctx.headers) ?? "unknown";
+        const ip = trustedClientIp(ctx.headers) ?? "unknown";
         const limited = loginRateLimiter.check(`login:${ip}`);
         if (!limited.allowed) {
           throw new APIError("TOO_MANY_REQUESTS", {
@@ -86,7 +69,7 @@ export const auth = betterAuth({
       }
     }),
     after: createAuthMiddleware(async (ctx) => {
-      const ip = clientIp(ctx.headers);
+      const ip = trustedClientIp(ctx.headers);
 
       if (ctx.path === "/sign-in/username") {
         const newSession = ctx.context.newSession;
@@ -99,8 +82,7 @@ export const auth = betterAuth({
             meta: {
               method: "username",
               username:
-                (newSession.user as { username?: string | null }).username ??
-                null,
+                (newSession.user as { username?: string | null }).username ?? null,
             },
             ip,
           });
@@ -109,7 +91,10 @@ export const auth = betterAuth({
 
         // Failed sign-in: after hook may still run with an APIError result.
         const returned = ctx.context.returned;
-        if (returned instanceof APIError || (returned && typeof returned === "object" && "status" in returned)) {
+        if (
+          returned instanceof APIError ||
+          (returned && typeof returned === "object" && "status" in returned)
+        ) {
           const body = ctx.body as { username?: string } | undefined;
           await auditService.append({
             actorUserId: null,

@@ -10,10 +10,7 @@ import { PERMISSIONS } from "@/modules/rbac/permissions";
 import { auditService, AUDIT_ACTIONS } from "@/modules/audit/service";
 
 /** Default scopes for integration keys (read-only). */
-export const API_KEY_READ_PERMISSIONS: PermissionCode[] = [
-  "regs:read",
-  "phones:read",
-];
+export const API_KEY_READ_PERMISSIONS: PermissionCode[] = ["regs:read", "phones:read"];
 
 export type ApiKeyListItem = {
   id: string;
@@ -42,6 +39,12 @@ function parsePermissions(value: unknown): PermissionCode[] {
     }
   }
   return out;
+}
+
+/** Read scopes a machine key may actually use. Extra stored permissions are dropped. */
+export function apiKeyEffectivePermissions(stored: unknown): PermissionCode[] {
+  const parsed = new Set(parsePermissions(stored));
+  return API_KEY_READ_PERMISSIONS.filter((code) => parsed.has(code));
 }
 
 function toListItem(row: {
@@ -154,7 +157,7 @@ export async function authenticateApiKey(
   if (!row || !row.enabled || row.revokedAt) return null;
   if (!verifyApiKeyHash(secret, row.keyHash)) return null;
 
-  const permissions = parsePermissions(row.permissions);
+  const permissions = apiKeyEffectivePermissions(row.permissions);
   if (permissions.length === 0) return null;
 
   // Fire-and-forget last-used stamp; do not block the request on failure.

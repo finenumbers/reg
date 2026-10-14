@@ -161,4 +161,54 @@ describe("waitForRegsPollOutcome", () => {
       expect(result.message).toMatch(/ожидания/i);
     }
   });
+
+  it("does not treat an existing success as the new job when the baseline is unknown", async () => {
+    const fetchStatus = vi.fn().mockResolvedValue({
+      lastJobStatus: "success",
+      lastError: null,
+      lastFinishedAt: "2026-01-01T00:00:00.000Z",
+      runningCount: 0,
+    });
+
+    const result = await waitForRegsPollOutcome({
+      beforeFinishedAt: null,
+      baselineKnown: false,
+      fetchStatus,
+      timeoutMs: 5,
+      intervalMs: 1,
+      sleepFn: async () => undefined,
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.message).toMatch(/ожидания/i);
+    }
+  });
+
+  it("accepts the outcome after it saw the job running, even without a baseline", async () => {
+    const fetchStatus = vi
+      .fn()
+      .mockResolvedValueOnce({
+        lastJobStatus: "running",
+        lastError: null,
+        lastFinishedAt: "2026-01-01T00:00:00.000Z",
+        runningCount: 1,
+      })
+      .mockResolvedValueOnce({
+        lastJobStatus: "success",
+        lastError: null,
+        lastFinishedAt: "2026-01-01T00:00:00.000Z",
+        runningCount: 0,
+      });
+
+    const result = await waitForRegsPollOutcome({
+      beforeFinishedAt: null,
+      baselineKnown: false,
+      fetchStatus,
+      intervalMs: 1,
+      sleepFn: async () => undefined,
+    });
+
+    expect(result).toEqual({ ok: true, message: "Опрос завершён успешно" });
+  });
 });
