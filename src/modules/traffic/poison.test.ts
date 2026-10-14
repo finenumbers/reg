@@ -6,11 +6,16 @@ import {
   clearAllPurgeHolds,
   clearPoisonExceptMonthHold,
   clearPurgeHolds,
+  errorHoldsMonth,
   isPoisoned,
   listPoisonEntries,
   markPoisoned,
   purgeHoldMessage,
 } from "@/modules/traffic/poison";
+import {
+  resetPurgeTargetForTests,
+  setPurgeTargetMonth,
+} from "@/modules/traffic/purge/target";
 
 describe("poison journal", () => {
   let inboxDir = "";
@@ -22,6 +27,7 @@ describe("poison journal", () => {
   });
 
   afterEach(async () => {
+    resetPurgeTargetForTests();
     if (prevInbox === undefined) delete process.env.CDR_INBOX_DIR;
     else process.env.CDR_INBOX_DIR = prevInbox;
     if (inboxDir) await rm(inboxDir, { recursive: true, force: true });
@@ -76,5 +82,34 @@ describe("poison journal", () => {
     markPoisoned("bad.csv", 10, "Нет даты", undefined, 80);
     expect(isPoisoned("bad.csv", 10, undefined, 80)).toBe(true);
     expect(isPoisoned("bad.csv", 10, undefined, 120)).toBe(false);
+  });
+
+  it("clears a hold embedded in a partial-load error and leaves another month", () => {
+    const july = `Частичная загрузка: вставлено 1 записей. (Отложено: идёт удаление 2026-07).`;
+    const august = `Нет валидных строк; 3 отложено (Отложено: идёт удаление 2026-08)`;
+    markPoisoned("july-part.csv", 4, july, undefined, 40);
+    markPoisoned("aug-part.csv", 5, august, undefined, 50);
+    markPoisoned("bad.csv", 1, "Нет даты", undefined, 10);
+
+    expect(errorHoldsMonth(july, "2026-07")).toBe(true);
+    expect(errorHoldsMonth(july, "2026-7")).toBe(false);
+    expect(errorHoldsMonth("Отложено: идёт удаление 2026-10", "2026-1")).toBe(false);
+
+    expect(clearPurgeHolds("2026-07")).toBe(1);
+    expect(listPoisonEntries().map((item) => item.filename)).toEqual([
+      "aug-part.csv",
+      "bad.csv",
+    ]);
+    expect(clearAllPurgeHolds()).toBe(0);
+  });
+
+  it("hides a held file only while that month is still being deleted", () => {
+    const error = `Частичная загрузка. (Отложено: идёт удаление 2026-07).`;
+    markPoisoned("july-part.csv", 4, error, undefined, 40);
+    expect(isPoisoned("july-part.csv", 4, undefined, 40)).toBe(false);
+    setPurgeTargetMonth("2026-07");
+    expect(isPoisoned("july-part.csv", 4, undefined, 40)).toBe(true);
+    setPurgeTargetMonth("2026-08");
+    expect(isPoisoned("july-part.csv", 4, undefined, 40)).toBe(false);
   });
 });

@@ -2,7 +2,7 @@
  * Local smg.import — drain the SMG inbox, insert calls, delete only a clean file.
  */
 
-import { readFile, unlink, utimes } from "node:fs/promises";
+import { readFile, stat, unlink, utimes } from "node:fs/promises";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
 import { formatCount } from "@/lib/format-count";
@@ -28,6 +28,7 @@ import {
 } from "@/modules/traffic/purge/hold";
 import { getPurgeTargetMonth } from "@/modules/traffic/purge/target";
 import { purgeHoldMessage } from "@/modules/traffic/poison";
+import { isStorBusy } from "@/modules/traffic/stor-gate";
 
 export type SmgImportProcessorInput = {
   trigger: "schedule" | "manual" | "test";
@@ -55,6 +56,36 @@ type FileImportResult = {
   leaveFile?: boolean;
 };
 
+/** True when STOR reopened the file or its size or mtime no longer match the listing. */
+async function smgFileMoved(file: SmgInboxFile): Promise<boolean> {
+  if (isStorBusy(file.absPath)) return true;
+  try {
+    const st = await stat(file.absPath);
+    if (!st.isFile()) return true;
+    return st.size !== file.size || st.mtimeMs !== file.mtimeMs;
+  } catch {
+    return true;
+  }
+}
+
+function untouchedFile(file: SmgInboxFile): FileImportResult {
+  return {
+    filename: file.filename,
+    inserted: 0,
+    skipped: 0,
+    linesBad: 0,
+    error: null,
+    leaveFile: true,
+  };
+}
+
+/** Test seam: runs after the bytes are read and before they are inserted. */
+let afterReadForTests: (() => Promise<void> | void) | null = null;
+
+export function setSmgAfterReadForTests(hook: (() => Promise<void> | void) | null): void {
+  afterReadForTests = hook;
+}
+
 async function importOneFile(
   file: SmgInboxFile,
   jobRunId: string,
@@ -69,6 +100,8 @@ async function importOneFile(
     };
   }
 
+  if (await smgFileMoved(file)) return untouchedFile(file);
+
   const sizeError = smgInboxFileError(file);
   if (sizeError) {
     return {
@@ -81,6 +114,8 @@ async function importOneFile(
   }
 
   const bytes = await readFile(file.absPath);
+  if (afterReadForTests) await afterReadForTests();
+  if (await smgFileMoved(file)) return untouchedFile(file);
   const parsed = parseSmgText(decodeSmgBytes(bytes), file.filename);
   if (parsed.error && parsed.rows.length === 0) {
     return {
@@ -228,6 +263,7 @@ export async function processSmgImport(
           continue;
         }
         if (result.leaveFile) continue;
+        if (await smgFileMoved(file)) continue;
         clearSmgPoison(file.filename);
         await unlink(file.absPath);
       }

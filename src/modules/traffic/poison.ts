@@ -1,5 +1,6 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { poisonStorePath } from "@/modules/traffic/paths";
+import { getPurgeTargetMonth } from "@/modules/traffic/purge/target";
 
 export type PoisonEntry = {
   mtimeMs: number;
@@ -35,11 +36,15 @@ export function isPoisoned(
 ): boolean {
   const entry = readMap(cwd)[filename];
   if (!entry || entry.mtimeMs !== mtimeMs) return false;
-  if (size == null) return true;
-  if (typeof entry.size === "number") return entry.size === size;
+  if (size != null && typeof entry.size === "number" && entry.size !== size) {
+    return false;
+  }
   // A dump marked empty while STOR was still truncating it, then filled
   // without an mtime change. The bytes on disk are a new version.
-  if (size > 0 && entry.error.startsWith("Файл пустой")) return false;
+  if (size != null && size > 0 && entry.error.startsWith("Файл пустой")) return false;
+  if (purgeHoldReleased(entry.error)) return false;
+  if (size == null) return true;
+  if (typeof entry.size === "number") return entry.size === size;
   return true;
 }
 
@@ -75,6 +80,47 @@ export function isPurgeHoldError(error: string): boolean {
   return error.startsWith(PURGE_HOLD_PREFIX);
 }
 
+const HOLD_MONTH = /Отложено: идёт удаление (\d{4}-\d{2})(?=$|[.)\s])/;
+
+/** First `YYYY-MM` in a purge-hold sentence. The boundary keeps `2026-1` off `2026-10`. */
+export function heldMonthInError(error: string): string | null {
+  return HOLD_MONTH.exec(error)?.[1] ?? null;
+}
+
+/** True when `month` is a whole hold token, including inside a partial-load error. */
+export function errorHoldsMonth(error: string, month: string): boolean {
+  if (!/^\d{4}-\d{2}$/.test(month)) return false;
+  const needle = purgeHoldMessage(month);
+  let from = 0;
+  while (from < error.length) {
+    const at = error.indexOf(needle, from);
+    if (at < 0) return false;
+    const next = error[at + needle.length];
+    if (
+      next === undefined ||
+      next === "." ||
+      next === ")" ||
+      next === " " ||
+      next === "\n" ||
+      next === "\r"
+    ) {
+      return true;
+    }
+    from = at + needle.length;
+  }
+  return false;
+}
+
+/**
+ * A hold for a month that is not the live purge target must not hide the file.
+ * A parse error without the hold sentence stays poisoned.
+ */
+export function purgeHoldReleased(error: string): boolean {
+  const month = heldMonthInError(error);
+  if (!month) return false;
+  return getPurgeTargetMonth() !== month;
+}
+
 export type InboxPoisonItem = {
   filename: string;
   error: string;
@@ -93,8 +139,7 @@ export function listPoisonEntries(cwd?: string): InboxPoisonItem[] {
 }
 
 function isHoldForMonth(error: string, month: string): boolean {
-  const needle = purgeHoldMessage(month);
-  return error === needle || error.startsWith(needle);
+  return errorHoldsMonth(error, month);
 }
 
 export function clearPurgeHolds(month: string, cwd?: string): number {

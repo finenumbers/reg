@@ -1,7 +1,17 @@
-# Current Phase — production (v1.116.0)
+# Current Phase — production (v1.117.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, Eltex SMG CDR.  
 **Date:** 2026-10-14
+
+## v1.117.0 — An open SMG upload and a held month stay intact
+
+SMG import waits while FTP still has the file open. A file that changes during the read stays in the inbox, and that snapshot is not inserted. An empty file that later has bytes is read on the next pass.
+
+A CDR or SMG file held for a month delete is imported after that delete finishes, including when the hold sentence sits inside a partial-load error. While that month is still being deleted, the file stays in the inbox.
+
+VoIPmonitor decides a finished miss from the `miss_reason` field. Rows already parked at year 9999 whose reason is `assigned_elsewhere` or `fallback_ambiguous` return to the retry queue on the next start. A `call_id_not_in_index` miss stays parked.
+
+There is no new migration.
 
 ## v1.116.0 — Unused code removed
 

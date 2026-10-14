@@ -1,6 +1,11 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { smgPoisonStorePath } from "@/modules/smg/paths";
-import { isPurgeHoldError, purgeHoldMessage } from "@/modules/traffic/poison";
+import {
+  errorHoldsMonth,
+  isPurgeHoldError,
+  purgeHoldMessage,
+  purgeHoldReleased,
+} from "@/modules/traffic/poison";
 
 export type SmgPoisonEntry = {
   mtimeMs: number;
@@ -23,20 +28,20 @@ function readMap(cwd?: string): PoisonMap {
 }
 
 function writeMap(map: PoisonMap, cwd?: string): void {
-  writeFileSync(
-    smgPoisonStorePath(cwd),
-    `${JSON.stringify(map, null, 2)}\n`,
-    "utf8",
-  );
+  writeFileSync(smgPoisonStorePath(cwd), `${JSON.stringify(map, null, 2)}\n`, "utf8");
 }
 
 export function isSmgPoisoned(
   filename: string,
   mtimeMs: number,
   cwd?: string,
+  size?: number,
 ): boolean {
   const entry = readMap(cwd)[filename];
-  return Boolean(entry && entry.mtimeMs === mtimeMs);
+  if (!entry || entry.mtimeMs !== mtimeMs) return false;
+  if (size != null && size > 0 && entry.error.startsWith("Файл пустой")) return false;
+  if (purgeHoldReleased(entry.error)) return false;
+  return true;
 }
 
 export function markSmgPoisoned(
@@ -66,8 +71,7 @@ export type SmgPoisonItem = {
 };
 
 function isHoldForMonth(error: string, month: string): boolean {
-  const needle = purgeHoldMessage(month);
-  return error === needle || error.startsWith(needle);
+  return errorHoldsMonth(error, month);
 }
 
 export function clearSmgPurgeHolds(month: string, cwd?: string): number {
@@ -101,10 +105,7 @@ export function clearAllSmgPurgeHolds(cwd?: string): number {
  * Manual retry. While `month` is the live purge target, keep holds for that
  * month. A null month clears the whole journal, including stale holds.
  */
-export function clearSmgPoisonExceptMonthHold(
-  month: string | null,
-  cwd?: string,
-): void {
+export function clearSmgPoisonExceptMonthHold(month: string | null, cwd?: string): void {
   if (!month) {
     writeMap({}, cwd);
     return;

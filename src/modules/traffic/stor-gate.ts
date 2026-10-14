@@ -1,6 +1,6 @@
 /**
- * Tracks softswitch STOR writes so cdr.import does not read a file ftp-srv
- * has just truncated with w+. SMG import does not consult this registry.
+ * Tracks STOR writes so cdr.import and smg.import do not read a file ftp-srv
+ * has just truncated with w+.
  * State is on globalThis because Next.js duplicates module instances.
  */
 

@@ -293,6 +293,42 @@ describe("processCdrImport empty-minute dumps", () => {
     expect(result.status).toBe("success");
   });
 
+  it("imports a partial dump once its purge hold is no longer the live month", async () => {
+    const name = "20260828_170003";
+    const file = dumpPath(inboxDir, name);
+    await writeDump(
+      file,
+      `${HEADER}\n${quotedRow({
+        cdr_id: "july-1",
+        cdr_date: "2026-07-15 10:00:00",
+      })}\n`,
+      "utf8",
+    );
+    const st = statSync(file);
+    markPoisoned(
+      name,
+      st.mtimeMs,
+      "Частичная загрузка: вставлено 0 записей. (Отложено: идёт удаление 2026-07).",
+      undefined,
+      st.size,
+    );
+    setPurgeTargetMonth("2026-07");
+    createManyCdr.mockClear();
+    await processCdrImport({ trigger: "test" });
+    expect(createManyCdr).not.toHaveBeenCalled();
+    expect(existsSync(file)).toBe(true);
+
+    resetPurgeTargetForTests();
+    createManyCdr.mockResolvedValue({ count: 1 });
+    const result = await processCdrImport({ trigger: "test" });
+    expect(createManyCdr).toHaveBeenCalledWith({
+      data: [expect.objectContaining({ cdrId: "july-1" })],
+      skipDuplicates: true,
+    });
+    expect(result.status).toBe("success");
+    expect(existsSync(file)).toBe(false);
+  });
+
   it("leaves a file alone while STOR still has it open", async () => {
     const file = dumpPath(inboxDir, "20261014_035348");
     await writeDump(file, `${HEADER}\n`);

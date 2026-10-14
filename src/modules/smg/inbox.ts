@@ -7,6 +7,7 @@ import {
 } from "@/modules/smg/columns";
 import { smgInboxRoot, SMG_POISON_FILENAME } from "@/modules/smg/paths";
 import { isSmgPoisoned, listSmgPoisonEntries } from "@/modules/smg/poison";
+import { isStorBusy } from "@/modules/traffic/stor-gate";
 
 export type SmgInboxFile = {
   filename: string;
@@ -61,11 +62,11 @@ export async function listSmgInboxFiles(
       size: st.size,
       mtimeMs: st.mtimeMs,
     };
-    if (now - st.mtimeMs < SMG_FILE_SETTLE_MS) {
+    if (isStorBusy(absPath, now) || now - st.mtimeMs < SMG_FILE_SETTLE_MS) {
       young.push(file);
       continue;
     }
-    if (isSmgPoisoned(filename, st.mtimeMs, opts.cwd)) continue;
+    if (isSmgPoisoned(filename, st.mtimeMs, opts.cwd, st.size)) continue;
     ready.push(file);
   }
   return { ready, young };
@@ -73,11 +74,7 @@ export async function listSmgInboxFiles(
 
 function isInsideRoot(root: string, candidate: string): boolean {
   const relative = path.relative(root, candidate);
-  return (
-    relative !== "" &&
-    !relative.startsWith("..") &&
-    !path.isAbsolute(relative)
-  );
+  return relative !== "" && !relative.startsWith("..") && !path.isAbsolute(relative);
 }
 
 export async function openPoisonedSmgFile(

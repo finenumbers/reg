@@ -1,4 +1,13 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  appendFile,
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  stat,
+  utimes,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -40,12 +49,17 @@ vi.mock("@/lib/logger", () => ({
 
 import { prisma } from "@/lib/db";
 import { auditService } from "@/modules/audit";
-import { ageSmgInboxFile, processSmgImport } from "@/modules/smg/import-processor";
+import {
+  ageSmgInboxFile,
+  processSmgImport,
+  setSmgAfterReadForTests,
+} from "@/modules/smg/import-processor";
 import { listSmgPoisonEntries } from "@/modules/smg/poison";
 import {
   resetPurgeTargetForTests,
   setPurgeTargetMonth,
 } from "@/modules/traffic/purge/target";
+import { beginStor, resetStorGateForTests } from "@/modules/traffic/stor-gate";
 
 const BANNER = "SMG1016M. CDR. File started at '20261013120000'";
 
@@ -80,6 +94,9 @@ describe("processSmgImport", () => {
   });
 
   afterEach(async () => {
+    setSmgAfterReadForTests(null);
+    resetStorGateForTests();
+    resetPurgeTargetForTests();
     if (previous == null) delete process.env.CDR_INBOX_DIR;
     else process.env.CDR_INBOX_DIR = previous;
     await rm(inbox, { recursive: true, force: true });
@@ -204,5 +221,80 @@ describe("processSmgImport", () => {
     await processSmgImport({ trigger: "manual" });
     expect(createMany).not.toHaveBeenCalled();
     resetPurgeTargetForTests();
+  });
+
+  it("leaves a file alone while STOR still has it open", async () => {
+    const abs = await put(
+      "20261013120500.cdr",
+      [BANNER, headerLine(), dataLine(CALL)].join("\n"),
+    );
+    beginStor(abs);
+    const result = await processSmgImport({ trigger: "schedule" });
+    expect(result.phonesParsed).toBe(0);
+    expect(result.requeueAfterMs).toBe(2000);
+    expect(createMany).not.toHaveBeenCalled();
+    await expect(readFile(abs, "utf8")).resolves.toContain("tag-1");
+    expect(listSmgPoisonEntries()).toEqual([]);
+  });
+
+  it("does not insert a snapshot that grew during the read", async () => {
+    const abs = await put(
+      "20261013120600.cdr",
+      [BANNER, headerLine(), dataLine(CALL)].join("\n"),
+    );
+    setSmgAfterReadForTests(async () => {
+      await appendFile(abs, "\nmore");
+    });
+    const result = await processSmgImport({ trigger: "schedule" });
+    expect(result.phonesParsed).toBe(0);
+    expect(createMany).not.toHaveBeenCalled();
+    await expect(readFile(abs, "utf8")).resolves.toContain("tag-1");
+    expect(listSmgPoisonEntries()).toEqual([]);
+  });
+
+  it("reads an empty file once it has bytes and the mtime did not move", async () => {
+    const abs = await put("20261013120700.cdr", "");
+    const first = await processSmgImport({ trigger: "schedule" });
+    expect(first.status).toBe("failed");
+    expect(first.errorMessage).toMatch(/Файл пустой/);
+    expect(createMany).not.toHaveBeenCalled();
+    const seen = await stat(abs);
+    await writeFile(abs, [BANNER, headerLine(), dataLine(CALL)].join("\n"), "utf8");
+    await utimes(abs, seen.atime, seen.mtime);
+    createMany.mockClear();
+    const second = await processSmgImport({ trigger: "schedule" });
+    expect(second.status).toBe("success");
+    expect(second.phonesParsed).toBe(1);
+    await expect(readFile(abs)).rejects.toThrow();
+  });
+
+  it("imports rows held inside a partial file after that month is no longer the target", async () => {
+    setPurgeTargetMonth("2026-10");
+    const abs = await put(
+      "20261013120800.cdr",
+      [
+        BANNER,
+        headerLine(),
+        dataLine(CALL),
+        dataLine({ ...CALL, deviceSign: "", uniqueTag: "tag-2" }),
+      ].join("\n"),
+    );
+    const held = await processSmgImport({ trigger: "schedule" });
+    expect(held.errorMessage).toMatch(/Отложено: идёт удаление 2026-10/);
+    expect(createMany).not.toHaveBeenCalled();
+    createMany.mockClear();
+    await processSmgImport({ trigger: "schedule" });
+    expect(createMany).not.toHaveBeenCalled();
+    resetPurgeTargetForTests();
+    createMany.mockClear();
+    const released = await processSmgImport({ trigger: "schedule" });
+    expect(released.phonesParsed).toBe(1);
+    const inserted = createMany.mock.calls.flatMap(
+      (call) => (call[0] as { data: { recordKey: string }[] }).data,
+    );
+    expect(inserted).toHaveLength(1);
+    await expect(readFile(abs, "utf8")).resolves.toContain("tag-2");
+    expect(listSmgPoisonEntries()[0]?.error).toMatch(/Частичная загрузка/);
+    expect(listSmgPoisonEntries()[0]?.error).not.toMatch(/Отложено/);
   });
 });

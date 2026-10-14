@@ -14,10 +14,7 @@ describe("isTerminalNotFoundExhausted", () => {
 
   it("keeps api_error in the queue after the attempt cap", () => {
     expect(
-      isTerminalNotFoundExhausted(
-        MAX_MATCH_ATTEMPTS + 1,
-        '{"miss_reason":"api_error"}',
-      ),
+      isTerminalNotFoundExhausted(MAX_MATCH_ATTEMPTS + 1, '{"miss_reason":"api_error"}'),
     ).toBe(false);
   });
 
@@ -34,5 +31,32 @@ describe("isTerminalNotFoundExhausted", () => {
         '{"miss_reason":"call_id_not_in_index","stage":"fallback"}',
       ),
     ).toBe(true);
+  });
+
+  it("does not park a retryable miss when the seed is a terminal reason", () => {
+    const assigned = JSON.stringify({
+      miss_reason_seed: "call_id_not_in_index",
+      miss_reason: "assigned_elsewhere",
+      stage: "fallback",
+    });
+    const ambiguous = JSON.stringify({
+      miss_reason_seed: "empty_callid_and_weak_signal",
+      miss_reason: "fallback_ambiguous",
+      stage: "fallback",
+    });
+    const notFound = JSON.stringify({
+      miss_reason_seed: "call_id_not_in_index",
+      miss_reason: "call_id_not_in_index",
+      stage: "fallback",
+    });
+    expect(isTerminalNotFoundExhausted(MAX_MATCH_ATTEMPTS, assigned)).toBe(false);
+    expect(isTerminalNotFoundExhausted(MAX_MATCH_ATTEMPTS, ambiguous)).toBe(false);
+    expect(isTerminalNotFoundExhausted(MAX_MATCH_ATTEMPTS, notFound)).toBe(true);
+    expect(
+      isTerminalNotFoundExhausted(
+        MAX_MATCH_ATTEMPTS,
+        '{"miss_reason_seed":"call_id_not_in_index"',
+      ),
+    ).toBe(false);
   });
 });

@@ -30,9 +30,8 @@ export async function register() {
     }
 
     try {
-      const { ensurePlatformBaseline } = await import(
-        "@/modules/platform/ensure-baseline"
-      );
+      const { ensurePlatformBaseline } =
+        await import("@/modules/platform/ensure-baseline");
       await ensurePlatformBaseline();
       logger.info("platform.baseline.ensure", { status: "ok" });
     } catch (error) {
@@ -62,9 +61,7 @@ export async function register() {
     }
 
     try {
-      const { reclaimOrphanJobRuns } = await import(
-        "@/modules/jobs/reclaim-orphans"
-      );
+      const { reclaimOrphanJobRuns } = await import("@/modules/jobs/reclaim-orphans");
       const reclaim = await reclaimOrphanJobRuns();
       logger.info("jobs.reclaim_orphans", reclaim);
       const { clearAllPurgeHolds } = await import("@/modules/traffic/poison");
@@ -84,9 +81,21 @@ export async function register() {
     }
 
     try {
-      const { enqueueAbandonedPurgeHistory } = await import(
-        "@/modules/traffic/purge/resume"
-      );
+      const { releaseFalselyParkedMisses } =
+        await import("@/modules/voipmonitor/release-parked");
+      const released = await releaseFalselyParkedMisses();
+      if (released > 0) {
+        logger.info("voipmonitor.parked_released", { released });
+      }
+    } catch (error) {
+      logger.error("voipmonitor.parked_released.failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    try {
+      const { enqueueAbandonedPurgeHistory } =
+        await import("@/modules/traffic/purge/resume");
       const { jobRuntime } = await import("@/modules/jobs/runtime");
       const resumed = await enqueueAbandonedPurgeHistory((input) =>
         jobRuntime.enqueue(input),
@@ -101,9 +110,8 @@ export async function register() {
     }
 
     try {
-      const { reclaimOrphanEnrichJobs, pruneEnrichArtifacts } = await import(
-        "@/modules/enrich/reclaim"
-      );
+      const { reclaimOrphanEnrichJobs, pruneEnrichArtifacts } =
+        await import("@/modules/enrich/reclaim");
       const enrichReclaim = await reclaimOrphanEnrichJobs();
       logger.info("enrich.reclaim_orphans", enrichReclaim);
       const pruned = await pruneEnrichArtifacts();
@@ -115,9 +123,8 @@ export async function register() {
     }
 
     try {
-      const { pruneMonthExportArtifacts } = await import(
-        "@/modules/traffic/month-export-reclaim"
-      );
+      const { pruneMonthExportArtifacts } =
+        await import("@/modules/traffic/month-export-reclaim");
       const pruned = await pruneMonthExportArtifacts();
       logger.info("traffic.export.artifacts_pruned", pruned);
     } catch (error) {
@@ -131,9 +138,8 @@ export async function register() {
     logger.warn("scheduler.bootstrap.evaluate", result);
 
     try {
-      const { requestCdrTariffRate } = await import(
-        "@/modules/traffic/tariff-rate/enqueue"
-      );
+      const { requestCdrTariffRate } =
+        await import("@/modules/traffic/tariff-rate/enqueue");
       await requestCdrTariffRate("schedule");
     } catch (error) {
       logger.error("cdr.tariff.rate.bootstrap_failed", {
@@ -147,9 +153,7 @@ export async function register() {
       const { startFtpServer } = await import("@/modules/traffic/ftp-server");
       const ftp = await startFtpServer();
       logger.info("ftp.bootstrap", ftp);
-      const { requestCdrImportDrain } = await import(
-        "@/modules/traffic/enqueue"
-      );
+      const { requestCdrImportDrain } = await import("@/modules/traffic/enqueue");
       requestCdrImportDrain("schedule");
     } catch (error) {
       logger.error("ftp.bootstrap.failed", {
