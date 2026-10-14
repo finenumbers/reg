@@ -1,7 +1,15 @@
-# Current Phase — production (v1.120.0)
+# Current Phase — production (v1.121.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, Eltex SMG CDR, Eltex SMG syslog.  
 **Date:** 2026-10-15
+
+## v1.121.0 — Detail drops PSTN_*_OLD, and a missing geo row is not empty
+
+«Детализация» counts long-distance only for `PSTN_*_LDC`. A stored call whose destination is `PSTN_*_OLD` leaves the long-distance columns. It does not move into local or external numbering. A client whose only outgoing calls used that name, and who has no incoming calls, drops off the table, including «МГ/МН». A client with other traffic keeps «МГ/МН». Statistics still shows that name as ordinary ТфОП. Stored calls are not rewritten.
+
+On «Регистрации», the country, city, and provider filter and the visible cells read the geo cache once. A lookup IP with no cache row is not «(пусто)» and does not match a selected country, city, or provider. It stays in the unfiltered list with «—». A cache row with an empty country is still «(пусто)». An address that is not a lookup IP is unchanged. The list still asks for geo only for the current page and does not read the cache a second time. The registration poll still queues every address. The XLSX export is still the full table.
+
+There is no new migration.
 
 ## v1.120.0 — A young SMG file waits without a job, and a bad API key does not hide the session
 

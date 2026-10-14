@@ -6,7 +6,6 @@
 import type { RegStatus } from "@/generated/prisma/client";
 import {
   aggregateFacetItems,
-  cellToFilterToken,
   EMPTY_FILTER_TOKEN,
   type ColumnFilters,
   type FacetResponse,
@@ -17,6 +16,7 @@ import { getDisplayTimezone } from "@/modules/settings";
 import {
   enqueueStaleGeoLookups,
   awaitStaleGeoLookups,
+  isLookupIpv4,
   loadGeoCacheByIps,
   uniqueLookupIps,
 } from "@/modules/geoip";
@@ -26,8 +26,8 @@ import {
 } from "@/modules/registrations/phone-description";
 import {
   applyRegistrationQuery,
-  columnCellValue,
   countUnregisteredRows,
+  registrationFacetToken,
 } from "@/modules/registrations/query-filter";
 import { sortRegistrationItemsByPhone } from "@/modules/registrations/sort";
 import type {
@@ -91,6 +91,13 @@ function toListItem(
   };
 }
 
+function withoutGeoPending(row: RegistrationListItem): RegistrationListItem {
+  if (row.geoPending !== true) return row;
+  const rest = { ...row };
+  delete rest.geoPending;
+  return rest;
+}
+
 async function attachGeoFields(
   items: RegistrationListItem[],
   opts: { enqueueMissing?: boolean; wait?: boolean } = {},
@@ -106,11 +113,20 @@ async function attachGeoFields(
 
   const cache = await loadGeoCacheByIps(ips);
   return items.map((row) => {
-    if (!row.ip) return row;
+    const rest = withoutGeoPending(row);
+    if (!isLookupIpv4(row.ip)) return rest;
     const geo = cache.get(row.ip);
-    if (!geo) return row;
+    if (!geo) {
+      return {
+        ...rest,
+        country: null,
+        city: null,
+        isp: null,
+        geoPending: true,
+      };
+    }
     return {
-      ...row,
+      ...rest,
       country: geo.country,
       city: geo.city,
       isp: geo.isp,
@@ -191,12 +207,11 @@ export async function listRegistrations(
     unregisteredOnly,
   });
   const skip = (page - 1) * pageSize;
-  const pageItems = await attachGeoFields(filtered.slice(skip, skip + pageSize), {
-    enqueueMissing: true,
-  });
+  const pageItems = filtered.slice(skip, skip + pageSize);
+  enqueueStaleGeoLookups(uniqueLookupIps(pageItems.map((row) => row.ip)));
 
   return {
-    items: pageItems,
+    items: pageItems.map(withoutGeoPending),
     total: filtered.length,
     page,
     pageSize,
@@ -226,9 +241,11 @@ export async function listRegistrationFacets(opts: {
     excludeColumn: column,
   });
 
-  const values = filtered.map((row) =>
-    cellToFilterToken(columnCellValue(row, column)),
-  );
+  const values: string[] = [];
+  for (const row of filtered) {
+    const token = registrationFacetToken(row, column);
+    if (token != null) values.push(token);
+  }
 
   const response = aggregateFacetItems(values, {
     q: undefined,
@@ -280,12 +297,14 @@ export async function getRegistrationDetail(
   ]);
 
   return {
-    current: (
-      await attachGeoFields(
-        [toListItem(current, enrichment.get(normalized))],
-        { wait: true },
-      )
-    )[0]!,
+    current: withoutGeoPending(
+      (
+        await attachGeoFields(
+          [toListItem(current, enrichment.get(normalized))],
+          { wait: true },
+        )
+      )[0]!,
+    ),
     events: events.map(toHistoryItem),
   };
 }

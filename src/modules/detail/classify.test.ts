@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   hasOutgoingSlice,
   isParkingDst,
-  isPstnLdcOrOld,
+  isPstnLdc,
   isPstnLocal,
   isTrunkDst,
   PARKING_DST,
@@ -22,16 +22,16 @@ describe("isPstnLocal", () => {
   });
 });
 
-describe("isPstnLdcOrOld", () => {
-  it("matches _LDC and _OLD on PSTN_", () => {
-    expect(isPstnLdcOrOld("PSTN_Sochi_MTS_LDC")).toBe(true);
-    expect(isPstnLdcOrOld("PSTN_Sochi_MTS_OLD")).toBe(true);
+describe("isPstnLdc", () => {
+  it("matches _LDC on PSTN_", () => {
+    expect(isPstnLdc("PSTN_Sochi_MTS_LDC")).toBe(true);
   });
 
-  it("rejects Local, unsuffixed, and Trunk", () => {
-    expect(isPstnLdcOrOld("PSTN_Sochi_MTS_Local")).toBe(false);
-    expect(isPstnLdcOrOld("PSTN_Sochi_MTS")).toBe(false);
-    expect(isPstnLdcOrOld("Trunk_MSK_LDC")).toBe(false);
+  it("rejects OLD, Local, unsuffixed, and Trunk", () => {
+    expect(isPstnLdc("PSTN_Sochi_MTS_OLD")).toBe(false);
+    expect(isPstnLdc("PSTN_Sochi_MTS_Local")).toBe(false);
+    expect(isPstnLdc("PSTN_Sochi_MTS")).toBe(false);
+    expect(isPstnLdc("Trunk_MSK_LDC")).toBe(false);
   });
 });
 
@@ -47,11 +47,11 @@ describe("isTrunkDst / isParkingDst / hasOutgoingSlice", () => {
     expect(isParkingDst("Service_Parking_1")).toBe(false);
   });
 
-  it("outgoing slice is Local, Trunk, or LDC/OLD only", () => {
+  it("outgoing slice is Local, Trunk, or LDC only", () => {
     expect(hasOutgoingSlice("PSTN_A_Local")).toBe(true);
     expect(hasOutgoingSlice("Trunk_MSK")).toBe(true);
     expect(hasOutgoingSlice("PSTN_A_LDC")).toBe(true);
-    expect(hasOutgoingSlice("PSTN_A_OLD")).toBe(true);
+    expect(hasOutgoingSlice("PSTN_A_OLD")).toBe(false);
     expect(hasOutgoingSlice("PSTN_A")).toBe(false);
     expect(hasOutgoingSlice(PARKING_DST)).toBe(false);
   });

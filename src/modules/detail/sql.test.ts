@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import {
   DETAIL_LDC_SUFFIX,
   DETAIL_LOCAL_SUFFIX,
-  DETAIL_OLD_SUFFIX,
   DETAIL_PSTN_PREFIX,
   DETAIL_TRUNK_PREFIX,
   PARKING_DST,
@@ -63,7 +62,7 @@ describe("clientMonthStatsSql", () => {
     expect(values).toContain(DETAIL_TRUNK_PREFIX);
     expect(values).toContain(DETAIL_LOCAL_SUFFIX);
     expect(values).toContain(DETAIL_LDC_SUFFIX);
-    expect(values).toContain(DETAIL_OLD_SUFFIX);
+    expect(values).not.toContain("_OLD");
     expect(values).toContain(PARKING_DST);
   });
 

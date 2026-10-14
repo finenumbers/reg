@@ -17,6 +17,12 @@ export type RegistrationQuery = {
   excludeColumn?: string;
 };
 
+const GEO_FILTER_COLUMNS = new Set(["country", "city", "isp"]);
+
+function isPendingGeo(row: RegistrationListItem, column: string): boolean {
+  return row.geoPending === true && GEO_FILTER_COLUMNS.has(column);
+}
+
 export function columnCellValue(
   row: RegistrationListItem,
   column: string,
@@ -53,8 +59,18 @@ function matchesColumnFilter(
   values: string[],
 ): boolean {
   if (values.length === 0) return true;
+  if (isPendingGeo(row, column)) return false;
   const token = cellToFilterToken(columnCellValue(row, column));
   return values.includes(token);
+}
+
+/** Facet token, or null while country/city/isp are still unknown. */
+export function registrationFacetToken(
+  row: RegistrationListItem,
+  column: string,
+): string | null {
+  if (isPendingGeo(row, column)) return null;
+  return cellToFilterToken(columnCellValue(row, column));
 }
 
 function applyColumnFilters(

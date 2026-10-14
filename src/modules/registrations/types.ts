@@ -14,6 +14,11 @@ export type RegistrationListItem = {
   country: string | null;
   city: string | null;
   isp: string | null;
+  /**
+   * True only while this lookup IP has no geo cache row.
+   * Stripped before API responses. Absent means the geo value is known.
+   */
+  geoPending?: boolean;
   lastSeenAt: string | null;
   lastChangedAt: string | null;
 };

@@ -3,7 +3,6 @@ import { cdrMonthPrefix } from "@/lib/month-window";
 import {
   DETAIL_LDC_SUFFIX,
   DETAIL_LOCAL_SUFFIX,
-  DETAIL_OLD_SUFFIX,
   DETAIL_PSTN_PREFIX,
   DETAIL_TRUNK_PREFIX,
   PARKING_DST,
@@ -24,8 +23,8 @@ export function clientMonthStatsSql(year: number, month: number): Prisma.Sql {
   const dst = Prisma.sql`dst_name`;
   const pstnLocal = Prisma.sql`(starts_with(${dst}, ${DETAIL_PSTN_PREFIX}) AND right(${dst}, 6) = ${DETAIL_LOCAL_SUFFIX})`;
   const trunk = Prisma.sql`starts_with(${dst}, ${DETAIL_TRUNK_PREFIX})`;
-  const pstnLdcOrOld = Prisma.sql`(starts_with(${dst}, ${DETAIL_PSTN_PREFIX}) AND (right(${dst}, 4) = ${DETAIL_LDC_SUFFIX} OR right(${dst}, 4) = ${DETAIL_OLD_SUFFIX}))`;
-  const outgoingMatch = Prisma.sql`((${pstnLocal}) OR (${trunk}) OR (${pstnLdcOrOld}))`;
+  const pstnLdc = Prisma.sql`(starts_with(${dst}, ${DETAIL_PSTN_PREFIX}) AND right(${dst}, 4) = ${DETAIL_LDC_SUFFIX})`;
+  const outgoingMatch = Prisma.sql`((${pstnLocal}) OR (${trunk}) OR (${pstnLdc}))`;
 
   return Prisma.sql`
     WITH clients AS MATERIALIZED (
@@ -80,7 +79,7 @@ export function clientMonthStatsSql(year: number, month: number): Prisma.Sql {
         0,
         CASE WHEN ${pstnLocal} THEN 1 ELSE 0 END,
         CASE WHEN ${trunk} THEN 1 ELSE 0 END,
-        CASE WHEN ${pstnLdcOrOld} THEN 1 ELSE 0 END
+        CASE WHEN ${pstnLdc} THEN 1 ELSE 0 END
       FROM month_calls m
       JOIN clients ca ON ca.phone = m.ani
       WHERE ${outgoingMatch}

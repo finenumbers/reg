@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   applyRegistrationQuery,
   countUnregisteredRows,
+  registrationFacetToken,
 } from "@/modules/registrations/query-filter";
 import type { RegistrationListItem } from "@/modules/registrations/types";
 
@@ -108,5 +109,49 @@ describe("applyRegistrationQuery", () => {
       excludeColumn: "channelality",
     });
     expect(filtered).toHaveLength(2);
+  });
+
+  it("keeps a row with no geo cache out of empty and chosen country filters", () => {
+    const pending: RegistrationListItem = {
+      ...rows[0]!,
+      country: null,
+      city: null,
+      isp: null,
+      geoPending: true,
+    };
+    expect(
+      applyRegistrationQuery([pending], {
+        filters: { country: ["__empty__"] },
+      }),
+    ).toEqual([]);
+    expect(
+      applyRegistrationQuery([pending], { filters: { country: ["RU"] } }),
+    ).toEqual([]);
+    expect(
+      applyRegistrationQuery([pending], { phoneQ: "222205" }).map((row) => row.phone),
+    ).toEqual(["73852222205"]);
+    expect(
+      applyRegistrationQuery([{ ...pending, status: "Unregistered" }], {
+        unregisteredOnly: true,
+      }).map((row) => row.phone),
+    ).toEqual(["73852222205"]);
+    expect(registrationFacetToken(pending, "country")).toBeNull();
+    expect(registrationFacetToken(pending, "phone")).toBe("73852222205");
+  });
+
+  it("treats a cached empty country as (пусто)", () => {
+    const knownEmpty: RegistrationListItem = {
+      ...rows[1]!,
+      ip: "1.2.3.4",
+      country: null,
+      city: null,
+      isp: null,
+    };
+    expect(
+      applyRegistrationQuery([knownEmpty], {
+        filters: { country: ["__empty__"] },
+      }).map((row) => row.phone),
+    ).toEqual(["73912193303"]);
+    expect(registrationFacetToken(knownEmpty, "country")).toBe("__empty__");
   });
 });
