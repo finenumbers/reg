@@ -108,10 +108,11 @@ export function StorageView() {
       <div>
         <h2 className="text-base font-semibold">Хранение данных</h2>
         <p className="text-muted-foreground text-sm">
-          Месяцы CDR в локальной базе (по колонке «Дата»). Вместе со звонками удаляются
-          задачи и записи аудита этого месяца UTC. Удалить можно только самый старый
-          полный месяц, по одному. Текущий месяц трогать нельзя. Место на диске
-          после удаления возвращает кнопка «Сжать базу», когда она закончится.
+          Месяцы CDR (колонка «Дата») и звонков SMG (день разъединения) в локальной
+          базе. Одно удаление снимает оба источника, задачи и записи аудита этого
+          месяца UTC. Удалить можно только самый старый полный месяц, по одному.
+          Текущий месяц трогать нельзя. Место на диске после удаления возвращает
+          кнопка «Сжать базу», когда она закончится.
         </p>
       </div>
 
@@ -211,16 +212,26 @@ export function StorageView() {
           role="status"
           className="border-border bg-muted/40 rounded-md border px-3 py-2 text-sm"
         >
-          Идёт импорт CDR. Удаление месяца будет доступно после окончания загрузки.
+          {data.cdrImportInFlight && data.smgImportInFlight
+            ? "Идёт импорт CDR и SMG."
+            : data.smgImportInFlight
+              ? "Идёт импорт CDR SMG."
+              : "Идёт импорт CDR."}{" "}
+          Удаление месяца будет доступно после окончания загрузки.
         </div>
       ) : null}
 
       {data && !data.monthsHidden ? (
         <>
           <p className="text-muted-foreground text-sm">
-            Всего {formatCount(data.totalCalls)} звонков ·{" "}
-            {formatCount(data.totalSeconds)} сек · {formatCount(data.totalMinutes)} мин ·
-            таблицы CDR {formatBytes(data.tableBytes)}
+            CDR: {formatCount(data.totalCdrCalls)} звонков ·{" "}
+            {formatCount(data.totalCdrSeconds)} сек · {formatCount(data.totalCdrMinutes)}{" "}
+            мин · таблицы {formatBytes(data.cdrTableBytes)}
+          </p>
+          <p className="text-muted-foreground text-sm">
+            SMG: {formatCount(data.totalSmgCalls)} звонков ·{" "}
+            {formatCount(data.totalSmgSeconds)} сек · {formatCount(data.totalSmgMinutes)}{" "}
+            мин · таблица {formatBytes(data.smgTableBytes)}
           </p>
 
           <div className="overflow-auto">
@@ -228,9 +239,12 @@ export function StorageView() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Месяц</TableHead>
-                  <TableHead className="text-right">Кол-во звонков</TableHead>
-                  <TableHead className="text-right">Кол-во секунд</TableHead>
-                  <TableHead className="text-right">Кол-во минут</TableHead>
+                  <TableHead className="text-right">Звонки CDR</TableHead>
+                  <TableHead className="text-right">Сек. CDR</TableHead>
+                  <TableHead className="text-right">Мин. CDR</TableHead>
+                  <TableHead className="text-right">Звонки SMG</TableHead>
+                  <TableHead className="text-right">Сек. SMG</TableHead>
+                  <TableHead className="text-right">Мин. SMG</TableHead>
                   <TableHead className="text-right">Удаление</TableHead>
                 </TableRow>
               </TableHeader>
@@ -238,12 +252,19 @@ export function StorageView() {
                 {data.months.map((row) => (
                   <TableRow key={row.key}>
                     <TableCell>{monthLabel(row)}</TableCell>
-                    <TableCell className="text-right">{formatCount(row.calls)}</TableCell>
+                    <TableCell className="text-right">{formatCount(row.cdrCalls)}</TableCell>
                     <TableCell className="text-right">
-                      {formatCount(row.seconds)}
+                      {formatCount(row.cdrSeconds)}
                     </TableCell>
                     <TableCell className="text-right">
-                      {formatCount(row.minutes)}
+                      {formatCount(row.cdrMinutes)}
+                    </TableCell>
+                    <TableCell className="text-right">{formatCount(row.smgCalls)}</TableCell>
+                    <TableCell className="text-right">
+                      {formatCount(row.smgSeconds)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {formatCount(row.smgMinutes)}
                     </TableCell>
                     <TableCell className="text-right">
                       {row.canDelete ? (
@@ -281,10 +302,12 @@ export function StorageView() {
                 Удалить {monthLabel(confirm)}?
               </h2>
               <p className="text-muted-foreground mt-2 text-sm">
-                Будут безвозвратно удалены {formatCount(confirm.calls)} звонков (
-                {formatCount(confirm.seconds)} сек, {formatCount(confirm.minutes)} мин),
-                связанные ссылки VoIPmonitor, а также задачи и записи аудита за этот месяц
-                UTC. Введите ключ месяца <span className="font-mono">{confirm.key}</span>.
+                Будут безвозвратно удалены {formatCount(confirm.cdrCalls)} звонков CDR (
+                {formatCount(confirm.cdrSeconds)} сек, {formatCount(confirm.cdrMinutes)}{" "}
+                мин), связанные ссылки VoIPmonitor, {formatCount(confirm.smgCalls)} звонков
+                SMG ({formatCount(confirm.smgSeconds)} сек, {formatCount(confirm.smgMinutes)}{" "}
+                мин), а также задачи и записи аудита за этот месяц UTC. Введите ключ
+                месяца <span className="font-mono">{confirm.key}</span>.
               </p>
             </div>
             <div className="space-y-1.5">
@@ -337,11 +360,12 @@ export function StorageView() {
               <p className="text-muted-foreground mt-2 text-sm">
                 Живые звонки останутся. Уже удалённый месяц в копию не входит. Пока идёт
                 сжатие, страницы трафика, статистики и детализации отвечают отказом и не
-                ждут. Новые файлы CDR остаются в очереди и загружаются после окончания.
-                На томе базы нужно свободно не меньше{" "}
-                {formatBytes(data.tableBytes * 2)} — это удвоенный размер таблиц звонков,
-                новая копия и её журнал. Перезапуск обрывает текущую таблицу и не стирает
-                живые строки. Введите <span className="font-mono">{DATABASE_VACUUM_CONFIRM}</span>.
+                ждут. Новые файлы CDR и SMG остаются в очереди и загружаются после
+                окончания. На томе базы нужно свободно не меньше{" "}
+                {formatBytes(data.tableBytes * 2)} — это удвоенный размер таблиц CDR,
+                ссылок VoIPmonitor и звонков SMG, новая копия и её журнал. Перезапуск
+                обрывает текущую таблицу и не стирает живые строки. Введите{" "}
+                <span className="font-mono">{DATABASE_VACUUM_CONFIRM}</span>.
               </p>
             </div>
             <div className="space-y-1.5">

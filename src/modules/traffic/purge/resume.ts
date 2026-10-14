@@ -15,6 +15,7 @@ import {
 import {
   purgeAuditCountSql,
   purgeJobsCountSql,
+  purgeSmgCountSql,
   utcMonthInterval,
 } from "@/modules/traffic/purge/sql";
 
@@ -28,6 +29,7 @@ export const PURGE_FK_INDEX_NAMES = [
   "routing_groups_lastJobRunId_idx",
   "reg_current_lastJobRunId_idx",
   "ssh_connection_tests_jobRunId_idx",
+  "smg_cdr_records_last_job_run_id_idx",
 ] as const;
 
 const RESUME_SCAN_LIMIT = 20;
@@ -40,9 +42,12 @@ export type ResumePurgeJob = {
 
 export type MonthRemainder = {
   calls: number;
+  smg: number;
   jobs: number;
   audit: number;
 };
+
+const RESUME_PHASES = new Set(["smg", "jobs", "audit"]);
 
 export type ResumeMonth = {
   month: string;
@@ -87,6 +92,18 @@ export function deletedCallsFromPurgeJob(job: ResumePurgeJob): number {
   return finiteCount(objectMeta(job.meta)?.deletedCount);
 }
 
+export function deletedSmgFromPurgeJob(job: ResumePurgeJob): number {
+  return finiteCount(objectMeta(job.meta)?.deletedSmg);
+}
+
+/** The purge already passed the point where a restart must finish history. */
+export function purgeHasResumeTrace(job: ResumePurgeJob): boolean {
+  if (deletedCallsFromPurgeJob(job) > 0) return true;
+  if (deletedSmgFromPurgeJob(job) > 0) return true;
+  const phase = objectMeta(job.meta)?.phase;
+  return typeof phase === "string" && RESUME_PHASES.has(phase);
+}
+
 export function missingPurgeFkIndexNames(present: readonly string[]): string[] {
   const have = new Set(present);
   return PURGE_FK_INDEX_NAMES.filter((name) => !have.has(name));
@@ -106,10 +123,11 @@ export function selectResumeMonth(input: {
     if (job.errorMessage !== ORPHAN_RECLAIM_MESSAGE) continue;
     const month = monthFromJob(job);
     if (!month || month === input.currentMonth) continue;
+    if (!purgeHasResumeTrace(job)) continue;
     const deletedCalls = deletedCallsFromPurgeJob(job);
-    if (deletedCalls <= 0) continue;
     const left = input.remainders.get(month);
     if (!left || left.calls !== 0) continue;
+    // Leftover SMG alone waits for the button. Resume only finishes history.
     if (left.jobs + left.audit <= 0) continue;
     if (
       !best ||
@@ -140,12 +158,13 @@ export async function assertPurgeFkIndexes(): Promise<void> {
 
 async function monthRemainder(month: string): Promise<MonthRemainder> {
   const parsed = parseMonthKey(month);
-  if (!parsed) return { calls: 0, jobs: 0, audit: 0 };
+  if (!parsed) return { calls: 0, smg: 0, jobs: 0, audit: 0 };
   const { start, end } = utcMonthInterval(parsed.year, parsed.month);
-  const [calls, jobRows, auditRows] = await Promise.all([
+  const [calls, smgRows, jobRows, auditRows] = await Promise.all([
     prisma.cdrRecord.count({
       where: { cdrDate: { startsWith: `${month}-` } },
     }),
+    prisma.$queryRaw<{ n: unknown }[]>(purgeSmgCountSql(parsed.year, parsed.month)),
     prisma.$queryRaw<{ n: unknown }[]>(
       purgeJobsCountSql(start, end, "__purge_resume__"),
     ),
@@ -153,6 +172,7 @@ async function monthRemainder(month: string): Promise<MonthRemainder> {
   ]);
   return {
     calls,
+    smg: finiteCount(smgRows[0]?.n),
     jobs: finiteCount(jobRows[0]?.n),
     audit: finiteCount(auditRows[0]?.n),
   };
@@ -178,7 +198,7 @@ export async function enqueueAbandonedPurgeHistory(
   for (const job of rows) {
     const month = monthFromJob(job);
     if (!month || month === currentMonth || seen.has(month)) continue;
-    if (deletedCallsFromPurgeJob(job) <= 0) continue;
+    if (!purgeHasResumeTrace(job)) continue;
     seen.add(month);
     remainders.set(month, await monthRemainder(month));
   }

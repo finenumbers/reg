@@ -73,6 +73,7 @@ vi.mock("@/modules/jobs/scheduler", () => ({
 
 const processDatabaseVacuum = vi.fn();
 const requestCdrImportDrain = vi.fn();
+const processSmgImport = vi.fn();
 
 vi.mock("@/modules/storage/vacuum/processor", () => ({
   processDatabaseVacuum: (...args: unknown[]) => processDatabaseVacuum(...args),
@@ -83,7 +84,7 @@ vi.mock("@/modules/traffic/enqueue", () => ({
 }));
 
 vi.mock("@/modules/smg/import-processor", () => ({
-  processSmgImport: vi.fn(),
+  processSmgImport: (...args: unknown[]) => processSmgImport(...args),
 }));
 
 vi.mock("@/modules/smg/enqueue", () => ({
@@ -402,6 +403,41 @@ describe("PQueueJobRuntime anti-overlap", () => {
     expect(importResult.accepted).toBe(true);
     expect(purgeResult.accepted).toBe(false);
     expect(purgeResult.reason).toMatch(/cdr.import/);
+    expect(processCdrPurgeMonth).not.toHaveBeenCalled();
+    expect(getPurgeTargetMonth()).toBeNull();
+    await new Promise((r) => setTimeout(r, 100));
+  });
+
+  it("rejects cdr.purge.month while smg.import is in flight", async () => {
+    processSmgImport.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          setTimeout(
+            () =>
+              resolve({
+                status: "success",
+                jobRunId: "smg-slow",
+                phonesParsed: 1,
+                linesBad: 0,
+                changesCount: 0,
+              }),
+            80,
+          );
+        }),
+    );
+    const runtime = new PQueueJobRuntime();
+    const importResult = await runtime.enqueue({
+      actionCode: "smg.import",
+      trigger: "schedule",
+    });
+    const purgeResult = await runtime.enqueue({
+      actionCode: "cdr.purge.month",
+      trigger: "manual",
+      month: "2025-01",
+    });
+    expect(importResult.accepted).toBe(true);
+    expect(purgeResult.accepted).toBe(false);
+    expect(purgeResult.reason).toMatch(/smg.import/);
     expect(processCdrPurgeMonth).not.toHaveBeenCalled();
     expect(getPurgeTargetMonth()).toBeNull();
     await new Promise((r) => setTimeout(r, 100));

@@ -116,6 +116,13 @@ export class PQueueJobRuntime implements JobRuntime {
       };
     }
 
+    if (input.actionCode === "cdr.purge.month" && this.isInFlight("smg.import")) {
+      return {
+        accepted: false,
+        reason: "anti-overlap: smg.import in flight",
+      };
+    }
+
     if (input.actionCode === "db.vacuum" && isMonthExportRunning()) {
       return {
         accepted: false,

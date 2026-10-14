@@ -7,6 +7,8 @@ import {
   purgeJobsBatchSql,
   purgeJobsCountSql,
   purgeMonthPrefixSql,
+  purgeSmgBatchSql,
+  purgeSmgCountSql,
   utcMonthInterval,
 } from "@/modules/traffic/purge/sql";
 
@@ -40,6 +42,19 @@ describe("purge SQL", () => {
     const del = purgeDeleteBatchSql(2025, 1, 2000);
     expect(del.strings.join(" ")).toContain("DELETE FROM cdr_records");
     expect(del.values).toContain("2025-01-%");
+  });
+
+  it("deletes SMG rows by the disconnect_day range, including December", () => {
+    const count = flattenSql(purgeSmgCountSql(2026, 12));
+    expect(count.text).toContain("COUNT(*)::bigint");
+    expect(count.text).toContain("FROM smg_cdr_records");
+    expect(count.text).toContain("disconnect_day >=");
+    expect(count.text).toContain("disconnect_day <");
+    expect(count.values).toEqual(["2026-12-01", "2027-01-01"]);
+
+    const del = flattenSql(purgeSmgBatchSql(2026, 9, 2000));
+    expect(del.text).toContain("DELETE FROM smg_cdr_records");
+    expect(del.values).toEqual(["2026-09-01", "2026-10-01", 2000]);
   });
 });
 

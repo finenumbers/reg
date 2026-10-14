@@ -42,6 +42,10 @@ import { prisma } from "@/lib/db";
 import { auditService } from "@/modules/audit";
 import { ageSmgInboxFile, processSmgImport } from "@/modules/smg/import-processor";
 import { listSmgPoisonEntries } from "@/modules/smg/poison";
+import {
+  resetPurgeTargetForTests,
+  setPurgeTargetMonth,
+} from "@/modules/traffic/purge/target";
 
 const BANNER = "SMG1016M. CDR. File started at '20261013120000'";
 
@@ -72,6 +76,7 @@ describe("processSmgImport", () => {
     await mkdir(path.join(inbox, "smg"));
     process.env.CDR_INBOX_DIR = inbox;
     createMany.mockClear();
+    resetPurgeTargetForTests();
   });
 
   afterEach(async () => {
@@ -161,5 +166,43 @@ describe("processSmgImport", () => {
     expect(result.requeueAfterMs).toBe(2000);
     await expect(readFile(abs, "utf8")).resolves.toContain("tag-1");
     expect(listSmgPoisonEntries()).toEqual([]);
+  });
+
+  it("keeps a file whose calls fall in the month being deleted and does not insert them", async () => {
+    setPurgeTargetMonth("2026-10");
+    const abs = await put(
+      "20261013120300.cdr",
+      [
+        BANNER,
+        headerLine(),
+        dataLine(CALL),
+        dataLine({
+          ...CALL,
+          uniqueTag: "sept",
+          disconnectTime: "2026-09-02 01:00:00",
+        }),
+      ].join("\n"),
+    );
+    const result = await processSmgImport({ trigger: "schedule" });
+    expect(result.status).toBe("failed");
+    expect(result.errorMessage).toMatch(/Отложено: идёт удаление 2026-10/);
+    await expect(readFile(abs, "utf8")).resolves.toContain("tag-1");
+    const inserted = createMany.mock.calls.flatMap(
+      (call) => (call[0] as { data: { disconnectDay: string }[] }).data,
+    );
+    expect(inserted.map((row) => row.disconnectDay)).toEqual(["2026-09-02"]);
+    resetPurgeTargetForTests();
+  });
+
+  it("does not insert the purge month when import is retried while deletion is still the target", async () => {
+    setPurgeTargetMonth("2026-10");
+    await put("20261013120400.cdr", [BANNER, headerLine(), dataLine(CALL)].join("\n"));
+    await processSmgImport({ trigger: "schedule" });
+    createMany.mockClear();
+    const { clearSmgPoisonExceptMonthHold } = await import("@/modules/smg/poison");
+    clearSmgPoisonExceptMonthHold("2026-10");
+    await processSmgImport({ trigger: "manual" });
+    expect(createMany).not.toHaveBeenCalled();
+    resetPurgeTargetForTests();
   });
 });

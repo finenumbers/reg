@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { smgMonthTimeRange } from "@/modules/smg/month-range";
+import { smgMonthDayRange, smgMonthTimeRange } from "@/modules/smg/month-range";
 import { parseMonthKey } from "@/modules/traffic/cdr-month";
 
 describe("smgMonthTimeRange", () => {
@@ -18,6 +18,17 @@ describe("smgMonthTimeRange", () => {
     expect(smgMonthTimeRange(month!)).toEqual({
       gte: "2026-12-01 00:00:00",
       lt: "2027-01-01 00:00:00",
+    });
+  });
+});
+
+describe("smgMonthDayRange", () => {
+  it("uses the civil day stored in disconnect_day", () => {
+    const month = parseMonthKey("2026-12");
+    expect(month).not.toBeNull();
+    expect(smgMonthDayRange(month!)).toEqual({
+      gte: "2026-12-01",
+      lt: "2027-01-01",
     });
   });
 });

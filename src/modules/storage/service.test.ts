@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const queryRaw = vi.fn();
 const jobFindFirst = vi.fn();
 const queryMonthStatsWithMinutes = vi.fn();
+const querySmgMonthStats = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   prisma: {
@@ -24,6 +25,10 @@ vi.mock("@/modules/traffic/cdr-month-stats", () => ({
     queryMonthStatsWithMinutes(...args),
 }));
 
+vi.mock("@/modules/smg/month-stats", () => ({
+  querySmgMonthStats: (...args: unknown[]) => querySmgMonthStats(...args),
+}));
+
 import { listStorageSnapshot } from "@/modules/storage/service";
 import {
   resetDatabaseVacuumForTests,
@@ -35,6 +40,7 @@ describe("listStorageSnapshot during vacuum", () => {
     vi.clearAllMocks();
     resetDatabaseVacuumForTests();
     queryMonthStatsWithMinutes.mockRejectedValue(new Error("cdr_records was read"));
+    querySmgMonthStats.mockRejectedValue(new Error("smg_cdr_records was read"));
     queryRaw.mockRejectedValue(new Error("relation size was read"));
     jobFindFirst.mockResolvedValue({
       status: "running",
@@ -53,6 +59,7 @@ describe("listStorageSnapshot during vacuum", () => {
     setDatabaseVacuumActive(true);
     const snapshot = await listStorageSnapshot();
     expect(queryMonthStatsWithMinutes).not.toHaveBeenCalled();
+    expect(querySmgMonthStats).not.toHaveBeenCalled();
     const texts = queryRaw.mock.calls.map((call) => {
       const sql = call[0];
       if (sql && typeof sql === "object" && "strings" in sql) {

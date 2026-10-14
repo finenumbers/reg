@@ -47,7 +47,7 @@ function interruptedAugust(): ResumePurgeJob {
 }
 
 const augustLeft = new Map([
-  ["2026-08", { calls: 0, jobs: 40, audit: 12 }],
+  ["2026-08", { calls: 0, smg: 0, jobs: 40, audit: 12 }],
 ]);
 
 describe("selectResumeMonth", () => {
@@ -69,7 +69,7 @@ describe("selectResumeMonth", () => {
       selectResumeMonth({
         jobs: [interruptedAugust()],
         currentMonth: "2026-10",
-        remainders: new Map([["2026-08", { calls: 20, jobs: 40, audit: 12 }]]),
+        remainders: new Map([["2026-08", { calls: 20, smg: 0, jobs: 40, audit: 12 }]]),
       }),
     ).toBeNull();
   });
@@ -85,7 +85,7 @@ describe("selectResumeMonth", () => {
           },
         ],
         currentMonth: "2026-10",
-        remainders: new Map([["2026-07", { calls: 0, jobs: 5, audit: 1 }]]),
+        remainders: new Map([["2026-07", { calls: 0, smg: 0, jobs: 5, audit: 1 }]]),
       }),
     ).toBeNull();
     expect(
@@ -108,7 +108,7 @@ describe("selectResumeMonth", () => {
           },
         ],
         currentMonth: "2026-10",
-        remainders: new Map([["2026-10", { calls: 0, jobs: 4, audit: 1 }]]),
+        remainders: new Map([["2026-10", { calls: 0, smg: 0, jobs: 4, audit: 1 }]]),
       }),
     ).toBeNull();
   });
@@ -135,7 +135,7 @@ describe("selectResumeMonth", () => {
       selectResumeMonth({
         jobs: [interruptedAugust()],
         currentMonth: "2026-10",
-        remainders: new Map([["2026-08", { calls: 0, jobs: 0, audit: 0 }]]),
+        remainders: new Map([["2026-08", { calls: 0, smg: 0, jobs: 0, audit: 0 }]]),
       }),
     ).toBeNull();
   });
@@ -153,11 +153,37 @@ describe("selectResumeMonth", () => {
         ],
         currentMonth: "2026-10",
         remainders: new Map([
-          ["2026-08", { calls: 0, jobs: 4, audit: 1 }],
-          ["2026-07", { calls: 0, jobs: 2, audit: 0 }],
+          ["2026-08", { calls: 0, smg: 0, jobs: 4, audit: 1 }],
+          ["2026-07", { calls: 0, smg: 0, jobs: 2, audit: 0 }],
         ]),
       }),
     ).toEqual({ month: "2026-07", deletedCalls: 100 });
+  });
+
+  it("resumes a month with no CDR calls once SMG deletion has started and history remains", () => {
+    expect(
+      selectResumeMonth({
+        jobs: [
+          {
+            errorMessage: ORPHAN_RECLAIM_MESSAGE,
+            phonesParsed: 0,
+            meta: { month: "2026-08", deletedSmg: 12, phase: "smg" },
+          },
+        ],
+        currentMonth: "2026-10",
+        remainders: new Map([["2026-08", { calls: 0, smg: 3, jobs: 2, audit: 0 }]]),
+      }),
+    ).toEqual({ month: "2026-08", deletedCalls: 0 });
+  });
+
+  it("leaves leftover SMG when jobs and audit are already gone", () => {
+    expect(
+      selectResumeMonth({
+        jobs: [interruptedAugust()],
+        currentMonth: "2026-10",
+        remainders: new Map([["2026-08", { calls: 0, smg: 50, jobs: 0, audit: 0 }]]),
+      }),
+    ).toBeNull();
   });
 });
 
@@ -170,8 +196,16 @@ describe("purge foreign-key indexes", () => {
       ),
       "utf8",
     );
-    expect(PURGE_FK_INDEX_NAMES).toHaveLength(8);
-    for (const name of PURGE_FK_INDEX_NAMES) {
+    const smgSql = readFileSync(
+      path.join(process.cwd(), "prisma/migrations/20261013140000_smg_cdr/migration.sql"),
+      "utf8",
+    );
+    const smgIndex = "smg_cdr_records_last_job_run_id_idx";
+    expect(PURGE_FK_INDEX_NAMES).toContain(smgIndex);
+    expect(smgSql).toContain(`"${smgIndex}"`);
+    const purgeIndexes = PURGE_FK_INDEX_NAMES.filter((name) => name !== smgIndex);
+    expect(purgeIndexes).toHaveLength(8);
+    for (const name of purgeIndexes) {
       expect(sql).toContain(`"${name}"`);
     }
     expect(missingPurgeFkIndexNames([])).toEqual([...PURGE_FK_INDEX_NAMES]);

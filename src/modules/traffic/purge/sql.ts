@@ -1,5 +1,7 @@
 import { Prisma } from "@/generated/prisma/client";
 import { cdrMonthPrefix } from "@/lib/month-window";
+import { smgMonthDayRange } from "@/modules/smg/month-range";
+import { monthKey } from "@/modules/traffic/cdr-month";
 
 export const CDR_PURGE_BATCH_SIZE = 2000;
 
@@ -70,6 +72,34 @@ export function purgeAuditBatchSql(
     WHERE id IN (
       SELECT id FROM audit_logs
       WHERE ${purgeAuditWhereSql(start, end)}
+      LIMIT ${limit}
+    )
+  `;
+}
+
+export function purgeSmgWhereSql(year: number, month: number): Prisma.Sql {
+  const range = smgMonthDayRange({ year, month, key: monthKey(year, month) });
+  return Prisma.sql`disconnect_day >= ${range.gte} AND disconnect_day < ${range.lt}`;
+}
+
+export function purgeSmgCountSql(year: number, month: number): Prisma.Sql {
+  return Prisma.sql`
+    SELECT COUNT(*)::bigint AS n
+    FROM smg_cdr_records
+    WHERE ${purgeSmgWhereSql(year, month)}
+  `;
+}
+
+export function purgeSmgBatchSql(
+  year: number,
+  month: number,
+  limit = CDR_PURGE_BATCH_SIZE,
+): Prisma.Sql {
+  return Prisma.sql`
+    DELETE FROM smg_cdr_records
+    WHERE id IN (
+      SELECT id FROM smg_cdr_records
+      WHERE ${purgeSmgWhereSql(year, month)}
       LIMIT ${limit}
     )
   `;

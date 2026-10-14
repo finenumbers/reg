@@ -72,6 +72,11 @@ export async function register() {
       if (released > 0) {
         logger.info("cdr.purge.holds_released", { released });
       }
+      const { clearAllSmgPurgeHolds } = await import("@/modules/smg/poison");
+      const smgReleased = clearAllSmgPurgeHolds();
+      if (smgReleased > 0) {
+        logger.info("smg.purge.holds_released", { released: smgReleased });
+      }
     } catch (error) {
       logger.error("jobs.reclaim_orphans.failed", {
         error: error instanceof Error ? error.message : String(error),

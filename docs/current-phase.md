@@ -1,7 +1,15 @@
-# Current Phase — production (v1.110.0)
+# Current Phase — production (v1.111.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, Eltex SMG CDR.  
 **Date:** 2026-10-14
+
+## v1.111.0 — One month delete covers CDR and SMG
+
+Settings → «Хранение данных» lists one row per month for softswitch CDR and SMG. The columns are calls, seconds, and minutes for each. Seconds and minutes for SMG come from the integer `duration` field, with the same 3-second grace as CDR. The sizes of the CDR tables and `smg_cdr_records` are shown separately. The free-space warning for «Сжать базу» is still twice the sum of every table that `VACUUM FULL` copies.
+
+One «Удалить» removes that month from both tables, then the jobs and audit rows whose timestamps fall in the same UTC month. Only the oldest month that still has CDR or SMG rows can be deleted, and never the current month. The live banner adds «Звонки SMG» with the same waiting, in-progress, and done states as the other stages.
+
+An SMG file that contains the month being deleted stays in the inbox. Those rows are not inserted until the delete finishes. «Повторить импорт» during the delete does not clear that hold. A restart continues SMG, then jobs and audit, after the CDR rows of that month are already gone. Months whose CDR was deleted by an older release and whose SMG rows remain show up in the table and are deleted with the same button, oldest first. There is no new migration.
 
 ## v1.110.0 — SMG import shows files and errors in Jobs and Audit
 

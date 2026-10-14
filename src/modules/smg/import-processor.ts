@@ -18,6 +18,14 @@ import {
 } from "@/modules/smg/inbox";
 import { decodeSmgBytes, parseSmgText } from "@/modules/smg/parse-cdr";
 import { clearSmgPoison, markSmgPoisoned } from "@/modules/smg/poison";
+import { parseMonthKey } from "@/modules/traffic/cdr-month";
+import {
+  activePurgeHold,
+  monthIsHeld,
+  rememberPurgeTarget,
+} from "@/modules/traffic/purge/hold";
+import { getPurgeTargetMonth } from "@/modules/traffic/purge/target";
+import { purgeHoldMessage } from "@/modules/traffic/poison";
 
 export type SmgImportProcessorInput = {
   trigger: "schedule" | "manual" | "test";
@@ -41,6 +49,8 @@ type FileImportResult = {
   skipped: number;
   linesBad: number;
   error: string | null;
+  /** Rows of a month being deleted stayed in the file. Do not unlink it. */
+  leaveFile?: boolean;
 };
 
 async function importOneFile(
@@ -81,6 +91,12 @@ async function importOneFile(
   }
 
   let inserted = 0;
+  let heldForPurge = 0;
+  const heldMonths = new Set<string>();
+  const shouldHold = (rowMonth: string | undefined): boolean => {
+    rememberPurgeTarget(heldMonths, getPurgeTargetMonth());
+    return monthIsHeld(heldMonths, rowMonth);
+  };
   const batch: Prisma.SmgCdrRecordCreateManyInput[] = [];
   const flush = async () => {
     if (batch.length === 0) return;
@@ -93,6 +109,11 @@ async function importOneFile(
   };
 
   for (const row of parsed.rows) {
+    const rowMonth = parseMonthKey(row.disconnectDay.slice(0, 7))?.key;
+    if (shouldHold(rowMonth)) {
+      heldForPurge += 1;
+      continue;
+    }
     batch.push({
       ...row.fields,
       recordKey: row.recordKey,
@@ -104,14 +125,41 @@ async function importOneFile(
   }
   await flush();
 
-  const skipped = Math.max(0, parsed.rows.length - inserted);
+  const skipped = Math.max(0, parsed.rows.length - heldForPurge - inserted);
+  const live = activePurgeHold(heldMonths, getPurgeTargetMonth());
   if (parsed.error) {
+    const holdNote =
+      heldForPurge > 0 && live
+        ? ` ${formatCount(heldForPurge)} строк отложено (${purgeHoldMessage(live)}).`
+        : "";
     return {
       filename: file.filename,
       inserted,
       skipped,
       linesBad: parsed.linesBad,
-      error: `Частичная загрузка: вставлено ${formatCount(inserted)} записей, ${formatCount(parsed.linesBad)} битых строк в ${file.filename}. ${parsed.error}`,
+      error: `Частичная загрузка: вставлено ${formatCount(inserted)} записей, ${formatCount(parsed.linesBad)} битых строк в ${file.filename}. ${parsed.error}${holdNote}`,
+    };
+  }
+  if (heldForPurge > 0 && live) {
+    return {
+      filename: file.filename,
+      inserted,
+      skipped,
+      linesBad: 0,
+      error:
+        inserted > 0
+          ? `${purgeHoldMessage(live)}. Вставлено ${formatCount(inserted)} записей других месяцев в ${file.filename}.`
+          : purgeHoldMessage(live),
+    };
+  }
+  if (heldForPurge > 0) {
+    return {
+      filename: file.filename,
+      inserted,
+      skipped,
+      linesBad: 0,
+      error: null,
+      leaveFile: true,
     };
   }
 
@@ -177,6 +225,7 @@ export async function processSmgImport(
           markSmgPoisoned(file.filename, file.mtimeMs, result.error);
           continue;
         }
+        if (result.leaveFile) continue;
         clearSmgPoison(file.filename);
         await unlink(file.absPath);
       }

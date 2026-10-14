@@ -10,33 +10,48 @@ import {
   type VacuumFailureView,
   type VacuumProgressView,
 } from "@/modules/storage/vacuum/progress";
+import { querySmgMonthStats } from "@/modules/smg/month-stats";
 import {
-  currentUtcMonth,
-  deletableMonthKey,
-  withCurrentMonth,
-  type CdrMonth,
-} from "@/modules/traffic/cdr-month";
+  deletableStorageMonthKey,
+  mergeStorageMonths,
+  type MonthTrafficStats,
+} from "@/modules/storage/months";
+import { currentUtcMonth } from "@/modules/traffic/cdr-month";
 import { queryMonthStatsWithMinutes } from "@/modules/traffic/cdr-month-stats";
 import { purgeProgressFromJob } from "@/modules/traffic/purge/progress";
 
-export type StorageMonthRow = CdrMonth & {
-  calls: number;
-  seconds: number;
-  minutes: number;
+export type StorageMonthRow = {
+  year: number;
+  month: number;
+  key: string;
   incomplete: boolean;
   canDelete: boolean;
+  cdrCalls: number;
+  cdrSeconds: number;
+  cdrMinutes: number;
+  smgCalls: number;
+  smgSeconds: number;
+  smgMinutes: number;
 };
 
 export type StoragePurgeProgress = ReturnType<typeof purgeProgressFromJob>;
 
 export type StorageSnapshot = {
   months: StorageMonthRow[];
-  totalCalls: number;
-  totalSeconds: number;
-  totalMinutes: number;
+  totalCdrCalls: number;
+  totalCdrSeconds: number;
+  totalCdrMinutes: number;
+  totalSmgCalls: number;
+  totalSmgSeconds: number;
+  totalSmgMinutes: number;
+  cdrTableBytes: number;
+  smgTableBytes: number;
+  /** Sum of every table VACUUM FULL copies. The compress dialog doubles this. */
   tableBytes: number;
   deletableKey: string | null;
   importInFlight: boolean;
+  cdrImportInFlight: boolean;
+  smgImportInFlight: boolean;
   purgeInFlight: boolean;
   purge: StoragePurgeProgress;
   vacuumInFlight: boolean;
@@ -46,7 +61,37 @@ export type StorageSnapshot = {
   monthsHidden: boolean;
 };
 
-type SizeRow = { bytes: number };
+type SizeRow = { cdr_bytes: number; smg_bytes: number };
+
+function emptySnapshot(
+  flags: Pick<
+    StorageSnapshot,
+    | "importInFlight"
+    | "cdrImportInFlight"
+    | "smgImportInFlight"
+    | "purgeInFlight"
+    | "purge"
+    | "vacuumInFlight"
+    | "vacuum"
+    | "vacuumFailure"
+    | "monthsHidden"
+  >,
+): StorageSnapshot {
+  return {
+    months: [],
+    totalCdrCalls: 0,
+    totalCdrSeconds: 0,
+    totalCdrMinutes: 0,
+    totalSmgCalls: 0,
+    totalSmgSeconds: 0,
+    totalSmgMinutes: 0,
+    cdrTableBytes: 0,
+    smgTableBytes: 0,
+    tableBytes: 0,
+    deletableKey: null,
+    ...flags,
+  };
+}
 
 async function readVacuumCluster(): Promise<VacuumClusterRow | null> {
   try {
@@ -89,7 +134,9 @@ export async function listStorageSnapshot(): Promise<StorageSnapshot> {
   const current = currentUtcMonth();
   const vacuumInFlight = isDatabaseVacuumActive();
   const purgeInFlight = jobRuntime.isInFlight("cdr.purge.month");
-  const importInFlight = jobRuntime.isInFlight("cdr.import");
+  const cdrImportInFlight = jobRuntime.isInFlight("cdr.import");
+  const smgImportInFlight = jobRuntime.isInFlight("smg.import");
+  const importInFlight = cdrImportInFlight || smgImportInFlight;
 
   let purge: StoragePurgeProgress = null;
   if (purgeInFlight) {
@@ -136,64 +183,86 @@ export async function listStorageSnapshot(): Promise<StorageSnapshot> {
   }
 
   if (vacuumInFlight) {
-    return {
-      months: [],
-      totalCalls: 0,
-      totalSeconds: 0,
-      totalMinutes: 0,
-      tableBytes: 0,
-      deletableKey: null,
+    return emptySnapshot({
       importInFlight,
+      cdrImportInFlight,
+      smgImportInFlight,
       purgeInFlight,
       purge,
       vacuumInFlight: true,
       vacuum,
       vacuumFailure: null,
       monthsHidden: true,
-    };
+    });
   }
 
-  const [stats, sizeRows] = await Promise.all([
+  const [cdrStats, smgStats, sizeRows] = await Promise.all([
     queryMonthStatsWithMinutes(),
+    querySmgMonthStats(),
     prisma.$queryRaw<SizeRow[]>(Prisma.sql`
       SELECT
         (
           pg_total_relation_size('cdr_records') +
-          pg_total_relation_size('cdr_voipmonitor_links') +
-          pg_total_relation_size('smg_cdr_records')
-        )::bigint AS bytes
+          pg_total_relation_size('cdr_voipmonitor_links')
+        )::bigint AS cdr_bytes,
+        pg_total_relation_size('smg_cdr_records')::bigint AS smg_bytes
     `),
   ]);
-  const months = withCurrentMonth(
-    stats.map((row) => ({
-      year: row.year,
-      month: row.month,
-      key: row.key,
-      count: row.count ?? 0,
-    })),
+  const toSide = (
+    row: {
+      year: number;
+      month: number;
+      key: string;
+      count?: number;
+      seconds: number;
+      minutes: number;
+    },
+  ): MonthTrafficStats => ({
+    year: row.year,
+    month: row.month,
+    key: row.key,
+    calls: row.count ?? 0,
+    seconds: row.seconds,
+    minutes: row.minutes,
+  });
+  const merged = mergeStorageMonths(
+    cdrStats.map(toSide),
+    smgStats.map(toSide),
     current,
   );
-  const secondsByKey = new Map(stats.map((row) => [row.key, row.seconds]));
-  const minutesByKey = new Map(stats.map((row) => [row.key, row.minutes]));
-  const deletableKey = deletableMonthKey(months, current.key);
-
-  const rows: StorageMonthRow[] = months.map((item) => ({
-    ...item,
-    calls: item.count ?? 0,
-    seconds: secondsByKey.get(item.key) ?? 0,
-    minutes: minutesByKey.get(item.key) ?? 0,
+  const deletableKey = deletableStorageMonthKey(merged, current.key);
+  const busy = purgeInFlight || importInFlight;
+  const rows: StorageMonthRow[] = merged.map((item) => ({
+    year: item.year,
+    month: item.month,
+    key: item.key,
+    cdrCalls: item.cdrCalls,
+    cdrSeconds: item.cdrSeconds,
+    cdrMinutes: item.cdrMinutes,
+    smgCalls: item.smgCalls,
+    smgSeconds: item.smgSeconds,
+    smgMinutes: item.smgMinutes,
     incomplete: item.key === current.key,
-    canDelete: item.key === deletableKey && !purgeInFlight && !importInFlight,
+    canDelete: item.key === deletableKey && !busy,
   }));
+  const cdrTableBytes = Number(sizeRows[0]?.cdr_bytes ?? 0);
+  const smgTableBytes = Number(sizeRows[0]?.smg_bytes ?? 0);
 
   return {
     months: rows,
-    totalCalls: rows.reduce((sum, row) => sum + row.calls, 0),
-    totalSeconds: rows.reduce((sum, row) => sum + row.seconds, 0),
-    totalMinutes: rows.reduce((sum, row) => sum + row.minutes, 0),
-    tableBytes: Number(sizeRows[0]?.bytes ?? 0),
+    totalCdrCalls: rows.reduce((sum, row) => sum + row.cdrCalls, 0),
+    totalCdrSeconds: rows.reduce((sum, row) => sum + row.cdrSeconds, 0),
+    totalCdrMinutes: rows.reduce((sum, row) => sum + row.cdrMinutes, 0),
+    totalSmgCalls: rows.reduce((sum, row) => sum + row.smgCalls, 0),
+    totalSmgSeconds: rows.reduce((sum, row) => sum + row.smgSeconds, 0),
+    totalSmgMinutes: rows.reduce((sum, row) => sum + row.smgMinutes, 0),
+    cdrTableBytes,
+    smgTableBytes,
+    tableBytes: cdrTableBytes + smgTableBytes,
     deletableKey,
     importInFlight,
+    cdrImportInFlight,
+    smgImportInFlight,
     purgeInFlight,
     purge,
     vacuumInFlight: false,

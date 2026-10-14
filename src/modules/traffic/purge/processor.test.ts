@@ -44,12 +44,29 @@ vi.mock("@/modules/traffic/enqueue", () => ({
   requestCdrImportDrain: vi.fn(),
 }));
 
+vi.mock("@/modules/smg/enqueue", () => ({
+  requestSmgImportDrain: vi.fn(),
+}));
+
+vi.mock("@/modules/smg/poison", () => ({
+  clearSmgPurgeHolds: vi.fn(),
+}));
+
+const querySmgMonthCallCounts = vi.fn();
+
+vi.mock("@/modules/smg/month-stats", () => ({
+  querySmgMonthCallCounts: (...args: unknown[]) => querySmgMonthCallCounts(...args),
+}));
+
 vi.mock("@/modules/traffic/cdr-month-stats", () => ({
   invalidateCdrMonthCountCache: vi.fn(),
   queryMonthCallCounts: (...args: unknown[]) => queryMonthCallCounts(...args),
 }));
 
-import { processCdrPurgeMonth } from "@/modules/traffic/purge/processor";
+import {
+  processCdrPurgeMonth,
+  resolveDeletableMonthKey,
+} from "@/modules/traffic/purge/processor";
 
 function sqlText(sql: unknown): string {
   if (!sql || typeof sql !== "object" || !("strings" in sql)) return "";
@@ -142,5 +159,50 @@ describe("processCdrPurgeMonth historyOnly", () => {
     expect(result.errorMessage).toContain("cdr_records_lastJobRunId_idx");
     expect(executeRaw).not.toHaveBeenCalled();
     expect(cdrCount).not.toHaveBeenCalled();
+  });
+
+  it("deletes remaining SMG calls before jobs and publishes that phase", async () => {
+    queryRaw.mockImplementation(async (sql: unknown) => {
+      const text = sqlText(sql);
+      if (text.includes("pg_indexes")) {
+        return PURGE_FK_INDEX_NAMES.map((indexname) => ({ indexname }));
+      }
+      if (text.includes("smg_cdr_records") && text.includes("COUNT")) return [{ n: 5 }];
+      if (text.includes("job_runs")) return [{ n: 2 }];
+      if (text.includes("audit_logs")) return [{ n: 1 }];
+      return [];
+    });
+    const result = await processCdrPurgeMonth({
+      trigger: "schedule",
+      month: "2026-08",
+      historyOnly: true,
+      deletedCalls: 10,
+    });
+    expect(result.status).toBe("success");
+    const deletes = executeRaw.mock.calls.map((call) => sqlText(call[0]));
+    expect(deletes[0]).toContain("DELETE FROM smg_cdr_records");
+    expect(deletes.findIndex((sql) => sql.includes("DELETE FROM job_runs"))).toBeGreaterThan(0);
+    const phases = jobRunUpdate.mock.calls.map((call) => {
+      const meta = (call[0] as { data?: { meta?: { phase?: string } } }).data?.meta;
+      return meta?.phase;
+    });
+    expect(phases.indexOf("smg")).toBeGreaterThanOrEqual(0);
+    expect(phases.indexOf("smg")).toBeLessThan(phases.indexOf("jobs"));
+  });
+});
+
+describe("resolveDeletableMonthKey", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("picks the oldest month that has SMG rows when CDR is newer", async () => {
+    queryMonthCallCounts.mockResolvedValue([
+      { year: 2026, month: 9, key: "2026-09", count: 10 },
+    ]);
+    querySmgMonthCallCounts.mockResolvedValue([
+      { year: 2026, month: 8, key: "2026-08", count: 4 },
+    ]);
+    await expect(resolveDeletableMonthKey()).resolves.toBe("2026-08");
   });
 });

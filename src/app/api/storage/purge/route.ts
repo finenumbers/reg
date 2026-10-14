@@ -90,7 +90,9 @@ export async function POST(request: Request) {
         error:
           result.reason === "anti-overlap: cdr.import in flight"
             ? "Дождитесь окончания импорта CDR"
-            : "Удаление уже выполняется",
+            : result.reason === "anti-overlap: smg.import in flight"
+              ? "Дождитесь окончания импорта SMG"
+              : "Удаление уже выполняется",
         code: "CONFLICT",
         reason: result.reason,
       },
