@@ -119,8 +119,3 @@ export async function listCachedMonthCounts(
   store.slot = { at: now, months };
   return withCurrentMonth(months, currentUtcMonth());
 }
-
-/** Test helper */
-export function resetCdrMonthCountCacheForTests(): void {
-  cacheStore().slot = null;
-}

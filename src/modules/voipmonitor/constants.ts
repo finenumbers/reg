@@ -13,8 +13,6 @@ export const MAX_RESPONSE_BYTES = 32 << 20;
 export const RANGE_SLICE_MS = 15 * 60 * 1000;
 export const RANGE_MIN_SLICE_MS = 60 * 1000;
 export const RANGE_FETCH_CONCURRENCY = 10;
-/** Exact result counts that look like a silent API page cap. */
-export const RANGE_SLICE_CAP_COUNTS = [500, 1000, 2000] as const;
 
 export const GRACE_MS = 15_000;
 export const LIVE_PRIORITY_MS = 24 * 60 * 60 * 1000;

@@ -128,11 +128,7 @@ export const CDR_COLUMNS = [
   "disconnect_code",
 ] as const;
 
-export type CdrColumn = (typeof CDR_COLUMNS)[number];
-
 export const CDR_COLUMN_COUNT = CDR_COLUMNS.length;
-
-export const CDR_COLUMN_SET = new Set<string>(CDR_COLUMNS);
 
 /** Toolbar search — billing + signalling numbers. */
 export const CDR_PHONE_COLUMNS = [
@@ -403,20 +399,8 @@ export function csvHeaderToCamel(header: string): string {
   return header.replace(/_([a-z0-9])/g, (_, ch: string) => ch.toUpperCase());
 }
 
-export const CDR_PRISMA_FIELDS = CDR_COLUMNS.map(csvHeaderToCamel);
-
-const PRISMA_FIELD_SET = new Set(CDR_PRISMA_FIELDS);
-
-export function isCdrColumn(value: string): value is CdrColumn {
-  return CDR_COLUMN_SET.has(value);
-}
-
 export function isTrafficColumn(value: string): boolean {
   return TRAFFIC_COLUMN_SET.has(value);
-}
-
-export function isCdrPrismaField(value: string): boolean {
-  return PRISMA_FIELD_SET.has(value);
 }
 
 export function headersMatchCanonical(headers: readonly string[]): boolean {

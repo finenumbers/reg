@@ -82,13 +82,6 @@ export async function listInboxFiles(
   return ready;
 }
 
-export async function listYoungInboxFiles(
-  opts: { cwd?: string; now?: number } = {},
-): Promise<InboxFile[]> {
-  const { young } = await partitionInboxFiles(opts);
-  return young;
-}
-
 export async function countInboxFiles(
   cwd?: string,
 ): Promise<{ pending: number; poisoned: number }> {

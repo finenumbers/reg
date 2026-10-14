@@ -12,10 +12,6 @@ function flag(): { running: boolean } {
   return g[KEY];
 }
 
-export function isEnrichPipelineRunning(): boolean {
-  return flag().running;
-}
-
 /** Starts the pipeline. Returns false if another run is already in this process. */
 export function startEnrichPipeline(run: () => Promise<void>): boolean {
   const state = flag();

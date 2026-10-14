@@ -155,10 +155,6 @@ export async function stopBoundFtp(globalKey: string): Promise<void> {
   }
 }
 
-export async function stopFtpServer(): Promise<void> {
-  await stopBoundFtp(FTP_GLOBAL_KEY);
-}
-
 export async function startBoundFtp(
   bind: FtpBind,
 ): Promise<{ started: boolean; detail: string }> {

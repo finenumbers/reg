@@ -133,11 +133,6 @@ export function createMonthExportJob(input: {
   return job;
 }
 
-export function abortCreatedMonthExport(id: string): void {
-  store().jobs.delete(id);
-  store().running = false;
-}
-
 export function patchMonthExportJob(
   id: string,
   patch: Partial<

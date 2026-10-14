@@ -63,12 +63,6 @@ export const CALL_STATUS = {
   parking: "Паркинг",
 } as const;
 
-export type CallClass = {
-  category: string;
-  type: string;
-  status: string;
-};
-
 export type CallGeography = "local" | "mobile" | "intercity" | "international";
 
 /** Outgoing geography reads the B-number. Incoming and phantom read the A-number. */
@@ -319,49 +313,4 @@ export function classifyExportStatus(
   if (elapsedTime === "") return CALL_STATUS.failed;
   if (dstName === PARKING_DST) return CALL_STATUS.parking;
   return CALL_STATUS.success;
-}
-
-export function classifyCall(
-  sideA: string,
-  sideB: string,
-  dstName: string,
-  elapsedTime: string,
-  srcName = "",
-  disconnectCode = "",
-  dpName = "",
-  billAni = "",
-  billDnis = "",
-  rates: readonly TariffAbcRate[] = [],
-): CallClass {
-  return {
-    category: classifyCallCategory(
-      sideA,
-      sideB,
-      dstName,
-      srcName,
-      disconnectCode,
-      dpName,
-      billDnis,
-    ),
-    type: classifyCallType(
-      sideA,
-      sideB,
-      dstName,
-      srcName,
-      disconnectCode,
-      dpName,
-      billAni,
-      billDnis,
-      rates,
-    ),
-    status: classifyCallStatus(
-      elapsedTime,
-      sideA,
-      sideB,
-      dstName,
-      srcName,
-      disconnectCode,
-      dpName,
-    ),
-  };
 }

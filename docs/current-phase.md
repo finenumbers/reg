@@ -1,7 +1,11 @@
-# Current Phase — production (v1.115.0)
+# Current Phase — production (v1.116.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, Eltex SMG CDR.  
 **Date:** 2026-10-14
+
+## v1.116.0 — Unused code removed
+
+Symbols that nothing called are gone. Screens, imports, FTP, month lists, call classification, and the VoIPmonitor result-cap check are unchanged. There is no new migration.
 
 ## v1.115.0 — Load counters hold while the feed stays quiet
 

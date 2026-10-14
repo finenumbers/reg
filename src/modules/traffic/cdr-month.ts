@@ -2,8 +2,6 @@ import { cdrMonthPrefix, utcCalendarMonth } from "@/lib/month-window";
 
 export const CDR_MONTH_YEAR_MIN = 2000;
 export const CDR_MONTH_YEAR_MAX = 2100;
-export const CDR_DATE_BOUND_GTE = "2000-01";
-export const CDR_DATE_BOUND_LT = "2101-01";
 
 const MONTH_KEY_RE = /^(\d{4})-(\d{2})$/;
 
@@ -94,42 +92,4 @@ export function sumMonthRecordCounts(
     total += item.count ?? 0;
   }
   return total;
-}
-
-function monthFromCdrDate(raw: string | null | undefined): CdrMonth | null {
-  if (!raw) return null;
-  return parseMonthKey(raw.slice(0, 7));
-}
-
-function compareMonth(a: CdrMonth, b: CdrMonth): number {
-  if (a.year !== b.year) return a.year - b.year;
-  return a.month - b.month;
-}
-
-export function monthsFromCdrDateBounds(
-  minDate: string | null | undefined,
-  maxDate: string | null | undefined,
-  current: CdrMonth,
-): CdrMonth[] {
-  const parsedMin = monthFromCdrDate(minDate);
-  const parsedMax = monthFromCdrDate(maxDate);
-  let start = current;
-  let end = current;
-  if (parsedMin && compareMonth(parsedMin, start) < 0) start = parsedMin;
-  if (parsedMax && compareMonth(parsedMax, end) > 0) end = parsedMax;
-
-  const out: CdrMonth[] = [];
-  let year = end.year;
-  let month = end.month;
-  const guard = 12 * (CDR_MONTH_YEAR_MAX - CDR_MONTH_YEAR_MIN + 1);
-  while (year > start.year || (year === start.year && month >= start.month)) {
-    out.push({ year, month, key: monthKey(year, month) });
-    month -= 1;
-    if (month < 1) {
-      month = 12;
-      year -= 1;
-    }
-    if (out.length >= guard) break;
-  }
-  return out;
 }

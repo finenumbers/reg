@@ -1,4 +1,3 @@
-export const MISSING_LABEL = "Нет данных";
 export const MISSING_BILLING_LABEL = "-";
 export const MISSING_PSTN_LABEL = "Нет в реестре МинЦифры";
 

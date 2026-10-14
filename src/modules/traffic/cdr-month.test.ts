@@ -4,7 +4,6 @@ import {
   currentUtcMonth,
   deletableMonthKey,
   monthKeyFromCdrDay,
-  monthsFromCdrDateBounds,
   parseMonthKey,
   resolveMonthKey,
   sumMonthRecordCounts,
@@ -103,30 +102,5 @@ describe("sumMonthRecordCounts", () => {
 
   it("is 0 for an empty list", () => {
     expect(sumMonthRecordCounts([])).toBe(0);
-  });
-});
-
-describe("monthsFromCdrDateBounds", () => {
-  const current = { year: 2026, month: 8, key: "2026-08" };
-
-  it("fills from last CDR through the current month", () => {
-    expect(
-      monthsFromCdrDateBounds("2026-06-15 10:00:00", "2026-06-20 12:00:00", current).map(
-        (m) => m.key,
-      ),
-    ).toEqual(["2026-08", "2026-07", "2026-06"]);
-  });
-
-  it("extends past current when CDR is in the future", () => {
-    expect(
-      monthsFromCdrDateBounds("2026-08-01 00:00:00", "2026-09-02 00:00:00", current).map(
-        (m) => m.key,
-      ),
-    ).toEqual(["2026-09", "2026-08"]);
-  });
-
-  it("is only the current month when bounds are empty or junk", () => {
-    expect(monthsFromCdrDateBounds(null, null, current)).toEqual([current]);
-    expect(monthsFromCdrDateBounds("", "not-a-date", current)).toEqual([current]);
   });
 });
