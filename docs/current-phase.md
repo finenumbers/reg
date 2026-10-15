@@ -1,7 +1,13 @@
-# Current Phase — production (v1.130.0)
+# Current Phase — production (v1.131.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, Eltex SMG CDR, Eltex SMG syslog.  
-**Date:** 2026-10-15
+**Date:** 2026-10-16
+
+## v1.131.0 — Syslog download is a text link
+
+In the syslog table, «Скачать» is the word itself. It uses the same dark semibold text as the stored-size figure above the table. The outline button is gone. The click still fetches that 10-minute file and shows an error on the page when the download fails. The column title is unchanged. A row without a file still has no word.
+
+There is no new migration.
 
 ## v1.130.0 — The call tables name the last load, and syslog shows one gateway's stored size
 

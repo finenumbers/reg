@@ -349,14 +349,13 @@ export function SyslogView({
                     <TableCell>{file ? stateLabel(file) : ""}</TableCell>
                     <TableCell>
                       {file ? (
-                        <Button
+                        <button
                           type="button"
-                          variant="outline"
-                          size="sm"
+                          className="text-foreground bg-transparent p-0 font-semibold"
                           onClick={() => void download(file.slot)}
                         >
                           Скачать
-                        </Button>
+                        </button>
                       ) : null}
                     </TableCell>
                   </TableRow>
