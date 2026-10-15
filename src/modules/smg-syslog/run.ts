@@ -9,6 +9,7 @@ import {
   SyslogStore,
   type SyslogPacket,
 } from "@/modules/smg-syslog/store";
+import { privilegeDropTarget } from "@/modules/smg-syslog/privileges";
 import { freeBytes, LOW_SPACE_BYTES, writeStatus } from "@/modules/smg-syslog/status";
 
 const REGISTRY_MS = 1000;
@@ -58,6 +59,8 @@ export async function runSyslogReceiver(
   let held: SyslogPacket[] | null = null;
   let bindError: string | null = null;
   let listening = false;
+  let bound = false;
+  let droppedPrivileges = false;
   let stopping = false;
   let unknownTotal = 0;
   let bridgeSeen = false;
@@ -114,19 +117,34 @@ export async function runSyslogReceiver(
 
   function ensureSocket(): void {
     if (!state.registry?.enabled) {
+      if (state.socket && droppedPrivileges) {
+        listening = false;
+        return;
+      }
       if (state.socket) {
         state.socket.close();
         state.socket = null;
         listening = false;
+        bound = false;
       }
       return;
     }
-    if (state.socket) return;
+    if (state.socket) {
+      if (bound) listening = true;
+      return;
+    }
+    if (droppedPrivileges) {
+      bindError =
+        "Порт syslog закрылся после сброса прав. Пересоздайте контейнер приёмника.";
+      listening = false;
+      return;
+    }
     const created = dgram.createSocket({
       type: "udp4",
       recvBufferSize: RECV_BUFFER_BYTES,
     });
     created.on("message", (msg, rinfo) => {
+      if (!state.registry?.enabled) return;
       const ip = canonicalIpv4(rinfo.address);
       if (!ip) {
         rememberUnknown(rinfo.address);
@@ -139,6 +157,7 @@ export async function runSyslogReceiver(
     created.on("error", (error) => {
       bindError = error.message;
       listening = false;
+      bound = false;
       logger.error("smg.syslog.socket_error", { error: error.message });
       try {
         created.close();
@@ -148,6 +167,30 @@ export async function runSyslogReceiver(
       if (state.socket === created) state.socket = null;
     });
     created.bind(options.port, "0.0.0.0", () => {
+      const drop = privilegeDropTarget(
+        process.getuid?.() ?? -1,
+        process.env.SMG_SYSLOG_DROP_UID,
+        process.env.SMG_SYSLOG_DROP_GID,
+      );
+      if (drop) {
+        try {
+          if (
+            typeof process.setgid !== "function" ||
+            typeof process.setuid !== "function"
+          ) {
+            throw new Error("setuid is not available");
+          }
+          process.setgid(drop.gid);
+          process.setuid(drop.uid);
+          droppedPrivileges = true;
+        } catch (error) {
+          logger.error("smg.syslog.drop_privileges_failed", {
+            error: error instanceof Error ? error.message : String(error),
+          });
+          process.exit(1);
+        }
+      }
+      bound = true;
       listening = true;
       bindError = null;
       try {

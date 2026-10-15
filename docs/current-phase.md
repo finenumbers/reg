@@ -1,7 +1,17 @@
-# Current Phase — production (v1.123.0)
+# Current Phase — production (v1.124.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, Eltex SMG CDR, Eltex SMG syslog.  
 **Date:** 2026-10-15
+
+## v1.124.0 — SMG syslog listens on the host network
+
+Every added gateway sends syslog to the same host address and UDP port 514. Docker's published port kept a socket in `dockerd`. A flow that stuck to that socket was discarded, while another gateway was still DNATed into the container. The receiver now listens on the host network, so each datagram takes the same path.
+
+The process starts as root only to bind port 514, then becomes uid 1001 before it writes. New files stay readable by the app. Turning reception off keeps that socket open, because the unprivileged process cannot bind 514 again. Postgres is published only on `127.0.0.1:5432` for this process. It is not published on the public interface. The app and migrations still use the database service name.
+
+A non-empty datagram from an added node is stored in full. There is no queue cap. An unknown address is still not stored. While the container is recreated, UDP has nowhere to go. After the new process is listening, conntrack entries for UDP 514 and 5514 have to be deleted, or they keep steering some gateways at the previous container. The host firewall has to allow UDP 514 from the SMG addresses into the host. The receiver still has no HTTP health check.
+
+There is no new migration.
 
 ## v1.123.0 — Each SMG syslog node can carry an identifier
 

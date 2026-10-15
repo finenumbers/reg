@@ -14,7 +14,7 @@ export function statusPath(root: string): string {
   return path.join(root, SYSLOG_STATUS_FILENAME);
 }
 
-/** Host port operators type on the SMG. The process always binds 5514. */
+/** Host port operators type on the SMG. */
 export function syslogAdvertisePort(): string {
   const raw =
     process.env.SYSLOG_ADVERTISE_PORT?.trim() ||

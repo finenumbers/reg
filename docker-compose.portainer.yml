@@ -22,7 +22,10 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-reg}
     volumes:
       - reg_pg_data:/var/lib/postgresql/data
-    # Do not publish Postgres to the host in production.
+    # Localhost only, so the host-network syslog receiver can reach Postgres.
+    # Never bind 0.0.0.0 — that would publish the database on the network.
+    ports:
+      - "127.0.0.1:5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 5s
@@ -95,6 +98,10 @@ services:
   smg-syslog:
     image: ghcr.io/finenumbers/reg:latest
     restart: unless-stopped
+    # Host network: every SMG datagram hits one socket. Docker must not publish
+    # this UDP port — its own socket was discarding some gateways.
+    network_mode: host
+    user: "0:0"
     depends_on:
       db:
         condition: service_healthy
@@ -103,20 +110,18 @@ services:
     command: ["smg-syslog"]
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgresql://${POSTGRES_USER:-reg}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-reg}?schema=public
+      DATABASE_URL: postgresql://${POSTGRES_USER:-reg}:${POSTGRES_PASSWORD}@127.0.0.1:5432/${POSTGRES_DB:-reg}?schema=public
       SMG_SYSLOG_DIR: /app/data/smg-syslog
-      SYSLOG_BIND_PORT: "5514"
+      SYSLOG_BIND_PORT: "514"
+      SMG_SYSLOG_DROP_UID: "1001"
+      SMG_SYSLOG_DROP_GID: "1001"
     volumes:
       - reg_smg_syslog:/app/data/smg-syslog
-    ports:
-      - "${SYSLOG_PUBLISH_PORT:-514}:5514/udp"
     healthcheck:
       disable: true
     stop_grace_period: 30s
     deploy:
       replicas: 1
-    networks:
-      - internal
 
 volumes:
   reg_pg_data:

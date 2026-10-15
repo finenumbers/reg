@@ -106,13 +106,23 @@ Override with `FTP_PUBLISH_PORT` only if you also change Settings → FTP → п
 
 ## 5b. SMG syslog UDP
 
-NPM cannot proxy syslog. The `smg-syslog` service publishes `${SYSLOG_PUBLISH_PORT:-514}/udp` to container port 5514. Settings shows that host port. On each SMG, point traces, command history, and the access log at this host and that UDP port. Add the gateway in Settings → «Syslog — SMG» by the source address of the packet, a name, and an identifier. A gateway already listed may keep the identifier empty until it is renamed. Folders stay under the source address. Then turn reception on.
+NPM cannot proxy syslog. The `smg-syslog` service uses the host network and listens on UDP 514 itself. Docker does not publish that port. On each SMG, point traces, command history, and the access log at this host and UDP 514. Add the gateway in Settings → «Syslog — SMG» by the source address of the packet, a name, and an identifier. A gateway already listed may keep the identifier empty until it is renamed. Folders stay under the source address. Then turn reception on.
 
-The process must see that source address. Docker's default userland proxy rewrites it to the bridge gateway (`172.x.0.1`). Those datagrams are stored under that address so they are not discarded, but every gateway is mixed into one folder. Settings shows a warning while any bridge packet has been received. Set `"userland-proxy": false` in `/etc/docker/daemon.json`, restart Docker, and recreate the stack. Confirm with `tcpdump` on the published UDP port that the source is the SMG, and that the packet is UDP. Folders are UTC. Raise `net.core.rmem_max` to at least 16 MiB; Settings names the buffer when the kernel clamped it.
+The process starts as root only to bind port 514, then becomes uid 1001 before it writes. Files stay readable by the app. Postgres is published only on `127.0.0.1:5432` so this process can reach it. Do not change that binding to `0.0.0.0`. Confirm host port 5432 is free before the first deploy of this stack. The app and migrations still use the `db` service name.
 
-If `ss -lunp` shows something else already bound to 514, set `SYSLOG_PUBLISH_PORT` to a free port and use that same port on the SMG. Raise `net.core.rmem_max` if the kernel receive buffer cannot grow. The firewall should allow this UDP only from the SMG network. While the `smg-syslog` container is recreated, datagrams that arrive have nowhere to go; the gateway does not resend them.
+`ss -lunp` must show the receiver on 514, not `dockerd` and not `rsyslog`. After the new container is listening, delete stale conntrack so old flows are not steered at the previous container:
 
-One `smg-syslog` replica. It does not use the HTTP health check.
+```bash
+sudo apt-get install -y conntrack
+sudo conntrack -D -p udp --dport 514
+sudo conntrack -D -p udp --dport 5514
+```
+
+The host firewall must allow UDP 514 from the SMG addresses into the host. A rule that only allowed Docker's forward chain will now drop every gateway. Folders are UTC. Raise `net.core.rmem_max` to at least 16 MiB; Settings names the buffer when the kernel clamped it.
+
+Packets that arrived earlier with a rewritten bridge address stay in that folder. While the `smg-syslog` container is recreated, datagrams that arrive have nowhere to go; the gateway does not resend them.
+
+One `smg-syslog` replica. It does not use the HTTP health check. This service is a Compose host-network container, not a Swarm task.
 
 ## 6. GeoIP on the same Docker host
 
