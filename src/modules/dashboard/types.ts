@@ -37,8 +37,21 @@ export type DashboardSnapshot = {
   calls: boolean;
 };
 
+export type DashboardCallSeries = {
+  /** ISO time of the first bucket. Labels are counted from here. */
+  start: string;
+  minutes: number[];
+  peak: number;
+};
+
 export type DashboardCalls =
   | { status: "hidden" }
   | { status: "vacuum"; message: string }
   | { status: "unavailable"; message: string }
-  | { status: "ready"; day: string; minutes: number[]; peak: number };
+  | {
+      status: "ready";
+      day: string;
+      minutes: number[];
+      peak: number;
+      hour: DashboardCallSeries;
+    };

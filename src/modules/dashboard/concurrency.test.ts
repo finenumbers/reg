@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { fillConcurrencyMinutes, utcCallDay, type MinuteEventRow } from "./concurrency";
+import {
+  axisCeiling,
+  axisTickTop,
+  axisTicks,
+  fillConcurrencyMinutes,
+  formatUtcMinute,
+  sessionCountLabel,
+  utcCallDay,
+  utcCallWindow,
+  type MinuteEventRow,
+} from "./concurrency";
 
 function row(partial: MinuteEventRow): MinuteEventRow {
   return partial;
@@ -26,6 +36,64 @@ describe("utcCallDay", () => {
     const day = utcCallDay(new Date("2026-10-16T23:59:59.999Z"));
     expect(day.minuteCount).toBe(1440);
     expect(day.seriesEnd.toISOString()).toBe("2026-10-17T00:00:00.000Z");
+  });
+});
+
+describe("utcCallWindow", () => {
+  it("opens the hour 60 minutes before the shared end", () => {
+    const window = utcCallWindow(new Date("2026-10-16T14:22:30.000Z"));
+    expect(window.seriesEnd.toISOString()).toBe("2026-10-16T14:23:00.000Z");
+    expect(window.hourStart.toISOString()).toBe("2026-10-16T13:23:00.000Z");
+    expect(window.seriesEnd.getTime() - window.hourStart.getTime()).toBe(60 * 60 * 1000);
+    expect(window.scanStart.toISOString()).toBe("2026-10-15T00:00:00.000Z");
+  });
+
+  it("reaches into the previous evening at 00:10 without a 61st minute", () => {
+    const window = utcCallWindow(new Date("2026-10-16T00:10:00.000Z"));
+    expect(window.hourStart.toISOString()).toBe("2026-10-15T23:11:00.000Z");
+    expect(window.seriesEnd.toISOString()).toBe("2026-10-16T00:11:00.000Z");
+    expect(window.scanStart.toISOString()).toBe("2026-10-14T23:11:00.000Z");
+    expect(formatUtcMinute(window.hourStart, 0)).toBe("23:11");
+    expect(formatUtcMinute(window.hourStart, 59)).toBe("00:10");
+  });
+
+  it("keeps a full hour when the day itself has only the midnight minute", () => {
+    const window = utcCallWindow(new Date("2026-10-16T00:00:00.000Z"));
+    expect(window.minuteCount).toBe(1);
+    expect(window.hourStart.toISOString()).toBe("2026-10-15T23:01:00.000Z");
+    expect(window.seriesEnd.toISOString()).toBe("2026-10-16T00:01:00.000Z");
+    expect(formatUtcMinute(window.hourStart, 59)).toBe("00:00");
+  });
+});
+
+describe("axis scale", () => {
+  it("keeps a zero peak on the baseline", () => {
+    expect(axisCeiling(0)).toBe(0);
+    expect(axisTicks(0)).toEqual([0]);
+    expect(axisTickTop(0, 0)).toBe(98);
+  });
+
+  it("uses a 1-2-5 ceiling and skips a fractional middle", () => {
+    expect(axisCeiling(1)).toBe(1);
+    expect(axisTicks(1)).toEqual([1, 0]);
+    expect(axisCeiling(3)).toBe(5);
+    expect(axisTicks(3)).toEqual([5, 0]);
+    expect(axisCeiling(5)).toBe(5);
+    expect(axisTickTop(5, 5)).toBe(6);
+    expect(axisTickTop(0, 5)).toBe(98);
+  });
+});
+
+describe("sessionCountLabel", () => {
+  it("declines the session word", () => {
+    expect(sessionCountLabel(0)).toBe("0 сессий");
+    expect(sessionCountLabel(1)).toBe("1 сессия");
+    expect(sessionCountLabel(2)).toBe("2 сессии");
+    expect(sessionCountLabel(5)).toBe("5 сессий");
+    expect(sessionCountLabel(11)).toBe("11 сессий");
+    expect(sessionCountLabel(12)).toBe("12 сессий");
+    expect(sessionCountLabel(21)).toBe("21 сессия");
+    expect(sessionCountLabel(111)).toBe("111 сессий");
   });
 });
 

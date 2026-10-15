@@ -1,7 +1,15 @@
-# Current Phase — production (v1.134.0)
+# Current Phase — production (v1.135.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, Eltex SMG CDR, Eltex SMG syslog.  
 **Date:** 2026-10-16
+
+## v1.135.0 — The Dashboard adds the last hour of concurrent calls
+
+The call chart has a vertical scale. Moving across it shows the minute and how many sessions overlapped. The count is written out on its own line, so a narrow column cannot clip it off the time. A second chart underneath shows the same peak for the rolling last 60 minutes, including the minute that is still open. Just after midnight that hour reaches into the previous evening. Each chart has its own scale and its own maximum.
+
+Both series come from one CDR read. It is still limited to 8 seconds, still shared for 60 seconds, and still refused while the database is being compressed. The extra lookback is at most 59 minutes and does not change the day series. A timeout, an error, or compression leaves both charts empty with a short reason.
+
+There is no new migration.
 
 ## v1.134.0 — The Dashboard draws today's concurrent calls
 
