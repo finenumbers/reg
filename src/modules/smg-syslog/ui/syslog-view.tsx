@@ -7,7 +7,12 @@ import { FILTER_TOOLBAR_TEXT } from "@/components/filter-toolbar";
 import { Button } from "@/components/ui/button";
 import { downloadXlsxFromUrl } from "@/lib/download-xlsx";
 import { formatBytes } from "@/modules/storage/format-bytes";
-import type { SyslogFileRow, SyslogFolder, SyslogList } from "@/modules/smg-syslog/browse";
+import type {
+  SyslogFileRow,
+  SyslogFolder,
+  SyslogList,
+} from "@/modules/smg-syslog/browse";
+import { monthNominative } from "@/modules/traffic/month-labels";
 
 type Device = { ip: string; name: string };
 
@@ -41,7 +46,9 @@ export function SyslogView({ initialDevices }: { initialDevices: Device[] }) {
     if (nextCrumb.month) params.set("month", nextCrumb.month);
     if (nextCrumb.day) params.set("day", nextCrumb.day);
     if (nextCrumb.hour) params.set("hour", nextCrumb.hour);
-    const res = await fetch(`/api/smg/syslog?${params.toString()}`, { cache: "no-store" });
+    const res = await fetch(`/api/smg/syslog?${params.toString()}`, {
+      cache: "no-store",
+    });
     if (!res.ok) return;
     const body = (await res.json()) as Payload;
     setDevices(body.devices);
@@ -83,23 +90,21 @@ export function SyslogView({ initialDevices }: { initialDevices: Device[] }) {
     if (!result.ok) toast.error(result.message);
   }
 
-  const pathLabel = [
-    crumb.year,
-    listLabel(list, crumb),
-  ]
-    .filter(Boolean)
-    .join(" / ");
+  const pathLabel = pathTrail(crumb);
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
       <div>
         <h1 className="text-xl font-semibold tracking-tight">Syslog</h1>
-        <p className="text-sm text-muted-foreground">
-          Журнал шлюзов Eltex SMG. Закрытый интервал скачивается архивом gzip.
+        <p className="text-muted-foreground text-sm">
+          Журнал шлюзов Eltex SMG. Интервалы в UTC. Закрытый интервал скачивается архивом
+          gzip.
         </p>
       </div>
       {lowSpace ? (
-        <p className="text-sm text-destructive">На томе Syslog меньше 1 ГБ свободно. Запись продолжается.</p>
+        <p className="text-destructive text-sm">
+          На томе Syslog меньше 1 ГБ свободно. Запись продолжается.
+        </p>
       ) : null}
       <div className="flex flex-wrap items-center gap-2">
         <FitSelect
@@ -110,7 +115,10 @@ export function SyslogView({ initialDevices }: { initialDevices: Device[] }) {
           disabled={devices.length === 0}
           options={
             devices.length > 0
-              ? devices.map((row) => ({ value: row.ip, label: `${row.name} (${row.ip})` }))
+              ? devices.map((row) => ({
+                  value: row.ip,
+                  label: `${row.name} (${row.ip})`,
+                }))
               : [{ value: "", label: "Нет узлов" }]
           }
           onChange={(value) => {
@@ -148,24 +156,33 @@ export function SyslogView({ initialDevices }: { initialDevices: Device[] }) {
             type="button"
             variant="outline"
             size="sm"
-            onClick={() => setCrumb({ year: crumb.year, month: crumb.month, day: crumb.day })}
+            onClick={() =>
+              setCrumb({ year: crumb.year, month: crumb.month, day: crumb.day })
+            }
           >
             {crumb.day}
           </Button>
         ) : null}
         {crumb.hour ? <span>{crumb.hour}</span> : null}
-        {pathLabel ? <span className="text-muted-foreground">{pathLabel}</span> : null}
+        {pathLabel ? (
+          <span className="text-muted-foreground">{pathLabel} UTC</span>
+        ) : null}
       </div>
       {devices.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Добавьте узел SMG в Настройках.</p>
+        <p className="text-muted-foreground text-sm">Добавьте узел SMG в Настройках.</p>
       ) : list?.kind === "folders" ? (
         <ul className="space-y-1">
           {list.folders.length === 0 ? (
-            <li className="text-sm text-muted-foreground">Папка пуста.</li>
+            <li className="text-muted-foreground text-sm">Папка пуста.</li>
           ) : (
             list.folders.map((folder) => (
               <li key={folder.name}>
-                <Button type="button" variant="ghost" className="h-8 px-2" onClick={() => openFolder(folder)}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="h-8 px-2"
+                  onClick={() => openFolder(folder)}
+                >
                   {folder.label}
                 </Button>
               </li>
@@ -175,14 +192,19 @@ export function SyslogView({ initialDevices }: { initialDevices: Device[] }) {
       ) : (
         <ul className="space-y-1">
           {(list?.files ?? []).length === 0 ? (
-            <li className="text-sm text-muted-foreground">В этом часе файлов нет.</li>
+            <li className="text-muted-foreground text-sm">В этом часе файлов нет.</li>
           ) : (
             (list?.files ?? []).map((file) => (
               <li key={file.slot} className="flex items-center gap-3 text-sm">
                 <span className="w-10 font-medium">{file.label}</span>
                 <span className="text-muted-foreground">{formatBytes(file.bytes)}</span>
                 <span className="text-muted-foreground">{stateLabel(file)}</span>
-                <Button type="button" variant="outline" size="sm" onClick={() => void download(file.slot)}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void download(file.slot)}
+                >
                   Скачать
                 </Button>
               </li>
@@ -207,7 +229,14 @@ function stateLabel(file: SyslogFileRow): string {
   return "пишется";
 }
 
-function listLabel(list: SyslogList | null, crumb: Crumb): string {
-  if (!list || list.kind !== "folders" || !crumb.month) return crumb.month ?? "";
-  return list.folders.find((folder) => folder.name === crumb.month)?.label ?? crumb.month;
+function pathTrail(crumb: Crumb): string {
+  const parts: string[] = [];
+  if (crumb.year) parts.push(crumb.year);
+  if (crumb.month) {
+    const month = Number(crumb.month);
+    parts.push(month >= 1 && month <= 12 ? monthNominative(month) : crumb.month);
+  }
+  if (crumb.day) parts.push(crumb.day);
+  if (crumb.hour) parts.push(crumb.hour);
+  return parts.join(" / ");
 }

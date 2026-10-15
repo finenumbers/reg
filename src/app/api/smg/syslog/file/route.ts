@@ -1,7 +1,11 @@
 import { Readable } from "node:stream";
 import { NextResponse } from "next/server";
 import { requireApiPermission } from "@/modules/auth/guards";
-import { openSyslogDownload, streamDownload } from "@/modules/smg-syslog/browse";
+import {
+  isDockerBridgeDevice,
+  openSyslogDownload,
+  streamDownload,
+} from "@/modules/smg-syslog/browse";
 import { syslogNodeExists } from "@/modules/smg-syslog/nodes";
 import { syslogRoot } from "@/modules/smg-syslog/paths";
 
@@ -16,8 +20,11 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const device = url.searchParams.get("device") ?? "";
-  if (!(await syslogNodeExists(device))) {
-    return NextResponse.json({ error: "Узел не найден", code: "NOT_FOUND" }, { status: 404 });
+  if (!isDockerBridgeDevice(device) && !(await syslogNodeExists(device))) {
+    return NextResponse.json(
+      { error: "Узел не найден", code: "NOT_FOUND" },
+      { status: 404 },
+    );
   }
   const download = openSyslogDownload(syslogRoot(), device, {
     year: url.searchParams.get("year") ?? "",
@@ -27,7 +34,10 @@ export async function GET(request: Request) {
     slot: url.searchParams.get("slot") ?? "",
   });
   if (!download) {
-    return NextResponse.json({ error: "Файл не найден", code: "NOT_FOUND" }, { status: 404 });
+    return NextResponse.json(
+      { error: "Файл не найден", code: "NOT_FOUND" },
+      { status: 404 },
+    );
   }
   const opened = streamDownload(download);
   const web = Readable.toWeb(opened.stream) as ReadableStream<Uint8Array>;

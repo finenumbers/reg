@@ -1,21 +1,25 @@
 import dgram from "node:dgram";
 import { mkdirSync } from "node:fs";
-import { TZ_OFFSET_HOURS, resolveDisplayTimezone } from "@/lib/display-timezone";
 import { logger } from "@/lib/logger";
+import { syslogFileKey } from "@/modules/smg-syslog/bucket";
 import { canonicalIpv4, looksLikeDockerBridge } from "@/modules/smg-syslog/ip";
 import { frameDatagram } from "@/modules/smg-syslog/frame";
-import { removePartialArchives, SyslogStore, type SyslogPacket } from "@/modules/smg-syslog/store";
+import {
+  removePartialArchives,
+  SyslogStore,
+  type SyslogPacket,
+} from "@/modules/smg-syslog/store";
 import { freeBytes, LOW_SPACE_BYTES, writeStatus } from "@/modules/smg-syslog/status";
 
 const REGISTRY_MS = 1000;
 const IDLE_MS = 15;
 const RETRY_MS = 200;
+const STATUS_MS = 5000;
 const UNKNOWN_KEEP = 8;
-const RECV_BUFFER = 16 * 1024 * 1024;
+export const RECV_BUFFER_BYTES = 16 * 1024 * 1024;
 
 export type SyslogRegistry = {
   enabled: boolean;
-  offsetHours: number;
   ips: Set<string>;
 };
 
@@ -25,12 +29,20 @@ export type ReceiverOptions = {
   loadRegistry: () => Promise<SyslogRegistry>;
 };
 
+/** A registered gateway, or the Docker bridge that rewrote its source address. */
+export function syslogSourceAccepted(ip: string, ips: ReadonlySet<string>): boolean {
+  return ips.has(ip) || looksLikeDockerBridge(ip);
+}
+
 /**
- * UDP receiver. Known-source datagrams are appended and fsynced as one batch
- * of whatever the socket already delivered. Unknown sources are counted and
- * dropped. The process stays up when reception is disabled.
+ * UDP receiver. Known sources and the Docker bridge are appended and fsynced
+ * as one batch. Other addresses are counted and dropped. Registry refresh and
+ * gzip never sit in front of that write. The process stays up when reception
+ * is disabled.
  */
-export async function runSyslogReceiver(options: ReceiverOptions): Promise<() => Promise<void>> {
+export async function runSyslogReceiver(
+  options: ReceiverOptions,
+): Promise<() => Promise<void>> {
   mkdirSync(options.root, { recursive: true });
   removePartialArchives(options.root);
 
@@ -40,13 +52,17 @@ export async function runSyslogReceiver(options: ReceiverOptions): Promise<() =>
   } = { registry: null, socket: null };
   let registryError: string | null = null;
   let nextRegistryAt = 0;
-  const store = new SyslogStore(options.root, () => state.registry?.offsetHours ?? 3);
+  let registryInflight: Promise<void> | null = null;
+  const store = new SyslogStore(options.root);
   let inbox: SyslogPacket[] = [];
   let held: SyslogPacket[] | null = null;
   let bindError: string | null = null;
   let listening = false;
   let stopping = false;
   let unknownTotal = 0;
+  let bridgeSeen = false;
+  let recvBufferBytes: number | null = null;
+  let lastStatusAt = 0;
   const unknown = new Map<string, number>();
   const lastPacket = new Map<string, string>();
   let accepted = 0;
@@ -74,20 +90,26 @@ export async function runSyslogReceiver(options: ReceiverOptions): Promise<() =>
     if (oldest && oldest !== ip) unknown.delete(oldest);
   }
 
-  async function refreshRegistry(force: boolean): Promise<void> {
+  function kickRegistry(): void {
+    if (registryInflight) return;
     const now = Date.now();
-    if (!force && state.registry && now < nextRegistryAt) return;
+    if (state.registry && now < nextRegistryAt) return;
     nextRegistryAt = now + REGISTRY_MS;
-    try {
-      const next = await options.loadRegistry();
-      state.registry = next;
-      registryError = null;
-    } catch (error) {
-      registryError = error instanceof Error ? error.message : String(error);
-      if (!state.registry) {
-        logger.error("smg.syslog.registry_failed", { error: registryError });
-      }
-    }
+    registryInflight = options
+      .loadRegistry()
+      .then((next) => {
+        state.registry = next;
+        registryError = null;
+      })
+      .catch((error: unknown) => {
+        registryError = error instanceof Error ? error.message : String(error);
+        if (!state.registry) {
+          logger.error("smg.syslog.registry_failed", { error: registryError });
+        }
+      })
+      .finally(() => {
+        registryInflight = null;
+      });
   }
 
   function ensureSocket(): void {
@@ -102,7 +124,7 @@ export async function runSyslogReceiver(options: ReceiverOptions): Promise<() =>
     if (state.socket) return;
     const created = dgram.createSocket({
       type: "udp4",
-      recvBufferSize: RECV_BUFFER,
+      recvBufferSize: RECV_BUFFER_BYTES,
     });
     created.on("message", (msg, rinfo) => {
       const ip = canonicalIpv4(rinfo.address);
@@ -110,7 +132,8 @@ export async function runSyslogReceiver(options: ReceiverOptions): Promise<() =>
         rememberUnknown(rinfo.address);
         return;
       }
-      inbox.push({ ip, payload: Buffer.from(msg) });
+      if (msg.length === 0) return;
+      inbox.push({ ip, payload: Buffer.from(msg), receivedAt: new Date() });
       wake?.();
     });
     created.on("error", (error) => {
@@ -127,21 +150,53 @@ export async function runSyslogReceiver(options: ReceiverOptions): Promise<() =>
     created.bind(options.port, "0.0.0.0", () => {
       listening = true;
       bindError = null;
-      logger.info("smg.syslog.listening", { port: options.port });
+      try {
+        recvBufferBytes = created.getRecvBufferSize();
+      } catch {
+        recvBufferBytes = null;
+      }
+      logger.info("smg.syslog.listening", { port: options.port, recvBufferBytes });
     });
     state.socket = created;
   }
 
-  function publishStatus(): void {
+  function absorbInbox(current: SyslogPacket[] | null): SyslogPacket[] | null {
+    const registry = state.registry;
+    if (!registry || inbox.length === 0) return current;
+    const batch = inbox;
+    inbox = [];
+    const kept: SyslogPacket[] = [];
+    for (const packet of batch) {
+      if (!syslogSourceAccepted(packet.ip, registry.ips)) {
+        rememberUnknown(packet.ip);
+        continue;
+      }
+      if (!frameDatagram(packet.payload)) continue;
+      kept.push(packet);
+      lastPacket.set(packet.ip, packet.receivedAt.toISOString());
+      if (looksLikeDockerBridge(packet.ip)) bridgeSeen = true;
+      accepted += 1;
+    }
+    if (kept.length === 0) return current;
+    return current ? current.concat(kept) : kept;
+  }
+
+  function blockedKeys(): Set<string> {
+    const keys = new Set<string>();
+    const queued = held ? held.concat(inbox) : inbox;
+    for (const packet of queued) keys.add(syslogFileKey(packet.ip, packet.receivedAt));
+    return keys;
+  }
+
+  function publishStatus(force: boolean): void {
+    const now = Date.now();
+    if (!force && now - lastStatusAt < STATUS_MS) return;
+    lastStatusAt = now;
     const free = freeBytes(options.root);
     const unknownRows = [...unknown.entries()]
       .sort((a, b) => b[1] - a[1])
       .slice(0, UNKNOWN_KEEP)
       .map(([ip, count]) => ({ ip, count }));
-    const bridgeWarning =
-      (state.registry?.ips.size ?? 0) > 0 &&
-      accepted === 0 &&
-      unknownRows.some((row) => looksLikeDockerBridge(row.ip));
     try {
       writeStatus(options.root, {
         enabled: state.registry?.enabled ?? false,
@@ -153,7 +208,8 @@ export async function runSyslogReceiver(options: ReceiverOptions): Promise<() =>
         unknownTotal,
         unknown: unknownRows,
         lastPacket: Object.fromEntries(lastPacket),
-        bridgeWarning,
+        bridgeWarning: bridgeSeen,
+        recvBufferBytes,
         updatedAt: new Date().toISOString(),
       });
     } catch (error) {
@@ -176,18 +232,12 @@ export async function runSyslogReceiver(options: ReceiverOptions): Promise<() =>
 
   void (async () => {
     while (!stopping) {
-      await refreshRegistry(state.registry == null);
+      kickRegistry();
       ensureSocket();
-      if (store.dirty() || held) {
+      if (store.dirty()) {
         try {
-          store.commit(held ?? [], new Date());
-          held = null;
+          store.commit([]);
         } catch (error) {
-          if (!store.dirty()) {
-            /* write rolled back; held stays for a retry */
-          } else {
-            held = null;
-          }
           logger.warn("smg.syslog.write_retry", {
             error: error instanceof Error ? error.message : String(error),
           });
@@ -195,51 +245,46 @@ export async function runSyslogReceiver(options: ReceiverOptions): Promise<() =>
           continue;
         }
       }
-      if (inbox.length > 0 && state.registry?.enabled) {
-        const batch = inbox;
-        inbox = [];
-        const known: SyslogPacket[] = [];
-        const ips = state.registry.ips;
-        for (const packet of batch) {
-          if (!ips.has(packet.ip)) {
-            rememberUnknown(packet.ip);
-            continue;
-          }
-          if (!frameDatagram(packet.payload)) continue;
-          known.push(packet);
-          lastPacket.set(packet.ip, new Date().toISOString());
-          accepted += 1;
-        }
-        if (known.length > 0) {
-          held = known;
+      held = absorbInbox(held);
+      if (held && held.length > 0) {
+        const batch = held;
+        try {
+          store.commit(batch);
+          held = null;
+        } catch (error) {
+          if (store.dirty()) held = null;
+          logger.warn("smg.syslog.write_retry", {
+            error: error instanceof Error ? error.message : String(error),
+          });
+          await sleep(RETRY_MS);
           continue;
         }
       }
-      if (state.registry) {
+      if (state.registry && inbox.length === 0 && !store.dirty() && !held) {
         try {
-          await store.pumpGzipSlice(new Date());
+          await store.pumpGzipSlice(new Date(), blockedKeys());
         } catch (error) {
           logger.warn("smg.syslog.gzip_retry", {
             error: error instanceof Error ? error.message : String(error),
           });
         }
       }
-      publishStatus();
+      publishStatus(false);
       if (stopping) break;
       if (inbox.length === 0 && !held && !store.dirty()) {
         await sleepOrWake(IDLE_MS);
       }
     }
     try {
-      if (store.dirty()) store.commit([], new Date());
-      else if (held) store.commit(held, new Date());
-      const current = state.registry;
-      if (current?.enabled && inbox.length > 0) {
-        const known = inbox.filter(
-          (packet) => current.ips.has(packet.ip) && frameDatagram(packet.payload),
-        );
-        if (known.length > 0) store.commit(known, new Date());
-      }
+      if (store.dirty()) store.commit([]);
+    } catch (error) {
+      logger.error("smg.syslog.shutdown_write_failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+    try {
+      held = absorbInbox(held);
+      if (held && held.length > 0) store.commit(held);
     } catch (error) {
       logger.error("smg.syslog.shutdown_write_failed", {
         error: error instanceof Error ? error.message : String(error),
@@ -247,7 +292,7 @@ export async function runSyslogReceiver(options: ReceiverOptions): Promise<() =>
     }
     store.close();
     if (state.socket) state.socket.close();
-    publishStatus();
+    publishStatus(true);
     resolveStopped();
   })();
 
@@ -256,9 +301,4 @@ export async function runSyslogReceiver(options: ReceiverOptions): Promise<() =>
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-export function offsetHoursForZone(zone: string | null | undefined): number {
-  const id = resolveDisplayTimezone(zone);
-  return TZ_OFFSET_HOURS[id];
 }

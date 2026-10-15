@@ -2,8 +2,9 @@ import { describe, expect, it } from "vitest";
 import { frameDatagram } from "@/modules/smg-syslog/frame";
 
 describe("syslog datagram framing", () => {
-  it("adds a newline when the datagram has none", () => {
-    expect(frameDatagram(Buffer.from("abc"))?.toString()).toBe("abc\n");
+  it("keeps a datagram that has no trailing newline", () => {
+    const raw = Buffer.from("abc");
+    expect(frameDatagram(raw)).toBe(raw);
   });
 
   it("keeps a datagram that already ends with a newline", () => {

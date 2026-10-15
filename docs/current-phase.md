@@ -1,7 +1,19 @@
-# Current Phase — production (v1.121.0)
+# Current Phase — production (v1.122.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, Eltex SMG CDR, Eltex SMG syslog.  
 **Date:** 2026-10-15
+
+## v1.122.0 — Keep every SMG syslog datagram, in UTC, byte for byte
+
+New syslog folders are UTC arrival time. The display timezone does not move them. A datagram accepted at 01:59 UTC and written at 02:05 UTC stays in hour 01. The bytes in the file are the UDP payload unchanged. An empty datagram is still not stored. Files already on disk are not rewritten and are not moved out of the hours they were given.
+
+A packet from a registered gateway is always written. A packet whose source is the Docker bridge gateway (`172.x.0.1`) is written under that address too, instead of being counted and dropped. «Syslog» lists that folder as «Мост Docker». Settings keeps the red warning while any such packet has been seen, including when other gateways are already accepted. The folder mixes every gateway until `userland-proxy` is turned off. Any other unknown address is still only counted.
+
+The registry read and gzip no longer stand in front of the write. A failed fsync is retried, and the next batch is still written. Gzip does not take a slot that still has queued datagrams or an open append. A gzip wait that does not finish removes only the partial archive. The raw log stays. The syslog database pool uses a 2 second `statement_timeout`. Status is rewritten every few seconds and includes the real UDP receive buffer. When the kernel clamped it below 16 MiB, Settings says so. The `smg-syslog` container is still not health-checked: a restart would drop whatever is not yet on disk.
+
+«Последний пакет» is explicitly UTC. The folder trail names the selected month, day, and hour, and marks them UTC.
+
+There is no new migration.
 
 ## v1.121.0 — Detail drops PSTN_*_OLD, and a missing geo row is not empty
 

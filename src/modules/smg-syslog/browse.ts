@@ -11,10 +11,37 @@ import {
 import path from "node:path";
 import { createGunzip } from "node:zlib";
 import { Readable } from "node:stream";
-import { canonicalIpv4 } from "@/modules/smg-syslog/ip";
+import { canonicalIpv4, looksLikeDockerBridge } from "@/modules/smg-syslog/ip";
 import { monthNominative } from "@/modules/traffic/month-labels";
 
 const SLOTS = new Set(["00", "10", "20", "30", "40", "50"]);
+const BRIDGE_DEVICE_NAME = "Мост Docker";
+
+export function isDockerBridgeDevice(ip: string): boolean {
+  const canonical = canonicalIpv4(ip);
+  return canonical != null && looksLikeDockerBridge(canonical);
+}
+
+/** Bridge directories are visible even though they are not registered nodes. */
+export function withBridgeDevices(
+  nodes: { ip: string; name: string }[],
+  root: string,
+): { ip: string; name: string }[] {
+  const seen = new Set(nodes.map((node) => node.ip));
+  return [...nodes, ...listBridgeDevices(root).filter((device) => !seen.has(device.ip))];
+}
+
+function listBridgeDevices(root: string): { ip: string; name: string }[] {
+  try {
+    return readdirSync(root, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() && looksLikeDockerBridge(entry.name))
+      .map((entry) => entry.name)
+      .sort()
+      .map((ip) => ({ ip, name: BRIDGE_DEVICE_NAME }));
+  } catch {
+    return [];
+  }
+}
 
 export type SyslogFolder = {
   name: string;
@@ -174,7 +201,9 @@ export function listSyslogLevel(
     const archived = name.endsWith(".log.gz");
     const raw = name.endsWith(".log");
     if (!archived && !raw) continue;
-    const slot = archived ? name.slice(0, -".log.gz".length) : name.slice(0, -".log".length);
+    const slot = archived
+      ? name.slice(0, -".log.gz".length)
+      : name.slice(0, -".log".length);
     if (!slotOk(slot)) continue;
     const full = safeJoin(dir, name);
     if (!full) continue;
@@ -320,10 +349,7 @@ export function streamDownload(download: SyslogDownload): {
   };
 }
 
-async function* concatStreams(
-  first: Readable,
-  second: Readable,
-): AsyncGenerator<Buffer> {
+async function* concatStreams(first: Readable, second: Readable): AsyncGenerator<Buffer> {
   for await (const chunk of first) {
     yield Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
   }

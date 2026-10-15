@@ -15,6 +15,8 @@ export type SyslogStatus = {
   unknown: { ip: string; count: number }[];
   lastPacket: Record<string, string>;
   bridgeWarning: boolean;
+  /** SO_RCVBUF after bind, or null before the socket is up. */
+  recvBufferBytes: number | null;
   updatedAt: string;
 };
 
@@ -30,6 +32,7 @@ export function emptyStatus(): SyslogStatus {
     unknown: [],
     lastPacket: {},
     bridgeWarning: false,
+    recvBufferBytes: null,
     updatedAt: new Date(0).toISOString(),
   };
 }
@@ -57,7 +60,12 @@ export function readStatus(root: string): SyslogStatus | null {
     const raw = readFileSync(statusPath(root), "utf8");
     const parsed = JSON.parse(raw) as Partial<SyslogStatus>;
     if (!parsed || typeof parsed !== "object") return null;
-    return { ...emptyStatus(), ...parsed, unknown: parsed.unknown ?? [], lastPacket: parsed.lastPacket ?? {} };
+    return {
+      ...emptyStatus(),
+      ...parsed,
+      unknown: parsed.unknown ?? [],
+      lastPacket: parsed.lastPacket ?? {},
+    };
   } catch {
     return null;
   }

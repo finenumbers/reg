@@ -24,13 +24,18 @@ import { PARTIAL_GZ_SUFFIX } from "@/modules/smg-syslog/paths";
 const FILE_MODE = 0o640;
 const DIR_MODE = 0o750;
 const SLICE_BYTES = 256 * 1024;
+const GZIP_WAIT_MS = 10_000;
 
 export type SyslogPacket = {
   ip: string;
   payload: Buffer;
+  /** UTC instant the datagram was taken from the socket. */
+  receivedAt: Date;
 };
 
 type GzipJob = {
+  fileKey: string;
+  hadOld: boolean;
   logPath: string;
   finalPath: string;
   partialPath: string;
@@ -57,7 +62,15 @@ function writeFull(fd: number, buf: Buffer): void {
 }
 
 function intervalLogPath(root: string, ip: string, bucket: SyslogBucket): string {
-  return path.join(root, ip, bucket.year, bucket.month, bucket.day, bucket.hour, `${bucket.slot}.log`);
+  return path.join(
+    root,
+    ip,
+    bucket.year,
+    bucket.month,
+    bucket.day,
+    bucket.hour,
+    `${bucket.slot}.log`,
+  );
 }
 
 function ensureDir(dir: string): void {
@@ -73,34 +86,45 @@ export class SyslogStore {
   private readonly fds = new Map<string, number>();
   private needsFsync = false;
   private job: GzipJob | null = null;
-  private readonly offsetHours: () => number;
+  private failFsync = false;
+  private readonly gzipWaitMs: number;
 
   constructor(
     private readonly root: string,
-    offsetHours: number | (() => number),
+    options?: { gzipWaitMs?: number },
   ) {
-    this.offsetHours = typeof offsetHours === "function" ? offsetHours : () => offsetHours;
+    this.gzipWaitMs = options?.gzipWaitMs ?? GZIP_WAIT_MS;
     ensureDir(root);
+  }
+
+  /** Next fsync throws once. The bytes already written stay on disk. */
+  failNextFsync(): void {
+    this.failFsync = true;
   }
 
   dirty(): boolean {
     return this.needsFsync;
   }
 
-  /** Write a batch, then fsync. If a previous fsync failed, only fsync. */
-  commit(packets: readonly SyslogPacket[], now: Date): void {
+  /**
+   * Write a batch by each datagram's arrival time, then fsync.
+   * A failed fsync is retried before the next batch is written, so the
+   * retry does not drop that batch and does not write the previous one twice.
+   */
+  commit(packets: readonly SyslogPacket[]): void {
     if (this.needsFsync) {
       this.fsyncOpen();
       this.needsFsync = false;
-      this.closeStale(now);
+    }
+    if (packets.length === 0) {
+      this.closeStale();
       return;
     }
-    if (packets.length === 0) return;
-    this.writeAll(packets, now);
+    this.writeAll(packets);
     this.needsFsync = true;
     this.fsyncOpen();
     this.needsFsync = false;
-    this.closeStale(now);
+    this.closeStale();
   }
 
   close(): void {
@@ -111,9 +135,14 @@ export class SyslogStore {
     this.abortJob();
   }
 
-  /** One slice of gzip for a closed interval. Never touches the current bucket. */
-  async pumpGzipSlice(now: Date): Promise<void> {
-    if (!this.job) this.job = this.takeJob(now);
+  /**
+   * One slice of gzip for a closed interval.
+   * `blocked` slots still have queued datagrams or an open append, so they
+   * are left as raw logs. A timed-out slice deletes only the partial archive.
+   */
+  async pumpGzipSlice(now: Date, blocked: ReadonlySet<string>): Promise<void> {
+    if (this.job && blocked.has(this.job.fileKey)) this.abortJob();
+    if (!this.job) this.job = this.takeJob(now, blocked);
     if (!this.job) return;
     if (this.job.failed) {
       this.abortJob();
@@ -121,6 +150,10 @@ export class SyslogStore {
     }
     const job = this.job;
     try {
+      if (blocked.has(job.fileKey) || this.logGrew(job)) {
+        this.abortJob();
+        return;
+      }
       if (job.phase === "prefix") {
         await this.pumpPrefix(job);
         return;
@@ -139,19 +172,19 @@ export class SyslogStore {
   countPendingRaw(now: Date): number {
     let count = 0;
     for (const file of walkLogs(this.root)) {
-      const key = bucketKeyFromLog(file, this.root);
-      if (key && isPastBucket(key, now, this.offsetHours())) count += 1;
+      const key = timeKeyFromLog(file, this.root);
+      if (key && isPastBucket(key, now)) count += 1;
     }
     return count;
   }
 
-  private writeAll(packets: readonly SyslogPacket[], now: Date): void {
-    const bucket = bucketOf(now, this.offsetHours());
+  private writeAll(packets: readonly SyslogPacket[]): void {
     const touched = new Map<number, number>();
     try {
       for (const packet of packets) {
         const framed = frameDatagram(packet.payload);
         if (!framed) continue;
+        const bucket = bucketOf(packet.receivedAt, 0);
         const file = intervalLogPath(this.root, packet.ip, bucket);
         ensureDir(path.dirname(file));
         const fd = this.openAppend(file);
@@ -179,32 +212,37 @@ export class SyslogStore {
   }
 
   private fsyncOpen(): void {
+    if (this.failFsync) {
+      this.failFsync = false;
+      throw new Error("fsync failed");
+    }
     for (const fd of this.fds.values()) fsyncSync(fd);
   }
 
-  private closeStale(now: Date): void {
-    const current = intervalLogPath(this.root, "", bucketOf(now, this.offsetHours()));
+  private closeStale(): void {
+    const current = intervalLogPath(this.root, "", bucketOf(new Date(), 0));
     const currentSuffix = current.slice(this.root.length);
     for (const [file, fd] of this.fds) {
       const suffix = file.slice(this.root.length);
       if (suffix.endsWith(currentSuffix)) continue;
-      fsyncSync(fd);
       closeSync(fd);
       this.fds.delete(file);
     }
   }
 
-  private takeJob(now: Date): GzipJob | null {
+  private takeJob(now: Date, blocked: ReadonlySet<string>): GzipJob | null {
     for (const logPath of walkLogs(this.root)) {
       if (this.fds.has(logPath)) continue;
-      const key = bucketKeyFromLog(logPath, this.root);
-      if (!key || !isPastBucket(key, now, this.offsetHours())) continue;
-      return this.openJob(logPath);
+      const timeKey = timeKeyFromLog(logPath, this.root);
+      const fileKey = fileKeyFromLog(logPath, this.root);
+      if (!timeKey || !fileKey || !isPastBucket(timeKey, now)) continue;
+      if (blocked.has(fileKey)) continue;
+      return this.openJob(logPath, fileKey);
     }
     return null;
   }
 
-  private openJob(logPath: string): GzipJob {
+  private openJob(logPath: string, fileKey: string): GzipJob {
     const finalPath = `${logPath}.gz`;
     const partialPath = `${logPath}.gz.partial`;
     const gzip = createGzip();
@@ -215,6 +253,8 @@ export class SyslogStore {
     const logStat = statSync(logPath);
     const gunzip = oldExists ? createGunzip() : null;
     const job: GzipJob = {
+      fileKey,
+      hadOld: oldExists,
       logPath,
       finalPath,
       partialPath,
@@ -231,6 +271,9 @@ export class SyslogStore {
       failed: false,
     };
     gzip.on("error", () => {
+      job.failed = true;
+    });
+    out.on("error", () => {
       job.failed = true;
     });
     if (gunzip) {
@@ -254,11 +297,11 @@ export class SyslogStore {
     if (n > 0) {
       job.oldOffset += n;
       const ok = job.gunzip.write(buf.subarray(0, n));
-      if (!ok) await once(job.gunzip, "drain");
+      if (!ok) await this.waitFor(job.gunzip, "drain");
       return;
     }
     job.gunzip.end();
-    await once(job.gunzip, "end");
+    await this.waitFor(job.gunzip, "end");
     closeSync(job.oldFd);
     job.oldFd = null;
     job.phase = "log";
@@ -270,29 +313,80 @@ export class SyslogStore {
     if (n > 0) {
       job.logOffset += n;
       const ok = job.gzip.write(buf.subarray(0, n));
-      if (!ok) await once(job.gzip, "drain");
+      if (!ok) await this.waitFor(job.gzip, "drain");
       return;
     }
     job.phase = "finish";
   }
 
   private async finishJob(job: GzipJob): Promise<void> {
+    if (this.logGrew(job)) throw new Error("log grew");
     const finished = new Promise<void>((resolve, reject) => {
       job.out.once("finish", () => resolve());
       job.out.once("error", reject);
       job.gzip.once("error", reject);
     });
     job.gzip.end();
-    await finished;
+    await this.raceTimeout(finished);
+    if (this.logGrew(job)) throw new Error("log grew");
     const fd = openSync(job.partialPath, "r+");
     try {
       fsyncSync(fd);
     } finally {
       closeSync(fd);
     }
+    if (this.logGrew(job)) throw new Error("log grew");
     closeSync(job.logFd);
+    job.logFd = -1;
     renameSync(job.partialPath, job.finalPath);
+    if (this.logGrew(job)) {
+      if (!job.hadOld) {
+        try {
+          unlinkSync(job.finalPath);
+        } catch {
+          /* the raw log still has every byte */
+        }
+      }
+      return;
+    }
     unlinkSync(job.logPath);
+  }
+
+  private logGrew(job: GzipJob): boolean {
+    try {
+      return statSync(job.logPath).size !== job.logSize;
+    } catch {
+      return true;
+    }
+  }
+
+  private async waitFor(emitter: Gzip | Gunzip, event: "drain" | "end"): Promise<void> {
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), this.gzipWaitMs);
+    try {
+      await once(emitter, event, { signal: ac.signal });
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  private raceTimeout(promise: Promise<void>): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(
+        () => reject(new Error("syslog gzip timed out")),
+        this.gzipWaitMs,
+      );
+      promise.then(
+        () => {
+          clearTimeout(timer);
+          resolve();
+        },
+        (error: unknown) => {
+          clearTimeout(timer);
+          reject(error);
+        },
+      );
+    });
   }
 
   private abortJob(): void {
@@ -317,10 +411,12 @@ export class SyslogStore {
         /* already closed */
       }
     }
-    try {
-      closeSync(job.logFd);
-    } catch {
-      /* already closed */
+    if (job.logFd >= 0) {
+      try {
+        closeSync(job.logFd);
+      } catch {
+        /* already closed */
+      }
     }
     try {
       unlinkSync(job.partialPath);
@@ -338,13 +434,32 @@ function existsFile(file: string): boolean {
   }
 }
 
-function bucketKeyFromLog(file: string, root: string): string | null {
+function timeKeyFromLog(file: string, root: string): string | null {
+  const parts = logParts(file, root);
+  if (!parts) return null;
+  return `${parts[1]}/${parts[2]}/${parts[3]}/${parts[4]}/${parts[5]}`;
+}
+
+function fileKeyFromLog(file: string, root: string): string | null {
+  const parts = logParts(file, root);
+  if (!parts) return null;
+  return parts.join("/");
+}
+
+function logParts(file: string, root: string): string[] | null {
   const relative = path.relative(root, file);
   const parts = relative.split(path.sep);
   if (parts.length !== 6) return null;
   const slot = parts[5]?.replace(/\.log$/, "");
   if (!slot) return null;
-  return `${parts[1]}/${parts[2]}/${parts[3]}/${parts[4]}/${slot}`;
+  return [
+    parts[0] ?? "",
+    parts[1] ?? "",
+    parts[2] ?? "",
+    parts[3] ?? "",
+    parts[4] ?? "",
+    slot,
+  ];
 }
 
 function walkLogs(root: string): string[] {
@@ -390,7 +505,9 @@ export function removePartialArchives(root: string): void {
   } catch {
     return;
   }
-  const stack = ips.filter((name) => !name.startsWith(".")).map((name) => path.join(root, name));
+  const stack = ips
+    .filter((name) => !name.startsWith("."))
+    .map((name) => path.join(root, name));
   while (stack.length > 0) {
     const current = stack.pop();
     if (!current) continue;

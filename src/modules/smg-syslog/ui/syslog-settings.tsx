@@ -88,11 +88,14 @@ export function SyslogSettings() {
     if (next == null) return;
     setBusy(true);
     try {
-      const res = await fetch(`/api/settings/smg-syslog/nodes/${encodeURIComponent(node.ip)}`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name: next }),
-      });
+      const res = await fetch(
+        `/api/settings/smg-syslog/nodes/${encodeURIComponent(node.ip)}`,
+        {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ name: next }),
+        },
+      );
       const body = (await res.json()) as { error?: string };
       if (!res.ok) {
         toast.error(body.error ?? "Не удалось переименовать узел");
@@ -105,14 +108,21 @@ export function SyslogSettings() {
   }
 
   async function remove(node: NodeRow) {
-    if (!window.confirm(`Удалить узел ${node.name}? Уже записанные файлы останутся на диске.`)) {
+    if (
+      !window.confirm(
+        `Удалить узел ${node.name}? Уже записанные файлы останутся на диске.`,
+      )
+    ) {
       return;
     }
     setBusy(true);
     try {
-      const res = await fetch(`/api/settings/smg-syslog/nodes/${encodeURIComponent(node.ip)}`, {
-        method: "DELETE",
-      });
+      const res = await fetch(
+        `/api/settings/smg-syslog/nodes/${encodeURIComponent(node.ip)}`,
+        {
+          method: "DELETE",
+        },
+      );
       const body = (await res.json()) as { error?: string };
       if (!res.ok) {
         toast.error(body.error ?? "Не удалось удалить узел");
@@ -128,10 +138,11 @@ export function SyslogSettings() {
   return (
     <section className="space-y-4">
       <h2 className="text-base font-semibold">Syslog — SMG</h2>
-      <p className="text-sm text-muted-foreground">
-        На шлюзе укажите UDP-порт {data?.advertisePort ?? "514"} и IP этого хоста. В список
-        попадает адрес, с которого пакет приходит на сервер. Неизвестный адрес не сохраняется.
-        Трассировки, история команд и журнал доступа направляются на один и тот же адрес.
+      <p className="text-muted-foreground text-sm">
+        На шлюзе укажите UDP-порт {data?.advertisePort ?? "514"} и IP этого хоста. В
+        список попадает адрес, с которого пакет приходит на сервер. Неизвестный адрес не
+        сохраняется. Трассировки, история команд и журнал доступа направляются на один и
+        тот же адрес.
       </p>
       <div className="flex items-center gap-2">
         <input
@@ -150,23 +161,30 @@ export function SyslogSettings() {
         )}
       </div>
       {status?.bindError ? (
-        <p className="text-sm text-destructive">{status.bindError}</p>
+        <p className="text-destructive text-sm">{status.bindError}</p>
       ) : null}
       {status?.bridgeWarning ? (
-        <p className="text-sm text-destructive">
-          Пакеты приходят с адреса моста Docker, а не с адреса шлюза. На демоне Docker выключите
-          userland-proxy и пересоздайте контейнер приёмника.
+        <p className="text-destructive text-sm">
+          Часть пакетов приходит с адреса моста Docker и пишется в его каталог, без
+          разделения по шлюзам. На демоне Docker выключите userland-proxy и пересоздайте
+          контейнер приёмника.
+        </p>
+      ) : null}
+      {status?.recvBufferBytes != null && status.recvBufferBytes < 16 * 1024 * 1024 ? (
+        <p className="text-destructive text-sm">
+          Буфер приёма UDP {formatBytes(status.recvBufferBytes)} вместо 16 МБ. Поднимите
+          net.core.rmem_max, иначе ядро теряет датаграммы до процесса.
         </p>
       ) : null}
       {status?.lowSpace ? (
-        <p className="text-sm text-destructive">
+        <p className="text-destructive text-sm">
           На томе Syslog меньше 1 ГБ свободно
           {status.freeBytes != null ? ` (${formatBytes(status.freeBytes)})` : ""}. Запись
           продолжается, пока место не кончится.
         </p>
       ) : null}
       {status && status.unknownTotal > 0 ? (
-        <p className="text-sm text-muted-foreground">
+        <p className="text-muted-foreground text-sm">
           Отброшено с неизвестных адресов: {status.unknownTotal}
           {status.unknown.length > 0
             ? `. Последние: ${status.unknown.map((row) => row.ip).join(", ")}`
@@ -194,7 +212,11 @@ export function SyslogSettings() {
             autoComplete="off"
           />
         </div>
-        <Button type="button" disabled={busy || !ip.trim() || !name.trim()} onClick={() => void addNode()}>
+        <Button
+          type="button"
+          disabled={busy || !ip.trim() || !name.trim()}
+          onClick={() => void addNode()}
+        >
           Добавить
         </Button>
       </div>
@@ -205,13 +227,25 @@ export function SyslogSettings() {
             <span className="text-muted-foreground">{node.ip}</span>
             <span className="text-muted-foreground">
               {status?.lastPacket[node.ip]
-                ? `последний пакет ${status.lastPacket[node.ip]}`
+                ? `последний пакет ${status.lastPacket[node.ip]} UTC`
                 : "с запуска пакетов не было"}
             </span>
-            <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => void rename(node)}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={busy}
+              onClick={() => void rename(node)}
+            >
               Переименовать
             </Button>
-            <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => void remove(node)}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={busy}
+              onClick={() => void remove(node)}
+            >
               Удалить
             </Button>
           </li>

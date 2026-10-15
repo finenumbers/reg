@@ -1,6 +1,6 @@
 /**
- * 10-minute folders from arrival time plus the display-zone offset.
- * The curated zones have no DST, so a fixed hour offset matches the UI clock.
+ * 10-minute folders. Syslog reception always passes offset 0, so the folders
+ * are UTC. The offset argument remains for the calendar math.
  */
 
 export type SyslogBucket = {
@@ -33,6 +33,12 @@ export function bucketKey(bucket: SyslogBucket): string {
   return `${bucket.year}/${bucket.month}/${bucket.day}/${bucket.hour}/${bucket.slot}`;
 }
 
-export function isPastBucket(fileKey: string, now: Date, offsetHours: number): boolean {
-  return fileKey < bucketKey(bucketOf(now, offsetHours));
+/** True when a UTC slot key is strictly before the slot that contains `now`. */
+export function isPastBucket(fileKey: string, now: Date): boolean {
+  return fileKey < bucketKey(bucketOf(now, 0));
+}
+
+/** `ip/year/month/day/hour/slot` for one source at one UTC arrival. */
+export function syslogFileKey(ip: string, at: Date): string {
+  return `${ip}/${bucketKey(bucketOf(at, 0))}`;
 }
