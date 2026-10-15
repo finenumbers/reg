@@ -2,7 +2,7 @@ import {
   closeSync,
   createWriteStream,
   fstatSync,
-  fsyncSync,
+  fsync as fsyncCallback,
   ftruncateSync,
   mkdirSync,
   openSync,
@@ -11,7 +11,7 @@ import {
   renameSync,
   statSync,
   unlinkSync,
-  writeSync,
+  write as writeCallback,
 } from "node:fs";
 import type { WriteStream } from "node:fs";
 import { once } from "node:events";
@@ -52,13 +52,31 @@ type GzipJob = {
   failed: boolean;
 };
 
-function writeFull(fd: number, buf: Buffer): void {
-  let offset = 0;
-  while (offset < buf.length) {
-    const wrote = writeSync(fd, buf, offset, buf.length - offset);
-    if (wrote <= 0) throw new Error("short write");
-    offset += wrote;
-  }
+function fsyncAsync(fd: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    fsyncCallback(fd, (error) => (error ? reject(error) : resolve()));
+  });
+}
+
+/** Append the whole buffer. A null position keeps O_APPEND; zero would overwrite. */
+function writeFull(fd: number, buf: Buffer): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const step = (offset: number) => {
+      writeCallback(fd, buf, offset, buf.length - offset, null, (error, written) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        if (written <= 0) {
+          reject(new Error("short write"));
+          return;
+        }
+        if (offset + written >= buf.length) resolve();
+        else step(offset + written);
+      });
+    };
+    step(0);
+  });
 }
 
 function intervalLogPath(root: string, ip: string, bucket: SyslogBucket): string {
@@ -88,12 +106,14 @@ export class SyslogStore {
   private job: GzipJob | null = null;
   private failFsync = false;
   private readonly gzipWaitMs: number;
+  private readonly syncFile: (fd: number) => Promise<void>;
 
   constructor(
     private readonly root: string,
-    options?: { gzipWaitMs?: number },
+    options?: { gzipWaitMs?: number; syncFile?: (fd: number) => Promise<void> },
   ) {
     this.gzipWaitMs = options?.gzipWaitMs ?? GZIP_WAIT_MS;
+    this.syncFile = options?.syncFile ?? fsyncAsync;
     ensureDir(root);
   }
 
@@ -111,25 +131,27 @@ export class SyslogStore {
    * A failed fsync is retried before the next batch is written, so the
    * retry does not drop that batch and does not write the previous one twice.
    */
-  commit(packets: readonly SyslogPacket[]): void {
+  async commit(packets: readonly SyslogPacket[]): Promise<void> {
     if (this.needsFsync) {
-      this.fsyncOpen();
+      await this.fsyncOpen();
       this.needsFsync = false;
     }
     if (packets.length === 0) {
       this.closeStale();
       return;
     }
-    this.writeAll(packets);
+    await this.writeAll(packets);
     this.needsFsync = true;
-    this.fsyncOpen();
+    await this.fsyncOpen();
     this.needsFsync = false;
     this.closeStale();
   }
 
-  close(): void {
-    this.fsyncOpen();
-    this.needsFsync = false;
+  async close(): Promise<void> {
+    if (this.needsFsync) {
+      await this.fsyncOpen();
+      this.needsFsync = false;
+    }
     for (const fd of this.fds.values()) closeSync(fd);
     this.fds.clear();
     this.abortJob();
@@ -178,7 +200,8 @@ export class SyslogStore {
     return count;
   }
 
-  private writeAll(packets: readonly SyslogPacket[]): void {
+  private async writeAll(packets: readonly SyslogPacket[]): Promise<void> {
+    const chunks = new Map<number, Buffer[]>();
     const touched = new Map<number, number>();
     try {
       for (const packet of packets) {
@@ -188,8 +211,14 @@ export class SyslogStore {
         const file = intervalLogPath(this.root, packet.ip, bucket);
         ensureDir(path.dirname(file));
         const fd = this.openAppend(file);
-        if (!touched.has(fd)) touched.set(fd, fstatSync(fd).size);
-        writeFull(fd, framed);
+        if (!touched.has(fd)) {
+          touched.set(fd, fstatSync(fd).size);
+          chunks.set(fd, []);
+        }
+        chunks.get(fd)?.push(framed);
+      }
+      for (const [fd, parts] of chunks) {
+        await writeFull(fd, Buffer.concat(parts));
       }
     } catch (error) {
       for (const [fd, size] of touched) {
@@ -211,12 +240,12 @@ export class SyslogStore {
     return fd;
   }
 
-  private fsyncOpen(): void {
+  private async fsyncOpen(): Promise<void> {
     if (this.failFsync) {
       this.failFsync = false;
       throw new Error("fsync failed");
     }
-    for (const fd of this.fds.values()) fsyncSync(fd);
+    for (const fd of this.fds.values()) await this.syncFile(fd);
   }
 
   private closeStale(): void {
@@ -331,7 +360,7 @@ export class SyslogStore {
     if (this.logGrew(job)) throw new Error("log grew");
     const fd = openSync(job.partialPath, "r+");
     try {
-      fsyncSync(fd);
+      await this.syncFile(fd);
     } finally {
       closeSync(fd);
     }

@@ -1,7 +1,13 @@
-# Current Phase — production (v1.125.0)
+# Current Phase — production (v1.126.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, Eltex SMG CDR, Eltex SMG syslog.  
 **Date:** 2026-10-15
+
+## v1.126.0 — SMG syslog fsync no longer blocks the socket
+
+The receiver writes and fsyncs each batch on the disk thread pool. The UDP socket keeps being read while that wait runs. Datagrams that arrive during the wait stay in memory, with no cap, and are appended in order after the batch has been synced. A failed write still truncates that batch and tries it again. A failed fsync still syncs the bytes already written and does not write them a second time.
+
+On shutdown the process reads what the kernel has already queued, then closes the socket, then fsyncs. Datagrams still in flight after the socket closes are lost. A disk that stays slower than the arrival rate grows the process memory instead of the kernel drop counter. There is no new migration.
 
 ## v1.125.0 — IBM Plex Sans is stored with the app
 

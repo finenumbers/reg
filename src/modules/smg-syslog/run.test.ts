@@ -1,5 +1,5 @@
 import dgram from "node:dgram";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { fsync as fsyncCallback, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -86,6 +86,68 @@ describe("syslog receiver", () => {
       `${bucket.slot}.log`,
     );
     expect(readFileSync(file, "utf8")).toBe("after-hang");
+  });
+
+  it("keeps datagrams that arrive while fsync waits", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "smg-syslog-recv-"));
+    dirs.push(root);
+    const port = 20000 + Math.floor(Math.random() * 20000);
+    let holds = 0;
+    let releaseHold: (() => void) | undefined;
+    let markEntered: (() => void) | undefined;
+    const entered = new Promise<void>((resolve) => {
+      markEntered = resolve;
+    });
+    const hold = new Promise<void>((resolve) => {
+      releaseHold = resolve;
+    });
+    const stop = await runSyslogReceiver({
+      port,
+      root,
+      loadRegistry: async () => ({
+        enabled: true,
+        ips: new Set(["127.0.0.1"]),
+      }),
+      syncFile: async (fd) => {
+        holds += 1;
+        if (holds === 1) {
+          markEntered?.();
+          await hold;
+        }
+        await new Promise<void>((resolve, reject) => {
+          fsyncCallback(fd, (error) => (error ? reject(error) : resolve()));
+        });
+      },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const socket = dgram.createSocket("udp4");
+    const send = (payload: string) =>
+      new Promise<void>((resolve, reject) => {
+        socket.send(Buffer.from(payload), port, "127.0.0.1", (error) => {
+          if (error) reject(error);
+          else resolve();
+        });
+      });
+    await send("A");
+    await entered;
+    await send("B");
+    await send("C");
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    releaseHold?.();
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    socket.close();
+    await stop();
+    const bucket = bucketOf(new Date(), 0);
+    const file = path.join(
+      root,
+      "127.0.0.1",
+      bucket.year,
+      bucket.month,
+      bucket.day,
+      bucket.hour,
+      `${bucket.slot}.log`,
+    );
+    expect(readFileSync(file, "utf8")).toBe("ABC");
   });
 
   it("accepts a registered address and the docker bridge, and rejects another", () => {

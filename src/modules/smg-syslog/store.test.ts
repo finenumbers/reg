@@ -33,9 +33,9 @@ describe("syslog files", () => {
     const store = new SyslogStore(root);
     const when = new Date("2026-10-14T19:50:30Z");
     const payload = Buffer.from([0x41, 0xff, 0x42]);
-    store.commit([packet("10.1.2.3", payload, when)]);
-    store.commit([packet("10.1.2.3", "second", when)]);
-    store.close();
+    await store.commit([packet("10.1.2.3", payload, when)]);
+    await store.commit([packet("10.1.2.3", "second", when)]);
+    await store.close();
 
     const later = new Date("2026-10-14T20:00:00Z");
     const again = new SyslogStore(root);
@@ -74,8 +74,8 @@ describe("syslog files", () => {
     const root = tempRoot();
     const store = new SyslogStore(root);
     const when = new Date("2026-10-14T19:50:30Z");
-    store.commit([packet("10.1.2.3", "live", when)]);
-    store.close();
+    await store.commit([packet("10.1.2.3", "live", when)]);
+    await store.close();
     const again = new SyslogStore(root);
     await again.pumpGzipSlice(when, new Set());
     const list = listSyslogLevel(root, "10.1.2.3", {
@@ -106,29 +106,29 @@ describe("syslog files", () => {
     ).toBeNull();
   });
 
-  it("reopens the same interval without truncating it", () => {
+  it("reopens the same interval without truncating it", async () => {
     const root = tempRoot();
     const store = new SyslogStore(root);
     const when = new Date("2026-10-14T19:51:00Z");
-    store.commit([packet("10.1.2.3", "one", when)]);
-    store.close();
+    await store.commit([packet("10.1.2.3", "one", when)]);
+    await store.close();
     const again = new SyslogStore(root);
-    again.commit([packet("10.1.2.3", "two", when)]);
-    again.close();
+    await again.commit([packet("10.1.2.3", "two", when)]);
+    await again.close();
     const raw = readFileSync(
       path.join(root, "10.1.2.3", "2026", "10", "14", "19", "50.log"),
     );
     expect(raw.toString()).toBe("onetwo");
   });
 
-  it("files each datagram by its UTC arrival, not by the commit clock", () => {
+  it("files each datagram by its UTC arrival, not by the commit clock", async () => {
     const root = tempRoot();
     const store = new SyslogStore(root);
-    store.commit([
+    await store.commit([
       packet("10.1.2.3", "early", new Date("2026-10-15T01:59:00Z")),
       packet("10.1.2.3", "later", new Date("2026-10-15T02:05:00Z")),
     ]);
-    store.close();
+    await store.close();
     expect(
       readFileSync(
         path.join(root, "10.1.2.3", "2026", "10", "15", "01", "50.log"),
@@ -143,16 +143,16 @@ describe("syslog files", () => {
     ).toBe("later");
   });
 
-  it("keeps the next batch when the previous fsync failed", () => {
+  it("keeps the next batch when the previous fsync failed", async () => {
     const root = tempRoot();
     const store = new SyslogStore(root);
     store.failNextFsync();
-    expect(() =>
+    await expect(
       store.commit([packet("10.1.2.3", "early", new Date("2026-10-15T01:59:00Z"))]),
-    ).toThrow(/fsync failed/);
+    ).rejects.toThrow(/fsync failed/);
     expect(store.dirty()).toBe(true);
-    store.commit([packet("10.1.2.3", "later", new Date("2026-10-15T02:05:00Z"))]);
-    store.close();
+    await store.commit([packet("10.1.2.3", "later", new Date("2026-10-15T02:05:00Z"))]);
+    await store.close();
     expect(
       readFileSync(
         path.join(root, "10.1.2.3", "2026", "10", "15", "01", "50.log"),
@@ -171,8 +171,8 @@ describe("syslog files", () => {
     const root = tempRoot();
     const when = new Date("2026-10-14T19:50:30Z");
     const store = new SyslogStore(root);
-    store.commit([packet("10.1.2.3", "queued", when)]);
-    store.close();
+    await store.commit([packet("10.1.2.3", "queued", when)]);
+    await store.close();
     const again = new SyslogStore(root);
     const key = syslogFileKey("10.1.2.3", when);
     await again.pumpGzipSlice(new Date("2026-10-14T20:00:00Z"), new Set([key]));
@@ -185,8 +185,8 @@ describe("syslog files", () => {
     const root = tempRoot();
     const when = new Date("2026-10-14T19:50:30Z");
     const store = new SyslogStore(root);
-    store.commit([packet("10.1.2.3", "queued", when)]);
-    store.close();
+    await store.commit([packet("10.1.2.3", "queued", when)]);
+    await store.close();
     const again = new SyslogStore(root);
     const later = new Date("2026-10-14T20:00:00Z");
     await again.pumpGzipSlice(later, new Set());

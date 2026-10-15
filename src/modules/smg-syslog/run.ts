@@ -28,6 +28,8 @@ export type ReceiverOptions = {
   port: number;
   root: string;
   loadRegistry: () => Promise<SyslogRegistry>;
+  /** Replaces the file fsync. Tests hold it open while more datagrams arrive. */
+  syncFile?: (fd: number) => Promise<void>;
 };
 
 /** A registered gateway, or the Docker bridge that rewrote its source address. */
@@ -37,9 +39,9 @@ export function syslogSourceAccepted(ip: string, ips: ReadonlySet<string>): bool
 
 /**
  * UDP receiver. Known sources and the Docker bridge are appended and fsynced
- * as one batch. Other addresses are counted and dropped. Registry refresh and
- * gzip never sit in front of that write. The process stays up when reception
- * is disabled.
+ * as one batch. Disk waits on the libuv pool, so the socket keeps being read.
+ * Other addresses are counted and dropped. Registry refresh and gzip never sit
+ * in front of that write. The process stays up when reception is disabled.
  */
 export async function runSyslogReceiver(
   options: ReceiverOptions,
@@ -54,7 +56,7 @@ export async function runSyslogReceiver(
   let registryError: string | null = null;
   let nextRegistryAt = 0;
   let registryInflight: Promise<void> | null = null;
-  const store = new SyslogStore(options.root);
+  const store = new SyslogStore(options.root, { syncFile: options.syncFile });
   let inbox: SyslogPacket[] = [];
   let held: SyslogPacket[] | null = null;
   let bindError: string | null = null;
@@ -70,6 +72,16 @@ export async function runSyslogReceiver(
   const lastPacket = new Map<string, string>();
   let accepted = 0;
   let wake: (() => void) | null = null;
+
+  async function pullQueuedDatagrams(): Promise<void> {
+    let idle = 0;
+    for (let turn = 0; turn < 100 && idle < 2; turn += 1) {
+      const before = inbox.length;
+      await sleep(5);
+      if (inbox.length === before) idle += 1;
+      else idle = 0;
+    }
+  }
 
   function sleepOrWake(ms: number): Promise<void> {
     return new Promise((resolve) => {
@@ -279,7 +291,7 @@ export async function runSyslogReceiver(
       ensureSocket();
       if (store.dirty()) {
         try {
-          store.commit([]);
+          await store.commit([]);
         } catch (error) {
           logger.warn("smg.syslog.write_retry", {
             error: error instanceof Error ? error.message : String(error),
@@ -292,7 +304,7 @@ export async function runSyslogReceiver(
       if (held && held.length > 0) {
         const batch = held;
         try {
-          store.commit(batch);
+          await store.commit(batch);
           held = null;
         } catch (error) {
           if (store.dirty()) held = null;
@@ -318,23 +330,28 @@ export async function runSyslogReceiver(
         await sleepOrWake(IDLE_MS);
       }
     }
+    await pullQueuedDatagrams();
+    const socket = state.socket;
+    state.socket = null;
+    listening = false;
+    if (socket) socket.close();
+    await sleep(0);
     try {
-      if (store.dirty()) store.commit([]);
-    } catch (error) {
-      logger.error("smg.syslog.shutdown_write_failed", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
-    try {
+      if (store.dirty()) await store.commit([]);
       held = absorbInbox(held);
-      if (held && held.length > 0) store.commit(held);
+      if (held && held.length > 0) await store.commit(held);
     } catch (error) {
       logger.error("smg.syslog.shutdown_write_failed", {
         error: error instanceof Error ? error.message : String(error),
       });
     }
-    store.close();
-    if (state.socket) state.socket.close();
+    try {
+      await store.close();
+    } catch (error) {
+      logger.error("smg.syslog.shutdown_write_failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
     publishStatus(true);
     resolveStopped();
   })();
