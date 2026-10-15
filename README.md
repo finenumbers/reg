@@ -2,7 +2,7 @@
 
 Internal telecom ops platform for monitoring SIP registrations on an operator softswitch via allowlisted SSH scripts under `/opt/scripts/`.
 
-**Repository:** [github.com/finenumbers/reg](https://github.com/finenumbers/reg) · **Release:** [v1.131.0](https://github.com/finenumbers/reg/releases/tag/v1.131.0)
+**Repository:** [github.com/finenumbers/reg](https://github.com/finenumbers/reg) · **Release:** [v1.132.0](https://github.com/finenumbers/reg/releases/tag/v1.132.0)
 
 ## Stack (approved)
 
@@ -176,7 +176,7 @@ UI (`/tariffs`): table plus **Загрузить данные**. A failed file l
 
 - `GET /api/jobs` — job run history (`regs:read`); `/jobs` UI with status filter + expandable failure detail
 - `GET /api/audit` — audit events (`audit:read`); `/audit` UI with action/actor filters + sanitized meta expand
-- Home `/` redirects to the first module the user may open (no separate dashboard page)
+- Home `/` is the Dashboard screen (no nav item; the logo links here). Registrations stay at `/regs`
 
 ## Production (Phase 7)
 

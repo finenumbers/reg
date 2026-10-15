@@ -1,7 +1,13 @@
-# Current Phase — production (v1.131.0)
+# Current Phase — production (v1.132.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, Eltex SMG CDR, Eltex SMG syslog.  
 **Date:** 2026-10-16
+
+## v1.132.0 — The site root is an empty Dashboard
+
+`/` no longer redirects to Registrations. It shows a Dashboard heading and nothing else. There is no menu item for it. The logo in the navigation panel opens this screen. After login, the default destination is `/`. An explicit safe `next` path is unchanged. Registrations stay at `/regs`. A signed-in user with no module permissions sees this empty screen.
+
+There is no new migration.
 
 ## v1.131.0 — Syslog download is a text link
 

@@ -15,8 +15,7 @@ import {
 } from "@/components/ui/card";
 
 function safeNextPath(raw: string | null): string {
-  if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return "/regs";
-  if (raw === "/") return "/regs";
+  if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return "/";
   return raw;
 }
 

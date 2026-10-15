@@ -1,25 +1,12 @@
-import { redirect } from "next/navigation";
-import { requirePageSession } from "@/modules/auth/guards";
-import { hasPermission } from "@/modules/rbac/permissions";
-
 /**
- * Home → Регистрации. Falls back to the first module the user can open.
+ * Home is the Dashboard. There is no nav item; the logo links here.
  */
-export default async function HomePage() {
-  const ctx = await requirePageSession();
-  const perms = ctx.authz.permissions;
-
-  if (hasPermission(perms, "regs:read")) {
-    redirect("/regs");
-  }
-  if (hasPermission(perms, "phones:read")) {
-    redirect("/phones");
-  }
-  if (hasPermission(perms, "settings:write")) {
-    redirect("/settings");
-  }
-  if (hasPermission(perms, "audit:read")) {
-    redirect("/audit");
-  }
-  redirect("/forbidden");
+export default function HomePage() {
+  return (
+    <div className="flex h-full min-h-0 flex-col gap-4">
+      <h1 className="text-xl font-semibold tracking-tight [text-box:trim-start_cap_alphabetic]">
+        Dashboard
+      </h1>
+    </div>
+  );
 }
