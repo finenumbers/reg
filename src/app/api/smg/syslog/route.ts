@@ -2,9 +2,11 @@ import { NextResponse } from "next/server";
 import { requireApiPermission } from "@/modules/auth/guards";
 import {
   isDockerBridgeDevice,
-  listSyslogLevel,
+  listSyslogCascade,
+  listSyslogPurgeMonths,
   withBridgeDevices,
 } from "@/modules/smg-syslog/browse";
+import { canonicalIpv4 } from "@/modules/smg-syslog/ip";
 import { syslogNodeLabels } from "@/modules/smg-syslog/identifier";
 import { listSyslogNodes, syslogNodeExists } from "@/modules/smg-syslog/nodes";
 import { syslogRoot } from "@/modules/smg-syslog/paths";
@@ -13,7 +15,7 @@ import { readStatus } from "@/modules/smg-syslog/status";
 export const runtime = "nodejs";
 
 /**
- * GET /api/smg/syslog — registered nodes and one folder level.
+ * GET /api/smg/syslog — registered nodes and the cascade for one device.
  */
 export async function GET(request: Request) {
   const gate = await requireApiPermission("phones:read");
@@ -25,7 +27,13 @@ export async function GET(request: Request) {
   const devices = withBridgeDevices(syslogNodeLabels(await listSyslogNodes()), root);
   const status = readStatus(root);
   if (!device) {
-    return NextResponse.json({ devices, list: null, status });
+    return NextResponse.json({
+      devices,
+      cascade: null,
+      purgeMonths: [],
+      lastPacket: null,
+      status,
+    });
   }
   if (!isDockerBridgeDevice(device) && !(await syslogNodeExists(device))) {
     return NextResponse.json(
@@ -33,17 +41,22 @@ export async function GET(request: Request) {
       { status: 404 },
     );
   }
-  const list = listSyslogLevel(root, device, {
+  const requested = {
     year: url.searchParams.get("year") ?? undefined,
     month: url.searchParams.get("month") ?? undefined,
     day: url.searchParams.get("day") ?? undefined,
     hour: url.searchParams.get("hour") ?? undefined,
-  });
-  if (!list) {
+  };
+  const now = new Date();
+  const cascade = listSyslogCascade(root, device, requested);
+  const purgeMonths = listSyslogPurgeMonths(root, device, now);
+  if (!cascade || !purgeMonths) {
     return NextResponse.json(
       { error: "Некорректный путь", code: "BAD_REQUEST" },
       { status: 400 },
     );
   }
-  return NextResponse.json({ devices, list, status });
+  const canonical = canonicalIpv4(device);
+  const lastPacket = canonical ? (status?.lastPacket[canonical] ?? null) : null;
+  return NextResponse.json({ devices, cascade, purgeMonths, lastPacket, status });
 }

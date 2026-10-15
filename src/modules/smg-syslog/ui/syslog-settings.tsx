@@ -49,6 +49,7 @@ export function SyslogSettings() {
   const [identifier, setIdentifier] = useState("");
   const [draft, setDraft] = useState<Draft | null>(null);
   const [busy, setBusy] = useState(false);
+  const [leftover, setLeftover] = useState<NodeRow | null>(null);
 
   const reload = useCallback(async () => {
     const res = await fetch("/api/settings/smg-syslog", { cache: "no-store" });
@@ -146,7 +147,7 @@ export function SyslogSettings() {
   async function remove(node: NodeRow) {
     if (
       !window.confirm(
-        `Удалить узел ${node.name}? Уже записанные файлы останутся на диске.`,
+        `Удалить узел ${node.name} (${node.ip})? Приём с этого адреса прекратится. Все сохранённые файлы этого узла будут удалены безвозвратно.`,
       )
     ) {
       return;
@@ -159,11 +160,40 @@ export function SyslogSettings() {
           method: "DELETE",
         },
       );
-      const body = (await res.json()) as { error?: string };
+      const body = (await res.json()) as { error?: string; code?: string };
       if (!res.ok) {
+        if (body.code === "FILES_REMAIN") setLeftover(node);
         toast.error(body.error ?? "Не удалось удалить узел");
         return;
       }
+      setLeftover((current) => (current?.ip === node.ip ? null : current));
+      await reload();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function retryLeftover() {
+    if (!leftover) return;
+    if (
+      !window.confirm(`Повторить удаление файлов узла ${leftover.name} (${leftover.ip})?`)
+    ) {
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await fetch(
+        `/api/settings/smg-syslog/nodes/${encodeURIComponent(leftover.ip)}`,
+        { method: "DELETE" },
+      );
+      const body = (await res.json()) as { error?: string; code?: string };
+      if (!res.ok) {
+        toast.error(body.error ?? "Не удалось удалить файлы узла");
+        if (body.code !== "FILES_REMAIN") setLeftover(null);
+        return;
+      }
+      setLeftover(null);
+      toast.success("Файлы узла удалены");
       await reload();
     } finally {
       setBusy(false);
@@ -210,6 +240,23 @@ export function SyslogSettings() {
         <p className="text-destructive text-sm">
           Буфер приёма UDP {formatBytes(status.recvBufferBytes)} вместо 16 МБ. Поднимите
           net.core.rmem_max, иначе ядро теряет датаграммы до процесса.
+        </p>
+      ) : null}
+      {leftover ? (
+        <p className="text-destructive flex flex-wrap items-center gap-2 text-sm">
+          <span>
+            Узел {leftover.name} ({leftover.ip}) снят с приёма, каталог удалить не
+            удалось.
+          </span>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={busy}
+            onClick={() => void retryLeftover()}
+          >
+            Повторить
+          </Button>
         </p>
       ) : null}
       {status?.lowSpace ? (
@@ -271,12 +318,12 @@ export function SyslogSettings() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Узел Eltex SMG-1016M</TableHead>
-                <TableHead>IP адрес</TableHead>
-                <TableHead>Идентификатор</TableHead>
-                <TableHead>Последний пакет (UTC)</TableHead>
-                <TableHead>Переименовать</TableHead>
-                <TableHead>Удалить</TableHead>
+                <TableHead className="text-center">Узел Eltex SMG-1016M</TableHead>
+                <TableHead className="text-center">IP адрес</TableHead>
+                <TableHead className="text-center">Идентификатор</TableHead>
+                <TableHead className="text-center">Последний пакет (UTC)</TableHead>
+                <TableHead className="text-center">Переименовать</TableHead>
+                <TableHead className="text-center">Удалить</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

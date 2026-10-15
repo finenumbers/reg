@@ -1,7 +1,19 @@
-# Current Phase — production (v1.128.0)
+# Current Phase — production (v1.129.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, Eltex SMG CDR, Eltex SMG syslog.  
 **Date:** 2026-10-15
+
+## v1.129.0 — SMG syslog is one cascade, and deleting a gateway removes its files
+
+The syslog page lists one gateway at a time. The table is a cascade: a black cell is the chosen year, month, day or hour, and every column to the right shows only intervals that exist for that choice. Clicking a cell keeps the choice to its left and selects the latest existing value in each column to its right. The minute column lists the 10-minute files and is not itself a choice. Opening the page, changing the gateway, or reloading the page selects the latest year, month, day and hour. Every four seconds the same choice is read again, so sizes and the open interval move without jumping the black cells. Each column is only as wide as its widest cell, including the header. Download still fetches that one 10-minute interval.
+
+«Удаление данных до» removes that gateway's files strictly before a complete month. The current UTC month is not in the list. The chosen month and anything newer stay. The operator confirms first. Only an administrator sees the row. A repeated request for the same boundary deletes nothing further.
+
+Deleting a gateway in Settings now removes its directory as well as the database row. The request waits for the receiver to drop the address, then deletes the directory, then checks once more for a datagram that was already queued. A symlink is removed as a link and its target is left alone. Other gateways, `.status.json` and `.volume-reset` stay. If the directory is still there, Settings keeps a retry for that address. A Docker bridge directory is not removed by this button. Gateways deleted by an older release are not swept.
+
+The column titles in Settings → «Syslog — SMG» are centered.
+
+There is no new migration.
 
 ## v1.128.0 — A failed month delete keeps what it already removed
 

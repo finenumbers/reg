@@ -1,22 +1,32 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { FitSelect } from "@/components/fit-select";
 import { FILTER_TOOLBAR_TEXT } from "@/components/filter-toolbar";
 import { Button } from "@/components/ui/button";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { downloadXlsxFromUrl } from "@/lib/download-xlsx";
 import { formatBytes } from "@/modules/storage/format-bytes";
 import type {
+  SyslogCascade,
+  SyslogChoice,
   SyslogFileRow,
-  SyslogFolder,
-  SyslogList,
+  SyslogPurgeMonth,
+  SyslogSelected,
 } from "@/modules/smg-syslog/browse";
-import { monthNominative } from "@/modules/traffic/month-labels";
+import { formatLastPacket } from "@/modules/smg-syslog/format-last-packet";
 
 type Device = { ip: string; name: string };
 
-type Crumb = {
+type Query = {
   year?: string;
   month?: string;
   day?: string;
@@ -25,62 +35,117 @@ type Crumb = {
 
 type Payload = {
   devices: Device[];
-  list: SyslogList | null;
-  status: { lowSpace: boolean; listening: boolean } | null;
+  cascade: SyslogCascade | null;
+  purgeMonths: SyslogPurgeMonth[];
+  lastPacket: string | null;
+  status: { lowSpace: boolean } | null;
 };
 
-export function SyslogView({ initialDevices }: { initialDevices: Device[] }) {
+function monthKey(month: SyslogPurgeMonth): string {
+  return `${month.year}-${month.month}`;
+}
+
+function queryKey(query: Query): string {
+  return [query.year, query.month, query.day, query.hour].filter(Boolean).join("/");
+}
+
+function selectedKey(selected: SyslogSelected | null): string {
+  if (!selected) return "";
+  return `${selected.year}/${selected.month}/${selected.day}/${selected.hour}`;
+}
+
+export function SyslogView({
+  initialDevices,
+  canPurge,
+}: {
+  initialDevices: Device[];
+  canPurge: boolean;
+}) {
   const [devices, setDevices] = useState(initialDevices);
   const [device, setDevice] = useState(initialDevices[0]?.ip ?? "");
-  const [crumb, setCrumb] = useState<Crumb>({});
-  const [list, setList] = useState<SyslogList | null>(null);
+  const [query, setQuery] = useState<Query>({});
+  const [cascade, setCascade] = useState<SyslogCascade | null>(null);
+  const [purgeMonths, setPurgeMonths] = useState<SyslogPurgeMonth[]>([]);
+  const [cutoff, setCutoff] = useState("");
+  const [lastPacket, setLastPacket] = useState<string | null>(null);
   const [lowSpace, setLowSpace] = useState(false);
+  const [purging, setPurging] = useState(false);
+  const generation = useRef(0);
+  const scrollRef = useRef(true);
 
-  const load = useCallback(async (nextDevice: string, nextCrumb: Crumb) => {
+  const load = useCallback(async (gen: number, nextDevice: string, nextQuery: Query) => {
     if (!nextDevice) {
-      setList(null);
+      setCascade(null);
+      setPurgeMonths([]);
+      setLastPacket(null);
       return;
     }
     const params = new URLSearchParams({ device: nextDevice });
-    if (nextCrumb.year) params.set("year", nextCrumb.year);
-    if (nextCrumb.month) params.set("month", nextCrumb.month);
-    if (nextCrumb.day) params.set("day", nextCrumb.day);
-    if (nextCrumb.hour) params.set("hour", nextCrumb.hour);
+    if (nextQuery.year) params.set("year", nextQuery.year);
+    if (nextQuery.month) params.set("month", nextQuery.month);
+    if (nextQuery.day) params.set("day", nextQuery.day);
+    if (nextQuery.hour) params.set("hour", nextQuery.hour);
     const res = await fetch(`/api/smg/syslog?${params.toString()}`, {
       cache: "no-store",
     });
+    if (gen !== generation.current) return;
     if (!res.ok) return;
     const body = (await res.json()) as Payload;
+    if (gen !== generation.current) return;
     setDevices(body.devices);
-    setList(body.list);
+    setCascade(body.cascade);
+    setPurgeMonths(body.purgeMonths);
+    setLastPacket(body.lastPacket);
     setLowSpace(Boolean(body.status?.lowSpace));
+    const nextSelected = selectedKey(body.cascade?.selected ?? null);
+    const asked = queryKey(nextQuery);
+    if (body.cascade?.selected && asked !== nextSelected) {
+      scrollRef.current = true;
+      setQuery(body.cascade.selected);
+    }
     if (body.devices.length > 0 && !body.devices.some((row) => row.ip === nextDevice)) {
+      scrollRef.current = true;
+      setQuery({});
       setDevice(body.devices[0]?.ip ?? "");
-      setCrumb({});
     }
   }, []);
 
   useEffect(() => {
+    const gen = ++generation.current;
     const timer = window.setTimeout(() => {
-      void load(device, crumb);
+      void load(gen, device, query);
     }, 0);
     const poll = window.setInterval(() => {
-      void load(device, crumb);
+      void load(generation.current, device, query);
     }, 4000);
     return () => {
+      generation.current += 1;
       window.clearTimeout(timer);
       window.clearInterval(poll);
     };
-  }, [device, crumb, load]);
+  }, [device, query, load]);
+
+  useEffect(() => {
+    if (!scrollRef.current) return;
+    const node = document.querySelector("[data-syslog-focus='true']");
+    node?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    scrollRef.current = false;
+  }, [cascade]);
+
+  function choose(next: Query) {
+    scrollRef.current = true;
+    setQuery(next);
+  }
 
   async function download(slot: string) {
-    if (!crumb.year || !crumb.month || !crumb.day || !crumb.hour) return;
+    const selected = cascade?.selected;
+    if (!selected) return;
     const params = new URLSearchParams({
       device,
-      year: crumb.year,
-      month: crumb.month,
-      day: crumb.day,
-      hour: crumb.hour,
+      year: selected.year,
+      month: selected.month,
+      day: selected.day,
+      hour: selected.hour,
       slot,
     });
     const result = await downloadXlsxFromUrl(
@@ -90,22 +155,77 @@ export function SyslogView({ initialDevices }: { initialDevices: Device[] }) {
     if (!result.ok) toast.error(result.message);
   }
 
-  const pathLabel = pathTrail(crumb);
+  async function purge() {
+    const active = purgeMonths.some((month) => monthKey(month) === cutoff)
+      ? cutoff
+      : purgeMonths[0]
+        ? monthKey(purgeMonths[0])
+        : "";
+    const boundary = purgeMonths.find((month) => monthKey(month) === active);
+    const doomed = purgeMonths.filter((month) => monthKey(month) < active);
+    if (!boundary || doomed.length === 0 || purging) return;
+    const current = devices.find((row) => row.ip === device);
+    const name = current ? `${current.name} (${current.ip})` : device;
+    const newest = doomed[0]?.label ?? boundary.label;
+    const confirmed = window.confirm(
+      `Удалить файлы узла ${name} до ${boundary.label}? Будет удалено месяцев: ${doomed.length}. Самый новый из удаляемых: ${newest}. ${boundary.label} и более новые данные останутся. Это нельзя отменить.`,
+    );
+    if (!confirmed) return;
+    setPurging(true);
+    try {
+      const res = await fetch("/api/smg/syslog/purge", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ device, year: boundary.year, month: boundary.month }),
+      });
+      const body = (await res.json()) as { error?: string; deleted?: string[] };
+      if (!res.ok) {
+        toast.error(body.error ?? "Не удалось удалить файлы");
+        return;
+      }
+      const count = body.deleted?.length ?? 0;
+      toast.success(
+        count > 0 ? `Удалено месяцев: ${count}` : "Файлов старше выбранного месяца нет",
+      );
+      scrollRef.current = true;
+      setQuery({});
+    } finally {
+      setPurging(false);
+    }
+  }
+
+  const selected = cascade?.selected ?? null;
+  const years = cascade?.years ?? [];
+  const months = cascade?.months ?? [];
+  const days = cascade?.days ?? [];
+  const hours = cascade?.hours ?? [];
+  const files = cascade?.files ?? [];
+  const cutoffValue = purgeMonths.some((month) => monthKey(month) === cutoff)
+    ? cutoff
+    : purgeMonths[0]
+      ? monthKey(purgeMonths[0])
+      : "";
+  const rowCount = Math.max(
+    years.length,
+    months.length,
+    days.length,
+    hours.length,
+    files.length,
+  );
+  const focusRow = selected
+    ? Math.max(
+        years.findIndex((row) => row.name === selected.year),
+        months.findIndex((row) => row.name === selected.month),
+        days.findIndex((row) => row.name === selected.day),
+        hours.findIndex((row) => row.name === selected.hour),
+      )
+    : -1;
+  const packetLabel = lastPacket ? (formatLastPacket(lastPacket) ?? lastPacket) : "нет";
+  const visibleDoomed = purgeMonths.filter((month) => monthKey(month) < cutoffValue);
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">Syslog</h1>
-        <p className="text-muted-foreground text-sm">
-          Журнал шлюзов Eltex SMG. Интервалы в UTC. Закрытый интервал скачивается архивом
-          gzip.
-        </p>
-      </div>
-      {lowSpace ? (
-        <p className="text-destructive text-sm">
-          На томе Syslog меньше 1 ГБ свободно. Запись продолжается.
-        </p>
-      ) : null}
+      <h1 className="text-xl font-semibold tracking-tight">Syslog</h1>
       <div className="flex flex-wrap items-center gap-2">
         <FitSelect
           id="syslog-device"
@@ -122,121 +242,181 @@ export function SyslogView({ initialDevices }: { initialDevices: Device[] }) {
               : [{ value: "", label: "Нет узлов" }]
           }
           onChange={(value) => {
+            scrollRef.current = true;
+            setQuery({});
             setDevice(value);
-            setCrumb({});
           }}
         />
       </div>
-      <div className="flex flex-wrap items-center gap-2 text-sm">
-        <Button type="button" variant="outline" size="sm" onClick={() => setCrumb({})}>
-          Годы
-        </Button>
-        {crumb.year ? (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setCrumb({ year: crumb.year })}
-          >
-            {crumb.year}
-          </Button>
-        ) : null}
-        {crumb.month ? (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setCrumb({ year: crumb.year, month: crumb.month })}
-          >
-            {crumb.month}
-          </Button>
-        ) : null}
-        {crumb.day ? (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() =>
-              setCrumb({ year: crumb.year, month: crumb.month, day: crumb.day })
-            }
-          >
-            {crumb.day}
-          </Button>
-        ) : null}
-        {crumb.hour ? <span>{crumb.hour}</span> : null}
-        {pathLabel ? (
-          <span className="text-muted-foreground">{pathLabel} UTC</span>
-        ) : null}
-      </div>
+      {lowSpace ? (
+        <p className="text-destructive text-sm">
+          На томе Syslog меньше 1 ГБ свободно. Запись продолжается.
+        </p>
+      ) : null}
+      <p className="text-sm">
+        Последние данные (UTC): <span className="font-semibold">{packetLabel}</span>
+      </p>
       {devices.length === 0 ? (
         <p className="text-muted-foreground text-sm">Добавьте узел SMG в Настройках.</p>
-      ) : list?.kind === "folders" ? (
-        <ul className="space-y-1">
-          {list.folders.length === 0 ? (
-            <li className="text-muted-foreground text-sm">Папка пуста.</li>
-          ) : (
-            list.folders.map((folder) => (
-              <li key={folder.name}>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="h-8 px-2"
-                  onClick={() => openFolder(folder)}
-                >
-                  {folder.label}
-                </Button>
-              </li>
-            ))
-          )}
-        </ul>
       ) : (
-        <ul className="space-y-1">
-          {(list?.files ?? []).length === 0 ? (
-            <li className="text-muted-foreground text-sm">В этом часе файлов нет.</li>
-          ) : (
-            (list?.files ?? []).map((file) => (
-              <li key={file.slot} className="flex items-center gap-3 text-sm">
-                <span className="w-10 font-medium">{file.label}</span>
-                <span className="text-muted-foreground">{formatBytes(file.bytes)}</span>
-                <span className="text-muted-foreground">{stateLabel(file)}</span>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => void download(file.slot)}
-                >
-                  Скачать
-                </Button>
-              </li>
-            ))
-          )}
-        </ul>
+        <div className="min-h-0 flex-1 overflow-auto">
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead>Год</TableHead>
+                <TableHead>Месяц</TableHead>
+                <TableHead>День</TableHead>
+                <TableHead>Час</TableHead>
+                <TableHead>Мин</TableHead>
+                <TableHead>Объем</TableHead>
+                <TableHead>Статус</TableHead>
+                <TableHead>Скачать</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {Array.from({ length: rowCount }, (_, index) => {
+                const file = files[index];
+                return (
+                  <TableRow
+                    key={index}
+                    className="hover:bg-transparent"
+                    data-syslog-focus={index === focusRow ? "true" : undefined}
+                  >
+                    <ChoiceCell
+                      choice={years[index]}
+                      selected={years[index]?.name === selected?.year}
+                      onSelect={
+                        years[index]
+                          ? () => choose({ year: years[index]?.name })
+                          : undefined
+                      }
+                    />
+                    <ChoiceCell
+                      choice={months[index]}
+                      selected={months[index]?.name === selected?.month}
+                      onSelect={
+                        months[index] && selected
+                          ? () =>
+                              choose({ year: selected.year, month: months[index]?.name })
+                          : undefined
+                      }
+                    />
+                    <ChoiceCell
+                      choice={days[index]}
+                      selected={days[index]?.name === selected?.day}
+                      onSelect={
+                        days[index] && selected
+                          ? () =>
+                              choose({
+                                year: selected.year,
+                                month: selected.month,
+                                day: days[index]?.name,
+                              })
+                          : undefined
+                      }
+                    />
+                    <ChoiceCell
+                      choice={hours[index]}
+                      selected={hours[index]?.name === selected?.hour}
+                      onSelect={
+                        hours[index] && selected
+                          ? () =>
+                              choose({
+                                year: selected.year,
+                                month: selected.month,
+                                day: selected.day,
+                                hour: hours[index]?.name,
+                              })
+                          : undefined
+                      }
+                    />
+                    <TableCell>{file?.label ?? ""}</TableCell>
+                    <TableCell>{file ? formatBytes(file.bytes) : ""}</TableCell>
+                    <TableCell>{file ? stateLabel(file) : ""}</TableCell>
+                    <TableCell>
+                      {file ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => void download(file.slot)}
+                        >
+                          Скачать
+                        </Button>
+                      ) : null}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
       )}
+      {canPurge && devices.length > 0 ? (
+        <div className="flex shrink-0 flex-wrap items-center gap-2 text-sm">
+          <span>Удаление данных до</span>
+          <FitSelect
+            id="syslog-purge-month"
+            aria-label="Удаление данных до"
+            textClassName={FILTER_TOOLBAR_TEXT}
+            value={purgeMonths.length === 0 ? "" : cutoffValue}
+            disabled={purgeMonths.length === 0 || purging}
+            options={
+              purgeMonths.length > 0
+                ? purgeMonths.map((month) => ({
+                    value: monthKey(month),
+                    label: month.label,
+                  }))
+                : [{ value: "", label: "Нет полных месяцев" }]
+            }
+            onChange={setCutoff}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={purging || visibleDoomed.length === 0}
+            onClick={() => void purge()}
+          >
+            удалить
+          </Button>
+          <span className="text-muted-foreground">Выбранный месяц не удаляется.</span>
+        </div>
+      ) : null}
     </div>
   );
+}
 
-  function openFolder(folder: SyslogFolder) {
-    if (!crumb.year) setCrumb({ year: folder.name });
-    else if (!crumb.month) setCrumb({ year: crumb.year, month: folder.name });
-    else if (!crumb.day) setCrumb({ ...crumb, day: folder.name });
-    else setCrumb({ ...crumb, hour: folder.name });
-  }
+function ChoiceCell({
+  choice,
+  selected,
+  onSelect,
+}: {
+  choice: SyslogChoice | undefined;
+  selected: boolean;
+  onSelect?: () => void;
+}) {
+  if (!choice) return <TableCell />;
+  return (
+    <TableCell className={selected ? "bg-black text-white" : undefined}>
+      {onSelect ? (
+        <button
+          type="button"
+          className="block w-full bg-transparent text-left text-inherit"
+          aria-pressed={selected}
+          onClick={onSelect}
+        >
+          {choice.label}
+        </button>
+      ) : (
+        choice.label
+      )}
+    </TableCell>
+  );
 }
 
 function stateLabel(file: SyslogFileRow): string {
   if (file.state === "archive") return "архив";
   if (file.state === "updating") return "дописывается к архиву";
   return "пишется";
-}
-
-function pathTrail(crumb: Crumb): string {
-  const parts: string[] = [];
-  if (crumb.year) parts.push(crumb.year);
-  if (crumb.month) {
-    const month = Number(crumb.month);
-    parts.push(month >= 1 && month <= 12 ? monthNominative(month) : crumb.month);
-  }
-  if (crumb.day) parts.push(crumb.day);
-  if (crumb.hour) parts.push(crumb.hour);
-  return parts.join(" / ");
 }

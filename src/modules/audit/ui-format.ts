@@ -38,6 +38,7 @@ const ACTION_LABELS: Record<string, string> = {
   "smg.syslog.node_add": "Добавление узла Syslog SMG",
   "smg.syslog.node_rename": "Переименование узла Syslog SMG",
   "smg.syslog.node_delete": "Удаление узла Syslog SMG",
+  "smg.syslog.purge": "Удаление файлов Syslog SMG",
   "enrich.start": "Старт обогащения данных",
   "enrich.finish": "Завершение обогащения данных",
   "regs.poll_manual": "Ручной опрос регистраций",

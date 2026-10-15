@@ -32,6 +32,7 @@ export const AUDIT_ACTIONS = {
   SMG_SYSLOG_NODE_ADD: "smg.syslog.node_add",
   SMG_SYSLOG_NODE_RENAME: "smg.syslog.node_rename",
   SMG_SYSLOG_NODE_DELETE: "smg.syslog.node_delete",
+  SMG_SYSLOG_PURGE: "smg.syslog.purge",
   ENRICH_START: "enrich.start",
   ENRICH_FINISH: "enrich.finish",
   REGS_POLL_MANUAL: "regs.poll_manual",

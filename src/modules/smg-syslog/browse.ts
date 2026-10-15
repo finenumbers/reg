@@ -1,10 +1,17 @@
-import { createReadStream, readdirSync, realpathSync, statSync } from "node:fs";
+import {
+  createReadStream,
+  lstatSync,
+  readdirSync,
+  realpathSync,
+  statSync,
+} from "node:fs";
 import path from "node:path";
 import { createGunzip } from "node:zlib";
 import { Readable } from "node:stream";
+import { bucketOf } from "@/modules/smg-syslog/bucket";
 import { syslogLineFeed } from "@/modules/smg-syslog/frame";
 import { canonicalIpv4, looksLikeDockerBridge } from "@/modules/smg-syslog/ip";
-import { monthNominative } from "@/modules/traffic/month-labels";
+import { formatMonthNominative, monthNominative } from "@/modules/traffic/month-labels";
 
 const SLOTS = new Set(["00", "10", "20", "30", "40", "50"]);
 const BRIDGE_DEVICE_NAME = "Мост Docker";
@@ -84,7 +91,33 @@ function deviceDir(root: string, device: string): string | null {
   }
   const joined = path.resolve(rootReal, ip);
   if (!isInsideRoot(rootReal, joined)) return null;
+  try {
+    if (lstatSync(joined).isSymbolicLink()) return null;
+  } catch {
+    /* missing directory is an empty device, not an error */
+  }
   return joined;
+}
+
+/** Real device directory, a not-yet-created one, or an unusable path. */
+export function syslogDeviceLocation(
+  root: string,
+  device: string,
+):
+  | { status: "invalid" }
+  | { status: "missing"; dir: string }
+  | { status: "directory"; dir: string } {
+  const dir = deviceDir(root, device);
+  if (!dir) return { status: "invalid" };
+  try {
+    const stat = lstatSync(dir);
+    if (stat.isSymbolicLink() || !stat.isDirectory()) return { status: "invalid" };
+    return { status: "directory", dir };
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === "ENOENT") return { status: "missing", dir };
+    return { status: "invalid" };
+  }
 }
 
 function yearOk(value: string | undefined): value is string {
@@ -118,6 +151,18 @@ function safeJoin(dir: string, name: string): string | null {
   const joined = path.resolve(dir, name);
   if (!isInsideRoot(dir, joined) && path.dirname(joined) !== dir) return null;
   return joined;
+}
+
+/** Next path segment. A symlink is refused. A missing directory is kept so the list stays empty. */
+function stepInto(dir: string, segment: string): string | null {
+  const next = safeJoin(dir, segment);
+  if (!next) return null;
+  try {
+    if (lstatSync(next).isSymbolicLink()) return null;
+  } catch {
+    return next;
+  }
+  return next;
 }
 
 function readNames(dir: string): string[] {
@@ -167,7 +212,7 @@ export function listSyslogLevel(
 
   let dir = base;
   for (const segment of segments) {
-    const next = safeJoin(dir, segment);
+    const next = stepInto(dir, segment);
     if (!next) return null;
     dir = next;
   }
@@ -233,7 +278,7 @@ export function openSyslogDownload(
   if (!base) return null;
   let dir = base;
   for (const segment of [parts.year, parts.month, parts.day, parts.hour]) {
-    const next = safeJoin(dir, segment);
+    const next = stepInto(dir, segment);
     if (!next) return null;
     dir = next;
   }
@@ -356,4 +401,197 @@ async function* concatStreams(
   for await (const chunk of second) {
     yield Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
   }
+}
+
+export type SyslogChoice = { name: string; label: string };
+
+export type SyslogSelected = { year: string; month: string; day: string; hour: string };
+
+export type SyslogCascade = {
+  years: SyslogChoice[];
+  months: SyslogChoice[];
+  days: SyslogChoice[];
+  hours: SyslogChoice[];
+  files: SyslogFileRow[];
+  selected: SyslogSelected | null;
+};
+
+export type SyslogPurgeMonth = { year: string; month: string; label: string };
+
+export function emptySyslogCascade(): SyslogCascade {
+  return { years: [], months: [], days: [], hours: [], files: [], selected: null };
+}
+
+function isSlotFileName(name: string): boolean {
+  if (name.endsWith(".partial")) return false;
+  const archived = name.endsWith(".log.gz");
+  const raw = name.endsWith(".log") && !archived;
+  if (!archived && !raw) return false;
+  const slot = archived
+    ? name.slice(0, -".log.gz".length)
+    : name.slice(0, -".log".length);
+  return slotOk(slot);
+}
+
+/** True when a real directory contains a slot file. Symlinks are not opened. */
+function containsSlot(dir: string): boolean {
+  let entries;
+  try {
+    entries = readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return false;
+  }
+  for (const entry of entries) {
+    if (entry.name.startsWith(".") || entry.isSymbolicLink()) continue;
+    if (entry.isDirectory()) {
+      if (containsSlot(path.join(dir, entry.name))) return true;
+      continue;
+    }
+    if (entry.isFile() && isSlotFileName(entry.name)) return true;
+  }
+  return false;
+}
+
+function nameOk(level: "year" | "month" | "day" | "hour", name: string): boolean {
+  if (level === "year") return yearOk(name);
+  if (level === "month") return monthOk(name);
+  if (level === "day") return dayOk(name);
+  return hourOk(name);
+}
+
+function choices(dir: string, level: "year" | "month" | "day" | "hour"): SyslogChoice[] {
+  let entries;
+  try {
+    entries = readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  const names: string[] = [];
+  for (const entry of entries) {
+    if (entry.name.startsWith(".") || entry.isSymbolicLink()) continue;
+    if (!entry.isDirectory() || !nameOk(level, entry.name)) continue;
+    if (!containsSlot(path.join(dir, entry.name))) continue;
+    names.push(entry.name);
+  }
+  names.sort((a, b) => (level === "year" ? b.localeCompare(a) : a.localeCompare(b)));
+  return names.map((name) => ({ name, label: folderLabel(level, name) }));
+}
+
+function pickDesc(
+  names: string[],
+  requested: string | undefined,
+): { value: string | null; kept: boolean } {
+  if (names.length === 0) return { value: null, kept: false };
+  if (requested && names.includes(requested)) return { value: requested, kept: true };
+  return { value: names[0] ?? null, kept: false };
+}
+
+function pickAsc(
+  names: string[],
+  requested: string | undefined,
+  keep: boolean,
+): { value: string | null; kept: boolean } {
+  if (names.length === 0) return { value: null, kept: false };
+  if (keep && requested && names.includes(requested))
+    return { value: requested, kept: true };
+  return { value: names[names.length - 1] ?? null, kept: false };
+}
+
+/**
+ * Years, then months, days, hours and slots inside the chosen path.
+ * An omitted or missing part selects the latest value that exists to its right.
+ * Returns null when the device path is not a real directory.
+ */
+export function listSyslogCascade(
+  root: string,
+  device: string,
+  requested: { year?: string; month?: string; day?: string; hour?: string },
+): SyslogCascade | null {
+  const located = syslogDeviceLocation(root, device);
+  if (located.status === "invalid") return null;
+  if (located.status === "missing") return emptySyslogCascade();
+
+  const years = choices(located.dir, "year");
+  const yearPick = pickDesc(
+    years.map((row) => row.name),
+    requested.year,
+  );
+  const months = yearPick.value
+    ? choices(path.join(located.dir, yearPick.value), "month")
+    : [];
+  const monthPick = pickAsc(
+    months.map((row) => row.name),
+    requested.month,
+    yearPick.kept,
+  );
+  const days =
+    yearPick.value && monthPick.value
+      ? choices(path.join(located.dir, yearPick.value, monthPick.value), "day")
+      : [];
+  const dayPick = pickAsc(
+    days.map((row) => row.name),
+    requested.day,
+    monthPick.kept,
+  );
+  const hours =
+    yearPick.value && monthPick.value && dayPick.value
+      ? choices(
+          path.join(located.dir, yearPick.value, monthPick.value, dayPick.value),
+          "hour",
+        )
+      : [];
+  const hourPick = pickAsc(
+    hours.map((row) => row.name),
+    requested.hour,
+    dayPick.kept,
+  );
+
+  let files: SyslogFileRow[] = [];
+  if (yearPick.value && monthPick.value && dayPick.value && hourPick.value) {
+    const listed = listSyslogLevel(root, device, {
+      year: yearPick.value,
+      month: monthPick.value,
+      day: dayPick.value,
+      hour: hourPick.value,
+    });
+    if (listed?.kind === "files") files = listed.files;
+  }
+
+  const selected =
+    yearPick.value && monthPick.value && dayPick.value && hourPick.value
+      ? {
+          year: yearPick.value,
+          month: monthPick.value,
+          day: dayPick.value,
+          hour: hourPick.value,
+        }
+      : null;
+  return { years, months, days, hours, files, selected };
+}
+
+/** Complete months with at least one slot, strictly before the UTC month of `now`. */
+export function listSyslogPurgeMonths(
+  root: string,
+  device: string,
+  now: Date,
+): SyslogPurgeMonth[] | null {
+  const located = syslogDeviceLocation(root, device);
+  if (located.status === "invalid") return null;
+  if (located.status === "missing") return [];
+  const current = bucketOf(now, 0);
+  const currentKey = Number(current.year) * 12 + Number(current.month);
+  const months: SyslogPurgeMonth[] = [];
+  for (const year of choices(located.dir, "year")) {
+    for (const month of choices(path.join(located.dir, year.name), "month")) {
+      const key = Number(year.name) * 12 + Number(month.name);
+      if (key >= currentKey) continue;
+      months.push({
+        year: year.name,
+        month: month.name,
+        label: formatMonthNominative(Number(year.name), Number(month.name)),
+      });
+    }
+  }
+  months.sort((a, b) => b.year.localeCompare(a.year) || b.month.localeCompare(a.month));
+  return months;
 }

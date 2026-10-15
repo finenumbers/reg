@@ -28,10 +28,11 @@ describe("FEATURE_MODULES nav groups", () => {
   });
 
   it("keeps Звонки на SMG in their own group after CDR", () => {
-    expect(idsInGroup("smg")).toEqual(["smg"]);
+    expect(idsInGroup("smg")).toEqual(["smg", "smg-syslog"]);
     const hrefs = FEATURE_MODULES.map((module) => module.href);
     expect(hrefs.indexOf("/raw")).toBeLessThan(hrefs.indexOf("/smg"));
-    expect(hrefs.indexOf("/smg")).toBeLessThan(hrefs.indexOf("/detail"));
+    expect(hrefs.indexOf("/smg")).toBeLessThan(hrefs.indexOf("/smg/syslog"));
+    expect(hrefs.indexOf("/smg/syslog")).toBeLessThan(hrefs.indexOf("/detail"));
   });
 
   it("keeps admin without Статистика", () => {

@@ -61,13 +61,16 @@ export async function listSyslogNodes(): Promise<SyslogNode[]> {
 }
 
 export async function syslogNodeExists(ip: string): Promise<boolean> {
+  return (await findSyslogNode(ip)) != null;
+}
+
+export async function findSyslogNode(ip: string): Promise<SyslogNode | null> {
   const canonical = canonicalIpv4(ip);
-  if (!canonical) return false;
-  const row = await prisma.smgSyslogNode.findUnique({
+  if (!canonical) return null;
+  return prisma.smgSyslogNode.findUnique({
     where: { ip: canonical },
-    select: { ip: true },
+    select: nodeSelect,
   });
-  return row != null;
 }
 
 export async function setSyslogEnabled(input: {
@@ -178,24 +181,13 @@ export async function renameSyslogNode(input: {
   }
 }
 
-export async function deleteSyslogNode(input: {
-  ip: string;
-  actorUserId: string;
-  requestIp: string | null;
-}): Promise<void> {
-  const ip = cleanIp(input.ip);
+export async function deleteSyslogNode(ip: string): Promise<SyslogNode> {
+  const canonical = cleanIp(ip);
   const existing = await prisma.smgSyslogNode.findUnique({
-    where: { ip },
+    where: { ip: canonical },
     select: nodeSelect,
   });
   if (!existing) throw new SyslogNodeError("NOT_FOUND", "Узел не найден");
-  await prisma.smgSyslogNode.delete({ where: { ip } });
-  await auditService.append({
-    actorUserId: input.actorUserId,
-    action: AUDIT_ACTIONS.SMG_SYSLOG_NODE_DELETE,
-    entityType: "smg_syslog_node",
-    entityId: existing.ip,
-    ip: input.requestIp,
-    meta: { ip: existing.ip, name: existing.name, identifier: existing.identifier },
-  });
+  await prisma.smgSyslogNode.delete({ where: { ip: canonical } });
+  return existing;
 }

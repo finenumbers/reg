@@ -25,10 +25,7 @@ export class SlidingWindowRateLimiter {
     if (recent.length >= this.limit) {
       this.hits.set(key, recent);
       const oldest = recent[0] ?? now;
-      const retryAfterSec = Math.max(
-        1,
-        Math.ceil((oldest + this.windowMs - now) / 1000),
-      );
+      const retryAfterSec = Math.max(1, Math.ceil((oldest + this.windowMs - now) / 1000));
       return { allowed: false, remaining: 0, retryAfterSec };
     }
 
@@ -73,16 +70,10 @@ export const pstnTestRateLimiter = new SlidingWindowRateLimiter(10, 60 * 1000);
 export const enrichStartRateLimiter = new SlidingWindowRateLimiter(6, 60 * 1000);
 
 /** Month traffic XLSX export starts per user: 6 / minute */
-export const trafficExportStartRateLimiter = new SlidingWindowRateLimiter(
-  6,
-  60 * 1000,
-);
+export const trafficExportStartRateLimiter = new SlidingWindowRateLimiter(6, 60 * 1000);
 
 /** VoIPmonitor connection test per user: 10 / minute */
-export const voipmonitorTestRateLimiter = new SlidingWindowRateLimiter(
-  10,
-  60 * 1000,
-);
+export const voipmonitorTestRateLimiter = new SlidingWindowRateLimiter(10, 60 * 1000);
 
 /** Machine API key reads: 10_000 / minute per key (single-replica) */
 export const apiKeyRateLimiter = new SlidingWindowRateLimiter(10_000, 60 * 1000);
@@ -91,13 +82,10 @@ export const apiKeyRateLimiter = new SlidingWindowRateLimiter(10_000, 60 * 1000)
 export const apiKeyFailureRateLimiter = new SlidingWindowRateLimiter(10, 5 * 60 * 1000);
 
 /** CDR month purge starts per admin: 3 / minute */
-export const storagePurgeRateLimiter = new SlidingWindowRateLimiter(
-  3,
-  60 * 1000,
-);
+export const storagePurgeRateLimiter = new SlidingWindowRateLimiter(3, 60 * 1000);
+
+/** SMG syslog archive purge per admin: 3 / minute */
+export const syslogPurgeRateLimiter = new SlidingWindowRateLimiter(3, 60 * 1000);
 
 /** Database vacuum starts per admin: 3 / minute */
-export const storageVacuumRateLimiter = new SlidingWindowRateLimiter(
-  3,
-  60 * 1000,
-);
+export const storageVacuumRateLimiter = new SlidingWindowRateLimiter(3, 60 * 1000);
