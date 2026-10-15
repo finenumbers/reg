@@ -1,14 +1,21 @@
 import type { Metadata } from "next";
-import { IBM_Plex_Sans } from "next/font/google";
+import localFont from "next/font/local";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
-/** Single UI font (same as table body text). */
-const ibmPlexSans = IBM_Plex_Sans({
+/**
+ * Complete IBM Plex Sans faces (latin and cyrillic), SIL OFL.
+ * Files live in the repo so the production build does not fetch Google Fonts.
+ */
+const ibmPlexSans = localFont({
   variable: "--font-ibm-plex-sans",
-  subsets: ["latin", "cyrillic"],
-  weight: ["400", "500", "600", "700"],
   display: "swap",
+  src: [
+    { path: "./fonts/IBMPlexSans-Regular.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/IBMPlexSans-Medium.woff2", weight: "500", style: "normal" },
+    { path: "./fonts/IBMPlexSans-SemiBold.woff2", weight: "600", style: "normal" },
+    { path: "./fonts/IBMPlexSans-Bold.woff2", weight: "700", style: "normal" },
+  ],
 });
 
 export const metadata: Metadata = {
@@ -25,10 +32,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="ru"
-      className={`${ibmPlexSans.variable} h-full antialiased`}
-    >
+    <html lang="ru" className={`${ibmPlexSans.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col font-sans">
         {children}
         <Toaster />

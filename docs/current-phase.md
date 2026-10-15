@@ -1,7 +1,13 @@
-# Current Phase — production (v1.124.0)
+# Current Phase — production (v1.125.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, Eltex SMG CDR, Eltex SMG syslog.  
 **Date:** 2026-10-15
+
+## v1.125.0 — IBM Plex Sans is stored with the app
+
+The production image build downloads IBM Plex Sans from Google Fonts. Google sometimes answers with an address Turbopack cannot parse, and the image is not published. The four faces the UI uses (regular, medium, semibold, bold) now live in the repository under the SIL Open Font License. The build no longer contacts Google Fonts. Latin and Cyrillic stay in those files.
+
+The v1.124.0 image was never published. This release is the one that also listens for SMG syslog on the host network. There is no new migration.
 
 ## v1.124.0 — SMG syslog listens on the host network
 
