@@ -18,6 +18,7 @@ import type {
   DashboardCard,
   DashboardSnapshot,
 } from "@/modules/dashboard/types";
+import { CallsChart } from "@/modules/dashboard/ui/calls-chart";
 
 const POLL_MS = 30_000;
 
@@ -115,6 +116,7 @@ export function DashboardView() {
           ))}
         </ul>
       ) : null}
+      {data?.calls ? <CallsChart /> : null}
       {data && data.cards.length > 0 ? (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {data.cards.map((card) => (

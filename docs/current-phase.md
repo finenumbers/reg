@@ -1,7 +1,19 @@
-# Current Phase — production (v1.133.0)
+# Current Phase — production (v1.134.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, Eltex SMG CDR, Eltex SMG syslog.  
 **Date:** 2026-10-16
+
+## v1.134.0 — The Dashboard draws today's concurrent calls
+
+The home screen shows a full-width chart of how many softswitch calls were active during each minute of the current day. The height is the peak overlap inside that minute, not the number of calls that started. One `cdr_records` row is one call. SMG CDR is not added.
+
+The clock is the same civil time as the traffic tables: `cdrAt` and `elapsed_time`. Empty or zero duration is not drawn. A call longer than 24 hours is cut at 24 hours, and a call that started more than 24 hours before midnight is left out. The open minute is included. Minutes after it are left blank. A past minute with no calls is a real zero. A call that is still up carries its level through the minutes where nothing starts or ends.
+
+The sweep stays in Postgres. The app receives at most one row per minute, then fills the quiet minutes. That statement is limited to 8 seconds and is not started while the database is being compressed. A timeout, an error, or compression shows an empty chart with a short reason, never a line of zeros. A successful read is reused for 60 seconds by every open tab. The card snapshot does not include the series and still refreshes on its own 30-second timer.
+
+`GET /api/dashboard/calls` accepts a browser session only. Without `phones:read` it returns hidden and does not read CDR. The chart asks on its own every 60 seconds while the tab is visible.
+
+There is no new migration.
 
 ## v1.133.0 — The Dashboard shows what needs attention
 

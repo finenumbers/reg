@@ -116,7 +116,10 @@ async function buildFresh(
   now: number,
 ): Promise<DashboardSnapshot> {
   const facts = await gatherFacts(permissions, now);
-  return toDashboardSnapshot(buildDashboard(facts));
+  return {
+    ...toDashboardSnapshot(buildDashboard(facts)),
+    calls: hasPermission(permissions, "phones:read"),
+  };
 }
 
 async function gatherFacts(

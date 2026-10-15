@@ -329,7 +329,7 @@ export function buildDashboard(facts: DashboardFacts): {
 export function toDashboardSnapshot(model: {
   alerts: DashboardAlert[];
   cards: CardModel[];
-}): DashboardSnapshot {
+}): Omit<DashboardSnapshot, "calls"> {
   return {
     alerts: model.alerts,
     cards: model.cards.map((card) => ({

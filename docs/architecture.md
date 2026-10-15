@@ -170,6 +170,7 @@ Reg/
 - `/api/stats` — monthly CDR summary: ТфОП (Local+LDC joined, two-level header including Межгород) / Trunk_ (same header without Межгород) / platforms; parking + phantom on ТфОП and Trunk_ (`phones:read`)
 - `/api/detail` — monthly client slices from the phones catalog (Описание + endpoint numbers) × incoming / PSTN Local / parking / Trunk_ / PSTN LDC+OLD (`phones:read`)
 - `/api/dashboard` — home snapshot for a signed-in user (session only; not API keys)
+- `/api/dashboard/calls` — today's concurrent softswitch calls (session only; hidden without `phones:read`)
 - `/api/healthz`, `/api/readyz`
 
 Ни один endpoint не принимает поля `command`, `scriptPath`, `remoteArgs` из клиента.

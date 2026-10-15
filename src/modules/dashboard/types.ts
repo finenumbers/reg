@@ -33,4 +33,12 @@ export type DashboardCard = {
 export type DashboardSnapshot = {
   alerts: DashboardAlert[];
   cards: DashboardCard[];
+  /** The signed-in user may see the concurrent-call chart. */
+  calls: boolean;
 };
+
+export type DashboardCalls =
+  | { status: "hidden" }
+  | { status: "vacuum"; message: string }
+  | { status: "unavailable"; message: string }
+  | { status: "ready"; day: string; minutes: number[]; peak: number };
