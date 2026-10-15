@@ -38,6 +38,7 @@ type Payload = {
   cascade: SyslogCascade | null;
   purgeMonths: SyslogPurgeMonth[];
   lastPacket: string | null;
+  storedBytes: number | null;
   status: { lowSpace: boolean } | null;
 };
 
@@ -68,6 +69,7 @@ export function SyslogView({
   const [purgeMonths, setPurgeMonths] = useState<SyslogPurgeMonth[]>([]);
   const [cutoff, setCutoff] = useState("");
   const [lastPacket, setLastPacket] = useState<string | null>(null);
+  const [storedBytes, setStoredBytes] = useState<number | null>(null);
   const [lowSpace, setLowSpace] = useState(false);
   const [purging, setPurging] = useState(false);
   const generation = useRef(0);
@@ -78,6 +80,7 @@ export function SyslogView({
       setCascade(null);
       setPurgeMonths([]);
       setLastPacket(null);
+      setStoredBytes(null);
       return;
     }
     const params = new URLSearchParams({ device: nextDevice });
@@ -96,6 +99,7 @@ export function SyslogView({
     setCascade(body.cascade);
     setPurgeMonths(body.purgeMonths);
     setLastPacket(body.lastPacket);
+    setStoredBytes(body.storedBytes ?? null);
     setLowSpace(Boolean(body.status?.lowSpace));
     const nextSelected = selectedKey(body.cascade?.selected ?? null);
     const asked = queryKey(nextQuery);
@@ -106,6 +110,7 @@ export function SyslogView({
     if (body.devices.length > 0 && !body.devices.some((row) => row.ip === nextDevice)) {
       scrollRef.current = true;
       setQuery({});
+      setStoredBytes(null);
       setDevice(body.devices[0]?.ip ?? "");
     }
   }, []);
@@ -244,6 +249,7 @@ export function SyslogView({
           onChange={(value) => {
             scrollRef.current = true;
             setQuery({});
+            setStoredBytes(null);
             setDevice(value);
           }}
         />
@@ -256,6 +262,14 @@ export function SyslogView({
       <p className="text-sm">
         Последние данные (UTC): <span className="font-semibold">{packetLabel}</span>
       </p>
+      {device ? (
+        <p className="text-sm">
+          Объем данных Syslog по узлу:{" "}
+          <span className="font-semibold">
+            {storedBytes == null ? "…" : formatBytes(storedBytes)}
+          </span>
+        </p>
+      ) : null}
       {devices.length === 0 ? (
         <p className="text-muted-foreground text-sm">Добавьте узел SMG в Настройках.</p>
       ) : (

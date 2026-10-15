@@ -67,7 +67,7 @@ export function LoadAgeChip({
 
   return (
     <p className="text-muted-foreground text-sm" title={title}>
-      с загрузки{" "}
+      с последней загрузки:{" "}
       <span className={cn("font-semibold tabular-nums", tone ? TONE_CLASS[tone] : null)}>
         {formatElapsed(now - passAt)}
       </span>

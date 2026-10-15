@@ -4,6 +4,7 @@ import {
   isDockerBridgeDevice,
   listSyslogCascade,
   listSyslogPurgeMonths,
+  readSyslogStoredBytes,
   withBridgeDevices,
 } from "@/modules/smg-syslog/browse";
 import { canonicalIpv4 } from "@/modules/smg-syslog/ip";
@@ -32,6 +33,7 @@ export async function GET(request: Request) {
       cascade: null,
       purgeMonths: [],
       lastPacket: null,
+      storedBytes: null,
       status,
     });
   }
@@ -58,5 +60,13 @@ export async function GET(request: Request) {
   }
   const canonical = canonicalIpv4(device);
   const lastPacket = canonical ? (status?.lastPacket[canonical] ?? null) : null;
-  return NextResponse.json({ devices, cascade, purgeMonths, lastPacket, status });
+  const storedBytes = await readSyslogStoredBytes(root, device);
+  return NextResponse.json({
+    devices,
+    cascade,
+    purgeMonths,
+    lastPacket,
+    storedBytes,
+    status,
+  });
 }

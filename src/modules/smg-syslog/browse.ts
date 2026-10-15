@@ -5,6 +5,7 @@ import {
   realpathSync,
   statSync,
 } from "node:fs";
+import { lstat, readdir } from "node:fs/promises";
 import path from "node:path";
 import { createGunzip } from "node:zlib";
 import { Readable } from "node:stream";
@@ -594,4 +595,146 @@ export function listSyslogPurgeMonths(
   }
   months.sort((a, b) => b.year.localeCompare(a.year) || b.month.localeCompare(a.month));
   return months;
+}
+
+/** Longer than the syslog page poll, so an open tab does not stat every file each time. */
+export const SYSLOG_STORED_BYTES_TTL_MS = 15_000;
+
+type StoredByteCache = { bytes: number; at: number; generation: number };
+type StoredByteFlight = { generation: number; promise: Promise<void> };
+
+const storedByteCache = new Map<string, StoredByteCache>();
+const storedByteFlight = new Map<string, StoredByteFlight>();
+const storedByteGeneration = new Map<string, number>();
+
+function storedByteKey(root: string, ip: string): string {
+  return `${root}\0${ip}`;
+}
+
+const SLOT_LEVELS = ["year", "month", "day", "hour"] as const;
+
+/**
+ * Logical size of every saved slot under one device, matching the hour table.
+ * A missing directory is 0. An unusable path, or a device directory that cannot
+ * be read, is null.
+ */
+export async function sumSyslogStoredBytes(
+  root: string,
+  device: string,
+): Promise<number | null> {
+  const located = syslogDeviceLocation(root, device);
+  if (located.status === "invalid") return null;
+  if (located.status === "missing") return 0;
+  try {
+    return await sumSlotBytes(located.dir, 0);
+  } catch {
+    return null;
+  }
+}
+
+async function sumSlotBytes(dir: string, depth: number): Promise<number> {
+  let entries;
+  try {
+    entries = await readdir(dir, { withFileTypes: true });
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (depth === 0 && code !== "ENOENT") throw error;
+    return 0;
+  }
+  let total = 0;
+  if (depth < SLOT_LEVELS.length) {
+    const level = SLOT_LEVELS[depth] ?? "year";
+    for (const entry of entries) {
+      if (entry.name.startsWith(".") || entry.isSymbolicLink()) continue;
+      if (!entry.isDirectory() || !nameOk(level, entry.name)) continue;
+      total += await sumSlotBytes(path.join(dir, entry.name), depth + 1);
+    }
+    return total;
+  }
+  for (const entry of entries) {
+    if (entry.name.startsWith(".") || entry.isSymbolicLink()) continue;
+    if (!entry.isFile() || !isSlotFileName(entry.name)) continue;
+    try {
+      const stat = await lstat(path.join(dir, entry.name));
+      if (stat.isSymbolicLink() || !stat.isFile()) continue;
+      total += stat.size;
+    } catch {
+      continue;
+    }
+  }
+  return total;
+}
+
+function storedByteGenerationOf(key: string): number {
+  return storedByteGeneration.get(key) ?? 0;
+}
+
+function startStoredByteRefresh(root: string, ip: string, key: string): Promise<void> {
+  const generation = storedByteGenerationOf(key);
+  const current = storedByteFlight.get(key);
+  if (current?.generation === generation) return current.promise;
+  const flight: StoredByteFlight = {
+    generation,
+    promise: sumSyslogStoredBytes(root, ip).then(
+      (bytes) => {
+        if (storedByteGenerationOf(key) !== generation) return;
+        const previous = storedByteCache.get(key);
+        if (bytes == null) {
+          if (previous?.generation === generation) {
+            storedByteCache.set(key, { ...previous, at: Date.now() });
+          }
+          return;
+        }
+        storedByteCache.set(key, { bytes, at: Date.now(), generation });
+      },
+      () => {
+        /* keep the previous total; the next read tries again */
+      },
+    ),
+  };
+  storedByteFlight.set(key, flight);
+  void flight.promise.finally(() => {
+    if (storedByteFlight.get(key) === flight) storedByteFlight.delete(key);
+  });
+  return flight.promise;
+}
+
+/**
+ * Total for the syslog page. A fresh cache entry is returned immediately.
+ * After the TTL the previous total is returned while one walk refreshes it.
+ * The first read of a device waits for the walk. A walk that started before
+ * `invalidateSyslogStoredBytes` does not write the cache.
+ */
+export async function readSyslogStoredBytes(
+  root: string,
+  device: string,
+): Promise<number | null> {
+  const ip = canonicalIpv4(device);
+  if (!ip) return null;
+  const key = storedByteKey(root, ip);
+  const generation = storedByteGenerationOf(key);
+  const hit = storedByteCache.get(key);
+  if (
+    hit?.generation === generation &&
+    Date.now() - hit.at < SYSLOG_STORED_BYTES_TTL_MS
+  ) {
+    return hit.bytes;
+  }
+  if (hit?.generation === generation) {
+    void startStoredByteRefresh(root, ip, key);
+    return hit.bytes;
+  }
+  await startStoredByteRefresh(root, ip, key);
+  const next = storedByteCache.get(key);
+  if (next?.generation === storedByteGenerationOf(key)) return next.bytes;
+  return null;
+}
+
+/** Forget one device. An in-flight walk from before this call cannot store. */
+export function invalidateSyslogStoredBytes(root: string, device: string): void {
+  const ip = canonicalIpv4(device);
+  if (!ip) return;
+  const key = storedByteKey(root, ip);
+  storedByteGeneration.set(key, storedByteGenerationOf(key) + 1);
+  storedByteCache.delete(key);
 }

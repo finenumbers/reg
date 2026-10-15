@@ -2,7 +2,11 @@ import { lstatSync, readdirSync, realpathSync } from "node:fs";
 import { rm, rmdir, unlink } from "node:fs/promises";
 import path from "node:path";
 import { bucketOf } from "@/modules/smg-syslog/bucket";
-import { listSyslogPurgeMonths, syslogDeviceLocation } from "@/modules/smg-syslog/browse";
+import {
+  invalidateSyslogStoredBytes,
+  listSyslogPurgeMonths,
+  syslogDeviceLocation,
+} from "@/modules/smg-syslog/browse";
 import { canonicalIpv4 } from "@/modules/smg-syslog/ip";
 
 export type SyslogCutoff = { year: string; month: string };
@@ -113,6 +117,7 @@ export async function purgeSyslogBefore(
       await removeYearIfEmpty(yearDir);
     }
   } catch {
+    if (deleted.length > 0) invalidateSyslogStoredBytes(root, device);
     return {
       ok: false,
       code: "PARTIAL",
@@ -120,6 +125,7 @@ export async function purgeSyslogBefore(
       message: "Не удалось удалить все файлы старше выбранного месяца",
     };
   }
+  if (deleted.length > 0) invalidateSyslogStoredBytes(root, device);
   return { ok: true, deleted };
 }
 
@@ -190,6 +196,7 @@ export async function removeSyslogDeviceDirectory(
       if (errno(error) === "ENOENT") return "missing";
       return "remains";
     }
+    invalidateSyslogStoredBytes(root, ip);
     return "removed";
   }
   if (!stat.isDirectory()) return "refused";
@@ -205,7 +212,10 @@ export async function removeSyslogDeviceDirectory(
     lstatSync(dir);
     return "remains";
   } catch (error) {
-    if (errno(error) === "ENOENT") return "removed";
+    if (errno(error) === "ENOENT") {
+      invalidateSyslogStoredBytes(root, ip);
+      return "removed";
+    }
     return "remains";
   }
 }

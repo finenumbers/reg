@@ -1,7 +1,17 @@
-# Current Phase — production (v1.129.0)
+# Current Phase — production (v1.130.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, Eltex SMG CDR, Eltex SMG syslog.  
 **Date:** 2026-10-15
+
+## v1.130.0 — The call tables name the last load, and syslog shows one gateway's stored size
+
+«Телефонный трафик», «География звонков», «Операторы связи», «Сырые данные», and «Звонки на SMG» say «с последней загрузки: » above the table. The elapsed time stays bold and colored. «нет загрузок» is unchanged.
+
+On the syslog page, under «Последние данные (UTC)», a line reads «Объем данных Syslog по узлу». The figure is the size of every saved 10-minute file for the selected gateway, the same kind of size as the «Объем» column. A raw log and its archive both count while a slot is still being appended. A partial archive, a hidden name, a symlink, and any other gateway do not. An empty gateway shows 0 Б. Until the first answer for that gateway arrives, the figure is «…». Changing the gateway clears it at once.
+
+The number is taken from that gateway's directory and kept for 15 seconds, so the four-second refresh does not stat every file. After 15 seconds the previous figure stays on screen while one walk replaces it. Deleting months, or removing the gateway directory, drops the cached figure immediately. A walk that had already started cannot put the old total back.
+
+There is no new migration.
 
 ## v1.129.0 — SMG syslog is one cascade, and deleting a gateway removes its files
 
