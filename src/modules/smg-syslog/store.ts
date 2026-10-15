@@ -18,7 +18,7 @@ import { once } from "node:events";
 import path from "node:path";
 import { createGzip, createGunzip, type Gzip, type Gunzip } from "node:zlib";
 import { bucketOf, isPastBucket, type SyslogBucket } from "@/modules/smg-syslog/bucket";
-import { frameDatagram } from "@/modules/smg-syslog/frame";
+import { frameDatagram, lineParts, syslogLineFeed } from "@/modules/smg-syslog/frame";
 import { PARTIAL_GZ_SUFFIX } from "@/modules/smg-syslog/paths";
 
 const FILE_MODE = 0o640;
@@ -49,6 +49,8 @@ type GzipJob = {
   logFd: number;
   logOffset: number;
   logSize: number;
+  /** Last uncompressed byte of the previous archive, once any byte has been seen. */
+  prefixLast: number | null;
   failed: boolean;
 };
 
@@ -102,9 +104,12 @@ function ensureDir(dir: string): void {
  */
 export class SyslogStore {
   private readonly fds = new Map<string, number>();
+  /** Append descriptors whose file already ends with LF. Cleared on a failed write. */
+  private readonly endsWithLf = new Set<number>();
   private needsFsync = false;
   private job: GzipJob | null = null;
   private failFsync = false;
+  private failWrite = false;
   private readonly gzipWaitMs: number;
   private readonly syncFile: (fd: number) => Promise<void>;
 
@@ -120,6 +125,11 @@ export class SyslogStore {
   /** Next fsync throws once. The bytes already written stay on disk. */
   failNextFsync(): void {
     this.failFsync = true;
+  }
+
+  /** Next append is written, then thrown, so the batch is truncated back. */
+  failNextWrite(): void {
+    this.failWrite = true;
   }
 
   dirty(): boolean {
@@ -152,7 +162,10 @@ export class SyslogStore {
       await this.fsyncOpen();
       this.needsFsync = false;
     }
-    for (const fd of this.fds.values()) closeSync(fd);
+    for (const fd of this.fds.values()) {
+      closeSync(fd);
+      this.endsWithLf.delete(fd);
+    }
     this.fds.clear();
     this.abortJob();
   }
@@ -212,16 +225,26 @@ export class SyslogStore {
         ensureDir(path.dirname(file));
         const fd = this.openAppend(file);
         if (!touched.has(fd)) {
-          touched.set(fd, fstatSync(fd).size);
-          chunks.set(fd, []);
+          const size = fstatSync(fd).size;
+          touched.set(fd, size);
+          const parts: Buffer[] = [];
+          if (this.needsLeadingBreak(fd, size)) parts.push(syslogLineFeed);
+          chunks.set(fd, parts);
         }
-        chunks.get(fd)?.push(framed);
+        chunks.get(fd)?.push(...lineParts(framed));
       }
       for (const [fd, parts] of chunks) {
+        if (parts.length === 0) continue;
         await writeFull(fd, Buffer.concat(parts));
+        if (this.failWrite) {
+          this.failWrite = false;
+          throw new Error("write failed");
+        }
+        this.endsWithLf.add(fd);
       }
     } catch (error) {
       for (const [fd, size] of touched) {
+        this.endsWithLf.delete(fd);
         try {
           ftruncateSync(fd, size);
         } catch {
@@ -232,10 +255,24 @@ export class SyslogStore {
     }
   }
 
+  /** One LF before this batch when the bytes already on disk do not end with one. */
+  private needsLeadingBreak(fd: number, size: number): boolean {
+    if (this.endsWithLf.has(fd)) return false;
+    if (size === 0) return false;
+    const buf = Buffer.alloc(1);
+    const n = readSync(fd, buf, 0, 1, size - 1);
+    if (n !== 1) throw new Error("syslog tail unreadable");
+    if (buf[0] === 0x0a) {
+      this.endsWithLf.add(fd);
+      return false;
+    }
+    return true;
+  }
+
   private openAppend(file: string): number {
     const existing = this.fds.get(file);
     if (existing != null) return existing;
-    const fd = openSync(file, "a", FILE_MODE);
+    const fd = openSync(file, "a+", FILE_MODE);
     this.fds.set(file, fd);
     return fd;
   }
@@ -255,6 +292,7 @@ export class SyslogStore {
       const suffix = file.slice(this.root.length);
       if (suffix.endsWith(currentSuffix)) continue;
       closeSync(fd);
+      this.endsWithLf.delete(fd);
       this.fds.delete(file);
     }
   }
@@ -297,6 +335,7 @@ export class SyslogStore {
       logFd: openSync(logPath, "r"),
       logOffset: 0,
       logSize: logStat.size,
+      prefixLast: null,
       failed: false,
     };
     gzip.on("error", () => {
@@ -307,6 +346,7 @@ export class SyslogStore {
     });
     if (gunzip) {
       gunzip.on("data", (chunk: Buffer) => {
+        if (chunk.length > 0) job.prefixLast = chunk[chunk.length - 1] ?? null;
         gzip.write(chunk);
       });
       gunzip.on("error", () => {
@@ -333,6 +373,10 @@ export class SyslogStore {
     await this.waitFor(job.gunzip, "end");
     closeSync(job.oldFd);
     job.oldFd = null;
+    if (job.logSize > 0 && job.prefixLast != null && job.prefixLast !== 0x0a) {
+      const ok = job.gzip.write(syslogLineFeed);
+      if (!ok) await this.waitFor(job.gzip, "drain");
+    }
     job.phase = "log";
   }
 

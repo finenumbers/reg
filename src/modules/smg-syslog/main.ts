@@ -43,4 +43,9 @@ async function main(): Promise<void> {
   process.once("SIGINT", shutdown);
 }
 
-void main();
+void main().catch((error: unknown) => {
+  logger.error("smg.syslog.start_failed", {
+    error: error instanceof Error ? error.message : String(error),
+  });
+  process.exit(1);
+});

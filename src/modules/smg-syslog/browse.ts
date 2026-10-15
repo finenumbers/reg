@@ -11,6 +11,7 @@ import {
 import path from "node:path";
 import { createGunzip } from "node:zlib";
 import { Readable } from "node:stream";
+import { syslogLineFeed } from "@/modules/smg-syslog/frame";
 import { canonicalIpv4, looksLikeDockerBridge } from "@/modules/smg-syslog/ip";
 import { monthNominative } from "@/modules/traffic/month-labels";
 
@@ -340,7 +341,7 @@ export function streamDownload(download: SyslogDownload): {
     download.logSize === 0
       ? Readable.from([])
       : createReadStream(download.logPath, { start: 0, end: download.logSize - 1 });
-  const stream = Readable.from(concatStreams(gunzip, log));
+  const stream = Readable.from(concatStreams(gunzip, log, download.logSize));
   return {
     stream,
     filename: download.filename,
@@ -349,10 +350,18 @@ export function streamDownload(download: SyslogDownload): {
   };
 }
 
-async function* concatStreams(first: Readable, second: Readable): AsyncGenerator<Buffer> {
+async function* concatStreams(
+  first: Readable,
+  second: Readable,
+  secondBytes: number,
+): AsyncGenerator<Buffer> {
+  let last: number | null = null;
   for await (const chunk of first) {
-    yield Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    if (buf.length > 0) last = buf[buf.length - 1] ?? null;
+    yield buf;
   }
+  if (secondBytes > 0 && last != null && last !== 0x0a) yield Buffer.from(syslogLineFeed);
   for await (const chunk of second) {
     yield Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
   }

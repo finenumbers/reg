@@ -120,7 +120,7 @@ sudo conntrack -D -p udp --dport 5514
 
 The host firewall must allow UDP 514 from the SMG addresses into the host. A rule that only allowed Docker's forward chain will now drop every gateway. Folders are UTC. Raise `net.core.rmem_max` to at least 16 MiB; Settings names the buffer when the kernel clamped it.
 
-Packets that arrived earlier with a rewritten bridge address stay in that folder. While the `smg-syslog` container is recreated, datagrams that arrive have nowhere to go; the gateway does not resend them.
+v1.127.0 deletes the syslog volume once, on the first start of that image. The gateway list and the reception switch stay. Later restarts keep the new files. While the `smg-syslog` container is recreated, datagrams that arrive have nowhere to go; the gateway does not resend them.
 
 One `smg-syslog` replica. It does not use the HTTP health check. This service is a Compose host-network container, not a Swarm task.
 

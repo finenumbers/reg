@@ -10,6 +10,7 @@ import {
   type SyslogPacket,
 } from "@/modules/smg-syslog/store";
 import { privilegeDropTarget } from "@/modules/smg-syslog/privileges";
+import { resetSyslogVolumeOnce } from "@/modules/smg-syslog/reset";
 import { freeBytes, LOW_SPACE_BYTES, writeStatus } from "@/modules/smg-syslog/status";
 
 const REGISTRY_MS = 1000;
@@ -46,6 +47,7 @@ export function syslogSourceAccepted(ip: string, ips: ReadonlySet<string>): bool
 export async function runSyslogReceiver(
   options: ReceiverOptions,
 ): Promise<() => Promise<void>> {
+  if (resetSyslogVolumeOnce(options.root)) logger.info("smg.syslog.volume_reset", {});
   mkdirSync(options.root, { recursive: true });
   removePartialArchives(options.root);
 

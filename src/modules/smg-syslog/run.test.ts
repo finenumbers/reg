@@ -46,7 +46,7 @@ describe("syslog receiver", () => {
       bucket.hour,
       `${bucket.slot}.log`,
     );
-    expect(readFileSync(file, "utf8")).toBe("hello-smg");
+    expect(readFileSync(file, "utf8")).toBe("hello-smg\n");
   });
 
   it("keeps writing while a later registry read never returns", async () => {
@@ -85,7 +85,7 @@ describe("syslog receiver", () => {
       bucket.hour,
       `${bucket.slot}.log`,
     );
-    expect(readFileSync(file, "utf8")).toBe("after-hang");
+    expect(readFileSync(file, "utf8")).toBe("after-hang\n");
   });
 
   it("keeps datagrams that arrive while fsync waits", async () => {
@@ -147,7 +147,7 @@ describe("syslog receiver", () => {
       bucket.hour,
       `${bucket.slot}.log`,
     );
-    expect(readFileSync(file, "utf8")).toBe("ABC");
+    expect(readFileSync(file, "utf8")).toBe("A\nB\nC\n");
   });
 
   it("accepts a registered address and the docker bridge, and rejects another", () => {

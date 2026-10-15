@@ -1,7 +1,17 @@
-# Current Phase — production (v1.126.0)
+# Current Phase — production (v1.127.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, Eltex SMG CDR, Eltex SMG syslog.  
 **Date:** 2026-10-15
+
+## v1.127.0 — Each new SMG syslog datagram is one line, and the volume is cleared once
+
+The first start of this receiver deletes every file and directory in the syslog volume, then writes `.volume-reset`. A later start of this same release leaves the new files in place. The gateway list and the reception switch stay in the database. The socket opens only after that marker is on disk. If the delete fails, the process exits and does not listen.
+
+A new datagram is stored in full, in arrival order. When it does not already end in a line feed, one line feed is written after it. A datagram that already ends in a line feed is not given a second one. Bytes inside the datagram are not changed. An empty datagram is still not stored.
+
+A batch appended to a file that does not end in a line feed starts with one line feed, in the same write as the batch. A failed write truncates that whole write. When a closed archive and a new raw log are merged, or downloaded together, one line feed is inserted between them only if the archive does not already end in one.
+
+There is no new migration.
 
 ## v1.126.0 — SMG syslog fsync no longer blocks the socket
 

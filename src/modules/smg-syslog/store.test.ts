@@ -1,10 +1,10 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { gunzipSync } from "node:zlib";
+import { gzipSync, gunzipSync } from "node:zlib";
 import { afterEach, describe, expect, it } from "vitest";
 import { syslogFileKey } from "@/modules/smg-syslog/bucket";
-import { listSyslogLevel, openSyslogDownload } from "@/modules/smg-syslog/browse";
+import { listSyslogLevel, openSyslogDownload, streamDownload } from "@/modules/smg-syslog/browse";
 import { SyslogStore, type SyslogPacket } from "@/modules/smg-syslog/store";
 
 const dirs: string[] = [];
@@ -44,7 +44,7 @@ describe("syslog files", () => {
     }
     const gz = path.join(root, "10.1.2.3", "2026", "10", "14", "19", "50.log.gz");
     const text = gunzipSync(readFileSync(gz));
-    expect(text).toEqual(Buffer.concat([payload, Buffer.from("second")]));
+    expect(text).toEqual(Buffer.concat([payload, Buffer.from("\nsecond\n")]));
     expect(
       listSyslogLevel(root, "10.1.2.3", {
         year: "2026",
@@ -87,7 +87,7 @@ describe("syslog files", () => {
     expect(list).toEqual({
       kind: "files",
       files: [
-        { slot: "50", label: "50", bytes: Buffer.from("live").length, state: "open" },
+        { slot: "50", label: "50", bytes: Buffer.from("live\n").length, state: "open" },
       ],
     });
   });
@@ -118,7 +118,7 @@ describe("syslog files", () => {
     const raw = readFileSync(
       path.join(root, "10.1.2.3", "2026", "10", "14", "19", "50.log"),
     );
-    expect(raw.toString()).toBe("onetwo");
+    expect(raw.toString()).toBe("one\ntwo\n");
   });
 
   it("files each datagram by its UTC arrival, not by the commit clock", async () => {
@@ -134,13 +134,13 @@ describe("syslog files", () => {
         path.join(root, "10.1.2.3", "2026", "10", "15", "01", "50.log"),
         "utf8",
       ),
-    ).toBe("early");
+    ).toBe("early\n");
     expect(
       readFileSync(
         path.join(root, "10.1.2.3", "2026", "10", "15", "02", "00.log"),
         "utf8",
       ),
-    ).toBe("later");
+    ).toBe("later\n");
   });
 
   it("keeps the next batch when the previous fsync failed", async () => {
@@ -158,13 +158,13 @@ describe("syslog files", () => {
         path.join(root, "10.1.2.3", "2026", "10", "15", "01", "50.log"),
         "utf8",
       ),
-    ).toBe("early");
+    ).toBe("early\n");
     expect(
       readFileSync(
         path.join(root, "10.1.2.3", "2026", "10", "15", "02", "00.log"),
         "utf8",
       ),
-    ).toBe("later");
+    ).toBe("later\n");
   });
 
   it("does not archive a slot that still has queued datagrams", async () => {
@@ -177,7 +177,7 @@ describe("syslog files", () => {
     const key = syslogFileKey("10.1.2.3", when);
     await again.pumpGzipSlice(new Date("2026-10-14T20:00:00Z"), new Set([key]));
     const raw = path.join(root, "10.1.2.3", "2026", "10", "14", "19", "50.log");
-    expect(readFileSync(raw, "utf8")).toBe("queued");
+    expect(readFileSync(raw, "utf8")).toBe("queued\n");
     expect(existsSync(`${raw}.gz`)).toBe(false);
   });
 
@@ -192,7 +192,116 @@ describe("syslog files", () => {
     await again.pumpGzipSlice(later, new Set());
     await again.pumpGzipSlice(later, new Set([syslogFileKey("10.1.2.3", when)]));
     const raw = path.join(root, "10.1.2.3", "2026", "10", "14", "19", "50.log");
-    expect(readFileSync(raw, "utf8")).toBe("queued");
+    expect(readFileSync(raw, "utf8")).toBe("queued\n");
     expect(existsSync(`${raw}.gz`)).toBe(false);
+  });
+
+  it("keeps a payload that already ends with a line feed and does not add another", async () => {
+    const root = tempRoot();
+    const store = new SyslogStore(root);
+    const when = new Date("2026-10-14T19:51:00Z");
+    await store.commit([
+      packet("10.1.2.3", "abc\n", when),
+      packet("10.1.2.3", "def", when),
+    ]);
+    await store.close();
+    expect(
+      readFileSync(path.join(root, "10.1.2.3", "2026", "10", "14", "19", "50.log"), "utf8"),
+    ).toBe("abc\ndef\n");
+  });
+
+  it("does not store an empty datagram", async () => {
+    const root = tempRoot();
+    const store = new SyslogStore(root);
+    const when = new Date("2026-10-14T19:51:00Z");
+    await store.commit([packet("10.1.2.3", Buffer.alloc(0), when)]);
+    await store.close();
+    expect(existsSync(path.join(root, "10.1.2.3"))).toBe(false);
+  });
+
+  it("separates a new datagram from a legacy tail and rolls that write back", async () => {
+    const root = tempRoot();
+    const when = new Date("2026-10-14T19:51:00Z");
+    const raw = path.join(root, "10.1.2.3", "2026", "10", "14", "19", "50.log");
+    mkdirSync(path.dirname(raw), { recursive: true });
+    writeFileSync(raw, "onetwo");
+    const store = new SyslogStore(root);
+    store.failNextWrite();
+    await expect(store.commit([packet("10.1.2.3", "three", when)])).rejects.toThrow(
+      /write failed/,
+    );
+    expect(readFileSync(raw, "utf8")).toBe("onetwo");
+    await store.commit([packet("10.1.2.3", "three", when)]);
+    await store.close();
+    expect(readFileSync(raw, "utf8")).toBe("onetwo\nthree\n");
+  });
+
+  it("does not insert a blank line when the file already ends with a line feed", async () => {
+    const root = tempRoot();
+    const when = new Date("2026-10-14T19:51:00Z");
+    const raw = path.join(root, "10.1.2.3", "2026", "10", "14", "19", "50.log");
+    mkdirSync(path.dirname(raw), { recursive: true });
+    writeFileSync(raw, "ready\n");
+    const store = new SyslogStore(root);
+    await store.commit([packet("10.1.2.3", "next", when)]);
+    await store.close();
+    expect(readFileSync(raw, "utf8")).toBe("ready\nnext\n");
+  });
+
+  it("puts one line feed between a legacy archive and a new raw log", async () => {
+    const root = tempRoot();
+    const when = new Date("2026-10-14T19:50:30Z");
+    const dir = path.join(root, "10.1.2.3", "2026", "10", "14", "19");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(path.join(dir, "50.log.gz"), gzipSync(Buffer.from("oldblob")));
+    const store = new SyslogStore(root);
+    await store.commit([packet("10.1.2.3", "msg", when)]);
+    await store.close();
+    const again = new SyslogStore(root);
+    const later = new Date("2026-10-14T20:00:00Z");
+    for (let i = 0; i < 20; i += 1) await again.pumpGzipSlice(later, new Set());
+    expect(gunzipSync(readFileSync(path.join(dir, "50.log.gz")))).toEqual(
+      Buffer.from("oldblob\nmsg\n"),
+    );
+  });
+
+  it("does not add a blank line when the archive already ends with a line feed", async () => {
+    const root = tempRoot();
+    const when = new Date("2026-10-14T19:50:30Z");
+    const dir = path.join(root, "10.1.2.3", "2026", "10", "14", "19");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(path.join(dir, "50.log.gz"), gzipSync(Buffer.from("old\n")));
+    const store = new SyslogStore(root);
+    await store.commit([packet("10.1.2.3", "msg", when)]);
+    await store.close();
+    const again = new SyslogStore(root);
+    const later = new Date("2026-10-14T20:00:00Z");
+    for (let i = 0; i < 20; i += 1) await again.pumpGzipSlice(later, new Set());
+    expect(gunzipSync(readFileSync(path.join(dir, "50.log.gz")))).toEqual(
+      Buffer.from("old\nmsg\n"),
+    );
+  });
+
+  it("inserts one line feed when a legacy archive and a raw log are downloaded together", async () => {
+    const root = tempRoot();
+    const dir = path.join(root, "10.1.2.3", "2026", "10", "14", "19");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(path.join(dir, "50.log.gz"), gzipSync(Buffer.from("oldblob")));
+    writeFileSync(path.join(dir, "50.log"), "msg\n");
+    const opened = openSyslogDownload(root, "10.1.2.3", {
+      year: "2026",
+      month: "10",
+      day: "14",
+      hour: "19",
+      slot: "50",
+    });
+    expect(opened?.kind).toBe("combined");
+    if (opened?.kind !== "combined") return;
+    const streamed = streamDownload(opened);
+    const chunks: Buffer[] = [];
+    for await (const chunk of streamed.stream) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
+    expect(Buffer.concat(chunks)).toEqual(Buffer.from("oldblob\nmsg\n"));
   });
 });
