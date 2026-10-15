@@ -1,7 +1,21 @@
-# Current Phase — production (v1.132.0)
+# Current Phase — production (v1.133.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, Eltex SMG CDR, Eltex SMG syslog.  
 **Date:** 2026-10-16
+
+## v1.133.0 — The Dashboard shows what needs attention
+
+`/` still has no menu item. The logo and a fresh login land here. The screen now lists the feeds the signed-in user is allowed to see: SIP registrations, phone numbers, routing groups, softswitch CDR, SMG CDR, and SMG syslog.
+
+A red line appears only when a switched-on loop has failed, has never succeeded, or is older than its own cadence. Registrations use two poll intervals, with a two-minute floor. Phone numbers and routing groups share one `export.py` and take turns, so each is allowed four export intervals, with a ten-minute floor. A running job is not called stale. A switched-off poll is a badge on its card, not an alarm. Unregistered SIP numbers stay on the card and do not raise a line.
+
+CDR and SMG lines follow the same inbox rules as those pages: a purge hold is not poison, and a waiting folder is mentioned from the second ready file, not while an import is already running. Poison on the softswitch side links to «Сырые данные». Syslog uses the status file on the shared volume. A quiet receiver, a dead socket, low disk, or packets from unknown addresses are lines. The card does not walk the syslog tree.
+
+The traffic card shows call counts for the current UTC month. During database compression that number is the last cached count, or a blank with the same compression sentence the other CDR pages use. It is never a fabricated zero. Minutes, SMG month totals, and the VoIPmonitor queue are not on this screen.
+
+`GET /api/dashboard` accepts a browser session only. Machine API keys are rejected. One short in-memory snapshot is shared by open tabs; the page asks again every 30 seconds while it is visible. A user with no module permissions still sees the heading and nothing else.
+
+There is no new migration.
 
 ## v1.132.0 — The site root is an empty Dashboard
 

@@ -25,14 +25,22 @@ type Cache = {
   months: CdrMonth[];
 };
 
-function cacheStore(): { slot: Cache | null } {
-  const g = globalThis as typeof globalThis & { [KEY]?: { slot: Cache | null } };
-  if (!g[KEY]) g[KEY] = { slot: null };
+type CacheStore = { slot: Cache | null; inflight: Promise<CdrMonth[]> | null };
+
+function cacheStore(): CacheStore {
+  const g = globalThis as typeof globalThis & { [KEY]?: CacheStore };
+  if (!g[KEY]) g[KEY] = { slot: null, inflight: null };
+  if (g[KEY].inflight === undefined) g[KEY].inflight = null;
   return g[KEY];
 }
 
 export function invalidateCdrMonthCountCache(): void {
   cacheStore().slot = null;
+}
+
+/** Months already counted in this process. Does not start a scan and does not invent a zero. */
+export function peekCachedMonthCounts(): CdrMonth[] | null {
+  return cacheStore().slot?.months ?? null;
 }
 
 type MonthCountRow = { month_key: string; calls: number };
@@ -76,9 +84,7 @@ export async function queryMonthStatsWithMinutes(): Promise<
   Array<CdrMonth & { seconds: number; minutes: number }>
 > {
   if (isDatabaseVacuumActive()) return [];
-  const rows = await prisma.$queryRaw<MonthStatRow[]>(
-    monthStatsWithDurationSql(),
-  );
+  const rows = await prisma.$queryRaw<MonthStatRow[]>(monthStatsWithDurationSql());
   const out: Array<CdrMonth & { seconds: number; minutes: number }> = [];
   for (const row of rows) {
     const parsed = parseMonthKey(row.month_key);
@@ -103,9 +109,7 @@ function rowsToMonths(rows: MonthCountRow[]): CdrMonth[] {
   return out;
 }
 
-export async function listCachedMonthCounts(
-  now = Date.now(),
-): Promise<CdrMonth[]> {
+export async function listCachedMonthCounts(now = Date.now()): Promise<CdrMonth[]> {
   const store = cacheStore();
   const hit = store.slot;
   if (isDatabaseVacuumActive()) {
@@ -115,7 +119,16 @@ export async function listCachedMonthCounts(
   if (hit && now - hit.at < CACHE_TTL_MS) {
     return withCurrentMonth(hit.months, currentUtcMonth());
   }
-  const months = await queryMonthCallCounts();
-  store.slot = { at: now, months };
+  if (!store.inflight) {
+    store.inflight = queryMonthCallCounts()
+      .then((months) => {
+        cacheStore().slot = { at: Date.now(), months };
+        return months;
+      })
+      .finally(() => {
+        cacheStore().inflight = null;
+      });
+  }
+  const months = await store.inflight;
   return withCurrentMonth(months, currentUtcMonth());
 }
