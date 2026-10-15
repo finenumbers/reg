@@ -18,7 +18,26 @@ const IDLE_MS = 15;
 const RETRY_MS = 200;
 const STATUS_MS = 5000;
 const UNKNOWN_KEEP = 8;
+/** Quiet shutdown returns after two idle pauses. A steady stream stops here. */
+export const SHUTDOWN_DRAIN_MS = 5_000;
+/** A dead socket exits once the queue is flushed, or after this long if disk writes fail. */
+export const FATAL_SOCKET_EXIT_MS = 5_000;
 export const RECV_BUFFER_BYTES = 16 * 1024 * 1024;
+
+export function shutdownDrainContinues(idleStreak: number, elapsedMs: number): boolean {
+  return idleStreak < 2 && elapsedMs < SHUTDOWN_DRAIN_MS;
+}
+
+export function fatalSocketShouldExit(input: {
+  fatal: boolean;
+  stopping: boolean;
+  idle: boolean;
+  failingForMs: number;
+}): boolean {
+  if (!input.fatal || input.stopping) return false;
+  if (input.idle) return true;
+  return input.failingForMs >= FATAL_SOCKET_EXIT_MS;
+}
 
 export type SyslogRegistry = {
   enabled: boolean;
@@ -66,6 +85,8 @@ export async function runSyslogReceiver(
   let bound = false;
   let droppedPrivileges = false;
   let stopping = false;
+  let fatalSocket = false;
+  let fatalSince: number | null = null;
   let unknownTotal = 0;
   let bridgeSeen = false;
   let recvBufferBytes: number | null = null;
@@ -76,13 +97,27 @@ export async function runSyslogReceiver(
   let wake: (() => void) | null = null;
 
   async function pullQueuedDatagrams(): Promise<void> {
+    const started = Date.now();
     let idle = 0;
-    for (let turn = 0; turn < 100 && idle < 2; turn += 1) {
+    while (shutdownDrainContinues(idle, Date.now() - started)) {
       const before = inbox.length;
       await sleep(5);
       if (inbox.length === before) idle += 1;
       else idle = 0;
     }
+  }
+
+  function armFatalSocket(): void {
+    if (stopping || !droppedPrivileges) return;
+    fatalSocket = true;
+    if (fatalSince == null) fatalSince = Date.now();
+  }
+
+  function maybeExitFatalSocket(): void {
+    const idle = inbox.length === 0 && held == null && !store.dirty();
+    const failingForMs = fatalSince == null ? 0 : Date.now() - fatalSince;
+    if (!fatalSocketShouldExit({ fatal: fatalSocket, stopping, idle, failingForMs })) return;
+    process.exit(1);
   }
 
   function sleepOrWake(ms: number): Promise<void> {
@@ -179,6 +214,7 @@ export async function runSyslogReceiver(
         /* already closed */
       }
       if (state.socket === created) state.socket = null;
+      armFatalSocket();
     });
     created.bind(options.port, "0.0.0.0", () => {
       const drop = privilegeDropTarget(
@@ -289,6 +325,7 @@ export async function runSyslogReceiver(
 
   void (async () => {
     while (!stopping) {
+      maybeExitFatalSocket();
       kickRegistry();
       ensureSocket();
       if (store.dirty()) {
@@ -328,6 +365,7 @@ export async function runSyslogReceiver(
       }
       publishStatus(false);
       if (stopping) break;
+      maybeExitFatalSocket();
       if (inbox.length === 0 && !held && !store.dirty()) {
         await sleepOrWake(IDLE_MS);
       }

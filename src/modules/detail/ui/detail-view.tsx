@@ -27,7 +27,7 @@ import {
 import { parseMonthKey } from "@/modules/traffic/cdr-month";
 import { formatMonthOption } from "@/modules/traffic/month-labels";
 
-type Props = { initial: DetailSnapshot };
+type Props = { initial: DetailSnapshot; initialError?: string | null };
 
 const GROUPS = [
   { key: "in", label: "Входящий трафик" },
@@ -52,10 +52,10 @@ const CLIENT_CELL_PAD_PX = 16;
 
 type MetricPair = { calls: number; minutes: number };
 
-export function DetailView({ initial }: Props) {
+export function DetailView({ initial, initialError = null }: Props) {
   const [data, setData] = useState(initial);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(initialError);
   const [sortKey, setSortKey] = useState<DetailSortKey>("client");
   const [shown, setShown] = useState(TABLE_PAGE_SIZE);
   const [scrollRoot, setScrollRoot] = useState<Element | null>(null);

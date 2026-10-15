@@ -8,7 +8,7 @@ import {
   RAW_TABLE_COLUMNS,
   VOIPMONITOR_RAW_LABELS,
 } from "@/modules/traffic/columns";
-import { loadTrafficViewData } from "@/modules/traffic/service";
+import { loadTrafficPageInitial } from "@/modules/traffic/service";
 import { TrafficView } from "@/modules/traffic/ui/traffic-view";
 
 const HEADER_LABELS: Record<string, string> = {
@@ -22,7 +22,7 @@ const HEADER_LABELS: Record<string, string> = {
 export default async function RawCdrPage() {
   const ctx = await requirePagePermission("phones:read");
   const canRetry = hasPermission(ctx.authz.permissions, "phones:request");
-  const initial = await loadTrafficViewData();
+  const { initial, initialListError } = await loadTrafficPageInitial();
 
   return (
     <TrafficView
@@ -35,6 +35,7 @@ export default async function RawCdrPage() {
       canRetry={canRetry}
       emptyUnfiltered="Нет данных. Дождитесь загрузки CDR по FTP или нажмите «Повторить импорт»."
       initial={initial}
+      initialListError={initialListError}
     />
   );
 }

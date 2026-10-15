@@ -609,5 +609,3 @@ export function removePartialArchives(root: string): void {
     }
   }
 }
-
-/** Read a closed raw log through the store's public path helper for tests. */

@@ -24,6 +24,7 @@ vi.mock("@/lib/db", () => ({
     jobRun: {
       create: vi.fn(async () => ({ id: "job_smg" })),
       update: vi.fn(async () => ({})),
+      updateMany: vi.fn(async () => ({ count: 0 })),
     },
     jobRunArtifact: {
       upsert: vi.fn(async () => ({})),

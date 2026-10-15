@@ -122,6 +122,8 @@ The host firewall must allow UDP 514 from the SMG addresses into the host. A rul
 
 v1.127.0 deletes the syslog volume once, on the first start of that image. The gateway list and the reception switch stay. Later restarts keep the new files. While the `smg-syslog` container is recreated, datagrams that arrive have nowhere to go; the gateway does not resend them.
 
+If the socket dies after the privilege drop, the process writes what it already accepted and exits. Docker starts it again and binds 514. A quiet stop still finishes at once. A stop under a steady stream waits at most five seconds, then syncs.
+
 One `smg-syslog` replica. It does not use the HTTP health check. This service is a Compose host-network container, not a Swarm task.
 
 ## 6. GeoIP on the same Docker host

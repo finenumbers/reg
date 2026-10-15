@@ -63,10 +63,16 @@ vi.mock("@/modules/traffic/cdr-month-stats", () => ({
   queryMonthCallCounts: (...args: unknown[]) => queryMonthCallCounts(...args),
 }));
 
+import { clearPurgeHolds } from "@/modules/traffic/poison";
 import {
   processCdrPurgeMonth,
   resolveDeletableMonthKey,
 } from "@/modules/traffic/purge/processor";
+import {
+  getPurgeTargetMonth,
+  purgeDeleteCommitted,
+  resetPurgeTargetForTests,
+} from "@/modules/traffic/purge/target";
 
 function sqlText(sql: unknown): string {
   if (!sql || typeof sql !== "object" || !("strings" in sql)) return "";
@@ -77,6 +83,7 @@ function sqlText(sql: unknown): string {
 describe("processCdrPurgeMonth historyOnly", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    resetPurgeTargetForTests();
     jobRunCreate.mockResolvedValue({ id: "resume-1" });
     jobRunUpdate.mockResolvedValue({});
     auditAppend.mockResolvedValue(undefined);
@@ -143,6 +150,8 @@ describe("processCdrPurgeMonth historyOnly", () => {
     expect(result.status).toBe("failed");
     expect(result.errorMessage).toContain("ещё есть звонки");
     expect(executeRaw).not.toHaveBeenCalled();
+    expect(clearPurgeHolds).toHaveBeenCalledWith("2026-08");
+    expect(getPurgeTargetMonth()).toBeNull();
     expect(queryMonthCallCounts).not.toHaveBeenCalled();
   });
 
@@ -159,6 +168,8 @@ describe("processCdrPurgeMonth historyOnly", () => {
     expect(result.errorMessage).toContain("cdr_records_lastJobRunId_idx");
     expect(executeRaw).not.toHaveBeenCalled();
     expect(cdrCount).not.toHaveBeenCalled();
+    expect(clearPurgeHolds).toHaveBeenCalledWith("2026-08");
+    expect(getPurgeTargetMonth()).toBeNull();
   });
 
   it("deletes remaining SMG calls before jobs and publishes that phase", async () => {
@@ -189,11 +200,58 @@ describe("processCdrPurgeMonth historyOnly", () => {
     expect(phases.indexOf("smg")).toBeGreaterThanOrEqual(0);
     expect(phases.indexOf("smg")).toBeLessThan(phases.indexOf("jobs"));
   });
+
+  it("releases the hold when history finishes without deleting a batch", async () => {
+    const result = await processCdrPurgeMonth({
+      trigger: "schedule",
+      month: "2026-08",
+      historyOnly: true,
+      deletedCalls: 10,
+    });
+    expect(result.status).toBe("success");
+    expect(clearPurgeHolds).toHaveBeenCalledWith("2026-08");
+    expect(getPurgeTargetMonth()).toBeNull();
+    expect(purgeDeleteCommitted()).toBe(false);
+  });
+
+  it("keeps the hold after a committed batch, including a later failure that deletes nothing", async () => {
+    let batches = 0;
+    executeRaw.mockImplementation(async () => {
+      batches += 1;
+      if (batches === 1) return 4;
+      throw new Error("disk");
+    });
+    const first = await processCdrPurgeMonth({
+      trigger: "schedule",
+      month: "2026-08",
+      historyOnly: true,
+      deletedCalls: 10,
+    });
+    expect(first.status).toBe("failed");
+    expect(first.errorMessage).toBe("disk");
+    expect(clearPurgeHolds).not.toHaveBeenCalled();
+    expect(getPurgeTargetMonth()).toBe("2026-08");
+    expect(purgeDeleteCommitted()).toBe(true);
+
+    queryRaw.mockResolvedValue([]);
+    const second = await processCdrPurgeMonth({
+      trigger: "schedule",
+      month: "2026-08",
+      historyOnly: true,
+      deletedCalls: 10,
+    });
+    expect(second.status).toBe("failed");
+    expect(second.errorMessage).toContain("Нет индексов");
+    expect(clearPurgeHolds).not.toHaveBeenCalled();
+    expect(getPurgeTargetMonth()).toBe("2026-08");
+    expect(purgeDeleteCommitted()).toBe(true);
+  });
 });
 
 describe("resolveDeletableMonthKey", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    resetPurgeTargetForTests();
   });
 
   it("picks the oldest month that has SMG rows when CDR is newer", async () => {

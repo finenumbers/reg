@@ -1,13 +1,4 @@
-import {
-  closeSync,
-  createReadStream,
-  fstatSync,
-  openSync,
-  readdirSync,
-  readSync,
-  realpathSync,
-  statSync,
-} from "node:fs";
+import { createReadStream, readdirSync, realpathSync, statSync } from "node:fs";
 import path from "node:path";
 import { createGunzip } from "node:zlib";
 import { Readable } from "node:stream";
@@ -225,7 +216,7 @@ export function listSyslogLevel(
       continue;
     }
     existing.state = "updating";
-    existing.bytes = size;
+    existing.bytes += size;
   }
   const files = [...bySlot.values()].sort((a, b) => a.slot.localeCompare(b.slot));
   return { kind: "files", files };
@@ -364,18 +355,5 @@ async function* concatStreams(
   if (secondBytes > 0 && last != null && last !== 0x0a) yield Buffer.from(syslogLineFeed);
   for await (const chunk of second) {
     yield Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-  }
-}
-
-/** Test helper: a path that escapes the device directory is refused. */
-export function readFileHead(file: string, max: number): Buffer {
-  const fd = openSync(file, "r");
-  try {
-    const size = Math.min(max, fstatSync(fd).size);
-    const buf = Buffer.alloc(max);
-    const n = readSync(fd, buf, 0, size, 0);
-    return buf.subarray(0, n);
-  } finally {
-    closeSync(fd);
   }
 }

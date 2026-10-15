@@ -37,6 +37,7 @@ import {
   type CdrMonth,
 } from "@/modules/traffic/cdr-month";
 import { formatMonthOption } from "@/modules/traffic/month-labels";
+import { CDR_VACUUM_BUSY_MESSAGE } from "@/modules/storage/vacuum/gate";
 import type { ListTrafficResult, TrafficListItem } from "@/modules/traffic/service";
 import { MonthExportButtons } from "@/modules/traffic/ui/month-export-buttons";
 import { LoadAgeChip } from "@/modules/traffic/ui/load-age-chip";
@@ -78,6 +79,7 @@ type Props = {
   emptyUnfiltered: string;
   showMonthExport?: boolean;
   initial: ListTrafficResult;
+  initialListError?: string | null;
 };
 
 export function TrafficView({
@@ -93,6 +95,7 @@ export function TrafficView({
   emptyUnfiltered,
   showMonthExport = false,
   initial,
+  initialListError = null,
 }: Props) {
   const [filters, setFilters] = useState<ColumnFilters>({});
   const [phoneInput, setPhoneInput] = useState("");
@@ -114,7 +117,8 @@ export function TrafficView({
   const [total, setTotal] = useState(initial.total);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [listError, setListError] = useState<string | null>(null);
+  const [listError, setListError] = useState<string | null>(initialListError);
+  const listErrorRef = useRef(initialListError);
   const [bannerError, setBannerError] = useState<string | null>(null);
   const [poisonFiles, setPoisonFiles] = useState<
     Array<{ filename: string; error: string; heldForPurge: boolean }>
@@ -209,6 +213,7 @@ export function TrafficView({
         loadingMoreRef.current = true;
         setLoadingMore(true);
       }
+      listErrorRef.current = null;
       setListError(null);
 
       const result = await fetchTrafficList({
@@ -228,6 +233,7 @@ export function TrafficView({
       if (seq !== refreshSeq.current) return;
 
       if (!result.ok) {
+        listErrorRef.current = result.message;
         setListError(result.message);
         setLoading(false);
         setLoadingMore(false);
@@ -304,7 +310,12 @@ export function TrafficView({
       const finishedChanged =
         lastFinishedAtRef.current !== undefined &&
         lastFinishedAtRef.current !== finishedAt;
-      if ((wasBusyRef.current && !busy) || finishedChanged) {
+      const recoverVacuum = listErrorRef.current === CDR_VACUUM_BUSY_MESSAGE;
+      if (recoverVacuum) {
+        listErrorRef.current = null;
+        setListError(null);
+      }
+      if ((wasBusyRef.current && !busy) || finishedChanged || recoverVacuum) {
         void loadListRef.current({ page: 1, replace: true });
       }
       wasBusyRef.current = busy;

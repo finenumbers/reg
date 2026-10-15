@@ -5,7 +5,7 @@ import {
   TRAFFIC_SUMMARY_COLUMNS,
   TRAFFIC_SUMMARY_LABELS,
 } from "@/modules/traffic/columns";
-import { loadTrafficViewData } from "@/modules/traffic/service";
+import { loadTrafficPageInitial } from "@/modules/traffic/service";
 import { TrafficView } from "@/modules/traffic/ui/traffic-view";
 
 const HIGHLIGHT_COLUMNS = [...CDR_PHONE_COLUMNS, "out_orig_dnis"] as const;
@@ -13,7 +13,7 @@ const BOLD_COLUMNS = [...TRAFFIC_BOLD_COLUMNS, "tariff_charge"] as const;
 
 export default async function TrafficPage() {
   await requirePagePermission("phones:read");
-  const initial = await loadTrafficViewData();
+  const { initial, initialListError } = await loadTrafficPageInitial();
 
   return (
     <TrafficView
@@ -29,6 +29,7 @@ export default async function TrafficPage() {
       emptyUnfiltered="Нет данных."
       showMonthExport
       initial={initial}
+      initialListError={initialListError}
     />
   );
 }

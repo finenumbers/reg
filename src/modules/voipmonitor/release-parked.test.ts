@@ -10,6 +10,7 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
+import { nextAttemptAt } from "@/modules/voipmonitor/backoff";
 import {
   evidenceIsFalselyParked,
   releaseFalselyParkedMisses,
@@ -66,5 +67,21 @@ describe("releaseFalselyParkedMisses", () => {
       .mockResolvedValueOnce([]);
     executeRaw.mockResolvedValueOnce(2);
     await expect(releaseFalselyParkedMisses()).resolves.toBe(2);
+  });
+
+  it("sets a due time from each attempt count", async () => {
+    const now = new Date("2026-10-14T12:00:00.000Z");
+    queryRaw
+      .mockResolvedValueOnce([
+        { cdr_record_id: "cdr_1", attempt_count: 1 },
+        { cdr_record_id: "cdr_2", attempt_count: 2 },
+      ])
+      .mockResolvedValueOnce([]);
+    executeRaw.mockResolvedValue(1);
+    await expect(releaseFalselyParkedMisses(now)).resolves.toBe(2);
+    const dues = executeRaw.mock.calls.map((call) =>
+      (call as unknown[]).find((value) => value instanceof Date),
+    );
+    expect(dues).toEqual([nextAttemptAt(1, now), nextAttemptAt(2, now)]);
   });
 });

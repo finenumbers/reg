@@ -1,7 +1,11 @@
 import { prisma } from "@/lib/db";
 import { clientMonthStatsSql } from "@/modules/detail/sql";
 import type { DetailMetricRow } from "@/modules/detail/sort";
-import { resolveMonthKey, type CdrMonth } from "@/modules/traffic/cdr-month";
+import {
+  CDR_VACUUM_BUSY_MESSAGE,
+  isDatabaseVacuumActive,
+} from "@/modules/storage/vacuum/gate";
+import { currentUtcMonth, resolveMonthKey, type CdrMonth } from "@/modules/traffic/cdr-month";
 import { listCachedMonthCounts } from "@/modules/traffic/cdr-month-stats";
 
 export type { DetailMetricRow };
@@ -93,6 +97,26 @@ function buildTotals(rows: DetailMetricRow[]): DetailTableTotals {
     }),
     { ...EMPTY_TOTALS },
   );
+}
+
+/** Server page only. The detail API keeps its own 409 and does not use this. */
+export async function loadDetailPageInitial(): Promise<{
+  initial: DetailSnapshot;
+  initialError: string | null;
+}> {
+  if (isDatabaseVacuumActive()) {
+    const month = currentUtcMonth();
+    return {
+      initial: {
+        month: month.key,
+        months: [month],
+        rows: [],
+        totals: { ...EMPTY_TOTALS },
+      },
+      initialError: CDR_VACUUM_BUSY_MESSAGE,
+    };
+  }
+  return { initial: await listDetailSnapshot(), initialError: null };
 }
 
 export async function listDetailSnapshot(monthRaw?: string): Promise<DetailSnapshot> {

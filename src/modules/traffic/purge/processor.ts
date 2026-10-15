@@ -40,7 +40,11 @@ import {
   utcMonthInterval,
 } from "@/modules/traffic/purge/sql";
 import { assertPurgeFkIndexes } from "@/modules/traffic/purge/resume";
-import { setPurgeTargetMonth } from "@/modules/traffic/purge/target";
+import {
+  notePurgeBatchCommitted,
+  purgeDeleteCommitted,
+  setPurgeTargetMonth,
+} from "@/modules/traffic/purge/target";
 
 const BATCH_PAUSE_MS = 50;
 
@@ -138,6 +142,7 @@ async function deleteMonthHistory(
       ),
     );
     if (batch <= 0) break;
+    notePurgeBatchCommitted(batch);
     jobs += batch;
     await hooks.onProgress("jobs", jobs);
   }
@@ -147,6 +152,7 @@ async function deleteMonthHistory(
       await prisma.$executeRaw(purgeAuditBatchSql(start, end, CDR_PURGE_BATCH_SIZE)),
     );
     if (batch <= 0) break;
+    notePurgeBatchCommitted(batch);
     audit += batch;
     await hooks.onProgress("audit", audit);
   }
@@ -198,6 +204,7 @@ async function deleteSmgMonth(
       ),
     );
     if (batch <= 0) break;
+    notePurgeBatchCommitted(batch);
     deleted += batch;
     await onProgress(deleted);
     await sleep(BATCH_PAUSE_MS);
@@ -244,6 +251,7 @@ export async function processCdrPurgeMonth(
   let deletedJobs = 0;
   let deletedAudit = 0;
   let targetCount = 0;
+  let succeeded = false;
   const target = requested;
 
   try {
@@ -361,6 +369,7 @@ export async function processCdrPurgeMonth(
         month: target.key,
         errorMessage: null,
       });
+      succeeded = true;
       return {
         status: "success",
         jobRunId: jobRun.id,
@@ -457,6 +466,7 @@ export async function processCdrPurgeMonth(
         ),
       );
       if (batch <= 0) break;
+      notePurgeBatchCommitted(batch);
       deleted += batch;
       stages.calls.done = deleted;
       await publishPurgeProgress(jobRun.id, target.key, "calls", stages);
@@ -497,6 +507,7 @@ export async function processCdrPurgeMonth(
       month: target.key,
       errorMessage: null,
     });
+    succeeded = true;
     return {
       status: "success",
       jobRunId: jobRun.id,
@@ -527,12 +538,14 @@ export async function processCdrPurgeMonth(
     };
   } finally {
     const month = target?.key ?? null;
-    setPurgeTargetMonth(null);
-    if (month) {
-      clearPurgeHolds(month);
-      clearSmgPurgeHolds(month);
-      requestCdrImportDrain("schedule");
-      requestSmgImportDrain("schedule");
+    if (succeeded || !purgeDeleteCommitted()) {
+      setPurgeTargetMonth(null);
+      if (month) {
+        clearPurgeHolds(month);
+        clearSmgPurgeHolds(month);
+        requestCdrImportDrain("schedule");
+        requestSmgImportDrain("schedule");
+      }
     }
     await failJobRunIfStillRunning(
       jobRun.id,

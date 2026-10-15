@@ -4,14 +4,14 @@ import {
   TRAFFIC_OPERATORS_COLUMNS,
   TRAFFIC_OPERATORS_LABELS,
 } from "@/modules/traffic/columns";
-import { loadTrafficViewData } from "@/modules/traffic/service";
+import { loadTrafficPageInitial } from "@/modules/traffic/service";
 import { TrafficView } from "@/modules/traffic/ui/traffic-view";
 
 const HIGHLIGHT_COLUMNS = [...CDR_PHONE_COLUMNS, "out_orig_dnis"] as const;
 
 export default async function OperatorsPage() {
   await requirePagePermission("phones:read");
-  const initial = await loadTrafficViewData();
+  const { initial, initialListError } = await loadTrafficPageInitial();
 
   return (
     <TrafficView
@@ -25,6 +25,7 @@ export default async function OperatorsPage() {
       canRetry={false}
       emptyUnfiltered="Нет данных."
       initial={initial}
+      initialListError={initialListError}
     />
   );
 }

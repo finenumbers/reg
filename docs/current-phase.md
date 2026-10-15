@@ -1,7 +1,19 @@
-# Current Phase — production (v1.127.0)
+# Current Phase — production (v1.128.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, Eltex SMG CDR, Eltex SMG syslog.  
 **Date:** 2026-10-15
+
+## v1.128.0 — A failed month delete keeps what it already removed
+
+A month delete that has already committed a batch keeps that month held when a later batch fails. The inbox does not put those calls back while this process stays up. A failure before any batch still releases the files. A later failure that has not removed a batch of its own leaves that hold in place. Success releases it. A process restart still releases held files.
+
+While the database is being compressed, «Телефонный трафик», «География звонков», «Операторы связи», «Сырые данные», «Статистика», and «Детализация» do not query those tables. They show the same message as the API. An open traffic tab loads the list once that compression status succeeds. Statistics and detail wait for a reload.
+
+After the syslog socket dies and privileges have been dropped, the process writes the datagrams it already has, then exits so the container can bind port 514 again. A socket error during shutdown does not exit early. Shutdown under a steady stream waits at most five seconds before it closes the socket and syncs. A quiet shutdown still finishes at once. When a slot has both a raw log and an archive, the listed size is the sum of the two files.
+
+A VoIPmonitor row parked for a retryable miss is due after the backoff for its own attempt count. An SMG import that stops without a terminal status is marked failed.
+
+There is no new migration.
 
 ## v1.127.0 — Each new SMG syslog datagram is one line, and the volume is cleared once
 

@@ -4,7 +4,14 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { bucketOf } from "@/modules/smg-syslog/bucket";
-import { runSyslogReceiver, syslogSourceAccepted } from "@/modules/smg-syslog/run";
+import {
+  fatalSocketShouldExit,
+  runSyslogReceiver,
+  shutdownDrainContinues,
+  SHUTDOWN_DRAIN_MS,
+  FATAL_SOCKET_EXIT_MS,
+  syslogSourceAccepted,
+} from "@/modules/smg-syslog/run";
 
 const dirs: string[] = [];
 
@@ -148,6 +155,55 @@ describe("syslog receiver", () => {
       `${bucket.slot}.log`,
     );
     expect(readFileSync(file, "utf8")).toBe("A\nB\nC\n");
+  });
+
+  it("drains a quiet shutdown at once and caps a steady stream", () => {
+    expect(shutdownDrainContinues(2, 0)).toBe(false);
+    expect(shutdownDrainContinues(1, SHUTDOWN_DRAIN_MS - 1)).toBe(true);
+    expect(shutdownDrainContinues(0, SHUTDOWN_DRAIN_MS)).toBe(false);
+  });
+
+  it("exits after a dead socket is flushed, and not during shutdown", () => {
+    expect(
+      fatalSocketShouldExit({
+        fatal: true,
+        stopping: false,
+        idle: true,
+        failingForMs: 0,
+      }),
+    ).toBe(true);
+    expect(
+      fatalSocketShouldExit({
+        fatal: true,
+        stopping: false,
+        idle: false,
+        failingForMs: FATAL_SOCKET_EXIT_MS - 1,
+      }),
+    ).toBe(false);
+    expect(
+      fatalSocketShouldExit({
+        fatal: true,
+        stopping: false,
+        idle: false,
+        failingForMs: FATAL_SOCKET_EXIT_MS,
+      }),
+    ).toBe(true);
+    expect(
+      fatalSocketShouldExit({
+        fatal: true,
+        stopping: true,
+        idle: true,
+        failingForMs: FATAL_SOCKET_EXIT_MS,
+      }),
+    ).toBe(false);
+    expect(
+      fatalSocketShouldExit({
+        fatal: false,
+        stopping: false,
+        idle: true,
+        failingForMs: 0,
+      }),
+    ).toBe(false);
   });
 
   it("accepts a registered address and the docker bridge, and rejects another", () => {

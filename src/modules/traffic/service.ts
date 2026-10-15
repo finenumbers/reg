@@ -12,6 +12,10 @@ import {
 } from "@/components/column-filters/types";
 import { prisma } from "@/lib/db";
 import { TABLE_PAGE_SIZE } from "@/lib/table-pagination";
+import {
+  CDR_VACUUM_BUSY_MESSAGE,
+  isDatabaseVacuumActive,
+} from "@/modules/storage/vacuum/gate";
 import { getJobRunSummary } from "@/modules/jobs/query";
 import { findLastFileImport } from "@/modules/jobs/last-file-import";
 import { lastRtuEmptyScanAt } from "@/modules/jobs/scheduler";
@@ -329,6 +333,29 @@ export async function loadTrafficViewData(): Promise<ListTrafficResult> {
     pageSize: TABLE_PAGE_SIZE,
     month: currentUtcMonth().key,
   });
+}
+
+/** Server pages only. The list API keeps its own 409 and does not use this. */
+export async function loadTrafficPageInitial(): Promise<{
+  initial: ListTrafficResult;
+  initialListError: string | null;
+}> {
+  if (isDatabaseVacuumActive()) {
+    const month = currentUtcMonth();
+    return {
+      initial: {
+        items: [],
+        headers: [...CDR_COLUMNS],
+        total: 0,
+        page: 1,
+        pageSize: TABLE_PAGE_SIZE,
+        month: month.key,
+        months: [month],
+      },
+      initialListError: CDR_VACUUM_BUSY_MESSAGE,
+    };
+  }
+  return { initial: await loadTrafficViewData(), initialListError: null };
 }
 
 export async function listTrafficFacets(opts: {

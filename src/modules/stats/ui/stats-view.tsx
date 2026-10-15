@@ -23,7 +23,7 @@ import type {
 import { parseMonthKey } from "@/modules/traffic/cdr-month";
 import { formatMonthOption } from "@/modules/traffic/month-labels";
 
-type Props = { initial: StatsSnapshot };
+type Props = { initial: StatsSnapshot; initialError?: string | null };
 
 const SIP_GROUPS = [
   "Входящий трафик",
@@ -45,10 +45,10 @@ const METRIC_COL_PX = 80;
 
 type MetricPair = { calls: number; minutes: number };
 
-export function StatsView({ initial }: Props) {
+export function StatsView({ initial, initialError = null }: Props) {
   const [data, setData] = useState(initial);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(initialError);
 
   const monthOptions = useMemo(() => {
     if (data.months.some((item) => item.key === data.month)) return data.months;

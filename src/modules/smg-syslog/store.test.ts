@@ -92,6 +92,32 @@ describe("syslog files", () => {
     });
   });
 
+  it("sums the raw log and the archive while both are present", () => {
+    const root = tempRoot();
+    const dir = path.join(root, "10.1.2.3", "2026", "10", "14", "19");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(path.join(dir, "50.log"), "tail");
+    writeFileSync(path.join(dir, "50.log.gz"), Buffer.from([1, 2, 3, 4]));
+    expect(
+      listSyslogLevel(root, "10.1.2.3", {
+        year: "2026",
+        month: "10",
+        day: "14",
+        hour: "19",
+      }),
+    ).toEqual({
+      kind: "files",
+      files: [
+        {
+          slot: "50",
+          label: "50",
+          bytes: 4 + Buffer.byteLength("tail"),
+          state: "updating",
+        },
+      ],
+    });
+  });
+
   it("refuses a path that leaves the device directory", () => {
     const root = tempRoot();
     expect(listSyslogLevel(root, "../secret", { year: "2026" })).toBeNull();

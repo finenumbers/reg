@@ -8,6 +8,7 @@ import { prisma } from "@/lib/db";
 import { formatCount } from "@/lib/format-count";
 import { logger } from "@/lib/logger";
 import { AUDIT_ACTIONS, auditService } from "@/modules/audit";
+import { failJobRunIfStillRunning } from "@/modules/jobs/finalize";
 import { noteLoadFilePass } from "@/modules/jobs/scheduler";
 import { filePassHadCalls, isFilePassJob } from "@/modules/traffic/load-age";
 import { SMG_FILE_SETTLE_MS, SMG_INSERT_BATCH_SIZE } from "@/modules/smg/columns";
@@ -384,6 +385,12 @@ export async function processSmgImport(
       errorMessage,
       requeueAfterMs: sawYoung ? SMG_FILE_SETTLE_MS : undefined,
     };
+  } finally {
+    await failJobRunIfStillRunning(
+      jobRun.id,
+      startedAt,
+      "Job ended without a terminal status",
+    );
   }
 }
 

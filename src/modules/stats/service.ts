@@ -1,5 +1,9 @@
 import { prisma } from "@/lib/db";
 import {
+  CDR_VACUUM_BUSY_MESSAGE,
+  isDatabaseVacuumActive,
+} from "@/modules/storage/vacuum/gate";
+import {
   classifySipTrunk,
   type SipTrunkGroup,
   type StatsKind,
@@ -10,6 +14,7 @@ import {
 } from "@/modules/stats/pair-pstn";
 import { deviceMonthStatsSql } from "@/modules/stats/sql";
 import {
+  currentUtcMonth,
   resolveMonthKey,
   type CdrMonth,
 } from "@/modules/traffic/cdr-month";
@@ -141,6 +146,27 @@ function buildPstnTable(rows: PstnJoinRow[]): PstnJoinTable {
     { ...EMPTY_PSTN_TOTALS },
   );
   return { rows, totals };
+}
+
+/** Server page only. The stats API keeps its own 409 and does not use this. */
+export async function loadStatsPageInitial(): Promise<{
+  initial: StatsSnapshot;
+  initialError: string | null;
+}> {
+  if (isDatabaseVacuumActive()) {
+    const month = currentUtcMonth();
+    return {
+      initial: {
+        month: month.key,
+        months: [month],
+        pstnTfop: emptyPstnTable(),
+        trunk: emptyTable(),
+        platform: emptyTable(),
+      },
+      initialError: CDR_VACUUM_BUSY_MESSAGE,
+    };
+  }
+  return { initial: await listStatsSnapshot(), initialError: null };
 }
 
 export async function listStatsSnapshot(monthRaw?: string): Promise<StatsSnapshot> {
