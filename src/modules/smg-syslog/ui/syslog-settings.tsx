@@ -1,15 +1,39 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ComponentProps } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { formatBytes } from "@/modules/storage/format-bytes";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { formatLastPacket } from "@/modules/smg-syslog/format-last-packet";
 import type { SyslogStatus } from "@/modules/smg-syslog/status";
+import { formatBytes } from "@/modules/storage/format-bytes";
 
-type NodeRow = { ip: string; name: string };
+type NodeRow = { ip: string; name: string; identifier: string | null };
+
+type Draft = { ip: string; name: string; identifier: string };
+
+const NO_PACKET = "с запуска пакетов не было";
+
+function FitInput({ value, ...props }: ComponentProps<typeof Input> & { value: string }) {
+  return (
+    <Input
+      {...props}
+      value={value}
+      className="h-7 w-auto px-1.5 text-xs"
+      style={{ width: `${Math.max(value.length, 6) + 2}ch` }}
+    />
+  );
+}
 
 type Payload = {
   enabled: boolean;
@@ -22,12 +46,19 @@ export function SyslogSettings() {
   const [data, setData] = useState<Payload | null>(null);
   const [ip, setIp] = useState("");
   const [name, setName] = useState("");
+  const [identifier, setIdentifier] = useState("");
+  const [draft, setDraft] = useState<Draft | null>(null);
   const [busy, setBusy] = useState(false);
 
   const reload = useCallback(async () => {
     const res = await fetch("/api/settings/smg-syslog", { cache: "no-store" });
     if (!res.ok) return;
-    setData((await res.json()) as Payload);
+    const payload = (await res.json()) as Payload;
+    setData(payload);
+    setDraft((current) => {
+      if (!current) return current;
+      return payload.nodes.some((node) => node.ip === current.ip) ? current : null;
+    });
   }, []);
 
   useEffect(() => {
@@ -68,7 +99,7 @@ export function SyslogSettings() {
       const res = await fetch("/api/settings/smg-syslog", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ ip, name }),
+        body: JSON.stringify({ ip, name, identifier }),
       });
       const body = (await res.json()) as { error?: string };
       if (!res.ok) {
@@ -77,23 +108,27 @@ export function SyslogSettings() {
       }
       setIp("");
       setName("");
+      setIdentifier("");
       await reload();
     } finally {
       setBusy(false);
     }
   }
 
-  async function rename(node: NodeRow) {
-    const next = window.prompt("Название узла", node.name);
-    if (next == null) return;
+  function beginRename(node: NodeRow) {
+    setDraft({ ip: node.ip, name: node.name, identifier: node.identifier ?? "" });
+  }
+
+  async function saveRename() {
+    if (!draft) return;
     setBusy(true);
     try {
       const res = await fetch(
-        `/api/settings/smg-syslog/nodes/${encodeURIComponent(node.ip)}`,
+        `/api/settings/smg-syslog/nodes/${encodeURIComponent(draft.ip)}`,
         {
           method: "PATCH",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ name: next }),
+          body: JSON.stringify({ name: draft.name, identifier: draft.identifier }),
         },
       );
       const body = (await res.json()) as { error?: string };
@@ -101,6 +136,7 @@ export function SyslogSettings() {
         toast.error(body.error ?? "Не удалось переименовать узел");
         return;
       }
+      setDraft(null);
       await reload();
     } finally {
       setBusy(false);
@@ -191,7 +227,7 @@ export function SyslogSettings() {
             : ""}
         </p>
       ) : null}
-      <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+      <div className="grid gap-3 sm:grid-cols-[1fr_1fr_1fr_auto] sm:items-end">
         <div className="space-y-2">
           <Label htmlFor="syslog-node-ip">IPv4 узла</Label>
           <Input
@@ -212,45 +248,134 @@ export function SyslogSettings() {
             autoComplete="off"
           />
         </div>
+        <div className="space-y-2">
+          <Label htmlFor="syslog-node-identifier">Идентификатор</Label>
+          <Input
+            id="syslog-node-identifier"
+            value={identifier}
+            onChange={(event) => setIdentifier(event.target.value)}
+            placeholder="kazan"
+            autoComplete="off"
+          />
+        </div>
         <Button
           type="button"
-          disabled={busy || !ip.trim() || !name.trim()}
+          disabled={busy || !ip.trim() || !name.trim() || !identifier.trim()}
           onClick={() => void addNode()}
         >
           Добавить
         </Button>
       </div>
-      <ul className="space-y-2">
-        {(data?.nodes ?? []).map((node) => (
-          <li key={node.ip} className="flex flex-wrap items-center gap-2 text-sm">
-            <span className="font-medium">{node.name}</span>
-            <span className="text-muted-foreground">{node.ip}</span>
-            <span className="text-muted-foreground">
-              {status?.lastPacket[node.ip]
-                ? `последний пакет ${status.lastPacket[node.ip]} UTC`
-                : "с запуска пакетов не было"}
-            </span>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={busy}
-              onClick={() => void rename(node)}
-            >
-              Переименовать
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={busy}
-              onClick={() => void remove(node)}
-            >
-              Удалить
-            </Button>
-          </li>
-        ))}
-      </ul>
+      {(data?.nodes.length ?? 0) > 0 ? (
+        <div className="overflow-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Узел Eltex SMG-1016M</TableHead>
+                <TableHead>IP адрес</TableHead>
+                <TableHead>Идентификатор</TableHead>
+                <TableHead>Последний пакет (UTC)</TableHead>
+                <TableHead>Переименовать</TableHead>
+                <TableHead>Удалить</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {(data?.nodes ?? []).map((node) => {
+                const editing = draft?.ip === node.ip;
+                const packet = status?.lastPacket[node.ip];
+                const packetLabel = packet
+                  ? (formatLastPacket(packet) ?? packet)
+                  : NO_PACKET;
+                return (
+                  <TableRow key={node.ip}>
+                    <TableCell>
+                      {editing && draft ? (
+                        <FitInput
+                          value={draft.name}
+                          aria-label="Название"
+                          disabled={busy}
+                          onChange={(event) => {
+                            const next = event.target.value;
+                            setDraft((current) =>
+                              current ? { ...current, name: next } : current,
+                            );
+                          }}
+                        />
+                      ) : (
+                        node.name
+                      )}
+                    </TableCell>
+                    <TableCell>{node.ip}</TableCell>
+                    <TableCell>
+                      {editing && draft ? (
+                        <FitInput
+                          value={draft.identifier}
+                          aria-label="Идентификатор"
+                          disabled={busy}
+                          onChange={(event) => {
+                            const next = event.target.value;
+                            setDraft((current) =>
+                              current ? { ...current, identifier: next } : current,
+                            );
+                          }}
+                        />
+                      ) : (
+                        (node.identifier ?? "—")
+                      )}
+                    </TableCell>
+                    <TableCell>{packetLabel}</TableCell>
+                    <TableCell>
+                      {editing ? (
+                        <span className="inline-flex gap-1">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={busy || !draft?.name.trim()}
+                            onClick={() => void saveRename()}
+                          >
+                            Сохранить
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={busy}
+                            onClick={() => setDraft(null)}
+                          >
+                            Отмена
+                          </Button>
+                        </span>
+                      ) : (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={busy}
+                          onClick={() => beginRename(node)}
+                        >
+                          Переименовать
+                        </Button>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={busy || editing}
+                        onClick={() => void remove(node)}
+                      >
+                        Удалить
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
+      ) : null}
     </section>
   );
 }

@@ -19,7 +19,8 @@ export const runtime = "nodejs";
 const enableSchema = z.object({ enabled: z.boolean() });
 
 function nodeError(error: SyslogNodeError) {
-  const status = error.code === "NOT_FOUND" ? 404 : error.code === "DUPLICATE" ? 409 : 400;
+  const status =
+    error.code === "NOT_FOUND" ? 404 : error.code === "DUPLICATE" ? 409 : 400;
   return NextResponse.json({ error: error.message, code: error.code }, { status });
 }
 
@@ -39,12 +40,15 @@ export async function GET() {
   const gate = await requireApiPermission("settings:write");
   if (!gate.ok) return gate.response;
   const [enabled, nodes] = await Promise.all([readSyslogEnabled(), listSyslogNodes()]);
-  return NextResponse.json({
-    enabled,
-    advertisePort: syslogAdvertisePort(),
-    nodes,
-    status: readStatus(syslogRoot()),
-  });
+  return NextResponse.json(
+    {
+      enabled,
+      advertisePort: syslogAdvertisePort(),
+      nodes,
+      status: readStatus(syslogRoot()),
+    },
+    { headers: { "Cache-Control": "no-store" } },
+  );
 }
 
 export async function PATCH(request: Request) {
@@ -60,11 +64,17 @@ export async function PATCH(request: Request) {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: "Invalid JSON body", code: "BAD_REQUEST" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Invalid JSON body", code: "BAD_REQUEST" },
+      { status: 400 },
+    );
   }
   const parsed = enableSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: "Некорректный запрос", code: "BAD_REQUEST" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Некорректный запрос", code: "BAD_REQUEST" },
+      { status: 400 },
+    );
   }
   const enabled = await setSyslogEnabled({
     enabled: parsed.data.enabled,
@@ -87,16 +97,25 @@ export async function POST(request: Request) {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: "Invalid JSON body", code: "BAD_REQUEST" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Invalid JSON body", code: "BAD_REQUEST" },
+      { status: 400 },
+    );
   }
-  const parsed = z.object({ ip: z.string(), name: z.string() }).safeParse(body);
+  const parsed = z
+    .object({ ip: z.string(), name: z.string(), identifier: z.string() })
+    .safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: "Некорректный запрос", code: "BAD_REQUEST" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Некорректный запрос", code: "BAD_REQUEST" },
+      { status: 400 },
+    );
   }
   try {
     const node = await addSyslogNode({
       ip: parsed.data.ip,
       name: parsed.data.name,
+      identifier: parsed.data.identifier,
       actorUserId: userId,
       requestIp: await getRequestIp(),
     });

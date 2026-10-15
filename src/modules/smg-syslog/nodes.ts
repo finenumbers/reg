@@ -1,18 +1,24 @@
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
 import { AUDIT_ACTIONS, auditService } from "@/modules/audit";
+import { duplicateFieldMessage, parseIdentifier } from "@/modules/smg-syslog/identifier";
 import { canonicalIpv4 } from "@/modules/smg-syslog/ip";
 
 const NAME_MAX = 64;
+const BAD_IDENTIFIER =
+  "Идентификатор: латинская буква, затем буквы, цифры или _, до 32 символов";
 
 export type SyslogNode = {
   ip: string;
   name: string;
+  identifier: string | null;
 };
+
+const nodeSelect = { ip: true, name: true, identifier: true } as const;
 
 export class SyslogNodeError extends Error {
   constructor(
-    readonly code: "BAD_IP" | "BAD_NAME" | "DUPLICATE" | "NOT_FOUND",
+    readonly code: "BAD_IP" | "BAD_NAME" | "BAD_IDENTIFIER" | "DUPLICATE" | "NOT_FOUND",
     message: string,
   ) {
     super(message);
@@ -25,7 +31,10 @@ function cleanName(name: string): string {
     throw new SyslogNodeError("BAD_NAME", "Название узла — от 1 до 64 символов");
   }
   if (/[\r\n\0]/.test(trimmed)) {
-    throw new SyslogNodeError("BAD_NAME", "Название узла не может содержать перевод строки");
+    throw new SyslogNodeError(
+      "BAD_NAME",
+      "Название узла не может содержать перевод строки",
+    );
   }
   return trimmed;
 }
@@ -38,12 +47,17 @@ function cleanIp(ip: string): string {
   return canonical;
 }
 
+function cleanIdentifier(raw: string, required: boolean): string | null {
+  const parsed = parseIdentifier(raw, required);
+  if (!parsed.ok) throw new SyslogNodeError("BAD_IDENTIFIER", BAD_IDENTIFIER);
+  return parsed.value;
+}
+
 export async function listSyslogNodes(): Promise<SyslogNode[]> {
-  const rows = await prisma.smgSyslogNode.findMany({
+  return prisma.smgSyslogNode.findMany({
     orderBy: { name: "asc" },
-    select: { ip: true, name: true },
+    select: nodeSelect,
   });
-  return rows;
 }
 
 export async function syslogNodeExists(ip: string): Promise<boolean> {
@@ -87,15 +101,17 @@ export async function readSyslogEnabled(): Promise<boolean> {
 export async function addSyslogNode(input: {
   ip: string;
   name: string;
+  identifier: string;
   actorUserId: string;
   requestIp: string | null;
 }): Promise<SyslogNode> {
   const ip = cleanIp(input.ip);
   const name = cleanName(input.name);
+  const identifier = cleanIdentifier(input.identifier, true);
   try {
     const row = await prisma.smgSyslogNode.create({
-      data: { ip, name },
-      select: { ip: true, name: true },
+      data: { ip, name, identifier },
+      select: nodeSelect,
     });
     await auditService.append({
       actorUserId: input.actorUserId,
@@ -103,12 +119,12 @@ export async function addSyslogNode(input: {
       entityType: "smg_syslog_node",
       entityId: row.ip,
       ip: input.requestIp,
-      meta: { ip: row.ip, name: row.name },
+      meta: { ip: row.ip, name: row.name, identifier: row.identifier },
     });
     return row;
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-      throw new SyslogNodeError("DUPLICATE", "Такой IP или название уже есть");
+      throw new SyslogNodeError("DUPLICATE", duplicateFieldMessage(error.meta?.target));
     }
     throw error;
   }
@@ -117,16 +133,24 @@ export async function addSyslogNode(input: {
 export async function renameSyslogNode(input: {
   ip: string;
   name: string;
+  identifier?: string;
   actorUserId: string;
   requestIp: string | null;
 }): Promise<SyslogNode> {
   const ip = cleanIp(input.ip);
   const name = cleanName(input.name);
+  const identifier =
+    input.identifier === undefined ? undefined : cleanIdentifier(input.identifier, false);
+  const existing = await prisma.smgSyslogNode.findUnique({
+    where: { ip },
+    select: nodeSelect,
+  });
+  if (!existing) throw new SyslogNodeError("NOT_FOUND", "Узел не найден");
   try {
     const row = await prisma.smgSyslogNode.update({
       where: { ip },
-      data: { name },
-      select: { ip: true, name: true },
+      data: { name, ...(identifier !== undefined ? { identifier } : {}) },
+      select: nodeSelect,
     });
     await auditService.append({
       actorUserId: input.actorUserId,
@@ -134,12 +158,18 @@ export async function renameSyslogNode(input: {
       entityType: "smg_syslog_node",
       entityId: row.ip,
       ip: input.requestIp,
-      meta: { ip: row.ip, name: row.name },
+      meta: {
+        ip: row.ip,
+        name: row.name,
+        identifier: row.identifier,
+        previousName: existing.name,
+        previousIdentifier: existing.identifier,
+      },
     });
     return row;
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-      throw new SyslogNodeError("DUPLICATE", "Такое название уже есть");
+      throw new SyslogNodeError("DUPLICATE", duplicateFieldMessage(error.meta?.target));
     }
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
       throw new SyslogNodeError("NOT_FOUND", "Узел не найден");
@@ -156,7 +186,7 @@ export async function deleteSyslogNode(input: {
   const ip = cleanIp(input.ip);
   const existing = await prisma.smgSyslogNode.findUnique({
     where: { ip },
-    select: { ip: true, name: true },
+    select: nodeSelect,
   });
   if (!existing) throw new SyslogNodeError("NOT_FOUND", "Узел не найден");
   await prisma.smgSyslogNode.delete({ where: { ip } });
@@ -166,6 +196,6 @@ export async function deleteSyslogNode(input: {
     entityType: "smg_syslog_node",
     entityId: existing.ip,
     ip: input.requestIp,
-    meta: { ip: existing.ip, name: existing.name },
+    meta: { ip: existing.ip, name: existing.name, identifier: existing.identifier },
   });
 }

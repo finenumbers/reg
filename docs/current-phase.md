@@ -1,7 +1,17 @@
-# Current Phase — production (v1.122.0)
+# Current Phase — production (v1.123.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, Eltex SMG CDR, Eltex SMG syslog.  
 **Date:** 2026-10-15
+
+## v1.123.0 — Each SMG syslog node can carry an identifier
+
+Settings → «Syslog — SMG» stores an identifier beside the display name. A new gateway requires one. A gateway already in the table may keep it empty until an operator sets it while renaming. The value is a lowercase variable: a letter, then letters, digits, or underscore, at most 32 characters. It is unique when set. Empty is stored as NULL, not as a blank string. The migration does not invent identifiers.
+
+Renaming can change the name and the identifier. The address stays. Files stay in the directory of that address. The receiver still reads only the source IP. The identifier is not written into the syslog bytes and does not move folders. The syslog journal still lists devices by address and name.
+
+The gateway list is a table. Each column is as wide as its longest cell. «Последний пакет (UTC)» shows the arrival time as `03:31:06 (15.10.2026)`. The page still reloads that cell every few seconds, and the settings response is not cached. After the receiver process starts again, the cell stays empty until the next datagram.
+
+Migration: `20261015104600_smg_syslog_identifier`.
 
 ## v1.122.0 — Keep every SMG syslog datagram, in UTC, byte for byte
 

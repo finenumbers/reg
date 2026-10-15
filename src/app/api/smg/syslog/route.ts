@@ -5,6 +5,7 @@ import {
   listSyslogLevel,
   withBridgeDevices,
 } from "@/modules/smg-syslog/browse";
+import { syslogNodeLabels } from "@/modules/smg-syslog/identifier";
 import { listSyslogNodes, syslogNodeExists } from "@/modules/smg-syslog/nodes";
 import { syslogRoot } from "@/modules/smg-syslog/paths";
 import { readStatus } from "@/modules/smg-syslog/status";
@@ -21,7 +22,7 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const device = url.searchParams.get("device") ?? "";
   const root = syslogRoot();
-  const devices = withBridgeDevices(await listSyslogNodes(), root);
+  const devices = withBridgeDevices(syslogNodeLabels(await listSyslogNodes()), root);
   const status = readStatus(root);
   if (!device) {
     return NextResponse.json({ devices, list: null, status });

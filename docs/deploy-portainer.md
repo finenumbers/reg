@@ -106,7 +106,7 @@ Override with `FTP_PUBLISH_PORT` only if you also change Settings → FTP → п
 
 ## 5b. SMG syslog UDP
 
-NPM cannot proxy syslog. The `smg-syslog` service publishes `${SYSLOG_PUBLISH_PORT:-514}/udp` to container port 5514. Settings shows that host port. On each SMG, point traces, command history, and the access log at this host and that UDP port. Add the gateway in Settings → «Syslog — SMG» by the source address of the packet, then turn reception on.
+NPM cannot proxy syslog. The `smg-syslog` service publishes `${SYSLOG_PUBLISH_PORT:-514}/udp` to container port 5514. Settings shows that host port. On each SMG, point traces, command history, and the access log at this host and that UDP port. Add the gateway in Settings → «Syslog — SMG» by the source address of the packet, a name, and an identifier. A gateway already listed may keep the identifier empty until it is renamed. Folders stay under the source address. Then turn reception on.
 
 The process must see that source address. Docker's default userland proxy rewrites it to the bridge gateway (`172.x.0.1`). Those datagrams are stored under that address so they are not discarded, but every gateway is mixed into one folder. Settings shows a warning while any bridge packet has been received. Set `"userland-proxy": false` in `/etc/docker/daemon.json`, restart Docker, and recreate the stack. Confirm with `tcpdump` on the published UDP port that the source is the SMG, and that the packet is UDP. Folders are UTC. Raise `net.core.rmem_max` to at least 16 MiB; Settings names the buffer when the kernel clamped it.
 

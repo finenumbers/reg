@@ -154,10 +154,12 @@ model AppSetting {
 
 /// Eltex SMG allowed to send syslog. The ip is the UDP source address.
 model SmgSyslogNode {
-  ip        String   @id
-  name      String   @unique
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  ip         String   @id
+  name       String   @unique
+  /// Stable variable for later use. Null until the operator sets it.
+  identifier String?  @unique
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
 
   @@map("smg_syslog_nodes")
 }
