@@ -21,6 +21,7 @@ export default async function SmgCallsPage() {
       headerLabels={SMG_HEADER_LABELS}
       showOps
       searchInputId="smg-phone-search"
+      exportLayout="calls"
     />
   );
 }

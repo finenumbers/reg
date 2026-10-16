@@ -25,6 +25,7 @@ export default async function SmgTrafficPage() {
       searchInputId="smg-traffic-phone-search"
       highlightPhones
       facetColumns={SMG_SUMMARY_FACET_COLUMNS}
+      exportLayout="traffic"
     />
   );
 }

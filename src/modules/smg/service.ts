@@ -16,6 +16,12 @@ import {
 } from "@/modules/traffic/cdr-month";
 import { isDatabaseVacuumActive } from "@/modules/storage/vacuum/gate";
 import {
+  assertSmgExportRowCount,
+  SMG_EXPORT_PAGE_SIZE,
+  writeSmgExportFile,
+  type SmgExportLayout,
+} from "@/modules/smg/xlsx-export";
+import {
   isSmgField,
   SMG_FIELDS,
   SMG_PHONE_FIELDS,
@@ -203,6 +209,46 @@ export async function listSmgCalls(input: {
     devices,
     poisonFiles,
   };
+}
+
+/**
+ * The rows behind «Сохранить данные». Same where-clause and order as the table.
+ * An empty gateway writes headers only.
+ */
+export async function writeSmgExport(input: {
+  month: CdrMonth;
+  device: string;
+  phoneQ: string;
+  filters: ColumnFilters;
+  layout: SmgExportLayout;
+  filePath: string;
+}): Promise<number> {
+  const device = input.device.trim();
+  if (!device) {
+    return writeSmgExportFile({
+      layout: input.layout,
+      filePath: input.filePath,
+      eachRow: async () => {},
+    });
+  }
+  const where = buildWhere(input.month, device, input.filters, input.phoneQ);
+  const total = await prisma.smgCdrRecord.count({ where });
+  assertSmgExportRowCount(total);
+  return writeSmgExportFile({
+    layout: input.layout,
+    filePath: input.filePath,
+    eachRow: async (visit) => {
+      for (let skip = 0; skip < total; skip += SMG_EXPORT_PAGE_SIZE) {
+        const rows = await prisma.smgCdrRecord.findMany({
+          where,
+          orderBy: [{ disconnectTime: "desc" }, { id: "desc" }],
+          skip,
+          take: SMG_EXPORT_PAGE_SIZE,
+        });
+        for (const row of rows) visit(toListItem(row));
+      }
+    },
+  });
 }
 
 export async function listSmgFacets(input: {

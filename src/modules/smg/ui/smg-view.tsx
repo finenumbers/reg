@@ -134,6 +134,7 @@ export function SmgView({
   searchInputId = "smg-phone-search",
   highlightPhones = false,
   facetColumns = null,
+  exportLayout,
 }: {
   canRetry: boolean;
   initial: SmgListResult;
@@ -147,6 +148,7 @@ export function SmgView({
   highlightPhones?: boolean;
   /** Null keeps a facet on every CDR field except the gateway. */
   facetColumns?: readonly string[] | null;
+  exportLayout: "calls" | "traffic";
 }) {
   const [filters, setFilters] = useState<ColumnFilters>({});
   const [phoneInput, setPhoneInput] = useState("");
@@ -175,6 +177,7 @@ export function SmgView({
   const [traceLoading, setTraceLoading] = useState(false);
   const [traceError, setTraceError] = useState<string | null>(null);
   const [trace, setTrace] = useState<TraceLookup | null>(null);
+  const [exporting, setExporting] = useState(false);
   const traceRequest = useRef(0);
   const refreshSeq = useRef(0);
   const sinceRef = useRef<string | null>(initialSince);
@@ -356,6 +359,27 @@ export function SmgView({
     root: scrollRoot,
   });
 
+  async function onExport() {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      const params = new URLSearchParams();
+      params.set("layout", exportLayout);
+      params.set("month", month);
+      if (device) params.set("device", device);
+      if (phoneQ.trim()) params.set("phoneQ", phoneQ.trim());
+      const encoded = encodeFilters(filters);
+      if (encoded) params.set("filters", encoded);
+      const fallback = exportLayout === "calls" ? "Звонки на SMG.xlsx" : "Трафик SMG.xlsx";
+      const result = await downloadXlsxFromUrl(`/api/smg/export?${params.toString()}`, fallback);
+      if (!result.ok) toast.error(result.message);
+    } catch {
+      toast.error("Не удалось скачать файл");
+    } finally {
+      setExporting(false);
+    }
+  }
+
   async function onDownload(filename: string) {
     setDownloading(filename);
     const result = await downloadXlsxFromUrl(
@@ -446,6 +470,9 @@ export function SmgView({
               colored
             />
           ) : null}
+          <Button type="button" onClick={() => void onExport()} disabled={exporting}>
+            {exporting ? "Сохранение…" : "Сохранить данные"}
+          </Button>
           {showOps && canRetry ? (
             <Button type="button" onClick={() => void onRetry()} disabled={pending}>
               {pending ? "Импорт…" : "Повторить импорт"}

@@ -1,7 +1,13 @@
-# Current Phase — production (v1.142.0)
+# Current Phase — production (v1.143.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, Eltex SMG CDR, Eltex SMG syslog.  
 **Date:** 2026-10-17
+
+## v1.143.0 — SMG calls and traffic save to xlsx
+
+«Трафик SMG» and «Звонки на SMG» each have «Сохранить данные» in the heading row, beside the load-age chip. The file is the current month, gateway, phone search, and column filters, in the same order as the table.
+
+The calls file is every stored CDR column. The traffic file starts with the short table, including the displayed date and time, then the remaining fields: the gateway, the full timestamps, UniqueTag, the RADIUS session id, Global Callref, addresses, and SIP Call-IDs. A phone stays text. A value that would be an Excel formula is prefixed. One save runs at a time. There is no new migration and no job row.
 
 ## v1.142.0 — The syslog pass finishes a busy gateway
 
