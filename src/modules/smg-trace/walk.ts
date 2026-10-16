@@ -2,8 +2,10 @@ import { createReadStream, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { createInterface } from "node:readline";
 import { createGunzip } from "node:zlib";
+import { logger } from "@/lib/logger";
 import {
   applyLine,
+  commitTraceFile,
   emptyTraceState,
   restoreTraceState,
   SMG_TRACE_PARSER_VERSION,
@@ -100,8 +102,16 @@ export async function replayDevice(
   for (let i = start; i < files.length; i += 1) {
     const file = files[i]!;
     const detached = await applySource(state, file);
-    for (const span of detached) await saveTagged(repo, deviceIp, span);
-    for (const span of Object.values(state.spans)) await saveTagged(repo, deviceIp, span);
+    let written = 0;
+    for (const span of detached) written += await saveTagged(repo, deviceIp, span);
+    for (const span of commitTraceFile(state, i)) written += await saveTagged(repo, deviceIp, span);
+    const open = Object.values(state.spans).filter((span) => !span.echoed).length;
+    logger.info("smg.trace.file", {
+      deviceIp,
+      fileKey: file.fileKey,
+      written,
+      open,
+    });
     await repo.saveCheckpoint(deviceIp, file.fileKey, file.size, state);
   }
 }
@@ -110,9 +120,10 @@ async function saveTagged(
   repo: TraceRepository,
   deviceIp: string,
   span: TraceSpan,
-): Promise<void> {
-  if (!span.tag) return;
+): Promise<number> {
+  if (!span.tag) return 0;
   await repo.saveSpan(deviceIp, span);
+  return 1;
 }
 
 export async function applySource(state: TraceState, file: TraceSource): Promise<TraceSpan[]> {

@@ -9,7 +9,7 @@ import type {
 } from "@/modules/smg-trace/types";
 
 /** Bump to re-read every syslog file that is still on disk. */
-export const SMG_TRACE_PARSER_VERSION = 1;
+export const SMG_TRACE_PARSER_VERSION = 2;
 
 const NOTE_CAP = 40;
 const STEP_CAP = 80;
@@ -49,6 +49,8 @@ export type TraceSpan = {
   rejecting: string;
   party: "" | "calling" | "called";
   lastPort: string;
+  /** Index of the file where `unique tag:` was seen. Null until that line. */
+  echoGeneration: number | null;
   lead: string[];
   attempts: Attempt[];
   signal: TraceSignalLeg[];
@@ -68,6 +70,8 @@ export type TraceState = {
   collecting: Collecting | null;
   rcHex: string;
   rcActive: boolean;
+  /** Callrefs changed by the file that is being read. Cleared when that file is committed. */
+  dirty: string[];
 };
 
 export function emptyTraceState(): TraceState {
@@ -78,6 +82,7 @@ export function emptyTraceState(): TraceState {
     collecting: null,
     rcHex: "",
     rcActive: false,
+    dirty: [],
   };
 }
 
@@ -93,7 +98,35 @@ export function restoreTraceState(value: unknown): TraceState {
     collecting: row.collecting ?? null,
     rcHex: typeof row.rcHex === "string" ? row.rcHex : "",
     rcActive: row.rcActive === true,
+    dirty: [],
   };
+}
+
+/**
+ * Write only the calls this file changed. A call whose CDR echo was already
+ * kept through the previous file leaves the state. A call that has not echoed
+ * stays, including its unanswered RADIUS id.
+ */
+export function commitTraceFile(state: TraceState, fileIndex: number): TraceSpan[] {
+  const saved: TraceSpan[] = [];
+  const seen = new Set<string>();
+  for (const callref of state.dirty) {
+    const span = state.spans[callref];
+    if (!span?.tag || seen.has(span.tag)) continue;
+    seen.add(span.tag);
+    saved.push(span);
+  }
+  for (const span of Object.values(state.spans)) {
+    if (span.echoed && span.echoGeneration == null) span.echoGeneration = fileIndex;
+  }
+  for (const [callref, span] of Object.entries(state.spans)) {
+    if (span.echoGeneration == null || span.echoGeneration >= fileIndex) continue;
+    delete state.spans[callref];
+    state.inflight = state.inflight.filter((item) => item.callref !== callref);
+    if (state.collecting?.callref === callref) state.collecting = null;
+  }
+  state.dirty = [];
+  return saved;
 }
 
 /** Apply one syslog file. Returns spans that a newer tag replaced. */
@@ -128,6 +161,7 @@ export function applyLine(state: TraceState, rawLine: string): TraceSpan | null 
     const attr = parseAttr(payload);
     if (attr) {
       pushCollected(state, attr);
+      touch(state, callref);
       return null;
     }
     if (!payload) return null;
@@ -135,8 +169,13 @@ export function applyLine(state: TraceState, rawLine: string): TraceSpan | null 
 
   if (!callref) return null;
   const taken = takeSpan(state, callref, namingTag(payload));
+  touch(state, callref);
   absorb(state, taken.span, payload);
   return taken.detached;
+}
+
+function touch(state: TraceState, callref: string): void {
+  if (!state.dirty.includes(callref)) state.dirty.push(callref);
 }
 
 export function projectSpan(span: TraceSpan): TraceBlocks {
@@ -238,6 +277,7 @@ function bindPacket(state: TraceState, packet: { code: number; id: number; attri
   const span = state.spans[hit.callref];
   const attempt = span?.attempts[hit.index];
   if (!span || !attempt) return;
+  touch(state, hit.callref);
   attempt.replyCode = radiusCodeLabel(packet.code);
   attempt.packetAttributes = packet.attributes;
   state.inflight = state.inflight.filter((item) => item.id !== packet.id || item.callref !== hit.callref);
@@ -616,6 +656,7 @@ function createSpan(callref: string): TraceSpan {
     rejecting: "",
     party: "",
     lastPort: "",
+    echoGeneration: null,
     lead: [],
     attempts: [],
     signal: [],

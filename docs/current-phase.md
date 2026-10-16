@@ -1,7 +1,15 @@
-# Current Phase — production (v1.141.0)
+# Current Phase — production (v1.142.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, Eltex SMG CDR, Eltex SMG syslog.  
-**Date:** 2026-10-16
+**Date:** 2026-10-17
+
+## v1.142.0 — The syslog pass finishes a busy gateway
+
+The first pass kept every closed call in memory and wrote that whole set again after every ten-minute file. On a busy gateway it did not reach the calls from the previous day, so the panel stayed on «Трассы нет.»
+
+A file now writes only the calls it changed. A call that has not echoed stays open, with its unanswered RADIUS id, until a later file continues it. A call that echoed stays for one more file, so a release on the other side of a gzip boundary is kept, and then leaves the pass. Cards already written stay in the database. The panel text is unchanged. The pass still does not appear under «Задачи» or «Аудит»; the app log has one line per file with the gateway, the file, how many cards were written, and how many calls are still open.
+
+No new migration. Parser version 2 discards the checkpoint left by the first pass and reads the files that are still on disk again.
 
 ## v1.141.0 — An SMG call opens its syslog card
 

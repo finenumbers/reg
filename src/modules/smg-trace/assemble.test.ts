@@ -5,6 +5,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   applyText,
+  commitTraceFile,
   emptyTraceState,
   projectSpan,
   type TraceSpan,
@@ -351,6 +352,7 @@ describe("CDR card choice", () => {
       rejecting: "",
       party: "",
       lastPort: "",
+      echoGeneration: null,
       lead: [],
       attempts: [],
       signal: [],
@@ -368,6 +370,35 @@ describe("CDR card choice", () => {
         { deviceIp: "95.215.179.42", open: false, callref: "C9", blocks },
       ]),
     ).toEqual({ status: "ambiguous" });
+  });
+});
+
+describe("call state between files", () => {
+  it("keeps a closed call for the next file, then drops it", () => {
+    const state = emptyTraceState();
+    applyText(
+      state,
+      [
+        line("C0000F6", `Port SIPT:0001. Set UniqueTag: '${TAG}'`),
+        line("C0000F6", `unique tag: '${TAG_SPACED}'`),
+      ].join("\n"),
+    );
+    expect(commitTraceFile(state, 0).map((span) => span.tag)).toEqual([TAG]);
+    expect(state.spans.C0000F6?.echoed).toBe(true);
+
+    applyText(
+      state,
+      line("C0000F6", "Port SIPT:0001. Release time-stamp: 13:20:33.654 GMT Fri Oct 16 2026, msec-diff: 6328"),
+    );
+    const updated = commitTraceFile(state, 1);
+    expect(updated.map((span) => span.tag)).toEqual([TAG]);
+    expect(updated[0]?.times.some((row) => row.event === "Release")).toBe(true);
+    expect(state.spans.C0000F6).toBeUndefined();
+
+    applyText(state, line("C0000F7", "Port SIPT:0002. Set UniqueTag: '1100004f6ad201cc2265912949b40dde'"));
+    const third = commitTraceFile(state, 2);
+    expect(third.map((span) => span.tag)).not.toContain(TAG);
+    expect(Object.values(state.spans).some((span) => span.tag === TAG)).toBe(false);
   });
 });
 
@@ -412,5 +443,37 @@ describe("syslog file walk", () => {
     };
     await replayDevice("10.1.2.3", sources, repo);
     expect(saved.some((row) => row.tag === TAG && row.reply === "2 Access-Accept")).toBe(true);
+  });
+
+  it("drops a closed call after the following file and does not write it again", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "smg-trace-"));
+    const hour = path.join(root, "10.1.2.3", "2026", "10", "16", "07");
+    mkdirSync(hour, { recursive: true });
+    const closed = [
+      line("C0000F6", `Port SIPT:0001. Set UniqueTag: '${TAG}'`),
+      line("C0000F6", `unique tag: '${TAG_SPACED}'`),
+    ].join("\n");
+    const later = line("C0000F7", "Port SIPT:0002. Set UniqueTag: '1100004f6ad201cc2265912949b40dde'");
+    writeFileSync(path.join(hour, "00.log.gz"), gzipSync(Buffer.from(closed)));
+    writeFileSync(path.join(hour, "10.log.gz"), gzipSync(Buffer.from(later)));
+    writeFileSync(path.join(hour, "20.log.gz"), gzipSync(Buffer.from(later)));
+
+    const saved: string[] = [];
+    let held = -1;
+    const repo: TraceRepository = {
+      async loadCheckpoints() {
+        return [];
+      },
+      async resetDevice() {},
+      async saveSpan(_ip, span) {
+        saved.push(span.tag);
+      },
+      async saveCheckpoint(_ip, fileKey, _size, state) {
+        if (fileKey.endsWith("/20")) held = Object.values(state.spans).filter((span) => span.tag === TAG).length;
+      },
+    };
+    await replayDevice("10.1.2.3", listTraceSources(root), repo);
+    expect(saved.filter((tag) => tag === TAG)).toEqual([TAG]);
+    expect(held).toBe(0);
   });
 });
