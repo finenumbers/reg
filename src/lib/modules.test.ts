@@ -1,13 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { EXTERNAL_NAV_LINKS, FEATURE_MODULES } from "@/lib/modules";
 
-const KNOWN_NAV_GROUPS = new Set([
-  "primary",
-  "cdr",
-  "smg",
-  "analytics",
-  "admin",
-]);
+const KNOWN_NAV_GROUPS = new Set(["primary", "cdr", "smg", "analytics", "admin"]);
 
 function idsInGroup(group: "cdr" | "smg" | "analytics" | "admin"): string[] {
   return FEATURE_MODULES.filter((m) => m.navGroup === group).map((m) => m.id);
@@ -19,18 +13,14 @@ describe("FEATURE_MODULES nav groups", () => {
   });
 
   it("keeps CDR without Детализация", () => {
-    expect(idsInGroup("cdr")).toEqual([
-      "traffic",
-      "operators",
-      "geography",
-      "raw",
-    ]);
+    expect(idsInGroup("cdr")).toEqual(["traffic", "operators", "geography", "raw"]);
   });
 
-  it("keeps Звонки на SMG in their own group after CDR", () => {
-    expect(idsInGroup("smg")).toEqual(["smg", "smg-syslog"]);
+  it("keeps SMG traffic before the full dump and syslog", () => {
+    expect(idsInGroup("smg")).toEqual(["smg-traffic", "smg", "smg-syslog"]);
     const hrefs = FEATURE_MODULES.map((module) => module.href);
-    expect(hrefs.indexOf("/raw")).toBeLessThan(hrefs.indexOf("/smg"));
+    expect(hrefs.indexOf("/raw")).toBeLessThan(hrefs.indexOf("/smg/traffic"));
+    expect(hrefs.indexOf("/smg/traffic")).toBeLessThan(hrefs.indexOf("/smg"));
     expect(hrefs.indexOf("/smg")).toBeLessThan(hrefs.indexOf("/smg/syslog"));
     expect(hrefs.indexOf("/smg/syslog")).toBeLessThan(hrefs.indexOf("/detail"));
   });

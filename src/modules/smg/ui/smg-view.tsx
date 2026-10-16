@@ -14,6 +14,7 @@ import { encodeFilters } from "@/components/column-filters/types";
 import { displayFacetValue } from "@/components/column-filters/types";
 import { FILTER_TOOLBAR_TEXT } from "@/components/filter-toolbar";
 import { FitSelect } from "@/components/fit-select";
+import { HighlightText } from "@/components/highlight-text";
 import { PhoneSearchInput } from "@/components/phone-search-input";
 import { TableCountFooter, TableInfiniteBody } from "@/components/table-infinite-body";
 import { Button } from "@/components/ui/button";
@@ -28,7 +29,13 @@ import {
 import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
 import { downloadXlsxFromUrl } from "@/lib/download-xlsx";
 import { formatCount } from "@/lib/format-count";
-import { SMG_FIELDS, SMG_HEADER_LABELS, SMG_PHONE_FIELDS } from "@/modules/smg/columns";
+import {
+  isSmgField,
+  SMG_FIELDS,
+  SMG_HEADER_LABELS,
+  SMG_PHONE_FIELDS,
+} from "@/modules/smg/columns";
+import { formatSmgPoisonSummary, smgSummaryCellText } from "@/modules/smg/summary";
 import { decideSmgRefresh } from "@/modules/smg/refresh";
 import type { SmgListItem, SmgListResult, SmgStatus } from "@/modules/smg/service";
 import { LoadAgeChip } from "@/modules/traffic/ui/load-age-chip";
@@ -38,6 +45,14 @@ import { formatMonthOption } from "@/modules/traffic/month-labels";
 const PHONE_SEARCH_DEBOUNCE_MS = 300;
 const STATUS_POLL_MS = 4000;
 const PHONE_FIELDS = new Set<string>(SMG_PHONE_FIELDS);
+const TABULAR_COLUMNS = new Set<string>([
+  "setupDay",
+  "setupClock",
+  "connectClock",
+  "disconnectClock",
+  "duration",
+  "billableMinutes",
+]);
 
 type LoadOpts = {
   page?: number;
@@ -73,7 +88,8 @@ function readSmgStatus(body: unknown): SmgStatus | null {
 }
 
 function readLastPassAt(row: Record<string, unknown>): string | null {
-  if (row.lastPassAt === null || typeof row.lastPassAt === "string") return row.lastPassAt;
+  if (row.lastPassAt === null || typeof row.lastPassAt === "string")
+    return row.lastPassAt;
   return null;
 }
 
@@ -108,10 +124,27 @@ export function SmgView({
   canRetry,
   initial,
   initialSince,
+  title = "Звонки на SMG",
+  subtitle = "CDR цифровых шлюзов Eltex SMG-1016M из локальной базы.",
+  columns = SMG_FIELDS,
+  headerLabels = SMG_HEADER_LABELS,
+  showOps = true,
+  searchInputId = "smg-phone-search",
+  highlightPhones = false,
+  facetColumns = null,
 }: {
   canRetry: boolean;
   initial: SmgListResult;
   initialSince: string | null;
+  title?: string;
+  subtitle?: string;
+  columns?: readonly string[];
+  headerLabels?: Record<string, string>;
+  showOps?: boolean;
+  searchInputId?: string;
+  highlightPhones?: boolean;
+  /** Null keeps a facet on every CDR field except the gateway. */
+  facetColumns?: readonly string[] | null;
 }) {
   const [filters, setFilters] = useState<ColumnFilters>({});
   const [phoneInput, setPhoneInput] = useState("");
@@ -355,17 +388,22 @@ export function SmgView({
           label: `${item.sign} (${formatCount(item.count)})`,
         }))
       : [{ value: "", label: "Нет шлюзов" }];
+  const facetSet = facetColumns ? new Set(facetColumns) : null;
+  const showsFacet = (column: string) => {
+    if (column === "deviceSign" || !isSmgField(column)) return false;
+    if (facetSet) return facetSet.has(column);
+    return true;
+  };
+  const poisonSummary = showOps ? null : formatSmgPoisonSummary(poisonFiles);
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
       <div className="flex shrink-0 flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold tracking-tight [text-box:trim-start_cap_alphabetic]">
-            Звонки на SMG
+            {title}
           </h1>
-          <p className="text-muted-foreground text-sm">
-            CDR цифровых шлюзов Eltex SMG-1016M из локальной базы.
-          </p>
+          <p className="text-muted-foreground text-sm">{subtitle}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {loadAge ? (
@@ -376,7 +414,7 @@ export function SmgView({
               colored
             />
           ) : null}
-          {canRetry ? (
+          {showOps && canRetry ? (
             <Button type="button" onClick={() => void onRetry()} disabled={pending}>
               {pending ? "Импорт…" : "Повторить импорт"}
             </Button>
@@ -386,7 +424,7 @@ export function SmgView({
 
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
         <PhoneSearchInput
-          id="smg-phone-search"
+          id={searchInputId}
           value={phoneInput}
           onChange={setPhoneInput}
         />
@@ -436,7 +474,7 @@ export function SmgView({
       {hasActiveFilters(filters) || phoneQ ? (
         <ActiveFiltersBar
           filters={filters}
-          headers={SMG_HEADER_LABELS}
+          headers={headerLabels}
           phoneQuery={phoneQ}
           onClearPhoneQuery={() => {
             setPhoneInput("");
@@ -451,7 +489,7 @@ export function SmgView({
         />
       ) : null}
 
-      {poisonFiles.length > 0 ? (
+      {showOps && poisonFiles.length > 0 ? (
         <ul
           className="border-destructive/30 bg-destructive/10 text-destructive shrink-0 list-none space-y-1 rounded-md border px-3 py-2 text-sm"
           aria-label="Файлы с ошибкой импорта"
@@ -476,6 +514,15 @@ export function SmgView({
         </ul>
       ) : null}
 
+      {poisonSummary ? (
+        <div
+          role="alert"
+          className="border-destructive/30 bg-destructive/10 text-destructive shrink-0 rounded-md border px-3 py-2 text-sm"
+        >
+          {poisonSummary}
+        </div>
+      ) : null}
+
       {listError ? (
         <div
           role="alert"
@@ -493,14 +540,12 @@ export function SmgView({
         <Table>
           <TableHeader>
             <TableRow>
-              {SMG_FIELDS.map((field) => (
+              {columns.map((field) => (
                 <TableHead key={field} className="font-medium">
-                  {field === "deviceSign" ? (
-                    SMG_HEADER_LABELS[field]
-                  ) : (
+                  {showsFacet(field) ? (
                     <ColumnFilterDropdown
                       column={field}
-                      header={SMG_HEADER_LABELS[field]}
+                      header={headerLabels[field] ?? field}
                       open={openColumn === field}
                       selected={filters[field] ?? []}
                       filters={filters}
@@ -528,6 +573,8 @@ export function SmgView({
                         void loadList({ page: 1, replace: true, filters: next });
                       }}
                     />
+                  ) : (
+                    (headerLabels[field] ?? field)
                   )}
                 </TableHead>
               ))}
@@ -537,7 +584,7 @@ export function SmgView({
             {loading && items.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={SMG_FIELDS.length}
+                  colSpan={columns.length}
                   className="text-muted-foreground h-24"
                 >
                   Загрузка…
@@ -546,7 +593,7 @@ export function SmgView({
             ) : items.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={SMG_FIELDS.length}
+                  colSpan={columns.length}
                   className="text-muted-foreground h-24"
                 >
                   {hasActiveFilters(filters) || phoneQ
@@ -557,16 +604,23 @@ export function SmgView({
             ) : (
               items.map((row) => (
                 <TableRow key={row.id}>
-                  {SMG_FIELDS.map((field) => (
-                    <TableCell
-                      key={field}
-                      className={
-                        PHONE_FIELDS.has(field) ? "font-medium tabular-nums" : undefined
-                      }
-                    >
-                      {row[field]}
-                    </TableCell>
-                  ))}
+                  {columns.map((field) => {
+                    const text = smgSummaryCellText(field, row);
+                    const className = PHONE_FIELDS.has(field)
+                      ? "font-medium tabular-nums"
+                      : TABULAR_COLUMNS.has(field)
+                        ? "tabular-nums"
+                        : undefined;
+                    return (
+                      <TableCell key={field} className={className}>
+                        {highlightPhones && PHONE_FIELDS.has(field) ? (
+                          <HighlightText text={text} query={phoneQ} />
+                        ) : (
+                          text
+                        )}
+                      </TableCell>
+                    );
+                  })}
                 </TableRow>
               ))
             )}

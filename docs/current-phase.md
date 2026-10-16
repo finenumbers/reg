@@ -1,7 +1,21 @@
-# Current Phase — production (v1.139.0)
+# Current Phase — production (v1.140.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, Eltex SMG CDR, Eltex SMG syslog.  
 **Date:** 2026-10-16
+
+## v1.140.0 — SMG calls have a short working table
+
+«Трафик SMG» sits in the SMG menu before «Звонки на SMG». It reads the same gateway CDR. The month, the gateway, and the phone search are unchanged. There is no new table and no migration.
+
+Дата and Время are the call start (`setupTime`), the same role as `cdr_date` on phone traffic. Ответ is the connect clock, or a dash when the gateway left it empty. Отбой is the disconnect clock. The list is still ordered by disconnect time, and the month is still the disconnect month. A call that crosses midnight can show a start date from the previous day. Clocks are the stored digits, with no timezone shift. When the start day is missing or the other stamp falls on another day, that cell keeps the date.
+
+The working columns are the four numbers, the redirecting number sent onward (or the incoming one when the outgoing one is empty), seconds as stored, billable minutes with the same 3-second grace as the SMG month total, the trunk type and name on each leg, the Q.850 cause, the release status, and the release side. Those codes stay as the gateway wrote them. IP addresses, Call-IDs, CIC, E1, NAI, and recording paths stay on the full dump.
+
+Seconds, minutes, the clocks, and the redirect number have no facet menu. The day has none either: the indexed day is the disconnect day, and a filter under Дата would select a different day. The full dump still facets every CDR column except the gateway, which is the menu above the table.
+
+A postponed file is one line on the short table, with the file name and the error. Retry and download stay on «Звонки на SMG». The dashboard card still opens the full dump.
+
+There is no new migration.
 
 ## v1.139.0 — The Dashboard names the platform and switches call charts
 
