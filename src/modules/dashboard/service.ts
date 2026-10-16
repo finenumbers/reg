@@ -12,6 +12,12 @@ import { lastRtuEmptyScanAt, lastSmgEmptyScanAt } from "@/modules/jobs/scheduler
 import { hasPermission } from "@/modules/rbac/permissions";
 import { listSmgInboxFiles } from "@/modules/smg/inbox";
 import { listSmgPoisonEntries } from "@/modules/smg/poison";
+import { dashboardAntifraudEvents, dashboardSmgMonth } from "@/modules/dashboard/card-figures";
+import {
+  listStoredByteDevices,
+  peekSyslogStoredBytes,
+  warmSyslogStoredBytes,
+} from "@/modules/smg-syslog/browse";
 import { readStatus } from "@/modules/smg-syslog/status";
 import { syslogRoot } from "@/modules/smg-syslog/paths";
 import {
@@ -169,10 +175,12 @@ async function gatherFacts(
   let smg: DashboardFacts["smg"] = null;
   let syslog: SyslogPulse | null = null;
   if (includePhones) {
-    const [trafficExtra, smgExtra, syslogPulse] = await Promise.all([
+    const [trafficExtra, smgExtra, syslogPulse, smgMonth, antifraudEvents] = await Promise.all([
       loadTrafficExtra(now, vacuumActive),
       loadSmgExtra(),
       soft(() => Promise.resolve(readSyslog(syslogEnabled))),
+      soft(() => dashboardSmgMonth(now)),
+      soft(() => dashboardAntifraudEvents()),
     ]);
     traffic = {
       ...importPulse("cdr.import", latest),
@@ -181,8 +189,16 @@ async function gatherFacts(
     smg = {
       ...importPulse("smg.import", latest),
       ...smgExtra,
+      monthCalls: smgMonth?.calls ?? null,
+      monthMinutes: smgMonth?.minutes ?? null,
     };
-    syslog = syslogPulse;
+    syslog = syslogPulse
+      ? {
+          ...syslogPulse,
+          storedBytes: syslogStoredTotal(syslogRoot()),
+          antifraudEvents,
+        }
+      : null;
   }
 
   return {
@@ -422,7 +438,24 @@ async function loadSmgExtra(): Promise<
   };
 }
 
-function readSyslog(enabled: boolean): SyslogPulse {
+function syslogStoredTotal(root: string): number | null {
+  const devices = listStoredByteDevices(root);
+  if (devices.length === 0) return 0;
+  let sum = 0;
+  for (const device of devices) {
+    const bytes = peekSyslogStoredBytes(root, device);
+    if (bytes == null) {
+      warmSyslogStoredBytes(root, device);
+      return null;
+    }
+    sum += bytes;
+  }
+  return sum;
+}
+
+function readSyslog(
+  enabled: boolean,
+): Omit<SyslogPulse, "storedBytes" | "antifraudEvents"> {
   const status = readStatus(syslogRoot());
   const updatedAt = status ? Date.parse(status.updatedAt) : null;
   return {

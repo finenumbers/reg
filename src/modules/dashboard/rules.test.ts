@@ -36,7 +36,9 @@ function pulse(over: Partial<ScheduledPulse> = {}): ScheduledPulse {
   };
 }
 
-function imported(over: Partial<ImportPulse> = {}): ImportPulse {
+function imported(
+  over: Partial<ImportPulse & { monthCalls: number | null; monthMinutes: number | null }> = {},
+): ImportPulse & { monthCalls: number | null; monthMinutes: number | null } {
   return {
     running: false,
     lastStatus: "success",
@@ -48,6 +50,8 @@ function imported(over: Partial<ImportPulse> = {}): ImportPulse {
     lastPassAt: NOW - 60_000,
     hadCalls: true,
     lastCheckedAt: null,
+    monthCalls: null,
+    monthMinutes: null,
     ...over,
   };
 }
@@ -63,6 +67,8 @@ function syslog(over: Partial<SyslogPulse> = {}): SyslogPulse {
     freeBytes: 5 * 1024 * 1024 * 1024,
     unknownTotal: 0,
     lastPacketAt: NOW - 2000,
+    storedBytes: 1024,
+    antifraudEvents: 3,
     ...over,
   };
 }
@@ -415,6 +421,26 @@ describe("dashboard attention", () => {
       label: "Минуты, этот месяц",
       value: formatCount(1200),
     });
+  });
+
+  it("shows stored syslog and this month of SMG calls", () => {
+    const view = buildDashboard(
+      facts({
+        syslog: syslog({ storedBytes: 2048, antifraudEvents: 7 }),
+        smg: imported({ monthCalls: 12, monthMinutes: 40 }),
+      }),
+    );
+    const syslogCard = view.cards.find((card) => card.id === "syslog");
+    const smgCard = view.cards.find((card) => card.id === "smg");
+    expect(syslogCard?.stats.map((stat) => stat.label)).toEqual([
+      "Объём данных",
+      "События Антифрод",
+    ]);
+    expect(syslogCard?.stats.map((stat) => stat.label)).not.toContain("Свободно");
+    expect(smgCard?.stats).toEqual([
+      { label: "Звонки, этот месяц", value: formatCount(12) },
+      { label: "Минуты, этот месяц", value: formatCount(40) },
+    ]);
   });
 
   it("alerts when syslog reception is on and the receiver is quiet or deaf", () => {

@@ -3,6 +3,7 @@ import {
   axisCeiling,
   axisTickTop,
   axisTicks,
+  recentWindowMarks,
   eventCountLabel,
   fillConcurrencyMinutes,
   fillEventCounts,
@@ -102,14 +103,33 @@ describe("axis scale", () => {
     expect(axisTickTop(0, 0)).toBe(98);
   });
 
-  it("uses a 1-2-5 ceiling and skips a fractional middle", () => {
+  it("draws five integer levels once the peak reaches 4", () => {
     expect(axisCeiling(1)).toBe(1);
     expect(axisTicks(1)).toEqual([1, 0]);
-    expect(axisCeiling(3)).toBe(5);
-    expect(axisTicks(3)).toEqual([5, 0]);
-    expect(axisCeiling(5)).toBe(5);
+    expect(axisCeiling(2)).toBe(2);
+    expect(axisTicks(2)).toEqual([2, 1, 0]);
+    expect(axisCeiling(3)).toBe(3);
+    expect(axisTicks(3)).toEqual([3, 2, 1, 0]);
+    expect(axisCeiling(6)).toBe(8);
+    expect(axisTicks(6)).toEqual([8, 6, 4, 2, 0]);
+    expect(axisCeiling(34)).toBe(40);
+    expect(axisTicks(34)).toEqual([40, 30, 20, 10, 0]);
     expect(axisTickTop(5, 5)).toBe(6);
     expect(axisTickTop(0, 5)).toBe(98);
+  });
+});
+
+describe("recent window marks", () => {
+  it("clips a window that starts yesterday to midnight", () => {
+    const day = Date.parse("2026-10-16T00:00:00.000Z");
+    const recent = Date.parse("2026-10-15T23:30:00.000Z");
+    expect(recentWindowMarks(day, recent, 120, 1440)).toEqual([0, 90]);
+  });
+
+  it("marks both edges when the two hours sit inside the day", () => {
+    const day = Date.parse("2026-10-16T00:00:00.000Z");
+    const recent = Date.parse("2026-10-16T15:10:00.000Z");
+    expect(recentWindowMarks(day, recent, 120, 1440)).toEqual([15 * 60 + 10, 17 * 60 + 10]);
   });
 });
 

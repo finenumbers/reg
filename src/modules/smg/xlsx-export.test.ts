@@ -71,7 +71,7 @@ describe("SMG xlsx file", () => {
       layout: "calls",
       filePath,
       eachRow: async (visit) => {
-        visit(row);
+        await visit(row);
       },
     });
     const workbook = new ExcelJS.Workbook();

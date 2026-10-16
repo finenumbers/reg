@@ -18,6 +18,7 @@ import {
 } from "@/modules/phones/request-action";
 import {
   downloadXlsxFromUrl,
+  triggerBlobDownload,
   type DownloadXlsxResult,
 } from "@/lib/download-xlsx";
 
@@ -223,17 +224,6 @@ export async function convertPhonesRtuImport(
   const filename =
     /filename="([^"]+)"/i.exec(res.headers.get("Content-Disposition") ?? "")?.[1] ??
     "import-rtu.csv";
-  const objectUrl = URL.createObjectURL(blob);
-  try {
-    const a = document.createElement("a");
-    a.href = objectUrl;
-    a.download = filename;
-    a.rel = "noopener";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-  } finally {
-    URL.revokeObjectURL(objectUrl);
-  }
+  triggerBlobDownload(blob, filename);
   return { ok: true, filename };
 }

@@ -12,6 +12,7 @@ import {
   formatTrafficDayTitle,
   formatUtcMinute,
   provisionalMinuteIndex,
+  recentWindowMarks,
   sessionCountLabel,
   TWO_HOUR_MINUTES,
 } from "@/modules/dashboard/concurrency";
@@ -117,6 +118,16 @@ export function CallsChart({ series }: { series: DashboardSeriesId }) {
               : provisionalMinuteIndex(ready.minutes.length)
             : 0
         }
+        windowMarks={
+          ready && recent && dayOrigin
+            ? recentWindowMarks(
+                dayOrigin.getTime(),
+                recent.origin.getTime(),
+                TWO_HOUR_MINUTES,
+                DAY_MINUTES,
+              )
+            : []
+        }
         events={events}
         countLabel={countLabel}
         message={dayOrigin || !ready ? message : UNAVAILABLE}
@@ -155,6 +166,7 @@ function ConcurrencyChart({
   origin,
   labels,
   provisionalFrom,
+  windowMarks = [],
   events,
   countLabel,
   message,
@@ -166,6 +178,7 @@ function ConcurrencyChart({
   origin: Date | null;
   labels: XLabel[];
   provisionalFrom: number;
+  windowMarks?: number[];
   events: boolean;
   countLabel: (count: number) => string;
   message: string;
@@ -197,6 +210,7 @@ function ConcurrencyChart({
                   ? `${formatUtcMinute(origin, hover)}: ${countLabel(hovered)}`
                   : `Максимум: ${countLabel(peak)}`
               }
+              windowMarks={windowMarks}
             />
             <div className="relative h-4">
               {labels.map((item) => (
@@ -246,6 +260,7 @@ function CallsPlot({
   hover,
   onHover,
   label,
+  windowMarks,
 }: {
   minutes: number[];
   peak: number;
@@ -255,6 +270,7 @@ function CallsPlot({
   hover: number | null;
   onHover: (minute: number | null) => void;
   label: string;
+  windowMarks: number[];
 }) {
   const ceiling = axisCeiling(peak);
   const split = Math.max(0, Math.min(minutes.length, Math.trunc(provisionalFrom)));
@@ -301,6 +317,21 @@ function CallsPlot({
           />
         );
       })}
+      {windowMarks.map((mark) => (
+        <line
+          key={mark}
+          x1={mark}
+          x2={mark}
+          y1={0}
+          y2={100}
+          className="text-foreground"
+          stroke="currentColor"
+          strokeOpacity={0.7}
+          strokeWidth={1}
+          strokeDasharray="4 3"
+          vectorEffect="non-scaling-stroke"
+        />
+      ))}
       <SeriesPaths
         className={
           events

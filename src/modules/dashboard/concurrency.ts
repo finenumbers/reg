@@ -103,25 +103,53 @@ export function formatUtcMinute(origin: Date, index: number): string {
   return `${hour}:${minute}`;
 }
 
-/** 1, 2, 5, 10, 20, … at or above the peak. Zero stays zero. */
+const AXIS_STEPS = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1_000, 2_000, 5_000, 10_000];
+
+/**
+ * Five equal integer levels when the peak reaches 4. Below that, every
+ * integer from the peak down to zero, so a peak of 1 is not drawn on a scale of 4.
+ */
 export function axisCeiling(peak: number): number {
   const value = clampLevel(peak);
-  if (value <= 1) return value;
-  const magnitude = 10 ** Math.floor(Math.log10(value));
-  for (const step of [1, 2, 5, 10]) {
-    const ceiling = step * magnitude;
+  if (value < 4) return value;
+  for (const step of AXIS_STEPS) {
+    const ceiling = step * 4;
     if (ceiling >= value) return ceiling;
   }
-  return 10 * magnitude;
+  const step = 10 ** Math.ceil(Math.log10(value / 4));
+  return step * 4;
 }
 
 /** Top to bottom. A zero peak has only the baseline. */
 export function axisTicks(peak: number): number[] {
   const ceiling = axisCeiling(peak);
   if (ceiling <= 0) return [0];
-  const mid = ceiling / 2;
-  if (Number.isInteger(mid) && mid > 0) return [ceiling, mid, 0];
-  return [ceiling, 0];
+  if (ceiling < 4) {
+    const ticks: number[] = [];
+    for (let level = ceiling; level >= 0; level -= 1) ticks.push(level);
+    return ticks;
+  }
+  const step = ceiling / 4;
+  return [4, 3, 2, 1, 0].map((part) => part * step);
+}
+
+/**
+ * Minute positions of the lower chart on the day chart.
+ * A window that starts yesterday is clipped to midnight.
+ */
+export function recentWindowMarks(
+  dayStartMs: number,
+  recentStartMs: number,
+  windowMinutes: number,
+  dayMinutes: number,
+): number[] {
+  const start = Math.round((recentStartMs - dayStartMs) / MINUTE_MS);
+  const end = start + windowMinutes;
+  if (end <= 0 || start >= dayMinutes) return [];
+  const left = Math.max(0, start);
+  const right = Math.min(dayMinutes, end);
+  if (left === right) return [left];
+  return [left, right];
 }
 
 /** CSS `top` percent. Matches the SVG y of the same value. */

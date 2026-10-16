@@ -1,7 +1,13 @@
-# Current Phase — production (v1.143.0)
+# Current Phase — production (v1.144.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, Eltex SMG CDR, Eltex SMG syslog.  
 **Date:** 2026-10-17
+
+## v1.144.0 — SMG export stays off the page, and the dashboard reads closer
+
+«Сохранить данные» on «Трафик SMG» and «Звонки на SMG» answers at once. The workbook is built in the background, one at a time, and the browser downloads the finished file. The page is not held silent until ExcelJS finishes the month. Other downloads keep their temporary file address long enough for the browser to start saving.
+
+Dashboard charts use five whole scale lines. The day chart marks the two hours of the chart below it with dashed lines. The Syslog card shows stored volume and stored antifraud attempts. «Звонки на SMG» shows this month's calls and billable minutes. Disk, unknown-address, and inbox warnings stay on the alert strip.
 
 ## v1.143.0 — SMG calls and traffic save to xlsx
 

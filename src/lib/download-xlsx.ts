@@ -45,17 +45,19 @@ export async function downloadXlsxFromUrl(
     res.headers.get("Content-Disposition"),
     fallbackFilename,
   );
-  const objectUrl = URL.createObjectURL(blob);
-  try {
-    const a = document.createElement("a");
-    a.href = objectUrl;
-    a.download = filename;
-    a.rel = "noopener";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-  } finally {
-    URL.revokeObjectURL(objectUrl);
-  }
+  triggerBlobDownload(blob, filename);
   return { ok: true, filename };
+}
+
+/** Keep the blob alive long enough for the browser to start saving it. */
+export function triggerBlobDownload(blob: Blob, filename: string): void {
+  const objectUrl = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = objectUrl;
+  link.download = filename;
+  link.rel = "noopener";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 30_000);
 }

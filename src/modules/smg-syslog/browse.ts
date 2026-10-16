@@ -699,6 +699,36 @@ function startStoredByteRefresh(root: string, ip: string, key: string): Promise<
   return flight.promise;
 }
 
+export function peekSyslogStoredBytes(root: string, device: string): number | null {
+  const ip = canonicalIpv4(device);
+  if (!ip) return null;
+  const key = storedByteKey(root, ip);
+  const hit = storedByteCache.get(key);
+  if (!hit || hit.generation !== storedByteGenerationOf(key)) return null;
+  if (Date.now() - hit.at >= SYSLOG_STORED_BYTES_TTL_MS) {
+    void readSyslogStoredBytes(root, ip);
+  }
+  return hit.bytes;
+}
+
+/** Start a walk without waiting. A cold dashboard read must not block on the disk. */
+export function warmSyslogStoredBytes(root: string, device: string): void {
+  void readSyslogStoredBytes(root, device);
+}
+
+/** Gateway directories. Bridge addresses and symlinks are left out. */
+export function listStoredByteDevices(root: string): string[] {
+  try {
+    return readdirSync(root, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() && !entry.isSymbolicLink())
+      .map((entry) => canonicalIpv4(entry.name))
+      .filter((ip): ip is string => ip != null && !looksLikeDockerBridge(ip))
+      .sort();
+  } catch {
+    return [];
+  }
+}
+
 /**
  * Total for the syslog page. A fresh cache entry is returned immediately.
  * After the TTL the previous total is returned while one walk refreshes it.

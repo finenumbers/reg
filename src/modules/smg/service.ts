@@ -245,7 +245,7 @@ export async function writeSmgExport(input: {
           skip,
           take: SMG_EXPORT_PAGE_SIZE,
         });
-        for (const row of rows) visit(toListItem(row));
+        for (const row of rows) await visit(toListItem(row));
       }
     },
   });

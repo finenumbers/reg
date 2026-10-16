@@ -49,6 +49,11 @@ export type TrafficPulse = ImportPulse & {
   monthNote: string | null;
 };
 
+export type SmgPulse = ImportPulse & {
+  monthCalls: number | null;
+  monthMinutes: number | null;
+};
+
 export type SyslogPulse = {
   enabled: boolean;
   filePresent: boolean;
@@ -59,6 +64,8 @@ export type SyslogPulse = {
   freeBytes: number | null;
   unknownTotal: number;
   lastPacketAt: number | null;
+  storedBytes: number | null;
+  antifraudEvents: number | null;
 };
 
 export type DashboardFacts = {
@@ -81,7 +88,7 @@ export type DashboardFacts = {
     | null;
   groups: ScheduledPulse | null;
   traffic: TrafficPulse | null;
-  smg: ImportPulse | null;
+  smg: SmgPulse | null;
   syslog: SyslogPulse | null;
   vacuumActive: boolean;
   purgeActive: boolean;
@@ -275,8 +282,8 @@ export function buildDashboard(facts: DashboardFacts): {
         title: "Звонки на SMG",
         href: "/smg",
         stats: [
-          { label: "Во входящих", value: countOrGap(facts.smg.pendingReady) },
-          { label: "Отложено", value: countOrGap(facts.smg.poisonCount) },
+          { label: "Звонки, этот месяц", value: countOrGap(facts.smg.monthCalls) },
+          { label: "Минуты, этот месяц", value: countOrGap(facts.smg.monthMinutes) },
         ],
         note: null,
       }),
@@ -595,10 +602,10 @@ function syslogCard(syslog: SyslogPulse, now: number): CardModel {
       syslog.enabled && syslog.lastPacketAt == null ? "пакетов ещё не было" : null,
     stats: [
       {
-        label: "Свободно",
-        value: syslog.freeBytes == null ? "…" : formatBytes(syslog.freeBytes),
+        label: "Объём данных",
+        value: syslog.storedBytes == null ? "…" : formatBytes(syslog.storedBytes),
       },
-      { label: "Неизвестные адреса", value: formatCount(syslog.unknownTotal) },
+      { label: "События Антифрод", value: countOrGap(syslog.antifraudEvents) },
     ],
     note: null,
   };

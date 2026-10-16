@@ -178,6 +178,7 @@ export function SmgView({
   const [traceError, setTraceError] = useState<string | null>(null);
   const [trace, setTrace] = useState<TraceLookup | null>(null);
   const [exporting, setExporting] = useState(false);
+  const exportingRef = useRef(false);
   const traceRequest = useRef(0);
   const refreshSeq = useRef(0);
   const sinceRef = useRef<string | null>(initialSince);
@@ -360,22 +361,61 @@ export function SmgView({
   });
 
   async function onExport() {
-    if (exporting) return;
+    if (exportingRef.current) return;
+    exportingRef.current = true;
     setExporting(true);
     try {
-      const params = new URLSearchParams();
-      params.set("layout", exportLayout);
-      params.set("month", month);
-      if (device) params.set("device", device);
-      if (phoneQ.trim()) params.set("phoneQ", phoneQ.trim());
-      const encoded = encodeFilters(filters);
-      if (encoded) params.set("filters", encoded);
-      const fallback = exportLayout === "calls" ? "Звонки на SMG.xlsx" : "Трафик SMG.xlsx";
-      const result = await downloadXlsxFromUrl(`/api/smg/export?${params.toString()}`, fallback);
-      if (!result.ok) toast.error(result.message);
+      const res = await fetch("/api/smg/export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          layout: exportLayout,
+          month,
+          device,
+          phoneQ: phoneQ.trim(),
+          filters,
+        }),
+      });
+      const started = (await res.json()) as {
+        error?: string;
+        job?: { id: string; status: string; error: string | null };
+      };
+      if (!res.ok || !started.job) {
+        toast.error(started.error?.trim() || "Не удалось начать выгрузку");
+        return;
+      }
+      const id = started.job.id;
+      for (;;) {
+        const statusRes = await fetch(`/api/smg/export/${encodeURIComponent(id)}`, {
+          cache: "no-store",
+        });
+        const body = (await statusRes.json()) as {
+          error?: string;
+          job?: { status: string; error: string | null };
+        };
+        if (!statusRes.ok || !body.job) {
+          toast.error(body.error?.trim() || "Не удалось скачать файл");
+          return;
+        }
+        if (body.job.status === "error") {
+          toast.error(body.job.error?.trim() || "Не удалось сформировать XLSX");
+          return;
+        }
+        if (body.job.status === "ready") break;
+        await new Promise((resolve) => {
+          window.setTimeout(resolve, 700);
+        });
+      }
+      const link = document.createElement("a");
+      link.href = `/api/smg/export/${encodeURIComponent(id)}/download`;
+      link.rel = "noopener";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
     } catch {
       toast.error("Не удалось скачать файл");
     } finally {
+      exportingRef.current = false;
       setExporting(false);
     }
   }

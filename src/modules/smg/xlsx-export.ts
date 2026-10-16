@@ -15,8 +15,6 @@ import {
 
 export const SMG_EXPORT_PAGE_SIZE = 2000;
 
-const EXPORT_LOCK = "__reg_smg_xlsx_export__";
-
 export type SmgExportLayout = "calls" | "traffic";
 
 export type SmgExportColumn = {
@@ -31,19 +29,6 @@ export class SmgExportTooLargeError extends Error {
     );
     this.name = "SmgExportTooLargeError";
   }
-}
-
-/** One export at a time on this process. Next bundles share globalThis. */
-export function tryBeginSmgExport(): boolean {
-  const holder = globalThis as unknown as Record<string, boolean>;
-  if (holder[EXPORT_LOCK]) return false;
-  holder[EXPORT_LOCK] = true;
-  return true;
-}
-
-export function endSmgExport(): void {
-  const holder = globalThis as unknown as Record<string, boolean>;
-  holder[EXPORT_LOCK] = false;
 }
 
 export function smgExportColumns(layout: SmgExportLayout): SmgExportColumn[] {
@@ -94,7 +79,7 @@ export function assertSmgExportRowCount(total: number): void {
 export async function writeSmgExportFile(opts: {
   layout: SmgExportLayout;
   filePath: string;
-  eachRow: (visit: (row: Record<SmgField, string>) => void) => Promise<void>;
+  eachRow: (visit: (row: Record<SmgField, string>) => Promise<void>) => Promise<void>;
 }): Promise<number> {
   const columns = smgExportColumns(opts.layout);
   const workbook = new ExcelJS.stream.xlsx.WorkbookWriter({
@@ -115,12 +100,17 @@ export async function writeSmgExportFile(opts: {
   header.commit();
 
   let written = 0;
-  await opts.eachRow((row) => {
+  await opts.eachRow(async (row) => {
     const excelRow = sheet.addRow(
       columns.map((column) => smgExportCell(column, row)),
     );
     excelRow.commit();
     written += 1;
+    if (written % 40 === 0) {
+      await new Promise((resolve) => {
+        setImmediate(resolve);
+      });
+    }
   });
   sheet.autoFilter = {
     from: { row: 1, column: 1 },
