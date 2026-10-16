@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   applyMonthFilter,
+  cdrMonthDayRange,
   currentUtcMonth,
   deletableMonthKey,
   monthKeyFromCdrDay,
@@ -9,6 +10,19 @@ import {
   sumMonthRecordCounts,
   withCurrentMonth,
 } from "@/modules/traffic/cdr-month";
+
+describe("cdrMonthDayRange", () => {
+  it("bounds the current month and rolls December onto the next year", () => {
+    expect(cdrMonthDayRange(2026, 10)).toEqual({
+      start: "2026-10-01",
+      end: "2026-11-01",
+    });
+    expect(cdrMonthDayRange(2026, 12)).toEqual({
+      start: "2026-12-01",
+      end: "2027-01-01",
+    });
+  });
+});
 
 describe("parseMonthKey", () => {
   it("accepts YYYY-MM", () => {

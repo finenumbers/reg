@@ -1,5 +1,5 @@
 /**
- * Concurrent softswitch calls for today and the rolling last hour.
+ * Concurrent softswitch calls for today and the rolling last two hours.
  * Postgres does one sweep. This process only fills the quiet minutes.
  * A failure is not cached and is never turned into a line of zeros.
  */
@@ -14,14 +14,14 @@ import {
 import { elapsedMsNumericSql } from "@/modules/traffic/billable-minutes-sql";
 import {
   fillConcurrencyMinutes,
-  HOUR_MINUTES,
+  TWO_HOUR_MINUTES,
   utcCallWindow,
   type MinuteEventRow,
   type UtcCallWindow,
 } from "@/modules/dashboard/concurrency";
 import type { DashboardCalls } from "@/modules/dashboard/types";
 
-const CACHE_KEY = "__reg_dashboard_calls__";
+const CACHE_KEY = "__reg_dashboard_calls_v2__";
 const CACHE_TTL_MS = 60_000;
 const STATEMENT_TIMEOUT = "8s";
 const UNAVAILABLE = "График звонков недоступен.";
@@ -35,9 +35,9 @@ type CacheStore = {
 
 type CallSeriesRow = {
   day_carry: number | bigint | null;
-  hour_carry: number | bigint | null;
+  recent_carry: number | bigint | null;
   day_minutes: unknown;
-  hour_minutes: unknown;
+  recent_minutes: unknown;
 };
 
 function cacheStore(): CacheStore {
@@ -154,7 +154,7 @@ async function queryCallMinutes(
       WHERE ts >= ${bounds.dayStart}
       GROUP BY 1
     ),
-    hour_minutes AS (
+    recent_minutes AS (
       SELECT
         floor(extract(epoch FROM ts) / 60)::int AS minute_key,
         max(level)::int AS peak,
@@ -163,7 +163,7 @@ async function queryCallMinutes(
           extract(epoch FROM ts) - floor(extract(epoch FROM ts) / 60) * 60 < 0.0005
         ) AS touches_start
       FROM running
-      WHERE ts >= ${bounds.hourStart}
+      WHERE ts >= ${bounds.recentStart}
       GROUP BY 1
     )
     SELECT
@@ -175,8 +175,8 @@ async function queryCallMinutes(
       (
         SELECT coalesce(sum(delta), 0)::int
         FROM events
-        WHERE ts < ${bounds.hourStart}
-      ) AS hour_carry,
+        WHERE ts < ${bounds.recentStart}
+      ) AS recent_carry,
       (
         SELECT coalesce(
           json_agg(
@@ -203,8 +203,8 @@ async function queryCallMinutes(
           ),
           '[]'::json
         )
-        FROM hour_minutes
-      ) AS hour_minutes
+        FROM recent_minutes
+      ) AS recent_minutes
   `);
 }
 
@@ -212,29 +212,29 @@ function seriesFromRows(bounds: UtcCallWindow, rows: CallSeriesRow[]): Dashboard
   const row = rows[0];
   if (!row) return { status: "unavailable", message: UNAVAILABLE };
   const dayOrigin = Math.floor(bounds.dayStart.getTime() / 60_000);
-  const hourOrigin = Math.floor(bounds.hourStart.getTime() / 60_000);
+  const recentOrigin = Math.floor(bounds.recentStart.getTime() / 60_000);
   const minutes = buildSeries(
     bounds.minuteCount,
     dayOrigin,
     asInt(row.day_carry),
     row.day_minutes,
   );
-  const hourMinutes = buildSeries(
-    HOUR_MINUTES,
-    hourOrigin,
-    asInt(row.hour_carry),
-    row.hour_minutes,
+  const recentMinutes = buildSeries(
+    TWO_HOUR_MINUTES,
+    recentOrigin,
+    asInt(row.recent_carry),
+    row.recent_minutes,
   );
-  if (!minutes || !hourMinutes) return { status: "unavailable", message: UNAVAILABLE };
+  if (!minutes || !recentMinutes) return { status: "unavailable", message: UNAVAILABLE };
   return {
     status: "ready",
     day: bounds.day,
     minutes,
     peak: seriesPeak(minutes),
-    hour: {
-      start: bounds.hourStart.toISOString(),
-      minutes: hourMinutes,
-      peak: seriesPeak(hourMinutes),
+    recent: {
+      start: bounds.recentStart.toISOString(),
+      minutes: recentMinutes,
+      peak: seriesPeak(recentMinutes),
     },
   };
 }

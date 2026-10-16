@@ -1,7 +1,23 @@
-# Current Phase — production (v1.137.0)
+# Current Phase — production (v1.138.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, Eltex SMG CDR, Eltex SMG syslog.  
 **Date:** 2026-10-16
+
+## v1.138.0 — The Dashboard charts two hours and this month's minutes
+
+The lower chart is a rolling two hours, including the minute that is still open. Just after midnight it still reaches into the previous evening. Its title is «Предварительный трафик за два часа по закончившимся звонкам».
+
+The day chart is titled «Телефонный трафик за» the UTC civil date of that series, with the weekday in Russian, for example «16.10.2026 (пятница)». Until the series arrives the title has no date.
+
+The last 60 filled minutes of each chart are blue. A softswitch call lasts at most 3600 seconds, so that hour can still move when its CDR arrives. The split sits on the hour tick: the minute just before it can still move for less than a minute and stays green. The 24-hour safety cap on duration is unchanged. The extra database lookback is still only the first two hours after midnight, and it does not change the day series.
+
+Both series still come from one CDR read, limited to 8 seconds, shared for 60 seconds, and refused while the database is being compressed. A timeout, an error, or compression leaves both charts empty with a short reason.
+
+The registrations card no longer shows «Всего». Registered and unregistered are the only statuses, so that line was their sum.
+
+The traffic card no longer shows «Во входящих» or «Отложено». A waiting folder and a postponed file still fail the badge and still raise a line. The card adds «Минуты, этот месяц»: the same billable minutes as storage, for the current UTC month. The sum does not delay the card snapshot. A fresh value is shown at once, a stale value stays while one recount runs, and a cold start shows «…» until the next refresh. A failure is remembered for 60 seconds and does not blank the call count. Compression does not start the sum.
+
+There is no new migration.
 
 ## v1.137.0 — Card outlines sit inside the box
 

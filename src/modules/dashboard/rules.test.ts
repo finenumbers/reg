@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { formatCount } from "@/lib/format-count";
 import { purgeHoldMessage } from "@/modules/traffic/poison";
 import {
   resetPurgeTargetForTests,
@@ -108,7 +109,7 @@ describe("dashboard attention", () => {
     );
     expect(view.alerts).toEqual([]);
     expect(view.cards[0]?.badge).toBe("off");
-    expect(view.cards[0]?.stats.map((stat) => stat.value)).toEqual(["1", "2", "3"]);
+    expect(view.cards[0]?.stats.map((stat) => stat.value)).toEqual(["1", "2"]);
   });
 
   it("reports a failed poll and does not also call it stale", () => {
@@ -268,6 +269,7 @@ describe("dashboard attention", () => {
           ...imported(),
           poisonCount: 0,
           monthCalls: 12,
+          monthMinutes: 40,
           monthNote: null,
         },
       }),
@@ -282,6 +284,7 @@ describe("dashboard attention", () => {
           poisonCount: 2,
           poisonLabel: "20261015_120000: битая строка",
           monthCalls: 0,
+          monthMinutes: 0,
           monthNote: null,
         },
       }),
@@ -291,7 +294,12 @@ describe("dashboard attention", () => {
     expect(poison.alerts[0]?.text).toContain("2 файлов отложены");
     expect(poison.alerts[0]?.text).toContain("Сырые данные");
     expect(poison.cards[0]?.badge).toBe("failed");
+    expect(poison.cards[0]?.stats.map((stat) => stat.label)).toEqual([
+      "Звонки, этот месяц",
+      "Минуты, этот месяц",
+    ]);
     expect(poison.cards[0]?.stats[0]?.value).toBe("0");
+    expect(poison.cards[0]?.stats[1]?.value).toBe("0");
   });
 
   it("warns about a waiting inbox from the second ready file, not while import is running", () => {
@@ -304,7 +312,12 @@ describe("dashboard attention", () => {
 
     const two = buildDashboard(
       facts({
-        traffic: { ...imported({ pendingReady: 2 }), monthCalls: 3, monthNote: null },
+        traffic: {
+          ...imported({ pendingReady: 2 }),
+          monthCalls: 3,
+          monthMinutes: 3,
+          monthNote: null,
+        },
       }),
     );
     expect(ids(two)).toEqual(["traffic-inbox"]);
@@ -315,6 +328,7 @@ describe("dashboard attention", () => {
         traffic: {
           ...imported({ pendingReady: 4, running: true }),
           monthCalls: 3,
+          monthMinutes: 3,
           monthNote: null,
         },
       }),
@@ -336,11 +350,13 @@ describe("dashboard attention", () => {
         traffic: {
           ...imported(),
           monthCalls: null,
+          monthMinutes: null,
           monthNote: CDR_VACUUM_BUSY_MESSAGE,
         },
       }),
     );
     expect(view.cards[0]?.stats[0]?.value).toBe("…");
+    expect(view.cards[0]?.stats[1]?.value).toBe("…");
     expect(view.cards[0]?.note).toBe(CDR_VACUUM_BUSY_MESSAGE);
     expect(view.alerts.map((alert) => alert.tone)).toEqual(["info", "info"]);
     expect(view.alerts[0]?.href).toBeNull();
@@ -361,6 +377,44 @@ describe("dashboard attention", () => {
     );
     expect(view.alerts).toEqual([]);
     expect(view.cards.map((card) => card.id)).toEqual(["registrations"]);
+    expect(view.cards[0]?.stats.map((stat) => stat.label)).toEqual([
+      "Зарегистрировано",
+      "Не зарегистрировано",
+    ]);
+  });
+
+  it("keeps the call count when this month's minutes are still unknown", () => {
+    const view = buildDashboard(
+      facts({
+        traffic: {
+          ...imported(),
+          monthCalls: 9,
+          monthMinutes: null,
+          monthNote: null,
+        },
+      }),
+    );
+    expect(view.cards[0]?.stats[0]?.value).toBe("9");
+    expect(view.cards[0]?.stats[1]?.value).toBe("…");
+    expect(view.cards[0]?.badge).toBe("ok");
+    expect(view.alerts).toEqual([]);
+  });
+
+  it("formats this month's minutes without touching the inbox rows", () => {
+    const view = buildDashboard(
+      facts({
+        traffic: {
+          ...imported(),
+          monthCalls: 9,
+          monthMinutes: 1200,
+          monthNote: null,
+        },
+      }),
+    );
+    expect(view.cards[0]?.stats[1]).toEqual({
+      label: "Минуты, этот месяц",
+      value: formatCount(1200),
+    });
   });
 
   it("alerts when syslog reception is on and the receiver is quiet or deaf", () => {

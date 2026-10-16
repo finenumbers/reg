@@ -8,9 +8,11 @@ import {
   axisCeiling,
   axisTicks,
   axisTickTop,
+  formatTrafficDayTitle,
   formatUtcMinute,
-  HOUR_MINUTES,
+  provisionalMinuteIndex,
   sessionCountLabel,
+  TWO_HOUR_MINUTES,
 } from "@/modules/dashboard/concurrency";
 import type { DashboardCalls } from "@/modules/dashboard/types";
 
@@ -84,27 +86,30 @@ export function CallsChart() {
   const ready = body?.status === "ready" ? body : null;
   const message = chartMessage(body);
   const dayOrigin = ready ? utcMidnight(ready.day) : null;
-  const hour = ready ? hourSeries(ready) : null;
+  const dayTitle = ready ? formatTrafficDayTitle(ready.day) : null;
+  const recent = ready ? recentSeries(ready) : null;
 
   return (
     <div className="flex flex-col gap-6">
       <ConcurrencyChart
-        title="Звонки сегодня"
+        title={dayTitle ? `Телефонный трафик за ${dayTitle}` : "Телефонный трафик"}
         minutes={ready?.minutes ?? null}
         peak={ready?.peak ?? 0}
         span={DAY_MINUTES}
         origin={dayOrigin}
         labels={dayLabels()}
+        provisionalFrom={ready ? provisionalMinuteIndex(ready.minutes.length) : 0}
         message={dayOrigin || !ready ? message : UNAVAILABLE}
       />
       <ConcurrencyChart
-        title="Последний час"
-        minutes={hour?.minutes ?? null}
-        peak={hour?.peak ?? 0}
-        span={HOUR_MINUTES}
-        origin={hour?.origin ?? null}
-        labels={hour ? hourLabels(hour.origin) : []}
-        message={hour || !ready ? message : UNAVAILABLE}
+        title="Предварительный трафик за два часа по закончившимся звонкам"
+        minutes={recent?.minutes ?? null}
+        peak={recent?.peak ?? 0}
+        span={TWO_HOUR_MINUTES}
+        origin={recent?.origin ?? null}
+        labels={recent ? recentLabels(recent.origin) : []}
+        provisionalFrom={recent ? provisionalMinuteIndex(recent.minutes.length) : 0}
+        message={recent || !ready ? message : UNAVAILABLE}
       />
     </div>
   );
@@ -117,6 +122,7 @@ function ConcurrencyChart({
   span,
   origin,
   labels,
+  provisionalFrom,
   message,
 }: {
   title: string;
@@ -125,6 +131,7 @@ function ConcurrencyChart({
   span: number;
   origin: Date | null;
   labels: XLabel[];
+  provisionalFrom: number;
   message: string;
 }) {
   const [hover, setHover] = useState<number | null>(null);
@@ -145,6 +152,7 @@ function ConcurrencyChart({
               minutes={minutes}
               peak={peak}
               span={span}
+              provisionalFrom={provisionalFrom}
               hover={hover}
               onHover={setHover}
               label={
@@ -196,6 +204,7 @@ function CallsPlot({
   minutes,
   peak,
   span,
+  provisionalFrom,
   hover,
   onHover,
   label,
@@ -203,12 +212,15 @@ function CallsPlot({
   minutes: number[];
   peak: number;
   span: number;
+  provisionalFrom: number;
   hover: number | null;
   onHover: (minute: number | null) => void;
   label: string;
 }) {
   const ceiling = axisCeiling(peak);
-  const geometry = stepGeometry(minutes, ceiling);
+  const split = Math.max(0, Math.min(minutes.length, Math.trunc(provisionalFrom)));
+  const stable = stepGeometry(minutes, ceiling, 0, split);
+  const provisional = stepGeometry(minutes, ceiling, split, minutes.length);
   const ticks = axisTicks(peak);
 
   const move = (event: PointerEvent<SVGSVGElement>) => {
@@ -225,7 +237,7 @@ function CallsPlot({
 
   return (
     <svg
-      className="h-36 w-full text-emerald-600 dark:text-emerald-400"
+      className="h-36 w-full"
       viewBox={`0 0 ${span} 100`}
       preserveAspectRatio="none"
       role="img"
@@ -250,14 +262,8 @@ function CallsPlot({
           />
         );
       })}
-      <path d={geometry.area} fill="currentColor" fillOpacity={0.18} stroke="none" />
-      <path
-        d={geometry.line}
-        fill="none"
-        stroke="currentColor"
-        strokeWidth={1.5}
-        vectorEffect="non-scaling-stroke"
-      />
+      <SeriesPaths className="text-emerald-600 dark:text-emerald-400" geometry={stable} />
+      <SeriesPaths className="text-blue-600 dark:text-blue-400" geometry={provisional} />
       {hover != null && hover < minutes.length ? (
         <line
           x1={hover + 0.5}
@@ -275,22 +281,51 @@ function CallsPlot({
   );
 }
 
+function SeriesPaths({
+  className,
+  geometry,
+}: {
+  className: string;
+  geometry: { line: string; area: string };
+}) {
+  if (!geometry.line) return null;
+  return (
+    <g className={className}>
+      <path d={geometry.area} fill="currentColor" fillOpacity={0.18} stroke="none" />
+      <path
+        d={geometry.line}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1.5}
+        vectorEffect="non-scaling-stroke"
+      />
+    </g>
+  );
+}
+
 function stepGeometry(
   minutes: number[],
   ceiling: number,
+  from: number,
+  to: number,
 ): { line: string; area: string } {
+  if (to <= from) return { line: "", area: "" };
   const y = (value: number) => {
     if (ceiling <= 0) return AXIS_BASELINE;
     return AXIS_BASELINE - (value / ceiling) * (AXIS_BASELINE - AXIS_TOP);
   };
+  const heightAt = (index: number) => y(minutes[index] ?? 0).toFixed(2);
   let line = "";
-  minutes.forEach((value, index) => {
-    const height = y(value).toFixed(2);
-    line += index === 0 ? `M${index},${height}` : `L${index},${height}`;
-    line += `L${index + 1},${height}`;
-  });
-  const end = minutes.length;
-  return { line, area: `${line}L${end},${AXIS_BASELINE}L0,${AXIS_BASELINE}Z` };
+  if (from === 0) {
+    line += `M0,${heightAt(0)}`;
+  } else {
+    line += `M${from},${y(minutes[from - 1] ?? 0).toFixed(2)}L${from},${heightAt(from)}`;
+  }
+  line += `L${from + 1},${heightAt(from)}`;
+  for (let index = from + 1; index < to; index += 1) {
+    line += `L${index},${heightAt(index)}L${index + 1},${heightAt(index)}`;
+  }
+  return { line, area: `${line}L${to},${AXIS_BASELINE}L${from},${AXIS_BASELINE}Z` };
 }
 
 function chartCaption(
@@ -312,13 +347,15 @@ function chartMessage(body: DashboardCalls | null): string {
   return "…";
 }
 
-function hourSeries(
+function recentSeries(
   ready: ReadyCalls,
 ): { origin: Date; minutes: number[]; peak: number } | null {
-  const origin = new Date(ready.hour.start);
+  const origin = new Date(ready.recent.start);
   if (Number.isNaN(origin.getTime())) return null;
-  if (!Array.isArray(ready.hour.minutes) || ready.hour.minutes.length === 0) return null;
-  return { origin, minutes: ready.hour.minutes, peak: ready.hour.peak };
+  if (!Array.isArray(ready.recent.minutes) || ready.recent.minutes.length === 0) {
+    return null;
+  }
+  return { origin, minutes: ready.recent.minutes, peak: ready.recent.peak };
 }
 
 function utcMidnight(day: string): Date | null {
@@ -335,15 +372,19 @@ function dayLabels(): XLabel[] {
   }));
 }
 
-function hourLabels(origin: Date): XLabel[] {
-  return [0, 15, 30, 45, 59].map((index) => ({
+function recentLabels(origin: Date): XLabel[] {
+  const last = TWO_HOUR_MINUTES - 1;
+  return [0, 30, 60, 90, last].map((index) => ({
     key: String(index),
     text: formatUtcMinute(origin, index),
     style:
       index === 0
         ? { left: 0 }
-        : index === 59
+        : index === last
           ? { right: 0 }
-          : { left: `${(index / HOUR_MINUTES) * 100}%`, transform: "translateX(-50%)" },
+          : {
+              left: `${(index / TWO_HOUR_MINUTES) * 100}%`,
+              transform: "translateX(-50%)",
+            },
   }));
 }

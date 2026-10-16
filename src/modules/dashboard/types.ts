@@ -53,5 +53,5 @@ export type DashboardCalls =
       day: string;
       minutes: number[];
       peak: number;
-      hour: DashboardCallSeries;
+      recent: DashboardCallSeries;
     };

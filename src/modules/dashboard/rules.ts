@@ -45,6 +45,7 @@ export type ImportPulse = {
 
 export type TrafficPulse = ImportPulse & {
   monthCalls: number | null;
+  monthMinutes: number | null;
   monthNote: string | null;
 };
 
@@ -184,7 +185,6 @@ export function buildDashboard(facts: DashboardFacts): {
           stats: [
             { label: "Зарегистрировано", value: countOrGap(facts.regs.registered) },
             { label: "Не зарегистрировано", value: countOrGap(facts.regs.unregistered) },
-            { label: "Всего", value: countOrGap(facts.regs.total) },
           ],
         },
       ),
@@ -252,8 +252,7 @@ export function buildDashboard(facts: DashboardFacts): {
         href: "/traffic",
         stats: [
           { label: "Звонки, этот месяц", value: monthValue(facts.traffic) },
-          { label: "Во входящих", value: countOrGap(facts.traffic.pendingReady) },
-          { label: "Отложено", value: countOrGap(facts.traffic.poisonCount) },
+          { label: "Минуты, этот месяц", value: minutesValue(facts.traffic) },
         ],
         note: facts.traffic.monthNote,
       }),
@@ -616,6 +615,11 @@ function syslogBadge(syslog: SyslogPulse, now: number): DashboardBadge {
 function monthValue(traffic: TrafficPulse): string {
   if (traffic.monthCalls == null) return "…";
   return formatCount(traffic.monthCalls);
+}
+
+function minutesValue(traffic: TrafficPulse): string {
+  if (traffic.monthMinutes == null) return "…";
+  return formatCount(traffic.monthMinutes);
 }
 
 function countOrGap(value: number | null): string {

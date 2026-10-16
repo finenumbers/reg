@@ -4,7 +4,9 @@ import {
   axisTickTop,
   axisTicks,
   fillConcurrencyMinutes,
+  formatTrafficDayTitle,
   formatUtcMinute,
+  provisionalMinuteIndex,
   sessionCountLabel,
   utcCallDay,
   utcCallWindow,
@@ -40,29 +42,54 @@ describe("utcCallDay", () => {
 });
 
 describe("utcCallWindow", () => {
-  it("opens the hour 60 minutes before the shared end", () => {
+  it("opens two hours before the shared end and keeps the day lookback", () => {
     const window = utcCallWindow(new Date("2026-10-16T14:22:30.000Z"));
     expect(window.seriesEnd.toISOString()).toBe("2026-10-16T14:23:00.000Z");
-    expect(window.hourStart.toISOString()).toBe("2026-10-16T13:23:00.000Z");
-    expect(window.seriesEnd.getTime() - window.hourStart.getTime()).toBe(60 * 60 * 1000);
+    expect(window.recentStart.toISOString()).toBe("2026-10-16T12:23:00.000Z");
+    expect(window.seriesEnd.getTime() - window.recentStart.getTime()).toBe(
+      2 * 60 * 60 * 1000,
+    );
     expect(window.scanStart.toISOString()).toBe("2026-10-15T00:00:00.000Z");
   });
 
-  it("reaches into the previous evening at 00:10 without a 61st minute", () => {
+  it("reaches into the previous evening at 00:10", () => {
     const window = utcCallWindow(new Date("2026-10-16T00:10:00.000Z"));
-    expect(window.hourStart.toISOString()).toBe("2026-10-15T23:11:00.000Z");
+    expect(window.recentStart.toISOString()).toBe("2026-10-15T22:11:00.000Z");
     expect(window.seriesEnd.toISOString()).toBe("2026-10-16T00:11:00.000Z");
-    expect(window.scanStart.toISOString()).toBe("2026-10-14T23:11:00.000Z");
-    expect(formatUtcMinute(window.hourStart, 0)).toBe("23:11");
-    expect(formatUtcMinute(window.hourStart, 59)).toBe("00:10");
+    expect(window.scanStart.toISOString()).toBe("2026-10-14T22:11:00.000Z");
+    expect(formatUtcMinute(window.recentStart, 0)).toBe("22:11");
+    expect(formatUtcMinute(window.recentStart, 119)).toBe("00:10");
   });
 
-  it("keeps a full hour when the day itself has only the midnight minute", () => {
+  it("keeps two hours when the day itself has only the midnight minute", () => {
     const window = utcCallWindow(new Date("2026-10-16T00:00:00.000Z"));
     expect(window.minuteCount).toBe(1);
-    expect(window.hourStart.toISOString()).toBe("2026-10-15T23:01:00.000Z");
+    expect(window.recentStart.toISOString()).toBe("2026-10-15T22:01:00.000Z");
     expect(window.seriesEnd.toISOString()).toBe("2026-10-16T00:01:00.000Z");
-    expect(formatUtcMinute(window.hourStart, 59)).toBe("00:00");
+    expect(formatUtcMinute(window.recentStart, 119)).toBe("00:00");
+  });
+});
+
+describe("formatTrafficDayTitle", () => {
+  it("writes the UTC civil date and the Russian weekday", () => {
+    expect(formatTrafficDayTitle("2026-10-16")).toBe("16.10.2026 (пятница)");
+    expect(formatTrafficDayTitle("2026-10-18")).toBe("18.10.2026 (воскресенье)");
+  });
+
+  it("rejects a day that is not on the calendar", () => {
+    expect(formatTrafficDayTitle("2026-02-31")).toBeNull();
+    expect(formatTrafficDayTitle("2026-13-01")).toBeNull();
+    expect(formatTrafficDayTitle("16.10.2026")).toBeNull();
+  });
+});
+
+describe("provisionalMinuteIndex", () => {
+  it("paints the last 60 filled minutes, and a short series from the start", () => {
+    expect(provisionalMinuteIndex(863)).toBe(803);
+    expect(provisionalMinuteIndex(31)).toBe(0);
+    expect(provisionalMinuteIndex(120)).toBe(60);
+    expect(provisionalMinuteIndex(0)).toBe(0);
+    expect(provisionalMinuteIndex(Number.NaN)).toBe(0);
   });
 });
 

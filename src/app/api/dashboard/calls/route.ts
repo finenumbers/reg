@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * GET /api/dashboard/calls — concurrent softswitch calls for today and the last hour.
+ * GET /api/dashboard/calls — concurrent softswitch calls for today and the last two hours.
  * Session cookie only. Without phones:read the body is hidden and CDR is not read.
  */
 export async function GET() {

@@ -27,7 +27,23 @@ export type UtcCallDay = {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MINUTE_MS = 60 * 1000;
-export const HOUR_MINUTES = 60;
+/** Rolling window under the day chart. The open minute is the last bucket. */
+export const TWO_HOUR_MINUTES = 120;
+/**
+ * Tail that can still move: a softswitch call lasts at most 3600 seconds,
+ * so its CDR may arrive after the minute it occupied.
+ */
+export const PROVISIONAL_MINUTES = 60;
+
+const WEEKDAYS_RU = [
+  "воскресенье",
+  "понедельник",
+  "вторник",
+  "среда",
+  "четверг",
+  "пятница",
+  "суббота",
+] as const;
 
 /** ViewBox heights shared by the line and the vertical scale. */
 export const AXIS_BASELINE = 98;
@@ -53,11 +69,11 @@ export function utcCallDay(now: Date): UtcCallDay {
 }
 
 export type UtcCallWindow = UtcCallDay & {
-  /** First minute of the rolling hour. The open minute is the last of 60. */
-  hourStart: Date;
+  /** First minute of the rolling two hours. The open minute is the last of 120. */
+  recentStart: Date;
   /**
-   * Earlier of the day lookback and 24 hours before the hour window.
-   * The extra stretch is at most 59 minutes, and only in the first hour
+   * Earlier of the day lookback and 24 hours before the two-hour window.
+   * The extra stretch is at most 119 minutes, and only in the first two hours
    * after midnight. Those calls end before today's midnight, so the day
    * series is unchanged.
    */
@@ -65,17 +81,17 @@ export type UtcCallWindow = UtcCallDay & {
 };
 
 /**
- * Day and rolling hour from one instant, so the two windows cannot
+ * Day and rolling two hours from one instant, so the two windows cannot
  * disagree across a minute boundary.
  */
 export function utcCallWindow(now: Date): UtcCallWindow {
   const day = utcCallDay(now);
-  const hourStartMs = day.seriesEnd.getTime() - HOUR_MINUTES * MINUTE_MS;
-  const hourLookbackMs = hourStartMs - DAY_MS;
+  const recentStartMs = day.seriesEnd.getTime() - TWO_HOUR_MINUTES * MINUTE_MS;
+  const recentLookbackMs = recentStartMs - DAY_MS;
   return {
     ...day,
-    hourStart: new Date(hourStartMs),
-    scanStart: new Date(Math.min(day.lookbackStart.getTime(), hourLookbackMs)),
+    recentStart: new Date(recentStartMs),
+    scanStart: new Date(Math.min(day.lookbackStart.getTime(), recentLookbackMs)),
   };
 }
 
@@ -126,6 +142,33 @@ export function sessionCountLabel(count: number): string {
         ? "сессии"
         : "сессий";
   return `${formatCount(n)} ${word}`;
+}
+
+/** `16.10.2026 (пятница)` for the chart's UTC civil day. Invalid dates are rejected. */
+export function formatTrafficDayTitle(day: string): string | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const date = Number(match[3]);
+  const utc = new Date(Date.UTC(year, month - 1, date));
+  if (
+    utc.getUTCFullYear() !== year ||
+    utc.getUTCMonth() !== month - 1 ||
+    utc.getUTCDate() !== date
+  ) {
+    return null;
+  }
+  const dd = String(date).padStart(2, "0");
+  const mm = String(month).padStart(2, "0");
+  return `${dd}.${mm}.${year} (${WEEKDAYS_RU[utc.getUTCDay()]})`;
+}
+
+/** First index of the blue tail. A short series is blue from the start. */
+export function provisionalMinuteIndex(length: number): number {
+  if (!Number.isFinite(length)) return 0;
+  const count = Math.max(0, Math.trunc(length));
+  return Math.max(0, count - PROVISIONAL_MINUTES);
 }
 
 export function utcDayStamp(dayStart: Date): string {

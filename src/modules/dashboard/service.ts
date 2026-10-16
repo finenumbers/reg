@@ -23,6 +23,7 @@ import { currentUtcMonth } from "@/modules/traffic/cdr-month";
 import {
   listCachedMonthCounts,
   peekCachedMonthCounts,
+  readCachedMonthMinutes,
 } from "@/modules/traffic/cdr-month-stats";
 import { isPurgeHoldError, listPoisonEntries } from "@/modules/traffic/poison";
 import {
@@ -361,6 +362,7 @@ async function loadTrafficExtra(
     | "hadCalls"
     | "lastCheckedAt"
     | "monthCalls"
+    | "monthMinutes"
     | "monthNote"
   >
 > {
@@ -383,6 +385,7 @@ async function loadTrafficExtra(
     hadCalls: pass?.hadCalls ?? false,
     lastCheckedAt: lastRtuEmptyScanAt(),
     monthCalls: month.calls,
+    monthMinutes: month.minutes,
     monthNote: month.note,
   };
 }
@@ -438,20 +441,21 @@ function readSyslog(enabled: boolean): SyslogPulse {
 async function readMonthCalls(
   now: number,
   vacuum: boolean,
-): Promise<{ calls: number | null; note: string | null }> {
-  const key = currentUtcMonth(new Date(now)).key;
+): Promise<{ calls: number | null; minutes: number | null; note: string | null }> {
+  const month = currentUtcMonth(new Date(now));
+  const minutes = readCachedMonthMinutes(month, now);
   if (vacuum) {
-    const calls = cachedMonthCalls(peekCachedMonthCounts(), key);
+    const calls = cachedMonthCalls(peekCachedMonthCounts(), month.key);
     return calls == null
-      ? { calls: null, note: CDR_VACUUM_BUSY_MESSAGE }
-      : { calls, note: null };
+      ? { calls: null, minutes, note: CDR_VACUUM_BUSY_MESSAGE }
+      : { calls, minutes, note: null };
   }
   try {
     const months = await listCachedMonthCounts(now);
-    const row = months.find((item) => item.key === key);
-    return { calls: row?.count ?? 0, note: null };
+    const row = months.find((item) => item.key === month.key);
+    return { calls: row?.count ?? 0, minutes, note: null };
   } catch {
-    return { calls: null, note: "Счётчик звонков недоступен." };
+    return { calls: null, minutes, note: "Счётчик звонков недоступен." };
   }
 }
 

@@ -16,6 +16,21 @@ export function monthKey(year: number, month: number): string {
   return `${year}-${String(month).padStart(2, "0")}`;
 }
 
+/** Inclusive `cdr_day` start and exclusive next-month start. December rolls the year. */
+export function cdrMonthDayRange(
+  year: number,
+  month: number,
+): { start: string; end: string } {
+  if (!Number.isInteger(year) || !Number.isInteger(month) || month < 1 || month > 12) {
+    throw new Error(`Некорректный месяц: ${year}-${month}`);
+  }
+  const start = `${year}-${String(month).padStart(2, "0")}-01`;
+  const nextYear = month === 12 ? year + 1 : year;
+  const nextMonth = month === 12 ? 1 : month + 1;
+  const end = `${nextYear}-${String(nextMonth).padStart(2, "0")}-01`;
+  return { start, end };
+}
+
 export function parseMonthKey(
   raw: string | null | undefined,
 ): CdrMonth | null {
