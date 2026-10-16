@@ -131,7 +131,7 @@ async function gatherFacts(
   const base = emptyFacts(now, includePhones);
   if (!includeRegs && !includePhones) return base;
 
-  const [settings, jobs, regCounts, phoneState, groupState] = await Promise.all([
+  const [settings, jobs, regCounts, phoneState] = await Promise.all([
     soft(() =>
       prisma.appSetting.findUnique({
         where: { id: 1 },
@@ -147,7 +147,6 @@ async function gatherFacts(
     soft(loadJobs),
     includeRegs ? soft(loadRegCounts) : Promise.resolve(null),
     includePhones ? soft(loadPhoneState) : Promise.resolve(null),
-    includePhones ? soft(loadGroupState) : Promise.resolve(null),
   ]);
 
   const jobsOk = jobs != null;
@@ -206,10 +205,7 @@ async function gatherFacts(
         }
       : null,
     groups: includePhones
-      ? {
-          ...scheduledPulse("groups.sync", exportEnabled, latest, successAt),
-          groupCount: groupState?.groupCount ?? null,
-        }
+      ? scheduledPulse("groups.sync", exportEnabled, latest, successAt)
       : null,
     traffic,
     smg,
@@ -310,14 +306,6 @@ async function loadPhoneState(): Promise<{
     endpointCount: row?.endpointCount ?? 0,
     gatewayCount: row?.gatewayCount ?? 0,
   };
-}
-
-async function loadGroupState(): Promise<{ groupCount: number }> {
-  const row = await prisma.routingGroupImportState.findUnique({
-    where: { id: 1 },
-    select: { groupCount: true },
-  });
-  return { groupCount: row?.groupCount ?? 0 };
 }
 
 function scheduledPulse(

@@ -78,7 +78,7 @@ export type DashboardFacts = {
         gatewayCount: number | null;
       })
     | null;
-  groups: (ScheduledPulse & { groupCount: number | null }) | null;
+  groups: ScheduledPulse | null;
   traffic: TrafficPulse | null;
   smg: ImportPulse | null;
   syslog: SyslogPulse | null;
@@ -223,33 +223,16 @@ export function buildDashboard(facts: DashboardFacts): {
     );
   }
 
-  if (facts.groups) {
-    if (facts.jobsOk) {
-      pushScheduledAlerts(alerts, facts.groups, {
-        id: "groups",
-        href: "/groups",
-        failed: "Загрузка групп не прошла",
-        never: "Загрузка групп включена, успешного прогона ещё не было.",
-        stale: "Загрузка групп устарела.",
-        thresholdMs: exportStaleAfterMs(facts.exportIntervalSec),
-        now: facts.now,
-      });
-    }
-    cards.push(
-      scheduledCard(
-        facts.groups,
-        facts.jobsOk,
-        facts.now,
-        exportStaleAfterMs(facts.exportIntervalSec),
-        {
-          id: "groups",
-          title: "Входящие группы",
-          href: "/groups",
-          emptyAge: "нет успешных загрузок",
-          stats: [{ label: "Группы", value: countOrGap(facts.groups.groupCount) }],
-        },
-      ),
-    );
+  if (facts.groups && facts.jobsOk) {
+    pushScheduledAlerts(alerts, facts.groups, {
+      id: "groups",
+      href: "/groups",
+      failed: "Загрузка групп не прошла",
+      never: "Загрузка групп включена, успешного прогона ещё не было.",
+      stale: "Загрузка групп устарела.",
+      thresholdMs: exportStaleAfterMs(facts.exportIntervalSec),
+      now: facts.now,
+    });
   }
 
   if (facts.traffic) {

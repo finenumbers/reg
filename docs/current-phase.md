@@ -1,7 +1,17 @@
-# Current Phase — production (v1.135.0)
+# Current Phase — production (v1.136.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, Eltex SMG CDR, Eltex SMG syslog.  
 **Date:** 2026-10-16
+
+## v1.136.0 — The Dashboard drops the groups card and scrolls under the heading
+
+The home screen no longer draws «Входящие группы». A failed, never-successful, or stale groups sync still raises a line. Phone numbers and routing groups still share one `export.py` and take turns, so each is still allowed four export intervals, with a ten-minute floor. The dashboard no longer reads the stored group count.
+
+The five remaining cards are registrations, phone numbers, traffic, SMG calls, and syslog. They sit in one row when the content area is wide enough to show those titles, and wrap on a narrower window instead of clipping «Телефонные номера» into «Телефонный трафик». Each cell keeps the badge, the counts, the age, and any note in full. The row is above the call charts.
+
+The heading stays put. Alerts, the status row, and both charts scroll underneath it. The snapshot is still one response; nothing is loaded page by page. The 30-second refresh does not jump the scroll position.
+
+There is no new migration.
 
 ## v1.135.0 — The Dashboard adds the last hour of concurrent calls
 

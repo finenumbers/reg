@@ -35,11 +35,13 @@ export function LoadAgeChip({
   hadCalls = false,
   lastCheckedAt = null,
   colored,
+  className,
 }: {
   lastPassAt: string | null;
   hadCalls?: boolean;
   lastCheckedAt?: string | null;
   colored: boolean;
+  className?: string;
 }) {
   const [now, setNow] = useState(() => Date.now());
   const passAt = parseInstant(lastPassAt);
@@ -51,7 +53,7 @@ export function LoadAgeChip({
   }, [lastPassAt, lastCheckedAt]);
 
   if (passAt == null) {
-    return <p className="text-muted-foreground text-sm">нет загрузок</p>;
+    return <p className={cn("text-muted-foreground text-sm", className)}>нет загрузок</p>;
   }
 
   const tone = colored
@@ -66,7 +68,7 @@ export function LoadAgeChip({
   const title = state ? `${state}. ${when}` : when;
 
   return (
-    <p className="text-muted-foreground text-sm" title={title}>
+    <p className={cn("text-muted-foreground text-sm", className)} title={title}>
       с последней загрузки:{" "}
       <span className={cn("font-semibold tabular-nums", tone ? TONE_CLASS[tone] : null)}>
         {formatElapsed(now - passAt)}

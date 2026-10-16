@@ -217,13 +217,26 @@ describe("dashboard attention", () => {
     const shortInterval = buildDashboard(
       facts({
         exportIntervalSec: 30,
-        groups: {
-          ...pulse({ lastSuccessAt: NOW - 9 * 60 * 1000 }),
-          groupCount: 4,
-        },
+        groups: pulse({ lastSuccessAt: NOW - 9 * 60 * 1000 }),
       }),
     );
     expect(shortInterval.alerts).toEqual([]);
+    expect(shortInterval.cards).toEqual([]);
+  });
+
+  it("keeps a groups failure on the strip and off the cards", () => {
+    const view = buildDashboard(
+      facts({
+        groups: pulse({
+          lastStatus: "failed",
+          lastError: "export.py",
+          lastSuccessAt: NOW - 60_000,
+        }),
+      }),
+    );
+    expect(ids(view)).toEqual(["groups-failed"]);
+    expect(view.alerts[0]?.href).toBe("/groups");
+    expect(view.cards).toEqual([]);
   });
 
   it("alerts when an enabled loop has never succeeded", () => {
