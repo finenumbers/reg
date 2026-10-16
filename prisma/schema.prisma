@@ -839,6 +839,34 @@ model SmgCdrRecord {
   @@map("smg_cdr_records")
 }
 
+// Syslog call card. The CDR row is not rewritten. One card per gateway IP and UniqueTag.
+model SmgCallTrace {
+  id        String   @id @default(cuid())
+  deviceIp  String   @map("device_ip")
+  tagNorm   String   @map("tag_norm")
+  callref   String   @default("")
+  open      Boolean  @default(true)
+  blocks    Json
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([deviceIp, tagNorm])
+  @@index([tagNorm])
+  @@map("smg_call_traces")
+}
+
+// Assembler state after one gzip, so the next file continues open callrefs.
+model SmgTraceCheckpoint {
+  id       String @id @default(cuid())
+  deviceIp String @map("device_ip")
+  fileKey  String @map("file_key")
+  size     Int
+  version  Int
+  state    Json
+
+  @@unique([deviceIp, fileKey])
+  @@map("smg_trace_checkpoints")
+}
+
 model Verification {
   id         String   @id
   identifier String

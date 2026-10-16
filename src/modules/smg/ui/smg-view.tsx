@@ -36,6 +36,8 @@ import {
   SMG_PHONE_FIELDS,
 } from "@/modules/smg/columns";
 import { formatSmgPoisonSummary, smgSummaryCellText } from "@/modules/smg/summary";
+import { SmgCallTraceSheet } from "@/modules/smg/ui/call-trace-sheet";
+import type { TraceLookup } from "@/modules/smg-trace/types";
 import { decideSmgRefresh } from "@/modules/smg/refresh";
 import type { SmgListItem, SmgListResult, SmgStatus } from "@/modules/smg/service";
 import { LoadAgeChip } from "@/modules/traffic/ui/load-age-chip";
@@ -169,6 +171,11 @@ export function SmgView({
     lastCheckedAt: string | null;
   } | null>(null);
   const [scrollRoot, setScrollRoot] = useState<Element | null>(null);
+  const [traceRow, setTraceRow] = useState<SmgListItem | null>(null);
+  const [traceLoading, setTraceLoading] = useState(false);
+  const [traceError, setTraceError] = useState<string | null>(null);
+  const [trace, setTrace] = useState<TraceLookup | null>(null);
+  const traceRequest = useRef(0);
   const refreshSeq = useRef(0);
   const sinceRef = useRef<string | null>(initialSince);
   const baselineEmptyRef = useRef(initialSince == null);
@@ -396,6 +403,31 @@ export function SmgView({
   };
   const poisonSummary = showOps ? null : formatSmgPoisonSummary(poisonFiles);
 
+  function openTrace(row: SmgListItem) {
+    const token = traceRequest.current + 1;
+    traceRequest.current = token;
+    setTraceRow(row);
+    setTraceLoading(true);
+    setTraceError(null);
+    setTrace(null);
+    void fetch(`/api/smg/calls/${encodeURIComponent(row.id)}/trace`)
+      .then(async (response) => {
+        const body = (await response.json()) as TraceLookup & { error?: string };
+        if (!response.ok) throw new Error(body.error || "Не удалось прочитать трассу");
+        return body;
+      })
+      .then((body) => {
+        if (traceRequest.current === token) setTrace(body);
+      })
+      .catch((cause: unknown) => {
+        if (traceRequest.current !== token) return;
+        setTraceError(cause instanceof Error ? cause.message : "Не удалось прочитать трассу");
+      })
+      .finally(() => {
+        if (traceRequest.current === token) setTraceLoading(false);
+      });
+  }
+
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
       <div className="flex shrink-0 flex-wrap items-start justify-between gap-4">
@@ -603,7 +635,12 @@ export function SmgView({
               </TableRow>
             ) : (
               items.map((row) => (
-                <TableRow key={row.id}>
+                <TableRow
+                  key={row.id}
+                  data-state={traceRow?.id === row.id ? "selected" : undefined}
+                  className="cursor-pointer"
+                  onClick={() => openTrace(row)}
+                >
                   {columns.map((field) => {
                     const text = smgSummaryCellText(field, row);
                     const className = PHONE_FIELDS.has(field)
@@ -628,6 +665,18 @@ export function SmgView({
         </Table>
       </TableInfiniteBody>
       <TableCountFooter shown={items.length} total={total} />
+      <SmgCallTraceSheet
+        row={traceRow}
+        loading={traceLoading}
+        error={traceError}
+        trace={trace}
+        onOpenChange={(open) => {
+          if (!open) {
+            traceRequest.current += 1;
+            setTraceRow(null);
+          }
+        }}
+      />
     </div>
   );
 }

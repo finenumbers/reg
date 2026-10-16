@@ -1,7 +1,19 @@
-# Current Phase — production (v1.140.0)
+# Current Phase — production (v1.141.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, Eltex SMG CDR, Eltex SMG syslog.  
 **Date:** 2026-10-16
+
+## v1.141.0 — An SMG call opens its syslog card
+
+A row on «Трафик SMG» and «Звонки на SMG» opens a wide panel on the right. The heading is the calling and called numbers and the setup time from that CDR row. The panel always opens. When syslog has no card, it says so. When two cards match, it shows neither.
+
+The card is not written into the CDR row. A separate pass reads the gzip buckets already stored for each gateway, including the file that is still open, and writes five blocks: antifraud RADIUS, signalling, number and route changes, per-port times, and media. The pass is not the CDR import and not the UDP receiver. One pass runs at a time. After a syslog file is deleted, the card remains.
+
+The call is the gateway address plus UniqueTag, with spaces removed. An empty tag and an all-zero session id are not keys. The answer-leg session id is a field of that leg. A click finds the card by the row's UniqueTag or accounting session id. A different number does not hide the card. The node identifier is not compared. The same tag on two gateways is left unresolved.
+
+Access-Reject is the packet code, the reply text, and the gateway release, as printed. The outgoing leg is not invented when the gateway did not send it. USE_AF 0 is a check that sent no packet. The RADIUS password and the server shared secret are not stored.
+
+Migration: `smg_call_traces` and `smg_trace_checkpoints`.
 
 ## v1.140.0 — SMG calls have a short working table
 

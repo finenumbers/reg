@@ -3,7 +3,7 @@
  *
  * Three Settings-gated loops (single app replica assumed):
  * - regs: regsPollEnabled / regsPollIntervalSec → regs.poll
- *   (same loop always drains CDR inbox + VoIPmonitor)
+ *   (same loop always drains CDR inbox, SMG inbox, SMG syslog traces, and VoIPmonitor)
  * - export: exportSyncEnabled / exportSyncIntervalSec → phones.sync
  *   or groups.sync (one export.py at a time, alternating)
  * - sides: cdrSidesRefreshEnabled / interval → cdr.sides.refresh
@@ -27,6 +27,7 @@ import {
 import { isDatabaseVacuumActive } from "@/modules/storage/vacuum/gate";
 import { requestCdrImportDrain } from "@/modules/traffic/enqueue";
 import { requestSmgImportDrain } from "@/modules/smg/enqueue";
+import { drainSmgTraces } from "@/modules/smg-trace/drain";
 import { SMG_FILE_SETTLE_MS } from "@/modules/smg/columns";
 import { listSmgInboxFiles } from "@/modules/smg/inbox";
 import {
@@ -357,6 +358,7 @@ async function tick(): Promise<void> {
   try {
     await drainPendingInbox();
     await drainPendingSmgInbox();
+    void drainSmgTraces();
     await drainVoipmonitorMatch();
 
     const settings = await readScheduleSettings();
