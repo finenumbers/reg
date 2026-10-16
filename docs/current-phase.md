@@ -1,7 +1,28 @@
-# Current Phase — production (v1.138.0)
+# Current Phase — production (v1.139.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, Eltex SMG CDR, Eltex SMG syslog.  
 **Date:** 2026-10-16
+
+## v1.139.0 — The Dashboard names the platform and switches call charts
+
+The home heading and the browser title are «Finenumbers OSS Platform». The browser title is the site title, so the other pages use it too.
+
+The heading row has the same compact dropdown as the month lists. It chooses which calls the two charts draw. Opening the page selects «Телефонный трафик». The choice is not stored in the address. The list appears only when the signed-in user may see the charts.
+
+«Телефонный трафик» is the current concurrent-call chart: one softswitch CDR row, no category filter. The other four concurrency choices use that same sweep, the same green line, and the same blue last hour:
+
+- «Клиентский трафик» is incoming or outgoing with status «Успешный». Call type is not filtered, so a successful redirect is included. A successful call of zero duration is still omitted.
+- «Фантомный трафик» is category «Фантомный».
+- «Входящий паркинг» is incoming with status «Паркинг». Phantom stays on its own chart.
+- «Исходящий паркинг» is outgoing with status «Паркинг», including a redirect onto parking.
+
+The class is the stored category and status. The chart does not classify the row again. The five concurrency charts do not add up to each other.
+
+«Ошибки звонков» counts rows of category «Ошибка» in the minute of `cdrAt`, including empty and zero duration. A quiet minute is zero. The line is red for the whole series, including the last hour and a short morning. The caption says that hour can still grow when CDR arrives. It is not a concurrency peak.
+
+Each choice is read on its own, cached on its own for 60 seconds, and refused while the database is being compressed. A timeout leaves that choice empty and does not replace another choice with zeros. An unknown `series` does not read CDR. The day window and the rolling two hours are unchanged.
+
+There is no new migration.
 
 ## v1.138.0 — The Dashboard charts two hours and this month's minutes
 

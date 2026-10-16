@@ -132,15 +132,24 @@ export function axisTickTop(value: number, ceiling: number): number {
 }
 
 export function sessionCountLabel(count: number): string {
+  return countedLabel(count, "сессия", "сессии", "сессий");
+}
+
+/** One error CDR in a minute. Not an overlapping session. */
+export function eventCountLabel(count: number): string {
+  return countedLabel(count, "событие", "события", "событий");
+}
+
+function countedLabel(count: number, one: string, few: string, many: string): string {
   const n = Math.abs(Math.trunc(count));
   const mod10 = n % 10;
   const mod100 = n % 100;
   const word =
     mod10 === 1 && mod100 !== 11
-      ? "сессия"
+      ? one
       : mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)
-        ? "сессии"
-        : "сессий";
+        ? few
+        : many;
   return `${formatCount(n)} ${word}`;
 }
 
@@ -205,6 +214,28 @@ export function fillConcurrencyMinutes(
     const afterEvents = clampLevel(row.peak);
     series[minute] = row.touchesStart ? afterEvents : Math.max(carry, afterEvents);
     carry = clampLevel(row.levelAtEnd);
+  }
+  return series;
+}
+
+export type MinuteCountRow = {
+  /** Whole minutes since the series origin. */
+  minute: number;
+  count: number;
+};
+
+/**
+ * One count per minute. A minute with no rows is zero: an error does not
+ * carry into the next minute the way an open call does.
+ */
+export function fillEventCounts(
+  minuteCount: number,
+  rows: readonly MinuteCountRow[],
+): number[] {
+  const count = Math.max(0, Math.min(1440, Math.trunc(minuteCount)));
+  const series = new Array<number>(count).fill(0);
+  for (const row of rows) {
+    if (row.minute >= 0 && row.minute < count) series[row.minute] = clampLevel(row.count);
   }
   return series;
 }

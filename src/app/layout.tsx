@@ -19,7 +19,7 @@ const ibmPlexSans = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Finenumbers OSS System",
+  title: "Finenumbers OSS Platform",
   description: "Внутренняя платформа мониторинга SIP-регистраций",
   icons: {
     icon: [{ url: "/brand/favicon.jpg", type: "image/jpeg" }],

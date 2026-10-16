@@ -8,12 +8,14 @@ import {
   axisCeiling,
   axisTicks,
   axisTickTop,
+  eventCountLabel,
   formatTrafficDayTitle,
   formatUtcMinute,
   provisionalMinuteIndex,
   sessionCountLabel,
   TWO_HOUR_MINUTES,
 } from "@/modules/dashboard/concurrency";
+import { dashboardSeriesLabel, type DashboardSeriesId } from "@/modules/dashboard/series";
 import type { DashboardCalls } from "@/modules/dashboard/types";
 
 const POLL_MS = 60_000;
@@ -28,7 +30,7 @@ type XLabel = {
   style: CSSProperties;
 };
 
-export function CallsChart() {
+export function CallsChart({ series }: { series: DashboardSeriesId }) {
   const [body, setBody] = useState<DashboardCalls | null>(null);
 
   useEffect(() => {
@@ -40,12 +42,17 @@ export function CallsChart() {
       if (loading || document.visibilityState === "hidden") return;
       loading = true;
       try {
-        const response = await fetch("/api/dashboard/calls", { cache: "no-store" });
+        const response = await fetch(
+          `/api/dashboard/calls?series=${encodeURIComponent(series)}`,
+          { cache: "no-store" },
+        );
         if (!response.ok) throw new Error(String(response.status));
         const next = (await response.json()) as DashboardCalls;
-        if (!cancelled) setBody(next);
+        if (cancelled) return;
+        if (next.status !== "hidden" && next.series !== series) return;
+        setBody(next);
       } catch {
-        if (!cancelled) setBody({ status: "unavailable", message: UNAVAILABLE });
+        if (!cancelled) setBody({ status: "unavailable", series, message: UNAVAILABLE });
       } finally {
         loading = false;
       }
@@ -79,36 +86,61 @@ export function CallsChart() {
       stop();
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, []);
+  }, [series]);
 
-  if (body?.status === "hidden") return null;
+  const shown =
+    body && (body.status === "hidden" || body.series === series) ? body : null;
+  if (shown?.status === "hidden") return null;
 
-  const ready = body?.status === "ready" ? body : null;
-  const message = chartMessage(body);
+  const ready = shown?.status === "ready" ? shown : null;
+  const message = chartMessage(shown);
   const dayOrigin = ready ? utcMidnight(ready.day) : null;
   const dayTitle = ready ? formatTrafficDayTitle(ready.day) : null;
   const recent = ready ? recentSeries(ready) : null;
+  const events = series === "errors";
+  const seriesTitle = dashboardSeriesLabel(series);
+  const countLabel = events ? eventCountLabel : sessionCountLabel;
 
   return (
     <div className="flex flex-col gap-6">
       <ConcurrencyChart
-        title={dayTitle ? `Телефонный трафик за ${dayTitle}` : "Телефонный трафик"}
+        title={dayTitle ? `${seriesTitle} за ${dayTitle}` : seriesTitle}
         minutes={ready?.minutes ?? null}
         peak={ready?.peak ?? 0}
         span={DAY_MINUTES}
         origin={dayOrigin}
         labels={dayLabels()}
-        provisionalFrom={ready ? provisionalMinuteIndex(ready.minutes.length) : 0}
+        provisionalFrom={
+          ready
+            ? events
+              ? ready.minutes.length
+              : provisionalMinuteIndex(ready.minutes.length)
+            : 0
+        }
+        events={events}
+        countLabel={countLabel}
         message={dayOrigin || !ready ? message : UNAVAILABLE}
       />
       <ConcurrencyChart
-        title="Предварительный трафик за два часа по закончившимся звонкам"
+        title={
+          events
+            ? "Ошибки звонков за два часа"
+            : "Предварительный трафик за два часа по закончившимся звонкам"
+        }
         minutes={recent?.minutes ?? null}
         peak={recent?.peak ?? 0}
         span={TWO_HOUR_MINUTES}
         origin={recent?.origin ?? null}
         labels={recent ? recentLabels(recent.origin) : []}
-        provisionalFrom={recent ? provisionalMinuteIndex(recent.minutes.length) : 0}
+        provisionalFrom={
+          recent
+            ? events
+              ? recent.minutes.length
+              : provisionalMinuteIndex(recent.minutes.length)
+            : 0
+        }
+        events={events}
+        countLabel={countLabel}
         message={recent || !ready ? message : UNAVAILABLE}
       />
     </div>
@@ -123,6 +155,8 @@ function ConcurrencyChart({
   origin,
   labels,
   provisionalFrom,
+  events,
+  countLabel,
   message,
 }: {
   title: string;
@@ -132,10 +166,12 @@ function ConcurrencyChart({
   origin: Date | null;
   labels: XLabel[];
   provisionalFrom: number;
+  events: boolean;
+  countLabel: (count: number) => string;
   message: string;
 }) {
   const [hover, setHover] = useState<number | null>(null);
-  const caption = chartCaption(minutes, origin, peak, hover);
+  const caption = chartCaption(minutes, origin, peak, hover, events, countLabel);
   const hovered = minutes != null && hover != null ? minutes[hover] : undefined;
 
   return (
@@ -153,12 +189,13 @@ function ConcurrencyChart({
               peak={peak}
               span={span}
               provisionalFrom={provisionalFrom}
+              events={events}
               hover={hover}
               onHover={setHover}
               label={
                 hover != null && hovered != null
-                  ? `${formatUtcMinute(origin, hover)}: ${sessionCountLabel(hovered)}`
-                  : `Максимум: ${sessionCountLabel(peak)}`
+                  ? `${formatUtcMinute(origin, hover)}: ${countLabel(hovered)}`
+                  : `Максимум: ${countLabel(peak)}`
               }
             />
             <div className="relative h-4">
@@ -205,6 +242,7 @@ function CallsPlot({
   peak,
   span,
   provisionalFrom,
+  events,
   hover,
   onHover,
   label,
@@ -213,6 +251,7 @@ function CallsPlot({
   peak: number;
   span: number;
   provisionalFrom: number;
+  events: boolean;
   hover: number | null;
   onHover: (minute: number | null) => void;
   label: string;
@@ -262,7 +301,14 @@ function CallsPlot({
           />
         );
       })}
-      <SeriesPaths className="text-emerald-600 dark:text-emerald-400" geometry={stable} />
+      <SeriesPaths
+        className={
+          events
+            ? "text-red-600 dark:text-red-400"
+            : "text-emerald-600 dark:text-emerald-400"
+        }
+        geometry={stable}
+      />
       <SeriesPaths className="text-blue-600 dark:text-blue-400" geometry={provisional} />
       {hover != null && hover < minutes.length ? (
         <line
@@ -333,13 +379,18 @@ function chartCaption(
   origin: Date | null,
   peak: number,
   hover: number | null,
+  events: boolean,
+  countLabel: (count: number) => string,
 ): string {
-  if (minutes == null || origin == null) return "Одновременно, по загруженным CDR";
+  const summary = events
+    ? "За минуту, по загруженным CDR. Последний час ещё может дополниться."
+    : "Одновременно, по загруженным CDR";
+  if (minutes == null || origin == null) return summary;
   const hovered = hover == null ? undefined : minutes[hover];
   if (hover != null && hovered != null) {
-    return `${formatUtcMinute(origin, hover)} · ${sessionCountLabel(hovered)}`;
+    return `${formatUtcMinute(origin, hover)} · ${countLabel(hovered)}`;
   }
-  return `макс. ${formatCount(peak)} · Одновременно, по загруженным CDR`;
+  return `макс. ${formatCount(peak)} · ${summary}`;
 }
 
 function chartMessage(body: DashboardCalls | null): string {

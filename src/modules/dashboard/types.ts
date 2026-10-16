@@ -1,3 +1,5 @@
+import type { DashboardSeriesId } from "@/modules/dashboard/series";
+
 export type DashboardBadge = "ok" | "running" | "failed" | "empty" | "off";
 
 export type DashboardAlert = {
@@ -46,10 +48,11 @@ export type DashboardCallSeries = {
 
 export type DashboardCalls =
   | { status: "hidden" }
-  | { status: "vacuum"; message: string }
-  | { status: "unavailable"; message: string }
+  | { status: "vacuum"; series: DashboardSeriesId; message: string }
+  | { status: "unavailable"; series: DashboardSeriesId; message: string }
   | {
       status: "ready";
+      series: DashboardSeriesId;
       day: string;
       minutes: number[];
       peak: number;

@@ -1,5 +1,6 @@
 /**
- * Concurrent softswitch calls for today and the rolling last two hours.
+ * Dashboard call charts for today and the rolling last two hours.
+ * Each series has its own cache and in-flight query.
  * Postgres does one sweep. This process only fills the quiet minutes.
  * A failure is not cached and is never turned into a line of zeros.
  */
@@ -11,26 +12,31 @@ import {
   CDR_VACUUM_BUSY_MESSAGE,
   isDatabaseVacuumActive,
 } from "@/modules/storage/vacuum/gate";
-import { elapsedMsNumericSql } from "@/modules/traffic/billable-minutes-sql";
+import { concurrencyMinutesSql, errorMinutesSql } from "@/modules/dashboard/call-query";
 import {
   fillConcurrencyMinutes,
+  fillEventCounts,
   TWO_HOUR_MINUTES,
   utcCallWindow,
+  type MinuteCountRow,
   type MinuteEventRow,
   type UtcCallWindow,
 } from "@/modules/dashboard/concurrency";
+import type { ConcurrencySeriesId, DashboardSeriesId } from "@/modules/dashboard/series";
 import type { DashboardCalls } from "@/modules/dashboard/types";
 
-const CACHE_KEY = "__reg_dashboard_calls_v2__";
+const CACHE_KEY = "__reg_dashboard_calls_v3__";
 const CACHE_TTL_MS = 60_000;
 const STATEMENT_TIMEOUT = "8s";
 const UNAVAILABLE = "График звонков недоступен.";
 
 type ReadyCalls = Extract<DashboardCalls, { status: "ready" }>;
 
+type CacheSlot = { at: number; dayStartMs: number; value: ReadyCalls };
+
 type CacheStore = {
-  cached: { at: number; dayStartMs: number; value: ReadyCalls } | null;
-  inflight: Promise<DashboardCalls> | null;
+  cached: Map<DashboardSeriesId, CacheSlot>;
+  inflight: Map<DashboardSeriesId, Promise<DashboardCalls>>;
 };
 
 type CallSeriesRow = {
@@ -42,21 +48,23 @@ type CallSeriesRow = {
 
 function cacheStore(): CacheStore {
   const g = globalThis as typeof globalThis & { [CACHE_KEY]?: CacheStore };
-  if (!g[CACHE_KEY]) g[CACHE_KEY] = { cached: null, inflight: null };
+  if (!g[CACHE_KEY]) {
+    g[CACHE_KEY] = { cached: new Map(), inflight: new Map() };
+  }
   return g[CACHE_KEY];
 }
 
 export async function getDashboardCalls(
   permissions: readonly string[],
+  series: DashboardSeriesId,
   now = new Date(),
 ): Promise<DashboardCalls> {
   if (!hasPermission(permissions, "phones:read")) return { status: "hidden" };
-  if (isDatabaseVacuumActive())
-    return { status: "vacuum", message: CDR_VACUUM_BUSY_MESSAGE };
+  if (isDatabaseVacuumActive()) return vacuumCalls(series);
 
   const bounds = utcCallWindow(now);
   const store = cacheStore();
-  const hit = store.cached;
+  const hit = store.cached.get(series);
   if (
     hit &&
     hit.dayStartMs === bounds.dayStart.getTime() &&
@@ -64,153 +72,94 @@ export async function getDashboardCalls(
   ) {
     return hit.value;
   }
-  if (store.inflight) return store.inflight;
+  const pending = store.inflight.get(series);
+  if (pending) return pending;
 
-  const promise = readCalls(bounds)
+  const promise = readCalls(bounds, series)
     .then((value) => {
-      if (isDatabaseVacuumActive()) {
-        return { status: "vacuum" as const, message: CDR_VACUUM_BUSY_MESSAGE };
-      }
+      if (isDatabaseVacuumActive()) return vacuumCalls(series);
       if (value.status === "ready") {
-        cacheStore().cached = {
+        cacheStore().cached.set(series, {
           at: Date.now(),
           dayStartMs: bounds.dayStart.getTime(),
           value,
-        };
+        });
       }
       return value;
     })
     .finally(() => {
       const current = cacheStore();
-      if (current.inflight === promise) current.inflight = null;
+      if (current.inflight.get(series) === promise) current.inflight.delete(series);
     });
-  store.inflight = promise;
+  store.inflight.set(series, promise);
   return promise;
 }
 
-async function readCalls(bounds: UtcCallWindow): Promise<DashboardCalls> {
-  if (isDatabaseVacuumActive()) {
-    return { status: "vacuum", message: CDR_VACUUM_BUSY_MESSAGE };
-  }
+function vacuumCalls(series: DashboardSeriesId): DashboardCalls {
+  return { status: "vacuum", series, message: CDR_VACUUM_BUSY_MESSAGE };
+}
+
+function unavailableCalls(series: DashboardSeriesId): DashboardCalls {
+  return { status: "unavailable", series, message: UNAVAILABLE };
+}
+
+async function readCalls(
+  bounds: UtcCallWindow,
+  series: DashboardSeriesId,
+): Promise<DashboardCalls> {
+  if (isDatabaseVacuumActive()) return vacuumCalls(series);
   try {
-    const rows = await prisma.$transaction((tx) => queryCallMinutes(tx, bounds), {
+    if (series === "errors") {
+      const rows = await prisma.$transaction((tx) => queryErrorMinutes(tx, bounds), {
+        maxWait: 5_000,
+        timeout: 12_000,
+      });
+      return errorsFromRows(bounds, rows);
+    }
+    const rows = await prisma.$transaction((tx) => queryCallMinutes(tx, bounds, series), {
       maxWait: 5_000,
       timeout: 12_000,
     });
-    return seriesFromRows(bounds, rows);
+    return seriesFromRows(bounds, series, rows);
   } catch (error) {
     console.error(
       "[dashboard-calls]",
       error instanceof Error ? error.message : "query failed",
     );
-    return { status: "unavailable", message: UNAVAILABLE };
+    return unavailableCalls(series);
   }
 }
 
 async function queryCallMinutes(
   tx: Prisma.TransactionClient,
   bounds: UtcCallWindow,
+  series: ConcurrencySeriesId,
 ): Promise<CallSeriesRow[]> {
   await tx.$executeRaw`SELECT set_config('statement_timeout', ${STATEMENT_TIMEOUT}, true)`;
-  const elapsed = elapsedMsNumericSql();
-  return tx.$queryRaw<CallSeriesRow[]>(Prisma.sql`
-    WITH calls AS MATERIALIZED (
-      SELECT
-        "cdrAt" AS start_at,
-        "cdrAt" + (LEAST(ms, 86400000) * INTERVAL '1 millisecond') AS end_at
-      FROM (
-        SELECT "cdrAt", ${elapsed} AS ms
-        FROM cdr_records
-        WHERE "cdrAt" >= ${bounds.scanStart}
-          AND "cdrAt" < ${bounds.dayEnd}
-      ) src
-      WHERE ms > 0
-    ),
-    events AS MATERIALIZED (
-      SELECT start_at AS ts, 1 AS delta FROM calls
-      UNION ALL
-      SELECT end_at AS ts, -1 AS delta FROM calls
-    ),
-    running AS (
-      SELECT
-        ts,
-        delta,
-        sum(delta) OVER (
-          ORDER BY ts ASC, delta ASC
-          ROWS UNBOUNDED PRECEDING
-        )::int AS level
-      FROM events
-      WHERE ts < ${bounds.seriesEnd}
-    ),
-    day_minutes AS (
-      SELECT
-        floor(extract(epoch FROM ts) / 60)::int AS minute_key,
-        max(level)::int AS peak,
-        (array_agg(level ORDER BY ts DESC, delta DESC))[1]::int AS level_at_end,
-        bool_or(
-          extract(epoch FROM ts) - floor(extract(epoch FROM ts) / 60) * 60 < 0.0005
-        ) AS touches_start
-      FROM running
-      WHERE ts >= ${bounds.dayStart}
-      GROUP BY 1
-    ),
-    recent_minutes AS (
-      SELECT
-        floor(extract(epoch FROM ts) / 60)::int AS minute_key,
-        max(level)::int AS peak,
-        (array_agg(level ORDER BY ts DESC, delta DESC))[1]::int AS level_at_end,
-        bool_or(
-          extract(epoch FROM ts) - floor(extract(epoch FROM ts) / 60) * 60 < 0.0005
-        ) AS touches_start
-      FROM running
-      WHERE ts >= ${bounds.recentStart}
-      GROUP BY 1
-    )
-    SELECT
-      (
-        SELECT coalesce(sum(delta), 0)::int
-        FROM events
-        WHERE ts < ${bounds.dayStart}
-      ) AS day_carry,
-      (
-        SELECT coalesce(sum(delta), 0)::int
-        FROM events
-        WHERE ts < ${bounds.recentStart}
-      ) AS recent_carry,
-      (
-        SELECT coalesce(
-          json_agg(
-            json_build_object(
-              'minuteKey', minute_key,
-              'peak', peak,
-              'levelAtEnd', level_at_end,
-              'touchesStart', touches_start
-            )
-          ),
-          '[]'::json
-        )
-        FROM day_minutes
-      ) AS day_minutes,
-      (
-        SELECT coalesce(
-          json_agg(
-            json_build_object(
-              'minuteKey', minute_key,
-              'peak', peak,
-              'levelAtEnd', level_at_end,
-              'touchesStart', touches_start
-            )
-          ),
-          '[]'::json
-        )
-        FROM recent_minutes
-      ) AS recent_minutes
-  `);
+  return tx.$queryRaw<CallSeriesRow[]>(concurrencyMinutesSql(bounds, series));
 }
 
-function seriesFromRows(bounds: UtcCallWindow, rows: CallSeriesRow[]): DashboardCalls {
+type ErrorMinuteRow = {
+  minute_key: number | bigint | null;
+  day_n: number | bigint | null;
+  recent_n: number | bigint | null;
+};
+
+async function queryErrorMinutes(
+  tx: Prisma.TransactionClient,
+  bounds: UtcCallWindow,
+): Promise<ErrorMinuteRow[]> {
+  await tx.$executeRaw`SELECT set_config('statement_timeout', ${STATEMENT_TIMEOUT}, true)`;
+  return tx.$queryRaw<ErrorMinuteRow[]>(errorMinutesSql(bounds));
+}
+
+function seriesFromRows(
+  bounds: UtcCallWindow,
+  series: ConcurrencySeriesId,
+  rows: CallSeriesRow[],
+): DashboardCalls {
   const row = rows[0];
-  if (!row) return { status: "unavailable", message: UNAVAILABLE };
+  if (!row) return unavailableCalls(series);
   const dayOrigin = Math.floor(bounds.dayStart.getTime() / 60_000);
   const recentOrigin = Math.floor(bounds.recentStart.getTime() / 60_000);
   const minutes = buildSeries(
@@ -225,9 +174,43 @@ function seriesFromRows(bounds: UtcCallWindow, rows: CallSeriesRow[]): Dashboard
     asInt(row.recent_carry),
     row.recent_minutes,
   );
-  if (!minutes || !recentMinutes) return { status: "unavailable", message: UNAVAILABLE };
+  if (!minutes || !recentMinutes) return unavailableCalls(series);
   return {
     status: "ready",
+    series,
+    day: bounds.day,
+    minutes,
+    peak: seriesPeak(minutes),
+    recent: {
+      start: bounds.recentStart.toISOString(),
+      minutes: recentMinutes,
+      peak: seriesPeak(recentMinutes),
+    },
+  };
+}
+
+function errorsFromRows(bounds: UtcCallWindow, rows: ErrorMinuteRow[]): DashboardCalls {
+  const dayOrigin = Math.floor(bounds.dayStart.getTime() / 60_000);
+  const recentOrigin = Math.floor(bounds.recentStart.getTime() / 60_000);
+  const dayEvents: MinuteCountRow[] = [];
+  const recentEvents: MinuteCountRow[] = [];
+  for (const row of rows) {
+    const minuteKey = asIntOrNull(row.minute_key);
+    const dayCount = asIntOrNull(row.day_n);
+    const recentCount = asIntOrNull(row.recent_n);
+    if (minuteKey == null || dayCount == null || recentCount == null) {
+      return unavailableCalls("errors");
+    }
+    if (dayCount > 0) dayEvents.push({ minute: minuteKey - dayOrigin, count: dayCount });
+    if (recentCount > 0) {
+      recentEvents.push({ minute: minuteKey - recentOrigin, count: recentCount });
+    }
+  }
+  const minutes = fillEventCounts(bounds.minuteCount, dayEvents);
+  const recentMinutes = fillEventCounts(TWO_HOUR_MINUTES, recentEvents);
+  return {
+    status: "ready",
+    series: "errors",
     day: bounds.day,
     minutes,
     peak: seriesPeak(minutes),

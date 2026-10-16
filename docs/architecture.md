@@ -170,7 +170,7 @@ Reg/
 - `/api/stats` — monthly CDR summary: ТфОП (Local+LDC joined, two-level header including Межгород) / Trunk_ (same header without Межгород) / platforms; parking + phantom on ТфОП and Trunk_ (`phones:read`)
 - `/api/detail` — monthly client slices from the phones catalog (Описание + endpoint numbers) × incoming / PSTN Local / parking / Trunk_ / PSTN LDC+OLD (`phones:read`)
 - `/api/dashboard` — home snapshot for a signed-in user (session only; not API keys). Routing groups stay an alert, not a card
-- `/api/dashboard/calls` — today's concurrent softswitch calls and the rolling last two hours (session only; hidden without `phones:read`)
+- `/api/dashboard/calls` — today's chart and the rolling last two hours (session only; hidden without `phones:read`). Query `series` selects phone, client, phantom, parking-in, parking-out, or errors. Errors count category «Ошибка» per minute; the others are concurrent calls. An unknown series does not read CDR.
 - `/api/healthz`, `/api/readyz`
 
 Ни один endpoint не принимает поля `command`, `scriptPath`, `remoteArgs` из клиента.

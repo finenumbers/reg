@@ -11,8 +11,15 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { FILTER_TOOLBAR_TEXT } from "@/components/filter-toolbar";
+import { FitSelect } from "@/components/fit-select";
 import { LoadAgeChip } from "@/modules/traffic/ui/load-age-chip";
 import { formatElapsed } from "@/modules/traffic/load-age";
+import {
+  DASHBOARD_SERIES,
+  parseDashboardSeries,
+  type DashboardSeriesId,
+} from "@/modules/dashboard/series";
 import type {
   DashboardBadge,
   DashboardCard,
@@ -21,6 +28,11 @@ import type {
 import { CallsChart } from "@/modules/dashboard/ui/calls-chart";
 
 const POLL_MS = 30_000;
+
+const SERIES_OPTIONS = DASHBOARD_SERIES.map((item) => ({
+  value: item.id,
+  label: item.label,
+}));
 
 const BADGE_CLASS: Record<DashboardBadge, string> = {
   ok: "bg-emerald-600 text-white",
@@ -33,6 +45,7 @@ const BADGE_CLASS: Record<DashboardBadge, string> = {
 export function DashboardView() {
   const [data, setData] = useState<DashboardSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [series, setSeries] = useState<DashboardSeriesId>("phone");
 
   useEffect(() => {
     let cancelled = false;
@@ -88,45 +101,68 @@ export function DashboardView() {
   }, []);
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto">
-      <div className="flex flex-col gap-4">
-        {error ? <p className="text-destructive text-sm">{error}</p> : null}
-        {data == null && error == null ? (
-          <p className="text-muted-foreground text-sm">…</p>
+    <div className="flex h-full min-h-0 flex-col gap-4">
+      <div className="flex shrink-0 items-center justify-between gap-4">
+        <h1 className="text-xl font-semibold tracking-tight [text-box:trim-start_cap_alphabetic]">
+          Finenumbers OSS Platform
+        </h1>
+        {data?.calls ? (
+          <FitSelect
+            id="dashboard-call-series"
+            value={series}
+            options={SERIES_OPTIONS}
+            onChange={(value) => {
+              const next = parseDashboardSeries(value);
+              if (next === value) setSeries(next);
+            }}
+            aria-label="Вид трафика"
+            textClassName={FILTER_TOOLBAR_TEXT}
+          />
         ) : null}
-        {data && data.alerts.length > 0 ? (
-          <ul className="flex flex-col gap-2" aria-label="Требует внимания">
-            {data.alerts.map((alert) => (
-              <li
-                key={alert.id}
-                className={cn(
-                  "rounded-md border px-3 py-2 text-sm",
-                  alert.tone === "alert"
-                    ? "border-destructive/30 bg-destructive/10 text-destructive"
-                    : "bg-muted/40",
-                )}
-              >
-                {alert.href ? (
-                  <Link href={alert.href} className="underline-offset-4 hover:underline">
-                    {alert.text}
-                  </Link>
-                ) : (
-                  alert.text
-                )}
-              </li>
-            ))}
-          </ul>
-        ) : null}
-        {data && data.cards.length > 0 ? (
-          <div className="@container">
-            <div className="grid grid-cols-1 gap-2 @min-[40rem]:grid-cols-2 @min-[60rem]:grid-cols-3 @min-[72rem]:grid-cols-5">
-              {data.cards.map((card) => (
-                <DashboardCardView key={card.id} card={card} />
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="flex flex-col gap-4">
+          {error ? <p className="text-destructive text-sm">{error}</p> : null}
+          {data == null && error == null ? (
+            <p className="text-muted-foreground text-sm">…</p>
+          ) : null}
+          {data && data.alerts.length > 0 ? (
+            <ul className="flex flex-col gap-2" aria-label="Требует внимания">
+              {data.alerts.map((alert) => (
+                <li
+                  key={alert.id}
+                  className={cn(
+                    "rounded-md border px-3 py-2 text-sm",
+                    alert.tone === "alert"
+                      ? "border-destructive/30 bg-destructive/10 text-destructive"
+                      : "bg-muted/40",
+                  )}
+                >
+                  {alert.href ? (
+                    <Link
+                      href={alert.href}
+                      className="underline-offset-4 hover:underline"
+                    >
+                      {alert.text}
+                    </Link>
+                  ) : (
+                    alert.text
+                  )}
+                </li>
               ))}
+            </ul>
+          ) : null}
+          {data && data.cards.length > 0 ? (
+            <div className="@container">
+              <div className="grid grid-cols-1 gap-2 @min-[40rem]:grid-cols-2 @min-[60rem]:grid-cols-3 @min-[72rem]:grid-cols-5">
+                {data.cards.map((card) => (
+                  <DashboardCardView key={card.id} card={card} />
+                ))}
+              </div>
             </div>
-          </div>
-        ) : null}
-        {data?.calls ? <CallsChart /> : null}
+          ) : null}
+          {data?.calls ? <CallsChart series={series} /> : null}
+        </div>
       </div>
     </div>
   );

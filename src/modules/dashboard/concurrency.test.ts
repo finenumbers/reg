@@ -3,7 +3,9 @@ import {
   axisCeiling,
   axisTickTop,
   axisTicks,
+  eventCountLabel,
   fillConcurrencyMinutes,
+  fillEventCounts,
   formatTrafficDayTitle,
   formatUtcMinute,
   provisionalMinuteIndex,
@@ -108,6 +110,40 @@ describe("axis scale", () => {
     expect(axisCeiling(5)).toBe(5);
     expect(axisTickTop(5, 5)).toBe(6);
     expect(axisTickTop(0, 5)).toBe(98);
+  });
+});
+
+describe("eventCountLabel", () => {
+  it("declines the event word", () => {
+    expect(eventCountLabel(0)).toBe("0 событий");
+    expect(eventCountLabel(1)).toBe("1 событие");
+    expect(eventCountLabel(2)).toBe("2 события");
+    expect(eventCountLabel(5)).toBe("5 событий");
+    expect(eventCountLabel(11)).toBe("11 событий");
+    expect(eventCountLabel(21)).toBe("21 событие");
+    expect(eventCountLabel(22)).toBe("22 события");
+  });
+});
+
+describe("fillEventCounts", () => {
+  it("keeps a quiet minute at zero between two events", () => {
+    expect(
+      fillEventCounts(4, [
+        { minute: 0, count: 4 },
+        { minute: 2, count: 1 },
+      ]),
+    ).toEqual([4, 0, 1, 0]);
+  });
+
+  it("drops minutes outside the requested length and negative counts", () => {
+    expect(
+      fillEventCounts(2, [
+        { minute: -1, count: 9 },
+        { minute: 0, count: 3 },
+        { minute: 5, count: 8 },
+        { minute: 1, count: -2 },
+      ]),
+    ).toEqual([3, 0]);
   });
 });
 
