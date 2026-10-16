@@ -1,7 +1,17 @@
-# Current Phase — production (v1.136.0)
+# Current Phase — production (v1.137.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, Eltex SMG CDR, Eltex SMG syslog.  
 **Date:** 2026-10-16
+
+## v1.137.0 — Card outlines sit inside the box
+
+Dashboard cards were drawn with a 1px outer shadow. The scroll area under the heading clips that shadow, so the top edge and the outer sides of the row disappeared while the sides facing the gap stayed. The card outline is now a normal border, the same color as the other frames. Login uses that same border and keeps its shadow.
+
+Keyboard focus on a dashboard card is drawn inside the link, so the scroll area does not cut the ring off the first or last card.
+
+The sidebar width is a whole pixel at the default root size, so its right border is not painted between device pixels. Menu items are unchanged. Browser zoom can still put a 1px line on a fractional pixel.
+
+There is no new migration.
 
 ## v1.136.0 — The Dashboard drops the groups card and scrolls under the heading
 

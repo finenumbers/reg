@@ -82,9 +82,9 @@ export function AppShell({
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background text-foreground">
-      {/* Equal 20px inset around the longest label «Телефонные номера» (141.25px). */}
-      <aside className="sticky top-0 flex h-screen w-[calc(2.5rem+141.25px+1px)] shrink-0 flex-col overflow-hidden border-r border-border bg-card px-3 py-4">
+    <div className="bg-background text-foreground flex h-screen overflow-hidden">
+      {/* 142px keeps the aside on a whole pixel so border-r is not painted between device pixels. */}
+      <aside className="border-border bg-card sticky top-0 flex h-screen w-[calc(2.5rem+142px+1px)] shrink-0 flex-col overflow-hidden border-r px-3 py-4">
         <Link href="/" className="flex shrink-0 justify-center pb-4">
           <img
             src="/brand/logo-full.png"
@@ -144,11 +144,7 @@ export function AppShell({
           <>
             <Separator className="my-1.5 shrink-0" />
             {EXTERNAL_NAV_LINKS.map((item) => (
-              <ExternalNavLink
-                key={item.id}
-                href={item.href}
-                label={item.title}
-              />
+              <ExternalNavLink key={item.id} href={item.href} label={item.title} />
             ))}
           </>
           {adminNav.length > 0 ? (
@@ -176,13 +172,13 @@ export function AppShell({
             onClick={onLogout}
           >
             Выйти -{" "}
-            <span className="text-xs font-normal text-muted-foreground">
+            <span className="text-muted-foreground text-xs font-normal">
               {releaseLabel}
             </span>
           </Button>
         </div>
       </aside>
-      <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pr-6 pl-4 pt-4 pb-3">
+      <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pt-4 pr-6 pb-3 pl-4">
         {children}
       </main>
     </div>

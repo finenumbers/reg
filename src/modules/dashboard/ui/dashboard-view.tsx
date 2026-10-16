@@ -138,7 +138,7 @@ function DashboardCardView({ card }: { card: DashboardCard }) {
   return (
     <Link
       href={card.href}
-      className="focus-visible:ring-ring min-w-0 rounded-xl focus-visible:ring-2 focus-visible:outline-none"
+      className="focus-visible:ring-ring min-w-0 rounded-xl focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset"
     >
       <Card
         className="hover:bg-muted/30 h-full transition-colors"
