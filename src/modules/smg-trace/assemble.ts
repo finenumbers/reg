@@ -3,11 +3,11 @@ import { realTag } from "@/modules/smg-trace/tag";
 import type { TraceBlocks } from "@/modules/smg-trace/types";
 
 /**
- * Version 4 drops the structured card and keeps the raw AntiFraud exchange.
- * A foreign mark deletes checkpoints. Without a version-4 live mark the cards
- * are deleted too, then the pass continues from the end of the open file.
+ * Version 5 drops every stored card once, when no live mark of this version
+ * exists yet. A foreign mark deletes checkpoints and is not read. The pass
+ * then continues from the end of the open file.
  */
-export const SMG_TRACE_PARSER_VERSION = 4;
+export const SMG_TRACE_PARSER_VERSION = 5;
 
 /** A call with no release and no reject leaves the assembler after this long. */
 export const SMG_TRACE_HOLD_MS = 4 * 60 * 60 * 1000;
@@ -100,7 +100,7 @@ export function restoreTraceState(value: unknown): TraceState {
 /**
  * Write the calls this slot changed. A call stays until `Release time-stamp`
  * or `Call rejected`, and through the next slot. `sealed` is set only on the
- * commit that drops the span, so the column stays «Ожидание АнтиФрода» until then.
+ * commit that drops the span. The column can already name a finished exchange.
  */
 export function commitTraceFile(
   state: TraceState,

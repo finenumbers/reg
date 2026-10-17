@@ -1,7 +1,15 @@
-# Current Phase — production (v1.151.0)
+# Current Phase — production (v1.152.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, Eltex SMG CDR, Eltex SMG syslog.  
 **Date:** 2026-10-18
+
+## v1.152.0 — Show the antifraud result before the call ends, and drop the old cards once
+
+Stop `app` before this update. There is no migration. Parser version 5 deletes every syslog card on the first turn, including a gateway that no longer has a directory, then marks the end of the newest syslog file and does not read the archive. Checkpoints from an older parser are deleted and their JSON is not read. `smg-syslog` keeps writing. The previous process still writes version-4 cards; if it is running when the cards are deleted, it writes them back.
+
+Existing CDR rows stay. Their antifraud column is «Нет данных» and the panel says «Трассы нет.» A call whose UniqueTag was only in the bytes before the mark does not get a card. A call that starts afterwards does.
+
+An open card shows the antifraud result once every sent request already has a verdict. «Ожидание АнтиФрода» and «Неизвестно» stay when no request was sent, or when a sent request still has no verdict. A reject with no release line is «Отказ не применён» while the card is open, and becomes «Заблокирован» when the release line is in the text. «Не проверялся» and «Не отправлялся» still wait until the card is sealed. The sheet still says «В syslog звонок ещё не закрыт» until the release line and the next ten-minute slot, or for four hours when the call never ends.
 
 ## v1.151.0 — Publish the session export and the bounded syslog count
 

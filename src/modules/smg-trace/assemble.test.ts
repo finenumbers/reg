@@ -14,6 +14,7 @@ import {
 import { decideTraceRows } from "@/modules/smg-trace/match";
 import { traceSearchKeys } from "@/modules/smg-trace/tag";
 import {
+  forgetCardsIfUnmarked,
   listTraceSources,
   listTraceSourcesSince,
   LIVE_FILE_KEY,
@@ -567,6 +568,34 @@ describe("syslog file walk", () => {
     await stepDevice("10.1.2.3", listTraceSources(root), repo.repo);
     expect(repo.cards.has("keep")).toBe(true);
     expect(repo.rows.has(foreign)).toBe(false);
+  });
+
+  it("drops every card once when no current live mark exists, including a gateway with no directory", async () => {
+    const cards = new Set(["orphan-gateway", "on-disk"]);
+    const wiped = await forgetCardsIfUnmarked({
+      async liveMarkVersions() {
+        return [4];
+      },
+      async deleteAllCards() {
+        cards.clear();
+      },
+    });
+    expect(wiped).toBe(true);
+    expect(cards.size).toBe(0);
+  });
+
+  it("keeps cards once a current live mark exists", async () => {
+    const cards = new Set(["keep"]);
+    const wiped = await forgetCardsIfUnmarked({
+      async liveMarkVersions() {
+        return [4, SMG_TRACE_PARSER_VERSION];
+      },
+      async deleteAllCards() {
+        cards.clear();
+      },
+    });
+    expect(wiped).toBe(false);
+    expect(cards.has("keep")).toBe(true);
   });
 
   it("lists the current slot before a mark and skips older slots after it", () => {

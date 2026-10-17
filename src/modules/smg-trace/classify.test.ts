@@ -33,8 +33,43 @@ const ACCEPT_OUT = [
 ].join("\n");
 
 describe("classifyAntifraud", () => {
-  it("keeps an open card waiting so a late line cannot replace the result", () => {
+  it("names an open card once every sent request has a verdict", () => {
     expect(labels(false, `${ACCEPT_IN}\n${ACCEPT_OUT}`)).toEqual({
+      category: AF_CATEGORY.passed,
+      status: AF_STATUS.firstTry,
+    });
+  });
+
+  it("keeps an open card waiting until a request is sent", () => {
+    expect(labels(false, "")).toEqual({
+      category: AF_CATEGORY.waiting,
+      status: AF_STATUS.unknown,
+    });
+    expect(
+      labels(false, "Accs-Request for Antifraud: check TG(i/o): 5(ext)/-1(loc), USE_AF 0, SD 0, OS 0, RREQ 4."),
+    ).toEqual({
+      category: AF_CATEGORY.waiting,
+      status: AF_STATUS.unknown,
+    });
+  });
+
+  it("keeps an open card waiting while any sent request has no verdict", () => {
+    const sent = [
+      "Accs-Request for Antifraud: check TG(i/o): 5(ext)/0(ext), USE_AF 1, SD 1, OS 0, RREQ 4.",
+      "RADIUS: Accs-Request [antifraud]",
+      "Request ID [012] is sent",
+    ].join("\n");
+    const outPending = [
+      ACCEPT_IN,
+      "Accs-Request for Antifraud: check TG(i/o): 5(ext)/0(ext), USE_AF 1, SD 0, OS 1, RREQ 5.",
+      "RADIUS: Accs-Request [antifraud_out]",
+      "Request ID [013] is sent",
+    ].join("\n");
+    expect(labels(false, sent)).toEqual({
+      category: AF_CATEGORY.waiting,
+      status: AF_STATUS.unknown,
+    });
+    expect(labels(false, outPending)).toEqual({
       category: AF_CATEGORY.waiting,
       status: AF_STATUS.unknown,
     });
@@ -91,10 +126,32 @@ describe("classifyAntifraud", () => {
       "Request ID [085] got valid reply for accs (in 171 ms)",
       "Request ID [085] process reply: ignore for not antifraud verify stage.",
     ].join("\n");
+    expect(labels(false, text)).toEqual({
+      category: AF_CATEGORY.passed,
+      status: AF_STATUS.firstTry,
+    });
     expect(labels(true, text)).toEqual({
       category: AF_CATEGORY.passed,
       status: AF_STATUS.firstTry,
     });
+  });
+
+  it("keeps an ignored reject packet as a reject", () => {
+    const text = [
+      "Accs-Request for Antifraud: check TG(i/o): 5(ext)/0(ext), USE_AF 1, SD 0, OS 1, RREQ 5.",
+      "RADIUS: Accs-Request [antifraud_out]",
+      "Request ID [011] send. Attempt: 1",
+      "rc: Calculating digest on:",
+      "rc:   030B001400000000000000000000000000000000",
+      "rc: Calculated digest is:",
+      "rc:   AAAAAAAAAAAAAAAA",
+      "rc: Reply digest is:",
+      "rc:   BBBBBBBBBBBBBBBB",
+      "Request ID [011] got valid reply for accs (in 10 ms)",
+      "Request ID [011] process reply: ignore for not antifraud verify stage.",
+    ].join("\n");
+    expect(labels(false, text).category).toBe(AF_CATEGORY.rejectIgnoredOut);
+    expect(labels(true, text).category).toBe(AF_CATEGORY.rejectIgnoredOut);
   });
 
   it("does not let an early USE_AF 0 hide a sent accept", () => {
@@ -104,6 +161,17 @@ describe("classifyAntifraud", () => {
         `Accs-Request for Antifraud: check TG(i/o): 5(ext)/-1(loc), USE_AF 0, SD 0, OS 0, RREQ 4.\n${ACCEPT_IN}`,
       ).category,
     ).toBe(AF_CATEGORY.passedIn);
+  });
+
+  it("names an open reject before the release line and a block after it", () => {
+    const sent = [
+      "Accs-Request for Antifraud: check TG(i/o): 5(ext)/0(ext), USE_AF 1, SD 1, OS 0, RREQ 4.",
+      "RADIUS: Accs-Request [antifraud]",
+      "Request ID [010] is sent",
+      "Request ID [010] Accs-Reply [reject]",
+    ].join("\n");
+    expect(labels(false, sent).category).toBe(AF_CATEGORY.rejectIgnoredIn);
+    expect(labels(false, `${sent}\nCall rejected. cause 0x0015`).category).toBe(AF_CATEGORY.blockedIn);
   });
 
   it("blocks the leg that was rejected and released", () => {
@@ -193,6 +261,21 @@ describe("classifyAntifraud", () => {
     ].join("\n");
     expect(labels(true, text).status).toBe(AF_STATUS.retryIn);
     expect(labels(true, text).category).toBe(AF_CATEGORY.passedIn);
+  });
+
+  it("waits on an open mismatch until the replies are in", () => {
+    expect(labels(false, ACCEPT_IN, true).category).toBe(AF_CATEGORY.conflict);
+    expect(
+      labels(
+        false,
+        [
+          "Accs-Request for Antifraud: check TG(i/o): 5(ext)/0(ext), USE_AF 1, SD 1, OS 0, RREQ 4.",
+          "RADIUS: Accs-Request [antifraud]",
+          "Request ID [012] is sent",
+        ].join("\n"),
+        true,
+      ).category,
+    ).toBe(AF_CATEGORY.waiting);
   });
 
   it("flags two identities and accept plus reject on one leg", () => {

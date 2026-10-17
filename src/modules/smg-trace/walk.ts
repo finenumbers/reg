@@ -48,7 +48,7 @@ export type TraceRepository = {
   loadCheckpointState(deviceIp: string, fileKey: string): Promise<unknown | null>;
   /** Drop marks that are not the current version. Never reads their JSON. */
   deleteStaleCheckpoints(deviceIp: string): Promise<void>;
-  /** Drop this gateway's cards. Used once, before a version-3 mark exists. */
+  /** Drop this gateway's cards. Used once, before a current-version mark exists. */
   deleteCards(deviceIp: string): Promise<void>;
   saveSpan(deviceIp: string, span: TraceSpan): Promise<void>;
   saveCheckpoint(
@@ -140,6 +140,21 @@ export function listTraceSourcesSince(
   collectSince(path.join(root, deviceIp), deviceIp, floor, sources);
   sources.sort((a, b) => a.fileKey.localeCompare(b.fileKey));
   return sources.filter((source) => source.fileKey >= floor);
+}
+
+/**
+ * Drop every card when no gateway has a live mark of this parser version.
+ * A later pass sees that mark and leaves cards in place. A gateway that
+ * appears afterwards has no foreign mark, so its new cards stay.
+ */
+export async function forgetCardsIfUnmarked(repo: {
+  liveMarkVersions(): Promise<readonly number[]>;
+  deleteAllCards(): Promise<void>;
+}): Promise<boolean> {
+  const versions = await repo.liveMarkVersions();
+  if (versions.some((version) => version === SMG_TRACE_PARSER_VERSION)) return false;
+  await repo.deleteAllCards();
+  return true;
 }
 
 /**

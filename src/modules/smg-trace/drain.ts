@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { logger } from "@/lib/logger";
 import { projectSpan, SMG_TRACE_PARSER_VERSION } from "@/modules/smg-trace/assemble";
 import {
+  forgetCardsIfUnmarked,
   listDeviceIps,
   listTraceSourcesSince,
   LIVE_FILE_KEY,
@@ -20,6 +21,18 @@ export async function drainSmgTraces(root = syslogRoot()): Promise<void> {
   if (running || isDatabaseVacuumActive()) return;
   running = true;
   try {
+    await forgetCardsIfUnmarked({
+      async liveMarkVersions() {
+        const rows = await prisma.smgTraceCheckpoint.findMany({
+          where: { fileKey: LIVE_FILE_KEY },
+          select: { version: true },
+        });
+        return rows.map((row) => row.version);
+      },
+      async deleteAllCards() {
+        await prisma.smgCallTrace.deleteMany();
+      },
+    });
     for (const deviceIp of listDeviceIps(root)) {
       try {
         const floor = await liveFloor(deviceIp);

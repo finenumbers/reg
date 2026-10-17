@@ -76,20 +76,26 @@ type Facts = {
 };
 
 /**
- * One label pair for a syslog card. An open card stays «Ожидание АнтиФрода»:
- * the rest of the exchange can still arrive.
+ * One label pair for a syslog card. An open card stays «Ожидание АнтиФрода»
+ * until every sent request has a verdict. A request that has not been sent yet
+ * stays waiting too: the exchange can still start.
  */
 export function classifyAntifraud(input: {
   closed: boolean;
   blocks: TraceBlocks;
 }): AntifraudLabels {
-  if (!input.closed) return WAITING;
-  if (input.blocks.mismatch) return conflict();
+  if (input.closed && input.blocks.mismatch) return conflict();
   const facts = readFacts(input.blocks.text);
+  if (!input.closed && replyOutstanding(facts)) return WAITING;
+  if (input.blocks.mismatch) return conflict();
   if (facts.sideClash || facts.legs.some((leg) => leg.side === "" || leg.conflicted)) return conflict();
 
   const category = categoryOf(facts);
   return { category, status: statusOf(category, facts) };
+}
+
+function replyOutstanding(facts: Facts): boolean {
+  return facts.legs.length === 0 || facts.legs.some((leg) => leg.verdict === "none");
 }
 
 export function isSmgAntifraudColumn(column: string): column is SmgAntifraudColumn {
