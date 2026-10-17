@@ -1,7 +1,21 @@
-# Current Phase — production (v1.145.0)
+# Current Phase — production (v1.146.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, Eltex SMG CDR, Eltex SMG syslog.  
 **Date:** 2026-10-17
+
+## v1.146.0 — SMG trace cards follow new syslog only
+
+Stop `app` before this update. The migration empties `smg_call_traces` and `smg_trace_checkpoints`. The previous process still reads the archive; if it is running when those tables are emptied, it writes the old cards back. `smg-syslog` keeps writing while `app` is stopped. The first turn of the new process marks the open log at its size then, so those minutes are not assembled.
+
+The pass does not open a syslog file that was already on disk. Bytes appended after the mark, and slots that appear later, are assembled. A call whose UniqueTag was already in the old bytes does not get a card. A call that starts afterwards does.
+
+The card is stored by UniqueTag and is not written into the CDR row. The CDR file can arrive a minute later, an hour later, or after a stalled upload. Opening the call finds the card.
+
+A call stays in the assembler until `Release time-stamp` or `Call rejected`, and through the next ten-minute slot. An hour-long call keeps the same card. A call with neither line leaves after four hours of slot time; the card already written stays. «В syslog звонок ещё не закрыт» stays up until that end.
+
+A restart continues from the stored mark and does not walk older directories. One chunk per gateway per turn. A gzip that replaces a raw log already read to the end is not opened. A gzip that still holds bytes past the last read is read from that byte. A slot that was already gzip at the mark stays unread, including when a raw log is later merged in front of it.
+
+Parser version 3. A foreign mark is deleted without reading its JSON. Cards are deleted only when that gateway does not yet have a version-3 mark.
 
 ## v1.145.0 — The trace pass no longer takes the site down
 

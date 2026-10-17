@@ -3,10 +3,12 @@ import { prisma } from "@/lib/db";
 import { logger } from "@/lib/logger";
 import { projectSpan, SMG_TRACE_PARSER_VERSION } from "@/modules/smg-trace/assemble";
 import {
-  listTraceSources,
+  listDeviceIps,
+  listTraceSourcesSince,
+  LIVE_FILE_KEY,
+  readLiveFloor,
   stepDevice,
   type TraceRepository,
-  type TraceSource,
 } from "@/modules/smg-trace/walk";
 import { syslogRoot } from "@/modules/smg-syslog/paths";
 import { isDatabaseVacuumActive } from "@/modules/storage/vacuum/gate";
@@ -18,14 +20,10 @@ export async function drainSmgTraces(root = syslogRoot()): Promise<void> {
   if (running || isDatabaseVacuumActive()) return;
   running = true;
   try {
-    const byDevice = new Map<string, TraceSource[]>();
-    for (const source of listTraceSources(root)) {
-      const list = byDevice.get(source.deviceIp) ?? [];
-      list.push(source);
-      byDevice.set(source.deviceIp, list);
-    }
-    for (const [deviceIp, files] of byDevice) {
+    for (const deviceIp of listDeviceIps(root)) {
       try {
+        const floor = await liveFloor(deviceIp);
+        const files = listTraceSourcesSince(root, deviceIp, floor);
         await stepDevice(deviceIp, files, prismaRepository);
       } catch (error) {
         logger.warn("smg.trace.device_failed", {
@@ -44,6 +42,15 @@ export async function drainSmgTraces(root = syslogRoot()): Promise<void> {
   } finally {
     running = false;
   }
+}
+
+async function liveFloor(deviceIp: string): Promise<string | null> {
+  const row = await prisma.smgTraceCheckpoint.findUnique({
+    where: { deviceIp_fileKey: { deviceIp, fileKey: LIVE_FILE_KEY } },
+    select: { version: true, state: true },
+  });
+  if (!row || row.version !== SMG_TRACE_PARSER_VERSION) return null;
+  return readLiveFloor(row.state);
 }
 
 const prismaRepository: TraceRepository = {
@@ -65,11 +72,8 @@ const prismaRepository: TraceRepository = {
       where: { deviceIp, version: { not: SMG_TRACE_PARSER_VERSION } },
     });
   },
-  async clearCheckpointState(deviceIp, fileKey) {
-    await prisma.smgTraceCheckpoint.updateMany({
-      where: { deviceIp, fileKey },
-      data: { state: {} },
-    });
+  async deleteCards(deviceIp) {
+    await prisma.smgCallTrace.deleteMany({ where: { deviceIp } });
   },
   async saveSpan(deviceIp, span) {
     const blocks = projectSpan(span) as Prisma.InputJsonValue;
@@ -79,12 +83,12 @@ const prismaRepository: TraceRepository = {
         deviceIp,
         tagNorm: span.tag,
         callref: span.callref,
-        open: !span.echoed,
+        open: !span.ended,
         blocks,
       },
       update: {
         callref: span.callref,
-        open: !span.echoed,
+        open: !span.ended,
         blocks,
       },
     });

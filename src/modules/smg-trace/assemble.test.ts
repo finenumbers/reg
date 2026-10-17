@@ -1,5 +1,5 @@
 import { gzipSync } from "node:zlib";
-import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdtempSync, mkdirSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -8,11 +8,19 @@ import {
   commitTraceFile,
   emptyTraceState,
   projectSpan,
+  SMG_TRACE_PARSER_VERSION,
   type TraceSpan,
 } from "@/modules/smg-trace/assemble";
 import { decideTraceRows } from "@/modules/smg-trace/match";
 import { traceSearchKeys } from "@/modules/smg-trace/tag";
-import { listTraceSources, replayDevice, stepDevice, type TraceRepository } from "@/modules/smg-trace/walk";
+import {
+  listTraceSources,
+  listTraceSourcesSince,
+  LIVE_FILE_KEY,
+  replayDevice,
+  stepDevice,
+  type TraceRepository,
+} from "@/modules/smg-trace/walk";
 
 const TAG = "110003366ad22499cb71df5e013ba801";
 const TAG_SPACED = "11000336 6ad22499 cb71df5e 013ba801";
@@ -353,6 +361,9 @@ describe("CDR card choice", () => {
       party: "",
       lastPort: "",
       echoGeneration: null,
+      ended: false,
+      releaseGeneration: null,
+      startedKey: "",
       lead: [],
       attempts: [],
       signal: [],
@@ -374,7 +385,7 @@ describe("CDR card choice", () => {
 });
 
 describe("call state between files", () => {
-  it("keeps a closed call for the next file, then drops it", () => {
+  it("keeps a call through the slot after release, then drops it", () => {
     const state = emptyTraceState();
     applyText(
       state,
@@ -383,27 +394,55 @@ describe("call state between files", () => {
         line("C0000F6", `unique tag: '${TAG_SPACED}'`),
       ].join("\n"),
     );
-    expect(commitTraceFile(state, 0).map((span) => span.tag)).toEqual([TAG]);
+    expect(commitTraceFile(state, 0, "10.1.2.3/2026/10/16/10/00").map((span) => span.tag)).toEqual([
+      TAG,
+    ]);
     expect(state.spans.C0000F6?.echoed).toBe(true);
+    expect(state.spans.C0000F6?.ended).toBe(false);
 
     applyText(
       state,
-      line("C0000F6", "Port SIPT:0001. Release time-stamp: 13:20:33.654 GMT Fri Oct 16 2026, msec-diff: 6328"),
+      line(
+        "C0000F6",
+        "Port SIPT:0001. Release time-stamp: 13:20:33.654 GMT Fri Oct 16 2026, msec-diff: 6328",
+      ),
     );
-    const updated = commitTraceFile(state, 1);
+    const updated = commitTraceFile(state, 1, "10.1.2.3/2026/10/16/10/10");
     expect(updated.map((span) => span.tag)).toEqual([TAG]);
     expect(updated[0]?.times.some((row) => row.event === "Release")).toBe(true);
-    expect(state.spans.C0000F6).toBeUndefined();
+    expect(updated[0]?.ended).toBe(true);
+    expect(state.spans.C0000F6).toBeDefined();
 
-    applyText(state, line("C0000F7", "Port SIPT:0002. Set UniqueTag: '1100004f6ad201cc2265912949b40dde'"));
-    const third = commitTraceFile(state, 2);
-    expect(third.map((span) => span.tag)).not.toContain(TAG);
-    expect(Object.values(state.spans).some((span) => span.tag === TAG)).toBe(false);
+    commitTraceFile(state, 2, "10.1.2.3/2026/10/16/10/20");
+    expect(state.spans.C0000F6).toBeUndefined();
+  });
+
+  it("ends a rejected call the same way", () => {
+    const state = emptyTraceState();
+    applyText(state, line("C0000F6", `Port SIPT:0001. Set UniqueTag: '${TAG}'`));
+    commitTraceFile(state, 0, "10.1.2.3/2026/10/16/10/00");
+    applyText(state, line("C0000F6", "Port SIPT:0001. Call rejected. cause 0x0015"));
+    const updated = commitTraceFile(state, 1, "10.1.2.3/2026/10/16/10/10");
+    expect(updated[0]?.ended).toBe(true);
+    expect(state.spans.C0000F6).toBeDefined();
+    commitTraceFile(state, 2, "10.1.2.3/2026/10/16/10/20");
+    expect(state.spans.C0000F6).toBeUndefined();
+  });
+
+  it("keeps an open call across an hour and drops it after four hours of slot time", () => {
+    const state = emptyTraceState();
+    applyText(state, line("C0000F6", `Port SIPT:0001. Set UniqueTag: '${TAG}'`));
+    commitTraceFile(state, 0, "10.1.2.3/2026/10/16/10/00");
+    commitTraceFile(state, 1, "10.1.2.3/2026/10/16/11/00");
+    expect(state.spans.C0000F6?.tag).toBe(TAG);
+    const dropped = commitTraceFile(state, 2, "10.1.2.3/2026/10/16/14/00");
+    expect(dropped.map((span) => span.tag)).toEqual([TAG]);
+    expect(state.spans.C0000F6).toBeUndefined();
   });
 });
 
 describe("syslog file walk", () => {
-  it("reads the open log before the gzip and continues a call into the next file", async () => {
+  it("lists the open log ahead of a closed gzip and ignores a partial", () => {
     const root = mkdtempSync(path.join(tmpdir(), "smg-trace-"));
     const hour = path.join(root, "10.1.2.3", "2026", "10", "16", "06");
     mkdirSync(hour, { recursive: true });
@@ -426,101 +465,203 @@ describe("syslog file walk", () => {
       "10.1.2.3/2026/10/16/06/00:log",
       "10.1.2.3/2026/10/16/06/50:gz",
     ]);
-
-    const saved: { tag: string; reply: string }[] = [];
-    const repo = memoryRepo(saved);
-    await replayDevice("10.1.2.3", sources, repo.repo);
-    expect(saved.some((row) => row.tag === TAG && row.reply === "2 Access-Accept")).toBe(true);
   });
 
-  it("drops a closed call after the following file and writes it again from the archive", async () => {
+  it("does not read a slot that is already on disk", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "smg-trace-"));
-    const hour = path.join(root, "10.1.2.3", "2026", "10", "16", "07");
-    mkdirSync(hour, { recursive: true });
-    const closed = [
-      line("C0000F6", `Port SIPT:0001. Set UniqueTag: '${TAG}'`),
-      line("C0000F6", `unique tag: '${TAG_SPACED}'`),
-    ].join("\n");
-    const later = line("C0000F7", "Port SIPT:0002. Set UniqueTag: '1100004f6ad201cc2265912949b40dde'");
-    writeFileSync(path.join(hour, "00.log.gz"), gzipSync(Buffer.from(closed)));
-    writeFileSync(path.join(hour, "10.log.gz"), gzipSync(Buffer.from(later)));
-    writeFileSync(path.join(hour, "20.log.gz"), gzipSync(Buffer.from(later)));
-
-    const saved: { tag: string; reply: string }[] = [];
-    let held = -1;
+    const oldHour = path.join(root, "10.1.2.3", "2026", "10", "16", "07");
+    const newHour = path.join(root, "10.1.2.3", "2026", "10", "16", "08");
+    mkdirSync(oldHour, { recursive: true });
+    mkdirSync(newHour, { recursive: true });
+    writeFileSync(
+      path.join(oldHour, "50.log.gz"),
+      gzipSync(Buffer.from(line("C0000F6", `Port SIPT:0001. Set UniqueTag: '${TAG}'`) + "\n")),
+    );
+    writeFileSync(path.join(newHour, "00.log"), "noise\n");
+    const saved: { tag: string; open: boolean }[] = [];
     const repo = memoryRepo(saved);
-    const previousSave = repo.repo.saveCheckpoint.bind(repo.repo);
-    repo.repo.saveCheckpoint = async (ip, fileKey, size, state) => {
-      await previousSave(ip, fileKey, size, state);
-      if (fileKey.endsWith("/20")) {
-        const row = state as { spans?: Record<string, { tag?: string }> };
-        held = Object.values(row.spans ?? {}).filter((span) => span.tag === TAG).length;
-      }
-    };
     await replayDevice("10.1.2.3", listTraceSources(root), repo.repo);
-    expect(saved.filter((row) => row.tag === TAG).length).toBe(2);
-    expect(held).toBe(0);
-    expect(repo.cards.has(TAG)).toBe(true);
+    expect(saved.some((row) => row.tag === TAG)).toBe(false);
   });
 
-  it("drops old assembler marks without reading them and keeps cards", async () => {
+  it("reads bytes appended after the mark and does not read them twice", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "smg-trace-"));
     const hour = path.join(root, "10.1.2.3", "2026", "10", "16", "08");
     mkdirSync(hour, { recursive: true });
-    writeFileSync(
-      path.join(hour, "00.log.gz"),
-      gzipSync(Buffer.from(line("C0000F6", `Port SIPT:0001. Set UniqueTag: '${TAG}'`))),
-    );
-    const saved: { tag: string; reply: string }[] = [];
+    const raw = path.join(hour, "00.log");
+    writeFileSync(raw, "noise\n");
+    const saved: { tag: string; open: boolean }[] = [];
     const repo = memoryRepo(saved);
-    repo.cards.add("already-there");
-    repo.rows.set("10.1.2.3/2026/10/16/08/00", {
-      fileKey: "10.1.2.3/2026/10/16/08/00",
-      size: 1,
-      version: 1,
-      state: { huge: true },
-    });
-    let sawState = false;
-    const previousMeta = repo.repo.loadCheckpointMeta.bind(repo.repo);
-    repo.repo.loadCheckpointMeta = async (ip) => {
-      const rows = await previousMeta(ip);
-      if (rows.some((row) => "state" in row)) sawState = true;
-      return rows;
-    };
-    await stepDevice("10.1.2.3", listTraceSources(root), repo.repo);
-    expect(sawState).toBe(false);
-    expect(repo.rows.has("10.1.2.3/2026/10/16/08/00") && repo.rows.get("10.1.2.3/2026/10/16/08/00")?.version === 1).toBe(false);
-    expect(repo.cards.has("already-there")).toBe(true);
-    expect([...repo.rows.keys()].some((key) => key.endsWith("/00"))).toBe(false);
+    const sources = () => listTraceSources(root);
+    await stepDevice("10.1.2.3", sources(), repo.repo);
+    expect(saved).toEqual([]);
+    appendFileSync(raw, line("C0000F6", `Port SIPT:0001. Set UniqueTag: '${TAG}'`) + "\n");
+    await stepDevice("10.1.2.3", sources(), repo.repo);
+    expect(saved.map((row) => row.open)).toEqual([true]);
+    const writes = saved.length;
+    await stepDevice("10.1.2.3", sources(), repo.repo);
+    expect(saved).toHaveLength(writes);
   });
 
-  it("does not mark today as archived before the archive reaches it", async () => {
+  it("keeps the call open across midnight until the slot after release", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "smg-trace-"));
-    const yesterday = path.join(root, "10.1.2.3", "2026", "10", "15", "23");
-    const today = path.join(root, "10.1.2.3", "2026", "10", "16", "00");
-    mkdirSync(yesterday, { recursive: true });
-    mkdirSync(today, { recursive: true });
-    writeFileSync(
-      path.join(yesterday, "50.log.gz"),
-      gzipSync(Buffer.from(line("C0000F6", `Port SIPT:0001. Set UniqueTag: '${TAG}'`))),
-    );
-    writeFileSync(
-      path.join(today, "00.log.gz"),
-      gzipSync(Buffer.from(line("C0000F7", "Port SIPT:0002. Set UniqueTag: '1100004f6ad201cc2265912949b40dde'"))),
-    );
-    const saved: { tag: string; reply: string }[] = [];
+    const evening = path.join(root, "10.1.2.3", "2026", "10", "16", "23");
+    const morning = path.join(root, "10.1.2.3", "2026", "10", "17", "00");
+    mkdirSync(evening, { recursive: true });
+    mkdirSync(morning, { recursive: true });
+    const raw = path.join(evening, "50.log");
+    writeFileSync(raw, "noise\n");
+    const saved: { tag: string; open: boolean }[] = [];
     const repo = memoryRepo(saved);
-    const sources = listTraceSources(root);
-    await stepDevice("10.1.2.3", sources, repo.repo);
-    expect([...repo.rows.keys()].filter((key) => !key.startsWith("@"))).toEqual([]);
+    const sources = () => listTraceSources(root);
+    await stepDevice("10.1.2.3", sources(), repo.repo);
+    appendFileSync(raw, line("C0000F6", `Port SIPT:0001. Set UniqueTag: '${TAG}'`) + "\n");
+    await stepDevice("10.1.2.3", sources(), repo.repo);
+    expect(saved.at(-1)?.open).toBe(true);
+    writeFileSync(
+      path.join(morning, "00.log"),
+      line(
+        "C0000F6",
+        "Port SIPT:0001. Release time-stamp: 00:05:00.000 GMT Sat Oct 17 2026, msec-diff: 1000",
+      ) + "\n",
+    );
+    await stepDevice("10.1.2.3", sources(), repo.repo);
+    expect(saved.at(-1)?.open).toBe(false);
+    expect(spansOfMark(repo).C0000F6).toBeDefined();
+    writeFileSync(path.join(morning, "10.log"), "noise\n");
+    await stepDevice("10.1.2.3", sources(), repo.repo);
+    expect(spansOfMark(repo).C0000F6).toBeUndefined();
+  });
+
+  it("does not open a gzip that replaced a fully read raw log", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "smg-trace-"));
+    const hour = path.join(root, "10.1.2.3", "2026", "10", "16", "08");
+    mkdirSync(hour, { recursive: true });
+    const raw = path.join(hour, "00.log");
+    writeFileSync(raw, "noise\n");
+    const saved: { tag: string; open: boolean }[] = [];
+    const repo = memoryRepo(saved);
+    await stepDevice("10.1.2.3", listTraceSources(root), repo.repo);
+    unlinkSync(raw);
+    writeFileSync(
+      path.join(hour, "00.log.gz"),
+      gzipSync(Buffer.from(line("C0000F6", `Port SIPT:0001. Set UniqueTag: '${TAG}'`) + "\n")),
+    );
+    await replayDevice("10.1.2.3", listTraceSources(root), repo.repo);
     expect(saved.some((row) => row.tag === TAG)).toBe(false);
-    await replayDevice("10.1.2.3", sources, repo.repo);
-    expect(saved.some((row) => row.tag === TAG)).toBe(true);
-    expect([...repo.rows.keys()].some((key) => key.endsWith("/50"))).toBe(true);
+  });
+
+  it("reads the unread tail after a raw log becomes gzip", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "smg-trace-"));
+    const hour = path.join(root, "10.1.2.3", "2026", "10", "16", "08");
+    mkdirSync(hour, { recursive: true });
+    const raw = path.join(hour, "00.log");
+    const prefix = "noise\n";
+    writeFileSync(raw, prefix);
+    const saved: { tag: string; open: boolean }[] = [];
+    const repo = memoryRepo(saved);
+    await stepDevice("10.1.2.3", listTraceSources(root), repo.repo);
+    const extra = line("C0000F6", `Port SIPT:0001. Set UniqueTag: '${TAG}'`) + "\n";
+    const mark = repo.rows.get(LIVE_FILE_KEY)?.state as {
+      tail: { key: string; rawSize: number };
+    };
+    mark.tail.rawSize = Buffer.byteLength(prefix + extra);
+    unlinkSync(raw);
+    writeFileSync(path.join(hour, "00.log.gz"), gzipSync(Buffer.from(prefix + extra)));
+    await stepDevice("10.1.2.3", listTraceSources(root), repo.repo);
+    expect(saved.some((row) => row.tag === TAG && row.open)).toBe(true);
+  });
+
+  it("drops a foreign mark without reading it and deletes cards when version 3 is absent", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "smg-trace-"));
+    const hour = path.join(root, "10.1.2.3", "2026", "10", "16", "08");
+    mkdirSync(hour, { recursive: true });
+    const key = "10.1.2.3/2026/10/16/08/00";
+    writeFileSync(
+      path.join(hour, "00.log.gz"),
+      gzipSync(Buffer.from(line("C0000F6", `Port SIPT:0001. Set UniqueTag: '${TAG}'`) + "\n")),
+    );
+    const saved: { tag: string; open: boolean }[] = [];
+    const repo = memoryRepo(saved);
+    repo.cards.add("already-there");
+    repo.rows.set(key, { fileKey: key, size: 1, version: 2, state: { huge: true } });
+    const previousState = repo.repo.loadCheckpointState.bind(repo.repo);
+    repo.repo.loadCheckpointState = async (ip, fileKey) => {
+      if (fileKey === key) throw new Error("read foreign json");
+      return previousState(ip, fileKey);
+    };
+    await stepDevice("10.1.2.3", listTraceSources(root), repo.repo);
+    expect(repo.cards.has("already-there")).toBe(false);
+    expect(repo.rows.has(key)).toBe(false);
+    expect(saved.some((row) => row.tag === TAG)).toBe(false);
+  });
+
+  it("keeps cards when a version-3 mark already exists", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "smg-trace-"));
+    const hour = path.join(root, "10.1.2.3", "2026", "10", "16", "08");
+    mkdirSync(hour, { recursive: true });
+    const raw = path.join(hour, "00.log");
+    writeFileSync(raw, "noise\n");
+    const key = "10.1.2.3/2026/10/16/08/00";
+    const foreign = "10.1.2.3/2026/10/16/07/00";
+    const saved: { tag: string; open: boolean }[] = [];
+    const repo = memoryRepo(saved);
+    repo.cards.add("keep");
+    repo.rows.set(LIVE_FILE_KEY, {
+      fileKey: LIVE_FILE_KEY,
+      size: 0,
+      version: SMG_TRACE_PARSER_VERSION,
+      state: {
+        floor: key,
+        tail: { key, offset: Buffer.byteLength("noise\n"), rawSize: Buffer.byteLength("noise\n") },
+        slotIndex: 0,
+        slotKey: key,
+        state: {
+          spans: {},
+          inflight: [],
+          ambiguousIds: [],
+          collecting: null,
+          rcHex: "",
+          rcActive: false,
+          dirty: [],
+        },
+      },
+    });
+    repo.rows.set(foreign, { fileKey: foreign, size: 1, version: 2, state: { huge: true } });
+    const previousState = repo.repo.loadCheckpointState.bind(repo.repo);
+    repo.repo.loadCheckpointState = async (ip, fileKey) => {
+      if (fileKey === foreign) throw new Error("read foreign json");
+      return previousState(ip, fileKey);
+    };
+    await stepDevice("10.1.2.3", listTraceSources(root), repo.repo);
+    expect(repo.cards.has("keep")).toBe(true);
+    expect(repo.rows.has(foreign)).toBe(false);
+  });
+
+  it("lists the current slot before a mark and skips older slots after it", () => {
+    const root = mkdtempSync(path.join(tmpdir(), "smg-trace-"));
+    const older = path.join(root, "10.1.2.3", "2026", "10", "16", "07");
+    const current = path.join(root, "10.1.2.3", "2026", "10", "16", "08");
+    mkdirSync(older, { recursive: true });
+    mkdirSync(current, { recursive: true });
+    writeFileSync(path.join(older, "00.log.gz"), gzipSync(Buffer.from("old\n")));
+    writeFileSync(path.join(current, "00.log"), "now\n");
+    const now = new Date("2026-10-16T08:05:00Z");
+    expect(listTraceSourcesSince(root, "10.1.2.3", null, now).map((source) => source.fileKey)).toEqual([
+      "10.1.2.3/2026/10/16/08/00",
+    ]);
+    expect(
+      listTraceSourcesSince(root, "10.1.2.3", "10.1.2.3/2026/10/16/08/00").map((source) => source.fileKey),
+    ).toEqual(["10.1.2.3/2026/10/16/08/00"]);
   });
 });
 
-function memoryRepo(saved: { tag: string; reply: string }[]) {
+function spansOfMark(repo: { rows: Map<string, { state: unknown }> }): Record<string, unknown> {
+  const mark = repo.rows.get(LIVE_FILE_KEY)?.state as { state?: { spans?: Record<string, unknown> } };
+  return mark.state?.spans ?? {};
+}
+
+function memoryRepo(saved: { tag: string; open: boolean }[]) {
   const rows = new Map<
     string,
     { fileKey: string; size: number; version: number; state: unknown }
@@ -539,22 +680,18 @@ function memoryRepo(saved: { tag: string; reply: string }[]) {
     },
     async deleteStaleCheckpoints() {
       for (const [key, row] of rows) {
-        if (row.version !== 2) rows.delete(key);
+        if (row.version !== SMG_TRACE_PARSER_VERSION) rows.delete(key);
       }
     },
-    async clearCheckpointState(_ip, fileKey) {
-      const row = rows.get(fileKey);
-      if (row) row.state = {};
+    async deleteCards() {
+      cards.clear();
     },
     async saveSpan(_ip, span) {
       cards.add(span.tag);
-      saved.push({
-        tag: span.tag,
-        reply: projectSpan(span).antifraud.legs[0]?.replyCode ?? "",
-      });
+      saved.push({ tag: span.tag, open: !span.ended });
     },
     async saveCheckpoint(_ip, fileKey, size, state) {
-      rows.set(fileKey, { fileKey, size, version: 2, state });
+      rows.set(fileKey, { fileKey, size, version: SMG_TRACE_PARSER_VERSION, state });
     },
   };
   return { repo, rows, cards };

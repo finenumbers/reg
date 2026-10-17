@@ -1,6 +1,7 @@
-import { createReadStream, readdirSync, statSync } from "node:fs";
+import { closeSync, createReadStream, openSync, readdirSync, readSync, statSync } from "node:fs";
 import path from "node:path";
 import { createInterface } from "node:readline";
+import { PassThrough, type Readable } from "node:stream";
 import { createGunzip } from "node:zlib";
 import { logger } from "@/lib/logger";
 import {
@@ -12,6 +13,7 @@ import {
   type TraceSpan,
   type TraceState,
 } from "@/modules/smg-trace/assemble";
+import { bucketKey, bucketOf } from "@/modules/smg-syslog/bucket";
 import { canonicalIpv4, looksLikeDockerBridge } from "@/modules/smg-syslog/ip";
 
 const YEAR = /^\d{4}$/;
@@ -44,9 +46,10 @@ export type TraceRepository = {
   /** Keys, sizes and assembler marks. Never the JSON state. */
   loadCheckpointMeta(deviceIp: string): Promise<TraceCheckpointMeta[]>;
   loadCheckpointState(deviceIp: string, fileKey: string): Promise<unknown | null>;
-  /** Drop assembler marks that are not the current one. Cards stay. */
+  /** Drop marks that are not the current version. Never reads their JSON. */
   deleteStaleCheckpoints(deviceIp: string): Promise<void>;
-  clearCheckpointState(deviceIp: string, fileKey: string): Promise<void>;
+  /** Drop this gateway's cards. Used once, before a version-3 mark exists. */
+  deleteCards(deviceIp: string): Promise<void>;
   saveSpan(deviceIp: string, span: TraceSpan): Promise<void>;
   saveCheckpoint(
     deviceIp: string,
@@ -56,9 +59,30 @@ export type TraceRepository = {
   ): Promise<void>;
 };
 
-/** Closed gzip buckets and the still-open raw log, oldest first. */
-export function listTraceSources(root: string): TraceSource[] {
-  const sources: TraceSource[] = [];
+type Tail = {
+  key: string;
+  offset: number;
+  rawSize: number;
+};
+
+type LiveMark = {
+  /** Keys strictly older than this are ignored. */
+  floor: string;
+  /** Null once `floor` itself is finished and must not be opened. */
+  tail: Tail | null;
+  slotIndex: number;
+  slotKey: string;
+  state: TraceState;
+};
+
+/** Floor key stored on the live mark, without the assembler JSON. */
+export function readLiveFloor(state: unknown): string | null {
+  if (!state || typeof state !== "object") return null;
+  const floor = (state as { floor?: unknown }).floor;
+  return typeof floor === "string" && floor.length > 0 ? floor : null;
+}
+
+export function listDeviceIps(root: string): string[] {
   let names: string[] = [];
   try {
     names = readdirSync(root, { withFileTypes: true })
@@ -67,162 +91,171 @@ export function listTraceSources(root: string): TraceSource[] {
   } catch {
     return [];
   }
+  const ips: string[] = [];
   for (const name of names) {
     const ip = canonicalIpv4(name);
     if (!ip || looksLikeDockerBridge(ip)) continue;
-    collectDevice(path.join(root, name), ip, sources);
+    ips.push(ip);
+  }
+  ips.sort();
+  return ips;
+}
+
+/** Closed gzip buckets and the still-open raw log, oldest first. */
+export function listTraceSources(root: string): TraceSource[] {
+  const sources: TraceSource[] = [];
+  for (const ip of listDeviceIps(root)) {
+    collectDevice(path.join(root, ip), ip, sources);
   }
   sources.sort((a, b) => a.fileKey.localeCompare(b.fileKey));
   return sources;
 }
 
 /**
- * One file for this gateway. Current-day files that the archive has not
- * reached are written first. The archive then continues from the oldest
- * file that has no current mark. Returns false when there is nothing to read.
+ * Files at or after `floor`. A missing floor is only the UTC slot that
+ * contains `now`, so the first turn does not walk the archive.
+ */
+export function listTraceSourcesSince(
+  root: string,
+  deviceIp: string,
+  floor: string | null,
+  now: Date = new Date(),
+): TraceSource[] {
+  if (!floor) {
+    const bucket = bucketOf(now, 0);
+    const hourDir = path.join(root, deviceIp, bucket.year, bucket.month, bucket.day, bucket.hour);
+    const picked = pickSlot(hourDir, bucket.slot);
+    if (!picked) return [];
+    return [
+      {
+        deviceIp,
+        fileKey: `${deviceIp}/${bucketKey(bucket)}`,
+        abs: picked.abs,
+        gzip: picked.gzip,
+        size: picked.size,
+      },
+    ];
+  }
+  const sources: TraceSource[] = [];
+  collectSince(path.join(root, deviceIp), deviceIp, floor, sources);
+  sources.sort((a, b) => a.fileKey.localeCompare(b.fileKey));
+  return sources.filter((source) => source.fileKey >= floor);
+}
+
+/**
+ * One chunk for this gateway. The first turn records the end of the newest
+ * file and does not read it. Later turns read only bytes and slots after that
+ * mark. Returns false when there is nothing to do.
  */
 export async function stepDevice(
   deviceIp: string,
   files: readonly TraceSource[],
   repo: TraceRepository,
 ): Promise<boolean> {
-  if (files.length === 0) return false;
   const saved = await repo.loadCheckpointMeta(deviceIp);
-  if (saved.some((row) => !isLiveFileKey(row.fileKey) && row.version !== SMG_TRACE_PARSER_VERSION)) {
-    await repo.deleteStaleCheckpoints(deviceIp);
-  }
-  const meta = (await repo.loadCheckpointMeta(deviceIp)).filter(
-    (row) => row.version === SMG_TRACE_PARSER_VERSION && !isLiveFileKey(row.fileKey),
+  const foreign = saved.some((row) => row.version !== SMG_TRACE_PARSER_VERSION);
+  const hasLive = saved.some(
+    (row) => row.fileKey === LIVE_FILE_KEY && row.version === SMG_TRACE_PARSER_VERSION,
   );
-  const byKey = new Map(meta.map((row) => [row.fileKey, row]));
-  const day = dayOf(files[files.length - 1]!);
-  const dayFiles = files.filter((file) => dayOf(file) === day);
-  const live = await loadLive(repo, deviceIp, day);
-  const liveFile = nextLiveFile(dayFiles, live, byKey);
-  if (liveFile) {
-    await readLiveFile(deviceIp, liveFile, dayFiles, live, repo);
+  if (foreign) {
+    await repo.deleteStaleCheckpoints(deviceIp);
+    if (!hasLive) await repo.deleteCards(deviceIp);
+  }
+  let mark = await loadMark(repo, deviceIp);
+  if (!mark) {
+    if (files.length === 0) return false;
+    mark = seedMark(files);
+    await repo.saveCheckpoint(deviceIp, LIVE_FILE_KEY, 0, mark);
     return true;
   }
-  const archiveAt = firstUnmarked(files, byKey);
-  if (archiveAt < files.length) {
-    await readArchiveFile(deviceIp, files, archiveAt, repo);
+  const job = nextJob(files, mark);
+  if (!job) return false;
+  if (job.kind === "close") {
+    finishKey(mark, job.file.fileKey);
+    await repo.saveCheckpoint(deviceIp, LIVE_FILE_KEY, 0, mark);
     return true;
   }
-  const refresh = grownOpenFile(dayFiles, live, byKey);
-  if (refresh) {
-    await readLiveFile(deviceIp, refresh, dayFiles, live, repo);
-    return true;
+  if (job.file.fileKey !== mark.slotKey) {
+    mark.slotIndex += 1;
+    mark.slotKey = job.file.fileKey;
   }
-  return false;
+  await commitChunk(deviceIp, job.file, job.start, mark, repo);
+  if (job.file.gzip) finishKey(mark, job.file.fileKey);
+  else {
+    mark.floor = job.file.fileKey;
+    mark.tail = { key: job.file.fileKey, offset: job.file.size, rawSize: job.file.size };
+  }
+  await repo.saveCheckpoint(deviceIp, LIVE_FILE_KEY, 0, mark);
+  return true;
 }
 
-/** Read every gateway once. Tests use this to walk a fixture to the end. */
+function finishKey(mark: LiveMark, fileKey: string): void {
+  mark.floor = fileKey;
+  mark.tail = null;
+}
+
+/** Read until the gateway is idle. Tests use this to walk a fixture to the end. */
 export async function replayDevice(
   deviceIp: string,
   files: readonly TraceSource[],
   repo: TraceRepository,
 ): Promise<void> {
-  for (let n = 0; n < files.length * 3 + 2; n += 1) {
+  for (let n = 0; n < files.length * 4 + 4; n += 1) {
     const moved = await stepDevice(deviceIp, files, repo);
     if (!moved) return;
   }
 }
 
-type LiveCursor = {
-  day: string;
-  state: TraceState;
-  sizes: Record<string, number>;
-};
-
-async function loadLive(
-  repo: TraceRepository,
-  deviceIp: string,
-  day: string,
-): Promise<LiveCursor> {
-  const raw = await repo.loadCheckpointState(deviceIp, LIVE_FILE_KEY);
-  if (!raw || typeof raw !== "object") return { day, state: emptyTraceState(), sizes: {} };
-  const row = raw as { day?: unknown; state?: unknown; sizes?: unknown };
-  if (row.day !== day) return { day, state: emptyTraceState(), sizes: {} };
-  const sizes: Record<string, number> = {};
-  if (row.sizes && typeof row.sizes === "object") {
-    for (const [key, value] of Object.entries(row.sizes)) {
-      if (typeof value === "number") sizes[key] = value;
-    }
-  }
-  return { day, state: restoreTraceState(row.state), sizes };
+function seedMark(files: readonly TraceSource[]): LiveMark {
+  const newest = [...files].sort((a, b) => a.fileKey.localeCompare(b.fileKey)).at(-1)!;
+  const mark: LiveMark = {
+    floor: newest.fileKey,
+    tail: newest.gzip
+      ? null
+      : { key: newest.fileKey, offset: newest.size, rawSize: newest.size },
+    slotIndex: 0,
+    slotKey: newest.fileKey,
+    state: emptyTraceState(),
+  };
+  return mark;
 }
 
-function nextLiveFile(
-  dayFiles: readonly TraceSource[],
-  live: LiveCursor,
-  archived: ReadonlyMap<string, TraceCheckpointMeta>,
-): TraceSource | null {
-  for (const file of dayFiles) {
-    if (archived.has(file.fileKey)) continue;
-    if (live.sizes[file.fileKey] === file.size) continue;
-    if (!file.gzip && live.sizes[file.fileKey] != null) continue;
-    return file;
+type Job =
+  | { kind: "read"; file: TraceSource; start: number }
+  | { kind: "close"; file: TraceSource };
+
+function nextJob(files: readonly TraceSource[], mark: LiveMark): Job | null {
+  const sorted = [...files].sort((a, b) => a.fileKey.localeCompare(b.fileKey));
+  for (const file of sorted) {
+    if (file.fileKey < mark.floor) continue;
+    const tail = mark.tail;
+    if (tail && file.fileKey === tail.key) {
+      if (!file.gzip && file.size > tail.offset) return { kind: "read", file, start: tail.offset };
+      if (file.gzip && tail.offset < tail.rawSize) return { kind: "read", file, start: tail.offset };
+      if (file.gzip && tail.offset >= tail.rawSize) return { kind: "close", file };
+      continue;
+    }
+    if (!tail && file.fileKey === mark.floor) continue;
+    if (tail && file.fileKey < tail.key) continue;
+    return { kind: "read", file, start: 0 };
   }
   return null;
 }
 
-function grownOpenFile(
-  dayFiles: readonly TraceSource[],
-  live: LiveCursor,
-  archived: ReadonlyMap<string, TraceCheckpointMeta>,
-): TraceSource | null {
-  const last = dayFiles[dayFiles.length - 1];
-  if (!last || last.gzip || archived.has(last.fileKey)) return null;
-  if (live.sizes[last.fileKey] == null || live.sizes[last.fileKey] === last.size) return null;
-  return last;
-}
-
-async function readLiveFile(
+async function commitChunk(
   deviceIp: string,
   file: TraceSource,
-  dayFiles: readonly TraceSource[],
-  live: LiveCursor,
+  start: number,
+  mark: LiveMark,
   repo: TraceRepository,
 ): Promise<void> {
-  const index = Math.max(0, dayFiles.findIndex((item) => item.fileKey === file.fileKey));
-  const lastKey = dayFiles[dayFiles.length - 1]?.fileKey;
-  const fold = file.gzip || file.fileKey !== lastKey;
-  const base = fold ? live.state : cloneState(live.state);
-  await commitFile(deviceIp, file, base, index, repo);
-  if (fold) live.state = base;
-  live.sizes[file.fileKey] = file.size;
-  await repo.saveCheckpoint(deviceIp, LIVE_FILE_KEY, 0, live);
-}
-
-async function readArchiveFile(
-  deviceIp: string,
-  files: readonly TraceSource[],
-  index: number,
-  repo: TraceRepository,
-): Promise<void> {
-  const file = files[index]!;
-  let state = emptyTraceState();
-  if (index > 0) {
-    const previous = await repo.loadCheckpointState(deviceIp, files[index - 1]!.fileKey);
-    if (previous) state = restoreTraceState(previous);
-  }
-  await commitFile(deviceIp, file, state, index, repo);
-  await repo.saveCheckpoint(deviceIp, file.fileKey, file.size, state);
-  if (index > 0) await repo.clearCheckpointState(deviceIp, files[index - 1]!.fileKey);
-}
-
-async function commitFile(
-  deviceIp: string,
-  file: TraceSource,
-  state: TraceState,
-  index: number,
-  repo: TraceRepository,
-): Promise<void> {
-  const detached = await applySource(state, file);
+  const detached = await applySource(mark.state, file, start);
   let written = 0;
   for (const span of detached) written += await saveTagged(repo, deviceIp, span);
-  for (const span of commitTraceFile(state, index)) written += await saveTagged(repo, deviceIp, span);
-  const open = Object.values(state.spans).filter((span) => !span.echoed).length;
+  for (const span of commitTraceFile(mark.state, mark.slotIndex, file.fileKey)) {
+    written += await saveTagged(repo, deviceIp, span);
+  }
+  const open = Object.values(mark.state.spans).filter((span) => !span.ended).length;
   logger.info("smg.trace.file", {
     deviceIp,
     fileKey: file.fileKey,
@@ -231,25 +264,31 @@ async function commitFile(
   });
 }
 
-function firstUnmarked(
-  files: readonly TraceSource[],
-  archived: ReadonlyMap<string, TraceCheckpointMeta>,
-): number {
-  for (let i = 0; i < files.length; i += 1) {
-    const file = files[i]!;
-    const checkpoint = archived.get(file.fileKey);
-    if (!checkpoint || checkpoint.size !== file.size) return i;
+async function loadMark(repo: TraceRepository, deviceIp: string): Promise<LiveMark | null> {
+  const raw = await repo.loadCheckpointState(deviceIp, LIVE_FILE_KEY);
+  return parseMark(raw);
+}
+
+function parseMark(raw: unknown): LiveMark | null {
+  const floor = readLiveFloor(raw);
+  if (!floor || !raw || typeof raw !== "object") return null;
+  const row = raw as Partial<LiveMark>;
+  return {
+    floor,
+    tail: parseTail(row.tail),
+    slotIndex: typeof row.slotIndex === "number" ? row.slotIndex : 0,
+    slotKey: typeof row.slotKey === "string" ? row.slotKey : floor,
+    state: restoreTraceState(row.state),
+  };
+}
+
+function parseTail(value: unknown): Tail | null {
+  if (!value || typeof value !== "object") return null;
+  const row = value as Partial<Tail>;
+  if (typeof row.key !== "string" || typeof row.offset !== "number" || typeof row.rawSize !== "number") {
+    return null;
   }
-  return files.length;
-}
-
-function dayOf(file: TraceSource): string {
-  const parts = file.fileKey.split("/");
-  return `${parts[1]}/${parts[2]}/${parts[3]}`;
-}
-
-function cloneState(state: TraceState): TraceState {
-  return restoreTraceState(JSON.parse(JSON.stringify(state)) as unknown);
+  return { key: row.key, offset: row.offset, rawSize: row.rawSize };
 }
 
 async function saveTagged(
@@ -262,11 +301,14 @@ async function saveTagged(
   return 1;
 }
 
-export async function applySource(state: TraceState, file: TraceSource): Promise<TraceSpan[]> {
+export async function applySource(
+  state: TraceState,
+  file: TraceSource,
+  start = 0,
+): Promise<TraceSpan[]> {
   const detached: TraceSpan[] = [];
-  const input = createReadStream(file.abs);
-  const source = file.gzip ? input.pipe(createGunzip()) : input;
-  const lines = createInterface({ input: source, crlfDelay: Infinity });
+  const input = openTraceInput(file, start);
+  const lines = createInterface({ input, crlfDelay: Infinity });
   try {
     for await (const line of lines) {
       const gone = applyLine(state, line);
@@ -278,33 +320,125 @@ export async function applySource(state: TraceState, file: TraceSource): Promise
   return detached;
 }
 
+function openTraceInput(file: TraceSource, start: number): Readable {
+  if (!file.gzip) {
+    const input = createReadStream(file.abs, { start, end: Math.max(start, file.size - 1) });
+    if (start > 0 && byteBefore(file.abs, start) !== 0x0a) return dropPartialLine(input);
+    return input;
+  }
+  const fileStream = createReadStream(file.abs);
+  const gunzip = createGunzip();
+  fileStream.on("error", (error) => gunzip.destroy(error));
+  fileStream.pipe(gunzip);
+  if (start <= 0) return gunzip;
+  return skipUncompressed(gunzip, start);
+}
+
+function byteBefore(abs: string, offset: number): number {
+  const fd = openSync(abs, "r");
+  try {
+    const buf = Buffer.alloc(1);
+    const n = readSync(fd, buf, 0, 1, offset - 1);
+    return n === 1 ? (buf[0] ?? 0x0a) : 0x0a;
+  } finally {
+    closeSync(fd);
+  }
+}
+
+function dropPartialLine(source: Readable): Readable {
+  return skipUncompressed(source, 0, true);
+}
+
+function skipUncompressed(source: Readable, count: number, forceDrop = false): Readable {
+  const out = new PassThrough();
+  let skip = count;
+  let last = 0x0a;
+  let dropping = forceDrop;
+  source.on("data", (chunk: Buffer) => {
+    let rest = chunk;
+    if (skip > 0) {
+      if (rest.length <= skip) {
+        last = rest[rest.length - 1] ?? last;
+        skip -= rest.length;
+        return;
+      }
+      last = rest[skip - 1] ?? last;
+      rest = rest.subarray(skip);
+      skip = 0;
+      dropping = last !== 0x0a;
+    }
+    if (dropping) {
+      const nl = rest.indexOf(0x0a);
+      if (nl < 0) return;
+      dropping = false;
+      rest = rest.subarray(nl + 1);
+    }
+    if (rest.length > 0) out.write(rest);
+  });
+  source.on("end", () => out.end());
+  source.on("error", (error) => out.destroy(error));
+  return out;
+}
+
 function collectDevice(dir: string, ip: string, sources: TraceSource[]): void {
   for (const year of childNames(dir, YEAR)) {
     for (const month of childNames(path.join(dir, year), MONTH)) {
       for (const day of childNames(path.join(dir, year, month), DAY)) {
-          for (const hour of childNames(path.join(dir, year, month, day), HOUR)) {
-            const hourDir = path.join(dir, year, month, day, hour);
-            for (const slot of slotNames(hourDir)) {
-            const picked = pickSlot(hourDir, slot);
-            if (!picked) continue;
-            sources.push({
-              deviceIp: ip,
-              fileKey: `${ip}/${year}/${month}/${day}/${hour}/${slot}`,
-              abs: picked.abs,
-              gzip: picked.gzip,
-              size: picked.size,
-            });
-          }
+        for (const hour of childNames(path.join(dir, year, month, day), HOUR)) {
+          pushHour(path.join(dir, year, month, day, hour), ip, year, month, day, hour, sources);
         }
       }
     }
   }
 }
 
+function collectSince(dir: string, ip: string, floor: string, sources: TraceSource[]): void {
+  const min = floor.split("/").slice(1);
+  const minYear = min[0] ?? "";
+  const minMonth = min[1] ?? "";
+  const minDay = min[2] ?? "";
+  const minHour = min[3] ?? "";
+  for (const year of childNames(dir, YEAR)) {
+    if (year < minYear) continue;
+    for (const month of childNames(path.join(dir, year), MONTH)) {
+      if (year === minYear && month < minMonth) continue;
+      for (const day of childNames(path.join(dir, year, month), DAY)) {
+        if (year === minYear && month === minMonth && day < minDay) continue;
+        for (const hour of childNames(path.join(dir, year, month, day), HOUR)) {
+          if (year === minYear && month === minMonth && day === minDay && hour < minHour) continue;
+          pushHour(path.join(dir, year, month, day, hour), ip, year, month, day, hour, sources);
+        }
+      }
+    }
+  }
+}
+
+function pushHour(
+  hourDir: string,
+  ip: string,
+  year: string,
+  month: string,
+  day: string,
+  hour: string,
+  sources: TraceSource[],
+): void {
+  for (const slot of slotNames(hourDir)) {
+    const picked = pickSlot(hourDir, slot);
+    if (!picked) continue;
+    sources.push({
+      deviceIp: ip,
+      fileKey: `${ip}/${year}/${month}/${day}/${hour}/${slot}`,
+      abs: picked.abs,
+      gzip: picked.gzip,
+      size: picked.size,
+    });
+  }
+}
+
 function childNames(dir: string, pattern: RegExp): string[] {
   try {
     return readdirSync(dir, { withFileTypes: true })
-      .filter((entry) => entry.isDirectory() && pattern.test(entry.name))
+      .filter((entry) => entry.isDirectory() && !entry.isSymbolicLink() && pattern.test(entry.name))
       .map((entry) => entry.name)
       .sort();
   } catch {
@@ -316,7 +450,7 @@ function slotNames(dir: string): string[] {
   const found = new Set<string>();
   try {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      if (!entry.isFile()) continue;
+      if (!entry.isFile() || entry.isSymbolicLink()) continue;
       const match = entry.name.match(/^(00|10|20|30|40|50)\.log(?:\.gz)?$/);
       if (match?.[1]) found.add(match[1]);
     }

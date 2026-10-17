@@ -8,8 +8,14 @@ import type {
   TraceSignalLeg,
 } from "@/modules/smg-trace/types";
 
-/** Bump to re-read every syslog file that is still on disk. */
-export const SMG_TRACE_PARSER_VERSION = 2;
+/**
+ * Version 3 remembers the end of the syslog already on disk and reads only
+ * bytes appended after that. It does not re-read the archive.
+ */
+export const SMG_TRACE_PARSER_VERSION = 3;
+
+/** A call with no release and no reject leaves the assembler after this long. */
+export const SMG_TRACE_HOLD_MS = 4 * 60 * 60 * 1000;
 
 const NOTE_CAP = 40;
 const STEP_CAP = 80;
@@ -51,6 +57,12 @@ export type TraceSpan = {
   lastPort: string;
   /** Index of the file where `unique tag:` was seen. Null until that line. */
   echoGeneration: number | null;
+  /** `Release time-stamp` or `Call rejected` has been seen. */
+  ended: boolean;
+  /** Slot index of the file that ended the call. Null until that commit. */
+  releaseGeneration: number | null;
+  /** File key of the slot where this call was first committed. */
+  startedKey: string;
   lead: string[];
   attempts: Attempt[];
   signal: TraceSignalLeg[];
@@ -103,11 +115,16 @@ export function restoreTraceState(value: unknown): TraceState {
 }
 
 /**
- * Write only the calls this file changed. A call whose CDR echo was already
- * kept through the previous file leaves the state. A call that has not echoed
- * stays, including its unanswered RADIUS id.
+ * Write the calls this slot changed. A call stays until `Release time-stamp`
+ * or `Call rejected`, and through the next slot, so a line just past a file
+ * boundary is kept. A call with neither line leaves after four hours of slot
+ * time. The saved card stays in the table either way.
  */
-export function commitTraceFile(state: TraceState, fileIndex: number): TraceSpan[] {
+export function commitTraceFile(
+  state: TraceState,
+  fileIndex: number,
+  fileKey = "",
+): TraceSpan[] {
   const saved: TraceSpan[] = [];
   const seen = new Set<string>();
   for (const callref of state.dirty) {
@@ -116,17 +133,47 @@ export function commitTraceFile(state: TraceState, fileIndex: number): TraceSpan
     seen.add(span.tag);
     saved.push(span);
   }
+  const now = fileKey ? slotInstant(fileKey) : null;
   for (const span of Object.values(state.spans)) {
-    if (span.echoed && span.echoGeneration == null) span.echoGeneration = fileIndex;
+    if (!span.startedKey && fileKey) span.startedKey = fileKey;
+    if (span.ended && span.releaseGeneration == null) span.releaseGeneration = fileIndex;
   }
   for (const [callref, span] of Object.entries(state.spans)) {
-    if (span.echoGeneration == null || span.echoGeneration >= fileIndex) continue;
+    const born = span.startedKey ? slotInstant(span.startedKey) : null;
+    const expired = now != null && born != null && now - born >= SMG_TRACE_HOLD_MS;
+    const finished = span.releaseGeneration != null && span.releaseGeneration < fileIndex;
+    if (!finished && !expired) continue;
+    if (span.tag && !seen.has(span.tag)) {
+      seen.add(span.tag);
+      saved.push(span);
+    }
     delete state.spans[callref];
     state.inflight = state.inflight.filter((item) => item.callref !== callref);
     if (state.collecting?.callref === callref) state.collecting = null;
   }
   state.dirty = [];
   return saved;
+}
+
+/** UTC instant of a `ip/year/month/day/hour/slot` key. The slot is the minute. */
+export function slotInstant(fileKey: string): number | null {
+  const parts = fileKey.split("/");
+  if (parts.length < 6) return null;
+  const year = Number(parts[1]);
+  const month = Number(parts[2]);
+  const day = Number(parts[3]);
+  const hour = Number(parts[4]);
+  const minute = Number(parts[5]);
+  if (
+    !Number.isInteger(year) ||
+    !Number.isInteger(month) ||
+    !Number.isInteger(day) ||
+    !Number.isInteger(hour) ||
+    !Number.isInteger(minute)
+  ) {
+    return null;
+  }
+  return Date.UTC(year, month - 1, day, hour, minute);
 }
 
 /** Apply one syslog file. Returns spans that a newer tag replaced. */
@@ -338,11 +385,16 @@ function absorb(state: TraceState, span: TraceSpan, payload: string): void {
   const seenPort = portOf(payload);
   if (seenPort) span.lastPort = seenPort;
   markEcho(span, payload);
+  markEnd(span, payload);
   absorbSignal(span, payload);
   absorbNumbers(span, payload);
   absorbTimes(span, payload);
   absorbMedia(span, payload);
   absorbAntifraud(state, span, payload);
+}
+
+function markEnd(span: TraceSpan, payload: string): void {
+  if (/Release\s+time-stamp:/.test(payload) || /Call rejected/i.test(payload)) span.ended = true;
 }
 
 function markEcho(span: TraceSpan, payload: string): void {
@@ -657,6 +709,9 @@ function createSpan(callref: string): TraceSpan {
     party: "",
     lastPort: "",
     echoGeneration: null,
+    ended: false,
+    releaseGeneration: null,
+    startedKey: "",
     lead: [],
     attempts: [],
     signal: [],
