@@ -5,7 +5,7 @@
 
 import { formatCount } from "@/lib/format-count";
 import { billableMinutes } from "@/modules/enrich/types";
-import { isSmgField, SMG_PHONE_FIELDS, type SmgField } from "@/modules/smg/columns";
+import { isSmgField, type SmgField } from "@/modules/smg/columns";
 import {
   AF_CATEGORY,
   AF_STATUS,
@@ -97,14 +97,9 @@ export const SMG_SUMMARY_FACET_COLUMNS = [
 ] as const satisfies readonly SmgField[];
 
 const DERIVED_SET = new Set<string>(SMG_SUMMARY_DERIVED);
-const PHONE_SET = new Set<string>(SMG_PHONE_FIELDS);
 
 export function isSmgSummaryDerived(column: string): column is SmgSummaryDerived {
   return DERIVED_SET.has(column);
-}
-
-export function isSmgSummaryPhoneColumn(column: string): boolean {
-  return PHONE_SET.has(column);
 }
 
 type ClockSource = {

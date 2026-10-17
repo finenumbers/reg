@@ -1,7 +1,13 @@
-# Current Phase — production (v1.148.0)
+# Current Phase — production (v1.149.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, Eltex SMG CDR, Eltex SMG syslog.  
 **Date:** 2026-10-18
+
+## v1.149.0 — Unused helpers are removed
+
+There is no migration. Stored calls, syslog cards, exports, and screens stay as they are. If v1.148.0 is already running, do not stop `app` for this update.
+
+Nothing called the RADIUS code label, the unused SMG summary phone-column check, or the unused syslog secret redactor. Those helpers are gone. Passwords and the RADIUS shared secret stay on the card. The audit log still shows the old SMG FTP labels. New events of that kind are not written.
 
 ## v1.148.0 — SMG antifraud card is the raw syslog exchange
 

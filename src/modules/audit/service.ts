@@ -23,8 +23,6 @@ export const AUDIT_ACTIONS = {
   PSTN_TEST: "pstn.test",
   FTP_PASSWORD_REPLACE: "ftp.password_replace",
   FTP_TEST: "ftp.test",
-  SMG_FTP_PASSWORD_REPLACE: "smg.ftp.password_replace",
-  SMG_FTP_TEST: "smg.ftp.test",
   SMG_IMPORT_MANUAL: "smg.import_manual",
   SMG_IMPORT_START: "smg.import_start",
   SMG_IMPORT_FINISH: "smg.import_finish",

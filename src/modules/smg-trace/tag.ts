@@ -34,14 +34,3 @@ export function traceSearchKeys(uniqueTag: string, radiusSessionId: string): str
   }
   return [...keys];
 }
-
-/**
- * The shared secret is the suffix of `Server[n]: ip:port:SECRET`.
- * Keep the address and drop the secret before any line is stored.
- */
-export function redactSecrets(line: string): string {
-  return line.replace(
-    /(Server\[\d+\]:\s*\d{1,3}(?:\.\d{1,3}){3}:\d+):\S+/g,
-    "$1",
-  );
-}

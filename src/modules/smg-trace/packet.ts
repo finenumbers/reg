@@ -6,12 +6,6 @@ export type RadiusPacket = {
   attributes: TraceAttr[];
 };
 
-export function radiusCodeLabel(code: number): string {
-  if (code === 2) return "2 Access-Accept";
-  if (code === 3) return "3 Access-Reject";
-  return String(code);
-}
-
 /**
  * Parse a RADIUS packet from the hex the gateway prints while checking the reply digest.
  * Bytes past the packet length are the shared secret mixed into the digest and are ignored.
