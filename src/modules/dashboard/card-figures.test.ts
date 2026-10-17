@@ -13,7 +13,13 @@ const vacuum = vi.fn(() => false);
 
 vi.mock("@/lib/db", () => ({
   prisma: {
-    $transaction: (...args: unknown[]) => transaction(...args),
+    $transaction: (
+      fn: (tx: {
+        $executeRaw: typeof executeRaw;
+        $queryRaw: typeof queryRaw;
+      }) => Promise<unknown>,
+      opts?: unknown,
+    ) => transaction(fn, opts),
   },
 }));
 
