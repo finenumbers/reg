@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireApiPermission } from "@/modules/auth/guards";
+import { requireSessionUserId } from "@/modules/auth/session";
 import { readSmgExportJob } from "@/modules/smg/export-job";
 
 export const runtime = "nodejs";
@@ -10,6 +11,14 @@ type RouteContext = { params: Promise<{ id: string }> };
 export async function GET(_request: Request, context: RouteContext) {
   const gate = await requireApiPermission("phones:read");
   if (!gate.ok) return gate.response;
+  try {
+    requireSessionUserId(gate.ctx);
+  } catch {
+    return NextResponse.json(
+      { error: "Forbidden", code: "FORBIDDEN" },
+      { status: 403 },
+    );
+  }
   const { id } = await context.params;
   const job = readSmgExportJob(id);
   if (!job) {

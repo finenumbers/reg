@@ -1,7 +1,15 @@
-# Current Phase — production (v1.149.0)
+# Current Phase — production (v1.150.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, Eltex SMG CDR, Eltex SMG syslog.  
 **Date:** 2026-10-18
+
+## v1.150.0 — SMG export stays on the session, and the syslog card cannot stall the dashboard
+
+There is no migration. Stored calls and syslog cards stay as they are. Do not stop `app` for this update.
+
+«Сохранить данные» on «Трафик SMG» and «Звонки на SMG» still starts from a signed-in browser. A machine API key is refused on the start, the status, and the download. The one-at-a-time build is unchanged.
+
+The syslog card still counts sent `Request ID` lines in the stored card text. That read is limited to 8 seconds, inside its own transaction, so the limit does not stay on the connection. A timeout or a database error leaves «…» and is not remembered; the next refresh tries again. A real zero stays zero. The match is case-insensitive, the same way the call card reads those lines. Vacuum still skips the count.
 
 ## v1.149.0 — Unused helpers are removed
 

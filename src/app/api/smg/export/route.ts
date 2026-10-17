@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { ColumnFilters } from "@/components/column-filters/types";
 import { assertSameOrigin } from "@/lib/csrf";
 import { requireApiPermission } from "@/modules/auth/guards";
+import { requireSessionUserId } from "@/modules/auth/session";
 import { beginSmgExportJob } from "@/modules/smg/export-job";
 import type { SmgExportLayout } from "@/modules/smg/xlsx-export";
 import { cdrVacuumBusyResponse } from "@/modules/storage/vacuum/http";
@@ -37,6 +38,15 @@ export async function POST(request: Request) {
   if (!gate.ok) return gate.response;
   const busy = cdrVacuumBusyResponse();
   if (busy) return busy;
+
+  try {
+    requireSessionUserId(gate.ctx);
+  } catch {
+    return NextResponse.json(
+      { error: "Forbidden", code: "FORBIDDEN" },
+      { status: 403 },
+    );
+  }
 
   let body: unknown = null;
   try {
