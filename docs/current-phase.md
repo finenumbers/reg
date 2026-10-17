@@ -1,7 +1,13 @@
-# Current Phase — production (v1.144.0)
+# Current Phase — production (v1.145.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, Eltex SMG CDR, Eltex SMG syslog.  
 **Date:** 2026-10-17
+
+## v1.145.0 — The trace pass no longer takes the site down
+
+The app process died when it loaded every stored trace mark for a gateway into memory. Those marks from the first pass were large enough to exhaust the heap. The process exits, and the proxy answers 502 until it starts again and dies on the same read.
+
+The pass now lists marks without their JSON. Marks from the first pass are deleted by a query. Call cards already written stay. Only the newest archive mark keeps the working state. Each scheduler turn reads at most one file per gateway, so Kazan, MTS, Fixer and Moscow all move. The newest day is written to cards first and is not marked finished for the archive. The archive reads that day again when it gets there and replaces the card with the full call.
 
 ## v1.144.0 — SMG export stays off the page, and the dashboard reads closer
 

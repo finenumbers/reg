@@ -12,7 +12,7 @@ import {
 } from "@/modules/smg-trace/assemble";
 import { decideTraceRows } from "@/modules/smg-trace/match";
 import { traceSearchKeys } from "@/modules/smg-trace/tag";
-import { listTraceSources, replayDevice, type TraceRepository } from "@/modules/smg-trace/walk";
+import { listTraceSources, replayDevice, stepDevice, type TraceRepository } from "@/modules/smg-trace/walk";
 
 const TAG = "110003366ad22499cb71df5e013ba801";
 const TAG_SPACED = "11000336 6ad22499 cb71df5e 013ba801";
@@ -428,24 +428,12 @@ describe("syslog file walk", () => {
     ]);
 
     const saved: { tag: string; reply: string }[] = [];
-    const repo: TraceRepository = {
-      async loadCheckpoints() {
-        return [];
-      },
-      async resetDevice() {},
-      async saveSpan(_ip, span) {
-        saved.push({
-          tag: span.tag,
-          reply: projectSpan(span).antifraud.legs[0]?.replyCode ?? "",
-        });
-      },
-      async saveCheckpoint() {},
-    };
-    await replayDevice("10.1.2.3", sources, repo);
+    const repo = memoryRepo(saved);
+    await replayDevice("10.1.2.3", sources, repo.repo);
     expect(saved.some((row) => row.tag === TAG && row.reply === "2 Access-Accept")).toBe(true);
   });
 
-  it("drops a closed call after the following file and does not write it again", async () => {
+  it("drops a closed call after the following file and writes it again from the archive", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "smg-trace-"));
     const hour = path.join(root, "10.1.2.3", "2026", "10", "16", "07");
     mkdirSync(hour, { recursive: true });
@@ -458,22 +446,116 @@ describe("syslog file walk", () => {
     writeFileSync(path.join(hour, "10.log.gz"), gzipSync(Buffer.from(later)));
     writeFileSync(path.join(hour, "20.log.gz"), gzipSync(Buffer.from(later)));
 
-    const saved: string[] = [];
+    const saved: { tag: string; reply: string }[] = [];
     let held = -1;
-    const repo: TraceRepository = {
-      async loadCheckpoints() {
-        return [];
-      },
-      async resetDevice() {},
-      async saveSpan(_ip, span) {
-        saved.push(span.tag);
-      },
-      async saveCheckpoint(_ip, fileKey, _size, state) {
-        if (fileKey.endsWith("/20")) held = Object.values(state.spans).filter((span) => span.tag === TAG).length;
-      },
+    const repo = memoryRepo(saved);
+    const previousSave = repo.repo.saveCheckpoint.bind(repo.repo);
+    repo.repo.saveCheckpoint = async (ip, fileKey, size, state) => {
+      await previousSave(ip, fileKey, size, state);
+      if (fileKey.endsWith("/20")) {
+        const row = state as { spans?: Record<string, { tag?: string }> };
+        held = Object.values(row.spans ?? {}).filter((span) => span.tag === TAG).length;
+      }
     };
-    await replayDevice("10.1.2.3", listTraceSources(root), repo);
-    expect(saved.filter((tag) => tag === TAG)).toEqual([TAG]);
+    await replayDevice("10.1.2.3", listTraceSources(root), repo.repo);
+    expect(saved.filter((row) => row.tag === TAG).length).toBe(2);
     expect(held).toBe(0);
+    expect(repo.cards.has(TAG)).toBe(true);
+  });
+
+  it("drops old assembler marks without reading them and keeps cards", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "smg-trace-"));
+    const hour = path.join(root, "10.1.2.3", "2026", "10", "16", "08");
+    mkdirSync(hour, { recursive: true });
+    writeFileSync(
+      path.join(hour, "00.log.gz"),
+      gzipSync(Buffer.from(line("C0000F6", `Port SIPT:0001. Set UniqueTag: '${TAG}'`))),
+    );
+    const saved: { tag: string; reply: string }[] = [];
+    const repo = memoryRepo(saved);
+    repo.cards.add("already-there");
+    repo.rows.set("10.1.2.3/2026/10/16/08/00", {
+      fileKey: "10.1.2.3/2026/10/16/08/00",
+      size: 1,
+      version: 1,
+      state: { huge: true },
+    });
+    let sawState = false;
+    const previousMeta = repo.repo.loadCheckpointMeta.bind(repo.repo);
+    repo.repo.loadCheckpointMeta = async (ip) => {
+      const rows = await previousMeta(ip);
+      if (rows.some((row) => "state" in row)) sawState = true;
+      return rows;
+    };
+    await stepDevice("10.1.2.3", listTraceSources(root), repo.repo);
+    expect(sawState).toBe(false);
+    expect(repo.rows.has("10.1.2.3/2026/10/16/08/00") && repo.rows.get("10.1.2.3/2026/10/16/08/00")?.version === 1).toBe(false);
+    expect(repo.cards.has("already-there")).toBe(true);
+    expect([...repo.rows.keys()].some((key) => key.endsWith("/00"))).toBe(false);
+  });
+
+  it("does not mark today as archived before the archive reaches it", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "smg-trace-"));
+    const yesterday = path.join(root, "10.1.2.3", "2026", "10", "15", "23");
+    const today = path.join(root, "10.1.2.3", "2026", "10", "16", "00");
+    mkdirSync(yesterday, { recursive: true });
+    mkdirSync(today, { recursive: true });
+    writeFileSync(
+      path.join(yesterday, "50.log.gz"),
+      gzipSync(Buffer.from(line("C0000F6", `Port SIPT:0001. Set UniqueTag: '${TAG}'`))),
+    );
+    writeFileSync(
+      path.join(today, "00.log.gz"),
+      gzipSync(Buffer.from(line("C0000F7", "Port SIPT:0002. Set UniqueTag: '1100004f6ad201cc2265912949b40dde'"))),
+    );
+    const saved: { tag: string; reply: string }[] = [];
+    const repo = memoryRepo(saved);
+    const sources = listTraceSources(root);
+    await stepDevice("10.1.2.3", sources, repo.repo);
+    expect([...repo.rows.keys()].filter((key) => !key.startsWith("@"))).toEqual([]);
+    expect(saved.some((row) => row.tag === TAG)).toBe(false);
+    await replayDevice("10.1.2.3", sources, repo.repo);
+    expect(saved.some((row) => row.tag === TAG)).toBe(true);
+    expect([...repo.rows.keys()].some((key) => key.endsWith("/50"))).toBe(true);
   });
 });
+
+function memoryRepo(saved: { tag: string; reply: string }[]) {
+  const rows = new Map<
+    string,
+    { fileKey: string; size: number; version: number; state: unknown }
+  >();
+  const cards = new Set<string>();
+  const repo: TraceRepository = {
+    async loadCheckpointMeta() {
+      return [...rows.values()].map((row) => ({
+        fileKey: row.fileKey,
+        size: row.size,
+        version: row.version,
+      }));
+    },
+    async loadCheckpointState(_ip, fileKey) {
+      return rows.get(fileKey)?.state ?? null;
+    },
+    async deleteStaleCheckpoints() {
+      for (const [key, row] of rows) {
+        if (row.version !== 2) rows.delete(key);
+      }
+    },
+    async clearCheckpointState(_ip, fileKey) {
+      const row = rows.get(fileKey);
+      if (row) row.state = {};
+    },
+    async saveSpan(_ip, span) {
+      cards.add(span.tag);
+      saved.push({
+        tag: span.tag,
+        reply: projectSpan(span).antifraud.legs[0]?.replyCode ?? "",
+      });
+    },
+    async saveCheckpoint(_ip, fileKey, size, state) {
+      rows.set(fileKey, { fileKey, size, version: 2, state });
+    },
+  };
+  return { repo, rows, cards };
+}
