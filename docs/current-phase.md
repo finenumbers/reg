@@ -1,7 +1,17 @@
-# Current Phase — production (v1.147.0)
+# Current Phase — production (v1.148.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, Eltex SMG CDR, Eltex SMG syslog.  
-**Date:** 2026-10-17
+**Date:** 2026-10-18
+
+## v1.148.0 — SMG antifraud card is the raw syslog exchange
+
+Stop `app` before this update. There is no migration. Parser version 4 deletes the gateway's checkpoints, and deletes its call cards when that gateway has no version-4 live mark. The first turn then marks the end of the newest syslog file and does not read the archive. Existing CDR rows stay «Нет данных» until a new call is assembled. `smg-syslog` keeps writing. The previous process still writes version-3 cards; if it is running when the cards are deleted, it writes them back.
+
+The card is the AntiFraud exchange of that call, as printed, with only the syslog prefix removed. Passwords and the RADIUS shared secret stay. A card that is still collecting stays «Ожидание АнтиФрода» and «Неизвестно» through the release line and the next ten-minute slot, or for four hours when the call never ends. A finished card with no AntiFraud lines is «Не проверялся». Two cards for one tag stay «Разбор не сошёлся».
+
+«АнтиФрод» then names what happened: «Не отправлялся», «Запрос не ушёл», «Пропущен», «Пропущен на входе», «Пропущен на выходе», «Заблокирован на входе», «Заблокирован на выходе», «Отказ на входе не применён», «Отказ на выходе не применён», «Отказ на обоих шагах не применён», «Нет ответа сервера», «Снят без ответа сервера». «Статус АнтиФрод» is «Не было запроса», «Не тип number», «Нет ответа», «С первой попытки», «Повтор на входе», «Повтор на выходе», or «Повтор на обоих шагах». A saved column filter that used an older label matches nothing.
+
+The panel shows that text as written. The dashboard counts sent `Request ID` lines in the text and starts again from zero after the wipe.
 
 ## v1.147.0 — SMG calls show the Griffin antifraud result
 

@@ -4,250 +4,206 @@ import {
   AF_STATUS,
   classifyAntifraud,
 } from "@/modules/smg-trace/classify";
-import type { TraceBlocks, TraceLeg } from "@/modules/smg-trace/types";
+import type { TraceBlocks } from "@/modules/smg-trace/types";
 
-function leg(patch: Partial<TraceLeg> = {}): TraceLeg {
-  return {
-    side: "",
-    requestId: "",
-    requestType: "number",
-    origin: "",
-    attempts: "",
-    sessionId: "",
-    profile: "",
-    tg: "",
-    reason: "",
-    wait: "",
-    server: "",
-    numbers: "",
-    useAf: "",
-    attributes: [],
-    reply: "",
-    replyCode: "",
-    replyAttributes: [],
-    replyTime: "",
-    ignored: "",
-    released: "",
-    notes: [],
-    ...patch,
-  };
+function card(text: string, mismatch = false): TraceBlocks {
+  return { text, mismatch };
 }
 
-function blocks(patch: Partial<TraceBlocks["antifraud"]> = {}, rest: Partial<TraceBlocks> = {}): TraceBlocks {
-  return {
-    antifraud: {
-      summary: "",
-      rejecting: "",
-      mismatch: false,
-      notes: [],
-      legs: [],
-      ...patch,
-    },
-    signal: rest.signal ?? [],
-    numbers: rest.numbers ?? [],
-    times: rest.times ?? [],
-    media: rest.media ?? [],
-  };
+function labels(closed: boolean, text: string, mismatch = false) {
+  return classifyAntifraud({ closed, blocks: card(text, mismatch) });
 }
 
-function labels(closed: boolean, card: TraceBlocks) {
-  return classifyAntifraud({ closed, blocks: card });
-}
+const ACCEPT_IN = [
+  "Accs-Request for Antifraud: check TG(i/o): 5(ext)/0(ext), USE_AF 1, SD 1, OS 0, RREQ 4.",
+  "RADIUS: Accs-Request [antifraud]",
+  "Request ID [078] is sent",
+  "h323-call-origin                 = 'originate'",
+  "Request ID [078] got valid reply for accs (in 27 ms)",
+  "Request ID [078] Accs-Reply [accept]. Time [27:27]",
+].join("\n");
+
+const ACCEPT_OUT = [
+  "Accs-Request for Antifraud: check TG(i/o): 5(ext)/0(ext), USE_AF 1, SD 0, OS 1, RREQ 5.",
+  "RADIUS: Accs-Request [antifraud_out]",
+  "Request ID [079] is sent",
+  "h323-call-origin                 = 'answer'",
+  "Request ID [079] got valid reply for accs (in 20 ms)",
+  "Request ID [079] Accs-Reply [accept]. Time [20:20]",
+].join("\n");
 
 describe("classifyAntifraud", () => {
-  it("keeps an open card unlabeled so a late reject cannot replace a pass", () => {
-    const card = blocks({
-      legs: [leg({ side: "in", requestId: "1", reply: "accept", replyCode: "2 Access-Accept" })],
-    });
-    expect(labels(false, card)).toEqual({
-      category: AF_CATEGORY.noData,
+  it("keeps an open card waiting so a late line cannot replace the result", () => {
+    expect(labels(false, `${ACCEPT_IN}\n${ACCEPT_OUT}`)).toEqual({
+      category: AF_CATEGORY.waiting,
       status: AF_STATUS.unknown,
     });
   });
 
-  it("names a finished call the gateway checked and did not send", () => {
-    const card = blocks({
-      legs: [leg({ useAf: "0", tg: "1(ext)/0(ext), RREQ 4" })],
+  it("names a closed call with no antifraud lines", () => {
+    expect(labels(true, "")).toEqual({
+      category: AF_CATEGORY.notChecked,
+      status: AF_STATUS.unknown,
     });
-    expect(labels(true, card)).toEqual({
+  });
+
+  it("names a gateway that chose not to send", () => {
+    expect(
+      labels(true, "Accs-Request for Antifraud: check TG(i/o): 5(ext)/-1(loc), USE_AF 0, SD 0, OS 0, RREQ 4."),
+    ).toEqual({
       category: AF_CATEGORY.notSent,
       status: AF_STATUS.noRequest,
     });
   });
 
-  it("does not treat a tail without the call start as unconsidered", () => {
-    expect(labels(true, blocks())).toEqual({
-      category: AF_CATEGORY.noData,
-      status: AF_STATUS.unknown,
-    });
+  it("names a check that never sent a packet", () => {
+    expect(
+      labels(
+        true,
+        [
+          "Accs-Request for Antifraud: check TG(i/o): 5(ext)/0(ext), USE_AF 1, SD 1, OS 0, RREQ 4.",
+          "Accs-Request for Antifraud: no flags set - skip.",
+        ].join("\n"),
+      ).category,
+    ).toBe(AF_CATEGORY.requestMissing);
   });
 
-  it("names a finished call that never reached antifraud", () => {
-    const card = blocks({}, { times: [{ port: "SIPT:1", event: "Setup", stamp: "t", delta: "" }] });
-    expect(labels(true, card)).toEqual({
-      category: AF_CATEGORY.notConsidered,
-      status: AF_STATUS.unknown,
-    });
-  });
-
-  it("names a check that was supposed to send and did not", () => {
-    const card = blocks({ legs: [leg({ useAf: "1", side: "in" })] });
-    expect(labels(true, card).category).toBe(AF_CATEGORY.requestMissing);
-  });
-
-  it("ignores the no-flags pass and the empty server-rejected field", () => {
-    const card = blocks({
-      rejecting: ":0",
-      legs: [
-        leg({
-          side: "in",
-          origin: "originate",
-          requestId: "1",
-          reply: "accept",
-          replyCode: "2 Access-Accept",
-        }),
-        leg({
-          side: "out",
-          origin: "answer",
-          requestId: "2",
-          ignored: "ignore for not antifraud verify stage",
-          replyCode: "2 Access-Accept",
-        }),
-        leg({ useAf: "1" }),
-      ],
-    });
-    expect(labels(true, card)).toEqual({
-      category: AF_CATEGORY.passedOutIgnored,
+  it("calls both accepts passed, including a trailing skip", () => {
+    const text = [
+      ACCEPT_IN,
+      ACCEPT_OUT,
+      "Accs-Request for Antifraud: check TG(i/o): 5(ext)/0(ext), USE_AF 1, SD 0, OS 0, RREQ 5.",
+      "Accs-Request for Antifraud: no flags set - skip.",
+    ].join("\n");
+    expect(labels(true, text)).toEqual({
+      category: AF_CATEGORY.passed,
       status: AF_STATUS.firstTry,
     });
   });
 
-  it("keeps a resend on the status and the final reject on the category", () => {
-    const card = blocks({
-      legs: [
-        leg({
-          side: "in",
-          requestId: "166",
-          attempts: "2 of 3",
-          reply: "reject",
-          replyCode: "3 Access-Reject",
-          released: "Call rejected. cause 0x0015",
-        }),
-      ],
+  it("treats an old-firmware ignore plus reply as a pass", () => {
+    const text = [
+      ACCEPT_IN,
+      "Accs-Request for Antifraud: check TG(i/o): 27(ext)/26(ext), USE_AF 1, SD 0, OS 1, RREQ 5.",
+      "RADIUS: Accs-Request [antifraud_out]",
+      "Request ID [085] send. Attempt: 1. Srv-grp [0]",
+      "h323-call-origin                 = 'answer'",
+      "Request ID [085] got valid reply for accs (in 171 ms)",
+      "Request ID [085] process reply: ignore for not antifraud verify stage.",
+    ].join("\n");
+    expect(labels(true, text)).toEqual({
+      category: AF_CATEGORY.passed,
+      status: AF_STATUS.firstTry,
     });
-    expect(labels(true, card)).toEqual({
+  });
+
+  it("does not let an early USE_AF 0 hide a sent accept", () => {
+    expect(
+      labels(
+        true,
+        `Accs-Request for Antifraud: check TG(i/o): 5(ext)/-1(loc), USE_AF 0, SD 0, OS 0, RREQ 4.\n${ACCEPT_IN}`,
+      ).category,
+    ).toBe(AF_CATEGORY.passedIn);
+  });
+
+  it("blocks the leg that was rejected and released", () => {
+    const text = [
+      "Accs-Request for Antifraud: check TG(i/o): 5(ext)/0(ext), USE_AF 1, SD 1, OS 0, RREQ 4.",
+      "RADIUS: Accs-Request [antifraud]",
+      "Request ID [010] is sent. Attempt: 2",
+      "Request ID [010] Accs-Reply [reject]",
+      "Call rejected. cause 0x0015",
+    ].join("\n");
+    expect(labels(true, text)).toEqual({
       category: AF_CATEGORY.blockedIn,
       status: AF_STATUS.retryIn,
     });
   });
 
-  it("does not call a bare Call rejected a RADIUS release", () => {
-    const card = blocks({
-      legs: [
-        leg({
-          side: "in",
-          requestId: "1",
-          reply: "accept",
-          released: "Release, cause 'Call rejected'",
-        }),
-        leg({
-          side: "out",
-          requestId: "2",
-          reply: "accept",
-          replyCode: "2 Access-Accept",
-        }),
-      ],
-    });
-    expect(labels(true, card)).toEqual({
-      category: AF_CATEGORY.passedBoth,
+  it("keeps a reject that did not release the call", () => {
+    const text = [
+      "Accs-Request for Antifraud: check TG(i/o): 5(ext)/0(ext), USE_AF 1, SD 0, OS 1, RREQ 5.",
+      "RADIUS: Accs-Request [antifraud_out]",
+      "Request ID [011] is sent",
+      "Request ID [011] Accs-Reply [reject]",
+    ].join("\n");
+    expect(labels(true, text)).toEqual({
+      category: AF_CATEGORY.rejectIgnoredOut,
       status: AF_STATUS.firstTry,
     });
   });
 
-  it("marks a foreign request type without hiding the block", () => {
-    const card = blocks({
-      legs: [
-        leg({
-          side: "in",
-          requestId: "1",
-          requestType: "check_call",
-          reply: "reject",
-          replyCode: "3 Access-Reject",
-          released: "RADIUS: release call. cause '0x0015'",
-        }),
-      ],
+  it("names a sent request with no verdict", () => {
+    const text = [
+      "Accs-Request for Antifraud: check TG(i/o): 5(ext)/0(ext), USE_AF 1, SD 1, OS 0, RREQ 4.",
+      "RADIUS: Accs-Request [antifraud]",
+      "Request ID [012] is sent",
+    ].join("\n");
+    expect(labels(true, text)).toEqual({
+      category: AF_CATEGORY.noReply,
+      status: AF_STATUS.noAnswer,
     });
-    expect(labels(true, card)).toEqual({
-      category: AF_CATEGORY.blockedIn,
+  });
+
+  it("keeps the retry status when the retried request still has no reply", () => {
+    const text = [
+      "Accs-Request for Antifraud: check TG(i/o): 5(ext)/0(ext), USE_AF 1, SD 1, OS 0, RREQ 4.",
+      "RADIUS: Accs-Request [antifraud]",
+      "Request ID [013] send. Attempt: 2",
+    ].join("\n");
+    expect(labels(true, text)).toEqual({
+      category: AF_CATEGORY.noReply,
+      status: AF_STATUS.retryIn,
+    });
+  });
+
+  it("names a RADIUS release with no verdict", () => {
+    const text = [
+      "Accs-Request for Antifraud: check TG(i/o): 5(ext)/0(ext), USE_AF 1, SD 1, OS 0, RREQ 4.",
+      "RADIUS: Accs-Request [antifraud]",
+      "Request ID [014] is sent",
+      "RADIUS: release call",
+    ].join("\n");
+    expect(labels(true, text)).toEqual({
+      category: AF_CATEGORY.releasedNoReply,
+      status: AF_STATUS.noAnswer,
+    });
+  });
+
+  it("does not treat the CDR snapshot field as a release", () => {
+    expect(labels(true, `${ACCEPT_IN}\nRADIUS server rejected: :0 (replied 0)`).category).toBe(
+      AF_CATEGORY.passedIn,
+    );
+  });
+
+  it("counts save_call as the wrong type without hiding a pass", () => {
+    expect(labels(true, `${ACCEPT_IN}\nxpgk-request-type=save_call`)).toEqual({
+      category: AF_CATEGORY.passedIn,
       status: AF_STATUS.wrongType,
     });
   });
 
-  it("names a timeout with no code as a pass, and a missing code as unrecorded", () => {
-    const timedOut = blocks({
-      legs: [leg({ side: "in", requestId: "1", attempts: "3 of 3" })],
-    });
-    expect(labels(true, timedOut)).toEqual({
-      category: AF_CATEGORY.passedWithoutReply,
-      status: AF_STATUS.timeout,
-    });
-    const missing = blocks({ legs: [leg({ side: "in", requestId: "1" })] });
-    expect(labels(true, missing)).toEqual({
-      category: AF_CATEGORY.replyUnrecorded,
-      status: AF_STATUS.codeMissing,
-    });
+  it("counts Attempt: 2 and a second request id as a retry", () => {
+    const text = [
+      ACCEPT_IN,
+      "Accs-Request for Antifraud: check TG(i/o): 5(ext)/0(ext), USE_AF 1, SD 1, OS 0, RREQ 4.",
+      "RADIUS: Accs-Request [antifraud]",
+      "Request ID [080] is sent",
+      "Request ID [080] Accs-Reply [accept]",
+    ].join("\n");
+    expect(labels(true, text).status).toBe(AF_STATUS.retryIn);
+    expect(labels(true, text).category).toBe(AF_CATEGORY.passedIn);
   });
 
-  it("names the single-leg shapes and a retry on the ignored outgoing leg", () => {
-    expect(
-      labels(true, blocks({ legs: [leg({ side: "in", requestId: "1", reply: "accept" })] })).category,
-    ).toBe(AF_CATEGORY.passedIn);
-    expect(
-      labels(true, blocks({ legs: [leg({ side: "out", requestId: "1", reply: "accept" })] })).category,
-    ).toBe(AF_CATEGORY.passedOut);
-    expect(
-      labels(true, blocks({
-        legs: [leg({ side: "out", requestId: "1", ignored: "ignore for not antifraud" })],
-      })).category,
-    ).toBe(AF_CATEGORY.outOnlyIgnored);
-
-    const retriedOut = blocks({
-      legs: [
-        leg({ side: "in", requestId: "1", reply: "accept" }),
-        leg({
-          side: "out",
-          requestId: "2",
-          attempts: "2 of 3",
-          ignored: "ignore for not antifraud verify stage",
-        }),
-      ],
-    });
-    expect(labels(true, retriedOut)).toEqual({
-      category: AF_CATEGORY.passedOutIgnored,
-      status: AF_STATUS.retryOut,
-    });
-  });
-
-  it("stops when the printed reply and the packet code disagree", () => {
-    const card = blocks({
-      legs: [leg({ side: "in", requestId: "1", reply: "accept", replyCode: "3 Access-Reject" })],
-    });
-    expect(labels(true, card).category).toBe(AF_CATEGORY.conflict);
-  });
-
-  it("stops when the gateway released the call without an Access-Reject", () => {
-    const card = blocks({
-      legs: [
-        leg({
-          side: "in",
-          requestId: "1",
-          released: "Release local reason: RADIUS reject",
-        }),
-      ],
-    });
-    expect(labels(true, card)).toEqual({
-      category: AF_CATEGORY.releasedWithoutReply,
-      status: AF_STATUS.timeout,
-    });
+  it("flags two identities and accept plus reject on one leg", () => {
+    expect(labels(true, ACCEPT_IN, true).category).toBe(AF_CATEGORY.conflict);
+    const mixed = [
+      "Accs-Request for Antifraud: check TG(i/o): 5(ext)/0(ext), USE_AF 1, SD 1, OS 0, RREQ 4.",
+      "RADIUS: Accs-Request [antifraud]",
+      "Request ID [016] is sent",
+      "Request ID [016] Accs-Reply [accept]",
+      "Request ID [016] Accs-Reply [reject]",
+    ].join("\n");
+    expect(labels(true, mixed).category).toBe(AF_CATEGORY.conflict);
   });
 });

@@ -223,8 +223,7 @@ async function attachAntifraud(items: SmgListItem[]): Promise<void> {
 
 function isTraceBlocks(value: unknown): value is TraceBlocks {
   if (!value || typeof value !== "object") return false;
-  const row = value as { antifraud?: unknown };
-  return row.antifraud != null && typeof row.antifraud === "object";
+  return typeof (value as { text?: unknown }).text === "string";
 }
 
 export async function listSmgCalls(input: {

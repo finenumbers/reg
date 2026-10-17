@@ -35,6 +35,18 @@ function rc(body: string): string {
   return `<14> <smg1016m>  13:20:25.850000  [INFO] rc: ${body}`;
 }
 
+function rcBlock(code: number, id: number): string[] {
+  const hex = packetHex(code, id, [cisco("h323-credit-time=3600")]);
+  return [
+    rc("Calculating digest on:"),
+    rc(`  ${hex}`),
+    rc("Calculated digest is:"),
+    rc("  AABBCCDDEEFF00112233445566778899"),
+    rc("Reply digest is:"),
+    rc("  AABBCCDDEEFF00112233445566778899"),
+  ];
+}
+
 function spansOf(text: string): TraceSpan[] {
   const state = emptyTraceState();
   const detached = applyText(state, text);
@@ -78,279 +90,193 @@ function packetHex(code: number, id: number, values: Buffer[]): string {
 }
 
 describe("SMG syslog call assembly", () => {
-  it("keeps both RADIUS legs on the UniqueTag and treats the answer session as a leg", () => {
+  it("keeps both legs, the secret, and the blank before the dump", () => {
     const text = [
-      line("C02AC3B", "SS7/ISUP. RX. IAM- Initial Address Message"),
-      line("C02AC3B", "		# Calling party number: 03 13"),
-      line("C02AC3B", "		# 	Number:            9516059476"),
-      line("C02AC3B", "		# Called party number: 02 90"),
-      line("C02AC3B", "		# 	Number:            3842222200"),
-      line("C02AC3B", "Port SS7:01:31. Modify at 'incoming': number mask <(xxxxxxxxxx)>"),
-      line("C02AC3B", "Port SS7:01:31. Modify at 'incoming': rule <+7$>, ptr <0>."),
-      line("C02AC3B", "Port SS7:01:31. Modify at 'incoming': result-num: <79516059476>."),
-      line("C02AC3B", "Port SS7:01:31. Accs-Request for Antifraud: check TG(i/o): 25(ext)/24(ext), USE_AF 1, SD 1, OS 0, RREQ 4."),
-      line("C02AC3B", "Port SS7:01:31. RADIUS: Accs-Request [antifraud]"),
-      line("C02AC3B", "Port SS7:01:31. RADIUS: Antifraud-Auth-Request clg <79516059476>, cld <73842222200>"),
-      line("C02AC3B", "Port SS7:01:31. Dial Proc Continue - wait for Antifraud RADIUS-reply."),
-      line("C02AC3B", "RADIUS. Request proc. Request ID[075]. Processing Antifraud-Auth-Request"),
-      line("C02AC3B", `RADIUS. Send request. Access request ID[075]. Group[0] Server[0]: 91.195.253.131:1812:${SECRET}`),
-      line("C02AC3B", "-- RADIUS. Antifraud-Auth-Request [075] --"),
-      line("C02AC3B", "Password                         = ''"),
-      line("C02AC3B", `h323-conf-id                     = '${TAG_SPACED}'`),
-      line("C02AC3B", "h323-call-origin                 = 'originate'"),
-      line("C02AC3B", "Cisco-AVPair                     = 'xpgk-request-type=number'"),
-      line("C02AC3B", "Acct-Session-Id                  = '" + TAG_SPACED + "'"),
-      line("C02AC3B", "--------------------------------"),
-      rc("Calculating digest on:"),
-      rc(`  ${packetHex(2, 75, [cisco("h323-credit-time=3600")])}`),
-      rc("Calculated digest is:"),
-      line("C02AC3B", "Port SS7:01:31. RADIUS: Request ID [075] got valid reply for accs (in 187 ms)"),
-      line("C02AC3B", "RADIUS. Proc Reply. Request ID [075] Accs-Reply [accept]. Time [188:187]"),
-      line("C02AC3B", "Port SIPT:0436. Set UniqueTag: '" + TAG_SPACED + "'"),
-      line("C02AC3B", "Port SIPT:0436. Accs-Request for Antifraud: check TG(i/o): 25(ext)/24(ext), USE_AF 1, SD 0, OS 1, RREQ 5."),
-      line("C02AC3B", "Port SIPT:0436. RADIUS: Accs-Request [antifraud_out]"),
-      line("C02AC3B", "RADIUS. Request proc. Request ID[071]. Processing Antifraud-Auth-Request"),
-      line("C02AC3B", "-- RADIUS. Antifraud-Auth-Request [071] --"),
-      line("C02AC3B", "h323-conf-id                     = '" + TAG_SPACED + "'"),
-      line("C02AC3B", "h323-call-origin                 = 'answer'"),
-      line("C02AC3B", "Acct-Session-Id                  = '11000436 6ad22499 398739c8 732bb1a7'"),
-      line("C02AC3B", "--------------------------------"),
-      rc("Calculating digest on:"),
-      rc(`  ${packetHex(2, 71, [cisco("h323-credit-time=3600")])}`),
-      rc("Calculated digest is:"),
-      line("C02AC3B", "RADIUS. Proc Reply. Request ID [071] ignore for not antifraud verify stage"),
-      line("C02AC3B", "SIP. Callref 0436. Call-ID <1792-156825-743008>"),
-      line("C02AC3B", "Port SS7:01:31. Setup   time-stamp: 13:20:25.326 GMT Fri Oct 16 2026"),
-      line("C02AC3B", "Port SS7:01:31. Answer  time-stamp: 13:20:27.274 GMT Fri Oct 16 2026, msec-diff: 2948"),
-      line("C02AC3B", "SIP. Callref 0436. Use codec: G711.A sendrecv. PT 8, PTE 20."),
-      line("C02AC3B", "		 m[0]: audio 50642 RTP/AVP 8 0 101"),
-      line("C02AC3B", "		 dtmf_mode 'rfc2833'"),
-      line("C02AC3B", "		 unique tag:        '" + TAG_SPACED + "'"),
-      line("C02AC3B", "Port SS7:01:31. Release time-stamp: 13:20:33.654 GMT Fri Oct 16 2026, msec-diff: 6328"),
-      line("C02AC3B", "		 RADIUS server rejected: :0 (replied 0)"),
-    ].join("\n");
-
-    const spans = spansOf(text);
-    expect(spans).toHaveLength(1);
-    const span = spans[0]!;
-    expect(span.tag).toBe(TAG);
-    expect(span.echoed).toBe(true);
-    expect(span.mismatch).toBe(false);
-    expect(span.rejecting).toBe(":0");
-    const blocks = projectSpan(span);
-    expect(JSON.stringify(blocks)).not.toContain(SECRET);
-    expect(blocks.antifraud.summary).toContain("RADIUS");
-    expect(blocks.antifraud.legs).toHaveLength(2);
-    const incoming = blocks.antifraud.legs[0]!;
-    const outgoing = blocks.antifraud.legs[1]!;
-    expect(incoming.side).toBe("in");
-    expect(incoming.requestId).toBe("075");
-    expect(incoming.requestType).toBe("number");
-    expect(incoming.server).toBe("91.195.253.131:1812");
-    expect(incoming.attributes.find((attr) => attr.name === "Password")?.value).toBe("пусто");
-    expect(incoming.reply).toBe("accept");
-    expect(incoming.replyTime).toBe("188:187");
-    expect(incoming.replyCode).toBe("2 Access-Accept");
-    expect(incoming.replyAttributes.map((attr) => attr.value)).toContain("3600");
-    expect(outgoing.side).toBe("out");
-    expect(outgoing.origin).toBe("answer");
-    expect(outgoing.sessionId).toContain("11000436");
-    expect(outgoing.sessionId.replace(/\s+/g, "")).not.toBe(TAG);
-    expect(outgoing.ignored).toContain("ignore for not antifraud");
-    expect(outgoing.replyCode).toBe("2 Access-Accept");
-    expect(blocks.numbers.map((step) => step.text)).toEqual(
-      expect.arrayContaining(["маска (xxxxxxxxxx)", "правило +7$", "после 79516059476"]),
-    );
-    expect(blocks.signal.some((leg) => leg.messages.includes("IAM"))).toBe(true);
-    expect(blocks.signal.some((leg) => leg.callId === "1792-156825-743008")).toBe(true);
-    expect(blocks.times[0]?.stamp).toContain("GMT");
-    expect(blocks.times.find((row) => row.event === "Answer")?.delta).toBe("2948 ms");
-    expect(blocks.media[0]?.codec).toBe("G711.A");
-    expect(blocks.media[0]?.payload).toBe("8");
-    expect(blocks.media[0]?.ptime).toBe("20");
-    expect(blocks.media.some((leg) => leg.dtmf === "rfc2833")).toBe(true);
-    expect(span.tag).not.toBe(ANSWER);
-  });
-
-  it("stores a resend on the same request id and keeps Time as printed", () => {
-    const text = [
-      line("C02AC5B", "Port SIPT:0001. Accs-Request for Antifraud: check TG(i/o): 1(ext)/2(ext), USE_AF 1, SD 1, OS 0, RREQ 4."),
-      line("C02AC5B", "timeout! resend. Attempt: 2 of 3. Request ID[146]"),
-      line("C02AC5B", "RADIUS. Proc Reply. Request ID [146] Accs-Reply [accept]. Time [150:149]"),
-      line("C02AC5B", "Port SIPT:0001. Set UniqueTag: '" + TAG_SPACED + "'"),
-    ].join("\n");
-    const [span] = spansOf(text);
-    const leg = projectSpan(span!).antifraud.legs[0]!;
-    expect(leg.attempts).toBe("2 of 3");
-    expect(leg.requestId).toBe("146");
-    expect(leg.replyTime).toBe("150:149");
-    expect(projectSpan(span!).antifraud.legs).toHaveLength(1);
-  });
-
-  it("records Access-Reject without inventing the outgoing leg or translating the cause", () => {
-    const text = [
-      line("C02A0CA", "Port SIPT:0001. Accs-Request for Antifraud: check TG(i/o): 1(ext)/2(ext), USE_AF 1, SD 1, OS 0, RREQ 4."),
-      line("C02A0CA", "RADIUS. Request proc. Request ID[146]. Processing Antifraud-Auth-Request"),
-      line("C02A0CA", "Port SIPT:0001. Set UniqueTag: '" + TAG_SPACED + "'"),
-      rc("Calculating digest on:"),
-      rc(`  ${packetHex(3, 146, [])}`),
-      rc("Calculated digest is:"),
-      line("C02A0CA", "RADIUS. Proc Reply. Request ID [146] Accs-Reply [reject]."),
-      line("C02A0CA", "Port SIPT:0001. Call rejected. cause 0x0015"),
+      line("C0001B7", "Port SIPT:00da. Seize on version ECSS-10 ANTIFRAUD"),
+      line("C0001B7", "# RADIUS: session-ID [110000da 00000000 00000000 00000000]"),
+      line("C0001B7", "Port SIPT:00da. Seize. RADIUS=-1"),
+      line("C0001B7", "Port SIPT:00da. Accs-Request for Antifraud: check TG(i/o): 5(ext)/-1(loc), USE_AF 0, SD 0, OS 0, RREQ 4."),
+      line("C0001B7", "Port SS7:00:01. Check out-calling-from-RADIUS-modify: '4996660400'(10)."),
+      line("C0001B7", `Port SS7:00:01. Set UniqueTag: '${TAG_SPACED}'`),
+      line("C0001B7", "Port SS7:00:01. Set Antifraud RADIUS-profile [0] options."),
+      line("C0001B7", "SS7/ISUP. RX. IAM- Initial Address Message"),
+      line("C0001B7", "Port SIPT:00da. Accs-Request for Antifraud: check TG(i/o): 5(ext)/0(ext), USE_AF 1, SD 1, OS 0, RREQ 4."),
+      line("C0001B7", "Port SIPT:00da. RADIUS: Accs-Request [antifraud]"),
+      line("C0001B7", "RADIUS. Request proc. Port SIPT:00da. Request ID[078]. Processing Antifraud-Auth-Request"),
+      line("C0001B7", `RADIUS. Send request. Access request ID[078]. Group[0] Server[0]: 91.195.253.131:1812:${SECRET}`),
+      line("C0001B7", "RADIUS. Send request. Request ID [078] is sent"),
+      line("C0001B7", ""),
+      line("C0001B7", "-- RADIUS. Antifraud-Auth-Request [078] --"),
+      line("C0001B7", "Password                         = ''"),
+      line("C0001B7", `h323-conf-id                     = '${TAG_SPACED}'`),
+      line("C0001B7", "Acct-Session-Id                  = '06000001 6ad34e68 3911cf0a 2430f5f0'"),
+      line("C0001B7", "h323-call-origin                 = 'originate'"),
+      line("C0001B7", "--------------------------------"),
+      line("C0001B7", "Conn[0030]: Dest set [YES]. Time [21:16]"),
+      ...rcBlock(2, 78),
+      line("C0001B7", "Port SIPT:00da. RADIUS: Request ID [078] got valid reply for accs (in 27 ms)"),
+      "<14> <smg1016m>  13:20:25.326000  [INFO] RADIUS. Reply queue. Processing Reply message",
+      line("C0001B7", "RADIUS. Proc Reply. Request ID [078] process reply"),
+      line("C0001B7", "RADIUS. Proc Reply. Request ID [078] Accs-Reply [accept]. Time [27:27]"),
+      line("C0001B7", "Port SIPT:00da. RADIUS: process call. Accs req status: antifraud"),
+      line("C0001B7", "Port SS7:00:01. Accs-Request for Antifraud: check TG(i/o): 5(ext)/0(ext), USE_AF 1, SD 0, OS 1, RREQ 5."),
+      line("C0001B7", "Port SS7:00:01. RADIUS: Accs-Request [antifraud_out]"),
+      line("C0001B7", "RADIUS. Request proc. Request ID[079]. Processing Antifraud-Auth-Request"),
+      line("C0001B7", `RADIUS. Send request. Server[0]: 91.195.253.131:1812:${SECRET}`),
+      line("C0001B7", "RADIUS. Send request. Request ID [079] is sent"),
+      line("C0001B7", "-- RADIUS. Antifraud-Auth-Request [079] --"),
+      line("C0001B7", "h323-call-origin                 = 'answer'"),
+      line("C0001B7", "--------------------------------"),
+      ...rcBlock(2, 79),
+      line("C0001B7", "Port SS7:00:01. RADIUS: Request ID [079] got valid reply for accs (in 20 ms)"),
+      "<14> <smg1016m>  13:20:25.326000  [INFO] RADIUS. Reply queue. Processing Reply message",
+      line("C0001B7", "RADIUS. Proc Reply. Request ID [079] process reply"),
+      line("C0001B7", "stage antifraud_out blocking behaviour is set."),
+      line("C0001B7", "Request ID [079] Accs-Reply [accept]. Time [20:20]"),
+      line("C0001B7", "Port SS7:00:01. RADIUS: process call. Accs req status: antifraud_out"),
+      line("C0001B7", "Port SS7:00:01. Accs-Request for Antifraud: check TG(i/o): 5(ext)/0(ext), USE_AF 1, SD 0, OS 0, RREQ 5."),
+      line("C0001B7", "Port SS7:00:01. Accs-Request for Antifraud: no flags set - skip."),
+      line("C0001B7", "RADIUS server rejected: :0 (replied 0)"),
     ].join("\n");
     const blocks = projectSpan(spansOf(text)[0]!);
-    expect(blocks.antifraud.legs).toHaveLength(1);
-    const leg = blocks.antifraud.legs[0]!;
-    expect(leg.replyCode).toBe("3 Access-Reject");
-    expect(leg.replyAttributes.map((attr) => `${attr.name}=${attr.value}`)).toContain(
-      "Reply-Message=cause=50",
-    );
-    expect(leg.released).toContain("0x0015");
-    const bare = projectSpan(
-      spansOf(
-        [
-          line("C02A0CB", "Port SIPT:0001. Accs-Request for Antifraud: check TG(i/o): 1(ext)/2(ext), USE_AF 1, SD 1, OS 0, RREQ 4."),
-          line("C02A0CB", "RADIUS. Request proc. Request ID[147]. Processing Antifraud-Auth-Request"),
-          line("C02A0CB", "Port SIPT:0001. Release, cause 'Call rejected'"),
-        ].join("\n"),
-      )[0]!,
-    );
-    expect(bare.antifraud.legs[0]?.released).toBe("");
-    expect(JSON.stringify(blocks)).not.toContain("21");
-    expect(leg.side).toBe("in");
+    expect(blocks.mismatch).toBe(false);
+    expect(blocks.text).toContain(SECRET);
+    expect(blocks.text).toContain("Password                         = ''");
+    expect(blocks.text).toContain("Reply queue");
+    expect(blocks.text).toContain("in 27 ms");
+    expect(blocks.text).toContain("in 20 ms");
+    expect(blocks.text).toContain("no flags set - skip");
+    expect(blocks.text).toContain("USE_AF 0");
+    expect(blocks.text).not.toContain("ANTIFRAUD");
+    expect(blocks.text).not.toContain("from-RADIUS-modify");
+    expect(blocks.text).not.toContain("IAM-");
+    expect(blocks.text).not.toContain("Conn[");
+    expect(blocks.text).not.toContain("server rejected");
+    expect(blocks.text).not.toContain("<14>");
+    expect(blocks.text.split("\n").some((row) => row === "[C0001B7]")).toBe(true);
   });
 
-  it("does not give a later packet to a request that already finished", () => {
-    const first = "11000000000000000000000000000001";
-    const second = "11000000000000000000000000000002";
+  it("keeps an old-firmware ignore leg and does not steal another digest", () => {
     const text = [
-      line("C02A04A", "RADIUS. Request proc. Request ID[146]. Processing Antifraud-Auth-Request"),
-      line("C02A04A", `Port SIPT:0001. Set UniqueTag: '${first}'`),
-      rc("Calculating digest on:"),
-      rc(`  ${packetHex(2, 146, [cisco("h323-credit-time=3600")])}`),
-      rc("Calculated digest is:"),
-      line("C02A04A", "unique tag: '" + first + "'"),
-      line("C02A0CA", "RADIUS. Request proc. Request ID[146]. Processing Antifraud-Auth-Request"),
-      line("C02A0CA", `Port SIPT:0002. Set UniqueTag: '${second}'`),
-      rc("Calculating digest on:"),
-      rc(`  ${packetHex(3, 146, [])}`),
-      rc("Calculated digest is:"),
+      line("C02B7D1", `Port SIPT:00ee. Set UniqueTag: '${TAG}'`),
+      line("C02B7D1", "Port SIPT:00ee. Accs-Request for Antifraud: check TG(i/o): 27(ext)/26(ext), USE_AF 1, SD 1, OS 0, RREQ 4."),
+      line("C02B7D1", "Port SIPT:00ee. RADIUS: Accs-Request [antifraud]"),
+      line("C02B7D1", "Port SIPT:00ee. RADIUS: Request ID [081] process Antifraud-Auth-Request."),
+      line("C02B7D1", "Port SIPT:00ee. RADIUS: Request ID [081] send. Attempt: 1. Srv-grp [0]"),
+      line("C02B7D1", "-- RADIUS. Antifraud-Auth-Request [081] --"),
+      line("C02B7D1", "h323-call-origin                 = 'originate'"),
+      line("C02B7D1", "--------------------------------"),
+      ...rcBlock(2, 81),
+      line("C02B7D1", "Port SIPT:00ee. RADIUS: Request ID [081] got valid reply for accs (in 185 ms)"),
+      "<14> <smg1016m>  10:30:19.720307  [INFO]  RADIUS: process queue",
+      line("C02B7D1", "RADIUS: Request ID [081] process reply"),
+      line("C02B7D1", "Port SIPT:00ee. RADIUS: Request ID [081] Accs-Reply [accept]. Time [185:185]"),
+      line("C02B7D1", "Port SIPT:00ee. RADIUS: process call. Accs req status: antifraud"),
+      line("C02B7D1", "Port SIPT:07cc. Accs-Request for Antifraud: check TG(i/o): 27(ext)/26(ext), USE_AF 1, SD 0, OS 1, RREQ 5."),
+      line("C02B7D1", "Port SIPT:07cc. RADIUS: Accs-Request [antifraud_out]"),
+      line("C02B7D1", "Port SIPT:07cc. RADIUS: Request ID [085] process Antifraud-Auth-Request."),
+      line("C02B7D1", "Port SIPT:07cc. RADIUS: Request ID [085] send. Attempt: 1. Srv-grp [0]"),
+      line("C02B7D1", "-- RADIUS. Antifraud-Auth-Request [085] --"),
+      line("C02B7D1", "h323-call-origin                 = 'answer'"),
+      line("C02B7D1", "--------------------------------"),
+      ...rcBlock(2, 85),
+      line("C02B7D1", "Port SIPT:07cc. RADIUS: Request ID [085] got valid reply for accs (in 171 ms)"),
+      "<14> <smg1016m>  10:30:19.895473  [INFO]  RADIUS: process queue",
+      line("C02B7D1", "RADIUS: Request ID [085] process reply"),
+      line("C02B7D1", "RADIUS: Request ID [085] process reply: ignore for not antifraud verify stage."),
+      ...rcBlock(2, 73),
     ].join("\n");
-    const spans = spansOf(text);
-    const accept = spans.find((span) => span.tag === first)!;
-    const reject = spans.find((span) => span.tag === second)!;
-    expect(projectSpan(accept).antifraud.legs[0]?.replyCode).toBe("2 Access-Accept");
-    expect(projectSpan(reject).antifraud.legs[0]?.replyCode).toBe("3 Access-Reject");
+    const blocks = projectSpan(spansOf(text)[0]!);
+    expect(blocks.text).toContain("in 185 ms");
+    expect(blocks.text).toContain("in 171 ms");
+    expect(blocks.text).toContain("ignore for not antifraud");
+    expect(blocks.text).toContain("process queue");
+    expect(blocks.text).not.toContain("Accs-Reply   [085]");
+    const own = packetHex(2, 85, [cisco("h323-credit-time=3600")]).slice(0, 16);
+    const other = packetHex(2, 73, [cisco("h323-credit-time=3600")]).slice(0, 16);
+    expect(blocks.text).toContain(own);
+    expect(blocks.text).not.toContain(other);
   });
 
-  it("keeps a reply that arrives in the next file on the open call", () => {
+  it("keeps a reply that arrives in the next file on the same call", () => {
     const state = emptyTraceState();
     applyText(
       state,
       [
-        line("C02A0E3", "SS7/ISUP. RX. IAM- Initial Address Message"),
-        line("C02A0E3", "RADIUS. Request proc. Request ID[196]. Processing Antifraud-Auth-Request"),
         line("C02A0E3", `Port SIPT:0001. Set UniqueTag: '${TAG_SPACED}'`),
+        line("C02A0E3", "Port SIPT:0001. Accs-Request for Antifraud: check TG(i/o): 1(ext)/0(ext), USE_AF 1, SD 1, OS 0, RREQ 4."),
+        line("C02A0E3", "Port SIPT:0001. RADIUS: Accs-Request [antifraud]"),
+        line("C02A0E3", "RADIUS. Request proc. Request ID[196]. Processing Antifraud-Auth-Request"),
+        line("C02A0E3", "RADIUS. Send request. Request ID [196] is sent"),
+        line("C02A0E3", "-- RADIUS. Antifraud-Auth-Request [196] --"),
+        line("C02A0E3", "Password                         = 'hunter2'"),
       ].join("\n"),
     );
     applyText(
       state,
       [
-        rc("Calculating digest on:"),
-        rc(`  ${packetHex(2, 196, [cisco("h323-credit-time=3600")])}`),
-        rc("Calculated digest is:"),
-        line("C02A0E3", "Port SIPT:0001. CdPN: <73842222200>"),
+        line("C02A0E3", "h323-call-origin                 = 'originate'"),
+        line("C02A0E3", "--------------------------------"),
+        ...rcBlock(2, 196),
+        line("C02A0E3", "Port SIPT:0001. RADIUS: Request ID [196] got valid reply for accs (in 12 ms)"),
+        line("C02A0E3", "RADIUS. Proc Reply. Request ID [196] process reply"),
+        line("C02A0E3", "Request ID [196] Accs-Reply [accept]"),
       ].join("\n"),
     );
-    const spans = Object.values(state.spans);
-    expect(spans).toHaveLength(1);
-    expect(spans[0]?.tag).toBe(TAG);
-    expect(projectSpan(spans[0]!).antifraud.legs[0]?.replyCode).toBe("2 Access-Accept");
-    expect(projectSpan(spans[0]!).numbers.map((step) => step.text)).toContain("CdPN 73842222200");
+    const blocks = projectSpan(Object.values(state.spans)[0]!);
+    expect(blocks.text).toContain("hunter2");
+    expect(blocks.text).toContain("Accs-Reply [accept]");
+    expect(blocks.text).toContain(Buffer.from(SECRET, "latin1").toString("hex").toUpperCase());
   });
 
-  it("ignores an empty tag and a zero session id, then keeps the real tag", () => {
-    const text = [
-      line("C001850", "# RADIUS: session-ID [1100004f 00000000 00000000 00000000]"),
-      line("C001850", "SIP. Callref 004f. UniqueTag ''"),
-      line("C001850", "Port SIPT:004f. Accs-Request for Antifraud: check TG(i/o): 0(ext)/-1(loc), USE_AF 0, SD 0, OS 0, RREQ 4."),
-      line("C001850", "Port SIPT:044f. Set UniqueTag: '1100004f 6ad1c91b 5e180e88 21612b36'"),
-      "<11> <pa_sip>2026-10-16 06:50:01.618 ipc.c thread_3 !.PBXIPC: Decode ie 'ka_type'(169) failed",
-    ].join("\n");
-    const spans = spansOf(text);
-    expect(spans).toHaveLength(1);
-    expect(spans[0]?.tag).toBe("1100004f6ad1c91b5e180e8821612b36");
-    const blocks = projectSpan(spans[0]!);
-    expect(blocks.antifraud.summary).toContain("USE_AF 0");
-    expect(blocks.antifraud.legs[0]?.replyCode).toBe("");
-    expect(blocks.antifraud.legs[0]?.attributes).toEqual([]);
-    expect(JSON.stringify(blocks)).not.toContain("ka_type");
-  });
-
-  it("flags an h323 value that is not the UniqueTag and does not open a second call", () => {
-    const other = "1100000000000000000000000000000a";
-    const text = [
-      line("C0000F6", `Port SIPT:0001. Set UniqueTag: '${TAG_SPACED}'`),
-      line("C0000F6", "-- RADIUS. Antifraud-Auth-Request [190] --"),
-      line("C0000F6", `h323-conf-id                     = '${other}'`),
-      line("C0000F6", "--------------------------------"),
-    ].join("\n");
-    const spans = spansOf(text);
-    expect(spans).toHaveLength(1);
-    expect(spans[0]?.tag).toBe(TAG);
-    expect(spans[0]?.mismatch).toBe(true);
-  });
-
-  it("keeps release lines after the echo and starts the next call at the next tag", () => {
+  it("does not glue a reused callref onto the previous text", () => {
     const next = "1100000000000000000000000000000b";
     const text = [
       line("C0000F6", `Port SIPT:0001. Set UniqueTag: '${TAG}'`),
-      line("C0000F6", `unique tag: '${TAG_SPACED}'`),
+      line("C0000F6", `unique tag: '${TAG}'`),
       line("C0000F6", "Port SIPT:0001. Release time-stamp: 13:20:33.654 GMT Fri Oct 16 2026, msec-diff: 6328"),
       line("C0000F6", `Port SIPT:0002. Set UniqueTag: '${next}'`),
+      line("C0000F6", "Port SIPT:0002. Set Antifraud RADIUS-profile [0] options."),
     ].join("\n");
     const spans = spansOf(text);
-    expect(spans.map((span) => span.tag).sort()).toEqual([TAG, next].sort());
     const first = spans.find((span) => span.tag === TAG)!;
-    expect(projectSpan(first).times.map((row) => row.event)).toContain("Release");
+    const second = spans.find((span) => span.tag === next)!;
+    expect(first.text).not.toContain("RADIUS-profile");
+    expect(second.text).toContain("RADIUS-profile");
   });
 
-  it("shows a 1970 stamp and does not split the call on it", () => {
+  it("keeps an unrecognized prefix whole", () => {
+    const blocks = projectSpan(
+      spansOf(
+        [
+          line("C0000F6", `Set UniqueTag: '${TAG}'`),
+          "NO PREFIX [C0000F6] Port SIPT:0001. Set Antifraud RADIUS-profile [1] options.",
+        ].join("\n"),
+      )[0]!,
+    );
+    expect(blocks.text).toContain("NO PREFIX");
+  });
+
+  it("drops an rc block when two calls share the request id", () => {
     const text = [
-      line("C0000F6", `Port SIPT:032d. Set UniqueTag: '${TAG}'`),
-      line("C0000F6", "Port SIPT:032d. Setup   time-stamp: 00:00:00.000 GMT Thu Jan 01 1970"),
-      line("C0000F6", "Port SIPT:0376. Release time-stamp: 00:00:01.000 GMT Fri Jan 30 1970, msec-diff: 1000"),
+      line("C0000A1", `Set UniqueTag: '${TAG}'`),
+      line("C0000A1", "Accs-Request for Antifraud: check TG(i/o): 1(ext)/0(ext), USE_AF 1, SD 1, OS 0, RREQ 4."),
+      line("C0000A1", "RADIUS: Accs-Request [antifraud]"),
+      line("C0000A1", "Request ID[010]. Processing Antifraud-Auth-Request"),
+      line("C0000A1", "Request ID [010] is sent"),
+      line("C0000B2", `Set UniqueTag: '${ANSWER}'`),
+      line("C0000B2", "Accs-Request for Antifraud: check TG(i/o): 1(ext)/0(ext), USE_AF 1, SD 1, OS 0, RREQ 4."),
+      line("C0000B2", "RADIUS: Accs-Request [antifraud]"),
+      line("C0000B2", "Request ID[010]. Processing Antifraud-Auth-Request"),
+      line("C0000B2", "Request ID [010] is sent"),
+      ...rcBlock(2, 10),
+      line("C0000A1", "Request ID [010] got valid reply for accs (in 5 ms)"),
     ].join("\n");
     const spans = spansOf(text);
-    expect(spans).toHaveLength(1);
-    const stamps = projectSpan(spans[0]!).times.map((row) => row.stamp);
-    expect(stamps.some((stamp) => stamp.includes("1970"))).toBe(true);
-  });
-
-  it("keeps an SS7 port and both request-id spellings", () => {
-    const text = [
-      line("C0000F6", "Port SS7:01:31. Query Next Digit - wait Antifraud RADIUS-reply"),
-      line("C0000F6", "RADIUS. Request proc. Port SS7:01:31. Request ID [190]. Processing"),
-      line("C0000F6", `Port SS7:01:31. Set UniqueTag: '${TAG}'`),
-      line("C0000F6", "Port SS7:01:31. Setup   time-stamp: 13:51:56.272 MSK Fri Oct 16 2026"),
-    ].join("\n");
-    const blocks = projectSpan(spansOf(text)[0]!);
-    expect(blocks.times[0]?.port).toBe("SS7:01:31");
-    expect(blocks.times[0]?.stamp).toContain("MSK");
-    expect(blocks.antifraud.legs[0]?.requestId).toBe("190");
-    expect(blocks.antifraud.legs[0]?.wait).toContain("Query Next Digit");
-  });
-
-  it("does not store a password value", () => {
-    const text = [
-      line("C0000F6", "-- RADIUS. Antifraud-Auth-Request [10] --"),
-      line("C0000F6", "Password                         = 'hunter2'"),
-      line("C0000F6", "--------------------------------"),
-      line("C0000F6", `Set UniqueTag: '${TAG}'`),
-    ].join("\n");
-    const json = JSON.stringify(projectSpan(spansOf(text)[0]!));
-    expect(json).not.toContain("hunter2");
-    expect(json).toContain("задано");
+    for (const span of spans) {
+      expect(span.text).not.toContain("Calculating digest");
+    }
+    expect(spans.find((span) => span.tag === TAG)?.text).toContain("got valid reply");
   });
 });
 
@@ -367,19 +293,13 @@ describe("CDR card choice", () => {
       tag: TAG,
       mismatch: false,
       echoed: true,
-      rejecting: "",
-      party: "",
-      lastPort: "",
-      echoGeneration: null,
       ended: false,
       releaseGeneration: null,
       startedKey: "",
-      lead: [],
-      attempts: [],
-      signal: [],
-      numbers: [],
-      times: [],
-      media: [],
+      text: "",
+      sealed: false,
+      attemptOpen: false,
+      pendingBlank: null,
     });
     expect(decideTraceRows([])).toEqual({ status: "missing" });
     expect(
@@ -419,7 +339,7 @@ describe("call state between files", () => {
     );
     const updated = commitTraceFile(state, 1, "10.1.2.3/2026/10/16/10/10");
     expect(updated.map((span) => span.tag)).toEqual([TAG]);
-    expect(updated[0]?.times.some((row) => row.event === "Release")).toBe(true);
+    expect(updated[0]?.sealed).toBe(false);
     expect(updated[0]?.ended).toBe(true);
     expect(state.spans.C0000F6).toBeDefined();
 
@@ -536,10 +456,11 @@ describe("syslog file walk", () => {
       ) + "\n",
     );
     await stepDevice("10.1.2.3", sources(), repo.repo);
-    expect(saved.at(-1)?.open).toBe(false);
+    expect(saved.at(-1)?.open).toBe(true);
     expect(spansOfMark(repo).C0000F6).toBeDefined();
     writeFileSync(path.join(morning, "10.log"), "noise\n");
     await stepDevice("10.1.2.3", sources(), repo.repo);
+    expect(saved.at(-1)?.open).toBe(false);
     expect(spansOfMark(repo).C0000F6).toBeUndefined();
   });
 
@@ -698,7 +619,7 @@ function memoryRepo(saved: { tag: string; open: boolean }[]) {
     },
     async saveSpan(_ip, span) {
       cards.add(span.tag);
-      saved.push({ tag: span.tag, open: !span.ended });
+      saved.push({ tag: span.tag, open: !span.sealed });
     },
     async saveCheckpoint(_ip, fileKey, size, state) {
       rows.set(fileKey, { fileKey, size, version: SMG_TRACE_PARSER_VERSION, state });

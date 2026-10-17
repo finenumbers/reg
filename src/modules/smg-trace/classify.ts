@@ -1,5 +1,6 @@
+import { parseRadiusPacket } from "@/modules/smg-trace/packet";
 import { radiusReleaseLine } from "@/modules/smg-trace/assemble";
-import type { TraceBlocks, TraceLeg } from "@/modules/smg-trace/types";
+import type { TraceBlocks } from "@/modules/smg-trace/types";
 
 /** Working-table and export column ids. Not CDR file fields. */
 export const SMG_ANTIFRAUD_COLUMNS = ["antifraud", "antifraudStatus"] as const;
@@ -12,34 +13,33 @@ export const SMG_ANTIFRAUD_LABELS: Record<SmgAntifraudColumn, string> = {
 };
 
 export const AF_CATEGORY = {
+  waiting: "Ожидание АнтиФрода",
   noData: "Нет данных",
-  conflict: "Разбор не сошёлся",
-  notConsidered: "Не рассматривался",
+  notChecked: "Не проверялся",
   notSent: "Не отправлялся",
   requestMissing: "Запрос не ушёл",
-  blockedIn: "Заблокирован на входе",
-  blockedOut: "Заблокирован на выходе",
-  rejectIgnored: "Отказ не применён",
-  releasedWithoutReply: "Снят без ответа",
-  passedWithoutReply: "Пропущен без ответа",
-  replyUnrecorded: "Ответ не зафиксирован",
+  passed: "Пропущен",
   passedIn: "Пропущен на входе",
   passedOut: "Пропущен на выходе",
-  outOnlyIgnored: "Выход не решал",
-  passedOutIgnored: "Пропущен, выход не решал",
-  passedBoth: "Пропущен на обоих шагах",
+  blockedIn: "Заблокирован на входе",
+  blockedOut: "Заблокирован на выходе",
+  rejectIgnoredIn: "Отказ на входе не применён",
+  rejectIgnoredOut: "Отказ на выходе не применён",
+  rejectIgnoredBoth: "Отказ на обоих шагах не применён",
+  noReply: "Нет ответа сервера",
+  releasedNoReply: "Снят без ответа сервера",
+  conflict: "Разбор не сошёлся",
 } as const;
 
 export const AF_STATUS = {
   unknown: "Неизвестно",
   noRequest: "Не было запроса",
-  wrongType: "Не тип number",
-  timeout: "Таймаут",
-  codeMissing: "В журнале нет кода",
+  firstTry: "С первой попытки",
   retryIn: "Повтор на входе",
   retryOut: "Повтор на выходе",
   retryBoth: "Повтор на обоих шагах",
-  firstTry: "С первой попытки",
+  noAnswer: "Нет ответа",
+  wrongType: "Не тип number",
 } as const;
 
 export type AntifraudLabels = {
@@ -47,64 +47,49 @@ export type AntifraudLabels = {
   status: string;
 };
 
-const NO_CARD: AntifraudLabels = {
-  category: AF_CATEGORY.noData,
+const WAITING: AntifraudLabels = {
+  category: AF_CATEGORY.waiting,
   status: AF_STATUS.unknown,
 };
 
 type Side = "in" | "out";
-type Verdict = "accept" | "reject" | "ignored" | "none";
+type Verdict = "accept" | "reject" | "none";
 
-type LegFacts = {
-  side: Side;
+type Leg = {
+  side: Side | "";
+  id: number | null;
   verdict: Verdict;
-  radiusRelease: boolean;
+  conflicted: boolean;
   retried: boolean;
-  foreignType: boolean;
+  released: boolean;
+  ignored: boolean;
+  gotReply: boolean;
+};
+
+type Facts = {
+  legs: Leg[];
+  useAfOff: boolean;
+  useAfOn: boolean;
+  foreign: boolean;
+  callReleased: boolean;
+  sideClash: boolean;
 };
 
 /**
- * One label pair for a finished syslog card. An open card stays «Нет данных»:
- * the Access reply can still arrive, and the column must not change afterwards
- * from a pass into a block.
+ * One label pair for a syslog card. An open card stays «Ожидание АнтиФрода»:
+ * the rest of the exchange can still arrive.
  */
 export function classifyAntifraud(input: {
   closed: boolean;
   blocks: TraceBlocks;
 }): AntifraudLabels {
-  if (!input.closed) return NO_CARD;
-  if (input.blocks.antifraud.mismatch) return conflict();
+  if (!input.closed) return WAITING;
+  if (input.blocks.mismatch) return conflict();
+  const facts = readFacts(input.blocks.text);
+  if (facts.sideClash || facts.legs.some((leg) => leg.side === "" || leg.conflicted)) return conflict();
 
-  const sent: LegFacts[] = [];
-  let useAfOff = false;
-  let useAfOnUnsent = false;
-  for (const leg of input.blocks.antifraud.legs) {
-    if (isSent(leg)) {
-      const facts = sentFacts(leg);
-      if (!facts) return conflict();
-      sent.push(facts);
-    } else if (leg.useAf === "0") {
-      useAfOff = true;
-    } else if (leg.useAf === "1" && (leg.side === "in" || leg.side === "out")) {
-      useAfOnUnsent = true;
-    }
-  }
-
-  const incoming = sent.filter((leg) => leg.side === "in");
-  const outgoing = sent.filter((leg) => leg.side === "out");
-  if (incoming.length > 1 || outgoing.length > 1) return conflict();
-
-  if (sent.length === 0) {
-    if (useAfOnUnsent) return { category: AF_CATEGORY.requestMissing, status: AF_STATUS.unknown };
-    if (useAfOff) return { category: AF_CATEGORY.notSent, status: AF_STATUS.noRequest };
-    if (sawStart(input.blocks)) {
-      return { category: AF_CATEGORY.notConsidered, status: AF_STATUS.unknown };
-    }
-    return NO_CARD;
-  }
-
-  const category = categoryOf(incoming[0], outgoing[0]);
-  return { category, status: statusOf(category, sent) };
+  const category = categoryOf(facts);
+  return { category, status: statusOf(category, facts) };
 }
 
 export function isSmgAntifraudColumn(column: string): column is SmgAntifraudColumn {
@@ -115,112 +100,241 @@ function conflict(): AntifraudLabels {
   return { category: AF_CATEGORY.conflict, status: AF_STATUS.unknown };
 }
 
-function categoryOf(incoming: LegFacts | undefined, outgoing: LegFacts | undefined): string {
-  const innReject = incoming?.verdict === "reject";
-  const outReject = outgoing?.verdict === "reject";
-  const innRelease = incoming?.radiusRelease === true;
-  const outRelease = outgoing?.radiusRelease === true;
+function categoryOf(facts: Facts): string {
+  const incoming = facts.legs.filter((leg) => leg.side === "in");
+  const outgoing = facts.legs.filter((leg) => leg.side === "out");
+  const inn = sideVerdict(incoming);
+  const out = sideVerdict(outgoing);
+  const innRelease = incoming.some((leg) => leg.released) || (facts.callReleased && inn === "reject");
+  const outRelease = outgoing.some((leg) => leg.released) || (facts.callReleased && out === "reject");
 
-  if (innReject && outReject && innRelease && outRelease) return AF_CATEGORY.conflict;
-  if (innReject && innRelease) return AF_CATEGORY.blockedIn;
-  if (outReject && outRelease) return AF_CATEGORY.blockedOut;
-  if (innReject || outReject) return AF_CATEGORY.rejectIgnored;
-  if (innRelease || outRelease) return AF_CATEGORY.releasedWithoutReply;
+  if (inn === "mixed" || out === "mixed") return AF_CATEGORY.conflict;
+  if (inn === "reject" && out === "reject" && innRelease && outRelease) return AF_CATEGORY.conflict;
+  if (inn === "reject" && innRelease) return AF_CATEGORY.blockedIn;
+  if (out === "reject" && outRelease) return AF_CATEGORY.blockedOut;
+  if (inn === "reject" && out === "reject") return AF_CATEGORY.rejectIgnoredBoth;
+  if (inn === "reject") return AF_CATEGORY.rejectIgnoredIn;
+  if (out === "reject") return AF_CATEGORY.rejectIgnoredOut;
 
-  const hole = incoming?.verdict === "none" ? incoming : outgoing?.verdict === "none" ? outgoing : undefined;
+  const hole = facts.legs.some((leg) => leg.verdict === "none");
   if (hole) {
-    return hole.retried ? AF_CATEGORY.passedWithoutReply : AF_CATEGORY.replyUnrecorded;
+    const anyVerdict = facts.legs.some((leg) => leg.verdict !== "none");
+    if (facts.callReleased && !anyVerdict) return AF_CATEGORY.releasedNoReply;
+    return AF_CATEGORY.noReply;
   }
 
-  if (incoming?.verdict === "accept" && !outgoing) return AF_CATEGORY.passedIn;
-  if (!incoming && outgoing?.verdict === "accept") return AF_CATEGORY.passedOut;
-  if (!incoming && outgoing?.verdict === "ignored") return AF_CATEGORY.outOnlyIgnored;
-  if (incoming?.verdict === "accept" && outgoing?.verdict === "ignored") {
-    return AF_CATEGORY.passedOutIgnored;
+  if (incoming.length > 0 && outgoing.length > 0 && inn === "accept" && out === "accept") {
+    return AF_CATEGORY.passed;
   }
-  if (incoming?.verdict === "accept" && outgoing?.verdict === "accept") return AF_CATEGORY.passedBoth;
+  if (incoming.length > 0 && outgoing.length === 0 && inn === "accept") return AF_CATEGORY.passedIn;
+  if (outgoing.length > 0 && incoming.length === 0 && out === "accept") return AF_CATEGORY.passedOut;
+
+  if (facts.legs.length === 0) {
+    if (facts.useAfOn) return AF_CATEGORY.requestMissing;
+    if (facts.useAfOff) return AF_CATEGORY.notSent;
+    return AF_CATEGORY.notChecked;
+  }
   return AF_CATEGORY.conflict;
 }
 
-function statusOf(category: string, sent: readonly LegFacts[]): string {
+function sideVerdict(legs: readonly Leg[]): Verdict | "mixed" | "empty" {
+  if (legs.length === 0) return "empty";
+  const accept = legs.some((leg) => leg.verdict === "accept");
+  const reject = legs.some((leg) => leg.verdict === "reject");
+  if (legs.some((leg) => leg.conflicted) || (accept && reject)) return "mixed";
+  if (reject) return "reject";
+  if (accept && legs.every((leg) => leg.verdict === "accept")) return "accept";
+  return "none";
+}
+
+function statusOf(category: string, facts: Facts): string {
   if (
     category === AF_CATEGORY.conflict ||
     category === AF_CATEGORY.requestMissing ||
-    category === AF_CATEGORY.noData ||
-    category === AF_CATEGORY.notConsidered
+    category === AF_CATEGORY.notChecked ||
+    category === AF_CATEGORY.waiting ||
+    category === AF_CATEGORY.noData
   ) {
     return AF_STATUS.unknown;
   }
   if (category === AF_CATEGORY.notSent) return AF_STATUS.noRequest;
-  if (sent.some((leg) => leg.foreignType)) return AF_STATUS.wrongType;
-  if (category === AF_CATEGORY.passedWithoutReply || category === AF_CATEGORY.releasedWithoutReply) {
-    return AF_STATUS.timeout;
-  }
-  if (category === AF_CATEGORY.replyUnrecorded) return AF_STATUS.codeMissing;
+  if (facts.foreign) return AF_STATUS.wrongType;
 
-  const retryIn = sent.some((leg) => leg.side === "in" && leg.retried);
-  const retryOut = sent.some((leg) => leg.side === "out" && leg.retried);
+  const retryIn = facts.legs.some((leg) => leg.side === "in" && leg.retried);
+  const retryOut = facts.legs.some((leg) => leg.side === "out" && leg.retried);
+  if (category === AF_CATEGORY.noReply || category === AF_CATEGORY.releasedNoReply) {
+    if (!(retryIn || retryOut)) return AF_STATUS.noAnswer;
+  }
   if (retryIn && retryOut) return AF_STATUS.retryBoth;
   if (retryIn) return AF_STATUS.retryIn;
   if (retryOut) return AF_STATUS.retryOut;
   return AF_STATUS.firstTry;
 }
 
-function isSent(leg: TraceLeg): boolean {
-  return Boolean(
-    leg.requestId ||
-      leg.attributes.length > 0 ||
-      leg.reply ||
-      leg.replyCode ||
-      leg.ignored,
-  );
-}
-
-function sentFacts(leg: TraceLeg): LegFacts | null {
-  const side = sideOf(leg);
-  const verdict = verdictOf(leg);
-  if (!side || !verdict) return null;
-  return {
-    side,
-    verdict,
-    radiusRelease: radiusReleaseLine(leg.released),
-    retried: retried(leg),
-    foreignType: leg.requestType === "save_call" || leg.requestType === "check_call",
+function readFacts(text: string): Facts {
+  const facts: Facts = {
+    legs: [],
+    useAfOff: false,
+    useAfOn: false,
+    foreign: false,
+    callReleased: false,
+    sideClash: false,
   };
+  let pending: Side | "" = "";
+  let rcActive = false;
+  let rcHex = "";
+  let rcStage: "body" | "calc" | "reply" = "body";
+
+  for (const line of text.split("\n")) {
+    if (/xpgk-request-type=(?:save_call|check_call)\b/.test(line)) facts.foreign = true;
+    if (radiusReleaseLine(line)) {
+      facts.callReleased = true;
+      const current = facts.legs.at(-1);
+      if (current) current.released = true;
+    }
+
+    const check = line.match(/USE_AF\s+(\d+).*?\bSD\s+(\d+).*?\bOS\s+(\d+)/);
+    if (check?.[1] && check[2] && check[3]) {
+      if (check[1] === "0") facts.useAfOff = true;
+      if (check[1] === "1") facts.useAfOn = true;
+      pending = check[3] === "1" ? "out" : check[2] === "1" ? "in" : "";
+    }
+    if (/Accs-Request \[(antifraud(?:_out)?)\]/i.test(line)) {
+      pending = /antifraud_out/i.test(line) ? "out" : "in";
+    }
+    const origin = line.match(/h323-call-origin\s*=\s*'(originate|answer)'/i);
+    if (origin?.[1]) {
+      const side: Side = origin[1].toLowerCase() === "answer" ? "out" : "in";
+      const current = facts.legs.at(-1);
+      if (current && current.side && current.side !== side) facts.sideClash = true;
+      else if (current && !current.side) current.side = side;
+      else if (!current) pending = side;
+    }
+
+    if (isSentLine(line)) {
+      const id = requestIdOf(line);
+      const existing = id != null ? facts.legs.find((leg) => leg.id === id) : undefined;
+      if (existing) {
+        if (attemptNumber(line) > 1) existing.retried = true;
+      } else {
+        const same = facts.legs.filter((leg) => leg.side !== "" && leg.side === pending);
+        const leg: Leg = {
+          side: pending,
+          id,
+          verdict: "none",
+          conflicted: false,
+          retried: same.length > 0 || attemptNumber(line) > 1,
+          released: false,
+          ignored: false,
+          gotReply: false,
+        };
+        for (const previous of same) previous.retried = true;
+        facts.legs.push(leg);
+      }
+    } else {
+      const n = attemptNumber(line);
+      const current = legFor(facts, requestIdOf(line));
+      if (current && n > 1) current.retried = true;
+    }
+
+    applyVerdict(facts, line);
+
+    if (/\brc:/i.test(line) || rcActive) {
+      const step = consumeRc(line, rcActive, rcHex, rcStage);
+      rcActive = step.active;
+      rcHex = step.hex;
+      rcStage = step.stage;
+      if (step.packet) applyPacket(facts, step.packet.code, step.packet.id);
+    }
+  }
+
+  for (const leg of facts.legs) {
+    if (leg.ignored && leg.gotReply && leg.verdict === "none") leg.verdict = "accept";
+  }
+  return facts;
 }
 
-function sideOf(leg: TraceLeg): Side | null {
-  const fromBracket = leg.side === "in" || leg.side === "out" ? leg.side : "";
-  const fromOrigin =
-    leg.origin === "originate" ? "in" : leg.origin === "answer" ? "out" : "";
-  if (fromBracket && fromOrigin && fromBracket !== fromOrigin) return null;
-  const side = fromBracket || fromOrigin;
-  return side || null;
+function applyVerdict(facts: Facts, line: string): void {
+  const id = requestIdOf(line);
+  const leg = legFor(facts, id);
+  if (!leg) return;
+  if (/Accs-Reply\s*\[accept\]/i.test(line)) setVerdict(leg, "accept");
+  if (/Accs-Reply\s*\[reject\]/i.test(line)) setVerdict(leg, "reject");
+  if (/ignore for not antifraud/i.test(line)) leg.ignored = true;
+  if (/got valid reply/i.test(line)) leg.gotReply = true;
 }
 
-function verdictOf(leg: TraceLeg): Verdict | null {
-  if (leg.ignored.trim()) return "ignored";
-  const code = leg.replyCode.trim();
-  const reply = leg.reply.trim().toLowerCase();
-  const codeAccept = code.startsWith("2");
-  const codeReject = code.startsWith("3");
-  const textAccept = reply === "accept";
-  const textReject = reply === "reject";
-  if ((codeAccept && textReject) || (codeReject && textAccept)) return null;
-  if (codeReject || textReject) return "reject";
-  if (codeAccept || textAccept) return "accept";
-  return "none";
+function applyPacket(facts: Facts, code: number, id: number): void {
+  const leg = facts.legs.find((item) => item.id === id);
+  if (!leg) return;
+  if (code === 2) setVerdict(leg, "accept");
+  if (code === 3) setVerdict(leg, "reject");
 }
 
-function retried(leg: TraceLeg): boolean {
-  const match = leg.attempts.trim().match(/^(\d+)\s+of\s+\d+/);
-  return Boolean(match?.[1] && Number(match[1]) > 1);
+function setVerdict(leg: Leg, verdict: Exclude<Verdict, "none">): void {
+  if (leg.verdict === "none") {
+    leg.verdict = verdict;
+    return;
+  }
+  if (leg.verdict !== verdict) leg.conflicted = true;
 }
 
-function sawStart(blocks: TraceBlocks): boolean {
-  if (blocks.times.some((row) => row.event === "Setup")) return true;
-  if (blocks.numbers.length > 0) return true;
-  return blocks.signal.some((leg) =>
-    leg.messages.some((message) => message === "IAM" || message === "INVITE"),
-  );
+function legFor(facts: Facts, id: number | null): Leg | undefined {
+  if (id != null) {
+    const found = facts.legs.find((leg) => leg.id === id);
+    if (found) return found;
+  }
+  return facts.legs.at(-1);
+}
+
+function isSentLine(line: string): boolean {
+  return /Request ID\s*\[\d+\]\s+(?:is sent|send)\b/i.test(line);
+}
+
+function requestIdOf(line: string): number | null {
+  const match = line.match(/Request ID\s*\[(\d+)\]/i);
+  if (!match?.[1]) return null;
+  return Number(match[1]);
+}
+
+function attemptNumber(line: string): number {
+  const of = line.match(/(\d+)\s+of\s+\d+/i);
+  if (of?.[1]) return Number(of[1]);
+  const attempt = line.match(/Attempt:?\s*(\d+)/i);
+  if (attempt?.[1]) return Number(attempt[1]);
+  return 1;
+}
+
+function consumeRc(
+  line: string,
+  active: boolean,
+  hex: string,
+  stage: "body" | "calc" | "reply",
+): { active: boolean; hex: string; stage: "body" | "calc" | "reply"; packet: { code: number; id: number } | null } {
+  const payload = line.replace(/^.*\brc:\s*/i, "").trim();
+  if (/Calculating digest on/i.test(payload)) {
+    return { active: true, hex: "", stage: "body", packet: null };
+  }
+  if (!active) return { active: false, hex: "", stage: "body", packet: null };
+  if (stage === "body" && /Calculated digest/i.test(payload)) {
+    return { active: true, hex, stage: "calc", packet: null };
+  }
+  if (stage === "calc" && /Reply digest/i.test(payload)) {
+    return { active: true, hex, stage: "reply", packet: null };
+  }
+  const digits = payload.replace(/\s+/g, "");
+  if (/^[0-9a-fA-F]{8,}$/.test(digits)) {
+    if (stage === "body") return { active: true, hex: hex + digits, stage, packet: null };
+    if (stage === "reply") {
+      const parsed = parseRadiusPacket(hex);
+      return {
+        active: false,
+        hex: "",
+        stage: "body",
+        packet: parsed ? { code: parsed.code, id: parsed.id } : null,
+      };
+    }
+    return { active: true, hex, stage, packet: null };
+  }
+  return { active: false, hex: "", stage: "body", packet: null };
 }

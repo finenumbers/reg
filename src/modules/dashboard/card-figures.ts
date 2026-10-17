@@ -17,7 +17,7 @@ function cache(): Cache {
   return holder[KEY];
 }
 
-/** Stored antifraud legs. A cold or expired value is read at most once a minute. */
+/** Sent AntiFraud requests stored in call cards. A cold value is read at most once a minute. */
 export async function dashboardAntifraudEvents(): Promise<number | null> {
   if (isDatabaseVacuumActive()) return null;
   const now = Date.now();
@@ -26,8 +26,15 @@ export async function dashboardAntifraudEvents(): Promise<number | null> {
   const rows = await prisma.$queryRaw<{ n: number }[]>`
     SELECT COALESCE(SUM(
       CASE
-        WHEN jsonb_typeof(blocks->'antifraud'->'legs') = 'array'
-        THEN jsonb_array_length(blocks->'antifraud'->'legs')
+        WHEN jsonb_typeof(blocks->'text') = 'string'
+        THEN (
+          SELECT count(*)::int
+          FROM regexp_matches(
+            blocks->>'text',
+            'Request ID\\s*\\[\\d+\\]\\s+(?:is sent|send)(?:[^A-Za-z]|$)',
+            'g'
+          )
+        )
         ELSE 0
       END
     ), 0)::int AS n

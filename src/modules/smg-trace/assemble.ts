@@ -1,79 +1,41 @@
-import { parseRadiusPacket, radiusCodeLabel } from "@/modules/smg-trace/packet";
-import { realTag, redactSecrets } from "@/modules/smg-trace/tag";
-import type {
-  TraceAttr,
-  TraceBlocks,
-  TraceLeg,
-  TraceMedia,
-  TraceSignalLeg,
-} from "@/modules/smg-trace/types";
+import { parseRadiusPacket } from "@/modules/smg-trace/packet";
+import { realTag } from "@/modules/smg-trace/tag";
+import type { TraceBlocks } from "@/modules/smg-trace/types";
 
 /**
- * Version 3 remembers the end of the syslog already on disk and reads only
- * bytes appended after that. It does not re-read the archive.
+ * Version 4 drops the structured card and keeps the raw AntiFraud exchange.
+ * A foreign mark deletes checkpoints. Without a version-4 live mark the cards
+ * are deleted too, then the pass continues from the end of the open file.
  */
-export const SMG_TRACE_PARSER_VERSION = 3;
+export const SMG_TRACE_PARSER_VERSION = 4;
 
 /** A call with no release and no reject leaves the assembler after this long. */
 export const SMG_TRACE_HOLD_MS = 4 * 60 * 60 * 1000;
 
-const NOTE_CAP = 40;
-const STEP_CAP = 80;
-const TIME_CAP = 24;
-const MESSAGE_CAP = 24;
-
-type Attempt = {
-  side: string;
-  requestId: string;
-  requestType: string;
-  origin: string;
-  attempts: string;
-  sessionId: string;
-  profile: string;
-  tg: string;
-  reason: string;
-  wait: string;
-  server: string;
-  numbers: string;
-  useAf: string;
-  attributes: TraceAttr[];
-  reply: string;
-  replyCode: string;
-  replyAttributes: TraceAttr[];
-  packetAttributes: TraceAttr[];
-  replyTime: string;
-  ignored: string;
-  released: string;
-  notes: string[];
-};
+const SYSLOG_PREFIX = /^<\d+>\s+<[^>]+>\s+\d{2}:\d{2}:\d{2}\.\d+\s+\[[A-Z]{3,4} ?\]\s*/;
 
 export type TraceSpan = {
   callref: string;
   tag: string;
   mismatch: boolean;
   echoed: boolean;
-  rejecting: string;
-  party: "" | "calling" | "called";
-  lastPort: string;
-  /** Index of the file where `unique tag:` was seen. Null until that line. */
-  echoGeneration: number | null;
   /** `Release time-stamp` or `Call rejected` has been seen. */
   ended: boolean;
   /** Slot index of the file that ended the call. Null until that commit. */
   releaseGeneration: number | null;
   /** File key of the slot where this call was first committed. */
   startedKey: string;
-  lead: string[];
-  attempts: Attempt[];
-  signal: TraceSignalLeg[];
-  numbers: { port: string; text: string }[];
-  times: { port: string; event: string; stamp: string; delta: string }[];
-  media: TraceMedia[];
+  /** Raw AntiFraud lines, syslog prefix removed, in read order. */
+  text: string;
+  /** Set when this commit removes the span. Until then the card stays open. */
+  sealed: boolean;
+  attemptOpen: boolean;
+  pendingBlank: string | null;
 };
 
-type Inflight = { id: number; callref: string; index: number };
+type Inflight = { id: number; callref: string };
 
-type Collecting = { callref: string; index: number; kind: "request" | "reply" };
+type Collecting = { callref: string };
 
 export type TraceState = {
   spans: Record<string, TraceSpan>;
@@ -82,6 +44,9 @@ export type TraceState = {
   collecting: Collecting | null;
   rcHex: string;
   rcActive: boolean;
+  rcLines: string[];
+  rcStage: "body" | "calc" | "reply";
+  heldQueue: string | null;
   /** Callrefs changed by the file that is being read. Cleared when that file is committed. */
   dirty: string[];
 };
@@ -94,6 +59,9 @@ export function emptyTraceState(): TraceState {
     collecting: null,
     rcHex: "",
     rcActive: false,
+    rcLines: [],
+    rcStage: "body",
+    heldQueue: null,
     dirty: [],
   };
 }
@@ -103,28 +71,54 @@ export function restoreTraceState(value: unknown): TraceState {
   if (!value || typeof value !== "object") return empty;
   const row = value as Partial<TraceState>;
   if (!row.spans || typeof row.spans !== "object") return empty;
+  const spans: Record<string, TraceSpan> = {};
+  for (const [key, span] of Object.entries(row.spans as Record<string, Partial<TraceSpan>>)) {
+    if (!span || typeof span !== "object") continue;
+    spans[key] = {
+      ...createSpan(typeof span.callref === "string" ? span.callref : key),
+      ...span,
+      text: typeof span.text === "string" ? span.text : "",
+      sealed: span.sealed === true,
+      attemptOpen: span.attemptOpen === true,
+      pendingBlank: typeof span.pendingBlank === "string" ? span.pendingBlank : null,
+    };
+  }
   return {
-    spans: row.spans,
+    spans,
     inflight: Array.isArray(row.inflight) ? row.inflight : [],
     ambiguousIds: Array.isArray(row.ambiguousIds) ? row.ambiguousIds : [],
     collecting: row.collecting ?? null,
     rcHex: typeof row.rcHex === "string" ? row.rcHex : "",
     rcActive: row.rcActive === true,
+    rcLines: Array.isArray(row.rcLines) ? row.rcLines.filter((line) => typeof line === "string") : [],
+    rcStage: row.rcStage === "calc" || row.rcStage === "reply" ? row.rcStage : "body",
+    heldQueue: typeof row.heldQueue === "string" ? row.heldQueue : null,
     dirty: [],
   };
 }
 
 /**
  * Write the calls this slot changed. A call stays until `Release time-stamp`
- * or `Call rejected`, and through the next slot, so a line just past a file
- * boundary is kept. A call with neither line leaves after four hours of slot
- * time. The saved card stays in the table either way.
+ * or `Call rejected`, and through the next slot. `sealed` is set only on the
+ * commit that drops the span, so the column stays «Ожидание АнтиФрода» until then.
  */
 export function commitTraceFile(
   state: TraceState,
   fileIndex: number,
   fileKey = "",
 ): TraceSpan[] {
+  const now = fileKey ? slotInstant(fileKey) : null;
+  for (const span of Object.values(state.spans)) {
+    if (!span.startedKey && fileKey) span.startedKey = fileKey;
+    if (span.ended && span.releaseGeneration == null) span.releaseGeneration = fileIndex;
+  }
+  for (const span of Object.values(state.spans)) {
+    const born = span.startedKey ? slotInstant(span.startedKey) : null;
+    const expired = now != null && born != null && now - born >= SMG_TRACE_HOLD_MS;
+    const finished = span.releaseGeneration != null && span.releaseGeneration < fileIndex;
+    if (finished || expired) span.sealed = true;
+  }
+
   const saved: TraceSpan[] = [];
   const seen = new Set<string>();
   for (const callref of state.dirty) {
@@ -133,16 +127,8 @@ export function commitTraceFile(
     seen.add(span.tag);
     saved.push(span);
   }
-  const now = fileKey ? slotInstant(fileKey) : null;
-  for (const span of Object.values(state.spans)) {
-    if (!span.startedKey && fileKey) span.startedKey = fileKey;
-    if (span.ended && span.releaseGeneration == null) span.releaseGeneration = fileIndex;
-  }
   for (const [callref, span] of Object.entries(state.spans)) {
-    const born = span.startedKey ? slotInstant(span.startedKey) : null;
-    const expired = now != null && born != null && now - born >= SMG_TRACE_HOLD_MS;
-    const finished = span.releaseGeneration != null && span.releaseGeneration < fileIndex;
-    if (!finished && !expired) continue;
+    if (!span.sealed) continue;
     if (span.tag && !seen.has(span.tag)) {
       seen.add(span.tag);
       saved.push(span);
@@ -187,151 +173,272 @@ export function applyText(state: TraceState, text: string): TraceSpan[] {
 }
 
 export function applyLine(state: TraceState, rawLine: string): TraceSpan | null {
-  const line = redactSecrets(rawLine);
-  if (!line.trim() || line.includes("<pa_sip>")) return null;
-  if (/\bConn\[/.test(line) && !/IP </.test(line)) return null;
-  if (/keep-alive|keepalive/i.test(line)) return null;
-  if (/management disabled/i.test(line)) return null;
-  if (/process queue|Reply queue/i.test(line)) return null;
+  if (!rawLine.trim() || rawLine.includes("<pa_sip>")) return null;
+  if (/keep-alive|keepalive/i.test(rawLine)) return null;
+  if (/management disabled/i.test(rawLine)) return null;
 
-  const payload = payloadOf(line);
-  if (state.rcActive || /Calculating digest on/.test(payload)) {
-    if (consumeRc(state, payload)) return null;
+  const stripped = stripPrefix(rawLine);
+  const payload = payloadOf(stripped);
+
+  if (state.rcActive || /Calculating digest on/i.test(payload)) {
+    if (consumeRc(state, stripped, payload)) return null;
   }
 
-  const callref = callrefOf(line);
-  if (state.collecting && callref === state.collecting.callref) {
-    if (/^-{6,}$/.test(payload)) {
-      state.collecting = null;
-      return null;
-    }
-    const attr = parseAttr(payload);
-    if (attr) {
-      pushCollected(state, attr);
-      touch(state, callref);
-      return null;
-    }
-    if (!payload) return null;
+  if (isQueueLine(payload) && !callrefOf(stripped)) {
+    state.heldQueue = stripped;
+    return null;
   }
 
-  if (!callref) return null;
+  const callref = callrefOf(stripped);
+  if (!callref) {
+    state.heldQueue = null;
+    return null;
+  }
+
+  if (state.collecting && state.collecting.callref !== callref) state.collecting = null;
+
   const taken = takeSpan(state, callref, namingTag(payload));
+  const span = taken.span;
   touch(state, callref);
-  absorb(state, taken.span, payload);
+  markEcho(span, payload);
+  markEnd(span, payload);
+  noteIdentity(span, payload);
+  noteInflight(state, span, payload);
+  flushBlank(span, payload);
+
+  if (state.heldQueue) {
+    if (queueBelongs(span, payload)) appendLine(span, state.heldQueue);
+    state.heldQueue = null;
+  }
+
+  if (!payload) {
+    if (state.collecting?.callref === callref) appendLine(span, stripped);
+    else span.pendingBlank = stripped;
+    return taken.detached;
+  }
+
+  const inDump = state.collecting?.callref === callref;
+  if (shouldStore(payload, span, inDump)) {
+    appendLine(span, stripped);
+    updateWindow(span, payload);
+    updateDump(state, span, payload);
+  }
   return taken.detached;
+}
+
+export function projectSpan(span: TraceSpan): TraceBlocks {
+  return { text: span.text, mismatch: span.mismatch };
+}
+
+/** A SIP «Call rejected» or an empty `RADIUS server rejected: :0` is not this. */
+export function radiusReleaseLine(payload: string): boolean {
+  if (/server rejected/i.test(payload)) return false;
+  return (
+    /RADIUS:\s*release call/i.test(payload) ||
+    /RADIUS reject/i.test(payload) ||
+    /0x0015/i.test(payload)
+  );
+}
+
+function stripPrefix(line: string): string {
+  if (!SYSLOG_PREFIX.test(line)) return line.trimEnd();
+  return line.replace(SYSLOG_PREFIX, "").trimEnd();
+}
+
+function consumeRc(state: TraceState, stripped: string, payload: string): boolean {
+  if (/Calculating digest on/i.test(payload)) {
+    state.rcActive = true;
+    state.rcHex = "";
+    state.rcLines = [stripped];
+    state.rcStage = "body";
+    return true;
+  }
+  if (!state.rcActive) return false;
+  if (state.rcStage === "body" && /Calculated digest/i.test(payload)) {
+    state.rcLines.push(stripped);
+    state.rcStage = "calc";
+    return true;
+  }
+  if (state.rcStage === "calc" && /Reply digest/i.test(payload)) {
+    state.rcLines.push(stripped);
+    state.rcStage = "reply";
+    return true;
+  }
+  const hex = payload.replace(/\s+/g, "");
+  if (/^[0-9a-fA-F]{8,}$/.test(hex)) {
+    state.rcLines.push(stripped);
+    if (state.rcStage === "body") state.rcHex += hex;
+    if (state.rcStage === "reply") finishRc(state);
+    return true;
+  }
+  state.rcActive = false;
+  state.rcHex = "";
+  state.rcLines = [];
+  state.rcStage = "body";
+  return false;
+}
+
+function finishRc(state: TraceState): void {
+  const lines = state.rcLines;
+  const hex = state.rcHex;
+  state.rcActive = false;
+  state.rcHex = "";
+  state.rcLines = [];
+  state.rcStage = "body";
+  const parsed = parseRadiusPacket(hex);
+  if (!parsed) return;
+  if (state.ambiguousIds.includes(parsed.id)) {
+    state.ambiguousIds = state.ambiguousIds.filter((id) => id !== parsed.id);
+    return;
+  }
+  const matches = state.inflight.filter((item) => item.id === parsed.id);
+  const callrefs = new Set(matches.map((item) => item.callref));
+  if (matches.length !== 1 || callrefs.size !== 1) return;
+  const span = state.spans[matches[0]!.callref];
+  if (!span) return;
+  touch(state, span.callref);
+  for (const line of lines) appendLine(span, line);
+}
+
+function queueBelongs(span: TraceSpan, payload: string): boolean {
+  if (!/process reply/i.test(payload)) return false;
+  const id = requestIdOf(payload);
+  if (id == null) return false;
+  const last = span.text.split("\n").at(-1) ?? "";
+  return /got valid reply/i.test(last) && requestIdOf(last) === id;
+}
+
+function flushBlank(span: TraceSpan, payload: string): void {
+  if (!span.pendingBlank) return;
+  if (/^--\s*RADIUS\./i.test(payload) || /^-{6,}$/.test(payload)) appendLine(span, span.pendingBlank);
+  span.pendingBlank = null;
+}
+
+function shouldStore(payload: string, span: TraceSpan, inDump: boolean): boolean {
+  if (excluded(payload)) return false;
+  if (inDump) return true;
+  if (/Set Antifraud RADIUS-profile/i.test(payload)) return true;
+  if (/Accs-Request for Antifraud/i.test(payload)) return true;
+  if (radiusReleaseLine(payload)) return true;
+  if (!span.attemptOpen) return false;
+  if (exchangeLine(payload) || /\bRADIUS\b/i.test(payload)) return true;
+  return false;
+}
+
+function excluded(payload: string): boolean {
+  if (/Seize on version/i.test(payload)) return true;
+  if (/seize-time/i.test(payload)) return true;
+  if (/session-ID\s*\[/i.test(payload)) return true;
+  if (/RADIUS\s*=\s*-1/i.test(payload)) return true;
+  if (/from-RADIUS-modify/i.test(payload)) return true;
+  if (/\bConn\[/.test(payload)) return true;
+  if (/server rejected/i.test(payload)) return true;
+  if (/\b(IAM|ACM|ANM|REL|RLC|CPG|CON)-/.test(payload)) return true;
+  if (/\bDial\b/i.test(payload) && !/Antifraud/i.test(payload)) return true;
+  if (/Modify at|Number tranzit|ModTable\b|Prefix linked|CheckRTP|rtp-cfg|fax_mode/i.test(payload)) {
+    return true;
+  }
+  return false;
+}
+
+function exchangeLine(payload: string): boolean {
+  return (
+    /modified for transit/i.test(payload) ||
+    /process modifiers/i.test(payload) ||
+    /Accs-Request \[/i.test(payload) ||
+    /Prepare Antifraud/i.test(payload) ||
+    /profile idx/i.test(payload) ||
+    /clg\s*</i.test(payload) ||
+    /Antifraud/i.test(payload) ||
+    /Request ID/i.test(payload) ||
+    /Attempt:?\s*\d+/i.test(payload) ||
+    /Srv-grp|Server\[\d+\]/i.test(payload) ||
+    /\bis sent\b/i.test(payload) ||
+    /^--\s*RADIUS\./i.test(payload) ||
+    /^-{6,}$/.test(payload) ||
+    /blocking behaviour/i.test(payload) ||
+    /got valid reply/i.test(payload) ||
+    /process reply/i.test(payload) ||
+    /Accs-Reply/i.test(payload) ||
+    /ignore for not antifraud/i.test(payload) ||
+    /process call\./i.test(payload) ||
+    /no flags set/i.test(payload) ||
+    /Accounting-Request|Acct-Request/i.test(payload)
+  );
+}
+
+function updateWindow(span: TraceSpan, payload: string): void {
+  if (/Accs-Request for Antifraud/i.test(payload) && /USE_AF\s+1\b/.test(payload)) {
+    span.attemptOpen = true;
+  }
+  if (
+    /process call\.\s*Accs req status:\s*antifraud/i.test(payload) ||
+    /no flags set\s*-\s*skip/i.test(payload) ||
+    /ignore for not antifraud/i.test(payload)
+  ) {
+    span.attemptOpen = false;
+  }
+}
+
+function updateDump(state: TraceState, span: TraceSpan, payload: string): void {
+  if (/^--\s*RADIUS\./i.test(payload)) {
+    state.collecting = { callref: span.callref };
+    return;
+  }
+  if (/^-{6,}$/.test(payload) && state.collecting?.callref === span.callref) {
+    state.collecting = null;
+  }
+}
+
+function noteIdentity(span: TraceSpan, payload: string): void {
+  const h323 = payload.match(/h323-conf-id\s*=\s*'([^']*)'/i);
+  if (!h323?.[1]) return;
+  const tag = realTag(h323[1]);
+  if (!tag) return;
+  if (!span.tag) span.tag = tag;
+  else if (span.tag !== tag) span.mismatch = true;
+}
+
+function noteInflight(state: TraceState, span: TraceSpan, payload: string): void {
+  const id = requestIdOf(payload);
+  if (id == null) return;
+  const processing = /Processing Antifraud-Auth-Request|process Antifraud-Auth-Request/i.test(payload);
+  if (processing) {
+    const others = state.inflight.some((item) => item.id === id && item.callref !== span.callref);
+    if (others) {
+      if (!state.ambiguousIds.includes(id)) state.ambiguousIds.push(id);
+      state.inflight = state.inflight.filter((item) => item.id !== id);
+      return;
+    }
+    if (!state.inflight.some((item) => item.id === id && item.callref === span.callref)) {
+      state.inflight.push({ id, callref: span.callref });
+    }
+  }
+  if (/got valid reply/i.test(payload)) {
+    state.inflight = state.inflight.filter((item) => item.id !== id || item.callref !== span.callref);
+  }
+}
+
+function requestIdOf(payload: string): number | null {
+  const match = payload.match(/Request ID\s*\[(\d+)\]/i);
+  if (!match?.[1]) return null;
+  return Number(match[1]);
+}
+
+function isQueueLine(payload: string): boolean {
+  return /process queue|Reply queue/i.test(payload);
+}
+
+function appendLine(span: TraceSpan, line: string): void {
+  span.text = span.text ? `${span.text}\n${line}` : line;
 }
 
 function touch(state: TraceState, callref: string): void {
   if (!state.dirty.includes(callref)) state.dirty.push(callref);
 }
 
-export function projectSpan(span: TraceSpan): TraceBlocks {
-  const sent = span.attempts.some(
-    (leg) =>
-      leg.requestId !== "" ||
-      leg.attributes.length > 0 ||
-      leg.reply !== "" ||
-      leg.replyCode !== "" ||
-      leg.packetAttributes.length > 0,
-  );
-  const checkedOff = span.attempts.some((leg) => leg.useAf === "0");
-  let summary = "В трассе нет обмена с Антифродом.";
-  if (sent) summary = "Обмен RADIUS с Антифродом.";
-  else if (checkedOff) {
-    summary = "Шлюз проверил транк-группу и не отправил Access-Request (USE_AF 0).";
-  } else if (span.attempts.length > 0) {
-    summary = "Проверка Антифрода без отправленного запроса.";
-  }
-
-  return {
-    antifraud: {
-      summary,
-      rejecting: span.rejecting,
-      mismatch: span.mismatch,
-      notes: span.lead,
-      legs: span.attempts.map(presentLeg),
-    },
-    signal: span.signal.filter((leg) => leg.callId !== "" || leg.messages.length > 0),
-    numbers: span.numbers,
-    times: span.times,
-    media: span.media.filter((leg) =>
-      [leg.codec, leg.offer, leg.rtp, leg.dtmf, leg.fax, leg.vbd, leg.dscp].some(Boolean),
-    ),
-  };
-}
-
-function presentLeg(leg: Attempt): TraceLeg {
-  const replyAttributes =
-    leg.replyAttributes.length > 0 ? leg.replyAttributes : leg.packetAttributes;
-  return {
-    side: leg.side,
-    requestId: leg.requestId,
-    requestType: leg.requestType,
-    origin: leg.origin,
-    attempts: leg.attempts,
-    sessionId: leg.sessionId,
-    profile: leg.profile,
-    tg: leg.tg,
-    reason: leg.reason,
-    wait: leg.wait,
-    server: leg.server,
-    numbers: leg.numbers,
-    useAf: leg.useAf,
-    attributes: leg.attributes,
-    reply: leg.reply,
-    replyCode: leg.replyCode,
-    replyAttributes,
-    replyTime: leg.replyTime,
-    ignored: leg.ignored,
-    released: leg.released,
-    notes: leg.notes,
-  };
-}
-
-function consumeRc(state: TraceState, payload: string): boolean {
-  if (/Calculating digest on/.test(payload)) {
-    state.rcActive = true;
-    state.rcHex = "";
-    return true;
-  }
-  if (!state.rcActive) return false;
-  if (/Calculated digest/.test(payload)) {
-    const parsed = parseRadiusPacket(state.rcHex);
-    state.rcActive = false;
-    state.rcHex = "";
-    if (parsed) bindPacket(state, parsed);
-    return true;
-  }
-  const hex = payload.replace(/\s+/g, "");
-  if (/^[0-9a-fA-F]{8,}$/.test(hex)) {
-    state.rcHex += hex;
-    return true;
-  }
-  state.rcActive = false;
-  state.rcHex = "";
-  return false;
-}
-
-function bindPacket(state: TraceState, packet: { code: number; id: number; attributes: TraceAttr[] }): void {
-  if (state.ambiguousIds.includes(packet.id)) {
-    state.ambiguousIds = state.ambiguousIds.filter((id) => id !== packet.id);
-    return;
-  }
-  const matches = state.inflight.filter((item) => item.id === packet.id);
-  const callrefs = new Set(matches.map((item) => item.callref));
-  if (matches.length !== 1 || callrefs.size !== 1) return;
-  const hit = matches[0]!;
-  const span = state.spans[hit.callref];
-  const attempt = span?.attempts[hit.index];
-  if (!span || !attempt) return;
-  touch(state, hit.callref);
-  attempt.replyCode = radiusCodeLabel(packet.code);
-  attempt.packetAttributes = packet.attributes;
-  state.inflight = state.inflight.filter((item) => item.id !== packet.id || item.callref !== hit.callref);
-}
-
 function payloadOf(line: string): string {
-  const rc = line.match(/\brc:\s*(.*)$/);
+  const rc = line.match(/\brc:\s*(.*)$/i);
   if (rc) return rc[1]?.trim() ?? "";
   const bracket = line.match(/\[(C[0-9A-Fa-f]{4,})\](.*)$/);
   if (bracket) return bracket[2]?.trim() ?? "";
@@ -380,19 +487,6 @@ function takeSpan(
   return { span: current, detached: null };
 }
 
-function absorb(state: TraceState, span: TraceSpan, payload: string): void {
-  if (!payload) return;
-  const seenPort = portOf(payload);
-  if (seenPort) span.lastPort = seenPort;
-  markEcho(span, payload);
-  markEnd(span, payload);
-  absorbSignal(span, payload);
-  absorbNumbers(span, payload);
-  absorbTimes(span, payload);
-  absorbMedia(span, payload);
-  absorbAntifraud(state, span, payload);
-}
-
 function markEnd(span: TraceSpan, payload: string): void {
   if (/Release\s+time-stamp:/.test(payload) || /Call rejected/i.test(payload)) span.ended = true;
 }
@@ -406,423 +500,18 @@ function markEcho(span: TraceSpan, payload: string): void {
   else if (tag && span.tag !== tag) span.mismatch = true;
 }
 
-function absorbSignal(span: TraceSpan, payload: string): void {
-  const port = portOf(payload) || span.lastPort;
-  const message = payload.match(/\b(IAM|ACM|ANM|REL|RLC|CPG|CON)-/);
-  if (message?.[1]) pushMessage(span, port || "SS7", message[1]);
-  if (/\bSIP\b/.test(payload)) {
-    const sip = payload.match(/\b(INVITE|BYE|ACK|CANCEL|PRACK|UPDATE)\b/);
-    if (sip?.[1]) pushMessage(span, port || "SIP", sip[1]);
-  }
-  const callId =
-    payload.match(/Call-ID\s*<([^>]+)>/) ?? payload.match(/Call-ID:\s*'([^']+)'/);
-  if (callId?.[1]) {
-    const leg = ensureSignal(span, port || "SIP");
-    leg.callId = callId[1];
-  }
-}
-
-function absorbNumbers(span: TraceSpan, payload: string): void {
-  const port = portOf(payload) || span.lastPort;
-  if (/Calling party number:/.test(payload)) {
-    span.party = "calling";
-    return;
-  }
-  if (/Called party number:/.test(payload)) {
-    span.party = "called";
-    return;
-  }
-  const printed = payload.match(/#\s*Number:\s*([0-9*#]+)/);
-  if (printed?.[1] && span.party) {
-    pushStep(span, port, `${span.party === "calling" ? "CgPN" : "CdPN"} ${printed[1]}`);
-    return;
-  }
-  const mask = payload.match(/number mask <([^>]+)>/);
-  if (mask?.[1]) {
-    pushStep(span, port, `маска ${mask[1]}`);
-    return;
-  }
-  const rule = payload.match(/rule <([^>]+)>/);
-  if (rule?.[1]) {
-    pushStep(span, port, `правило ${rule[1]}`);
-    return;
-  }
-  const result = payload.match(/result-num:\s*<([^>]+)>/);
-  if (result?.[1]) {
-    pushStep(span, port, `после ${result[1]}`);
-    return;
-  }
-  const cg = payload.match(/CgPN:\s*<([^>]+)>/);
-  if (cg?.[1]) {
-    pushStep(span, port, `CgPN ${cg[1]}`);
-    return;
-  }
-  const cd = payload.match(/CdPN:\s*<([^>]+)>/);
-  if (cd?.[1]) {
-    pushStep(span, port, `CdPN ${cd[1]}`);
-    return;
-  }
-  if (/params:/.test(payload)) {
-    const plan = payload.match(/numplan <([^>]+)>/);
-    const pres = payload.match(/pres <([^>]+)>/);
-    if (plan?.[1]) pushStep(span, port, `план ${plan[1]}`);
-    if (pres?.[1]) pushStep(span, port, `presentation ${pres[1]}`);
-    return;
-  }
-  const prefix = payload.match(/Prefix\s+(\d+):\s*type '([^']+)'/);
-  if (prefix?.[1] && prefix[2]) {
-    pushStep(span, port, `префикс ${prefix[1]} ${prefix[2]}`);
-    return;
-  }
-  const trunk = payload.match(/Link to TG\s+(\S+)/);
-  if (trunk?.[1]) {
-    pushStep(span, port, `транк-группа ${trunk[1].replace(/\.$/, "")}`);
-    return;
-  }
-  if (/enblock/i.test(payload)) {
-    pushStep(span, port, "enblock");
-    return;
-  }
-  const table = payload.match(/ModTable[^[]*\[([^\]]+)\]/);
-  if (table?.[1]) pushStep(span, port, `ModTable ${table[1]}`);
-}
-
-function absorbTimes(span: TraceSpan, payload: string): void {
-  const match = payload.match(
-    /(Setup|Answer|Release)\s+time-stamp:\s*(.+?)(?:,\s*msec-diff:\s*(\d+))?\s*$/,
-  );
-  if (!match?.[1] || !match[2]) return;
-  const row = {
-    port: portOf(payload) || span.lastPort,
-    event: match[1],
-    stamp: match[2].trim(),
-    delta: match[3] ? `${match[3]} ms` : "",
-  };
-  const last = span.times[span.times.length - 1];
-  if (last && last.port === row.port && last.event === row.event && last.stamp === row.stamp) return;
-  if (span.times.length < TIME_CAP) span.times.push(row);
-}
-
-function absorbMedia(span: TraceSpan, payload: string): void {
-  const port = portOf(payload) || span.lastPort;
-  const codec = payload.match(/Use codec:\s*(\S+)\s+(\S+)\.\s*PT\s*(\d+),\s*PTE\s*(\d+)/);
-  if (codec?.[1] && codec[2] && codec[3] && codec[4]) {
-    const media = ensureMedia(span, port);
-    media.codec = codec[1];
-    media.direction = codec[2];
-    media.payload = codec[3];
-    media.ptime = codec[4];
-  }
-  const offer = payload.match(/m\[\d+\]:\s*(.+)$/);
-  if (offer?.[1]) ensureMedia(span, port).offer = offer[1].trim();
-  const dtmf = payload.match(/dtmf_mode '([^']+)'/);
-  if (dtmf?.[1]) ensureMedia(span, port).dtmf = dtmf[1];
-  const fax = payload.match(/fax_mode '([^']+)'/);
-  if (fax?.[1]) ensureMedia(span, port).fax = fax[1];
-  const vbd = payload.match(/use_vbd '([^']+)'/);
-  if (vbd?.[1]) ensureMedia(span, port).vbd = vbd[1];
-  const dscp = payload.match(/dscp \[(\d+)\]/);
-  if (dscp?.[1]) ensureMedia(span, port).dscp = dscp[1];
-  const rtp = payload.match(/\bIP <([^>]+)>/);
-  if (rtp?.[1]) ensureMedia(span, port).rtp = rtp[1];
-}
-
-function absorbAntifraud(state: TraceState, span: TraceSpan, payload: string): void {
-  const rejected = payload.match(/RADIUS server rejected:\s*(\S+)/);
-  if (rejected?.[1]) span.rejecting = rejected[1];
-
-  const dump = payload.match(/^--\s*RADIUS\..*\[(\d+)\]\s*--$/);
-  if (dump?.[1]) {
-    const id = Number(dump[1]);
-    const kind = /Reply/i.test(payload) ? "reply" : "request";
-    const index = ensureAttemptIndex(span, id, dump[1]);
-    state.collecting = { callref: span.callref, index, kind };
-    return;
-  }
-
-  const check = payload.match(
-    /Accs-Request for Antifraud:\s*check TG\(i\/o\):\s*([^,]+),\s*USE_AF\s+(\d+),\s*SD\s+(\d+),\s*OS\s+(\d+),\s*RREQ\s+(\d+)/,
-  );
-  if (check?.[1] && check[2] && check[3] && check[4] && check[5]) {
-    const side = check[4] === "1" ? "out" : check[3] === "1" ? "in" : "";
-    const tg = `${check[1].trim()}, RREQ ${check[5]}`;
-    const last = span.attempts[span.attempts.length - 1];
-    if (last && !last.requestId && last.useAf === check[2] && last.tg === tg && last.side === side) {
-      return;
-    }
-    const attempt =
-      last && !last.requestId && !last.useAf ? last : pushAttempt(span);
-    attempt.useAf = check[2];
-    attempt.tg = tg;
-    if (side) attempt.side = side;
-    return;
-  }
-
-  const legKind = payload.match(/Accs-Request \[(antifraud(?:_out)?)\]/);
-  if (legKind?.[1]) {
-    const side = legKind[1] === "antifraud_out" ? "out" : "in";
-    const last = span.attempts[span.attempts.length - 1];
-    const attempt =
-      !last || (last.side !== "" && last.side !== side && (last.requestId !== "" || last.useAf !== ""))
-        ? pushAttempt(span)
-        : last;
-    if (!attempt.side) attempt.side = side;
-    return;
-  }
-
-  const request = payload.match(/Request ID\s*\[(\d+)\]/);
-  if (request?.[1] && /Request ID/.test(payload)) {
-    assignRequest(state, span, request[1]);
-  }
-
-  const attempt = span.attempts[span.attempts.length - 1];
-  if (!attempt) {
-    if (/wait(?:\s+for)? Antifraud RADIUS-reply/i.test(payload)) {
-      pushAttempt(span).wait = clip(payload);
-      return;
-    }
-    if (/Antifraud|RADIUS/i.test(payload)) pushLead(span, payload);
-    return;
-  }
-
-  const server = payload.match(/Server\[\d+\]:\s*(\d{1,3}(?:\.\d{1,3}){3}:\d+)/);
-  if (server?.[1]) attempt.server = server[1];
-
-  const count = payload.match(/Attempt:?\s*(\d+)\s+of\s+(\d+)/i);
-  if (count?.[1] && count[2]) attempt.attempts = `${count[1]} of ${count[2]}`;
-
-  const profile = payload.match(/profile idx (\d+),\s*group (\d+)/);
-  if (profile?.[1] && profile[2]) attempt.profile = `idx ${profile[1]}, group ${profile[2]}`;
-
-  const numbers = payload.match(/clg <([^>]*)>,\s*cld <([^>]*)>/);
-  if (numbers) attempt.numbers = `clg ${numbers[1]}, cld ${numbers[2]}`;
-
-  if (/wait(?:\s+for)? Antifraud RADIUS-reply/i.test(payload)) attempt.wait = clip(payload);
-
-  if (/modified for transit/i.test(payload)) attempt.reason = clip(payload);
-
-  const reply = payload.match(/Accs-Reply \[([^\]]+)\]/);
-  if (reply?.[1]) attempt.reply = reply[1];
-  const printedTime = payload.match(/Time \[(\d+:\d+)\]/);
-  if (printedTime?.[1]) attempt.replyTime = printedTime[1];
-  const got = payload.match(/got valid reply.*\(in (\d+) ms\)/);
-  if (got?.[1] && !attempt.replyTime) attempt.replyTime = `${got[1]} ms`;
-  if (/ignore for not antifraud/i.test(payload)) attempt.ignored = clip(payload);
-
-  if (radiusReleaseLine(payload)) attempt.released = clip(payload);
-
-  if (request?.[1] && (/got valid reply/i.test(payload) || reply)) {
-    const id = Number(request[1]);
-    state.inflight = state.inflight.filter(
-      (item) => item.id !== id || item.callref !== span.callref,
-    );
-  }
-
-  if (/Set Antifraud RADIUS-profile|from-RADIUS-modify|process modifiers|Prepare Antifraud|process call\./i.test(payload)) {
-    pushNote(attempt, clip(payload));
-  }
-}
-
-/** A SIP «Call rejected» or an empty `RADIUS server rejected: :0` is not this. */
-export function radiusReleaseLine(payload: string): boolean {
-  if (/server rejected/i.test(payload)) return false;
-  return (
-    /RADIUS:\s*release call/i.test(payload) ||
-    /RADIUS reject/i.test(payload) ||
-    /0x0015/i.test(payload)
-  );
-}
-
-function assignRequest(state: TraceState, span: TraceSpan, printed: string): void {
-  const id = Number(printed);
-  let attempt = span.attempts[span.attempts.length - 1];
-  if (
-    attempt &&
-    attempt.requestId !== "" &&
-    Number(attempt.requestId) !== id &&
-    (attempt.reply !== "" || attempt.replyCode !== "" || attempt.attributes.length > 0)
-  ) {
-    attempt = pushAttempt(span);
-  } else if (!attempt) {
-    attempt = pushAttempt(span);
-  }
-  if (!attempt.requestId) attempt.requestId = printed;
-  const others = state.inflight.filter((item) => item.id === id && item.callref !== span.callref);
-  state.inflight = state.inflight.filter((item) => item.id !== id);
-  if (others.length > 0) {
-    if (!state.ambiguousIds.includes(id)) state.ambiguousIds.push(id);
-    return;
-  }
-  if (state.ambiguousIds.includes(id)) return;
-  state.inflight.push({ id, callref: span.callref, index: span.attempts.length - 1 });
-}
-
-function ensureAttemptIndex(span: TraceSpan, id: number, printed: string): number {
-  const found = span.attempts.findIndex((leg) => leg.requestId !== "" && Number(leg.requestId) === id);
-  if (found >= 0) return found;
-  const last = span.attempts[span.attempts.length - 1];
-  if (last && !last.requestId) {
-    last.requestId = printed;
-    return span.attempts.length - 1;
-  }
-  const created = pushAttempt(span);
-  created.requestId = printed;
-  return span.attempts.length - 1;
-}
-
-function pushCollected(state: TraceState, attr: TraceAttr): void {
-  const collecting = state.collecting;
-  if (!collecting) return;
-  const span = state.spans[collecting.callref];
-  const attempt = span?.attempts[collecting.index];
-  if (!span || !attempt) return;
-  if (collecting.kind === "request") attempt.attributes.push(attr);
-  else attempt.replyAttributes.push(attr);
-  if (attr.name === "h323-conf-id") {
-    const tag = realTag(attr.value);
-    if (tag && !span.tag) span.tag = tag;
-    else if (tag && span.tag !== tag) span.mismatch = true;
-  }
-  if (attr.name === "Acct-Session-Id" && !attempt.sessionId) attempt.sessionId = attr.value;
-  if (attr.name === "h323-call-origin") {
-    attempt.origin = attr.value;
-    if (!attempt.side && attr.value === "originate") attempt.side = "in";
-    if (!attempt.side && attr.value === "answer") attempt.side = "out";
-  }
-  if (attr.name === "Cisco-AVPair" && attr.value.startsWith("xpgk-request-type=")) {
-    attempt.requestType = attr.value.slice("xpgk-request-type=".length);
-  }
-  if (attr.name === "Reply-Message" && !attempt.reply) attempt.reply = attr.value;
-}
-
-function parseAttr(payload: string): TraceAttr | null {
-  const match = payload.match(/^([A-Za-z][A-Za-z0-9-]*)\s+=\s+'(.*)'$/);
-  if (!match?.[1] || match[2] == null) return null;
-  if (/password/i.test(match[1])) {
-    return { name: "Password", value: match[2].trim() === "" ? "пусто" : "задано" };
-  }
-  return { name: match[1], value: match[2] };
-}
-
 function createSpan(callref: string): TraceSpan {
   return {
     callref,
     tag: "",
     mismatch: false,
     echoed: false,
-    rejecting: "",
-    party: "",
-    lastPort: "",
-    echoGeneration: null,
     ended: false,
     releaseGeneration: null,
     startedKey: "",
-    lead: [],
-    attempts: [],
-    signal: [],
-    numbers: [],
-    times: [],
-    media: [],
+    text: "",
+    sealed: false,
+    attemptOpen: false,
+    pendingBlank: null,
   };
-}
-
-function emptyAttempt(): Attempt {
-  return {
-    side: "",
-    requestId: "",
-    requestType: "",
-    origin: "",
-    attempts: "",
-    sessionId: "",
-    profile: "",
-    tg: "",
-    reason: "",
-    wait: "",
-    server: "",
-    numbers: "",
-    useAf: "",
-    attributes: [],
-    reply: "",
-    replyCode: "",
-    replyAttributes: [],
-    packetAttributes: [],
-    replyTime: "",
-    ignored: "",
-    released: "",
-    notes: [],
-  };
-}
-
-function pushAttempt(span: TraceSpan): Attempt {
-  const attempt = emptyAttempt();
-  attempt.notes = span.lead;
-  span.lead = [];
-  span.attempts.push(attempt);
-  return attempt;
-}
-
-function pushLead(span: TraceSpan, payload: string): void {
-  pushUnique(span.lead, clip(payload), NOTE_CAP);
-}
-
-function pushNote(attempt: Attempt, text: string): void {
-  pushUnique(attempt.notes, text, NOTE_CAP);
-}
-
-function pushUnique(list: string[], text: string, cap: number): void {
-  if (!text || list[list.length - 1] === text || list.length >= cap) return;
-  list.push(text);
-}
-
-function pushStep(span: TraceSpan, port: string, text: string): void {
-  const last = span.numbers[span.numbers.length - 1];
-  if (last && last.port === port && last.text === text) return;
-  if (span.numbers.length < STEP_CAP) span.numbers.push({ port, text });
-}
-
-function pushMessage(span: TraceSpan, port: string, message: string): void {
-  const leg = ensureSignal(span, port);
-  if (leg.messages[leg.messages.length - 1] === message) return;
-  if (leg.messages.length < MESSAGE_CAP) leg.messages.push(message);
-}
-
-function ensureSignal(span: TraceSpan, port: string): TraceSignalLeg {
-  const found = span.signal.find((leg) => leg.port === port);
-  if (found) return found;
-  const created: TraceSignalLeg = { port, callId: "", messages: [] };
-  span.signal.push(created);
-  return created;
-}
-
-function ensureMedia(span: TraceSpan, port: string): TraceMedia {
-  const found = span.media.find((leg) => leg.port === port);
-  if (found) return found;
-  const created: TraceMedia = {
-    port,
-    codec: "",
-    payload: "",
-    ptime: "",
-    direction: "",
-    offer: "",
-    rtp: "",
-    dtmf: "",
-    fax: "",
-    vbd: "",
-    dscp: "",
-  };
-  span.media.push(created);
-  return created;
-}
-
-function portOf(payload: string): string {
-  const match = payload.match(/Port (SS7:\d+:\d+|SIPT:[0-9A-Fa-f]+)/);
-  if (match?.[1]) return match[1];
-  const sip = payload.match(/SIP\. Callref ([0-9A-Fa-f]+)/);
-  if (sip?.[1]) return `SIPT:${sip[1]}`;
-  return "";
-}
-
-function clip(payload: string): string {
-  const text = payload.replace(/\s+/g, " ").trim();
-  return text.length > 220 ? text.slice(0, 220) : text;
 }

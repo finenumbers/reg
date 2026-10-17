@@ -83,12 +83,12 @@ const prismaRepository: TraceRepository = {
         deviceIp,
         tagNorm: span.tag,
         callref: span.callref,
-        open: !span.ended,
+        open: !span.sealed,
         blocks,
       },
       update: {
         callref: span.callref,
-        open: !span.ended,
+        open: !span.sealed,
         blocks,
       },
     });
