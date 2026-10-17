@@ -6,6 +6,12 @@
 import { formatCount } from "@/lib/format-count";
 import { billableMinutes } from "@/modules/enrich/types";
 import { isSmgField, SMG_PHONE_FIELDS, type SmgField } from "@/modules/smg/columns";
+import {
+  AF_CATEGORY,
+  AF_STATUS,
+  isSmgAntifraudColumn,
+  SMG_ANTIFRAUD_COLUMNS,
+} from "@/modules/smg-trace/classify";
 import { formatCdrDayDisplay, splitCdrDateParts } from "@/modules/traffic/cdr-date-parts";
 
 /** Same predicate as `smgDurationSecondsSql`. Anything else is 0 seconds. */
@@ -43,6 +49,7 @@ export const SMG_SUMMARY_COLUMNS = [
   "releaseCause",
   "callReleaseInfo",
   "releaseSideMark",
+  ...SMG_ANTIFRAUD_COLUMNS,
 ] as const;
 
 export type SmgSummaryColumn = (typeof SMG_SUMMARY_COLUMNS)[number];
@@ -66,6 +73,8 @@ export const SMG_SUMMARY_LABELS: Record<SmgSummaryColumn, string> = {
   releaseCause: "Q.850",
   callReleaseInfo: "Статус",
   releaseSideMark: "Сброс",
+  antifraud: "АнтиФрод",
+  antifraudStatus: "Статус АнтиФрод",
 };
 
 /**
@@ -105,6 +114,8 @@ type ClockSource = {
   duration: string;
   incomingRedirectingNumber: string;
   outgoingRedirectingNumber: string;
+  antifraud?: string;
+  antifraudStatus?: string;
 };
 
 function legClock(raw: string, setupDay: string, empty: string): string {
@@ -159,6 +170,9 @@ export function smgSummaryCellText(
   column: string,
   row: ClockSource & Record<SmgField, string>,
 ): string {
+  if (column === "antifraud") return row.antifraud ?? AF_CATEGORY.noData;
+  if (column === "antifraudStatus") return row.antifraudStatus ?? AF_STATUS.unknown;
+  if (isSmgAntifraudColumn(column)) return "";
   if (isSmgSummaryDerived(column)) return formatSmgSummaryCell(column, row);
   if (isSmgField(column)) return row[column];
   return "";

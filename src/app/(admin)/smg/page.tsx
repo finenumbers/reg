@@ -1,6 +1,10 @@
 import { requirePagePermission } from "@/modules/auth/guards";
 import { hasPermission } from "@/modules/rbac/permissions";
 import { SMG_FIELDS, SMG_HEADER_LABELS } from "@/modules/smg/columns";
+import {
+  SMG_ANTIFRAUD_COLUMNS,
+  SMG_ANTIFRAUD_LABELS,
+} from "@/modules/smg-trace/classify";
 import { latestSmgImportCursor, listSmgCalls } from "@/modules/smg/service";
 import { SmgView } from "@/modules/smg/ui/smg-view";
 
@@ -17,8 +21,8 @@ export default async function SmgCallsPage() {
       initialSince={initialSince}
       title="Звонки на SMG"
       subtitle="Полный дамп CDR цифровых шлюзов Eltex SMG-1016M из локальной базы."
-      columns={SMG_FIELDS}
-      headerLabels={SMG_HEADER_LABELS}
+      columns={[...SMG_FIELDS, ...SMG_ANTIFRAUD_COLUMNS]}
+      headerLabels={{ ...SMG_HEADER_LABELS, ...SMG_ANTIFRAUD_LABELS }}
       showOps
       searchInputId="smg-phone-search"
       exportLayout="calls"

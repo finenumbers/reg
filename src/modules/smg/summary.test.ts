@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { isSmgField, SMG_FIELDS } from "@/modules/smg/columns";
+import { isSmgAntifraudColumn } from "@/modules/smg-trace/classify";
 import {
   SMG_SUMMARY_COLUMNS,
   SMG_SUMMARY_DERIVED,
@@ -21,16 +22,21 @@ const base = {
 };
 
 describe("SMG summary columns", () => {
-  it("keeps 18 working columns and does not reuse a CDR field name for a derived cell", () => {
-    expect(SMG_SUMMARY_COLUMNS).toHaveLength(18);
+  it("keeps 20 working columns and does not reuse a CDR field name for a derived cell", () => {
+    expect(SMG_SUMMARY_COLUMNS).toHaveLength(20);
+    expect(SMG_SUMMARY_COLUMNS.slice(-2)).toEqual(["antifraud", "antifraudStatus"]);
     for (const column of SMG_SUMMARY_DERIVED) {
       expect(isSmgField(column)).toBe(false);
       expect(isSmgSummaryDerived(column)).toBe(true);
     }
     for (const column of SMG_SUMMARY_COLUMNS) {
       expect(SMG_SUMMARY_LABELS[column].length).toBeGreaterThan(0);
-      if (!isSmgSummaryDerived(column)) expect(isSmgField(column)).toBe(true);
+      if (!isSmgSummaryDerived(column) && !isSmgAntifraudColumn(column)) {
+        expect(isSmgField(column)).toBe(true);
+      }
     }
+    expect(SMG_SUMMARY_FACET_COLUMNS).not.toContain("antifraud");
+    expect(SMG_SUMMARY_FACET_COLUMNS).not.toContain("antifraudStatus");
   });
 
   it("facets trunk, number, and release columns, not clocks, seconds, or the redirect number", () => {

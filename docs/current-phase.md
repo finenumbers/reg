@@ -1,7 +1,15 @@
-# Current Phase — production (v1.146.0)
+# Current Phase — production (v1.147.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, Eltex SMG CDR, Eltex SMG syslog.  
 **Date:** 2026-10-17
+
+## v1.147.0 — SMG calls show the Griffin antifraud result
+
+«Трафик SMG» and «Звонки на SMG» each gain «АнтиФрод» and «Статус АнтиФрод». The values are read from the syslog card for that UniqueTag. They are not stored on the CDR row, and they are not taken from the Q.850 cause. A row with no finished card says «Нет данных» and «Неизвестно», including a card that is still open. Two cards for one tag are not chosen between.
+
+«АнтиФрод» is what the gateway did with the Griffin Custom exchange. «Статус АнтиФрод» is whether the reply came on the first try. A resend that then gets Access-Reject stays «Заблокирован на входе» with status «Повтор на входе». An outgoing reply the gateway discards is not treated as a missing reply. `save_call` or `check_call` does not hide a block; the status says «Не тип number».
+
+The xlsx files carry the same two columns. There is no new migration. A SIP «Call rejected» without the RADIUS release line is no longer stored as an antifraud release.
 
 ## v1.146.0 — SMG trace cards follow new syslog only
 

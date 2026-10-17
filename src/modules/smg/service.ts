@@ -28,6 +28,14 @@ import {
   type SmgField,
 } from "@/modules/smg/columns";
 import { pickSmgDevice, type SmgDeviceOption } from "@/modules/smg/device";
+import {
+  AF_CATEGORY,
+  AF_STATUS,
+  classifyAntifraud,
+} from "@/modules/smg-trace/classify";
+import { decideTraceRows, type TraceHitRow } from "@/modules/smg-trace/match";
+import { traceSearchKeys } from "@/modules/smg-trace/tag";
+import type { TraceBlocks } from "@/modules/smg-trace/types";
 import { smgMonthTimeRange } from "@/modules/smg/month-range";
 import { listSmgPoisonEntries, type SmgPoisonItem } from "@/modules/smg/poison";
 import { findLastFileImport } from "@/modules/jobs/last-file-import";
@@ -35,6 +43,8 @@ import { lastSmgEmptyScanAt } from "@/modules/jobs/scheduler";
 
 export type SmgListItem = Record<SmgField, string> & {
   id: string;
+  antifraud: string;
+  antifraudStatus: string;
 };
 
 export type SmgListResult = {
@@ -154,7 +164,67 @@ export async function querySmgMonthCounts(): Promise<CdrMonth[]> {
 function toListItem(row: { id: string } & Record<SmgField, string>): SmgListItem {
   const item = { id: row.id } as SmgListItem;
   for (const field of SMG_FIELDS) item[field] = row[field] ?? "";
+  item.antifraud = AF_CATEGORY.noData;
+  item.antifraudStatus = AF_STATUS.unknown;
   return item;
+}
+
+/** One query for the page. Two cards for one tag are left unresolved. */
+async function attachAntifraud(items: SmgListItem[]): Promise<void> {
+  if (items.length === 0) return;
+  const keysByItem = new Map<string, string[]>();
+  const allKeys = new Set<string>();
+  for (const item of items) {
+    const keys = traceSearchKeys(item.uniqueTag, item.radiusSessionId);
+    keysByItem.set(item.id, keys);
+    for (const key of keys) allKeys.add(key);
+  }
+  if (allKeys.size === 0) return;
+
+  const rows = await prisma.smgCallTrace.findMany({
+    where: { tagNorm: { in: [...allKeys] } },
+    select: { tagNorm: true, deviceIp: true, open: true, callref: true, blocks: true },
+  });
+  const byTag = new Map<string, typeof rows>();
+  for (const row of rows) {
+    const list = byTag.get(row.tagNorm) ?? [];
+    list.push(row);
+    byTag.set(row.tagNorm, list);
+  }
+
+  for (const item of items) {
+    const hits: TraceHitRow[] = [];
+    const seen = new Set<string>();
+    for (const key of keysByItem.get(item.id) ?? []) {
+      for (const row of byTag.get(key) ?? []) {
+        const id = `${row.deviceIp}\0${row.callref}`;
+        if (seen.has(id) || !isTraceBlocks(row.blocks)) continue;
+        seen.add(id);
+        hits.push({
+          deviceIp: row.deviceIp,
+          open: row.open,
+          callref: row.callref,
+          blocks: row.blocks,
+        });
+      }
+    }
+    const decision = decideTraceRows(hits);
+    if (decision.status === "ambiguous") {
+      item.antifraud = AF_CATEGORY.conflict;
+      item.antifraudStatus = AF_STATUS.unknown;
+      continue;
+    }
+    if (decision.status !== "ok") continue;
+    const labels = classifyAntifraud({ closed: !decision.open, blocks: decision.blocks });
+    item.antifraud = labels.category;
+    item.antifraudStatus = labels.status;
+  }
+}
+
+function isTraceBlocks(value: unknown): value is TraceBlocks {
+  if (!value || typeof value !== "object") return false;
+  const row = value as { antifraud?: unknown };
+  return row.antifraud != null && typeof row.antifraud === "object";
 }
 
 export async function listSmgCalls(input: {
@@ -198,8 +268,10 @@ export async function listSmgCalls(input: {
     page === 1 ? querySmgMonthCounts() : Promise.resolve([]),
   ]);
 
+  const items = rows.map((row) => toListItem(row));
+  await attachAntifraud(items);
   return {
-    items: rows.map((row) => toListItem(row)),
+    items,
     total,
     page,
     pageSize: TABLE_PAGE_SIZE,
@@ -245,7 +317,9 @@ export async function writeSmgExport(input: {
           skip,
           take: SMG_EXPORT_PAGE_SIZE,
         });
-        for (const row of rows) await visit(toListItem(row));
+        const items = rows.map((row) => toListItem(row));
+        await attachAntifraud(items);
+        for (const item of items) await visit(item);
       }
     },
   });

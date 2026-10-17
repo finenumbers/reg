@@ -18,10 +18,12 @@ afterEach(async () => {
 });
 
 describe("SMG xlsx columns", () => {
-  it("lists every CDR column for the calls page, in file order", () => {
-    expect(smgExportColumns("calls").map((column) => column.header)).toEqual(
-      SMG_COLUMNS.map((column) => column.label),
-    );
+  it("lists every CDR column for the calls page, then the antifraud labels", () => {
+    expect(smgExportColumns("calls").map((column) => column.header)).toEqual([
+      ...SMG_COLUMNS.map((column) => column.label),
+      "АнтиФрод",
+      "Статус АнтиФрод",
+    ]);
   });
 
   it("starts the traffic file with the screen and keeps UniqueTag once", () => {
@@ -33,6 +35,8 @@ describe("SMG xlsx columns", () => {
     ]);
     expect(headers).not.toContain("Длительность вызова");
     expect(headers).toContain(SMG_HEADER_LABELS.radiusSessionId);
+    expect(headers.filter((header) => header === "АнтиФрод")).toEqual(["АнтиФрод"]);
+    expect(headers.filter((header) => header === "Статус АнтиФрод")).toEqual(["Статус АнтиФрод"]);
   });
 
   it("keeps a phone as text and neutralizes a formula", () => {
@@ -78,9 +82,11 @@ describe("SMG xlsx file", () => {
     await workbook.xlsx.readFile(filePath);
     const sheet = workbook.getWorksheet("Звонки на SMG");
     const headers = sheet?.getRow(1).values;
-    expect(Array.isArray(headers) ? headers.slice(1) : []).toEqual(
-      SMG_COLUMNS.map((column) => column.label),
-    );
+    expect(Array.isArray(headers) ? headers.slice(1) : []).toEqual([
+      ...SMG_COLUMNS.map((column) => column.label),
+      "АнтиФрод",
+      "Статус АнтиФрод",
+    ]);
     const phoneIndex = SMG_COLUMNS.findIndex((column) => column.field === "incomingCgpn") + 1;
     const tagIndex = SMG_COLUMNS.findIndex((column) => column.field === "uniqueTag") + 1;
     const phone = sheet?.getRow(2).getCell(phoneIndex).value;

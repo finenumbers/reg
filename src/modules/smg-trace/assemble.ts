@@ -609,12 +609,7 @@ function absorbAntifraud(state: TraceState, span: TraceSpan, payload: string): v
   if (got?.[1] && !attempt.replyTime) attempt.replyTime = `${got[1]} ms`;
   if (/ignore for not antifraud/i.test(payload)) attempt.ignored = clip(payload);
 
-  if (
-    !/server rejected/i.test(payload) &&
-    /Call rejected|release call|RADIUS reject|0x0015/i.test(payload)
-  ) {
-    attempt.released = clip(payload);
-  }
+  if (radiusReleaseLine(payload)) attempt.released = clip(payload);
 
   if (request?.[1] && (/got valid reply/i.test(payload) || reply)) {
     const id = Number(request[1]);
@@ -626,6 +621,16 @@ function absorbAntifraud(state: TraceState, span: TraceSpan, payload: string): v
   if (/Set Antifraud RADIUS-profile|from-RADIUS-modify|process modifiers|Prepare Antifraud|process call\./i.test(payload)) {
     pushNote(attempt, clip(payload));
   }
+}
+
+/** A SIP «Call rejected» or an empty `RADIUS server rejected: :0` is not this. */
+export function radiusReleaseLine(payload: string): boolean {
+  if (/server rejected/i.test(payload)) return false;
+  return (
+    /RADIUS:\s*release call/i.test(payload) ||
+    /RADIUS reject/i.test(payload) ||
+    /0x0015/i.test(payload)
+  );
 }
 
 function assignRequest(state: TraceState, span: TraceSpan, printed: string): void {

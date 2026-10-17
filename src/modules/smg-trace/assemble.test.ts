@@ -206,6 +206,16 @@ describe("SMG syslog call assembly", () => {
       "Reply-Message=cause=50",
     );
     expect(leg.released).toContain("0x0015");
+    const bare = projectSpan(
+      spansOf(
+        [
+          line("C02A0CB", "Port SIPT:0001. Accs-Request for Antifraud: check TG(i/o): 1(ext)/2(ext), USE_AF 1, SD 1, OS 0, RREQ 4."),
+          line("C02A0CB", "RADIUS. Request proc. Request ID[147]. Processing Antifraud-Auth-Request"),
+          line("C02A0CB", "Port SIPT:0001. Release, cause 'Call rejected'"),
+        ].join("\n"),
+      )[0]!,
+    );
+    expect(bare.antifraud.legs[0]?.released).toBe("");
     expect(JSON.stringify(blocks)).not.toContain("21");
     expect(leg.side).toBe("in");
   });

@@ -8,6 +8,10 @@ import {
   type SmgField,
 } from "@/modules/smg/columns";
 import {
+  SMG_ANTIFRAUD_COLUMNS,
+  SMG_ANTIFRAUD_LABELS,
+} from "@/modules/smg-trace/classify";
+import {
   SMG_SUMMARY_COLUMNS,
   SMG_SUMMARY_LABELS,
   smgSummaryCellText,
@@ -31,12 +35,22 @@ export class SmgExportTooLargeError extends Error {
   }
 }
 
+function antifraudExportColumns(): SmgExportColumn[] {
+  return SMG_ANTIFRAUD_COLUMNS.map((column) => ({
+    header: SMG_ANTIFRAUD_LABELS[column],
+    cell: (row) => smgSummaryCellText(column, row),
+  }));
+}
+
 export function smgExportColumns(layout: SmgExportLayout): SmgExportColumn[] {
   if (layout === "calls") {
-    return SMG_COLUMNS.map((column) => ({
-      header: column.label,
-      cell: (row) => row[column.field] ?? "",
-    }));
+    return [
+      ...SMG_COLUMNS.map((column) => ({
+        header: column.label,
+        cell: (row: Record<SmgField, string>) => row[column.field] ?? "",
+      })),
+      ...antifraudExportColumns(),
+    ];
   }
   const shown = new Set<string>(SMG_SUMMARY_COLUMNS);
   const screen = SMG_SUMMARY_COLUMNS.map((column) => ({
