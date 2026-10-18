@@ -3,6 +3,7 @@ import {
   axisCeiling,
   axisTickTop,
   axisTicks,
+  chartTimeIndexes,
   recentWindowMarks,
   eventCountLabel,
   fillConcurrencyMinutes,
@@ -73,6 +74,48 @@ describe("utcCallWindow", () => {
   });
 });
 
+describe("chartTimeIndexes", () => {
+  it("places eight UTC clock labels on the day and leaves midnight off the right edge", () => {
+    const origin = new Date("2026-10-16T00:00:00.000Z");
+    const indexes = chartTimeIndexes(1440);
+    expect(indexes).toEqual([0, 180, 360, 540, 720, 900, 1080, 1260]);
+    expect(indexes.map((index) => formatUtcMinute(origin, index))).toEqual([
+      "00:00",
+      "03:00",
+      "06:00",
+      "09:00",
+      "12:00",
+      "15:00",
+      "18:00",
+      "21:00",
+    ]);
+  });
+
+  it("steps a two-hour window by fifteen minutes from its own origin", () => {
+    const origin = new Date("2026-10-15T22:11:00.000Z");
+    const indexes = chartTimeIndexes(120);
+    expect(indexes).toEqual([0, 15, 30, 45, 60, 75, 90, 105]);
+    expect(indexes.map((index) => formatUtcMinute(origin, index))).toEqual([
+      "22:11",
+      "22:26",
+      "22:41",
+      "22:56",
+      "23:11",
+      "23:26",
+      "23:41",
+      "23:56",
+    ]);
+    expect(formatUtcMinute(origin, 119)).toBe("00:10");
+  });
+
+  it("returns no labels when the span does not divide into eight", () => {
+    expect(chartTimeIndexes(0)).toEqual([]);
+    expect(chartTimeIndexes(100)).toEqual([]);
+    expect(chartTimeIndexes(-120)).toEqual([]);
+    expect(chartTimeIndexes(Number.NaN)).toEqual([]);
+  });
+});
+
 describe("formatTrafficDayTitle", () => {
   it("writes the UTC civil date and the Russian weekday", () => {
     expect(formatTrafficDayTitle("2026-10-16")).toBe("16.10.2026 (пятница)");
@@ -129,7 +172,10 @@ describe("recent window marks", () => {
   it("marks both edges when the two hours sit inside the day", () => {
     const day = Date.parse("2026-10-16T00:00:00.000Z");
     const recent = Date.parse("2026-10-16T15:10:00.000Z");
-    expect(recentWindowMarks(day, recent, 120, 1440)).toEqual([15 * 60 + 10, 17 * 60 + 10]);
+    expect(recentWindowMarks(day, recent, 120, 1440)).toEqual([
+      15 * 60 + 10,
+      17 * 60 + 10,
+    ]);
   });
 });
 

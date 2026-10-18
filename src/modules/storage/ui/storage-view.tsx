@@ -52,8 +52,7 @@ const METRIC_HEADS = ["Звонки", "Секунды", "Минуты"] as const
 
 type ColumnWidths = {
   month: number;
-  metric: number;
-  syslog: number;
+  data: number;
   delete: number;
 };
 
@@ -89,11 +88,13 @@ function guessColumns(months: readonly StorageMonthRow[]): ColumnWidths {
   const deleteGuess = hasDelete
     ? paddedWidth(Math.ceil("Удалить".length * GUESS_CH_PX) + 20, false)
     : guessWidth("Удаление", false);
-  const syslogText = formatBytes(maxSyslog(months));
+  const data = Math.max(
+    guessWidth(formatCount(maxMetric(months)), true),
+    guessWidth(formatBytes(maxSyslog(months)), true),
+  );
   return {
     month: guessWidth(longest || "0", true),
-    metric: guessWidth(formatCount(maxMetric(months)), true),
-    syslog: guessWidth(syslogText.length > "Syslog".length ? syslogText : "Syslog", true),
+    data,
     delete: deleteGuess,
   };
 }
@@ -132,22 +133,23 @@ function StorageFigures({
     const monthPx = monthRefs.current
       .slice(0, months.length)
       .reduce((max, el) => Math.max(max, el?.offsetWidth ?? 0), 0);
-    const metricPx = metricRef.current?.offsetWidth ?? 0;
-    const syslogPx = syslogRef.current?.offsetWidth ?? 0;
+    const dataPx = Math.max(
+      metricRef.current?.offsetWidth ?? 0,
+      syslogRef.current?.offsetWidth ?? 0,
+    );
     const deletePx = deleteRef.current?.offsetWidth ?? 0;
     setMeasured({
       key: measureKey,
       widths: {
         month: monthPx > 0 ? paddedWidth(monthPx, true) : guessed.month,
-        metric: metricPx > 0 ? paddedWidth(metricPx, true) : guessed.metric,
-        syslog: syslogPx > 0 ? paddedWidth(syslogPx, true) : guessed.syslog,
+        data: dataPx > 0 ? paddedWidth(dataPx, true) : guessed.data,
         delete: deletePx > 0 ? paddedWidth(deletePx, false) : guessed.delete,
       },
     });
   }, [guessed, measureKey, months.length]);
 
   const widths = measured?.key === measureKey ? measured.widths : guessed;
-  const tableWidth = widths.month + widths.metric * 6 + widths.syslog + widths.delete;
+  const tableWidth = widths.month + widths.data * 7 + widths.delete;
   const cdrBytes = formatByteParts(data.cdrTableBytes);
   const smgBytes = formatByteParts(data.smgTableBytes);
 
@@ -175,7 +177,7 @@ function StorageFigures({
           ref={syslogRef}
           className="absolute top-0 left-0 text-xs whitespace-nowrap tabular-nums"
         >
-          {syslogText.length > "Syslog".length ? syslogText : "Syslog"}
+          {syslogText}
         </span>
         <span
           ref={deleteRef}
@@ -208,7 +210,8 @@ function StorageFigures({
           <SummaryMetric value={smgBytes.value} unit={smgBytes.unit} />
         </div>
         <p className="mt-2 text-sm tabular-nums">
-          Syslog: <span className="font-semibold">{formatBytes(data.totalSyslogBytes)}</span>
+          Syslog:{" "}
+          <span className="font-semibold">{formatBytes(data.totalSyslogBytes)}</span>
         </p>
       </div>
 
@@ -217,9 +220,9 @@ function StorageFigures({
           <colgroup>
             <col style={{ width: widths.month }} />
             {METRIC_FIELDS.map((field) => (
-              <col key={field} style={{ width: widths.metric }} />
+              <col key={field} style={{ width: widths.data }} />
             ))}
-            <col style={{ width: widths.syslog }} />
+            <col style={{ width: widths.data }} />
             <col style={{ width: widths.delete }} />
           </colgroup>
           <TableHeader>
@@ -249,7 +252,15 @@ function StorageFigures({
             <TableRow>
               {(["cdr", "smg"] as const).flatMap((side) =>
                 METRIC_HEADS.map((label) => (
-                  <TableHead key={`${side}-${label}`} className="top-7 text-center">
+                  <TableHead
+                    key={`${side}-${label}`}
+                    className={cn(
+                      "top-7 text-center",
+                      side === "smg" &&
+                        label === "Минуты" &&
+                        "shadow-[inset_-1px_-1px_0_0_var(--border)]!",
+                    )}
+                  >
                     {label}
                   </TableHead>
                 )),
@@ -358,9 +369,9 @@ export function StorageView() {
         <p className="text-muted-foreground text-sm">
           Месяцы CDR (колонка «Дата»), звонков SMG (день разъединения) и архивов Syslog.
           Одно удаление снимает звонки обоих источников, карточки АнтиФрода этих звонков
-          SMG, архивы Syslog, задачи и записи аудита этого месяца UTC. Удалить можно только
-          самый старый полный месяц, по одному. Текущий месяц трогать нельзя. Место на диске
-          после удаления возвращает кнопка «Сжать базу», когда она закончится.
+          SMG, архивы Syslog, задачи и записи аудита этого месяца UTC. Удалить можно
+          только самый старый полный месяц, по одному. Текущий месяц трогать нельзя. Место
+          на диске после удаления возвращает кнопка «Сжать базу», когда она закончится.
         </p>
       </div>
 
@@ -496,9 +507,9 @@ export function StorageView() {
                 {formatCount(confirm.cdrSeconds)} сек, {formatCount(confirm.cdrMinutes)}{" "}
                 мин), связанные ссылки VoIPmonitor, {formatCount(confirm.smgCalls)}{" "}
                 звонков SMG ({formatCount(confirm.smgSeconds)} сек,{" "}
-                {formatCount(confirm.smgMinutes)} мин), карточки АнтиФрода этих звонков SMG,
-                архивы Syslog ({formatBytes(confirm.syslogBytes)}), а также задачи и записи
-                аудита за этот месяц UTC. Введите ключ месяца{" "}
+                {formatCount(confirm.smgMinutes)} мин), карточки АнтиФрода этих звонков
+                SMG, архивы Syslog ({formatBytes(confirm.syslogBytes)}), а также задачи и
+                записи аудита за этот месяц UTC. Введите ключ месяца{" "}
                 <span className="font-mono">{confirm.key}</span>.
               </p>
             </div>

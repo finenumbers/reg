@@ -8,6 +8,7 @@ import {
   axisCeiling,
   axisTicks,
   axisTickTop,
+  chartTimeIndexes,
   eventCountLabel,
   formatTrafficDayTitle,
   formatUtcMinute,
@@ -110,7 +111,7 @@ export function CallsChart({ series }: { series: DashboardSeriesId }) {
         peak={ready?.peak ?? 0}
         span={DAY_MINUTES}
         origin={dayOrigin}
-        labels={dayLabels()}
+        labels={dayOrigin ? timeLabels(dayOrigin, DAY_MINUTES) : []}
         provisionalFrom={
           ready
             ? events
@@ -142,7 +143,7 @@ export function CallsChart({ series }: { series: DashboardSeriesId }) {
         peak={recent?.peak ?? 0}
         span={TWO_HOUR_MINUTES}
         origin={recent?.origin ?? null}
-        labels={recent ? recentLabels(recent.origin) : []}
+        labels={recent ? timeLabels(recent.origin, TWO_HOUR_MINUTES) : []}
         provisionalFrom={
           recent
             ? events
@@ -446,27 +447,16 @@ function utcMidnight(day: string): Date | null {
   return new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
 }
 
-function dayLabels(): XLabel[] {
-  return [0, 3, 6, 9, 12, 15, 18, 21].map((hour) => ({
-    key: String(hour),
-    text: String(hour).padStart(2, "0"),
-    style: { left: `${(hour / 24) * 100}%` },
-  }));
-}
-
-function recentLabels(origin: Date): XLabel[] {
-  const last = TWO_HOUR_MINUTES - 1;
-  return [0, 30, 60, 90, last].map((index) => ({
+function timeLabels(origin: Date, span: number): XLabel[] {
+  return chartTimeIndexes(span).map((index) => ({
     key: String(index),
     text: formatUtcMinute(origin, index),
     style:
       index === 0
         ? { left: 0 }
-        : index === last
-          ? { right: 0 }
-          : {
-              left: `${(index / TWO_HOUR_MINUTES) * 100}%`,
-              transform: "translateX(-50%)",
-            },
+        : {
+            left: `${(index / span) * 100}%`,
+            transform: "translateX(-50%)",
+          },
   }));
 }

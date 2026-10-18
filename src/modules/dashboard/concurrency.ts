@@ -103,6 +103,20 @@ export function formatUtcMinute(origin: Date, index: number): string {
   return `${hour}:${minute}`;
 }
 
+/** Horizontal labels on a dashboard chart. The last eighth of the span is unlabeled. */
+export const CHART_TIME_LABELS = 8;
+
+/**
+ * Minute offsets of the eight clock labels. Empty when the span is not a
+ * positive multiple of eight, so a bad span cannot throw during render.
+ */
+export function chartTimeIndexes(spanMinutes: number): number[] {
+  const span = Math.trunc(spanMinutes);
+  if (span <= 0 || span % CHART_TIME_LABELS !== 0) return [];
+  const step = span / CHART_TIME_LABELS;
+  return Array.from({ length: CHART_TIME_LABELS }, (_, index) => index * step);
+}
+
 const AXIS_STEPS = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1_000, 2_000, 5_000, 10_000];
 
 /**

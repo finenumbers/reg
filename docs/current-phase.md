@@ -1,7 +1,15 @@
-# Current Phase — production (v1.153.0)
+# Current Phase — production (v1.154.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, Eltex SMG CDR, Eltex SMG syslog.  
 **Date:** 2026-10-18
+
+## v1.154.0 — The month table lines up Syslog, and dashboard charts show eight clock times
+
+There is no migration. Do not stop `app` for this update. Stored rows stay as they are.
+
+In «Хранение данных» the Syslog column is the same width as Звонки, Секунды, and Минуты. The header line between Минуты and Syslog is visible. A longer byte string widens those seven columns together; the word Syslog does not.
+
+Both dashboard call charts label the horizontal axis with eight UTC times, `HH:MM`. The day chart reads `00:00`, `03:00`, `06:00`, `09:00`, `12:00`, `15:00`, `18:00`, `21:00`. The two-hour chart steps fifteen minutes from the start of its window. The last eighth of each chart stays unlabeled.
 
 ## v1.153.0 — Month deletion removes the matched antifraud cards and the syslog archives
 
