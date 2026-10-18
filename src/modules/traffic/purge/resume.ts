@@ -47,7 +47,7 @@ export type MonthRemainder = {
   audit: number;
 };
 
-const RESUME_PHASES = new Set(["smg", "jobs", "audit"]);
+const RESUME_PHASES = new Set(["cards", "smg", "syslog", "jobs", "audit"]);
 
 export type ResumeMonth = {
   month: string;

@@ -53,6 +53,7 @@ const METRIC_HEADS = ["Звонки", "Секунды", "Минуты"] as const
 type ColumnWidths = {
   month: number;
   metric: number;
+  syslog: number;
   delete: number;
 };
 
@@ -75,6 +76,10 @@ function maxMetric(months: readonly StorageMonthRow[]): number {
   }, 0);
 }
 
+function maxSyslog(months: readonly StorageMonthRow[]): number {
+  return months.reduce((max, row) => Math.max(max, row.syslogBytes), 0);
+}
+
 function guessColumns(months: readonly StorageMonthRow[]): ColumnWidths {
   const longest = months.reduce((best, row) => {
     const label = monthLabel(row);
@@ -84,9 +89,11 @@ function guessColumns(months: readonly StorageMonthRow[]): ColumnWidths {
   const deleteGuess = hasDelete
     ? paddedWidth(Math.ceil("Удалить".length * GUESS_CH_PX) + 20, false)
     : guessWidth("Удаление", false);
+  const syslogText = formatBytes(maxSyslog(months));
   return {
     month: guessWidth(longest || "0", true),
     metric: guessWidth(formatCount(maxMetric(months)), true),
+    syslog: guessWidth(syslogText.length > "Syslog".length ? syslogText : "Syslog", true),
     delete: deleteGuess,
   };
 }
@@ -110,13 +117,15 @@ function StorageFigures({
   const months = data.months;
   const hasDelete = months.some((row) => row.canDelete);
   const metricText = formatCount(maxMetric(months));
-  const measureKey = `${months.map((row) => monthLabel(row)).join("\n")}\n${metricText}\n${hasDelete ? "1" : "0"}`;
+  const syslogText = formatBytes(maxSyslog(months));
+  const measureKey = `${months.map((row) => monthLabel(row)).join("\n")}\n${metricText}\n${syslogText}\n${hasDelete ? "1" : "0"}`;
   const guessed = useMemo(() => guessColumns(months), [months]);
   const [measured, setMeasured] = useState<{ key: string; widths: ColumnWidths } | null>(
     null,
   );
   const monthRefs = useRef<Array<HTMLSpanElement | null>>([]);
   const metricRef = useRef<HTMLSpanElement>(null);
+  const syslogRef = useRef<HTMLSpanElement>(null);
   const deleteRef = useRef<HTMLSpanElement>(null);
 
   useLayoutEffect(() => {
@@ -124,19 +133,21 @@ function StorageFigures({
       .slice(0, months.length)
       .reduce((max, el) => Math.max(max, el?.offsetWidth ?? 0), 0);
     const metricPx = metricRef.current?.offsetWidth ?? 0;
+    const syslogPx = syslogRef.current?.offsetWidth ?? 0;
     const deletePx = deleteRef.current?.offsetWidth ?? 0;
     setMeasured({
       key: measureKey,
       widths: {
         month: monthPx > 0 ? paddedWidth(monthPx, true) : guessed.month,
         metric: metricPx > 0 ? paddedWidth(metricPx, true) : guessed.metric,
+        syslog: syslogPx > 0 ? paddedWidth(syslogPx, true) : guessed.syslog,
         delete: deletePx > 0 ? paddedWidth(deletePx, false) : guessed.delete,
       },
     });
   }, [guessed, measureKey, months.length]);
 
   const widths = measured?.key === measureKey ? measured.widths : guessed;
-  const tableWidth = widths.month + widths.metric * 6 + widths.delete;
+  const tableWidth = widths.month + widths.metric * 6 + widths.syslog + widths.delete;
   const cdrBytes = formatByteParts(data.cdrTableBytes);
   const smgBytes = formatByteParts(data.smgTableBytes);
 
@@ -159,6 +170,12 @@ function StorageFigures({
           className="absolute top-0 left-0 text-xs whitespace-nowrap tabular-nums"
         >
           {metricText}
+        </span>
+        <span
+          ref={syslogRef}
+          className="absolute top-0 left-0 text-xs whitespace-nowrap tabular-nums"
+        >
+          {syslogText.length > "Syslog".length ? syslogText : "Syslog"}
         </span>
         <span
           ref={deleteRef}
@@ -190,6 +207,9 @@ function StorageFigures({
           <span className="text-right">таблицы:</span>
           <SummaryMetric value={smgBytes.value} unit={smgBytes.unit} />
         </div>
+        <p className="mt-2 text-sm tabular-nums">
+          Syslog: <span className="font-semibold">{formatBytes(data.totalSyslogBytes)}</span>
+        </p>
       </div>
 
       <div className="overflow-auto">
@@ -199,6 +219,7 @@ function StorageFigures({
             {METRIC_FIELDS.map((field) => (
               <col key={field} style={{ width: widths.metric }} />
             ))}
+            <col style={{ width: widths.syslog }} />
             <col style={{ width: widths.delete }} />
           </colgroup>
           <TableHeader>
@@ -214,6 +235,12 @@ function StorageFigures({
               </TableHead>
               <TableHead
                 rowSpan={2}
+                className="h-auto text-center align-middle shadow-[inset_-1px_-1px_0_0_var(--border)]!"
+              >
+                Syslog
+              </TableHead>
+              <TableHead
+                rowSpan={2}
                 className="h-auto overflow-hidden text-center align-middle"
               >
                 Удаление
@@ -221,16 +248,8 @@ function StorageFigures({
             </TableRow>
             <TableRow>
               {(["cdr", "smg"] as const).flatMap((side) =>
-                METRIC_HEADS.map((label, index) => (
-                  <TableHead
-                    key={`${side}-${label}`}
-                    className={cn(
-                      "top-7 text-center",
-                      side === "smg" &&
-                        index === METRIC_HEADS.length - 1 &&
-                        "shadow-[inset_-1px_-1px_0_0_var(--border)]!",
-                    )}
-                  >
+                METRIC_HEADS.map((label) => (
+                  <TableHead key={`${side}-${label}`} className="top-7 text-center">
                     {label}
                   </TableHead>
                 )),
@@ -246,6 +265,9 @@ function StorageFigures({
                     {formatCount(row[field])}
                   </TableCell>
                 ))}
+                <TableCell className="text-right tabular-nums">
+                  {formatBytes(row.syslogBytes)}
+                </TableCell>
                 <TableCell className="text-right">
                   {row.canDelete ? (
                     <Button
@@ -334,11 +356,11 @@ export function StorageView() {
       <div>
         <h2 className="text-base font-semibold">Хранение данных</h2>
         <p className="text-muted-foreground text-sm">
-          Месяцы CDR (колонка «Дата») и звонков SMG (день разъединения) в локальной базе.
-          Одно удаление снимает оба источника, задачи и записи аудита этого месяца UTC.
-          Удалить можно только самый старый полный месяц, по одному. Текущий месяц трогать
-          нельзя. Место на диске после удаления возвращает кнопка «Сжать базу», когда она
-          закончится.
+          Месяцы CDR (колонка «Дата»), звонков SMG (день разъединения) и архивов Syslog.
+          Одно удаление снимает звонки обоих источников, карточки АнтиФрода этих звонков
+          SMG, архивы Syslog, задачи и записи аудита этого месяца UTC. Удалить можно только
+          самый старый полный месяц, по одному. Текущий месяц трогать нельзя. Место на диске
+          после удаления возвращает кнопка «Сжать базу», когда она закончится.
         </p>
       </div>
 
@@ -474,8 +496,9 @@ export function StorageView() {
                 {formatCount(confirm.cdrSeconds)} сек, {formatCount(confirm.cdrMinutes)}{" "}
                 мин), связанные ссылки VoIPmonitor, {formatCount(confirm.smgCalls)}{" "}
                 звонков SMG ({formatCount(confirm.smgSeconds)} сек,{" "}
-                {formatCount(confirm.smgMinutes)} мин), а также задачи и записи аудита за
-                этот месяц UTC. Введите ключ месяца{" "}
+                {formatCount(confirm.smgMinutes)} мин), карточки АнтиФрода этих звонков SMG,
+                архивы Syslog ({formatBytes(confirm.syslogBytes)}), а также задачи и записи
+                аудита за этот месяц UTC. Введите ключ месяца{" "}
                 <span className="font-mono">{confirm.key}</span>.
               </p>
             </div>

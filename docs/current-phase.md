@@ -1,7 +1,19 @@
-# Current Phase — production (v1.152.0)
+# Current Phase — production (v1.153.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, Eltex SMG CDR, Eltex SMG syslog.  
 **Date:** 2026-10-18
+
+## v1.153.0 — Month deletion removes the matched antifraud cards and the syslog archives
+
+There is no migration. Do not stop `app` for this update. `smg-syslog` keeps writing. Ten-minute syslog slots stay as they are.
+
+«Хранение данных» counts a month as CDR calls, SMG calls, and that month's syslog archives. The table has a Syslog column of saved slot bytes, and the same sum sits under the CDR and SMG totals. A month that only has archives, including a partial with no finished slot, can be the oldest month the button offers. The current UTC month stays on the table and cannot be deleted. The confirm dialog names the antifraud cards and the syslog size.
+
+One deletion runs in this order: CDR calls, antifraud cards of the SMG calls that leave with this month, those SMG calls, the month's syslog directories, then jobs and audit whose timestamps fall in that UTC month. A card whose tag still belongs to an SMG call outside the month stays. Trace checkpoints stay. The node list, the reception switch, and the device directory stay. A symlink is unlinked and not followed. Postgres disk comes back from «Сжать базу».
+
+If the server restarts after the CDR calls of that month are already gone, the next start continues with the cards, the SMG calls, the syslog archives, then jobs and audit. A purge already running on v1.152.0, without these stages, keeps the old one-line progress until it ends.
+
+An archive is the UTC month the bytes arrived, and an SMG call is its disconnect day. A call that crosses that boundary can leave its archive in the neighboring month.
 
 ## v1.152.0 — Show the antifraud result before the call ends, and drop the old cards once
 

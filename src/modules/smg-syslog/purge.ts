@@ -8,6 +8,11 @@ import {
   syslogDeviceLocation,
 } from "@/modules/smg-syslog/browse";
 import { canonicalIpv4 } from "@/modules/smg-syslog/ip";
+import {
+  invalidateSyslogMonthInventory,
+  listSyslogMonthTargets,
+} from "@/modules/smg-syslog/month-inventory";
+import { currentUtcMonth, monthKey as cdrMonthKey } from "@/modules/traffic/cdr-month";
 
 export type SyslogCutoff = { year: string; month: string };
 
@@ -117,7 +122,10 @@ export async function purgeSyslogBefore(
       await removeYearIfEmpty(yearDir);
     }
   } catch {
-    if (deleted.length > 0) invalidateSyslogStoredBytes(root, device);
+    if (deleted.length > 0) {
+      invalidateSyslogStoredBytes(root, device);
+      invalidateSyslogMonthInventory();
+    }
     return {
       ok: false,
       code: "PARTIAL",
@@ -125,8 +133,59 @@ export async function purgeSyslogBefore(
       message: "Не удалось удалить все файлы старше выбранного месяца",
     };
   }
-  if (deleted.length > 0) invalidateSyslogStoredBytes(root, device);
+  if (deleted.length > 0) {
+    invalidateSyslogStoredBytes(root, device);
+    invalidateSyslogMonthInventory();
+  }
   return { ok: true, deleted };
+}
+
+/**
+ * Delete one UTC month on every device. The current month is refused.
+ * A symlink month entry is unlinked and not followed. The device directory stays.
+ */
+export async function deleteSyslogMonth(
+  root: string,
+  year: number,
+  month: number,
+  now: Date,
+  onProgress: (done: number, total: number, held?: boolean) => Promise<void>,
+): Promise<number> {
+  const key = cdrMonthKey(year, month);
+  const currentKey = currentUtcMonth(now).key;
+  const live = bucketOf(now, 0);
+  if (key === currentKey || key >= `${live.year}-${live.month}`) {
+    throw new Error("Текущий месяц удалить нельзя");
+  }
+
+  let rootReal: string;
+  try {
+    rootReal = realpathSync(root);
+  } catch (error) {
+    if (errno(error) === "ENOENT") {
+      await onProgress(0, 0);
+      return 0;
+    }
+    throw error;
+  }
+
+  const targets = await listSyslogMonthTargets(root, year, month);
+  const total = targets.reduce((sum, target) => sum + target.files, 0);
+  if (total > 0) await onProgress(0, total);
+  let done = 0;
+  try {
+    for (const target of targets) {
+      await removeMonthEntry(target.monthDir, rootReal);
+      await removeYearIfEmpty(target.yearDir);
+      invalidateSyslogStoredBytes(root, target.ip);
+      done += target.files;
+      await onProgress(done, total, true);
+    }
+  } finally {
+    invalidateSyslogMonthInventory();
+  }
+  if (total === 0) await onProgress(0, 0);
+  return done;
 }
 
 async function removeMonthEntry(monthDir: string, rootReal: string): Promise<void> {
@@ -197,6 +256,7 @@ export async function removeSyslogDeviceDirectory(
       return "remains";
     }
     invalidateSyslogStoredBytes(root, ip);
+    invalidateSyslogMonthInventory();
     return "removed";
   }
   if (!stat.isDirectory()) return "refused";
@@ -214,6 +274,7 @@ export async function removeSyslogDeviceDirectory(
   } catch (error) {
     if (errno(error) === "ENOENT") {
       invalidateSyslogStoredBytes(root, ip);
+      invalidateSyslogMonthInventory();
       return "removed";
     }
     return "remains";

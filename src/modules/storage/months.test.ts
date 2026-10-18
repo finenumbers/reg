@@ -22,6 +22,7 @@ describe("mergeStorageMonths", () => {
     const merged = mergeStorageMonths(
       [side("2026-09", 10, 100, 2)],
       [side("2026-08", 4, 40, 1)],
+      [],
       current,
     );
     expect(merged.map((row) => row.key)).toEqual(["2026-10", "2026-09", "2026-08"]);
@@ -30,8 +31,33 @@ describe("mergeStorageMonths", () => {
     expect(deletableStorageMonthKey(merged, current.key)).toBe("2026-08");
   });
 
+  it("makes a syslog-only month the oldest deletable month", () => {
+    const merged = mergeStorageMonths(
+      [side("2026-09", 10)],
+      [],
+      [
+        {
+          year: 2026,
+          month: 8,
+          key: "2026-08",
+          bytes: 0,
+          files: 0,
+          present: true,
+        },
+      ],
+      current,
+    );
+    expect(merged.find((row) => row.key === "2026-08")).toMatchObject({
+      cdrCalls: 0,
+      smgCalls: 0,
+      syslogBytes: 0,
+      count: 1,
+    });
+    expect(deletableStorageMonthKey(merged, current.key)).toBe("2026-08");
+  });
+
   it("does not offer the current month", () => {
-    const merged = mergeStorageMonths([], [side("2026-10", 3)], current);
+    const merged = mergeStorageMonths([], [side("2026-10", 3)], [], current);
     expect(deletableStorageMonthKey(merged, current.key)).toBeNull();
   });
 });

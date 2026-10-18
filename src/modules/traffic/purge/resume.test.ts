@@ -176,6 +176,22 @@ describe("selectResumeMonth", () => {
     ).toEqual({ month: "2026-08", deletedCalls: 0 });
   });
 
+  it("resumes a month once card deletion has started and history remains", () => {
+    expect(
+      selectResumeMonth({
+        jobs: [
+          {
+            errorMessage: ORPHAN_RECLAIM_MESSAGE,
+            phonesParsed: 4,
+            meta: { month: "2026-08", phase: "cards" },
+          },
+        ],
+        currentMonth: "2026-10",
+        remainders: new Map([["2026-08", { calls: 0, smg: 3, jobs: 2, audit: 0 }]]),
+      }),
+    ).toEqual({ month: "2026-08", deletedCalls: 4 });
+  });
+
   it("leaves leftover SMG when jobs and audit are already gone", () => {
     expect(
       selectResumeMonth({

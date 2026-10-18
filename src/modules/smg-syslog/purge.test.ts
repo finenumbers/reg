@@ -11,6 +11,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  deleteSyslogMonth,
   eraseSyslogNode,
   purgeSyslogBefore,
   removeSyslogDeviceDirectory,
@@ -244,5 +245,49 @@ describe("erase syslog node", () => {
     });
     expect(result).toMatchObject({ ok: true, leftover: true, filesRemoved: true });
     expect(existsSync(path.join(root, "10.1.2.3"))).toBe(false);
+  });
+});
+
+describe("delete one syslog month", () => {
+  it("refuses the current month", async () => {
+    const root = tempRoot();
+    const file = slot(root, "10.1.2.3", "2026", "10", "18", "00", "00.log");
+    const seen: Array<[number, number]> = [];
+    await expect(
+      deleteSyslogMonth(root, 2026, 10, new Date("2026-10-18T12:00:00Z"), async (done, total) => {
+        seen.push([done, total]);
+      }),
+    ).rejects.toThrow("Текущий месяц удалить нельзя");
+    expect(existsSync(file)).toBe(true);
+    expect(seen).toEqual([]);
+  });
+
+  it("removes that month on every device, including a partial, and leaves the device", async () => {
+    const root = tempRoot();
+    const gone = slot(root, "10.1.2.3", "2026", "08", "01", "00", "00.log");
+    const partial = slot(root, "172.17.0.1", "2026", "08", "02", "00", "10.log.gz.partial");
+    const stay = slot(root, "10.1.2.3", "2026", "09", "01", "00", "20.log");
+    const outside = tempRoot();
+    const secret = slot(outside, "10.4.4.4", "2026", "08", "01", "00", "00.log");
+    symlinkSync(path.join(outside, "10.4.4.4"), path.join(root, "10.4.4.4"));
+    const seen: Array<[number, number]> = [];
+    const removed = await deleteSyslogMonth(
+      root,
+      2026,
+      8,
+      new Date("2026-10-18T12:00:00Z"),
+      async (done, total) => {
+        seen.push([done, total]);
+      },
+    );
+    expect(removed).toBe(1);
+    expect(existsSync(gone)).toBe(false);
+    expect(existsSync(partial)).toBe(false);
+    expect(existsSync(stay)).toBe(true);
+    expect(existsSync(path.join(root, "10.1.2.3"))).toBe(true);
+    expect(existsSync(secret)).toBe(true);
+    expect(existsSync(path.join(root, "10.4.4.4"))).toBe(true);
+    expect(seen[0]).toEqual([0, 1]);
+    expect(seen.at(-1)).toEqual([1, 1]);
   });
 });

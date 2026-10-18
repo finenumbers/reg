@@ -10,6 +10,8 @@ import {
   type VacuumFailureView,
   type VacuumProgressView,
 } from "@/modules/storage/vacuum/progress";
+import { syslogRoot } from "@/modules/smg-syslog/paths";
+import { listSyslogMonthInventory } from "@/modules/smg-syslog/month-inventory";
 import { querySmgMonthStats } from "@/modules/smg/month-stats";
 import {
   deletableStorageMonthKey,
@@ -32,6 +34,7 @@ export type StorageMonthRow = {
   smgCalls: number;
   smgSeconds: number;
   smgMinutes: number;
+  syslogBytes: number;
 };
 
 export type StoragePurgeProgress = ReturnType<typeof purgeProgressFromJob>;
@@ -44,6 +47,7 @@ export type StorageSnapshot = {
   totalSmgCalls: number;
   totalSmgSeconds: number;
   totalSmgMinutes: number;
+  totalSyslogBytes: number;
   cdrTableBytes: number;
   smgTableBytes: number;
   /** Sum of every table VACUUM FULL copies. The compress dialog doubles this. */
@@ -85,6 +89,7 @@ function emptySnapshot(
     totalSmgCalls: 0,
     totalSmgSeconds: 0,
     totalSmgMinutes: 0,
+    totalSyslogBytes: 0,
     cdrTableBytes: 0,
     smgTableBytes: 0,
     tableBytes: 0,
@@ -196,7 +201,7 @@ export async function listStorageSnapshot(): Promise<StorageSnapshot> {
     });
   }
 
-  const [cdrStats, smgStats, sizeRows] = await Promise.all([
+  const [cdrStats, smgStats, sizeRows, syslogMonths] = await Promise.all([
     queryMonthStatsWithMinutes(),
     querySmgMonthStats(),
     prisma.$queryRaw<SizeRow[]>(Prisma.sql`
@@ -207,6 +212,7 @@ export async function listStorageSnapshot(): Promise<StorageSnapshot> {
         )::bigint AS cdr_bytes,
         pg_total_relation_size('smg_cdr_records')::bigint AS smg_bytes
     `),
+    listSyslogMonthInventory(syslogRoot()),
   ]);
   const toSide = (
     row: {
@@ -228,6 +234,7 @@ export async function listStorageSnapshot(): Promise<StorageSnapshot> {
   const merged = mergeStorageMonths(
     cdrStats.map(toSide),
     smgStats.map(toSide),
+    syslogMonths,
     current,
   );
   const deletableKey = deletableStorageMonthKey(merged, current.key);
@@ -242,6 +249,7 @@ export async function listStorageSnapshot(): Promise<StorageSnapshot> {
     smgCalls: item.smgCalls,
     smgSeconds: item.smgSeconds,
     smgMinutes: item.smgMinutes,
+    syslogBytes: item.syslogBytes,
     incomplete: item.key === current.key,
     canDelete: item.key === deletableKey && !busy,
   }));
@@ -256,6 +264,7 @@ export async function listStorageSnapshot(): Promise<StorageSnapshot> {
     totalSmgCalls: rows.reduce((sum, row) => sum + row.smgCalls, 0),
     totalSmgSeconds: rows.reduce((sum, row) => sum + row.smgSeconds, 0),
     totalSmgMinutes: rows.reduce((sum, row) => sum + row.smgMinutes, 0),
+    totalSyslogBytes: rows.reduce((sum, row) => sum + row.syslogBytes, 0),
     cdrTableBytes,
     smgTableBytes,
     tableBytes: cdrTableBytes + smgTableBytes,

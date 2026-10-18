@@ -1,7 +1,7 @@
 import { formatCount } from "@/lib/format-count";
 import { parseMonthKey } from "@/modules/traffic/cdr-month";
 
-export const PURGE_STAGE_ORDER = ["calls", "smg", "jobs", "audit"] as const;
+export const PURGE_STAGE_ORDER = ["calls", "cards", "smg", "syslog", "jobs", "audit"] as const;
 
 export type PurgeStageId = (typeof PURGE_STAGE_ORDER)[number];
 
@@ -13,11 +13,13 @@ export type PurgeStageCounts = {
 export type PurgeStagesMeta = Record<PurgeStageId, PurgeStageCounts>;
 
 export const PURGE_INTERRUPT_NOTE =
-  "При перезапуске сервера текущий запрос обрывается. Если звонки CDR месяца уже удалены, после старта продолжаются звонки SMG, затем задачи и аудит.";
+  "При перезапуске сервера текущий запрос обрывается. Если звонки CDR месяца уже удалены, после старта продолжаются карточки АнтиФрода, звонки SMG, архивы Syslog, затем задачи и аудит.";
 
 const STAGE_LABEL: Record<PurgeStageId, string> = {
   calls: "Звонки CDR",
+  cards: "Карточки АнтиФрода",
   smg: "Звонки SMG",
+  syslog: "Архивы Syslog",
   jobs: "Задачи",
   audit: "Аудит",
 };

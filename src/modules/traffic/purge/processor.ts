@@ -27,6 +27,14 @@ import {
 } from "@/modules/traffic/cdr-month";
 import { formatMonthNominative } from "@/modules/traffic/month-labels";
 import { clearPurgeHolds } from "@/modules/traffic/poison";
+import { syslogRoot } from "@/modules/smg-syslog/paths";
+import { deleteSyslogMonth } from "@/modules/smg-syslog/purge";
+import { listSyslogMonthInventory } from "@/modules/smg-syslog/month-inventory";
+import {
+  collectMonthTraceKeys,
+  countTraceCards,
+  deleteTraceCards,
+} from "@/modules/smg-trace/purge-cards";
 import type { PurgeStageId, PurgeStagesMeta } from "@/modules/traffic/purge/progress";
 import {
   CDR_PURGE_BATCH_SIZE,
@@ -172,12 +180,18 @@ function sideFromCounts(row: CdrMonth): MonthTrafficStats {
 
 export async function resolveDeletableMonthKey(): Promise<string | null> {
   const current = currentUtcMonth();
-  const [cdr, smg] = await Promise.all([
+  const [cdr, smg, syslog] = await Promise.all([
     queryMonthCallCounts(),
     querySmgMonthCallCounts(),
+    listSyslogMonthInventory(syslogRoot()),
   ]);
   return deletableStorageMonthKey(
-    mergeStorageMonths(cdr.map(sideFromCounts), smg.map(sideFromCounts), current),
+    mergeStorageMonths(
+      cdr.map(sideFromCounts),
+      smg.map(sideFromCounts),
+      syslog,
+      current,
+    ),
     current.key,
   );
 }
@@ -212,6 +226,62 @@ async function deleteSmgMonth(
   return deleted;
 }
 
+async function countSyslogFiles(year: number, month: number): Promise<number> {
+  const key = `${year}-${String(month).padStart(2, "0")}`;
+  const rows = await listSyslogMonthInventory(syslogRoot());
+  return rows.find((row) => row.key === key)?.files ?? 0;
+}
+
+/**
+ * Cards, then SMG rows, then syslog files, then jobs and audit.
+ * Card tags are read before the SMG rows disappear.
+ */
+async function deleteMonthRemainder(
+  jobRunId: string,
+  target: CdrMonth,
+  stages: PurgeStagesMeta,
+  cardKeys: string[] | null,
+): Promise<{ cards: number; smg: number; syslog: number; jobs: number; audit: number }> {
+  const keys = cardKeys ?? (await collectMonthTraceKeys(target.year, target.month));
+  stages.cards = { done: 0, total: await countTraceCards(keys) };
+  await publishPurgeProgress(jobRunId, target.key, "cards", stages);
+  const cards = await deleteTraceCards(keys, async (deleted) => {
+    if (deleted > 0) notePurgeBatchCommitted(deleted);
+    stages.cards.done = deleted;
+    await publishPurgeProgress(jobRunId, target.key, "cards", stages);
+  });
+
+  await publishPurgeProgress(jobRunId, target.key, "smg", stages);
+  const smg = await deleteSmgMonth(target.year, target.month, target.key, async (deletedCount) => {
+    stages.smg.done = deletedCount;
+    await publishPurgeProgress(jobRunId, target.key, "smg", stages);
+  });
+
+  const syslog = await deleteSyslogMonth(
+    syslogRoot(),
+    target.year,
+    target.month,
+    new Date(),
+    async (done, total, held) => {
+      if (held || done > 0) notePurgeBatchCommitted(1);
+      stages.syslog.done = done;
+      stages.syslog.total = total;
+      await publishPurgeProgress(jobRunId, target.key, "syslog", stages);
+    },
+  );
+
+  const history = await deleteMonthHistory(target.year, target.month, jobRunId, {
+    onPhase: async (phase) => {
+      await publishPurgeProgress(jobRunId, target.key, phase, stages);
+    },
+    onProgress: async (phase, deletedCount) => {
+      stages[phase].done = deletedCount;
+      await publishPurgeProgress(jobRunId, target.key, phase, stages);
+    },
+  });
+  return { cards, smg, syslog, jobs: history.jobs, audit: history.audit };
+}
+
 export async function processCdrPurgeMonth(
   input: CdrPurgeProcessorInput,
 ): Promise<CdrPurgeProcessorResult> {
@@ -236,7 +306,7 @@ export async function processCdrPurgeMonth(
       meta: input.historyOnly
         ? {
             month: requested?.key ?? input.month ?? null,
-            phase: "smg",
+            phase: "cards",
             targetCount: priorCalls,
             deletedCount: priorCalls,
             deletedSmg: 0,
@@ -248,6 +318,8 @@ export async function processCdrPurgeMonth(
 
   let deleted = 0;
   let deletedSmg = 0;
+  let deletedCards = 0;
+  let deletedSyslog = 0;
   let deletedJobs = 0;
   let deletedAudit = 0;
   let targetCount = 0;
@@ -304,13 +376,16 @@ export async function processCdrPurgeMonth(
 
       deleted = priorCalls;
       targetCount = priorCalls;
-      const [smgTotal, historyTotals] = await Promise.all([
+      const [smgTotal, historyTotals, syslogFiles] = await Promise.all([
         countSmgMonth(target.year, target.month),
         countMonthHistory(target.year, target.month, jobRun.id),
+        countSyslogFiles(target.year, target.month),
       ]);
       const stages: PurgeStagesMeta = {
         calls: { done: priorCalls, total: priorCalls },
+        cards: { done: 0, total: 0 },
         smg: { done: 0, total: smgTotal },
+        syslog: { done: 0, total: syslogFiles },
         jobs: { done: 0, total: historyTotals.jobs },
         audit: { done: 0, total: historyTotals.audit },
       };
@@ -334,35 +409,22 @@ export async function processCdrPurgeMonth(
         smg: smgTotal,
         jobs: historyTotals.jobs,
         audit: historyTotals.audit,
+        syslog: syslogFiles,
       });
-      await publishPurgeProgress(jobRun.id, target.key, "smg", stages);
-      deletedSmg = await deleteSmgMonth(
-        target.year,
-        target.month,
-        target.key,
-        async (deletedCount) => {
-          stages.smg.done = deletedCount;
-          await publishPurgeProgress(jobRun.id, target.key, "smg", stages);
-        },
-      );
-
-      const history = await deleteMonthHistory(target.year, target.month, jobRun.id, {
-        onPhase: async (phase) => {
-          await publishPurgeProgress(jobRun.id, target.key, phase, stages);
-        },
-        onProgress: async (phase, deletedCount) => {
-          stages[phase].done = deletedCount;
-          await publishPurgeProgress(jobRun.id, target.key, phase, stages);
-        },
-      });
-      deletedJobs = history.jobs;
-      deletedAudit = history.audit;
+      const remainder = await deleteMonthRemainder(jobRun.id, target, stages, null);
+      deletedCards = remainder.cards;
+      deletedSmg = remainder.smg;
+      deletedSyslog = remainder.syslog;
+      deletedJobs = remainder.jobs;
+      deletedAudit = remainder.audit;
 
       invalidateCdrMonthCountCache();
       await finish(jobRun.id, startedAt, input, {
         status: "success",
         deleted: priorCalls,
         deletedSmg,
+        deletedCards,
+        deletedSyslog,
         deletedJobs,
         deletedAudit,
         targetCount: priorCalls,
@@ -422,17 +484,22 @@ export async function processCdrPurgeMonth(
 
     setPurgeTargetMonth(target.key);
     await assertPurgeFkIndexes();
-    const [callTotal, smgTotal, historyTotals] = await Promise.all([
+    const cardKeys = await collectMonthTraceKeys(target.year, target.month);
+    const [callTotal, smgTotal, historyTotals, syslogFiles, cardTotal] = await Promise.all([
       prisma.cdrRecord.count({
         where: { cdrDate: { startsWith: `${target.key}-` } },
       }),
       countSmgMonth(target.year, target.month),
       countMonthHistory(target.year, target.month, jobRun.id),
+      countSyslogFiles(target.year, target.month),
+      countTraceCards(cardKeys),
     ]);
     targetCount = callTotal;
     const stages: PurgeStagesMeta = {
       calls: { done: 0, total: targetCount },
+      cards: { done: 0, total: cardTotal },
       smg: { done: 0, total: smgTotal },
+      syslog: { done: 0, total: syslogFiles },
       jobs: { done: 0, total: historyTotals.jobs },
       audit: { done: 0, total: historyTotals.audit },
     };
@@ -473,34 +540,20 @@ export async function processCdrPurgeMonth(
       await sleep(BATCH_PAUSE_MS);
     }
 
-    await publishPurgeProgress(jobRun.id, target.key, "smg", stages);
-    deletedSmg = await deleteSmgMonth(
-      target.year,
-      target.month,
-      target.key,
-      async (deletedCount) => {
-        stages.smg.done = deletedCount;
-        await publishPurgeProgress(jobRun.id, target.key, "smg", stages);
-      },
-    );
-
-    const history = await deleteMonthHistory(target.year, target.month, jobRun.id, {
-      onPhase: async (phase) => {
-        await publishPurgeProgress(jobRun.id, target.key, phase, stages);
-      },
-      onProgress: async (phase, deletedCount) => {
-        stages[phase].done = deletedCount;
-        await publishPurgeProgress(jobRun.id, target.key, phase, stages);
-      },
-    });
-    deletedJobs = history.jobs;
-    deletedAudit = history.audit;
+    const remainder = await deleteMonthRemainder(jobRun.id, target, stages, cardKeys);
+    deletedCards = remainder.cards;
+    deletedSmg = remainder.smg;
+    deletedSyslog = remainder.syslog;
+    deletedJobs = remainder.jobs;
+    deletedAudit = remainder.audit;
 
     invalidateCdrMonthCountCache();
     await finish(jobRun.id, startedAt, input, {
       status: "success",
       deleted,
       deletedSmg,
+      deletedCards,
+      deletedSyslog,
       deletedJobs,
       deletedAudit,
       targetCount,
@@ -524,6 +577,8 @@ export async function processCdrPurgeMonth(
       status: "failed",
       deleted,
       deletedSmg,
+      deletedCards,
+      deletedSyslog,
       deletedJobs,
       deletedAudit,
       targetCount,
@@ -563,6 +618,8 @@ async function finish(
     status: "success" | "failed";
     deleted: number;
     deletedSmg?: number;
+    deletedCards?: number;
+    deletedSyslog?: number;
     deletedJobs: number;
     deletedAudit: number;
     targetCount: number;
@@ -571,6 +628,8 @@ async function finish(
   },
 ): Promise<void> {
   const deletedSmg = result.deletedSmg ?? 0;
+  const deletedCards = result.deletedCards ?? 0;
+  const deletedSyslog = result.deletedSyslog ?? 0;
   const finishedAt = new Date();
   const label = result.month
     ? (() => {
@@ -588,13 +647,15 @@ async function finish(
       errorMessage:
         result.errorMessage ??
         (result.status === "success"
-          ? `Удалено ${formatCount(result.deleted)} звонков CDR${label ? ` · ${label}` : ""}. Звонков SMG: ${formatCount(deletedSmg)}. Задач: ${formatCount(result.deletedJobs)}. Аудит: ${formatCount(result.deletedAudit)}.`
+          ? `Удалено ${formatCount(result.deleted)} звонков CDR${label ? ` · ${label}` : ""}. Звонков SMG: ${formatCount(deletedSmg)}. Карточек: ${formatCount(deletedCards)}. Архивов Syslog: ${formatCount(deletedSyslog)}. Задач: ${formatCount(result.deletedJobs)}. Аудит: ${formatCount(result.deletedAudit)}.`
           : null),
       meta: {
         month: result.month,
         targetCount: result.targetCount,
         deletedCount: result.deleted,
         deletedSmg,
+        deletedCards,
+        deletedSyslog,
         deletedJobs: result.deletedJobs,
         deletedAudit: result.deletedAudit,
       },
@@ -610,6 +671,8 @@ async function finish(
       month: result.month,
       deleted: result.deleted,
       deletedSmg,
+      deletedCards,
+      deletedSyslog,
       deletedJobs: result.deletedJobs,
       deletedAudit: result.deletedAudit,
       targetCount: result.targetCount,
@@ -621,6 +684,8 @@ async function finish(
     month: result.month,
     deleted: result.deleted,
     deletedSmg,
+    deletedCards,
+    deletedSyslog,
     deletedJobs: result.deletedJobs,
     deletedAudit: result.deletedAudit,
   });

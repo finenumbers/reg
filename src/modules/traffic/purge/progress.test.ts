@@ -10,7 +10,9 @@ import {
 function stages(overrides?: Partial<PurgeStagesMeta>): PurgeStagesMeta {
   return {
     calls: { done: 10, total: 10 },
+    cards: { done: 3, total: 3 },
     smg: { done: 4, total: 4 },
+    syslog: { done: 6, total: 6 },
     jobs: { done: 2, total: 8 },
     audit: { done: 0, total: 4 },
     ...overrides,
@@ -35,10 +37,24 @@ describe("purgeProgressFromJob", () => {
           state: "done",
         },
         {
+          id: "cards",
+          label: "Карточки АнтиФрода",
+          done: 3,
+          total: 3,
+          state: "done",
+        },
+        {
           id: "smg",
           label: "Звонки SMG",
           done: 4,
           total: 4,
+          state: "done",
+        },
+        {
+          id: "syslog",
+          label: "Архивы Syslog",
+          done: 6,
+          total: 6,
           state: "done",
         },
         {
@@ -67,7 +83,9 @@ describe("purgeProgressFromJob", () => {
         phase: "calls",
         stages: stages({
           calls: { done: 1, total: 3 },
+          cards: { done: 0, total: 0 },
           smg: { done: 0, total: 0 },
+          syslog: { done: 0, total: 0 },
           jobs: { done: 0, total: 0 },
           audit: { done: 0, total: 5 },
         }),
@@ -77,6 +95,8 @@ describe("purgeProgressFromJob", () => {
     if (progress?.mode !== "stages") return;
     expect(progress.stages.map((stage) => stage.state)).toEqual([
       "active",
+      "done",
+      "done",
       "done",
       "done",
       "pending",
@@ -98,13 +118,13 @@ describe("purgeProgressFromJob", () => {
     expect(purgeStageLine(progress.stages[0])).toBe(
       `Звонки CDR — готово, ${formatCount(11)} / ${formatCount(10)}`,
     );
-    expect(purgeStageLine(progress.stages[1])).toBe(
+    expect(purgeStageLine(progress.stages[2])).toBe(
       `Звонки SMG — готово, ${formatCount(4)}`,
     );
-    expect(purgeStageLine(progress.stages[2])).toBe(
+    expect(purgeStageLine(progress.stages[4])).toBe(
       `Задачи — ${formatCount(2)} / ${formatCount(8)}`,
     );
-    expect(purgeStageLine(progress.stages[3])).toBe(`Аудит — ожидает, ${formatCount(4)}`);
+    expect(purgeStageLine(progress.stages[5])).toBe(`Аудит — ожидает, ${formatCount(4)}`);
   });
 
   it("falls back to one calls line when stages are missing or broken", () => {
@@ -133,9 +153,10 @@ describe("purgeProgressFromJob", () => {
     expect(purgeProgressFromJob({ phonesParsed: 1, meta: null })).toBeNull();
   });
 
-  it("states that a restart continues SMG, jobs, and audit after CDR calls are gone", () => {
+  it("states that a restart continues the later stages after CDR calls are gone", () => {
     expect(PURGE_INTERRUPT_NOTE).toContain("обрывается");
     expect(PURGE_INTERRUPT_NOTE).toContain("продолжаются");
     expect(PURGE_INTERRUPT_NOTE).toContain("SMG");
+    expect(PURGE_INTERRUPT_NOTE).toContain("Syslog");
   });
 });

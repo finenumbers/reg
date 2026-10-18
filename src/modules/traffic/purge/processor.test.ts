@@ -58,6 +58,25 @@ vi.mock("@/modules/smg/month-stats", () => ({
   querySmgMonthCallCounts: (...args: unknown[]) => querySmgMonthCallCounts(...args),
 }));
 
+vi.mock("@/modules/smg-syslog/month-inventory", () => ({
+  listSyslogMonthInventory: vi.fn(async () => []),
+}));
+
+vi.mock("@/modules/smg-syslog/purge", () => ({
+  deleteSyslogMonth: vi.fn(
+    async (
+      _root: string,
+      _year: number,
+      _month: number,
+      _now: Date,
+      onProgress: (done: number, total: number) => Promise<void>,
+    ) => {
+      await onProgress(0, 0);
+      return 0;
+    },
+  ),
+}));
+
 vi.mock("@/modules/traffic/cdr-month-stats", () => ({
   invalidateCdrMonthCountCache: vi.fn(),
   queryMonthCallCounts: (...args: unknown[]) => queryMonthCallCounts(...args),
@@ -197,8 +216,10 @@ describe("processCdrPurgeMonth historyOnly", () => {
       const meta = (call[0] as { data?: { meta?: { phase?: string } } }).data?.meta;
       return meta?.phase;
     });
-    expect(phases.indexOf("smg")).toBeGreaterThanOrEqual(0);
-    expect(phases.indexOf("smg")).toBeLessThan(phases.indexOf("jobs"));
+    expect(phases.indexOf("cards")).toBeGreaterThanOrEqual(0);
+    expect(phases.indexOf("cards")).toBeLessThan(phases.indexOf("smg"));
+    expect(phases.indexOf("smg")).toBeLessThan(phases.indexOf("syslog"));
+    expect(phases.indexOf("syslog")).toBeLessThan(phases.indexOf("jobs"));
   });
 
   it("releases the hold when history finishes without deleting a batch", async () => {
