@@ -45,17 +45,22 @@ export function isTariffNumberAdmitted(number: string): boolean {
 }
 
 /**
- * Dial prefixes that are an error unless their own ABC accepts the length.
- * None of these is a prefix of another. 887 and 889 start with 88.
+ * Seeded dial exceptions. A live caller passes the rows from dial_exceptions.
+ * An empty list is empty: it does not fall back to this seed.
  */
-const CLOSED_DIAL_PREFIXES = ["887", "889", "83", "89", "0"] as const;
+export const SEEDED_DIAL_EXCEPTIONS = ["887", "889", "83", "89", "0"] as const;
 
-function closedDialPrefix(number: string): string | null {
-  if (number.startsWith("*")) return "*";
-  for (const prefix of CLOSED_DIAL_PREFIXES) {
-    if (number.startsWith(prefix)) return prefix;
+/** Longest listed ABC that the number starts with. Equal lengths cannot both match. */
+export function dialExceptionPrefix(
+  number: string,
+  exceptions: readonly string[],
+): string | null {
+  let best: string | null = null;
+  for (const prefix of exceptions) {
+    if (prefix.length === 0 || !number.startsWith(prefix)) continue;
+    if (!best || prefix.length > best.length) best = prefix;
   }
-  return null;
+  return best;
 }
 
 function tariffAbcFitsLength(
@@ -111,11 +116,13 @@ export function matchTariffAbc<T extends TariffAbcRate>(
 
 /**
  * Outgoing B-number whose tariff prefix does not accept the length.
- * A closed prefix (0, 83, 89, 887, 889, or *) is a miss unless an ABC that
- * itself starts with that prefix accepts the length. That check is before the
- * 10–15 digit window, so a number on * is a miss. A shorter foreign ABC does not cover it.
- * A number that is already malformed returns false when it is not a closed prefix:
- * the caller handles that first.
+ * `*` or `#` anywhere is a miss. The exception list is not read.
+ * A listed ABC is a miss unless a tariff ABC that itself starts with that
+ * same code is a prefix of the number and accepts the length. The longest
+ * listed code wins. A shorter foreign ABC does not cover it. That check is
+ * before the 10–15 digit window.
+ * A number that is already malformed returns false when it is not listed and
+ * has no `*` or `#`: the caller handles that first.
  * A number on 7 is a miss when no ABC on 7 is a prefix. The length cell is not read.
  * Any other number is a miss only when a prefix exists and none of those rows accept the length.
  * No prefix at all is not a miss.
@@ -123,9 +130,11 @@ export function matchTariffAbc<T extends TariffAbcRate>(
 export function tariffLengthMismatch(
   number: string,
   rates: readonly TariffAbcRate[],
+  exceptions: readonly string[] = SEEDED_DIAL_EXCEPTIONS,
 ): boolean {
   const trimmed = number.trim();
-  const closed = closedDialPrefix(trimmed);
+  if (trimmed.includes("*") || trimmed.includes("#")) return true;
+  const closed = dialExceptionPrefix(trimmed, exceptions);
   if (closed) {
     return !rates.some(
       (rate) =>

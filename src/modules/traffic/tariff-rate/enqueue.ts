@@ -3,6 +3,7 @@ import { logger } from "@/lib/logger";
 
 export async function requestCdrTariffRate(
   trigger: "schedule" | "manual" | "test" = "schedule",
+  actorUserId?: string,
 ): Promise<void> {
   const state = await prisma.tariffImportState.findUnique({
     where: { id: 1 },
@@ -14,6 +15,7 @@ export async function requestCdrTariffRate(
   const result = await jobRuntime.enqueue({
     actionCode: "cdr.tariff.rate",
     trigger,
+    actorUserId,
   });
   if (!result.accepted) {
     logger.info("cdr.tariff.rate.enqueue_skipped", { reason: result.reason });

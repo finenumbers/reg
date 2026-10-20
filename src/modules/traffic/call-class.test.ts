@@ -62,6 +62,10 @@ const CLOSED_PREFIX_MIGRATION = path.join(
   process.cwd(),
   "prisma/migrations/20261020190000_closed_dial_prefixes/migration.sql",
 );
+const DIAL_EXCEPTION_MIGRATION = path.join(
+  process.cwd(),
+  "prisma/migrations/20261020220000_dial_exceptions/migration.sql",
+);
 
 const cityRates: TariffAbcRate[] = [
   { direction: "г. Новосибирск", abc: "7383", sortIndex: 0, digitLengths: null },
@@ -563,6 +567,41 @@ describe("classifyCallCategory", () => {
       classifyCallCategory(unknown, known, "PSTN_A", "", "", "", "831234567890", []),
     ).toBe(CALL_CATEGORY.incoming);
   });
+
+  it("sends * or # anywhere to verify and uses the passed exception list", () => {
+    expect(
+      classifyCallCategory(known, known, "PSTN_A", "", "", "", "12*34567890", []),
+    ).toBe(CALL_CATEGORY.errors);
+    expect(
+      classifyCallType(known, known, "PSTN_A", "", "", "", nsk, "7495#1234567", []),
+    ).toBe(CALL_TYPE.verify);
+    expect(classifyCallType(known, known, "PSTN_A", "", "", "", nsk, "#100", [])).toBe(
+      CALL_TYPE.verify,
+    );
+    expect(
+      classifyCategory(known, known, "PSTN_A", "", "", "", "880123456789", [], ["880"]),
+    ).toBe(CALL_CATEGORY.errors);
+    expect(
+      classifyCallType(
+        known,
+        known,
+        "PSTN_A",
+        "",
+        "",
+        "",
+        nsk,
+        "880123456789",
+        [],
+        ["880"],
+      ),
+    ).toBe(CALL_TYPE.verify);
+    expect(
+      classifyCategory(known, known, "PSTN_A", "", "", "", "831234567890", [], []),
+    ).toBe(CALL_CATEGORY.outgoing);
+    expect(
+      classifyCallType(known, known, "PSTN_A", "", "", "", nsk, "831234567890", [], []),
+    ).toBe(CALL_TYPE.international);
+  });
 });
 
 describe("classifyCallStatus", () => {
@@ -636,6 +675,28 @@ describe("call class SQL", () => {
     expect(closed).not.toContain("CREATE OR REPLACE FUNCTION cdr_call_category");
     expect(closed).not.toContain(renderCallCategoryCaseSql());
     expect(closed).not.toContain(renderCallTypeCaseSql());
+    const exceptions = readFileSync(DIAL_EXCEPTION_MIGRATION, "utf8");
+    expect(exceptions).toContain('CREATE TABLE "dial_exceptions"');
+    expect(exceptions).toContain("CHECK (\"abc\" ~ '^[0-9]{1,15}$')");
+    expect(exceptions).toContain("('887')");
+    expect(exceptions).not.toContain("('*'");
+    expect(exceptions).toContain("b ~ '[*#]'");
+    expect(exceptions).toContain("FROM dial_exceptions AS e");
+    expect(exceptions).toContain("ORDER BY length(e.abc) DESC");
+    expect(exceptions.indexOf("b ~ '[*#]'")).toBeLessThan(
+      exceptions.indexOf("FROM dial_exceptions AS e"),
+    );
+    expect(exceptions.indexOf("FROM dial_exceptions AS e")).toBeLessThan(
+      exceptions.indexOf("b ~ '^[0-9]{10,15}$'"),
+    );
+    expect(exceptions).toContain(
+      '"rateGeneration" = "tariff_import_state"."rateGeneration" + 1',
+    );
+    expect(exceptions).not.toContain('"ratedGeneration" = "rateGeneration"');
+    expect(exceptions).not.toContain("CREATE OR REPLACE FUNCTION cdr_call_category");
+    expect(exceptions).not.toContain("CREATE OR REPLACE FUNCTION cdr_call_type");
+    expect(exceptions).not.toContain(renderCallCategoryCaseSql());
+    expect(exceptions).not.toContain(renderCallTypeCaseSql());
     expect(lengths).toContain(renderCallCategoryCaseSql());
     expect(lengths).toContain(renderCallTypeCaseSql());
     expect(lengths).toContain("CREATE OR REPLACE FUNCTION cdr_call_category");

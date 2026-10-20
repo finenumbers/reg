@@ -9,9 +9,8 @@ if [[ -z "${DATABASE_URL:-}" ]]; then
   export DATABASE_URL="${DATABASE_URL:-postgresql://reg:reg@localhost:5432/reg?schema=public}"
   echo "Using DATABASE_URL=$DATABASE_URL"
 fi
-npx prisma migrate deploy
+log=$(npx prisma migrate deploy 2>&1)
+printf '%s\n' "$log"
 echo "Migrations applied."
-node scripts/cdr-call-class-backfill.mjs
-echo "CDR category and status backfill finished."
-node scripts/cdr-tariff-backfill.mjs
-echo "CDR tariff backfill finished."
+printf '%s\n' "$log" | node scripts/cdr-post-migrate.mjs
+echo "CDR post-migrate finished."

@@ -172,7 +172,7 @@ node -e 'fetch("http://pstn_app:5555/api/v1/lookup?phone=4996660000").then(async
 
 1. In Portainer: **Pull and redeploy** the stack (or `docker compose -f docker-compose.portainer.yml pull && docker compose -f docker-compose.portainer.yml up -d`).
 2. Images stay `latest` / `latest-migrator` — no tag changes in compose.
-3. Migrate runs before app on each redeploy.
+3. Migrate runs before app on each redeploy. When the schema is already current, migrate exits without reading the CDR journal. A release that moves the tariff generation queues the rewrite in the running app, under «Задачи».
 4. Smoke: `/api/readyz` + login.
 
 Large CDR enrich uploads (tens of MiB) were silently truncated to **10 MiB** by Next.js middleware body clone, not by NPM (`client_max_body_size` default is 2000m). v1.5.3 excludes `/api/enrich` from the matcher and rejects an incomplete multipart. After redeploy, re-upload the full CSV.

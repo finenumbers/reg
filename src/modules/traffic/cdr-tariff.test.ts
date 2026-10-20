@@ -631,6 +631,35 @@ describe("cdr tariff migration", () => {
     );
   });
 
+  it("reads digit exceptions and rejects * or # before the digit window", () => {
+    const sql = readFileSync(
+      path.join(
+        process.cwd(),
+        "prisma/migrations/20261020220000_dial_exceptions/migration.sql",
+      ),
+      "utf8",
+    );
+    expect(sql).toContain("CREATE OR REPLACE FUNCTION cdr_tariff_length_mismatch");
+    expect(sql).toContain("b ~ '[*#]'");
+    expect(sql).toContain("dial_exceptions");
+    expect(sql).toContain("t.abc ~ '^7'");
+    expect(sql).toContain("length(b) = 11");
+    expect(sql).not.toContain("CREATE OR REPLACE FUNCTION cdr_call_category");
+    expect(sql).not.toContain("CREATE OR REPLACE FUNCTION cdr_rate_call");
+    expect(sql).not.toContain("DROP FUNCTION");
+    expect(sql.indexOf("b ~ '[*#]'")).toBeLessThan(sql.indexOf("b ~ '^[0-9]{10,15}$'"));
+    const enrich = readFileSync(
+      path.join(process.cwd(), "src/modules/enrich/pipeline.ts"),
+      "utf8",
+    );
+    const month = readFileSync(
+      path.join(process.cwd(), "src/modules/traffic/month-export-pipeline.ts"),
+      "utf8",
+    );
+    expect(enrich).toContain("loadDialExceptions()");
+    expect(month).toContain("loadDialExceptions()");
+  });
+
   it("adds the catalog price without rewriting the shipped rating migration", () => {
     const sql = readFileSync(PRICE_MIGRATION, "utf8");
     expect(sql).toContain('ADD COLUMN "tariff_price"');

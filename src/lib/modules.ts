@@ -165,6 +165,15 @@ export const FEATURE_MODULES: FeatureModuleDefinition[] = [
     navGroup: "admin",
   },
   {
+    id: "exceptions",
+    title: "Исключения",
+    description:
+      "Цифровые ABC, которые без своего кода в тарифе помечают звонок как ошибку",
+    href: "/exceptions",
+    navPermission: "phones:read",
+    navGroup: "admin",
+  },
+  {
     id: "jobs",
     title: "Задачи",
     description: "История запусков и диагностика",

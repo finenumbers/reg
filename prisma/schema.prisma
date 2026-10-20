@@ -484,6 +484,16 @@ model TariffRate {
   @@map("tariff_rates")
 }
 
+/// Digit ABC that marks an uncovered B-number as «Ошибка» / «Проверить».
+/// `*` and `#` are not rows: those symbols are a fixed rule in the rater.
+model DialException {
+  /// Same shape as a tariff ABC: digits, length 1–15. Text so a leading zero survives.
+  abc       String   @id
+  createdAt DateTime @default(now())
+
+  @@map("dial_exceptions")
+}
+
 model TariffImportState {
   id              Int       @id @default(1)
   rowCount        Int       @default(0)

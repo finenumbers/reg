@@ -11,6 +11,7 @@ import { cdrMonthPrefix } from "@/lib/month-window";
 import { parseMonthKey } from "@/modules/traffic/cdr-month";
 import { EXCEL_MAX_ROWS, type ResolvedEnrichedRow } from "@/modules/enrich/types";
 import { writeResolvedEnrichedXlsx } from "@/modules/enrich/xlsx-writer";
+import { loadDialExceptions } from "@/modules/exceptions/service";
 import { loadTariffRateLookup } from "@/modules/tariffs/service";
 import { getEnrichReadyFlags } from "@/modules/pstn/credentials";
 import { loadCdrImportEnrichment } from "@/modules/traffic/enrich-import";
@@ -404,7 +405,10 @@ export async function runMonthExportPipeline(jobId: string): Promise<void> {
     });
     persist(stages);
 
-    const rates = await loadTariffRateLookup();
+    const [rates, exceptions] = await Promise.all([
+      loadTariffRateLookup(),
+      loadDialExceptions(),
+    ]);
     await writeResolvedEnrichedXlsx({
       jsonlPath,
       outputPath,
@@ -412,6 +416,7 @@ export async function runMonthExportPipeline(jobId: string): Promise<void> {
       trafficSheetName,
       includeDetail,
       rates,
+      exceptions,
       onProgress: (info) => {
         if (info.sheet === "detail" && includeDetail) {
           stages = setMonthExportStage(stages, "traffic", {

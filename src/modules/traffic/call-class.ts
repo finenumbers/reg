@@ -8,6 +8,7 @@ import { MISSING_BILLING_LABEL } from "@/modules/enrich/types";
 import { PARKING_DST } from "@/modules/stats/classify";
 import {
   matchTariffAbc,
+  SEEDED_DIAL_EXCEPTIONS,
   tariffLengthMismatch,
   type TariffAbcRate,
 } from "@/modules/traffic/tariff-match";
@@ -239,6 +240,7 @@ export function classifyCallCategory(
   dpName: string,
   billDnis: string,
   rates: readonly TariffAbcRate[],
+  exceptions: readonly string[] = SEEDED_DIAL_EXCEPTIONS,
 ): string {
   if (disconnectCode === UNREGISTERED_DISCONNECT) return CALL_CATEGORY.errors;
   if (disconnectCode === ROUTE_ERROR_DISCONNECT) return CALL_CATEGORY.errors;
@@ -250,7 +252,7 @@ export function classifyCallCategory(
   const parking = dstName === PARKING_DST;
   if (parking && !a && !b) return CALL_CATEGORY.phantom;
   if (a && isMalformedOutgoingB(billDnis)) return CALL_CATEGORY.errors;
-  if (a && tariffLengthMismatch(billDnis, rates)) return CALL_CATEGORY.errors;
+  if (a && tariffLengthMismatch(billDnis, rates, exceptions)) return CALL_CATEGORY.errors;
   if (a) return CALL_CATEGORY.outgoing;
   if (!a && b) return CALL_CATEGORY.incoming;
   return CALL_CATEGORY.errors;
@@ -266,6 +268,7 @@ export function classifyCallType(
   billAni = "",
   billDnis = "",
   rates: readonly TariffAbcRate[] = [],
+  exceptions: readonly string[] = SEEDED_DIAL_EXCEPTIONS,
 ): string {
   if (disconnectCode === UNREGISTERED_DISCONNECT) return CALL_TYPE.unregistered;
   if (disconnectCode === ROUTE_ERROR_DISCONNECT) return CALL_TYPE.routeError;
@@ -279,7 +282,7 @@ export function classifyCallType(
     return geographyType(classifyCallGeography(billAni, billDnis, rates, "incoming"));
   }
   if (a && isMalformedOutgoingB(billDnis)) return CALL_TYPE.verify;
-  if (a && tariffLengthMismatch(billDnis, rates)) return CALL_TYPE.verify;
+  if (a && tariffLengthMismatch(billDnis, rates, exceptions)) return CALL_TYPE.verify;
   if (a)
     return geographyType(classifyCallGeography(billAni, billDnis, rates, "outgoing"));
   if (!a && b) {

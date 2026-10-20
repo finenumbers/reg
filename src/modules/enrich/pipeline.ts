@@ -15,6 +15,7 @@ import {
   loadDescriptionsForPhones,
 } from "@/modules/enrich/lookups";
 import { writeEnrichedXlsx } from "@/modules/enrich/xlsx-writer";
+import { loadDialExceptions } from "@/modules/exceptions/service";
 import { loadTariffRateLookup } from "@/modules/tariffs/service";
 import {
   enrichJsonlPath,
@@ -33,9 +34,7 @@ export async function runEnrichPipeline(input: {
   const { jobId } = input;
   let stages: EnrichStageView[] = INITIAL_STAGES.map((s) => ({ ...s }));
 
-  const persist = async (
-    patch: Parameters<typeof patchJob>[1],
-  ) => {
+  const persist = async (patch: Parameters<typeof patchJob>[1]) => {
     await patchJob(jobId, patch);
   };
 
@@ -47,10 +46,7 @@ export async function runEnrichPipeline(input: {
     });
     stages = setStage(stages, "parse", { status: "running" });
 
-    const parsed = await parseCsvToJsonl(
-      enrichSourcePath(jobId),
-      enrichJsonlPath(jobId),
-    );
+    const parsed = await parseCsvToJsonl(enrichSourcePath(jobId), enrichJsonlPath(jobId));
     stages = setStage(stages, "parse", {
       status: "done",
       current: parsed.rows,
@@ -114,7 +110,10 @@ export async function runEnrichPipeline(input: {
 
     stages = setStage(stages, "xlsx", { status: "running" });
     await persist({ stages });
-    const rates = await loadTariffRateLookup();
+    const [rates, exceptions] = await Promise.all([
+      loadTariffRateLookup(),
+      loadDialExceptions(),
+    ]);
     await writeEnrichedXlsx({
       jsonlPath: enrichJsonlPath(jobId),
       outputPath: enrichOutputPath(jobId),
@@ -123,6 +122,7 @@ export async function runEnrichPipeline(input: {
       pstn: pstn.byOriginal,
       geo: geo.byIp,
       rates,
+      exceptions,
     });
     stages = setStage(stages, "xlsx", { status: "done" });
     stages = setStage(stages, "download", { status: "done" });
@@ -167,8 +167,7 @@ export async function runEnrichPipeline(input: {
       },
     });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Ошибка обогащения";
+    const message = error instanceof Error ? error.message : "Ошибка обогащения";
     logger.error("enrich.pipeline_failed", { jobId, error: message });
     const failed = stages.map((stage) =>
       stage.status === "running"

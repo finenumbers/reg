@@ -1,7 +1,17 @@
-# Current Phase — production (v1.157.0)
+# Current Phase — production (v1.158.0)
 
-**Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, Eltex SMG CDR, Eltex SMG syslog.  
+**Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog.  
 **Date:** 2026-10-20
+
+## v1.158.0 — Digit exceptions are editable, and * or # is always an error
+
+Stop is the normal stack update. `migrate` adds `dial_exceptions`, replaces `cdr_tariff_length_mismatch`, and moves `rateGeneration` ahead of `ratedGeneration`. It does not walk `cdr_records`. The app then runs the same tariff job a file upload runs. A later redeploy that applies no migration does not read the journal. Syslog cards stay. Do not stop `app` beyond the normal stack update.
+
+«Исключения» sits under «Тарификация». The page lists digit ABC codes only. The seed is `887`, `889`, `83`, `89`, `0`. Adding or deleting a code queues the same job. The longest code wins: ABC `89` does not cover a number on `889`, and ABC `7` does not cover a number on an exception `79`. An empty list turns that branch off. The 7 / 11 rule and the 10–15 window stay.
+
+An outgoing B-number with a known side A that contains `*` or `#` anywhere is «Ошибка» / «Проверить». No tariff ABC saves it, and deleting every exception does not turn the rule off. Those symbols are not rows on the page. Redirect, check, disconnect codes, and incoming calls stay as they are. A redirect to `*` stays «Редирект».
+
+Until the job finishes, stored rows keep the previous category and charge. A new call uses the new function at once. `880` and `33` stay as they are unless someone adds that ABC.
 
 ## v1.157.0 — Uncovered closed dial prefixes are «Ошибка»
 
