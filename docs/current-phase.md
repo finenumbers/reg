@@ -1,7 +1,17 @@
-# Current Phase — production (v1.156.0)
+# Current Phase — production (v1.157.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, Eltex SMG CDR, Eltex SMG syslog.  
 **Date:** 2026-10-20
+
+## v1.157.0 — Uncovered closed dial prefixes are «Ошибка»
+
+Stop is the normal stack update: `migrate` replaces `cdr_tariff_length_mismatch`, then the tariff backfill rewrites stored category, type, direction, and charge before `app` starts. Syslog cards stay. Do not stop `app` beyond the normal stack update. Category and type CASE text is unchanged; they already call that function.
+
+An outgoing B-number with a known side A that starts with `0`, `83`, `89`, `887`, `889`, or `*` is «Ошибка» / «Проверить» unless the tariff has an ABC that itself starts with that same prefix, is a prefix of the number, and accepts the length. A shorter code does not cover it: ABC `8` with an empty cell does not save `83`, `887`, or `889`. An empty cell and a list `12/13` apply only on a row that starts with the closed prefix. A number that starts with `*` is always an error: the ABC parser accepts digits only.
+
+A number that starts with `880` or `33` stays international with an empty direction when no ABC covers it. Redirect, check, disconnect codes, and incoming calls stay as they are. A redirect to `*` stays «Редирект». The 7 / 11 rule is unchanged.
+
+The backfill clears direction and charge only when such a number was rated by a shorter ABC that does not start with the closed prefix. A row `8301` whose length fits keeps the direction and the charge. An ABC exactly `0`, `83`, `89`, `887`, or `889` with an empty cell covers every admitted number on that prefix.
 
 ## v1.156.0 — Uncovered dialed lengths are «Ошибка», and a cell may list several
 

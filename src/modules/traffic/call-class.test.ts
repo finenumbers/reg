@@ -58,6 +58,10 @@ const LENGTH_LIST_MIGRATION = path.join(
   process.cwd(),
   "prisma/migrations/20261020180000_tariff_digit_lengths/migration.sql",
 );
+const CLOSED_PREFIX_MIGRATION = path.join(
+  process.cwd(),
+  "prisma/migrations/20261020190000_closed_dial_prefixes/migration.sql",
+);
 
 const cityRates: TariffAbcRate[] = [
   { direction: "г. Новосибирск", abc: "7383", sortIndex: 0, digitLengths: null },
@@ -451,6 +455,114 @@ describe("classifyCallCategory", () => {
       classifyCallType(known, known, "gw", "Redirect_1", "", "", nsk, "771234567890", []),
     ).toBe(CALL_TYPE.redirect);
   });
+
+  it("sends an uncovered closed prefix to verify and keeps 880 and 33", () => {
+    const eight = [
+      { direction: "Восьмёрка", abc: "8", sortIndex: 0, digitLengths: null },
+    ];
+    const code = "831234567890";
+    expect(classifyCallCategory(known, known, "PSTN_A", "", "", "", code, [])).toBe(
+      CALL_CATEGORY.errors,
+    );
+    expect(classifyCallType(known, known, "PSTN_A", "", "", "", nsk, code, [])).toBe(
+      CALL_TYPE.verify,
+    );
+    expect(classifyCallCategory(known, known, "PSTN_A", "", "", "", code, eight)).toBe(
+      CALL_CATEGORY.errors,
+    );
+    expect(
+      classifyCallCategory(known, known, "PSTN_A", "", "", "", "887123456789", eight),
+    ).toBe(CALL_CATEGORY.errors);
+    expect(
+      classifyCallCategory(known, known, "PSTN_A", "", "", "", "889123456789", [
+        { direction: "Восемь девять", abc: "89", sortIndex: 0, digitLengths: null },
+      ]),
+    ).toBe(CALL_CATEGORY.errors);
+    expect(
+      classifyCallCategory(known, known, "PSTN_A", "", "", "", "891234567890", []),
+    ).toBe(CALL_CATEGORY.errors);
+    expect(
+      classifyCallCategory(known, known, "PSTN_A", "", "", "", "0123456789", eight),
+    ).toBe(CALL_CATEGORY.errors);
+    expect(
+      classifyCallCategory(known, known, "PSTN_A", "", "", "", "083012345678", [
+        { direction: "Код", abc: "83", sortIndex: 0, digitLengths: null },
+      ]),
+    ).toBe(CALL_CATEGORY.errors);
+    expect(classifyCallCategory(known, known, "PSTN_A", "", "", "", "*123", [])).toBe(
+      CALL_CATEGORY.errors,
+    );
+    expect(classifyCallType(known, known, "PSTN_A", "", "", "", nsk, "*", [])).toBe(
+      CALL_TYPE.verify,
+    );
+    expect(
+      classifyCallType(
+        known,
+        known,
+        "PSTN_A",
+        "",
+        "",
+        "",
+        nsk,
+        ` ${"*".repeat(20)} `,
+        [],
+      ),
+    ).toBe(CALL_TYPE.verify);
+    const own = [
+      { direction: "Код 8301", abc: "8301", sortIndex: 0, digitLengths: [12] },
+    ];
+    expect(
+      classifyCallCategory(known, known, "PSTN_A", "", "", "", "830112345678", own),
+    ).toBe(CALL_CATEGORY.outgoing);
+    expect(
+      classifyCallType(known, known, "PSTN_A", "", "", "", nsk, "830112345678", own),
+    ).toBe(CALL_TYPE.international);
+    expect(
+      classifyCallCategory(known, known, "PSTN_A", "", "", "", "83011234567", [
+        ...own,
+        ...eight,
+      ]),
+    ).toBe(CALL_CATEGORY.errors);
+    const either = [
+      { direction: "Код 83", abc: "83", sortIndex: 0, digitLengths: [12, 13] },
+    ];
+    expect(
+      classifyCallType(known, known, "PSTN_A", "", "", "", nsk, "831234567890", either),
+    ).toBe(CALL_TYPE.international);
+    expect(
+      classifyCallCategory(known, known, "PSTN_A", "", "", "", "8312345678901", either),
+    ).toBe(CALL_CATEGORY.outgoing);
+    expect(
+      classifyCallCategory(known, known, "PSTN_A", "", "", "", "83123456789", either),
+    ).toBe(CALL_CATEGORY.errors);
+    expect(
+      classifyCallType(known, known, "PSTN_A", "", "", "", nsk, "880123456789", []),
+    ).toBe(CALL_TYPE.international);
+    expect(
+      classifyCallType(known, known, "PSTN_A", "", "", "", nsk, "331234567890", []),
+    ).toBe(CALL_TYPE.international);
+    const germany = [
+      { direction: "Германия", abc: "49", sortIndex: 0, digitLengths: [12, 13] },
+    ];
+    expect(
+      classifyCallType(known, known, "PSTN_A", "", "", "", nsk, "491234567890", germany),
+    ).toBe(CALL_TYPE.international);
+    expect(
+      classifyCallCategory(known, known, "PSTN_A", "", "", "", "49123456789", germany),
+    ).toBe(CALL_CATEGORY.errors);
+    expect(classifyCallType(known, known, "gw", "", "", "", nsk, "83", either)).toBe(
+      CALL_TYPE.verify,
+    );
+    expect(
+      classifyCallCategory(known, known, "gw", "Redirect_1", "", "", "*1234567890", []),
+    ).toBe(CALL_CATEGORY.outgoing);
+    expect(
+      classifyCallType(known, known, "gw", "Redirect_1", "", "", nsk, "*1234567890", []),
+    ).toBe(CALL_TYPE.redirect);
+    expect(
+      classifyCallCategory(unknown, known, "PSTN_A", "", "", "", "831234567890", []),
+    ).toBe(CALL_CATEGORY.incoming);
+  });
 });
 
 describe("classifyCallStatus", () => {
@@ -511,6 +623,19 @@ describe("call class SQL", () => {
     expect(terminator).not.toContain(renderCallTypeCaseSql());
     expect(terminator).not.toContain("cdr_tariff_length_mismatch");
     const lengths = readFileSync(LENGTH_LIST_MIGRATION, "utf8");
+    const closed = readFileSync(CLOSED_PREFIX_MIGRATION, "utf8");
+    expect(closed).toContain("CREATE OR REPLACE FUNCTION cdr_tariff_length_mismatch");
+    expect(closed).toContain("starts_with(b, '*')");
+    expect(closed).toContain("starts_with(t.abc, '887')");
+    expect(closed).toContain("starts_with(t.abc, '83')");
+    expect(closed).toContain("starts_with(t.abc, '0')");
+    expect(closed.indexOf("starts_with(b, '*')")).toBeLessThan(
+      closed.indexOf("b ~ '^[0-9]{10,15}$'"),
+    );
+    expect(closed).not.toContain("DROP FUNCTION");
+    expect(closed).not.toContain("CREATE OR REPLACE FUNCTION cdr_call_category");
+    expect(closed).not.toContain(renderCallCategoryCaseSql());
+    expect(closed).not.toContain(renderCallTypeCaseSql());
     expect(lengths).toContain(renderCallCategoryCaseSql());
     expect(lengths).toContain(renderCallTypeCaseSql());
     expect(lengths).toContain("CREATE OR REPLACE FUNCTION cdr_call_category");

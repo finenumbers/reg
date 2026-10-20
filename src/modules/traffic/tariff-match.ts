@@ -44,6 +44,20 @@ export function isTariffNumberAdmitted(number: string): boolean {
   return true;
 }
 
+/**
+ * Dial prefixes that are an error unless their own ABC accepts the length.
+ * None of these is a prefix of another. 887 and 889 start with 88.
+ */
+const CLOSED_DIAL_PREFIXES = ["887", "889", "83", "89", "0"] as const;
+
+function closedDialPrefix(number: string): string | null {
+  if (number.startsWith("*")) return "*";
+  for (const prefix of CLOSED_DIAL_PREFIXES) {
+    if (number.startsWith(prefix)) return prefix;
+  }
+  return null;
+}
+
 function tariffAbcFitsLength(
   abc: string,
   digitLengths: number[] | null,
@@ -97,7 +111,11 @@ export function matchTariffAbc<T extends TariffAbcRate>(
 
 /**
  * Outgoing B-number whose tariff prefix does not accept the length.
- * A number that is already malformed returns false: the caller handles that first.
+ * A closed prefix (0, 83, 89, 887, 889, or *) is a miss unless an ABC that
+ * itself starts with that prefix accepts the length. That check is before the
+ * 10–15 digit window, so a number on * is a miss. A shorter foreign ABC does not cover it.
+ * A number that is already malformed returns false when it is not a closed prefix:
+ * the caller handles that first.
  * A number on 7 is a miss when no ABC on 7 is a prefix. The length cell is not read.
  * Any other number is a miss only when a prefix exists and none of those rows accept the length.
  * No prefix at all is not a miss.
@@ -107,6 +125,15 @@ export function tariffLengthMismatch(
   rates: readonly TariffAbcRate[],
 ): boolean {
   const trimmed = number.trim();
+  const closed = closedDialPrefix(trimmed);
+  if (closed) {
+    return !rates.some(
+      (rate) =>
+        rate.abc.startsWith(closed) &&
+        isTariffPrefix(trimmed, rate.abc) &&
+        tariffAbcFitsLength(rate.abc, rate.digitLengths, trimmed),
+    );
+  }
   if (!isTariffNumberAdmitted(trimmed)) return false;
   if (trimmed.startsWith("7")) {
     return !rates.some(

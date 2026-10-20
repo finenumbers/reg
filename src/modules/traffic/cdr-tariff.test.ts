@@ -608,6 +608,29 @@ describe("cdr tariff migration", () => {
     expect(sql.indexOf('ADD COLUMN "digitLengths"')).toBeLessThan(replaced);
   });
 
+  it("rejects an uncovered closed prefix before the digit window", () => {
+    const sql = readFileSync(
+      path.join(
+        process.cwd(),
+        "prisma/migrations/20261020190000_closed_dial_prefixes/migration.sql",
+      ),
+      "utf8",
+    );
+    expect(sql).toContain("CREATE OR REPLACE FUNCTION cdr_tariff_length_mismatch");
+    expect(sql).toContain("starts_with(b, '*')");
+    expect(sql).toContain("starts_with(t.abc, '887')");
+    expect(sql).toContain("starts_with(t.abc, '889')");
+    expect(sql).toContain("starts_with(t.abc, '83')");
+    expect(sql).toContain("starts_with(t.abc, '89')");
+    expect(sql).toContain("starts_with(t.abc, '0')");
+    expect(sql).not.toContain("DROP FUNCTION");
+    expect(sql).not.toContain("CREATE OR REPLACE FUNCTION cdr_call_category");
+    expect(sql).not.toContain("CREATE OR REPLACE FUNCTION cdr_rate_call");
+    expect(sql.indexOf("starts_with(b, '*')")).toBeLessThan(
+      sql.indexOf("b ~ '^[0-9]{10,15}$'"),
+    );
+  });
+
   it("adds the catalog price without rewriting the shipped rating migration", () => {
     const sql = readFileSync(PRICE_MIGRATION, "utf8");
     expect(sql).toContain('ADD COLUMN "tariff_price"');
