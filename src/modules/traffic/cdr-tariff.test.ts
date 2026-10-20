@@ -118,12 +118,12 @@ describe("rateCdrCall", () => {
         elapsedTime: "",
       }),
     ).toEqual(local);
-    expect(
-      rate({ category: CALL_CATEGORY.incoming, callType: CALL_TYPE.local }),
-    ).toEqual(EMPTY_CDR_TARIFF);
-    expect(
-      rate({ category: CALL_CATEGORY.phantom, callType: CALL_TYPE.local }),
-    ).toEqual(EMPTY_CDR_TARIFF);
+    expect(rate({ category: CALL_CATEGORY.incoming, callType: CALL_TYPE.local })).toEqual(
+      EMPTY_CDR_TARIFF,
+    );
+    expect(rate({ category: CALL_CATEGORY.phantom, callType: CALL_TYPE.local })).toEqual(
+      EMPTY_CDR_TARIFF,
+    );
   });
 
   it("rates an outgoing mobile call from the catalog row of the B-number", () => {
@@ -132,7 +132,12 @@ describe("rateCdrCall", () => {
       { direction: "Билайн", abc: "7913", price: "4", sortIndex: 1 },
     ];
     expect(
-      rate({ callType: CALL_TYPE.mobile, billDnis: "79131234567", rates, elapsedTime: "60000" }),
+      rate({
+        callType: CALL_TYPE.mobile,
+        billDnis: "79131234567",
+        rates,
+        elapsedTime: "60000",
+      }),
     ).toEqual({ direction: "Билайн", price: "4", charge: "4.00" });
     expect(
       rate({
@@ -151,9 +156,9 @@ describe("rateCdrCall", () => {
         elapsedTime: "3000",
       }),
     ).toEqual({ direction: "Билайн", price: "4", charge: "0.00" });
-    expect(rate({ category: CALL_CATEGORY.incoming, callType: CALL_TYPE.mobile })).toEqual(
-      EMPTY_CDR_TARIFF,
-    );
+    expect(
+      rate({ category: CALL_CATEGORY.incoming, callType: CALL_TYPE.mobile }),
+    ).toEqual(EMPTY_CDR_TARIFF);
   });
 
   it("rates intercity, international, and redirect parking the same way as a success", () => {
@@ -217,9 +222,9 @@ describe("rateCdrCall", () => {
     expect(rate({ category: CALL_CATEGORY.check, status: CALL_STATUS.parking })).toEqual(
       EMPTY_CDR_TARIFF,
     );
-    expect(rate({ category: CALL_CATEGORY.errors, callType: CALL_TYPE.capacity })).toEqual(
-      EMPTY_CDR_TARIFF,
-    );
+    expect(
+      rate({ category: CALL_CATEGORY.errors, callType: CALL_TYPE.capacity }),
+    ).toEqual(EMPTY_CDR_TARIFF);
     expect(
       rate({ status: CALL_STATUS.failed, elapsedTime: "", billDnis: "84951234567" }),
     ).toEqual(EMPTY_CDR_TARIFF);
@@ -270,6 +275,78 @@ describe("rateCdrCall", () => {
       direction: "Москва-центр",
       charge: "",
       price: "",
+    });
+  });
+
+  it("rates a 12-digit code by its digit length and keeps a shorter prefix", () => {
+    const rates = [
+      { direction: "Короткий", abc: "37", price: "1", sortIndex: 0, digitLength: null },
+      { direction: "Беларусь", abc: "375", price: "45", sortIndex: 1, digitLength: 12 },
+      { direction: "Длинный", abc: "3752", price: "9", sortIndex: 2, digitLength: 14 },
+    ];
+    expect(
+      rate({
+        callType: CALL_TYPE.international,
+        billDnis: "375291234567",
+        rates,
+        elapsedTime: "60000",
+      }),
+    ).toEqual({ direction: "Беларусь", price: "45", charge: "45.00" });
+    expect(
+      rate({
+        callType: CALL_TYPE.international,
+        billDnis: "3752912345678",
+        rates,
+        elapsedTime: "60000",
+      }),
+    ).toEqual({ direction: "Короткий", price: "1", charge: "1.00" });
+    expect(
+      rate({
+        callType: CALL_TYPE.international,
+        status: CALL_STATUS.failed,
+        elapsedTime: "",
+        billDnis: "375291234567",
+        rates,
+      }),
+    ).toEqual({ direction: "Беларусь", charge: "", price: "" });
+  });
+
+  it("keeps Kazakhstan on 11 digits, Germany on any admitted length, and Russia on 11", () => {
+    const rates = [
+      { direction: "Казахстан", abc: "77", price: "20", sortIndex: 0, digitLength: 11 },
+      { direction: "Германия", abc: "49", price: "12", sortIndex: 1, digitLength: null },
+      { direction: "Москва", abc: "7495", price: "2", sortIndex: 2, digitLength: 12 },
+    ];
+    expect(
+      rate({
+        callType: CALL_TYPE.international,
+        billDnis: "77123456789",
+        rates,
+        elapsedTime: "60000",
+      }),
+    ).toEqual({ direction: "Казахстан", price: "20", charge: "20.00" });
+    expect(rate({ billDnis: "771234567890", rates })).toEqual(EMPTY_CDR_TARIFF);
+    expect(
+      rate({
+        callType: CALL_TYPE.international,
+        billDnis: "49151234567",
+        rates,
+        elapsedTime: "60000",
+      }),
+    ).toEqual({ direction: "Германия", price: "12", charge: "12.00" });
+    expect(
+      rate({
+        callType: CALL_TYPE.international,
+        billDnis: "4915123456789",
+        rates,
+        elapsedTime: "60000",
+      }),
+    ).toEqual({ direction: "Германия", price: "12", charge: "12.00" });
+    expect(rate({ billDnis: "491512345", rates })).toEqual(EMPTY_CDR_TARIFF);
+    expect(rate({ billDnis: "74951234567", rates, elapsedTime: "60000" })).toEqual({
+      direction: "Москва",
+      price: "2",
+      charge: "2.00",
     });
   });
 
@@ -354,7 +431,10 @@ describe("cdr tariff migration", () => {
 
   it("rates mobile calls without dropping the grace or the rater", () => {
     const sql = readFileSync(
-      path.join(process.cwd(), "prisma/migrations/20261008020000_cdr_mobile_and_errors/migration.sql"),
+      path.join(
+        process.cwd(),
+        "prisma/migrations/20261008020000_cdr_mobile_and_errors/migration.sql",
+      ),
       "utf8",
     );
     expect(sql).toContain("CREATE OR REPLACE FUNCTION cdr_rate_call");
@@ -374,6 +454,29 @@ describe("cdr tariff migration", () => {
     expect(sql).toContain("Исходящие");
     expect(sql).toContain("Местный");
     expect(sql).toContain("Междугородный");
+  });
+
+  it("admits non-Russian lengths without dropping the rater", () => {
+    const sql = readFileSync(
+      path.join(
+        process.cwd(),
+        "prisma/migrations/20261020170000_tariff_digit_length/migration.sql",
+      ),
+      "utf8",
+    );
+    expect(sql).toContain('ADD COLUMN "digitLength"');
+    expect(sql).toContain("CREATE OR REPLACE FUNCTION cdr_rate_call");
+    expect(sql).toContain("CREATE OR REPLACE FUNCTION cdr_tariff_direction");
+    expect(sql).not.toContain("DROP FUNCTION");
+    expect(sql).not.toContain("b !~ '^7[0-9]{10}$'");
+    expect(sql).toContain("^(73|74|78|79)");
+    expect(sql).toContain('t."digitLength" IS NULL');
+    expect(sql).toContain("left(b, 15)");
+    expect(sql).toContain("left(btrim(number), 15)");
+    const predicate = sql.indexOf('t."digitLength" IS NULL');
+    const order = sql.indexOf("ORDER BY length(t.abc) DESC");
+    expect(predicate).toBeGreaterThan(-1);
+    expect(predicate).toBeLessThan(order);
   });
 
   it("adds the catalog price without rewriting the shipped rating migration", () => {

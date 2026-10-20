@@ -27,23 +27,23 @@ describe("parseTariffXlsx", () => {
   it("keeps a text ABC prefix and comma prices", async () => {
     const buf = await workbook([
       header,
-      ["Москва", "0495", "1,50"],
+      ["Москва", "0495", "", "1,50"],
       [],
-      ["Казань", "843", "10"],
+      ["Казань", "843", "", "10"],
     ]);
     const result = await parseTariffXlsx(buf);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.rows).toEqual([
-      { sortIndex: 0, direction: "Москва", abc: "0495", price: "1.5" },
-      { sortIndex: 1, direction: "Казань", abc: "843", price: "10" },
+      { sortIndex: 0, direction: "Москва", abc: "0495", digitLength: null, price: "1.5" },
+      { sortIndex: 1, direction: "Казань", abc: "843", digitLength: null, price: "10" },
     ]);
   });
 
   it("accepts columns in any order and a numeric ABC cell", async () => {
     const buf = await workbook([
-      ["Цена", "ABC", "Направления"],
-      ["1 234,50", 495, "Москва"],
+      ["Цена", "ABC", "Направления", "Разрядность"],
+      ["1 234,50", 495, "Москва", ""],
     ]);
     const result = await parseTariffXlsx(buf);
     expect(result.ok).toBe(true);
@@ -52,6 +52,7 @@ describe("parseTariffXlsx", () => {
       sortIndex: 0,
       direction: "Москва",
       abc: "495",
+      digitLength: null,
       price: "1234.5",
     });
   });
@@ -59,8 +60,8 @@ describe("parseTariffXlsx", () => {
   it("stores a numeric direction as text and allows zero and negative money", async () => {
     const buf = await workbook([
       header,
-      [100, "812", 0],
-      ["Скидка", "812", -0.5],
+      [100, "812", "", 0],
+      ["Скидка", "812", "", -0.5],
     ]);
     const result = await parseTariffXlsx(buf);
     expect(result.ok).toBe(true);
@@ -68,6 +69,7 @@ describe("parseTariffXlsx", () => {
     expect(result.rows[0]).toMatchObject({
       direction: "100",
       abc: "812",
+      digitLength: null,
       price: "0",
     });
     expect(result.rows[1]).toMatchObject({ direction: "Скидка", price: "-0.5" });
@@ -96,9 +98,9 @@ describe("parseTariffXlsx", () => {
   it("rejects plus, spaces and a fraction in ABC", async () => {
     const buf = await workbook([
       header,
-      ["А", "+7495", "1"],
-      ["Б", "7 495", "1"],
-      ["В", 12.5, "1"],
+      ["А", "+7495", "", "1"],
+      ["Б", "7 495", "", "1"],
+      ["В", 12.5, "", "1"],
     ]);
     const result = await parseTariffXlsx(buf);
     expect(result.ok).toBe(false);
@@ -108,7 +110,7 @@ describe("parseTariffXlsx", () => {
   });
 
   it("rejects a text price with more than 6 fractional digits", async () => {
-    const buf = await workbook([header, ["Москва", "495", "1.23456789"]]);
+    const buf = await workbook([header, ["Москва", "495", "", "1.23456789"]]);
     const result = await parseTariffXlsx(buf);
     expect(result.ok).toBe(false);
     if (result.ok) return;
@@ -116,7 +118,7 @@ describe("parseTariffXlsx", () => {
   });
 
   it("keeps a float that only has binary noise", async () => {
-    const buf = await workbook([header, ["Москва", "495", 1.15]]);
+    const buf = await workbook([header, ["Москва", "495", "", 1.15]]);
     const result = await parseTariffXlsx(buf);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -133,13 +135,59 @@ describe("parseTariffXlsx", () => {
   it("stops after 30 row errors", async () => {
     const rows: unknown[][] = [header];
     for (let i = 0; i < TARIFF_MAX_ERRORS + 5; i++) {
-      rows.push(["Москва", "abc", "1"]);
+      rows.push(["Москва", "abc", "", "1"]);
     }
     const result = await parseTariffXlsx(await workbook(rows));
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.details).toHaveLength(TARIFF_MAX_ERRORS + 1);
     expect(result.details.at(-1)).toMatch(/остановлен/);
+  });
+
+  it("stores international digit length and ignores the cell on Russian ABC", async () => {
+    const buf = await workbook([
+      header,
+      ["Казахстан", 77, 11, 20],
+      ["Беларусь", "375", "12", 45],
+      ["Германия", "49", "", 12],
+      ["г. Москва", "7495", "мусор", 2],
+    ]);
+    const result = await parseTariffXlsx(buf);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.rows.map((row) => [row.abc, row.digitLength])).toEqual([
+      ["77", 11],
+      ["375", 12],
+      ["49", null],
+      ["7495", null],
+    ]);
+  });
+
+  it("rejects a missing length column, a fraction, a short length, and a Russian ABC past 11 digits", async () => {
+    const missing = await parseTariffXlsx(
+      await workbook([
+        ["Направления", "ABC", "Цена"],
+        ["Москва", "7495", "1"],
+      ]),
+    );
+    expect(missing.ok).toBe(false);
+
+    const bad = await parseTariffXlsx(
+      await workbook([
+        header,
+        ["Беларусь", "375", 11.5, 1],
+        ["Беларусь", "375", 9, 1],
+        ["Длинный", "375291234567", 10, 1],
+        ["Россия", "749512345678", "", 1],
+      ]),
+    );
+    expect(bad.ok).toBe(false);
+    if (bad.ok) return;
+    expect(bad.details).toHaveLength(4);
+    expect(bad.details[0]).toMatch(/Разрядность/);
+    expect(bad.details[1]).toMatch(/Разрядность/);
+    expect(bad.details[2]).toMatch(/не короче кода ABC/);
+    expect(bad.details[3]).toMatch(/России не длиннее 11/);
   });
 
   it("rejects a corrupt buffer", async () => {

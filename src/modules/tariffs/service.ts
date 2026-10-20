@@ -10,6 +10,7 @@ export type TariffListItem = {
   id: string;
   direction: string;
   abc: string;
+  digitLength: number | null;
   price: string;
 };
 
@@ -30,6 +31,7 @@ export async function loadTariffRateLookup(): Promise<TariffRateLookup[]> {
     select: {
       direction: true,
       abc: true,
+      digitLength: true,
       price: true,
       sortIndex: true,
     },
@@ -37,6 +39,7 @@ export async function loadTariffRateLookup(): Promise<TariffRateLookup[]> {
   return rows.map((row) => ({
     direction: row.direction,
     abc: row.abc,
+    digitLength: row.digitLength,
     price: formatTariffDecimal(row.price.toString()),
     sortIndex: row.sortIndex,
   }));
@@ -61,6 +64,7 @@ export async function listTariffRates(opts: {
         id: true,
         direction: true,
         abc: true,
+        digitLength: true,
         price: true,
       },
     }),
@@ -71,6 +75,7 @@ export async function listTariffRates(opts: {
       id: row.id,
       direction: row.direction,
       abc: row.abc,
+      digitLength: row.digitLength,
       price: formatTariffDecimal(row.price.toString()),
     })),
     total,

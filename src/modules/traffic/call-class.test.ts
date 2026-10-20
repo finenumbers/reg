@@ -86,6 +86,30 @@ describe("classifyCallCategory", () => {
     expect(classifyCallGeography(nsk, moscow, cityRates)).toBe("intercity");
     expect(classifyCallGeography(nsk, mobile, cityRates)).toBe("mobile");
     expect(classifyCallGeography(nsk, "4420712345", cityRates)).toBe("international");
+    const belarus = "375291234567";
+    expect(classifyCallCategory(known, known, "PSTN_A", "", "", "", belarus)).toBe(
+      CALL_CATEGORY.outgoing,
+    );
+    expect(
+      classifyCallType(known, known, "PSTN_A", "", "", "", nsk, belarus, cityRates),
+    ).toBe(CALL_TYPE.international);
+    const kazakhstanTwelve = "771234567890";
+    expect(
+      classifyCallCategory(known, known, "PSTN_A", "", "", "", kazakhstanTwelve),
+    ).toBe(CALL_CATEGORY.errors);
+    expect(
+      classifyCallType(
+        known,
+        known,
+        "PSTN_A",
+        "",
+        "",
+        "",
+        nsk,
+        kazakhstanTwelve,
+        cityRates,
+      ),
+    ).toBe(CALL_TYPE.verify);
     expect(classifyCallGeography("100", nsk, cityRates)).toBe("intercity");
     expect(classifyCallGeography(nsk, nskOther, [])).toBe("intercity");
     expect(

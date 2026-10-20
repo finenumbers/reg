@@ -20,8 +20,15 @@ import { TABLE_PAGE_SIZE } from "@/lib/table-pagination";
 import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
 import { fetchTariffsList, importTariffsFile } from "@/modules/tariffs/api-client";
 import type { ListTariffsResult, TariffListItem } from "@/modules/tariffs/service";
+import { isRussianAbc, RUSSIAN_NUMBER_LENGTH } from "@/modules/traffic/tariff-match";
 
 const PAGE_SIZE = TABLE_PAGE_SIZE;
+const TARIFF_COLUMN_COUNT = 4;
+
+function digitLengthLabel(abc: string, digitLength: number | null): string {
+  if (isRussianAbc(abc)) return String(RUSSIAN_NUMBER_LENGTH);
+  return digitLength == null ? "" : String(digitLength);
+}
 
 type ImportError = { error: string; details: string[] };
 
@@ -185,27 +192,38 @@ export function TariffsView({ initial }: { initial: ListTariffsResult }) {
               <TableRow>
                 <TableHead>Направления</TableHead>
                 <TableHead>ABC</TableHead>
+                <TableHead>Разрядность</TableHead>
                 <TableHead>Цена</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading && items.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={3} className="text-muted-foreground h-24">
+                  <TableCell
+                    colSpan={TARIFF_COLUMN_COUNT}
+                    className="text-muted-foreground h-24"
+                  >
                     Загрузка…
                   </TableCell>
                 </TableRow>
               ) : showEmpty ? (
                 <TableRow>
-                  <TableCell colSpan={3} className="text-muted-foreground h-24">
+                  <TableCell
+                    colSpan={TARIFF_COLUMN_COUNT}
+                    className="text-muted-foreground h-24"
+                  >
                     Нет данных. Нажмите «Загрузить данные».
                   </TableCell>
                 </TableRow>
               ) : (
                 items.map((row) => (
-                  <TableRow key={row.id}>
+                  <TableRow
+                    key={row.id}
+                    className={isRussianAbc(row.abc) ? undefined : "font-bold"}
+                  >
                     <TableCell>{row.direction}</TableCell>
                     <TableCell>{row.abc}</TableCell>
+                    <TableCell>{digitLengthLabel(row.abc, row.digitLength)}</TableCell>
                     <TableCell>{formatMoney2(row.price)}</TableCell>
                   </TableRow>
                 ))

@@ -1,7 +1,15 @@
-# Current Phase — production (v1.154.0)
+# Current Phase — production (v1.155.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, Eltex SMG CDR, Eltex SMG syslog.  
-**Date:** 2026-10-18
+**Date:** 2026-10-20
+
+## v1.155.0 — International tariff rows carry a digit length
+
+Stop is the normal stack update: `migrate` adds `digitLength` on `tariff_rates`, replaces `cdr_rate_call` and `cdr_tariff_direction`, then the tariff backfill rewrites stored direction and charge before `app` starts. Syslog cards stay.
+
+«Тарификация» and the XLSX now have «Разрядность» between ABC and «Цена». A file without that column does not replace the snapshot. An empty cell stores no length. ABC `73`, `74`, `78`, and `79` ignore the cell and match only an 11-digit number; the table shows 11. Every other row is bold. A filled cell must be a whole number from 10 to 15, and not shorter than the ABC.
+
+A B-number still has to be 10–15 digits, and a number that starts with `7` still has to be 11, or the call stays «Ошибка» / «Проверить». Inside that window, a non-Russian row matches its length, or any admitted length when the cell is empty. The longest matching ABC wins. Upload the new file after the app is up: an international code already stored with an empty length matches every admitted length until that import.
 
 ## v1.154.0 — The month table lines up Syslog, and dashboard charts show eight clock times
 

@@ -55,6 +55,8 @@ export type TariffRateLookup = {
   abc: string;
   price: string;
   sortIndex: number;
+  /** Null or omitted: no length check, except Russian ABC, which is always 11. */
+  digitLength?: number | null;
 };
 
 /** CEIL(ms/1000). Non-numeric and negative durations are 0 seconds. */
@@ -110,9 +112,7 @@ function matchedDirection(
   billDnis: string,
   rates: readonly TariffRateLookup[],
 ): TariffRateLookup | null {
-  const number = billDnis.trim();
-  if (!/^7\d{10}$/.test(number)) return null;
-  return matchTariffAbc(number, rates) ?? null;
+  return matchTariffAbc(billDnis.trim(), rates);
 }
 
 export function rateCdrCall(input: {

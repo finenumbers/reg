@@ -63,6 +63,8 @@ v1.150.0 does not rewrite stored rows and does not delete syslog cards. There is
 
 v1.151.0 publishes that same behavior. There is no migration. Do not stop `app` for this update. SMG xlsx export refuses a machine API key. The dashboard syslog card limits its antifraud count to 8 seconds and shows «…» when that read fails.
 
+v1.155.0 adds `tariff_rates.digitLength` and replaces `cdr_rate_call` and `cdr_tariff_direction`. The tariff backfill rewrites stored direction and charge before `app` starts. Do not stop `app` beyond the normal stack update. Syslog cards stay. After the app is up, upload the tariff file that includes «Разрядность». Until that import, an international ABC already in the snapshot with an empty length matches every admitted number (10–15 digits, and a number starting with `7` only when it is 11). Russian ABC `73`/`74`/`78`/`79` still match only 11 digits. A three-column tariff file is rejected.
+
 v1.154.0 does not rewrite stored rows and does not delete syslog cards. There is no migration. Do not stop `app` for this update. The Settings month table gives Syslog the same width as Звонки, Секунды, and Минуты, and shows the header line between Минуты and Syslog. Both dashboard call charts show eight UTC times (`HH:MM`) on the horizontal axis.
 
 v1.153.0 does not rewrite stored rows on startup and does not delete syslog cards by itself. There is no migration. Do not stop `app` for this update. `smg-syslog` keeps writing. Month deletion in Settings removes CDR calls, the antifraud cards of the SMG calls in that month, those SMG calls, that month's syslog archives, then jobs and audit. A card shared with an SMG call outside the month stays. The current UTC month cannot be deleted.

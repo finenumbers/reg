@@ -473,6 +473,8 @@ model TariffRate {
   direction String
   /// Digit fragment of a phone number. Text so a leading zero survives.
   abc       String
+  /// Dialed-number length, including this ABC. Null for Russian 73/74/78/79 and when the cell is empty.
+  digitLength Int?
   price     Decimal @db.Decimal(18, 6)
 
   @@unique([sortIndex])

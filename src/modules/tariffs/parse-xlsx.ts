@@ -1,12 +1,19 @@
 /**
  * Parse a tariff XLSX snapshot.
  * Direction is text, ABC is a digit fragment of a phone number,
+ * digit length is an optional whole number of digits in the dialed number,
  * price is a decimal with at most 6 fractional digits.
  */
 
 import ExcelJS from "exceljs";
+import {
+  isRussianAbc,
+  RUSSIAN_NUMBER_LENGTH,
+  TARIFF_NUMBER_MAX_LENGTH,
+  TARIFF_NUMBER_MIN_LENGTH,
+} from "@/modules/traffic/tariff-match";
 
-export const TARIFF_HEADERS = ["Направления", "ABC", "Цена"] as const;
+export const TARIFF_HEADERS = ["Направления", "ABC", "Разрядность", "Цена"] as const;
 
 export const TARIFF_MAX_ROWS = 50_000;
 export const TARIFF_MAX_ERRORS = 30;
@@ -21,6 +28,8 @@ export type TariffParsedRow = {
   sortIndex: number;
   direction: string;
   abc: string;
+  /** Null when the cell is empty, and for every Russian ABC. */
+  digitLength: number | null;
   price: string;
 };
 
@@ -107,6 +116,33 @@ function parseDirection(value: unknown): string | null {
   const text = raw.trim();
   if (!text || text.length > MAX_DIRECTION) return null;
   return text;
+}
+
+type DigitLengthParse = { ok: true; value: number | null } | { ok: false };
+
+/** Blank is null. Anything else must be an integer from 10 through 15. */
+function parseDigitLengthCell(value: unknown): DigitLengthParse {
+  const raw = unwrap(value);
+  if (raw == null) return { ok: true, value: null };
+  if (typeof raw === "string" && raw.trim() === "") return { ok: true, value: null };
+  let parsed: number;
+  if (typeof raw === "number") {
+    if (!Number.isFinite(raw) || Math.abs(raw - Math.round(raw)) > 1e-6) {
+      return { ok: false };
+    }
+    parsed = Math.round(raw);
+  } else if (typeof raw === "string") {
+    const text = raw.trim();
+    if (!/^\d+$/.test(text)) return { ok: false };
+    parsed = Number(text);
+    if (!Number.isSafeInteger(parsed)) return { ok: false };
+  } else {
+    return { ok: false };
+  }
+  if (parsed < TARIFF_NUMBER_MIN_LENGTH || parsed > TARIFF_NUMBER_MAX_LENGTH) {
+    return { ok: false };
+  }
+  return { ok: true, value: parsed };
 }
 
 function parseAbc(value: unknown): string | null {
@@ -201,7 +237,7 @@ export async function parseTariffXlsx(
   const block = readHeaderBlock(ws);
   if (!block || !headersMatch(block)) {
     return fail([
-      "В первой строке должны быть столбцы «Направления», «ABC», «Цена» и больше ничего",
+      "В первой строке должны быть столбцы «Направления», «ABC», «Разрядность», «Цена» и больше ничего",
     ]);
   }
 
@@ -227,8 +263,14 @@ export async function parseTariffXlsx(
     if (stopped || rowNumber === 1) return;
     const directionCell = row.getCell(col.get("Направления")!).value;
     const abcCell = row.getCell(col.get("ABC")!).value;
+    const lengthCell = row.getCell(col.get("Разрядность")!).value;
     const priceCell = row.getCell(col.get("Цена")!).value;
-    if (isBlank(directionCell) && isBlank(abcCell) && isBlank(priceCell)) {
+    if (
+      isBlank(directionCell) &&
+      isBlank(abcCell) &&
+      isBlank(lengthCell) &&
+      isBlank(priceCell)
+    ) {
       return;
     }
     if (rows.length >= TARIFF_MAX_ROWS) {
@@ -240,6 +282,8 @@ export async function parseTariffXlsx(
     const direction = parseDirection(directionCell);
     const abc = parseAbc(abcCell);
     const price = parseMoney(priceCell);
+    let digitLength: number | null = null;
+    let lengthOk = true;
     if (!direction) {
       push(
         `Строка ${rowNumber}: «Направления» должно быть непустым текстом до ${MAX_DIRECTION} символов`,
@@ -248,14 +292,36 @@ export async function parseTariffXlsx(
     if (!abc) {
       push(`Строка ${rowNumber}: «ABC» — только цифры, от 1 до ${MAX_ABC} знаков`);
     }
+    if (abc && isRussianAbc(abc)) {
+      if (abc.length > RUSSIAN_NUMBER_LENGTH) {
+        push(
+          `Строка ${rowNumber}: «ABC» России не длиннее ${RUSSIAN_NUMBER_LENGTH} цифр`,
+        );
+        lengthOk = false;
+      }
+    } else {
+      const parsedLength = parseDigitLengthCell(lengthCell);
+      if (!parsedLength.ok) {
+        push(
+          `Строка ${rowNumber}: «Разрядность» — целое от ${TARIFF_NUMBER_MIN_LENGTH} до ${TARIFF_NUMBER_MAX_LENGTH}, либо пусто`,
+        );
+        lengthOk = false;
+      } else if (abc && parsedLength.value != null && parsedLength.value < abc.length) {
+        push(`Строка ${rowNumber}: «Разрядность» не короче кода ABC`);
+        lengthOk = false;
+      } else {
+        digitLength = parsedLength.value;
+      }
+    }
     if (!price) {
       push(`Строка ${rowNumber}: «Цена» должна быть числом`);
     }
-    if (direction && abc && price) {
+    if (direction && abc && price && lengthOk) {
       rows.push({
         sortIndex: rows.length,
         direction,
         abc,
+        digitLength,
         price,
       });
     }
