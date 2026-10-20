@@ -1,7 +1,17 @@
-# Current Phase — production (v1.155.0)
+# Current Phase — production (v1.156.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, Eltex SMG CDR, Eltex SMG syslog.  
 **Date:** 2026-10-20
+
+## v1.156.0 — Uncovered dialed lengths are «Ошибка», and a cell may list several
+
+Stop is the normal stack update: `migrate` replaces `digitLength` with text `digitLengths`, replaces `cdr_rate_call`, `cdr_tariff_direction`, `cdr_call_category`, and `cdr_call_type`, then the tariff backfill rewrites stored category, type, direction, and charge before `app` starts. Syslog cards stay. Do not start the old app against the new schema.
+
+Every number and every ABC that starts with `7` is 11 digits. The length cell on such a row is ignored, and the table shows 11. Rows that are not `73`, `74`, `78`, or `79` stay bold. A number on `7` that is not 11 digits stays «Ошибка» / «Проверить». An 11-digit number on `7` with no ABC on `7` in the loaded tariff becomes «Ошибка» / «Проверить» as well, including when the tariff table is empty. A catch-all ABC `7` covers every such number.
+
+For any other ABC, an empty cell still matches every admitted length (10–15). One number matches that length. Text `12/13` matches either length; set the Excel cell to text before typing the slash, or Excel stores a date and the row is rejected. A shorter ABC with an empty cell still accepts a length the longer row does not list.
+
+The column swap does not widen a stored `12` into `12/13`. In the current file Belarus is a single 12, so a 13-digit `375` number becomes «Ошибка» / «Проверить» on this backfill. Upload a file whose cell is the text `12/13` after the app is up: that import runs the same pass again, the call returns to «Международный», and it receives a charge. Uploading the file unchanged leaves the single 12.
 
 ## v1.155.0 — International tariff rows carry a digit length
 

@@ -55,8 +55,8 @@ export type TariffRateLookup = {
   abc: string;
   price: string;
   sortIndex: number;
-  /** Null or omitted: no length check, except Russian ABC, which is always 11. */
-  digitLength?: number | null;
+  /** Null: any admitted length. Ignored when the ABC starts with 7. */
+  digitLengths: number[] | null;
 };
 
 /** CEIL(ms/1000). Non-numeric and negative durations are 0 seconds. */

@@ -5,6 +5,7 @@
 
 import { prisma } from "@/lib/db";
 import type { TariffParsedRow } from "@/modules/tariffs/parse-xlsx";
+import { formatDigitLengths } from "@/modules/traffic/tariff-match";
 
 const APPLY_TX = { maxWait: 10_000, timeout: 180_000 } as const;
 const CREATE_BATCH = 500;
@@ -28,7 +29,7 @@ export async function applyTariffSnapshot(
           sortIndex: row.sortIndex,
           direction: row.direction,
           abc: row.abc,
-          digitLength: row.digitLength,
+          digitLengths: formatDigitLengths(row.digitLengths),
           price: row.price,
         })),
       });

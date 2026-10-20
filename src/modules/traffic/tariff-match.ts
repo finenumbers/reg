@@ -4,10 +4,10 @@
  * A row is skipped when its digit length does not fit the number.
  */
 
-/** ABC 73, 74, 78, and 79. The uploaded length cell is ignored. */
+/** ABC 73, 74, 78, and 79. Bold rows in the tariff table are the other codes. */
 const RUSSIAN_ABC = /^(?:73|74|78|79)/;
 
-/** Russian numbers are 7 and ten more digits. */
+/** Numbers and ABC codes that start with 7 are 7 and ten more digits. */
 export const RUSSIAN_NUMBER_LENGTH = 11;
 
 /** Same window as a B-number that is not a malformed outgoing call. */
@@ -18,12 +18,20 @@ export type TariffAbcRate = {
   direction: string;
   abc: string;
   sortIndex: number;
-  /** Null or omitted: no length check, except Russian ABC, which is always 11. */
-  digitLength?: number | null;
+  /**
+   * Null: any admitted length. An empty list matches nothing.
+   * Ignored when the ABC starts with 7: that row is always 11 digits.
+   */
+  digitLengths: number[] | null;
 };
 
 export function isRussianAbc(abc: string): boolean {
   return RUSSIAN_ABC.test(abc);
+}
+
+/** Every ABC that starts with 7. The uploaded length cell is ignored. */
+export function abcIgnoresDigitLengths(abc: string): boolean {
+  return abc.startsWith("7");
 }
 
 /**
@@ -38,12 +46,33 @@ export function isTariffNumberAdmitted(number: string): boolean {
 
 function tariffAbcFitsLength(
   abc: string,
-  digitLength: number | null | undefined,
+  digitLengths: number[] | null,
   number: string,
 ): boolean {
-  if (isRussianAbc(abc)) return number.length === RUSSIAN_NUMBER_LENGTH;
-  if (digitLength == null) return true;
-  return number.length === digitLength;
+  if (abcIgnoresDigitLengths(abc)) return number.length === RUSSIAN_NUMBER_LENGTH;
+  if (digitLengths == null) return true;
+  return digitLengths.includes(number.length);
+}
+
+function isTariffPrefix(number: string, abc: string): boolean {
+  return abc.length > 0 && number.startsWith(abc);
+}
+
+export function formatDigitLengths(lengths: number[] | null): string | null {
+  if (lengths == null) return null;
+  return lengths.join("/");
+}
+
+/** Null is any admitted length. An empty string matches nothing. */
+export function parseStoredDigitLengths(value: string | null): number[] | null {
+  if (value == null) return null;
+  if (value === "") return [];
+  const lengths: number[] = [];
+  for (const part of value.split("/")) {
+    if (!/^1[0-5]$/.test(part)) return [];
+    lengths.push(Number(part));
+  }
+  return lengths;
 }
 
 export function matchTariffAbc<T extends TariffAbcRate>(
@@ -53,8 +82,8 @@ export function matchTariffAbc<T extends TariffAbcRate>(
   if (!isTariffNumberAdmitted(number)) return null;
   let best: T | null = null;
   for (const rate of rates) {
-    if (!rate.abc || !number.startsWith(rate.abc)) continue;
-    if (!tariffAbcFitsLength(rate.abc, rate.digitLength, number)) continue;
+    if (!isTariffPrefix(number, rate.abc)) continue;
+    if (!tariffAbcFitsLength(rate.abc, rate.digitLengths, number)) continue;
     if (
       !best ||
       rate.abc.length > best.abc.length ||
@@ -64,4 +93,29 @@ export function matchTariffAbc<T extends TariffAbcRate>(
     }
   }
   return best;
+}
+
+/**
+ * Outgoing B-number whose tariff prefix does not accept the length.
+ * A number that is already malformed returns false: the caller handles that first.
+ * A number on 7 is a miss when no ABC on 7 is a prefix. The length cell is not read.
+ * Any other number is a miss only when a prefix exists and none of those rows accept the length.
+ * No prefix at all is not a miss.
+ */
+export function tariffLengthMismatch(
+  number: string,
+  rates: readonly TariffAbcRate[],
+): boolean {
+  const trimmed = number.trim();
+  if (!isTariffNumberAdmitted(trimmed)) return false;
+  if (trimmed.startsWith("7")) {
+    return !rates.some(
+      (rate) => abcIgnoresDigitLengths(rate.abc) && isTariffPrefix(trimmed, rate.abc),
+    );
+  }
+  const prefixes = rates.filter((rate) => isTariffPrefix(trimmed, rate.abc));
+  if (prefixes.length === 0) return false;
+  return !prefixes.some((rate) =>
+    tariffAbcFitsLength(rate.abc, rate.digitLengths, trimmed),
+  );
 }

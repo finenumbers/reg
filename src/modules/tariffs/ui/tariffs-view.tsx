@@ -20,14 +20,19 @@ import { TABLE_PAGE_SIZE } from "@/lib/table-pagination";
 import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
 import { fetchTariffsList, importTariffsFile } from "@/modules/tariffs/api-client";
 import type { ListTariffsResult, TariffListItem } from "@/modules/tariffs/service";
-import { isRussianAbc, RUSSIAN_NUMBER_LENGTH } from "@/modules/traffic/tariff-match";
+import {
+  abcIgnoresDigitLengths,
+  isRussianAbc,
+  RUSSIAN_NUMBER_LENGTH,
+} from "@/modules/traffic/tariff-match";
 
 const PAGE_SIZE = TABLE_PAGE_SIZE;
 const TARIFF_COLUMN_COUNT = 4;
 
-function digitLengthLabel(abc: string, digitLength: number | null): string {
-  if (isRussianAbc(abc)) return String(RUSSIAN_NUMBER_LENGTH);
-  return digitLength == null ? "" : String(digitLength);
+function digitLengthLabel(abc: string, digitLengths: number[] | null): string {
+  if (abcIgnoresDigitLengths(abc)) return String(RUSSIAN_NUMBER_LENGTH);
+  if (digitLengths == null || digitLengths.length === 0) return "";
+  return digitLengths.join("/");
 }
 
 type ImportError = { error: string; details: string[] };
@@ -223,7 +228,7 @@ export function TariffsView({ initial }: { initial: ListTariffsResult }) {
                   >
                     <TableCell>{row.direction}</TableCell>
                     <TableCell>{row.abc}</TableCell>
-                    <TableCell>{digitLengthLabel(row.abc, row.digitLength)}</TableCell>
+                    <TableCell>{digitLengthLabel(row.abc, row.digitLengths)}</TableCell>
                     <TableCell>{formatMoney2(row.price)}</TableCell>
                   </TableRow>
                 ))

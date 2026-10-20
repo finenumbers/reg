@@ -6,7 +6,11 @@
 import { isSideKnown } from "@/modules/enrich/row-flags";
 import { MISSING_BILLING_LABEL } from "@/modules/enrich/types";
 import { PARKING_DST } from "@/modules/stats/classify";
-import { matchTariffAbc, type TariffAbcRate } from "@/modules/traffic/tariff-match";
+import {
+  matchTariffAbc,
+  tariffLengthMismatch,
+  type TariffAbcRate,
+} from "@/modules/traffic/tariff-match";
 
 export const CALL_CATEGORY = {
   outgoing: "Исходящий",
@@ -185,6 +189,7 @@ export function renderCallCategoryCaseSql(): string {
     WHEN ${check} THEN ${sqlLiteral(CALL_CATEGORY.check)}
     WHEN ${parking} AND ${sideUnknownSql("side_a")} AND ${sideUnknownSql("side_b")} THEN ${sqlLiteral(CALL_CATEGORY.phantom)}
     WHEN ${sideA} AND (${malformed}) THEN ${sqlLiteral(CALL_CATEGORY.errors)}
+    WHEN ${sideA} AND cdr_tariff_length_mismatch(bill_dnis) THEN ${sqlLiteral(CALL_CATEGORY.errors)}
     WHEN ${sideA} THEN ${sqlLiteral(CALL_CATEGORY.outgoing)}
     WHEN ${sideUnknownSql("side_a")} AND ${sideKnownSql("side_b")} THEN ${sqlLiteral(CALL_CATEGORY.incoming)}
     ELSE ${sqlLiteral(CALL_CATEGORY.errors)}
@@ -208,6 +213,7 @@ export function renderCallTypeCaseSql(): string {
     WHEN ${check} THEN ${sqlLiteral(CALL_TYPE.check)}
     WHEN ${phantom} THEN ${geographyTypeSql("incoming")}
     WHEN ${sideA} AND (${malformed}) THEN ${sqlLiteral(CALL_TYPE.verify)}
+    WHEN ${sideA} AND cdr_tariff_length_mismatch(bill_dnis) THEN ${sqlLiteral(CALL_TYPE.verify)}
     WHEN ${sideA} THEN ${geographyTypeSql("outgoing")}
     WHEN ${incoming} THEN ${geographyTypeSql("incoming")}
     ELSE ${sqlLiteral(CALL_TYPE.verify)}
@@ -228,10 +234,11 @@ export function classifyCallCategory(
   sideA: string,
   sideB: string,
   dstName: string,
-  srcName = "",
-  disconnectCode = "",
-  dpName = "",
-  billDnis = "",
+  srcName: string,
+  disconnectCode: string,
+  dpName: string,
+  billDnis: string,
+  rates: readonly TariffAbcRate[],
 ): string {
   if (disconnectCode === UNREGISTERED_DISCONNECT) return CALL_CATEGORY.errors;
   if (disconnectCode === ROUTE_ERROR_DISCONNECT) return CALL_CATEGORY.errors;
@@ -243,6 +250,7 @@ export function classifyCallCategory(
   const parking = dstName === PARKING_DST;
   if (parking && !a && !b) return CALL_CATEGORY.phantom;
   if (a && isMalformedOutgoingB(billDnis)) return CALL_CATEGORY.errors;
+  if (a && tariffLengthMismatch(billDnis, rates)) return CALL_CATEGORY.errors;
   if (a) return CALL_CATEGORY.outgoing;
   if (!a && b) return CALL_CATEGORY.incoming;
   return CALL_CATEGORY.errors;
@@ -271,6 +279,7 @@ export function classifyCallType(
     return geographyType(classifyCallGeography(billAni, billDnis, rates, "incoming"));
   }
   if (a && isMalformedOutgoingB(billDnis)) return CALL_TYPE.verify;
+  if (a && tariffLengthMismatch(billDnis, rates)) return CALL_TYPE.verify;
   if (a)
     return geographyType(classifyCallGeography(billAni, billDnis, rates, "outgoing"));
   if (!a && b) {

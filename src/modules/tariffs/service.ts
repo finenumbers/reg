@@ -5,12 +5,13 @@
 import { prisma } from "@/lib/db";
 import { formatTariffDecimal } from "@/modules/tariffs/parse-xlsx";
 import type { TariffRateLookup } from "@/modules/traffic/cdr-tariff";
+import { parseStoredDigitLengths } from "@/modules/traffic/tariff-match";
 
 export type TariffListItem = {
   id: string;
   direction: string;
   abc: string;
-  digitLength: number | null;
+  digitLengths: number[] | null;
   price: string;
 };
 
@@ -31,7 +32,7 @@ export async function loadTariffRateLookup(): Promise<TariffRateLookup[]> {
     select: {
       direction: true,
       abc: true,
-      digitLength: true,
+      digitLengths: true,
       price: true,
       sortIndex: true,
     },
@@ -39,7 +40,7 @@ export async function loadTariffRateLookup(): Promise<TariffRateLookup[]> {
   return rows.map((row) => ({
     direction: row.direction,
     abc: row.abc,
-    digitLength: row.digitLength,
+    digitLengths: parseStoredDigitLengths(row.digitLengths),
     price: formatTariffDecimal(row.price.toString()),
     sortIndex: row.sortIndex,
   }));
@@ -64,7 +65,7 @@ export async function listTariffRates(opts: {
         id: true,
         direction: true,
         abc: true,
-        digitLength: true,
+        digitLengths: true,
         price: true,
       },
     }),
@@ -75,7 +76,7 @@ export async function listTariffRates(opts: {
       id: row.id,
       direction: row.direction,
       abc: row.abc,
-      digitLength: row.digitLength,
+      digitLengths: parseStoredDigitLengths(row.digitLengths),
       price: formatTariffDecimal(row.price.toString()),
     })),
     total,

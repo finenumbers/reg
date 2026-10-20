@@ -164,6 +164,7 @@ function categoryOf(
     ResolvedEnrichedRow,
     "sideA" | "sideB" | "termDevice" | "initDevice" | "cause" | "dialObject" | "bNumber"
   >,
+  rates: readonly TariffRateLookup[],
 ): string {
   return classifyCallCategory(
     row.sideA,
@@ -173,6 +174,7 @@ function categoryOf(
     row.cause,
     row.dialObject,
     row.bNumber,
+    rates,
   );
 }
 
@@ -203,7 +205,7 @@ function rowFill(
   row: ResolvedEnrichedRow,
   rates: readonly TariffRateLookup[],
 ): ExcelJS.Fill | undefined {
-  const tone = cdrRowTone(categoryOf(row), statusOf(row));
+  const tone = cdrRowTone(categoryOf(row, rates), statusOf(row));
   if (tone === "phantom") return XLSX_PHANTOM_FILL;
   if (tone === "call_error") return XLSX_CALL_ERROR_FILL;
   if (tone === "parking") return XLSX_PARKING_KNOWN_FILL;
@@ -306,7 +308,7 @@ function rateExportRow(
       ? row.elapsedTime
       : String(Math.max(0, Math.trunc(row.seconds)) * 1000);
   return rateCdrCall({
-    category: categoryOf(row),
+    category: categoryOf(row, rates),
     callType: typeOf(row, rates),
     status: statusOf(row),
     billDnis: row.bNumber,
@@ -390,7 +392,7 @@ function callClassCells(
   row: ResolvedEnrichedRow,
   rates: readonly TariffRateLookup[],
 ): [string, string, string] {
-  return [text(categoryOf(row)), text(typeOf(row, rates)), text(statusOf(row))];
+  return [text(categoryOf(row, rates)), text(typeOf(row, rates)), text(statusOf(row))];
 }
 
 async function writeResolvedSheets(opts: {

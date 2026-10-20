@@ -1,13 +1,13 @@
 /**
  * Parse a tariff XLSX snapshot.
  * Direction is text, ABC is a digit fragment of a phone number,
- * digit length is an optional whole number of digits in the dialed number,
+ * digit length is empty, one whole number, or several lengths separated by /,
  * price is a decimal with at most 6 fractional digits.
  */
 
 import ExcelJS from "exceljs";
 import {
-  isRussianAbc,
+  abcIgnoresDigitLengths,
   RUSSIAN_NUMBER_LENGTH,
   TARIFF_NUMBER_MAX_LENGTH,
   TARIFF_NUMBER_MIN_LENGTH,
@@ -28,8 +28,8 @@ export type TariffParsedRow = {
   sortIndex: number;
   direction: string;
   abc: string;
-  /** Null when the cell is empty, and for every Russian ABC. */
-  digitLength: number | null;
+  /** Null when the cell is empty, and for every ABC that starts with 7. */
+  digitLengths: number[] | null;
   price: string;
 };
 
@@ -118,31 +118,47 @@ function parseDirection(value: unknown): string | null {
   return text;
 }
 
-type DigitLengthParse = { ok: true; value: number | null } | { ok: false };
+type DigitLengthParse =
+  { ok: true; value: number[] | null } | { ok: false; date: boolean };
 
-/** Blank is null. Anything else must be an integer from 10 through 15. */
+/** One admitted length, written without a leading zero. */
+function parseOneDigitLength(text: string): number | null {
+  if (!/^1[0-5]$/.test(text)) return null;
+  return Number(text);
+}
+
+/**
+ * Blank is null. A number is one length. Text with / is each of those lengths.
+ * A date is refused: Excel turns 12/13 into a date unless the cell is text.
+ */
 function parseDigitLengthCell(value: unknown): DigitLengthParse {
   const raw = unwrap(value);
   if (raw == null) return { ok: true, value: null };
+  if (raw instanceof Date) return { ok: false, date: true };
   if (typeof raw === "string" && raw.trim() === "") return { ok: true, value: null };
-  let parsed: number;
   if (typeof raw === "number") {
     if (!Number.isFinite(raw) || Math.abs(raw - Math.round(raw)) > 1e-6) {
-      return { ok: false };
+      return { ok: false, date: false };
     }
-    parsed = Math.round(raw);
-  } else if (typeof raw === "string") {
-    const text = raw.trim();
-    if (!/^\d+$/.test(text)) return { ok: false };
-    parsed = Number(text);
-    if (!Number.isSafeInteger(parsed)) return { ok: false };
-  } else {
-    return { ok: false };
+    const parsed = Math.round(raw);
+    if (parsed < TARIFF_NUMBER_MIN_LENGTH || parsed > TARIFF_NUMBER_MAX_LENGTH) {
+      return { ok: false, date: false };
+    }
+    return { ok: true, value: [parsed] };
   }
-  if (parsed < TARIFF_NUMBER_MIN_LENGTH || parsed > TARIFF_NUMBER_MAX_LENGTH) {
-    return { ok: false };
+  if (typeof raw !== "string") return { ok: false, date: false };
+  const parts = raw
+    .trim()
+    .split("/")
+    .map((part) => part.trim());
+  if (parts.some((part) => part.length === 0)) return { ok: false, date: false };
+  const lengths: number[] = [];
+  for (const part of parts) {
+    const parsed = parseOneDigitLength(part);
+    if (parsed == null || lengths.includes(parsed)) return { ok: false, date: false };
+    lengths.push(parsed);
   }
-  return { ok: true, value: parsed };
+  return { ok: true, value: lengths };
 }
 
 function parseAbc(value: unknown): string | null {
@@ -282,7 +298,7 @@ export async function parseTariffXlsx(
     const direction = parseDirection(directionCell);
     const abc = parseAbc(abcCell);
     const price = parseMoney(priceCell);
-    let digitLength: number | null = null;
+    let digitLengths: number[] | null = null;
     let lengthOk = true;
     if (!direction) {
       push(
@@ -292,25 +308,29 @@ export async function parseTariffXlsx(
     if (!abc) {
       push(`Строка ${rowNumber}: «ABC» — только цифры, от 1 до ${MAX_ABC} знаков`);
     }
-    if (abc && isRussianAbc(abc)) {
+    if (abc && abcIgnoresDigitLengths(abc)) {
       if (abc.length > RUSSIAN_NUMBER_LENGTH) {
-        push(
-          `Строка ${rowNumber}: «ABC» России не длиннее ${RUSSIAN_NUMBER_LENGTH} цифр`,
-        );
+        push(`Строка ${rowNumber}: «ABC» на 7 не длиннее ${RUSSIAN_NUMBER_LENGTH} цифр`);
         lengthOk = false;
       }
     } else {
       const parsedLength = parseDigitLengthCell(lengthCell);
       if (!parsedLength.ok) {
         push(
-          `Строка ${rowNumber}: «Разрядность» — целое от ${TARIFF_NUMBER_MIN_LENGTH} до ${TARIFF_NUMBER_MAX_LENGTH}, либо пусто`,
+          parsedLength.date
+            ? `Строка ${rowNumber}: «Разрядность» — текстовый формат, иначе запись вроде 12/13 становится датой`
+            : `Строка ${rowNumber}: «Разрядность» — целое от ${TARIFF_NUMBER_MIN_LENGTH} до ${TARIFF_NUMBER_MAX_LENGTH}, список через /, либо пусто`,
         );
         lengthOk = false;
-      } else if (abc && parsedLength.value != null && parsedLength.value < abc.length) {
+      } else if (
+        abc &&
+        parsedLength.value != null &&
+        parsedLength.value.some((length) => length < abc.length)
+      ) {
         push(`Строка ${rowNumber}: «Разрядность» не короче кода ABC`);
         lengthOk = false;
       } else {
-        digitLength = parsedLength.value;
+        digitLengths = parsedLength.value;
       }
     }
     if (!price) {
@@ -321,7 +341,7 @@ export async function parseTariffXlsx(
         sortIndex: rows.length,
         direction,
         abc,
-        digitLength,
+        digitLengths,
         price,
       });
     }

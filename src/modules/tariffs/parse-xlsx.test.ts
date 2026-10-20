@@ -35,8 +35,14 @@ describe("parseTariffXlsx", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.rows).toEqual([
-      { sortIndex: 0, direction: "Москва", abc: "0495", digitLength: null, price: "1.5" },
-      { sortIndex: 1, direction: "Казань", abc: "843", digitLength: null, price: "10" },
+      {
+        sortIndex: 0,
+        direction: "Москва",
+        abc: "0495",
+        digitLengths: null,
+        price: "1.5",
+      },
+      { sortIndex: 1, direction: "Казань", abc: "843", digitLengths: null, price: "10" },
     ]);
   });
 
@@ -52,7 +58,7 @@ describe("parseTariffXlsx", () => {
       sortIndex: 0,
       direction: "Москва",
       abc: "495",
-      digitLength: null,
+      digitLengths: null,
       price: "1234.5",
     });
   });
@@ -69,7 +75,7 @@ describe("parseTariffXlsx", () => {
     expect(result.rows[0]).toMatchObject({
       direction: "100",
       abc: "812",
-      digitLength: null,
+      digitLengths: null,
       price: "0",
     });
     expect(result.rows[1]).toMatchObject({ direction: "Скидка", price: "-0.5" });
@@ -144,26 +150,28 @@ describe("parseTariffXlsx", () => {
     expect(result.details.at(-1)).toMatch(/остановлен/);
   });
 
-  it("stores international digit length and ignores the cell on Russian ABC", async () => {
+  it("stores a length list and ignores the cell on every ABC that starts with 7", async () => {
     const buf = await workbook([
       header,
-      ["Казахстан", 77, 11, 20],
-      ["Беларусь", "375", "12", 45],
+      ["Казахстан", 77, "11/12", 20],
+      ["Беларусь", "375", "12 / 13", 45],
+      ["Армения", "374", 11, 22],
       ["Германия", "49", "", 12],
       ["г. Москва", "7495", "мусор", 2],
     ]);
     const result = await parseTariffXlsx(buf);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.rows.map((row) => [row.abc, row.digitLength])).toEqual([
-      ["77", 11],
-      ["375", 12],
+    expect(result.rows.map((row) => [row.abc, row.digitLengths])).toEqual([
+      ["77", null],
+      ["375", [12, 13]],
+      ["374", [11]],
       ["49", null],
       ["7495", null],
     ]);
   });
 
-  it("rejects a missing length column, a fraction, a short length, and a Russian ABC past 11 digits", async () => {
+  it("rejects a date, a repeated length, and an ABC on 7 past 11 digits", async () => {
     const missing = await parseTariffXlsx(
       await workbook([
         ["Направления", "ABC", "Цена"],
@@ -177,17 +185,35 @@ describe("parseTariffXlsx", () => {
         header,
         ["Беларусь", "375", 11.5, 1],
         ["Беларусь", "375", 9, 1],
+        ["Беларусь", "375", "12/12", 1],
         ["Длинный", "375291234567", 10, 1],
-        ["Россия", "749512345678", "", 1],
+        ["Казахстан", "771234567890", "", 1],
       ]),
     );
     expect(bad.ok).toBe(false);
     if (bad.ok) return;
-    expect(bad.details).toHaveLength(4);
+    expect(bad.details).toHaveLength(5);
     expect(bad.details[0]).toMatch(/Разрядность/);
     expect(bad.details[1]).toMatch(/Разрядность/);
-    expect(bad.details[2]).toMatch(/не короче кода ABC/);
-    expect(bad.details[3]).toMatch(/России не длиннее 11/);
+    expect(bad.details[2]).toMatch(/Разрядность/);
+    expect(bad.details[3]).toMatch(/не короче кода ABC/);
+    expect(bad.details[4]).toMatch(/на 7 не длиннее 11/);
+
+    const dated = new ExcelJS.Workbook();
+    const sheet = dated.addWorksheet("Тарифы");
+    header.forEach((name, index) => {
+      sheet.getRow(1).getCell(index + 1).value = name;
+    });
+    const row = sheet.getRow(2);
+    row.getCell(1).value = "Беларусь";
+    row.getCell(2).value = "375";
+    row.getCell(3).value = new Date(Date.UTC(2024, 11, 13));
+    row.getCell(3).numFmt = "m/d";
+    row.getCell(4).value = 45;
+    const dateResult = await parseTariffXlsx(Buffer.from(await dated.xlsx.writeBuffer()));
+    expect(dateResult.ok).toBe(false);
+    if (dateResult.ok) return;
+    expect(dateResult.details[0]).toMatch(/текстовый формат/);
   });
 
   it("rejects a corrupt buffer", async () => {

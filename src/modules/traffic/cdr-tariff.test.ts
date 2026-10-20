@@ -33,10 +33,22 @@ const GRACE_MIGRATION = path.join(
 );
 
 const RATES: TariffRateLookup[] = [
-  { direction: "Россия", abc: "7", price: "1", sortIndex: 0 },
-  { direction: "Москва", abc: "7495", price: "2", sortIndex: 1 },
-  { direction: "Москва-центр", abc: "74951", price: "3", sortIndex: 2 },
-  { direction: "Москва-позже", abc: "74951", price: "9", sortIndex: 5 },
+  { direction: "Россия", abc: "7", price: "1", sortIndex: 0, digitLengths: null },
+  { direction: "Москва", abc: "7495", price: "2", sortIndex: 1, digitLengths: null },
+  {
+    direction: "Москва-центр",
+    abc: "74951",
+    price: "3",
+    sortIndex: 2,
+    digitLengths: null,
+  },
+  {
+    direction: "Москва-позже",
+    abc: "74951",
+    price: "9",
+    sortIndex: 5,
+    digitLengths: null,
+  },
 ];
 
 function rate(
@@ -84,8 +96,20 @@ describe("rateCdrCall", () => {
     expect(
       rate({
         rates: [
-          { direction: "Позже", abc: "7495", price: "9", sortIndex: 4 },
-          { direction: "Раньше", abc: "7495", price: "2", sortIndex: 1 },
+          {
+            direction: "Позже",
+            abc: "7495",
+            price: "9",
+            sortIndex: 4,
+            digitLengths: null,
+          },
+          {
+            direction: "Раньше",
+            abc: "7495",
+            price: "2",
+            sortIndex: 1,
+            digitLengths: null,
+          },
         ],
         billDnis: "74950000000",
         elapsedTime: "61000",
@@ -128,8 +152,8 @@ describe("rateCdrCall", () => {
 
   it("rates an outgoing mobile call from the catalog row of the B-number", () => {
     const rates = [
-      { direction: "Россия", abc: "7", price: "1", sortIndex: 0 },
-      { direction: "Билайн", abc: "7913", price: "4", sortIndex: 1 },
+      { direction: "Россия", abc: "7", price: "1", sortIndex: 0, digitLengths: null },
+      { direction: "Билайн", abc: "7913", price: "4", sortIndex: 1, digitLengths: null },
     ];
     expect(
       rate({
@@ -239,7 +263,15 @@ describe("rateCdrCall", () => {
       rate({
         billDnis: " 74950000000 ",
         elapsedTime: "4000",
-        rates: [{ direction: "Москва", abc: "7495", price: "1.001", sortIndex: 0 }],
+        rates: [
+          {
+            direction: "Москва",
+            abc: "7495",
+            price: "1.001",
+            sortIndex: 0,
+            digitLengths: null,
+          },
+        ],
       }),
     ).toEqual({
       direction: "Москва",
@@ -252,7 +284,15 @@ describe("rateCdrCall", () => {
     expect(
       rate({
         elapsedTime: "60000",
-        rates: [{ direction: "Москва", abc: "7495", price: "1.22", sortIndex: 0 }],
+        rates: [
+          {
+            direction: "Москва",
+            abc: "7495",
+            price: "1.22",
+            sortIndex: 0,
+            digitLengths: null,
+          },
+        ],
       }),
     ).toMatchObject({ charge: "1.22" });
     expect(rate({ elapsedTime: "0" })).toMatchObject({
@@ -265,7 +305,15 @@ describe("rateCdrCall", () => {
     expect(
       rate({
         elapsedTime: "60000",
-        rates: [{ direction: "Минус", abc: "7495", price: "-1.221", sortIndex: 0 }],
+        rates: [
+          {
+            direction: "Минус",
+            abc: "7495",
+            price: "-1.221",
+            sortIndex: 0,
+            digitLengths: null,
+          },
+        ],
       }),
     ).toMatchObject({ charge: "-1.22" });
   });
@@ -280,9 +328,15 @@ describe("rateCdrCall", () => {
 
   it("rates a 12-digit code by its digit length and keeps a shorter prefix", () => {
     const rates = [
-      { direction: "Короткий", abc: "37", price: "1", sortIndex: 0, digitLength: null },
-      { direction: "Беларусь", abc: "375", price: "45", sortIndex: 1, digitLength: 12 },
-      { direction: "Длинный", abc: "3752", price: "9", sortIndex: 2, digitLength: 14 },
+      { direction: "Короткий", abc: "37", price: "1", sortIndex: 0, digitLengths: null },
+      {
+        direction: "Беларусь",
+        abc: "375",
+        price: "45",
+        sortIndex: 1,
+        digitLengths: [12],
+      },
+      { direction: "Длинный", abc: "3752", price: "9", sortIndex: 2, digitLengths: [14] },
     ];
     expect(
       rate({
@@ -313,9 +367,15 @@ describe("rateCdrCall", () => {
 
   it("keeps Kazakhstan on 11 digits, Germany on any admitted length, and Russia on 11", () => {
     const rates = [
-      { direction: "Казахстан", abc: "77", price: "20", sortIndex: 0, digitLength: 11 },
-      { direction: "Германия", abc: "49", price: "12", sortIndex: 1, digitLength: null },
-      { direction: "Москва", abc: "7495", price: "2", sortIndex: 2, digitLength: 12 },
+      {
+        direction: "Казахстан",
+        abc: "77",
+        price: "20",
+        sortIndex: 0,
+        digitLengths: [12],
+      },
+      { direction: "Германия", abc: "49", price: "12", sortIndex: 1, digitLengths: null },
+      { direction: "Москва", abc: "7495", price: "2", sortIndex: 2, digitLengths: [12] },
     ];
     expect(
       rate({
@@ -348,6 +408,50 @@ describe("rateCdrCall", () => {
       price: "2",
       charge: "2.00",
     });
+  });
+
+  it("accepts either length in a 12/13 cell and still ignores that cell on 7", () => {
+    const rates = [
+      {
+        direction: "Беларусь",
+        abc: "375",
+        price: "45",
+        sortIndex: 0,
+        digitLengths: [12, 13],
+      },
+      {
+        direction: "Казахстан",
+        abc: "77",
+        price: "20",
+        sortIndex: 1,
+        digitLengths: [11, 12],
+      },
+    ];
+    expect(
+      rate({
+        callType: CALL_TYPE.international,
+        billDnis: "375291234567",
+        rates,
+        elapsedTime: "60000",
+      }),
+    ).toEqual({ direction: "Беларусь", price: "45", charge: "45.00" });
+    expect(
+      rate({
+        callType: CALL_TYPE.international,
+        billDnis: "3752912345678",
+        rates,
+        elapsedTime: "60000",
+      }),
+    ).toEqual({ direction: "Беларусь", price: "45", charge: "45.00" });
+    expect(rate({ billDnis: "37529123456789", rates })).toEqual(EMPTY_CDR_TARIFF);
+    expect(
+      rate({
+        callType: CALL_TYPE.international,
+        billDnis: "77123456789",
+        rates,
+        elapsedTime: "60000",
+      }),
+    ).toEqual({ direction: "Казахстан", price: "20", charge: "20.00" });
   });
 
   it("charges zero through three seconds and one minute from the fourth", () => {
@@ -477,6 +581,31 @@ describe("cdr tariff migration", () => {
     const order = sql.indexOf("ORDER BY length(t.abc) DESC");
     expect(predicate).toBeGreaterThan(-1);
     expect(predicate).toBeLessThan(order);
+  });
+
+  it("matches any listed length and keeps a number on 7 at 11 digits", () => {
+    const sql = readFileSync(
+      path.join(
+        process.cwd(),
+        "prisma/migrations/20261020180000_tariff_digit_lengths/migration.sql",
+      ),
+      "utf8",
+    );
+    expect(sql).toContain('ADD COLUMN "digitLengths" TEXT');
+    expect(sql).toContain('"digitLength"::text');
+    expect(sql).toContain("CREATE OR REPLACE FUNCTION cdr_rate_call");
+    expect(sql).toContain("CREATE OR REPLACE FUNCTION cdr_tariff_direction");
+    expect(sql).toContain("CREATE OR REPLACE FUNCTION cdr_tariff_length_mismatch");
+    expect(sql).toContain("t.\"digitLengths\" <> ''");
+    expect(sql).toContain("string_to_array(t.\"digitLengths\", '/')");
+    expect(sql).toContain("t.abc ~ '^7' AND length(b) = 11");
+    expect(sql).not.toContain("DROP FUNCTION");
+    expect(sql).not.toContain("^(73|74|78|79)");
+    const replaced = sql.indexOf("CREATE OR REPLACE FUNCTION cdr_rate_call");
+    const dropped = sql.indexOf('DROP COLUMN "digitLength"');
+    expect(replaced).toBeGreaterThan(-1);
+    expect(replaced).toBeLessThan(dropped);
+    expect(sql.indexOf('ADD COLUMN "digitLengths"')).toBeLessThan(replaced);
   });
 
   it("adds the catalog price without rewriting the shipped rating migration", () => {

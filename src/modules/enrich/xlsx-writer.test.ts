@@ -11,6 +11,7 @@ import {
 } from "@/modules/enrich/types";
 import type { ResolvedEnrichedRow } from "@/modules/enrich/types";
 import { CALL_CATEGORY, CALL_STATUS, CALL_TYPE } from "@/modules/traffic/call-class";
+import type { TariffRateLookup } from "@/modules/traffic/cdr-tariff";
 import { PARKING_DST } from "@/modules/stats/classify";
 import {
   XLSX_BILLING_FONT_ARGB,
@@ -51,6 +52,10 @@ const ROW: ResolvedEnrichedRow = {
   cityB: "SPb",
   providerB: "isp-b",
 };
+
+const MOBILE_RATES: TariffRateLookup[] = [
+  { direction: "Мобильный", abc: "79", price: "1", sortIndex: 0, digitLengths: null },
+];
 
 describe("writeResolvedEnrichedXlsx", () => {
   let dir = "";
@@ -95,6 +100,7 @@ describe("writeResolvedEnrichedXlsx", () => {
       outputPath,
       rowCount: 1,
       trafficSheetName: "Август 2026 года",
+      rates: MOBILE_RATES,
     });
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.readFile(outputPath);
@@ -231,6 +237,7 @@ describe("writeResolvedEnrichedXlsx", () => {
       outputPath,
       rowCount: 6,
       trafficSheetName: "Август 2026 года",
+      rates: MOBILE_RATES,
     });
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.readFile(outputPath);
@@ -329,6 +336,7 @@ describe("writeResolvedEnrichedXlsx", () => {
       rowCount: 7,
       trafficSheetName: "Август 2026 года",
       includeDetail: false,
+      rates: MOBILE_RATES,
     });
 
     const stylesXml = readXlsxEntry(outputPath, "xl/styles.xml");

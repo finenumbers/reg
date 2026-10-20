@@ -7,7 +7,7 @@ import {
   CALL_CATEGORY,
   CALL_STATUS,
   CALL_TYPE,
-  classifyCallCategory,
+  classifyCallCategory as classifyCategory,
   classifyCallGeography,
   classifyCallStatus,
   classifyCallType,
@@ -16,6 +16,7 @@ import {
   renderCallStatusCaseSql,
   renderCallTypeCaseSql,
 } from "@/modules/traffic/call-class";
+import type { TariffAbcRate } from "@/modules/traffic/tariff-match";
 
 const LABEL_MIGRATION = path.join(
   process.cwd(),
@@ -53,16 +54,43 @@ const TERMINATOR_MIGRATION = path.join(
   process.cwd(),
   "prisma/migrations/20261010120000_cdr_terminator_capacity/migration.sql",
 );
+const LENGTH_LIST_MIGRATION = path.join(
+  process.cwd(),
+  "prisma/migrations/20261020180000_tariff_digit_lengths/migration.sql",
+);
+
+const cityRates: TariffAbcRate[] = [
+  { direction: "г. Новосибирск", abc: "7383", sortIndex: 0, digitLengths: null },
+  { direction: "г. Москва", abc: "7495", sortIndex: 1, digitLengths: null },
+  { direction: "Билайн", abc: "7913", sortIndex: 2, digitLengths: null },
+  { direction: "Россия", abc: "7", sortIndex: 3, digitLengths: null },
+];
+
+function classifyCallCategory(
+  sideA: string,
+  sideB: string,
+  dstName: string,
+  srcName = "",
+  disconnectCode = "",
+  dpName = "",
+  billDnis = "",
+  rates: readonly TariffAbcRate[] = cityRates,
+): string {
+  return classifyCategory(
+    sideA,
+    sideB,
+    dstName,
+    srcName,
+    disconnectCode,
+    dpName,
+    billDnis,
+    rates,
+  );
+}
 
 describe("classifyCallCategory", () => {
   const known = "Офис";
   const unknown = MISSING_BILLING_LABEL;
-  const cityRates = [
-    { direction: "г. Новосибирск", abc: "7383", sortIndex: 0 },
-    { direction: "г. Москва", abc: "7495", sortIndex: 1 },
-    { direction: "Билайн", abc: "7913", sortIndex: 2 },
-    { direction: "Россия", abc: "7", sortIndex: 3 },
-  ];
   const nsk = "73831234567";
   const nskOther = "73839876543";
   const moscow = "74951234567";
@@ -114,7 +142,7 @@ describe("classifyCallCategory", () => {
     expect(classifyCallGeography(nsk, nskOther, [])).toBe("intercity");
     expect(
       classifyCallGeography(nsk, nskOther, [
-        { direction: "Новосибирск", abc: "7383", sortIndex: 0 },
+        { direction: "Новосибирск", abc: "7383", sortIndex: 0, digitLengths: null },
       ]),
     ).toBe("intercity");
     expect(
@@ -359,9 +387,69 @@ describe("classifyCallCategory", () => {
     expect(classifyCallType(unknown, known, "gw", "", "", "", "79", nsk)).toBe(
       CALL_TYPE.international,
     );
-    expect(classifyCallType(known, known, "gw", "", "", "", nsk, ` ${mobile} `)).toBe(
-      CALL_TYPE.mobile,
+    expect(
+      classifyCallType(known, known, "gw", "", "", "", nsk, ` ${mobile} `, [
+        { direction: "Мобильный", abc: "79", sortIndex: 0, digitLengths: null },
+      ]),
+    ).toBe(CALL_TYPE.mobile);
+  });
+
+  it("sends an uncovered length to verify and keeps an unknown code", () => {
+    const belarus = "375291234567";
+    const belarusLong = "3752912345678";
+    const lengths = [
+      { direction: "Беларусь", abc: "375", sortIndex: 0, digitLengths: [12, 13] },
+    ];
+    const onlyTwelve = [
+      { direction: "Беларусь", abc: "375", sortIndex: 0, digitLengths: [12] },
+    ];
+    expect(
+      classifyCallCategory(known, known, "PSTN_A", "", "", "", belarus, lengths),
+    ).toBe(CALL_CATEGORY.outgoing);
+    expect(
+      classifyCallType(known, known, "PSTN_A", "", "", "", nsk, belarusLong, lengths),
+    ).toBe(CALL_TYPE.international);
+    expect(
+      classifyCallCategory(known, known, "PSTN_A", "", "", "", belarusLong, onlyTwelve),
+    ).toBe(CALL_CATEGORY.errors);
+    expect(
+      classifyCallType(known, known, "PSTN_A", "", "", "", nsk, belarusLong, onlyTwelve),
+    ).toBe(CALL_TYPE.verify);
+    expect(
+      classifyCallCategory(known, known, "PSTN_A", "", "", "", "331234567890", []),
+    ).toBe(CALL_CATEGORY.outgoing);
+    expect(
+      classifyCallType(known, known, "PSTN_A", "", "", "", nsk, "331234567890", []),
+    ).toBe(CALL_TYPE.international);
+    expect(classifyCallCategory(known, known, "PSTN_A", "", "", "", moscow, [])).toBe(
+      CALL_CATEGORY.errors,
     );
+    expect(classifyCallType(known, known, "PSTN_A", "", "", "", nsk, moscow, [])).toBe(
+      CALL_TYPE.verify,
+    );
+    const uncovered = "75001234567";
+    expect(
+      classifyCallCategory(known, known, "PSTN_A", "", "", "", uncovered, [
+        { direction: "Москва", abc: "7495", sortIndex: 0, digitLengths: null },
+      ]),
+    ).toBe(CALL_CATEGORY.errors);
+    const kazakhstan = "77123456789";
+    expect(
+      classifyCallCategory(known, known, "PSTN_A", "", "", "", kazakhstan, [
+        { direction: "Казахстан", abc: "77", sortIndex: 0, digitLengths: [11, 12] },
+      ]),
+    ).toBe(CALL_CATEGORY.outgoing);
+    expect(
+      classifyCallType(known, known, "PSTN_A", "", "", "", nsk, kazakhstan, [
+        { direction: "Казахстан", abc: "77", sortIndex: 0, digitLengths: [12] },
+      ]),
+    ).toBe(CALL_TYPE.international);
+    expect(
+      classifyCallCategory(known, known, "gw", "Redirect_1", "", "", "771234567890", []),
+    ).toBe(CALL_CATEGORY.outgoing);
+    expect(
+      classifyCallType(known, known, "gw", "Redirect_1", "", "", nsk, "771234567890", []),
+    ).toBe(CALL_TYPE.redirect);
   });
 });
 
@@ -419,8 +507,15 @@ describe("call class SQL", () => {
     const mobile = readFileSync(MOBILE_MIGRATION, "utf8");
     const direction = readFileSync(DIRECTION_MIGRATION, "utf8");
     const terminator = readFileSync(TERMINATOR_MIGRATION, "utf8");
-    expect(terminator).toContain(renderCallCategoryCaseSql());
-    expect(terminator).toContain(renderCallTypeCaseSql());
+    expect(terminator).not.toContain(renderCallCategoryCaseSql());
+    expect(terminator).not.toContain(renderCallTypeCaseSql());
+    expect(terminator).not.toContain("cdr_tariff_length_mismatch");
+    const lengths = readFileSync(LENGTH_LIST_MIGRATION, "utf8");
+    expect(lengths).toContain(renderCallCategoryCaseSql());
+    expect(lengths).toContain(renderCallTypeCaseSql());
+    expect(lengths).toContain("CREATE OR REPLACE FUNCTION cdr_call_category");
+    expect(lengths).toContain("CREATE OR REPLACE FUNCTION cdr_call_type");
+    expect(lengths).not.toContain("DROP FUNCTION");
     expect(terminator).toContain("CREATE OR REPLACE FUNCTION cdr_call_category");
     expect(terminator).toContain("CREATE OR REPLACE FUNCTION cdr_call_type");
     expect(terminator).not.toContain("DROP FUNCTION");
