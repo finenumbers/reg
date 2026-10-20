@@ -7,6 +7,7 @@ import type { PermissionCode } from "@/modules/rbac/permissions";
 export type FeatureModuleId =
   | "settings"
   | "tariffs"
+  | "exceptions"
   | "jobs"
   | "registrations"
   | "phones"
