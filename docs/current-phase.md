@@ -1,7 +1,17 @@
-# Current Phase — production (v1.160.0)
+# Current Phase — production (v1.161.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog.  
 **Date:** 2026-10-21
+
+## v1.161.0 — SMG traffic filters the start day, the redirect number, and the stored antifraud label
+
+Stop `app` before this update. `migrate` adds nullable `af_category` and `af_status` on `smg_call_traces`. It does not rewrite CDR rows and does not delete syslog cards. Parser version stays 6. The archive is not reread. `smg-syslog` keeps writing.
+
+An old process that saves a card after the backfill has filled its label leaves that label stale: the backfill only selects rows whose category is still null. Stop `app`, let `migrate` finish, then start the new app. The trace drain fills null labels in batches of 200. Every later save writes both columns. A future classifier change does not rewrite old cards by itself.
+
+«Трафик SMG» filters «Дата», «Переадресация», «АнтиФрод», and «Статус АнтиФрод». The menus search each other. The day is the start day shown in the cell. The menu stores `YYYY-MM-DD` and the chip shows `DD.MM.YYYY`. A call that starts last month and disconnects in the selected month stays in this month and in its start day. Month membership stays the disconnect time. «Переадресация» is the trimmed outgoing number when it is not blank, otherwise the trimmed incoming number. Two cards on one call stay «Разбор не сошёлся» / «Неизвестно». A row with no card is «Нет данных» / «Неизвестно». While a label is still null, the list and the menu classify that row on read and do not write it.
+
+The chevron on «Дата» orders by the start stamp, then the row id: off, then descending, then ascending, then back to disconnect order. The status poll keeps that order. Export counts and orders the same rows the table shows. The full dump does not send the sort and stays in disconnect order. «А выход» and «Б выход» stay medium weight. «А вход» and «Б вход» do not. Phone search still highlights all four numbers.
 
 ## v1.160.0 — Syslog bytes are read in order, and old antifraud cards are dropped once
 

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { parseFiltersParam } from "@/components/column-filters/types";
 import { requireApiPermission } from "@/modules/auth/guards";
 import { listSmgCalls } from "@/modules/smg/service";
+import { parseTimeSort } from "@/modules/traffic/traffic-sort";
 import { cdrVacuumBusyResponse } from "@/modules/storage/vacuum/http";
 
 /**
@@ -22,6 +23,7 @@ export async function GET(request: Request) {
     device: url.searchParams.get("device") ?? undefined,
     includeDevices: url.searchParams.get("devices") === "1",
     page: Number(url.searchParams.get("page") ?? "1"),
+    setupSort: parseTimeSort(url.searchParams.get("setupSort")),
   });
   return NextResponse.json(data);
 }

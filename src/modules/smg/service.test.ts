@@ -123,6 +123,34 @@ describe("listSmgCalls", () => {
     expect(groupBy).not.toHaveBeenCalled();
     expect(queryRaw).not.toHaveBeenCalled();
   });
+
+  it("orders by the start stamp when the date chevron is on", async () => {
+    await listSmgCalls({
+      month: "2026-10",
+      device: "mts",
+      page: 2,
+      setupSort: "desc",
+    });
+
+    expect(queryRaw).not.toHaveBeenCalled();
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderBy: [{ setupTime: "desc" }, { id: "desc" }],
+      }),
+    );
+  });
+
+  it("uses SQL for a start-day filter", async () => {
+    await listSmgCalls({
+      month: "2026-10",
+      device: "mts",
+      page: 2,
+      filters: { setupDay: ["2026-10-13"] },
+    });
+
+    expect(queryRaw).toHaveBeenCalled();
+    expect(groupBy).not.toHaveBeenCalled();
+  });
 });
 
 describe("listSmgFacets", () => {

@@ -7,6 +7,7 @@ import { beginSmgExportJob } from "@/modules/smg/export-job";
 import type { SmgExportLayout } from "@/modules/smg/xlsx-export";
 import { cdrVacuumBusyResponse } from "@/modules/storage/vacuum/http";
 import { parseMonthKey } from "@/modules/traffic/cdr-month";
+import { parseTimeSort } from "@/modules/traffic/traffic-sort";
 
 export const runtime = "nodejs";
 
@@ -79,6 +80,7 @@ export async function POST(request: Request) {
     device,
     phoneQ,
     filters: readFilters(record.filters),
+    setupSort: parseTimeSort(typeof record.setupSort === "string" ? record.setupSort : null),
     layout,
   });
   if (started === "busy") {

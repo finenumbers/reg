@@ -2,7 +2,9 @@ import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
 import { logger } from "@/lib/logger";
 import { projectSpan, SMG_TRACE_PARSER_VERSION } from "@/modules/smg-trace/assemble";
+import { classifyAntifraud } from "@/modules/smg-trace/classify";
 import { cardFromBlocks, logCardDiverge, mergeTraceCard } from "@/modules/smg-trace/merge";
+import { NO_TRACE_LABELS } from "@/modules/smg/row-tokens";
 import type { TraceBlocks } from "@/modules/smg-trace/types";
 import {
   forgetCardsIfUnmarked,
@@ -50,6 +52,7 @@ export async function drainSmgTraces(root = syslogRoot()): Promise<void> {
         setImmediate(resolve);
       });
     }
+    await backfillTraceLabels();
   } catch (error) {
     logger.warn("smg.trace.drain_failed", {
       error: error instanceof Error ? error.message : String(error),
@@ -110,7 +113,9 @@ const prismaRepository: TraceRepository = {
       text: merged.text,
       mismatch: merged.mismatch,
       startedKey: merged.startedKey,
-    } as Prisma.InputJsonValue;
+    };
+    const labels = classifyAntifraud({ closed: !merged.open, blocks });
+    const payload = blocks as Prisma.InputJsonValue;
     await prisma.smgCallTrace.upsert({
       where: { deviceIp_tagNorm: { deviceIp, tagNorm: span.tag } },
       create: {
@@ -118,12 +123,16 @@ const prismaRepository: TraceRepository = {
         tagNorm: span.tag,
         callref: span.callref,
         open: merged.open,
-        blocks,
+        blocks: payload,
+        afCategory: labels.category,
+        afStatus: labels.status,
       },
       update: {
         callref: span.callref,
         open: merged.open,
-        blocks,
+        blocks: payload,
+        afCategory: labels.category,
+        afStatus: labels.status,
       },
     });
   },
@@ -150,4 +159,33 @@ const prismaRepository: TraceRepository = {
 function isTraceBlocks(value: unknown): value is TraceBlocks {
   if (!value || typeof value !== "object") return false;
   return typeof (value as { text?: unknown }).text === "string";
+}
+
+/** Cards saved before labels existed. One drain tick fills a batch and does not block the file walk. */
+async function backfillTraceLabels(): Promise<void> {
+  const rows = await prisma.smgCallTrace.findMany({
+    where: { afCategory: null },
+    orderBy: { id: "asc" },
+    take: 200,
+    select: { id: true, open: true, blocks: true },
+  });
+  if (rows.length === 0) return;
+  for (const row of rows) {
+    let labels: { category: string; status: string } = NO_TRACE_LABELS;
+    if (isTraceBlocks(row.blocks)) {
+      try {
+        labels = classifyAntifraud({ closed: !row.open, blocks: row.blocks });
+      } catch (error) {
+        logger.warn("smg.trace.labels_backfill_failed", {
+          id: row.id,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+    await prisma.smgCallTrace.update({
+      where: { id: row.id },
+      data: { afCategory: labels.category, afStatus: labels.status },
+    });
+  }
+  logger.info("smg.trace.labels_backfill", { filled: rows.length });
 }

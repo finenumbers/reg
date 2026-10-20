@@ -858,9 +858,11 @@ model SmgCallTrace {
   deviceIp  String   @map("device_ip")
   tagNorm   String   @map("tag_norm")
   callref   String   @default("")
-  open      Boolean  @default(true)
-  blocks    Json
-  updatedAt DateTime @updatedAt @map("updated_at")
+  open       Boolean  @default(true)
+  blocks     Json
+  afCategory String?  @map("af_category")
+  afStatus   String?  @map("af_status")
+  updatedAt  DateTime @updatedAt @map("updated_at")
 
   @@unique([deviceIp, tagNorm])
   @@index([tagNorm])

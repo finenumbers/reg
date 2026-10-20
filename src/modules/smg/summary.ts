@@ -78,15 +78,17 @@ export const SMG_SUMMARY_LABELS: Record<SmgSummaryColumn, string> = {
 };
 
 /**
- * Facet menus on the working table. Seconds and the derived columns stay out:
- * a duration or a timestamp groups the whole gateway-month, and the indexed
- * day is the disconnect day, not the start date shown as «Дата».
+ * Facet menus on the working table. Clocks, seconds, and minutes stay out:
+ * a duration groups the whole gateway-month.
+ * «Дата» is the start day, not the disconnect day that selects the month.
  */
 export const SMG_SUMMARY_FACET_COLUMNS = [
+  "setupDay",
   "incomingCgpn",
   "outgoingCgpn",
   "incomingCdpn",
   "outgoingCdpn",
+  "redirectNumber",
   "incomingType",
   "incomingDescription",
   "outgoingType",
@@ -94,7 +96,9 @@ export const SMG_SUMMARY_FACET_COLUMNS = [
   "releaseCause",
   "callReleaseInfo",
   "releaseSideMark",
-] as const satisfies readonly SmgField[];
+  "antifraud",
+  "antifraudStatus",
+] as const;
 
 const DERIVED_SET = new Set<string>(SMG_SUMMARY_DERIVED);
 

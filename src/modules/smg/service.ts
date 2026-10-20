@@ -27,15 +27,22 @@ import {
   SMG_PHONE_FIELDS,
   type SmgField,
 } from "@/modules/smg/columns";
+import {
+  querySmgFacetValues,
+  querySmgIdPage,
+  smgFacetNeedsSql,
+  smgListNeedsSql,
+} from "@/modules/smg/call-query";
 import { pickSmgDevice, type SmgDeviceOption } from "@/modules/smg/device";
+import { NO_TRACE_LABELS, resolveStoredTraces } from "@/modules/smg/row-tokens";
 import {
   AF_CATEGORY,
   AF_STATUS,
   classifyAntifraud,
 } from "@/modules/smg-trace/classify";
-import { decideTraceRows, type TraceHitRow } from "@/modules/smg-trace/match";
 import { traceSearchKeys } from "@/modules/smg-trace/tag";
 import type { TraceBlocks } from "@/modules/smg-trace/types";
+import type { TimeSort } from "@/modules/traffic/traffic-sort";
 import { smgMonthTimeRange } from "@/modules/smg/month-range";
 import { listSmgPoisonEntries, type SmgPoisonItem } from "@/modules/smg/poison";
 import { findLastFileImport } from "@/modules/jobs/last-file-import";
@@ -169,7 +176,88 @@ function toListItem(row: { id: string } & Record<SmgField, string>): SmgListItem
   return item;
 }
 
-/** One query for the page. Two cards for one tag are left unresolved. */
+type TraceLabelRow = {
+  id: string;
+  tagNorm: string;
+  afCategory: string | null;
+  afStatus: string | null;
+};
+
+function queryRaw<T>(query: Prisma.Sql): Promise<T> {
+  return prisma.$queryRaw<T>(query);
+}
+
+function smgOrder(sort: TimeSort | null): Prisma.SmgCdrRecordOrderByWithRelationInput[] {
+  if (sort === "asc") return [{ setupTime: "asc" }, { id: "asc" }];
+  if (sort === "desc") return [{ setupTime: "desc" }, { id: "desc" }];
+  return [{ disconnectTime: "desc" }, { id: "desc" }];
+}
+
+async function readSmgSlice(input: {
+  where: Prisma.SmgCdrRecordWhereInput;
+  useSql: boolean;
+  month: CdrMonth;
+  device: string;
+  phoneQ: string;
+  filters: ColumnFilters;
+  setupSort: TimeSort | null;
+  skip: number;
+  take: number;
+}): Promise<Awaited<ReturnType<typeof prisma.smgCdrRecord.findMany>>> {
+  if (!input.useSql) {
+    return prisma.smgCdrRecord.findMany({
+      where: input.where,
+      orderBy: smgOrder(input.setupSort),
+      skip: input.skip,
+      take: input.take,
+    });
+  }
+  const slice = await querySmgIdPage(
+    queryRaw,
+    {
+      month: input.month,
+      device: input.device,
+      phoneQ: input.phoneQ,
+      filters: input.filters,
+      setupSort: input.setupSort,
+      skip: input.skip,
+      take: input.take,
+    },
+    labelsForTraceIds,
+  );
+  if (slice.ids.length === 0) return [];
+  const found = await prisma.smgCdrRecord.findMany({ where: { id: { in: slice.ids } } });
+  return orderByIds(slice.ids, found);
+}
+
+function orderByIds<T extends { id: string }>(ids: string[], rows: T[]): T[] {
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  return ids.flatMap((id) => {
+    const row = byId.get(id);
+    return row ? [row] : [];
+  });
+}
+
+/** Classify cards that have no stored label. The request does not write them. */
+async function labelsForTraceIds(
+  ids: string[],
+): Promise<Map<string, { category: string; status: string }>> {
+  const out = new Map<string, { category: string; status: string }>();
+  if (ids.length === 0) return out;
+  const rows = await prisma.smgCallTrace.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, open: true, blocks: true },
+  });
+  for (const row of rows) {
+    const labels = isTraceBlocks(row.blocks)
+      ? classifyAntifraud({ closed: !row.open, blocks: row.blocks })
+      : NO_TRACE_LABELS;
+    out.set(row.id, labels);
+  }
+  return out;
+}
+
+/** One query for the page. Two cards for one tag stay unresolved. */
 async function attachAntifraud(items: SmgListItem[]): Promise<void> {
   if (items.length === 0) return;
   const keysByItem = new Map<string, string[]>();
@@ -183,41 +271,43 @@ async function attachAntifraud(items: SmgListItem[]): Promise<void> {
 
   const rows = await prisma.smgCallTrace.findMany({
     where: { tagNorm: { in: [...allKeys] } },
-    select: { tagNorm: true, deviceIp: true, open: true, callref: true, blocks: true },
+    select: { id: true, tagNorm: true, afCategory: true, afStatus: true },
   });
-  const byTag = new Map<string, typeof rows>();
+  const byTag = new Map<string, TraceLabelRow[]>();
   for (const row of rows) {
     const list = byTag.get(row.tagNorm) ?? [];
     list.push(row);
     byTag.set(row.tagNorm, list);
   }
 
+  const pending: { item: SmgListItem; traceId: string }[] = [];
   for (const item of items) {
-    const hits: TraceHitRow[] = [];
+    const hits: TraceLabelRow[] = [];
     const seen = new Set<string>();
     for (const key of keysByItem.get(item.id) ?? []) {
       for (const row of byTag.get(key) ?? []) {
-        const id = `${row.deviceIp}\0${row.callref}`;
-        if (seen.has(id) || !isTraceBlocks(row.blocks)) continue;
-        seen.add(id);
-        hits.push({
-          deviceIp: row.deviceIp,
-          open: row.open,
-          callref: row.callref,
-          blocks: row.blocks,
-        });
+        if (seen.has(row.id)) continue;
+        seen.add(row.id);
+        hits.push(row);
       }
     }
-    const decision = decideTraceRows(hits);
-    if (decision.status === "ambiguous") {
-      item.antifraud = AF_CATEGORY.conflict;
-      item.antifraudStatus = AF_STATUS.unknown;
+    const resolved = resolveStoredTraces(
+      hits.map((row) => ({ id: row.id, category: row.afCategory, status: row.afStatus })),
+    );
+    if (resolved.kind === "none") continue;
+    if (resolved.kind === "pending") {
+      pending.push({ item, traceId: resolved.traceId });
       continue;
     }
-    if (decision.status !== "ok") continue;
-    const labels = classifyAntifraud({ closed: !decision.open, blocks: decision.blocks });
-    item.antifraud = labels.category;
-    item.antifraudStatus = labels.status;
+    item.antifraud = resolved.category;
+    item.antifraudStatus = resolved.status;
+  }
+  if (pending.length === 0) return;
+  const labels = await labelsForTraceIds([...new Set(pending.map((row) => row.traceId))]);
+  for (const row of pending) {
+    const label = labels.get(row.traceId) ?? NO_TRACE_LABELS;
+    row.item.antifraud = label.category;
+    row.item.antifraudStatus = label.status;
   }
 }
 
@@ -233,6 +323,7 @@ export async function listSmgCalls(input: {
   filters?: ColumnFilters;
   device?: string;
   includeDevices?: boolean;
+  setupSort?: TimeSort | null;
 }): Promise<SmgListResult> {
   const month = resolveMonthKey(input.month);
   const page = Math.max(1, input.page ?? 1);
@@ -255,17 +346,50 @@ export async function listSmgCalls(input: {
 
   const devices = includeDevices ? await querySmgDevices(month) : null;
   const device = includeDevices ? pickSmgDevice(devices ?? [], requested) : requested;
-  const where = buildWhere(month, device, input.filters ?? {}, input.phoneQ ?? "");
-  const [total, rows, months] = await Promise.all([
-    prisma.smgCdrRecord.count({ where }),
-    prisma.smgCdrRecord.findMany({
+  const filters = input.filters ?? {};
+  const phoneQ = input.phoneQ ?? "";
+  const setupSort = input.setupSort ?? null;
+  const where = buildWhere(month, device, filters, phoneQ);
+  const useSql = Boolean(device) && smgListNeedsSql(filters);
+  let total: number;
+  let rows: Awaited<ReturnType<typeof prisma.smgCdrRecord.findMany>>;
+  let months: CdrMonth[];
+  if (useSql) {
+    const counted = await querySmgIdPage(
+      queryRaw,
+      { month, device, phoneQ, filters, setupSort, skip: 0, take: 1 },
+      labelsForTraceIds,
+    );
+    total = counted.total;
+    rows = await readSmgSlice({
       where,
-      orderBy: [{ disconnectTime: "desc" }, { id: "desc" }],
+      useSql,
+      month,
+      device,
+      phoneQ,
+      filters,
+      setupSort,
       skip: (page - 1) * TABLE_PAGE_SIZE,
       take: TABLE_PAGE_SIZE,
-    }),
-    page === 1 ? querySmgMonthCounts() : Promise.resolve([]),
-  ]);
+    });
+    months = page === 1 ? await querySmgMonthCounts() : [];
+  } else {
+    [total, rows, months] = await Promise.all([
+      prisma.smgCdrRecord.count({ where }),
+      readSmgSlice({
+        where,
+        useSql,
+        month,
+        device,
+        phoneQ,
+        filters,
+        setupSort,
+        skip: (page - 1) * TABLE_PAGE_SIZE,
+        take: TABLE_PAGE_SIZE,
+      }),
+      page === 1 ? querySmgMonthCounts() : Promise.resolve([]),
+    ]);
+  }
 
   const items = rows.map((row) => toListItem(row));
   await attachAntifraud(items);
@@ -291,6 +415,7 @@ export async function writeSmgExport(input: {
   device: string;
   phoneQ: string;
   filters: ColumnFilters;
+  setupSort?: TimeSort | null;
   layout: SmgExportLayout;
   filePath: string;
 }): Promise<number> {
@@ -303,16 +428,39 @@ export async function writeSmgExport(input: {
     });
   }
   const where = buildWhere(input.month, device, input.filters, input.phoneQ);
-  const total = await prisma.smgCdrRecord.count({ where });
+  const setupSort = input.setupSort ?? null;
+  const useSql = smgListNeedsSql(input.filters);
+  const total = useSql
+    ? (
+        await querySmgIdPage(
+          queryRaw,
+          {
+            month: input.month,
+            device,
+            phoneQ: input.phoneQ,
+            filters: input.filters,
+            setupSort,
+            skip: 0,
+            take: 1,
+          },
+          labelsForTraceIds,
+        )
+      ).total
+    : await prisma.smgCdrRecord.count({ where });
   assertSmgExportRowCount(total);
   return writeSmgExportFile({
     layout: input.layout,
     filePath: input.filePath,
     eachRow: async (visit) => {
       for (let skip = 0; skip < total; skip += SMG_EXPORT_PAGE_SIZE) {
-        const rows = await prisma.smgCdrRecord.findMany({
+        const rows = await readSmgSlice({
           where,
-          orderBy: [{ disconnectTime: "desc" }, { id: "desc" }],
+          useSql,
+          month: input.month,
+          device,
+          phoneQ: input.phoneQ,
+          filters: input.filters,
+          setupSort,
           skip,
           take: SMG_EXPORT_PAGE_SIZE,
         });
@@ -334,13 +482,35 @@ export async function listSmgFacets(input: {
   limit?: number;
 }): Promise<FacetResponse> {
   const device = input.device?.trim() ?? "";
-  if (!isSmgField(input.column) || !device || isDatabaseVacuumActive()) {
+  const derived =
+    input.column === "setupDay" ||
+    input.column === "redirectNumber" ||
+    input.column === "antifraud" ||
+    input.column === "antifraudStatus";
+  if ((!isSmgField(input.column) && !derived) || !device || isDatabaseVacuumActive()) {
     return { items: [], truncated: false };
   }
   const month = resolveMonthKey(input.month);
   const limit = Math.min(200, Math.max(1, input.limit ?? 200));
   const q = input.q?.trim() ?? "";
-  let where = buildWhere(month, device, input.filters ?? {}, input.phoneQ ?? "", {
+  const filters = input.filters ?? {};
+  if (smgFacetNeedsSql(input.column, filters)) {
+    const items = await querySmgFacetValues(
+      queryRaw,
+      {
+        column: input.column,
+        month,
+        device,
+        phoneQ: input.phoneQ ?? "",
+        filters,
+        q,
+        limit,
+      },
+      labelsForTraceIds,
+    );
+    return { items: items.slice(0, limit), truncated: items.length > limit };
+  }
+  let where = buildWhere(month, device, filters, input.phoneQ ?? "", {
     excludeColumn: input.column,
   });
   if (q) {

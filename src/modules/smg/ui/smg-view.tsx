@@ -10,8 +10,7 @@ import {
   setColumnFilterValues,
   type ColumnFilters,
 } from "@/components/column-filters";
-import { encodeFilters } from "@/components/column-filters/types";
-import { displayFacetValue } from "@/components/column-filters/types";
+import { EMPTY_FILTER_TOKEN, encodeFilters } from "@/components/column-filters/types";
 import { FILTER_TOOLBAR_TEXT } from "@/components/filter-toolbar";
 import { FitSelect } from "@/components/fit-select";
 import { HighlightText } from "@/components/highlight-text";
@@ -36,6 +35,12 @@ import {
   SMG_PHONE_FIELDS,
 } from "@/modules/smg/columns";
 import { formatSmgPoisonSummary, smgSummaryCellText } from "@/modules/smg/summary";
+import { formatCdrDayDisplay } from "@/modules/traffic/cdr-date-parts";
+import {
+  nextTimeSort,
+  timeSortChevron,
+  type TimeSort,
+} from "@/modules/traffic/traffic-sort";
 import { SmgCallTraceSheet } from "@/modules/smg/ui/call-trace-sheet";
 import type { TraceLookup } from "@/modules/smg-trace/types";
 import { decideSmgRefresh } from "@/modules/smg/refresh";
@@ -47,6 +52,7 @@ import { formatMonthOption } from "@/modules/traffic/month-labels";
 const PHONE_SEARCH_DEBOUNCE_MS = 300;
 const STATUS_POLL_MS = 4000;
 const PHONE_FIELDS = new Set<string>(SMG_PHONE_FIELDS);
+const BOLD_PHONE_FIELDS = new Set<string>(["outgoingCgpn", "outgoingCdpn"]);
 const TABULAR_COLUMNS = new Set<string>([
   "setupDay",
   "setupClock",
@@ -65,6 +71,7 @@ type LoadOpts = {
   device?: string;
   includeDevices?: boolean;
   background?: boolean;
+  setupSort?: TimeSort | null;
 };
 
 function readSmgStatus(body: unknown): SmgStatus | null {
@@ -102,6 +109,7 @@ function buildListUrl(opts: {
   phoneQ: string;
   filters: ColumnFilters;
   includeDevices: boolean;
+  setupSort: TimeSort | null;
 }): string {
   const params = new URLSearchParams();
   params.set("page", String(opts.page));
@@ -109,9 +117,16 @@ function buildListUrl(opts: {
   if (opts.device) params.set("device", opts.device);
   if (opts.includeDevices) params.set("devices", "1");
   if (opts.phoneQ.trim()) params.set("phoneQ", opts.phoneQ.trim());
+  if (opts.setupSort) params.set("setupSort", opts.setupSort);
   const encoded = encodeFilters(opts.filters);
   if (encoded) params.set("filters", encoded);
   return `/api/smg?${params.toString()}`;
+}
+
+function formatSmgFacet(column: string, value: string): string {
+  if (value === "" || value === EMPTY_FILTER_TOKEN) return "(пусто)";
+  if (column === "setupDay") return formatCdrDayDisplay(value);
+  return value;
 }
 
 async function readJson(res: Response): Promise<SmgListResult | null> {
@@ -151,6 +166,7 @@ export function SmgView({
   exportLayout: "calls" | "traffic";
 }) {
   const [filters, setFilters] = useState<ColumnFilters>({});
+  const [setupSort, setSetupSort] = useState<TimeSort | null>(null);
   const [phoneInput, setPhoneInput] = useState("");
   const [phoneQ, setPhoneQ] = useState("");
   const [month, setMonth] = useState(initial.month || currentUtcMonth().key);
@@ -184,12 +200,14 @@ export function SmgView({
   const sinceRef = useRef<string | null>(initialSince);
   const baselineEmptyRef = useRef(initialSince == null);
   const filtersRef = useRef(filters);
+  const setupSortRef = useRef(setupSort);
   const phoneQRef = useRef(phoneQ);
   const monthRef = useRef(month);
   const deviceRef = useRef(device);
   const loadListRef = useRef<(opts?: LoadOpts) => Promise<void>>(async () => {});
 
   filtersRef.current = filters;
+  setupSortRef.current = setupSort;
   phoneQRef.current = phoneQ;
   monthRef.current = month;
   deviceRef.current = device;
@@ -204,6 +222,7 @@ export function SmgView({
     const nextPhone = opts.phoneQ ?? phoneQRef.current;
     const nextMonth = opts.month ?? monthRef.current;
     const nextDevice = opts.device ?? deviceRef.current;
+    const nextSort = "setupSort" in opts ? (opts.setupSort ?? null) : setupSortRef.current;
     const includeDevices = opts.includeDevices ?? false;
     const seq = ++refreshSeq.current;
     if (replace) {
@@ -222,6 +241,7 @@ export function SmgView({
           phoneQ: nextPhone,
           filters: nextFilters,
           includeDevices,
+          setupSort: nextSort,
         }),
         { cache: "no-store" },
       );
@@ -374,6 +394,7 @@ export function SmgView({
           device,
           phoneQ: phoneQ.trim(),
           filters,
+          setupSort,
         }),
       });
       const started = (await res.json()) as {
@@ -459,11 +480,11 @@ export function SmgView({
           label: `${item.sign} (${formatCount(item.count)})`,
         }))
       : [{ value: "", label: "Нет шлюзов" }];
-  const facetSet = facetColumns ? new Set(facetColumns) : null;
+  const facetSet = facetColumns ? new Set<string>(facetColumns) : null;
   const showsFacet = (column: string) => {
-    if (column === "deviceSign" || !isSmgField(column)) return false;
+    if (column === "deviceSign") return false;
     if (facetSet) return facetSet.has(column);
-    return true;
+    return isSmgField(column);
   };
   const poisonSummary = showOps ? null : formatSmgPoisonSummary(poisonFiles);
 
@@ -540,12 +561,15 @@ export function SmgView({
               deviceRef.current = next;
               setDevice(next);
               setFilters({});
+              setSetupSort(null);
+              setupSortRef.current = null;
               setOpenColumn(null);
               void loadList({
                 page: 1,
                 replace: true,
                 device: next,
                 filters: {},
+                setupSort: null,
               });
             }}
           />
@@ -574,6 +598,7 @@ export function SmgView({
         <ActiveFiltersBar
           filters={filters}
           headers={headerLabels}
+          formatValue={formatSmgFacet}
           phoneQuery={phoneQ}
           onClearPhoneQuery={() => {
             setPhoneInput("");
@@ -641,40 +666,52 @@ export function SmgView({
             <TableRow>
               {columns.map((field) => (
                 <TableHead key={field} className="font-medium">
-                  {showsFacet(field) ? (
-                    <ColumnFilterDropdown
-                      column={field}
-                      header={headerLabels[field] ?? field}
-                      open={openColumn === field}
-                      selected={filters[field] ?? []}
-                      filters={filters}
-                      buildFacetsUrl={({ column, filters: nextFilters, q }) => {
-                        const params = new URLSearchParams();
-                        params.set("column", column);
-                        params.set("month", month);
-                        if (device) params.set("device", device);
-                        if (phoneQ.trim()) params.set("phoneQ", phoneQ.trim());
-                        if (q.trim()) params.set("q", q.trim());
-                        const encoded = encodeFilters(nextFilters);
-                        if (encoded) params.set("filters", encoded);
-                        return `/api/smg/facets?${params.toString()}`;
-                      }}
-                      formatValue={displayFacetValue}
-                      onToggle={() => setOpenColumn(openColumn === field ? null : field)}
-                      onChange={(values) => {
-                        const next = setColumnFilterValues(filters, field, values);
-                        setFilters(next);
-                        void loadList({ page: 1, replace: true, filters: next });
-                      }}
-                      onClear={() => {
-                        const next = setColumnFilterValues(filters, field, []);
-                        setFilters(next);
-                        void loadList({ page: 1, replace: true, filters: next });
-                      }}
-                    />
-                  ) : (
-                    (headerLabels[field] ?? field)
-                  )}
+                  <div className="flex items-center gap-0.5">
+                    {showsFacet(field) ? (
+                      <ColumnFilterDropdown
+                        column={field}
+                        header={headerLabels[field] ?? field}
+                        open={openColumn === field}
+                        selected={filters[field] ?? []}
+                        filters={filters}
+                        buildFacetsUrl={({ column, filters: nextFilters, q }) => {
+                          const params = new URLSearchParams();
+                          params.set("column", column);
+                          params.set("month", month);
+                          if (device) params.set("device", device);
+                          if (phoneQ.trim()) params.set("phoneQ", phoneQ.trim());
+                          if (q.trim()) params.set("q", q.trim());
+                          const encoded = encodeFilters(nextFilters);
+                          if (encoded) params.set("filters", encoded);
+                          return `/api/smg/facets?${params.toString()}`;
+                        }}
+                        formatValue={(value) => formatSmgFacet(field, value)}
+                        onToggle={() => setOpenColumn(openColumn === field ? null : field)}
+                        onChange={(values) => {
+                          const next = setColumnFilterValues(filters, field, values);
+                          setFilters(next);
+                          void loadList({ page: 1, replace: true, filters: next });
+                        }}
+                        onClear={() => {
+                          const next = setColumnFilterValues(filters, field, []);
+                          setFilters(next);
+                          void loadList({ page: 1, replace: true, filters: next });
+                        }}
+                      />
+                    ) : (
+                      (headerLabels[field] ?? field)
+                    )}
+                    {field === "setupDay" ? (
+                      <DateSortButton
+                        sort={setupSort}
+                        onChange={(next) => {
+                          setSetupSort(next);
+                          setupSortRef.current = next;
+                          void loadList({ page: 1, replace: true, setupSort: next });
+                        }}
+                      />
+                    ) : null}
+                  </div>
                 </TableHead>
               ))}
             </TableRow>
@@ -710,9 +747,9 @@ export function SmgView({
                 >
                   {columns.map((field) => {
                     const text = smgSummaryCellText(field, row);
-                    const className = PHONE_FIELDS.has(field)
+                    const className = BOLD_PHONE_FIELDS.has(field)
                       ? "font-medium tabular-nums"
-                      : TABULAR_COLUMNS.has(field)
+                      : PHONE_FIELDS.has(field) || TABULAR_COLUMNS.has(field)
                         ? "tabular-nums"
                         : undefined;
                     return (
@@ -744,6 +781,37 @@ export function SmgView({
           }
         }}
       />
+    </div>
+  );
+}
+
+function DateSortButton({
+  sort,
+  onChange,
+}: {
+  sort: TimeSort | null;
+  onChange: (next: TimeSort | null) => void;
+}) {
+  const active = sort != null;
+  const label =
+    sort === "desc"
+      ? "Дата и время начала, по убыванию. Нажмите для возрастания"
+      : sort === "asc"
+        ? "Дата и время начала, по возрастанию. Нажмите чтобы сбросить"
+        : "Сортировать по дате и времени начала";
+  return (
+    <div className={`col-header col-header-sort${active ? " active" : ""}`}>
+      <button
+        type="button"
+        className="col-filter-trigger"
+        aria-label={label}
+        aria-pressed={active}
+        onClick={() => onChange(nextTimeSort(sort))}
+      >
+        <span className="col-filter-chevron" aria-hidden>
+          {timeSortChevron(sort)}
+        </span>
+      </button>
     </div>
   );
 }

@@ -35,16 +35,17 @@ describe("SMG summary columns", () => {
         expect(isSmgField(column)).toBe(true);
       }
     }
-    expect(SMG_SUMMARY_FACET_COLUMNS).not.toContain("antifraud");
-    expect(SMG_SUMMARY_FACET_COLUMNS).not.toContain("antifraudStatus");
+    expect(SMG_SUMMARY_FACET_COLUMNS).toContain("antifraud");
+    expect(SMG_SUMMARY_FACET_COLUMNS).toContain("antifraudStatus");
+    expect(SMG_SUMMARY_FACET_COLUMNS).toContain("setupDay");
+    expect(SMG_SUMMARY_FACET_COLUMNS).toContain("redirectNumber");
   });
 
-  it("facets trunk, number, and release columns, not clocks, seconds, or the redirect number", () => {
+  it("facets the date, the redirect number, and the antifraud labels, not clocks or seconds", () => {
     expect(SMG_SUMMARY_FACET_COLUMNS).not.toContain("duration");
+    expect(SMG_SUMMARY_FACET_COLUMNS).not.toContain("setupClock");
     for (const column of SMG_SUMMARY_FACET_COLUMNS) {
       expect(SMG_SUMMARY_COLUMNS).toContain(column);
-      expect(isSmgField(column)).toBe(true);
-      expect(isSmgSummaryDerived(column)).toBe(false);
     }
     const facets = SMG_SUMMARY_FACET_COLUMNS as readonly string[];
     expect(facets).not.toContain("setupTime");
