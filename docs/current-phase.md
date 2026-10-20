@@ -1,7 +1,17 @@
-# Current Phase — production (v1.158.0)
+# Current Phase — production (v1.159.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog.  
-**Date:** 2026-10-20
+**Date:** 2026-10-21
+
+## v1.159.0 — An open call with both antifraud stages off is «Не отправлялся»
+
+There is no migration. Do not stop `app` for this update. Parser version stays 5. Syslog cards stay. `smg-syslog` keeps writing.
+
+An open card becomes «Не отправлялся» / «Не было запроса» when the text already has a post-route `RREQ 4` and an `RREQ 5`, every one of those lines is `USE_AF 0, SD 0, OS 0`, and the card has no `USE_AF 1` and no sent `Request ID`. Trunk `0(ext)` is a chosen trunk. The pre-route line with outgoing TG `-1(loc)` does not decide. One stage alone stays «Ожидание АнтиФрода». Another `RREQ` on a chosen trunk keeps the card waiting. A mismatched card stays «Ожидание» until it closes, then «Разбор не сошёлся».
+
+A call that is still inside the scheme is unchanged. A sent request without a verdict stays «Ожидание». `ignore for not antifraud` after a valid reply stays «Пропущен». A closed card with only the pre-route `USE_AF 0` line stays «Не отправлялся». A finished card with no antifraud lines stays «Не проверялся».
+
+The label is computed on read. The next list or xlsx load moves open calls that already have both stages off out of «Ожидание АнтиФрода». If a later line adds `USE_AF 1` or a sent request, the next read drops «Не отправлялся». «В syslog звонок ещё не закрыт» stays until the span is sealed.
 
 ## v1.158.0 — Digit exceptions are editable, and * or # is always an error
 

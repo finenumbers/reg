@@ -66,6 +66,12 @@ type Leg = {
   gotReply: boolean;
 };
 
+type StageCheck = {
+  rreq: string;
+  routed: boolean;
+  clean: boolean;
+};
+
 type Facts = {
   legs: Leg[];
   useAfOff: boolean;
@@ -73,12 +79,20 @@ type Facts = {
   foreign: boolean;
   callReleased: boolean;
   sideClash: boolean;
+  /** `check TG` lines. A pre-route `-1(loc)` probe is `routed: false`. */
+  checks: StageCheck[];
+};
+
+const NOT_SENT: AntifraudLabels = {
+  category: AF_CATEGORY.notSent,
+  status: AF_STATUS.noRequest,
 };
 
 /**
  * One label pair for a syslog card. An open card stays «Ожидание АнтиФрода»
- * until every sent request has a verdict. A request that has not been sent yet
- * stays waiting too: the exchange can still start.
+ * until every sent request has a verdict, or until both routed stages are off.
+ * A request that has not been sent yet stays waiting: the exchange can still start.
+ * The pre-route `-1(loc)` line does not decide. A mismatched open card stays waiting.
  */
 export function classifyAntifraud(input: {
   closed: boolean;
@@ -86,7 +100,10 @@ export function classifyAntifraud(input: {
 }): AntifraudLabels {
   if (input.closed && input.blocks.mismatch) return conflict();
   const facts = readFacts(input.blocks.text);
-  if (!input.closed && replyOutstanding(facts)) return WAITING;
+  if (!input.closed && replyOutstanding(facts)) {
+    if (!input.blocks.mismatch && schemeIsOff(facts)) return NOT_SENT;
+    return WAITING;
+  }
   if (input.blocks.mismatch) return conflict();
   if (facts.sideClash || facts.legs.some((leg) => leg.side === "" || leg.conflicted)) return conflict();
 
@@ -96,6 +113,31 @@ export function classifyAntifraud(input: {
 
 function replyOutstanding(facts: Facts): boolean {
   return facts.legs.length === 0 || facts.legs.some((leg) => leg.verdict === "none");
+}
+
+/**
+ * Both stages have already chosen not to send. Trunk `0(ext)` is a chosen trunk.
+ * One dirty line, a foreign RREQ, or a still-missing stage leaves the card waiting.
+ */
+function schemeIsOff(facts: Facts): boolean {
+  if (facts.useAfOn || facts.legs.length > 0) return false;
+  const routed = facts.checks.filter((check) => check.routed);
+  const incoming = routed.filter((check) => check.rreq === "4");
+  const outgoing = routed.filter((check) => check.rreq === "5");
+  if (incoming.length === 0 || outgoing.length === 0) return false;
+  if (routed.some((check) => check.rreq !== "4" && check.rreq !== "5")) return false;
+  return incoming.every((check) => check.clean) && outgoing.every((check) => check.clean);
+}
+
+function noteStage(facts: Facts, line: string, useAf: string, sd: string, os: string): void {
+  const route = line.match(/check TG\(i\/o\):\s*[^/,\s]+\/([^,\s]+),/);
+  const rreq = line.match(/\bRREQ\s+(\d+)/);
+  if (!route?.[1] || !rreq?.[1]) return;
+  facts.checks.push({
+    rreq: rreq[1],
+    routed: route[1] !== "-1(loc)",
+    clean: useAf === "0" && sd === "0" && os === "0",
+  });
 }
 
 export function isSmgAntifraudColumn(column: string): column is SmgAntifraudColumn {
@@ -185,6 +227,7 @@ function readFacts(text: string): Facts {
     foreign: false,
     callReleased: false,
     sideClash: false,
+    checks: [],
   };
   let pending: Side | "" = "";
   let rcActive = false;
@@ -204,6 +247,7 @@ function readFacts(text: string): Facts {
       if (check[1] === "0") facts.useAfOff = true;
       if (check[1] === "1") facts.useAfOn = true;
       pending = check[3] === "1" ? "out" : check[2] === "1" ? "in" : "";
+      noteStage(facts, line, check[1], check[2], check[3]);
     }
     if (/Accs-Request \[(antifraud(?:_out)?)\]/i.test(line)) {
       pending = /antifraud_out/i.test(line) ? "out" : "in";

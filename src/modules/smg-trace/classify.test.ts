@@ -53,6 +53,79 @@ describe("classifyAntifraud", () => {
     });
   });
 
+  const OUTSIDE = [
+    "Port SIPT:0113. Accs-Request for Antifraud: check TG(i/o): 0(ext)/-1(loc), USE_AF 0, SD 0, OS 0, RREQ 4.",
+    "Port SIPT:0113. Accs-Request for Antifraud: check TG(i/o): 0(ext)/1(ext), USE_AF 0, SD 0, OS 0, RREQ 4.",
+    "Port SIPT:0511. Accs-Request for Antifraud: check TG(i/o): 0(ext)/1(ext), USE_AF 0, SD 0, OS 0, RREQ 5.",
+  ].join("\n");
+
+  it("names an open call outside the scheme once both routed stages are off", () => {
+    expect(labels(false, OUTSIDE)).toEqual({
+      category: AF_CATEGORY.notSent,
+      status: AF_STATUS.noRequest,
+    });
+    expect(labels(true, OUTSIDE)).toEqual({
+      category: AF_CATEGORY.notSent,
+      status: AF_STATUS.noRequest,
+    });
+  });
+
+  it("does not treat a probe or one routed stage as outside the scheme", () => {
+    const probeAndIn = OUTSIDE.split("\n").slice(0, 2).join("\n");
+    expect(labels(false, probeAndIn)).toEqual({
+      category: AF_CATEGORY.waiting,
+      status: AF_STATUS.unknown,
+    });
+    expect(labels(false, OUTSIDE.split("\n")[1] ?? "")).toEqual({
+      category: AF_CATEGORY.waiting,
+      status: AF_STATUS.unknown,
+    });
+  });
+
+  it("keeps waiting when a routed stage is not a clean off", () => {
+    const dirty = [
+      "Accs-Request for Antifraud: check TG(i/o): 0(ext)/1(ext), USE_AF 0, SD 0, OS 0, RREQ 4.",
+      "Accs-Request for Antifraud: check TG(i/o): 0(ext)/1(ext), USE_AF 0, SD 0, OS 1, RREQ 5.",
+    ].join("\n");
+    const foreign = [
+      OUTSIDE,
+      "Accs-Request for Antifraud: check TG(i/o): 0(ext)/1(ext), USE_AF 0, SD 0, OS 0, RREQ 6.",
+    ].join("\n");
+    expect(labels(false, dirty)).toEqual({
+      category: AF_CATEGORY.waiting,
+      status: AF_STATUS.unknown,
+    });
+    expect(labels(false, foreign)).toEqual({
+      category: AF_CATEGORY.waiting,
+      status: AF_STATUS.unknown,
+    });
+  });
+
+  it("does not name a mismatched card as not sent while it is open", () => {
+    expect(labels(false, OUTSIDE, true)).toEqual({
+      category: AF_CATEGORY.waiting,
+      status: AF_STATUS.unknown,
+    });
+    expect(labels(true, OUTSIDE, true)).toEqual({
+      category: AF_CATEGORY.conflict,
+      status: AF_STATUS.unknown,
+    });
+  });
+
+  it("drops the outside label once a later stage sends", () => {
+    const sent = [
+      OUTSIDE,
+      "Accs-Request for Antifraud: check TG(i/o): 0(ext)/1(ext), USE_AF 1, SD 0, OS 1, RREQ 5.",
+      "RADIUS: Accs-Request [antifraud_out]",
+      "Request ID [013] is sent",
+    ].join("\n");
+    expect(labels(false, sent)).toEqual({
+      category: AF_CATEGORY.waiting,
+      status: AF_STATUS.unknown,
+    });
+    expect(labels(false, `${OUTSIDE}\n${ACCEPT_OUT}`).category).toBe(AF_CATEGORY.passedOut);
+  });
+
   it("keeps an open card waiting while any sent request has no verdict", () => {
     const sent = [
       "Accs-Request for Antifraud: check TG(i/o): 5(ext)/0(ext), USE_AF 1, SD 1, OS 0, RREQ 4.",
@@ -155,12 +228,9 @@ describe("classifyAntifraud", () => {
   });
 
   it("does not let an early USE_AF 0 hide a sent accept", () => {
-    expect(
-      labels(
-        true,
-        `Accs-Request for Antifraud: check TG(i/o): 5(ext)/-1(loc), USE_AF 0, SD 0, OS 0, RREQ 4.\n${ACCEPT_IN}`,
-      ).category,
-    ).toBe(AF_CATEGORY.passedIn);
+    const text = `Accs-Request for Antifraud: check TG(i/o): 5(ext)/-1(loc), USE_AF 0, SD 0, OS 0, RREQ 4.\n${ACCEPT_IN}`;
+    expect(labels(false, text).category).toBe(AF_CATEGORY.passedIn);
+    expect(labels(true, text).category).toBe(AF_CATEGORY.passedIn);
   });
 
   it("names an open reject before the release line and a block after it", () => {
