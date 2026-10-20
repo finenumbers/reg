@@ -119,7 +119,7 @@ export const FEATURE_MODULES: FeatureModuleDefinition[] = [
   },
   {
     id: "smg",
-    title: "Звонки на SMG",
+    title: "Данные SMG",
     description: "Полный дамп CDR цифровых шлюзов Eltex SMG-1016M из локальной БД",
     href: "/smg",
     navPermission: "phones:read",
@@ -127,7 +127,7 @@ export const FEATURE_MODULES: FeatureModuleDefinition[] = [
   },
   {
     id: "smg-syslog",
-    title: "Syslog",
+    title: "Архивы Syslog",
     description: "Журнал Syslog шлюзов Eltex SMG-1016M",
     href: "/smg/syslog",
     navPermission: "phones:read",

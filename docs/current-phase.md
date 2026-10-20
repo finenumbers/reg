@@ -1,7 +1,13 @@
-# Current Phase — production (v1.161.0)
+# Current Phase — production (v1.162.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog.  
 **Date:** 2026-10-21
+
+## v1.162.0 — The nav names the SMG dump and the syslog archive
+
+There is no migration. Do not stop `app` for this update. Stored rows stay as they are. Syslog cards stay.
+
+The navigation panel shows «Данные SMG» where it showed «Звонки на SMG», and «Архивы Syslog» where it showed «Syslog». Page headings, Excel sheet and file names, dashboard cards, and the postponed-file line stay on the old names.
 
 ## v1.161.0 — SMG traffic filters the start day, the redirect number, and the stored antifraud label
 
