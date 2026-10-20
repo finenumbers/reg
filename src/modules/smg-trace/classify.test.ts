@@ -359,4 +359,64 @@ describe("classifyAntifraud", () => {
     ].join("\n");
     expect(labels(true, mixed).category).toBe(AF_CATEGORY.conflict);
   });
+
+  it("drops an invalid digest and a timeout that continued the call", () => {
+    const packet = (code: number, id: number) =>
+      code.toString(16).padStart(2, "0") + id.toString(16).padStart(2, "0") + "0014" + "00".repeat(16);
+    const text = [
+      "Accs-Request for Antifraud: check TG(i/o): 29(ext)/28(ext), USE_AF 1, SD 1, OS 0, RREQ 4.",
+      "RADIUS: Accs-Request [antifraud]",
+      "Request ID [078] send. Attempt: 2",
+      "rc: Calculating digest on:",
+      `rc:   ${packet(3, 78)}`,
+      "rc: Calculated digest is:",
+      "rc:   AAAAAAAAAAAAAAAA",
+      "rc: Reply digest is:",
+      "rc:   BBBBBBBBBBBBBBBB",
+      "Request ID [078] received invalid reply accs. Silent ignore",
+      "Request ID [078] srv-retries exhausted!",
+      "RADIUS: release call request. Cause: 'timeout'",
+      "RADIUS: release call. Accs. Cause[timeout]. RestrictOut[no restrict]. Link[y]",
+      "Accs-Request for Antifraud: check TG(i/o): 29(ext)/28(ext), USE_AF 1, SD 0, OS 1, RREQ 5.",
+      "RADIUS: Accs-Request [antifraud_out]",
+      "Request ID [107] send. Attempt: 2",
+      "rc: Calculating digest on:",
+      `rc:   ${packet(3, 107)}`,
+      "rc: Calculated digest is:",
+      "rc:   CCCCCCCCCCCCCCCC",
+      "rc: Reply digest is:",
+      "rc:   CCCCCCCCCCCCCCCC",
+      "Request ID [107] got valid reply for accs (in 394 ms)",
+      "Request ID [107] process reply: ignore for not antifraud verify stage.",
+    ].join("\n");
+    expect(labels(false, text)).toEqual({
+      category: AF_CATEGORY.rejectIgnoredOut,
+      status: AF_STATUS.retryBoth,
+    });
+    expect(labels(true, text)).toEqual({
+      category: AF_CATEGORY.rejectIgnoredOut,
+      status: AF_STATUS.retryBoth,
+    });
+  });
+
+  it("keeps an Accs-Reply reject when another request is silently ignored", () => {
+    const text = [
+      "Accs-Request for Antifraud: check TG(i/o): 5(ext)/0(ext), USE_AF 1, SD 0, OS 1, RREQ 5.",
+      "RADIUS: Accs-Request [antifraud_out]",
+      "Request ID [011] is sent",
+      "Request ID [011] Accs-Reply [reject]",
+      "Request ID [099] received invalid reply accs. Silent ignore",
+    ].join("\n");
+    expect(labels(true, text).category).toBe(AF_CATEGORY.rejectIgnoredOut);
+  });
+
+  it("keeps waiting when one server is exhausted but the group is not", () => {
+    const text = [
+      "Accs-Request for Antifraud: check TG(i/o): 5(ext)/0(ext), USE_AF 1, SD 1, OS 0, RREQ 4.",
+      "RADIUS: Accs-Request [antifraud]",
+      "Request ID [013] send. Attempt: 2",
+      "Request ID [013] timeout! retries exhausted",
+    ].join("\n");
+    expect(labels(false, text).category).toBe(AF_CATEGORY.waiting);
+  });
 });

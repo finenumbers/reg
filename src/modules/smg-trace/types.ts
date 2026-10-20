@@ -8,6 +8,8 @@ export type TraceAttr = {
 export type TraceBlocks = {
   text: string;
   mismatch: boolean;
+  /** Slot where this card's call was first seen. Absent on cards written before version 6. */
+  startedKey?: string;
 };
 
 export type TraceLookup =

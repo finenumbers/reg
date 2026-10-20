@@ -55,15 +55,20 @@ const WAITING: AntifraudLabels = {
 type Side = "in" | "out";
 type Verdict = "accept" | "reject" | "none";
 
+type VerdictSource = "" | "packet" | "text";
+
 type Leg = {
   side: Side | "";
   id: number | null;
   verdict: Verdict;
+  verdictFrom: VerdictSource;
   conflicted: boolean;
   retried: boolean;
   released: boolean;
   ignored: boolean;
   gotReply: boolean;
+  /** `srv-retries exhausted`: this request will not be answered. */
+  exhausted: boolean;
 };
 
 type StageCheck = {
@@ -112,7 +117,8 @@ export function classifyAntifraud(input: {
 }
 
 function replyOutstanding(facts: Facts): boolean {
-  return facts.legs.length === 0 || facts.legs.some((leg) => leg.verdict === "none");
+  if (facts.legs.length === 0) return true;
+  return facts.legs.some((leg) => leg.verdict === "none" && !leg.exhausted);
 }
 
 /**
@@ -236,7 +242,7 @@ function readFacts(text: string): Facts {
 
   for (const line of text.split("\n")) {
     if (/xpgk-request-type=(?:save_call|check_call)\b/.test(line)) facts.foreign = true;
-    if (radiusReleaseLine(line)) {
+    if (radiusReleaseLine(line) && !timeoutContinue(line)) {
       facts.callReleased = true;
       const current = facts.legs.at(-1);
       if (current) current.released = true;
@@ -272,11 +278,13 @@ function readFacts(text: string): Facts {
           side: pending,
           id,
           verdict: "none",
+          verdictFrom: "",
           conflicted: false,
           retried: same.length > 0 || attemptNumber(line) > 1,
           released: false,
           ignored: false,
           gotReply: false,
+          exhausted: false,
         };
         for (const previous of same) previous.retried = true;
         facts.legs.push(leg);
@@ -288,6 +296,13 @@ function readFacts(text: string): Facts {
     }
 
     applyVerdict(facts, line);
+    const named = legById(facts, requestIdOf(line));
+    if (named && /srv-retries exhausted/i.test(line)) named.exhausted = true;
+    if (named?.verdictFrom === "packet" && /invalid reply|Silent ignore/i.test(line)) {
+      named.verdict = "none";
+      named.verdictFrom = "";
+      named.conflicted = false;
+    }
 
     if (/\brc:/i.test(line) || rcActive) {
       const step = consumeRc(line, rcActive, rcHex, rcStage);
@@ -308,8 +323,8 @@ function applyVerdict(facts: Facts, line: string): void {
   const id = requestIdOf(line);
   const leg = legFor(facts, id);
   if (!leg) return;
-  if (/Accs-Reply\s*\[accept\]/i.test(line)) setVerdict(leg, "accept");
-  if (/Accs-Reply\s*\[reject\]/i.test(line)) setVerdict(leg, "reject");
+  if (/Accs-Reply\s*\[accept\]/i.test(line)) setVerdict(leg, "accept", "text");
+  if (/Accs-Reply\s*\[reject\]/i.test(line)) setVerdict(leg, "reject", "text");
   if (/ignore for not antifraud/i.test(line)) leg.ignored = true;
   if (/got valid reply/i.test(line)) leg.gotReply = true;
 }
@@ -317,16 +332,29 @@ function applyVerdict(facts: Facts, line: string): void {
 function applyPacket(facts: Facts, code: number, id: number): void {
   const leg = facts.legs.find((item) => item.id === id);
   if (!leg) return;
-  if (code === 2) setVerdict(leg, "accept");
-  if (code === 3) setVerdict(leg, "reject");
+  if (code === 2) setVerdict(leg, "accept", "packet");
+  if (code === 3) setVerdict(leg, "reject", "packet");
 }
 
-function setVerdict(leg: Leg, verdict: Exclude<Verdict, "none">): void {
+function setVerdict(leg: Leg, verdict: Exclude<Verdict, "none">, source: Exclude<VerdictSource, "">): void {
   if (leg.verdict === "none") {
     leg.verdict = verdict;
+    leg.verdictFrom = source;
     return;
   }
   if (leg.verdict !== verdict) leg.conflicted = true;
+  if (source === "text") leg.verdictFrom = "text";
+}
+
+/** A timeout that continues the call is not an antifraud release. */
+function timeoutContinue(line: string): boolean {
+  if (/release call request/i.test(line) && /Cause:\s*'timeout'/i.test(line)) return true;
+  return /Cause\[timeout\]/i.test(line) && /RestrictOut\[no restrict\]/i.test(line);
+}
+
+function legById(facts: Facts, id: number | null): Leg | undefined {
+  if (id == null) return undefined;
+  return facts.legs.find((leg) => leg.id === id);
 }
 
 function legFor(facts: Facts, id: number | null): Leg | undefined {

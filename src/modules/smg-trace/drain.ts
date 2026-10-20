@@ -2,6 +2,8 @@ import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
 import { logger } from "@/lib/logger";
 import { projectSpan, SMG_TRACE_PARSER_VERSION } from "@/modules/smg-trace/assemble";
+import { cardFromBlocks, logCardDiverge, mergeTraceCard } from "@/modules/smg-trace/merge";
+import type { TraceBlocks } from "@/modules/smg-trace/types";
 import {
   forgetCardsIfUnmarked,
   listDeviceIps,
@@ -89,19 +91,38 @@ const prismaRepository: TraceRepository = {
     await prisma.smgCallTrace.deleteMany({ where: { deviceIp } });
   },
   async saveSpan(deviceIp, span) {
-    const blocks = projectSpan(span) as Prisma.InputJsonValue;
+    const projected = projectSpan(span);
+    const incoming = {
+      text: projected.text,
+      mismatch: projected.mismatch,
+      startedKey: projected.startedKey ?? "",
+      open: !span.sealed,
+    };
+    const existing = await prisma.smgCallTrace.findUnique({
+      where: { deviceIp_tagNorm: { deviceIp, tagNorm: span.tag } },
+      select: { blocks: true, open: true },
+    });
+    const stored =
+      existing && isTraceBlocks(existing.blocks) ? cardFromBlocks(existing.blocks, existing.open) : null;
+    const merged = mergeTraceCard(stored, incoming);
+    if (merged.diverged) logCardDiverge(span.tag, stored?.text.length ?? 0, incoming.text.length);
+    const blocks = {
+      text: merged.text,
+      mismatch: merged.mismatch,
+      startedKey: merged.startedKey,
+    } as Prisma.InputJsonValue;
     await prisma.smgCallTrace.upsert({
       where: { deviceIp_tagNorm: { deviceIp, tagNorm: span.tag } },
       create: {
         deviceIp,
         tagNorm: span.tag,
         callref: span.callref,
-        open: !span.sealed,
+        open: merged.open,
         blocks,
       },
       update: {
         callref: span.callref,
-        open: !span.sealed,
+        open: merged.open,
         blocks,
       },
     });
@@ -125,3 +146,8 @@ const prismaRepository: TraceRepository = {
     });
   },
 };
+
+function isTraceBlocks(value: unknown): value is TraceBlocks {
+  if (!value || typeof value !== "object") return false;
+  return typeof (value as { text?: unknown }).text === "string";
+}

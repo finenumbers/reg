@@ -1,7 +1,19 @@
-# Current Phase — production (v1.159.0)
+# Current Phase — production (v1.160.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog.  
 **Date:** 2026-10-21
+
+## v1.160.0 — Syslog bytes are read in order, and old antifraud cards are dropped once
+
+Stop `app` before this update. There is no migration. Parser version 6 deletes every syslog card on the first turn, then marks the end of the newest syslog file and does not read the archive. Checkpoints from version 5 are deleted and their JSON is not read. `smg-syslog` keeps writing. The previous process still writes version-5 cards; if it is running when the cards are deleted, it writes them back.
+
+Calls already stored stay in the CDR list. Their antifraud column becomes «Нет данных» and stays there. A call that was already in progress at the update does not get a card: a release-line `unique tag:` without `Set UniqueTag` in the bytes read after the mark is not saved. A call that starts after the mark does.
+
+The reader does not open the next ten-minute file until the current one is finished. While the file is still raw, only complete lines move the offset. When the receiver gzips that file, the pass restores the assembler snapshot from before the file's first byte and reads the gzip from the start, so a tail written after the last tick is kept in order and is not applied twice. The file that was already open at the update has no snapshot. Its raw prefix checksum is stored on the seed tick. The gzip tail is applied only when that prefix matches. A mismatch leaves the slot held and logs `smg.trace.gzip_identity`. A gzip whose size cannot be read is not closed.
+
+A saved card is never replaced by text that drops a line. An earlier slot stays before a later one. A shorter sealed span does not close a longer open card.
+
+An Access-Reject whose digest the gateway discarded (`Silent ignore`) is not a verdict. `Accs-Reply [reject]` is. `RADIUS: release call` with `Cause[timeout]` and `RestrictOut[no restrict]` does not count as an antifraud release. `srv-retries exhausted` is not «Ожидание АнтиФрода». A call with a discarded incoming reject, a timeout that continued, and an outgoing reject the gateway did not apply is «Отказ на выходе не применён» / «Повтор на обоих шагах» while the card is open and after it closes. A digest mismatch that the gateway still calls a valid reply stays a reject. A bare `RADIUS: release call` stays «Снят без ответа сервера».
 
 ## v1.159.0 — An open call with both antifraud stages off is «Не отправлялся»
 

@@ -3,11 +3,11 @@ import { realTag } from "@/modules/smg-trace/tag";
 import type { TraceBlocks } from "@/modules/smg-trace/types";
 
 /**
- * Version 5 drops every stored card once, when no live mark of this version
+ * Version 6 drops every stored card once, when no live mark of this version
  * exists yet. A foreign mark deletes checkpoints and is not read. The pass
- * then continues from the end of the open file.
+ * then continues from the end of the open file. Older archives are not read.
  */
-export const SMG_TRACE_PARSER_VERSION = 5;
+export const SMG_TRACE_PARSER_VERSION = 6;
 
 /** A call with no release and no reject leaves the assembler after this long. */
 export const SMG_TRACE_HOLD_MS = 4 * 60 * 60 * 1000;
@@ -27,6 +27,8 @@ export type TraceSpan = {
   startedKey: string;
   /** Raw AntiFraud lines, syslog prefix removed, in read order. */
   text: string;
+  /** The bytes included `Set UniqueTag`. A release echo alone does not open a card. */
+  sawUniqueTag: boolean;
   /** Set when this commit removes the span. Until then the card stays open. */
   sealed: boolean;
   attemptOpen: boolean;
@@ -66,6 +68,10 @@ export function emptyTraceState(): TraceState {
   };
 }
 
+export function cloneTraceState(state: TraceState): TraceState {
+  return restoreTraceState(structuredClone(state));
+}
+
 export function restoreTraceState(value: unknown): TraceState {
   const empty = emptyTraceState();
   if (!value || typeof value !== "object") return empty;
@@ -78,6 +84,7 @@ export function restoreTraceState(value: unknown): TraceState {
       ...createSpan(typeof span.callref === "string" ? span.callref : key),
       ...span,
       text: typeof span.text === "string" ? span.text : "",
+      sawUniqueTag: span.sawUniqueTag === true,
       sealed: span.sealed === true,
       attemptOpen: span.attemptOpen === true,
       pendingBlank: typeof span.pendingBlank === "string" ? span.pendingBlank : null,
@@ -199,6 +206,7 @@ export function applyLine(state: TraceState, rawLine: string): TraceSpan | null 
 
   const taken = takeSpan(state, callref, namingTag(payload));
   const span = taken.span;
+  if (/Set UniqueTag:/i.test(payload)) span.sawUniqueTag = true;
   touch(state, callref);
   markEcho(span, payload);
   markEnd(span, payload);
@@ -227,7 +235,7 @@ export function applyLine(state: TraceState, rawLine: string): TraceSpan | null 
 }
 
 export function projectSpan(span: TraceSpan): TraceBlocks {
-  return { text: span.text, mismatch: span.mismatch };
+  return { text: span.text, mismatch: span.mismatch, startedKey: span.startedKey };
 }
 
 /** A SIP «Call rejected» or an empty `RADIUS server rejected: :0` is not this. */
@@ -510,6 +518,7 @@ function createSpan(callref: string): TraceSpan {
     releaseGeneration: null,
     startedKey: "",
     text: "",
+    sawUniqueTag: false,
     sealed: false,
     attemptOpen: false,
     pendingBlank: null,

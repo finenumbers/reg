@@ -1,5 +1,5 @@
 import { gzipSync } from "node:zlib";
-import { appendFileSync, mkdtempSync, mkdirSync, unlinkSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdtempSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -298,6 +298,7 @@ describe("CDR card choice", () => {
       releaseGeneration: null,
       startedKey: "",
       text: "",
+      sawUniqueTag: true,
       sealed: false,
       attemptOpen: false,
       pendingBlank: null,
@@ -459,13 +460,25 @@ describe("syslog file walk", () => {
     await stepDevice("10.1.2.3", sources(), repo.repo);
     expect(saved.at(-1)?.open).toBe(true);
     expect(spansOfMark(repo).C0000F6).toBeDefined();
+    const eveningBytes = readFileSync(raw);
+    unlinkSync(raw);
+    writeFileSync(`${raw}.gz`, gzipSync(eveningBytes));
+    await stepDevice("10.1.2.3", sources(), repo.repo);
+    await stepDevice("10.1.2.3", sources(), repo.repo);
+    expect(saved.at(-1)?.open).toBe(true);
+    expect(spansOfMark(repo).C0000F6).toBeDefined();
+    const morningRaw = path.join(morning, "00.log");
+    const morningBytes = readFileSync(morningRaw);
+    unlinkSync(morningRaw);
+    writeFileSync(`${morningRaw}.gz`, gzipSync(morningBytes));
+    await stepDevice("10.1.2.3", sources(), repo.repo);
     writeFileSync(path.join(morning, "10.log"), "noise\n");
     await stepDevice("10.1.2.3", sources(), repo.repo);
     expect(saved.at(-1)?.open).toBe(false);
     expect(spansOfMark(repo).C0000F6).toBeUndefined();
   });
 
-  it("does not open a gzip that replaced a fully read raw log", async () => {
+  it("does not apply a gzip whose prefix is not the raw that was read", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "smg-trace-"));
     const hour = path.join(root, "10.1.2.3", "2026", "10", "16", "08");
     mkdirSync(hour, { recursive: true });
@@ -494,14 +507,138 @@ describe("syslog file walk", () => {
     const repo = memoryRepo(saved);
     await stepDevice("10.1.2.3", listTraceSources(root), repo.repo);
     const extra = line("C0000F6", `Port SIPT:0001. Set UniqueTag: '${TAG}'`) + "\n";
-    const mark = repo.rows.get(LIVE_FILE_KEY)?.state as {
-      tail: { key: string; rawSize: number };
-    };
-    mark.tail.rawSize = Buffer.byteLength(prefix + extra);
     unlinkSync(raw);
     writeFileSync(path.join(hour, "00.log.gz"), gzipSync(Buffer.from(prefix + extra)));
     await stepDevice("10.1.2.3", listTraceSources(root), repo.repo);
     expect(saved.some((row) => row.tag === TAG && row.open)).toBe(true);
+  });
+
+  it("does not read the next slot while the current raw log is still open", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "smg-trace-"));
+    const hour = path.join(root, "10.1.2.3", "2026", "10", "16", "08");
+    mkdirSync(hour, { recursive: true });
+    writeFileSync(path.join(hour, "00.log"), "noise\n");
+    const saved: { tag: string; open: boolean }[] = [];
+    const repo = memoryRepo(saved);
+    await stepDevice("10.1.2.3", listTraceSources(root), repo.repo);
+    writeFileSync(
+      path.join(hour, "10.log"),
+      line("C0000F6", `Port SIPT:0001. Set UniqueTag: '${TAG}'`) + "\n",
+    );
+    await stepDevice("10.1.2.3", listTraceSources(root), repo.repo);
+    expect(saved.some((row) => row.tag === TAG)).toBe(false);
+  });
+
+  it("does not save a release echo that never saw Set UniqueTag", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "smg-trace-"));
+    const hour = path.join(root, "10.1.2.3", "2026", "10", "16", "08");
+    mkdirSync(hour, { recursive: true });
+    const raw = path.join(hour, "00.log");
+    writeFileSync(raw, "noise\n");
+    const saved: { tag: string; open: boolean }[] = [];
+    const repo = memoryRepo(saved);
+    await stepDevice("10.1.2.3", listTraceSources(root), repo.repo);
+    appendFileSync(raw, line("C0000F6", `unique tag: '${TAG}'`) + "\n");
+    await stepDevice("10.1.2.3", listTraceSources(root), repo.repo);
+    expect(saved.some((row) => row.tag === TAG)).toBe(false);
+    appendFileSync(raw, line("C0000F6", `Port SIPT:0001. Set UniqueTag: '${TAG}'`) + "\n");
+    await stepDevice("10.1.2.3", listTraceSources(root), repo.repo);
+    expect(saved.some((row) => row.tag === TAG)).toBe(true);
+  });
+
+  it("waits for a torn raw line and keeps the tag once", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "smg-trace-"));
+    const hour = path.join(root, "10.1.2.3", "2026", "10", "16", "08");
+    mkdirSync(hour, { recursive: true });
+    const raw = path.join(hour, "00.log");
+    writeFileSync(raw, "noise\n");
+    const saved: { tag: string; open: boolean }[] = [];
+    const repo = memoryRepo(saved);
+    await stepDevice("10.1.2.3", listTraceSources(root), repo.repo);
+    const whole = line("C0000F6", `Port SIPT:0001. Set UniqueTag: '${TAG}'`) + "\n";
+    appendFileSync(raw, whole.slice(0, 12));
+    await stepDevice("10.1.2.3", listTraceSources(root), repo.repo);
+    expect(saved.some((row) => row.tag === TAG)).toBe(false);
+    appendFileSync(raw, whole.slice(12));
+    await stepDevice("10.1.2.3", listTraceSources(root), repo.repo);
+    expect(saved.filter((row) => row.tag === TAG)).toHaveLength(1);
+  });
+
+  it("feeds a frozen gzip line without a newline and then reads the next slot", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "smg-trace-"));
+    const hour = path.join(root, "10.1.2.3", "2026", "10", "16", "08");
+    mkdirSync(hour, { recursive: true });
+    const raw = path.join(hour, "00.log");
+    const prefix = "noise\n";
+    writeFileSync(raw, prefix);
+    const saved: { tag: string; open: boolean }[] = [];
+    const repo = memoryRepo(saved);
+    await stepDevice("10.1.2.3", listTraceSources(root), repo.repo);
+    unlinkSync(raw);
+    writeFileSync(
+      path.join(hour, "00.log.gz"),
+      gzipSync(Buffer.from(prefix + line("C0000F6", `Port SIPT:0001. Set UniqueTag: '${TAG}'`))),
+    );
+    await stepDevice("10.1.2.3", listTraceSources(root), repo.repo);
+    expect(saved.filter((row) => row.tag === TAG)).toHaveLength(1);
+    writeFileSync(path.join(hour, "10.log"), "later\n");
+    await stepDevice("10.1.2.3", listTraceSources(root), repo.repo);
+    const mark = repo.rows.get(LIVE_FILE_KEY)?.state as { floor?: string };
+    expect(mark.floor).toBe("10.1.2.3/2026/10/16/08/10");
+  });
+
+  it("replays a gzip from the start of the file without repeating a line", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "smg-trace-"));
+    const hour = path.join(root, "10.1.2.3", "2026", "10", "16", "08");
+    mkdirSync(hour, { recursive: true });
+    const first = path.join(hour, "00.log");
+    writeFileSync(first, "noise\n");
+    const saved: { tag: string; open: boolean }[] = [];
+    const repo = memoryRepo(saved);
+    const sources = () => listTraceSources(root);
+    await stepDevice("10.1.2.3", sources(), repo.repo);
+    const firstBytes = readFileSync(first);
+    unlinkSync(first);
+    writeFileSync(`${first}.gz`, gzipSync(firstBytes));
+    await stepDevice("10.1.2.3", sources(), repo.repo);
+    const second = path.join(hour, "10.log");
+    writeFileSync(second, "noise\n");
+    await stepDevice("10.1.2.3", sources(), repo.repo);
+    const call = [
+      line("C0000F6", `Port SIPT:0001. Set UniqueTag: '${TAG}'`),
+      line("C0000F6", "Accs-Request for Antifraud: check TG(i/o): 5(ext)/0(ext), USE_AF 1, SD 1, OS 0, RREQ 4."),
+    ].join("\n");
+    appendFileSync(second, `${call}\n`);
+    await stepDevice("10.1.2.3", sources(), repo.repo);
+    const full = readFileSync(second);
+    unlinkSync(second);
+    writeFileSync(`${second}.gz`, gzipSync(full));
+    await stepDevice("10.1.2.3", sources(), repo.repo);
+    const span = spansOfMark(repo).C0000F6 as { text?: string };
+    expect(span.text?.match(/Accs-Request for Antifraud/g)).toEqual(["Accs-Request for Antifraud"]);
+  });
+
+  it("does not seed again when the current mark cannot be read", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "smg-trace-"));
+    const hour = path.join(root, "10.1.2.3", "2026", "10", "16", "08");
+    mkdirSync(hour, { recursive: true });
+    writeFileSync(
+      path.join(hour, "50.log"),
+      line("C0000F6", `Port SIPT:0001. Set UniqueTag: '${TAG}'`) + "\n",
+    );
+    const saved: { tag: string; open: boolean }[] = [];
+    const repo = memoryRepo(saved);
+    repo.cards.add("keep");
+    repo.rows.set(LIVE_FILE_KEY, {
+      fileKey: LIVE_FILE_KEY,
+      size: 0,
+      version: SMG_TRACE_PARSER_VERSION,
+      state: { broken: true },
+    });
+    await stepDevice("10.1.2.3", listTraceSources(root), repo.repo);
+    expect(repo.cards.has("keep")).toBe(true);
+    expect(saved.some((row) => row.tag === TAG)).toBe(false);
+    expect(repo.rows.get(LIVE_FILE_KEY)?.state).toEqual({ broken: true });
   });
 
   it("drops a foreign mark without reading it and deletes cards when version 3 is absent", async () => {
