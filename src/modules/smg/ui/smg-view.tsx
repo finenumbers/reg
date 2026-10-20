@@ -34,7 +34,11 @@ import {
   SMG_HEADER_LABELS,
   SMG_PHONE_FIELDS,
 } from "@/modules/smg/columns";
-import { formatSmgPoisonSummary, smgSummaryCellText } from "@/modules/smg/summary";
+import {
+  formatSmgPoisonSummary,
+  SMG_SUMMARY_HIGHLIGHT_COLUMNS,
+  smgSummaryCellText,
+} from "@/modules/smg/summary";
 import { formatCdrDayDisplay } from "@/modules/traffic/cdr-date-parts";
 import {
   nextTimeSort,
@@ -52,6 +56,7 @@ import { formatMonthOption } from "@/modules/traffic/month-labels";
 const PHONE_SEARCH_DEBOUNCE_MS = 300;
 const STATUS_POLL_MS = 4000;
 const PHONE_FIELDS = new Set<string>(SMG_PHONE_FIELDS);
+const HIGHLIGHT_FIELDS = new Set<string>(SMG_SUMMARY_HIGHLIGHT_COLUMNS);
 const BOLD_PHONE_FIELDS = new Set<string>(["outgoingCgpn", "outgoingCdpn"]);
 const TABULAR_COLUMNS = new Set<string>([
   "setupDay",
@@ -222,7 +227,8 @@ export function SmgView({
     const nextPhone = opts.phoneQ ?? phoneQRef.current;
     const nextMonth = opts.month ?? monthRef.current;
     const nextDevice = opts.device ?? deviceRef.current;
-    const nextSort = "setupSort" in opts ? (opts.setupSort ?? null) : setupSortRef.current;
+    const nextSort =
+      "setupSort" in opts ? (opts.setupSort ?? null) : setupSortRef.current;
     const includeDevices = opts.includeDevices ?? false;
     const seq = ++refreshSeq.current;
     if (replace) {
@@ -506,7 +512,9 @@ export function SmgView({
       })
       .catch((cause: unknown) => {
         if (traceRequest.current !== token) return;
-        setTraceError(cause instanceof Error ? cause.message : "Не удалось прочитать трассу");
+        setTraceError(
+          cause instanceof Error ? cause.message : "Не удалось прочитать трассу",
+        );
       })
       .finally(() => {
         if (traceRequest.current === token) setTraceLoading(false);
@@ -666,52 +674,50 @@ export function SmgView({
             <TableRow>
               {columns.map((field) => (
                 <TableHead key={field} className="font-medium">
-                  <div className="flex items-center gap-0.5">
-                    {showsFacet(field) ? (
-                      <ColumnFilterDropdown
-                        column={field}
-                        header={headerLabels[field] ?? field}
-                        open={openColumn === field}
-                        selected={filters[field] ?? []}
-                        filters={filters}
-                        buildFacetsUrl={({ column, filters: nextFilters, q }) => {
-                          const params = new URLSearchParams();
-                          params.set("column", column);
-                          params.set("month", month);
-                          if (device) params.set("device", device);
-                          if (phoneQ.trim()) params.set("phoneQ", phoneQ.trim());
-                          if (q.trim()) params.set("q", q.trim());
-                          const encoded = encodeFilters(nextFilters);
-                          if (encoded) params.set("filters", encoded);
-                          return `/api/smg/facets?${params.toString()}`;
-                        }}
-                        formatValue={(value) => formatSmgFacet(field, value)}
-                        onToggle={() => setOpenColumn(openColumn === field ? null : field)}
-                        onChange={(values) => {
-                          const next = setColumnFilterValues(filters, field, values);
-                          setFilters(next);
-                          void loadList({ page: 1, replace: true, filters: next });
-                        }}
-                        onClear={() => {
-                          const next = setColumnFilterValues(filters, field, []);
-                          setFilters(next);
-                          void loadList({ page: 1, replace: true, filters: next });
-                        }}
-                      />
-                    ) : (
-                      (headerLabels[field] ?? field)
-                    )}
-                    {field === "setupDay" ? (
-                      <DateSortButton
-                        sort={setupSort}
-                        onChange={(next) => {
-                          setSetupSort(next);
-                          setupSortRef.current = next;
-                          void loadList({ page: 1, replace: true, setupSort: next });
-                        }}
-                      />
-                    ) : null}
-                  </div>
+                  {field === "setupClock" ? (
+                    <SetupTimeSortHeader
+                      header={headerLabels[field] ?? field}
+                      sort={setupSort}
+                      onChange={(next) => {
+                        setSetupSort(next);
+                        setupSortRef.current = next;
+                        void loadList({ page: 1, replace: true, setupSort: next });
+                      }}
+                    />
+                  ) : showsFacet(field) ? (
+                    <ColumnFilterDropdown
+                      column={field}
+                      header={headerLabels[field] ?? field}
+                      open={openColumn === field}
+                      selected={filters[field] ?? []}
+                      filters={filters}
+                      buildFacetsUrl={({ column, filters: nextFilters, q }) => {
+                        const params = new URLSearchParams();
+                        params.set("column", column);
+                        params.set("month", month);
+                        if (device) params.set("device", device);
+                        if (phoneQ.trim()) params.set("phoneQ", phoneQ.trim());
+                        if (q.trim()) params.set("q", q.trim());
+                        const encoded = encodeFilters(nextFilters);
+                        if (encoded) params.set("filters", encoded);
+                        return `/api/smg/facets?${params.toString()}`;
+                      }}
+                      formatValue={(value) => formatSmgFacet(field, value)}
+                      onToggle={() => setOpenColumn(openColumn === field ? null : field)}
+                      onChange={(values) => {
+                        const next = setColumnFilterValues(filters, field, values);
+                        setFilters(next);
+                        void loadList({ page: 1, replace: true, filters: next });
+                      }}
+                      onClear={() => {
+                        const next = setColumnFilterValues(filters, field, []);
+                        setFilters(next);
+                        void loadList({ page: 1, replace: true, filters: next });
+                      }}
+                    />
+                  ) : (
+                    (headerLabels[field] ?? field)
+                  )}
                 </TableHead>
               ))}
             </TableRow>
@@ -754,7 +760,7 @@ export function SmgView({
                         : undefined;
                     return (
                       <TableCell key={field} className={className}>
-                        {highlightPhones && PHONE_FIELDS.has(field) ? (
+                        {highlightPhones && HIGHLIGHT_FIELDS.has(field) ? (
                           <HighlightText text={text} query={phoneQ} />
                         ) : (
                           text
@@ -785,10 +791,12 @@ export function SmgView({
   );
 }
 
-function DateSortButton({
+function SetupTimeSortHeader({
+  header,
   sort,
   onChange,
 }: {
+  header: string;
   sort: TimeSort | null;
   onChange: (next: TimeSort | null) => void;
 }) {
@@ -800,7 +808,7 @@ function DateSortButton({
         ? "Дата и время начала, по возрастанию. Нажмите чтобы сбросить"
         : "Сортировать по дате и времени начала";
   return (
-    <div className={`col-header col-header-sort${active ? " active" : ""}`}>
+    <div className={`col-header col-header-sort${active ? "active" : ""}`}>
       <button
         type="button"
         className="col-filter-trigger"
@@ -808,6 +816,7 @@ function DateSortButton({
         aria-pressed={active}
         onClick={() => onChange(nextTimeSort(sort))}
       >
+        <span className="col-header-label">{header}</span>
         <span className="col-filter-chevron" aria-hidden>
           {timeSortChevron(sort)}
         </span>

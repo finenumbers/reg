@@ -1,7 +1,17 @@
-# Current Phase — production (v1.162.0)
+# Current Phase — production (v1.163.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog.  
 **Date:** 2026-10-21
+
+## v1.163.0 — SMG time sort stays on the start stamp, and a syslog migration does not rate the journal
+
+There is no migration. Do not stop `app` for this update. Stored CDR rows stay as they are. Syslog cards stay.
+
+«Трафик SMG»: «Дата» is only a filter. The chevron is on «Время». It still orders by the start stamp, then the row id: off, then descending, then ascending, then back to disconnect order. The first click reloads the list, because the default order is disconnect time. The status poll, the next page, a month change, and a phone search keep that order. Changing the gateway still clears it. Export uses the same order. The full dump has no chevron. Menus still omit the column being opened and still apply the other filters, the phone search, the gateway, and the month. Sort is not sent to a menu.
+
+Phone search still matches the four stored numbers. The yellow mark is only on «А выход», «Б выход», and «Переадресация». «А вход» and «Б вход» stay plain. «А выход» and «Б выход» stay medium weight.
+
+`migrate` scans `cdr_records` for tariffs only when an applied migration is one whose SQL names `scripts/cdr-tariff-backfill.mjs`, and only when `rateGeneration` is not already ahead of `ratedGeneration`. `20261021021000_smg_trace_labels` does neither pass. A generation gap is still filled by the app job after `app` is up. That job and the blocking script set `statement_timeout` and `lock_timeout` to 0 on their own session. The application pool keeps its 5 second lock timeout. A quiet deploy still does not read the journal.
 
 ## v1.162.0 — The nav names the SMG dump and the syslog archive
 

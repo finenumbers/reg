@@ -120,6 +120,8 @@ function asNumber(value) {
 
 async function main() {
   await client.connect();
+  await client.query("SET statement_timeout = 0");
+  await client.query("SET lock_timeout = 0");
   let cursor = "";
   let scannedTotal = 0;
   let updatedTotal = 0;
@@ -136,9 +138,7 @@ async function main() {
     scannedTotal += scanned;
     updatedTotal += updated;
     cursor = lastId;
-    console.log(
-      `cdr tariff rate: scanned ${scannedTotal}, updated ${updatedTotal}`,
-    );
+    console.log(`cdr tariff rate: scanned ${scannedTotal}, updated ${updatedTotal}`);
   }
   await client.query(
     `UPDATE tariff_import_state

@@ -5,6 +5,7 @@ import {
   SMG_SUMMARY_COLUMNS,
   SMG_SUMMARY_DERIVED,
   SMG_SUMMARY_FACET_COLUMNS,
+  SMG_SUMMARY_HIGHLIGHT_COLUMNS,
   SMG_SUMMARY_LABELS,
   formatSmgPoisonSummary,
   formatSmgSummaryCell,
@@ -39,6 +40,14 @@ describe("SMG summary columns", () => {
     expect(SMG_SUMMARY_FACET_COLUMNS).toContain("antifraudStatus");
     expect(SMG_SUMMARY_FACET_COLUMNS).toContain("setupDay");
     expect(SMG_SUMMARY_FACET_COLUMNS).toContain("redirectNumber");
+    expect([...SMG_SUMMARY_HIGHLIGHT_COLUMNS]).toEqual([
+      "outgoingCgpn",
+      "outgoingCdpn",
+      "redirectNumber",
+    ]);
+    for (const column of SMG_SUMMARY_HIGHLIGHT_COLUMNS) {
+      expect(SMG_SUMMARY_COLUMNS).toContain(column);
+    }
   });
 
   it("facets the date, the redirect number, and the antifraud labels, not clocks or seconds", () => {

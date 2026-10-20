@@ -1,8 +1,10 @@
 /**
  * cdr.tariff.rate — rewrite stored tariff cells for the current snapshot.
- * One short transaction per primary-key batch. Unchanged rows are not written.
+ * One statement per primary-key batch on its own connection. Unchanged rows
+ * are not written. That connection does not use the app pool's lock timeout.
  */
 
+import pg from "pg";
 import { prisma } from "@/lib/db";
 import { logger } from "@/lib/logger";
 import { AUDIT_ACTIONS, auditService } from "@/modules/audit";
@@ -66,15 +68,26 @@ async function waitUntilTariffRateCanRun(): Promise<void> {
   }
 }
 
-async function runBatch(cursor: string): Promise<BatchRow> {
+async function connectTariffClient(): Promise<pg.Client> {
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) throw new Error("DATABASE_URL is required");
+  const client = new pg.Client({ connectionString });
+  await client.connect();
+  try {
+    await client.query("SET statement_timeout = 0");
+    await client.query("SET lock_timeout = 0");
+  } catch (error) {
+    await client.end().catch(() => undefined);
+    throw error;
+  }
+  return client;
+}
+
+async function runBatch(client: pg.Client, cursor: string): Promise<BatchRow> {
   for (let attempt = 1; ; attempt++) {
     try {
-      const rows = await prisma.$queryRawUnsafe<BatchRow[]>(
-        CDR_TARIFF_BATCH_SQL,
-        cursor,
-        BATCH,
-      );
-      const row = rows[0];
+      const result = await client.query<BatchRow>(CDR_TARIFF_BATCH_SQL, [cursor, BATCH]);
+      const row = result.rows[0];
       if (!row) throw new Error("cdr tariff batch returned no summary row");
       return row;
     } catch (error) {
@@ -84,7 +97,10 @@ async function runBatch(cursor: string): Promise<BatchRow> {
   }
 }
 
-async function walkGeneration(generation: number): Promise<{
+async function walkGeneration(
+  client: pg.Client,
+  generation: number,
+): Promise<{
   scanned: number;
   updated: number;
 }> {
@@ -93,7 +109,7 @@ async function walkGeneration(generation: number): Promise<{
   let updated = 0;
   for (;;) {
     await waitUntilTariffRateCanRun();
-    const row = await runBatch(cursor);
+    const row = await runBatch(client, cursor);
     const batchScanned = asNumber(row.scanned);
     if (batchScanned === 0) break;
     if (typeof row.last_id !== "string" || row.last_id.length === 0) {
@@ -133,23 +149,28 @@ export async function processCdrTariffRate(
       meta: { trigger: input.trigger, phase: "started" },
     });
 
-    for (;;) {
-      const state = await prisma.tariffImportState.findUnique({
-        where: { id: 1 },
-        select: { rateGeneration: true, ratedGeneration: true },
-      });
-      if (!state || state.rateGeneration === state.ratedGeneration) break;
+    const client = await connectTariffClient();
+    try {
+      for (;;) {
+        const state = await prisma.tariffImportState.findUnique({
+          where: { id: 1 },
+          select: { rateGeneration: true, ratedGeneration: true },
+        });
+        if (!state || state.rateGeneration === state.ratedGeneration) break;
 
-      const generation = state.rateGeneration;
-      const pass = await walkGeneration(generation);
-      scanned += pass.scanned;
-      updated += pass.updated;
+        const generation = state.rateGeneration;
+        const pass = await walkGeneration(client, generation);
+        scanned += pass.scanned;
+        updated += pass.updated;
 
-      const marked = await prisma.tariffImportState.updateMany({
-        where: { id: 1, rateGeneration: generation },
-        data: { ratedGeneration: generation },
-      });
-      if (marked.count === 1) break;
+        const marked = await prisma.tariffImportState.updateMany({
+          where: { id: 1, rateGeneration: generation },
+          data: { ratedGeneration: generation },
+        });
+        if (marked.count === 1) break;
+      }
+    } finally {
+      await client.end().catch(() => undefined);
     }
 
     const finishedAt = new Date();

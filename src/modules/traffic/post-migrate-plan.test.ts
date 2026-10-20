@@ -45,7 +45,23 @@ describe("planPostMigrate", () => {
       planPostMigrate(`${LABEL}\n${DIAL}`, { rateGeneration: 3, ratedGeneration: 3 }),
     ).toEqual({
       callClass: true,
-      tariff: true,
+      tariff: false,
+    });
+  });
+
+  it("does not scan the journal for the syslog label migration", () => {
+    expect(
+      planPostMigrate("Applying migration `20261021021000_smg_trace_labels`\n", {
+        rateGeneration: 4,
+        ratedGeneration: 4,
+      }),
+    ).toEqual({ callClass: false, tariff: false });
+  });
+
+  it("skips a listed tariff migration once the generation is already ahead", () => {
+    expect(planPostMigrate(CLOSED, { rateGeneration: 3, ratedGeneration: 2 })).toEqual({
+      callClass: false,
+      tariff: false,
     });
   });
 

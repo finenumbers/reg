@@ -78,6 +78,15 @@ export const SMG_SUMMARY_LABELS: Record<SmgSummaryColumn, string> = {
 };
 
 /**
+ * Phone-search paint on «Трафик SMG». Not the columns the query searches.
+ */
+export const SMG_SUMMARY_HIGHLIGHT_COLUMNS = [
+  "outgoingCgpn",
+  "outgoingCdpn",
+  "redirectNumber",
+] as const satisfies readonly SmgSummaryColumn[];
+
+/**
  * Facet menus on the working table. Clocks, seconds, and minutes stay out:
  * a duration groups the whole gateway-month.
  * «Дата» is the start day, not the disconnect day that selects the month.

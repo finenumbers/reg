@@ -3,6 +3,7 @@
  * The migrate log is stdin. A quiet deploy does not read cdr_records.
  * A migration that moved rateGeneration ahead of ratedGeneration leaves the
  * tariff pass to the app job. Equating the generations here would skip that job.
+ * A migration that does not name the tariff backfill does not scan cdr_records.
  */
 import { spawn } from "node:child_process";
 import path from "node:path";
@@ -15,6 +16,24 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const LABEL_FREE_MIGRATIONS = new Set([
   "20261020190000_closed_dial_prefixes",
   "20261020220000_dial_exceptions",
+  "20261021021000_smg_trace_labels",
+]);
+
+/**
+ * Migrations whose SQL says stored CDR rows are rewritten by
+ * scripts/cdr-tariff-backfill.mjs. A migration that only moves rateGeneration
+ * is not here: the app job does that pass. A migration that changes neither
+ * labels nor tariffs must be added to LABEL_FREE_MIGRATIONS.
+ */
+export const TARIFF_BLOCKING_MIGRATIONS = new Set([
+  "20261006210000_cdr_tariff_rating",
+  "20261006223000_cdr_tariff_price",
+  "20261006225000_cdr_internal_zero_cost",
+  "20261007143000_cdr_call_geography",
+  "20261010120000_cdr_terminator_capacity",
+  "20261020170000_tariff_digit_length",
+  "20261020180000_tariff_digit_lengths",
+  "20261020190000_closed_dial_prefixes",
 ]);
 
 export function appliedMigrations(log) {
@@ -39,7 +58,9 @@ export function planPostMigrate(log, state) {
   if (applied.length === 0) return { callClass: true, tariff: true };
   return {
     callClass: applied.some((name) => !LABEL_FREE_MIGRATIONS.has(name)),
-    tariff: !(state && state.rateGeneration > state.ratedGeneration),
+    tariff:
+      applied.some((name) => TARIFF_BLOCKING_MIGRATIONS.has(name)) &&
+      !(state && state.rateGeneration > state.ratedGeneration),
   };
 }
 

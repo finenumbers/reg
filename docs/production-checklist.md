@@ -63,6 +63,8 @@ v1.150.0 does not rewrite stored rows and does not delete syslog cards. There is
 
 v1.151.0 publishes that same behavior. There is no migration. Do not stop `app` for this update. SMG xlsx export refuses a machine API key. The dashboard syslog card limits its antifraud count to 8 seconds and shows «…» when that read fails.
 
+v1.163.0 does not rewrite stored rows and does not delete syslog cards. There is no migration. Do not stop `app` for this update. «Трафик SMG» keeps the date filter and moves the start-stamp chevron to «Время». Phone search still matches four numbers; the yellow mark is only on «А выход», «Б выход», and «Переадресация». A migration that does not name the tariff backfill does not make `migrate` scan `cdr_records`. The tariff job and the blocking script turn statement and lock timeouts off on their own session. The app pool keeps the 5 second lock timeout.
+
 v1.162.0 does not rewrite stored rows and does not delete syslog cards. There is no migration. Do not stop `app` for this update. The navigation panel shows «Данные SMG» and «Архивы Syslog». Page headings, Excel names, dashboard cards, and the postponed-file line stay on the previous names.
 
 v1.161.0 adds nullable `af_category` and `af_status` on `smg_call_traces`. Stop `app` before updating. `smg-syslog` keeps writing. Cards are not deleted. Parser version stays 6 and the archive is not reread. The trace drain fills null labels in batches after the new app starts. An old process that saves a card after that fill leaves a stale label, because the backfill only selects nulls. «Трафик SMG» filters «Дата», «Переадресация», «АнтиФрод», and «Статус АнтиФрод», and the date chevron orders by the start stamp. Reset returns disconnect order. CDR rows are not rewritten.
