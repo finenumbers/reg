@@ -2,14 +2,34 @@ import { parseRadiusPacket } from "@/modules/smg-trace/packet";
 import { radiusReleaseLine } from "@/modules/smg-trace/assemble";
 import type { TraceBlocks } from "@/modules/smg-trace/types";
 
+/** Milliseconds from the syslog card. Not CDR file fields and not facet menus. */
+export const SMG_RADIUS_DELAY_COLUMNS = [
+  "afDelay1Dev",
+  "afDelay1Prod",
+  "afDelay2Dev",
+  "afDelay2Prod",
+  "afDelayParking",
+] as const;
+
+export type SmgRadiusDelayColumn = (typeof SMG_RADIUS_DELAY_COLUMNS)[number];
+
 /** Working-table and export column ids. Not CDR file fields. */
-export const SMG_ANTIFRAUD_COLUMNS = ["antifraud", "antifraudStatus"] as const;
+export const SMG_ANTIFRAUD_COLUMNS = [
+  "antifraud",
+  "antifraudStatus",
+  ...SMG_RADIUS_DELAY_COLUMNS,
+] as const;
 
 export type SmgAntifraudColumn = (typeof SMG_ANTIFRAUD_COLUMNS)[number];
 
 export const SMG_ANTIFRAUD_LABELS: Record<SmgAntifraudColumn, string> = {
   antifraud: "АнтиФрод",
   antifraudStatus: "Статус АнтиФрод",
+  afDelay1Dev: "1 Dev",
+  afDelay1Prod: "1 Prod",
+  afDelay2Dev: "2 Dev",
+  afDelay2Prod: "2 Prod",
+  afDelayParking: "Parking",
 };
 
 export const AF_CATEGORY = {

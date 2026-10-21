@@ -44,6 +44,51 @@ type Attempt = {
  * Result and status come from the same classifier as the sheet.
  * Server rows name the address only. The shared secret stays in the syslog text.
  */
+const RADIUS_SERVERS = {
+  dev: serverIp("Dev Callhose"),
+  prod: serverIp("Prod Callhose"),
+  parking: serverIp("Parking"),
+} as const;
+
+export type RadiusDelayCells = {
+  afDelay1Dev: string;
+  afDelay1Prod: string;
+  afDelay2Dev: string;
+  afDelay2Prod: string;
+  afDelayParking: string;
+};
+
+/** Reply delays from the same attempts the sheet summary names. `0` stays `0`. */
+export function radiusDelayCells(text: string): RadiusDelayCells {
+  const attempts = readAttempts(text);
+  return {
+    afDelay1Dev: delayOf(attempts, RADIUS_SERVERS.dev, "in"),
+    afDelay1Prod: delayOf(attempts, RADIUS_SERVERS.prod, "in"),
+    afDelay2Dev: delayOf(attempts, RADIUS_SERVERS.dev, "out"),
+    afDelay2Prod: delayOf(attempts, RADIUS_SERVERS.prod, "out"),
+    afDelayParking: delayOf(attempts, RADIUS_SERVERS.parking, null),
+  };
+}
+
+function serverIp(name: string): string {
+  for (const [ip, label] of Object.entries(SERVER_NAMES)) {
+    if (label === name) return ip;
+  }
+  return "";
+}
+
+function delayOf(attempts: readonly Attempt[], ip: string, side: Side | null): string {
+  if (!ip) return "";
+  const parts: string[] = [];
+  for (const attempt of attempts) {
+    if (attempt.ip !== ip) continue;
+    if (side != null && attempt.side !== side) continue;
+    if (attempt.ms == null) continue;
+    parts.push(String(attempt.ms));
+  }
+  return parts.join(", ");
+}
+
 export function summarizeExchange(input: { closed: boolean; blocks: TraceBlocks }): ExchangeSummary {
   const labels = classifyAntifraud(input);
   return {

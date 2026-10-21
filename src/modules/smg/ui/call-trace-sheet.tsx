@@ -1,5 +1,6 @@
 "use client";
 
+import { Separator } from "@/components/ui/separator";
 import {
   Sheet,
   SheetContent,
@@ -23,9 +24,16 @@ type Props = {
   trace: TraceLookup | null;
 };
 
+function callParty(primary: string | undefined, fallback: string | undefined): string {
+  const outgoing = primary?.trim() ?? "";
+  if (outgoing) return outgoing;
+  const incoming = fallback?.trim() ?? "";
+  return incoming || "—";
+}
+
 export function SmgCallTraceSheet({ row, onOpenChange, loading, error, trace }: Props) {
-  const calling = row?.incomingCgpn || "—";
-  const called = row?.outgoingCdpn || row?.incomingCdpn || "—";
+  const calling = callParty(row?.outgoingCgpn, row?.incomingCgpn);
+  const called = callParty(row?.outgoingCdpn, row?.incomingCdpn);
   const when = row
     ? [formatSmgSummaryCell("setupDay", row), formatSmgSummaryCell("setupClock", row)]
         .filter(Boolean)
@@ -74,6 +82,7 @@ function TraceBody({ trace }: { trace: Extract<TraceLookup, { status: "ok" }> })
       {trace.blocks.text ? (
         <>
           <ExchangeSummary closed={!trace.open} blocks={trace.blocks} />
+          <Separator />
           <pre
             className="overflow-x-auto text-xs leading-5 whitespace-pre"
             style={{ fontFamily: TRACE_FONT }}

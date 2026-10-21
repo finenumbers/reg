@@ -11,6 +11,8 @@ import {
   AF_STATUS,
   isSmgAntifraudColumn,
   SMG_ANTIFRAUD_COLUMNS,
+  SMG_RADIUS_DELAY_COLUMNS,
+  type SmgRadiusDelayColumn,
 } from "@/modules/smg-trace/classify";
 import { formatCdrDayDisplay, splitCdrDateParts } from "@/modules/traffic/cdr-date-parts";
 
@@ -42,9 +44,7 @@ export const SMG_SUMMARY_COLUMNS = [
   "redirectNumber",
   "duration",
   "billableMinutes",
-  "incomingType",
   "incomingDescription",
-  "outgoingType",
   "outgoingDescription",
   "releaseCause",
   "callReleaseInfo",
@@ -66,15 +66,18 @@ export const SMG_SUMMARY_LABELS: Record<SmgSummaryColumn, string> = {
   redirectNumber: "Переадресация",
   duration: "Секунды",
   billableMinutes: "Минуты",
-  incomingType: "Тип входа",
   incomingDescription: "Вход",
-  outgoingType: "Тип выхода",
   outgoingDescription: "Выход",
   releaseCause: "Q.850",
   callReleaseInfo: "Статус",
   releaseSideMark: "Сброс",
   antifraud: "АнтиФрод",
   antifraudStatus: "Статус АнтиФрод",
+  afDelay1Dev: "1 Dev",
+  afDelay1Prod: "1 Prod",
+  afDelay2Dev: "2 Dev",
+  afDelay2Prod: "2 Prod",
+  afDelayParking: "Parking",
 };
 
 /**
@@ -98,9 +101,7 @@ export const SMG_SUMMARY_FACET_COLUMNS = [
   "incomingCdpn",
   "outgoingCdpn",
   "redirectNumber",
-  "incomingType",
   "incomingDescription",
-  "outgoingType",
   "outgoingDescription",
   "releaseCause",
   "callReleaseInfo",
@@ -124,6 +125,11 @@ type ClockSource = {
   outgoingRedirectingNumber: string;
   antifraud?: string;
   antifraudStatus?: string;
+  afDelay1Dev?: string;
+  afDelay1Prod?: string;
+  afDelay2Dev?: string;
+  afDelay2Prod?: string;
+  afDelayParking?: string;
 };
 
 function legClock(raw: string, setupDay: string, empty: string): string {
@@ -180,6 +186,9 @@ export function smgSummaryCellText(
 ): string {
   if (column === "antifraud") return row.antifraud ?? AF_CATEGORY.noData;
   if (column === "antifraudStatus") return row.antifraudStatus ?? AF_STATUS.unknown;
+  if ((SMG_RADIUS_DELAY_COLUMNS as readonly string[]).includes(column)) {
+    return row[column as SmgRadiusDelayColumn] ?? "";
+  }
   if (isSmgAntifraudColumn(column)) return "";
   if (isSmgSummaryDerived(column)) return formatSmgSummaryCell(column, row);
   if (isSmgField(column)) return row[column];

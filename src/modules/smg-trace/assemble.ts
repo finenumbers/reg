@@ -3,11 +3,11 @@ import { realTag } from "@/modules/smg-trace/tag";
 import type { TraceBlocks } from "@/modules/smg-trace/types";
 
 /**
- * Version 6 drops every stored card once, when no live mark of this version
+ * Version 7 drops every stored card once, when no live mark of this version
  * exists yet. A foreign mark deletes checkpoints and is not read. The pass
  * then continues from the end of the open file. Older archives are not read.
  */
-export const SMG_TRACE_PARSER_VERSION = 6;
+export const SMG_TRACE_PARSER_VERSION = 7;
 
 /** A call with no release and no reject leaves the assembler after this long. */
 export const SMG_TRACE_HOLD_MS = 4 * 60 * 60 * 1000;

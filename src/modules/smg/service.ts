@@ -39,7 +39,9 @@ import {
   AF_CATEGORY,
   AF_STATUS,
   classifyAntifraud,
+  SMG_RADIUS_DELAY_COLUMNS,
 } from "@/modules/smg-trace/classify";
+import { radiusDelayCells, type RadiusDelayCells } from "@/modules/smg-trace/summary";
 import { traceSearchKeys } from "@/modules/smg-trace/tag";
 import type { TraceBlocks } from "@/modules/smg-trace/types";
 import type { TimeSort } from "@/modules/traffic/traffic-sort";
@@ -48,11 +50,12 @@ import { listSmgPoisonEntries, type SmgPoisonItem } from "@/modules/smg/poison";
 import { findLastFileImport } from "@/modules/jobs/last-file-import";
 import { lastSmgEmptyScanAt } from "@/modules/jobs/scheduler";
 
-export type SmgListItem = Record<SmgField, string> & {
-  id: string;
-  antifraud: string;
-  antifraudStatus: string;
-};
+export type SmgListItem = Record<SmgField, string> &
+  RadiusDelayCells & {
+    id: string;
+    antifraud: string;
+    antifraudStatus: string;
+  };
 
 export type SmgListResult = {
   items: SmgListItem[];
@@ -173,6 +176,7 @@ function toListItem(row: { id: string } & Record<SmgField, string>): SmgListItem
   for (const field of SMG_FIELDS) item[field] = row[field] ?? "";
   item.antifraud = AF_CATEGORY.noData;
   item.antifraudStatus = AF_STATUS.unknown;
+  Object.assign(item, radiusDelayCells(""));
   return item;
 }
 
@@ -257,6 +261,31 @@ async function labelsForTraceIds(
   return out;
 }
 
+type TraceCardRead = {
+  category: string;
+  status: string;
+  delays: RadiusDelayCells;
+};
+
+/** One card's text. Labels fill a row that has none stored. Delays always do. */
+async function readTraceCards(ids: string[]): Promise<Map<string, TraceCardRead>> {
+  const out = new Map<string, TraceCardRead>();
+  if (ids.length === 0) return out;
+  const rows = await prisma.smgCallTrace.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, open: true, blocks: true },
+  });
+  for (const row of rows) {
+    if (!isTraceBlocks(row.blocks)) {
+      out.set(row.id, { ...NO_TRACE_LABELS, delays: radiusDelayCells("") });
+      continue;
+    }
+    const labels = classifyAntifraud({ closed: !row.open, blocks: row.blocks });
+    out.set(row.id, { ...labels, delays: radiusDelayCells(row.blocks.text) });
+  }
+  return out;
+}
+
 /** One query for the page. Two cards for one tag stay unresolved. */
 async function attachAntifraud(items: SmgListItem[]): Promise<void> {
   if (items.length === 0) return;
@@ -280,7 +309,7 @@ async function attachAntifraud(items: SmgListItem[]): Promise<void> {
     byTag.set(row.tagNorm, list);
   }
 
-  const pending: { item: SmgListItem; traceId: string }[] = [];
+  const queued: { item: SmgListItem; traceId: string; fillLabels: boolean }[] = [];
   for (const item of items) {
     const hits: TraceLabelRow[] = [];
     const seen = new Set<string>();
@@ -291,23 +320,38 @@ async function attachAntifraud(items: SmgListItem[]): Promise<void> {
         hits.push(row);
       }
     }
-    const resolved = resolveStoredTraces(
-      hits.map((row) => ({ id: row.id, category: row.afCategory, status: row.afStatus })),
-    );
-    if (resolved.kind === "none") continue;
-    if (resolved.kind === "pending") {
-      pending.push({ item, traceId: resolved.traceId });
+    if (hits.length === 0) continue;
+    if (hits.length > 1) {
+      item.antifraud = AF_CATEGORY.conflict;
+      item.antifraudStatus = AF_STATUS.unknown;
       continue;
     }
-    item.antifraud = resolved.category;
-    item.antifraudStatus = resolved.status;
+    const hit = hits[0]!;
+    const resolved = resolveStoredTraces([
+      { id: hit.id, category: hit.afCategory, status: hit.afStatus },
+    ]);
+    if (resolved.kind === "ready") {
+      item.antifraud = resolved.category;
+      item.antifraudStatus = resolved.status;
+      queued.push({ item, traceId: hit.id, fillLabels: false });
+      continue;
+    }
+    if (resolved.kind === "pending") {
+      queued.push({ item, traceId: hit.id, fillLabels: true });
+    }
   }
-  if (pending.length === 0) return;
-  const labels = await labelsForTraceIds([...new Set(pending.map((row) => row.traceId))]);
-  for (const row of pending) {
-    const label = labels.get(row.traceId) ?? NO_TRACE_LABELS;
-    row.item.antifraud = label.category;
-    row.item.antifraudStatus = label.status;
+  if (queued.length === 0) return;
+  const cards = await readTraceCards([...new Set(queued.map((row) => row.traceId))]);
+  for (const row of queued) {
+    const card = cards.get(row.traceId);
+    if (!card) continue;
+    if (row.fillLabels) {
+      row.item.antifraud = card.category;
+      row.item.antifraudStatus = card.status;
+    }
+    for (const column of SMG_RADIUS_DELAY_COLUMNS) {
+      row.item[column] = card.delays[column];
+    }
   }
 }
 

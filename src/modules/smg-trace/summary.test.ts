@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { AF_CATEGORY, AF_STATUS } from "@/modules/smg-trace/classify";
-import { formatServerLine, summarizeExchange } from "@/modules/smg-trace/summary";
+import { formatServerLine, radiusDelayCells, summarizeExchange } from "@/modules/smg-trace/summary";
 import type { TraceBlocks } from "@/modules/smg-trace/types";
 
 const DEV = "91.195.253.131";
@@ -61,6 +61,14 @@ describe("antifraud exchange summary", () => {
       `Parking ${PARKING} — Access-Reject, 55 мс, вызов снят, запрос 083`,
     ]);
     expect(JSON.stringify(result)).not.toContain(SECRET);
+    expect(radiusDelayCells(text)).toEqual({
+      afDelay1Dev: "",
+      afDelay1Prod: "",
+      afDelay2Dev: "",
+      afDelay2Prod: "",
+      afDelayParking: "55",
+    });
+    expect(JSON.stringify(radiusDelayCells(text))).not.toContain(SECRET);
   });
 
   it("keeps one outgoing row when the same server accepts on the second try", () => {
@@ -89,6 +97,45 @@ describe("antifraud exchange summary", () => {
       `Dev Callhose ${DEV} — Access-Accept, 94 мс, запрос 074`,
     ]);
     expect(JSON.stringify(result)).not.toContain(SECRET);
+    expect(radiusDelayCells(text)).toEqual({
+      afDelay1Dev: "335",
+      afDelay1Prod: "",
+      afDelay2Dev: "94",
+      afDelay2Prod: "",
+      afDelayParking: "",
+    });
+  });
+
+  it("keeps a measured zero and joins two replies on the same side", () => {
+    const zero = [
+      "RADIUS: Accs-Request [antifraud]",
+      `Access request ID[001]. Group[0] Server[0]: ${DEV}:1812:${SECRET}`,
+      "Request ID [001] is sent",
+      "Request ID [001] got valid reply for accs (in 0 ms)",
+      "Request ID [001] Accs-Reply [accept]. Time [4:0]",
+    ].join("\n");
+    expect(radiusDelayCells(zero).afDelay1Dev).toBe("0");
+
+    const pair = [
+      "RADIUS: Accs-Request [antifraud]",
+      `Access request ID[010]. Group[0] Server[0]: ${DEV}:1812:${SECRET}`,
+      "Request ID [010] is sent",
+      "Request ID [010] got valid reply for accs (in 10 ms)",
+      "Request ID [010] Accs-Reply [accept]. Time [10:10]",
+      `Access request ID[011]. Group[0] Server[0]: ${DEV}:1812:${SECRET}`,
+      "Request ID [011] is sent",
+      "Request ID [011] got valid reply for accs (in 20 ms)",
+      "Request ID [011] Accs-Reply [accept]. Time [20:20]",
+      "RADIUS: Accs-Request [antifraud_out]",
+      `Access request ID[012]. Group[0] Server[2]: ${PARKING}:1812:${SECRET}`,
+      "Request ID [012] is sent",
+      "Request ID [012] got valid reply for accs (in 7 ms)",
+    ].join("\n");
+    expect(radiusDelayCells(pair)).toMatchObject({
+      afDelay1Dev: "10, 20",
+      afDelayParking: "7",
+    });
+    expect(JSON.stringify(radiusDelayCells(pair))).not.toContain(SECRET);
   });
 
   it("passes on the next incoming server after a timeout", () => {

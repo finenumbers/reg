@@ -23,9 +23,19 @@ const base = {
 };
 
 describe("SMG summary columns", () => {
-  it("keeps 20 working columns and does not reuse a CDR field name for a derived cell", () => {
-    expect(SMG_SUMMARY_COLUMNS).toHaveLength(20);
-    expect(SMG_SUMMARY_COLUMNS.slice(-2)).toEqual(["antifraud", "antifraudStatus"]);
+  it("keeps 23 working columns and does not reuse a CDR field name for a derived cell", () => {
+    expect(SMG_SUMMARY_COLUMNS).toHaveLength(23);
+    expect(SMG_SUMMARY_COLUMNS).not.toContain("incomingType");
+    expect(SMG_SUMMARY_COLUMNS).not.toContain("outgoingType");
+    expect(SMG_SUMMARY_COLUMNS.slice(-7)).toEqual([
+      "antifraud",
+      "antifraudStatus",
+      "afDelay1Dev",
+      "afDelay1Prod",
+      "afDelay2Dev",
+      "afDelay2Prod",
+      "afDelayParking",
+    ]);
     for (const column of SMG_SUMMARY_DERIVED) {
       expect(isSmgField(column)).toBe(false);
       expect(isSmgSummaryDerived(column)).toBe(true);
@@ -53,6 +63,9 @@ describe("SMG summary columns", () => {
   it("facets the date, the redirect number, and the antifraud labels, not clocks or seconds", () => {
     expect(SMG_SUMMARY_FACET_COLUMNS).not.toContain("duration");
     expect(SMG_SUMMARY_FACET_COLUMNS).not.toContain("setupClock");
+    expect(SMG_SUMMARY_FACET_COLUMNS).not.toContain("incomingType");
+    expect(SMG_SUMMARY_FACET_COLUMNS).not.toContain("outgoingType");
+    expect(SMG_SUMMARY_FACET_COLUMNS).not.toContain("afDelay1Dev");
     for (const column of SMG_SUMMARY_FACET_COLUMNS) {
       expect(SMG_SUMMARY_COLUMNS).toContain(column);
     }

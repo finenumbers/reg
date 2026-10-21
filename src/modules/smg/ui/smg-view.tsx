@@ -46,6 +46,7 @@ import {
   type TimeSort,
 } from "@/modules/traffic/traffic-sort";
 import { SmgCallTraceSheet } from "@/modules/smg/ui/call-trace-sheet";
+import { SMG_RADIUS_DELAY_COLUMNS } from "@/modules/smg-trace/classify";
 import type { TraceLookup } from "@/modules/smg-trace/types";
 import { decideSmgRefresh } from "@/modules/smg/refresh";
 import type { SmgListItem, SmgListResult, SmgStatus } from "@/modules/smg/service";
@@ -65,6 +66,7 @@ const TABULAR_COLUMNS = new Set<string>([
   "disconnectClock",
   "duration",
   "billableMinutes",
+  ...SMG_RADIUS_DELAY_COLUMNS,
 ]);
 
 type LoadOpts = {

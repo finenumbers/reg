@@ -1,7 +1,21 @@
-# Current Phase — production (v1.166.0)
+# Current Phase — production (v1.167.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal.  
 **Date:** 2026-10-21
+
+## v1.167.0 — SMG call card reads the outgoing numbers, and old antifraud cards are dropped once
+
+Stop `app` before this update. There is no migration. Parser version 7 deletes every syslog card on the first turn, then marks the end of the newest syslog file and does not read the archive. Checkpoints from version 6 are deleted and their JSON is not read. `smg-syslog` keeps writing. The Parking journal is not deleted. The previous process still writes version-6 cards; if it is running when the cards are deleted, it writes them back. Keep one `app` replica.
+
+The wipe runs in the new process, about five seconds after it starts, not in `migrate`. A CDR `VACUUM FULL` that is already running postpones that pass until the next tick. The delete is one statement, so the SMG pages can wait on it. A dashboard read in those first seconds can keep the old sent-request count for up to a minute. After the wipe the count is zero.
+
+Calls already stored stay in the CDR list. Their antifraud column becomes «Нет данных», the panel says «Трассы нет.», and the five delay cells stay empty. Bytes before the mark are not read. A card is assembled only when the bytes after the mark contain the antifraud start and a real tag. A release echo alone still does not open a card. The old assembler's open calls are not carried over. Bytes appended after the mark, and later slots, are read as before. Rolling back to v1.166.0 deletes the cards again and does not restore them.
+
+The call panel heading is «А выход» → «Б выход». A blank side falls back to «А вход» or «Б вход». A separator sits between the antifraud summary and the syslog text.
+
+«Трафик SMG» drops «Тип входа» and «Тип выхода». «Вход» and «Выход» stay. The full dump still has those two fields as «Тип вызывающего» and «Тип вызываемого», and the traffic workbook keeps them in the tail under those names. A saved filter on either dropped column still applies; its chip shows the field key until it is removed.
+
+Both SMG tables, after «Статус АнтиФрод», show «1 Dev», «1 Prod», «2 Dev», «2 Prod», and «Parking». The number is the `in N ms` from the card, the same milliseconds the summary already prints. `Time [a:b]` is not used. A measured zero stays `0`. Several replies from one server on one side are joined with a comma. Parking is one cell for either side. No card, two cards, a timeout, and an unknown address leave the cell empty. The columns are not stored and have no filter menu. They fill only for calls assembled after this deploy.
 
 ## v1.166.0 — Parking connection settings and the АнтиФрод load clock
 
