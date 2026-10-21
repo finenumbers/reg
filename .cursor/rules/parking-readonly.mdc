@@ -1,0 +1,14 @@
+---
+description: parking.finenumbers.com is read-only; never change anything on that server
+alwaysApply: true
+---
+
+# parking.finenumbers.com is read-only
+
+On `parking.finenumbers.com`, any change is forbidden. Only read operations are allowed.
+
+Never write, edit, delete, truncate, chmod, chown, install, restart, or reconfigure anything on that host. This includes FreeRADIUS config, sudoers, scripts, packages, logrotate, services, and the log file itself.
+
+Do not upload files (scp, sftp put, rsync to the server). Do not run a shell that can write. Do not send a command whose arguments come from the UI.
+
+Reading `/var/log/freeradius/calls.log` is allowed, including `stat` of that file for size and inode and `dd` of a byte range. `sudo -n` may wrap only those two reads, because the file is mode `0600` and owned by `freerad`. No other remote command is allowed.

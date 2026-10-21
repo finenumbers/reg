@@ -8,6 +8,7 @@
  *   or groups.sync (one export.py at a time, alternating)
  * - sides: cdrSidesRefreshEnabled / interval → cdr.sides.refresh
  *   (also chained after phones.sync / cdr.import)
+ * - parking: always, every 60s, reads calls.log only
  *
  * State lives on globalThis so Next.js instrumentation + request handlers share
  * one loop (module-level `let` is duplicated across bundles).
@@ -30,6 +31,8 @@ import { requestSmgImportDrain } from "@/modules/smg/enqueue";
 import { drainSmgTraces } from "@/modules/smg-trace/drain";
 import { SMG_FILE_SETTLE_MS } from "@/modules/smg/columns";
 import { listSmgInboxFiles } from "@/modules/smg/inbox";
+import { drainParkingCalls } from "@/modules/antifraud/ingest";
+import { PARKING_INTERVAL_MS } from "@/modules/antifraud/constants";
 import {
   canEnqueueVoipmonitorMatch,
   requestVoipmonitorMatch,
@@ -62,6 +65,7 @@ type SchedulerGlobalState = {
   timer: ReturnType<typeof setTimeout> | null;
   exportTimer: ReturnType<typeof setTimeout> | null;
   sidesTimer: ReturnType<typeof setTimeout> | null;
+  parkingTimer: ReturnType<typeof setTimeout> | null;
   /** One waiter while an SMG file is still inside the settle window. */
   smgSettleTimer: ReturnType<typeof setTimeout> | null;
   runtimeRef: SchedulerJobRuntime | null;
@@ -166,6 +170,7 @@ function schedulerState(): SchedulerGlobalState {
       timer: null,
       exportTimer: null,
       sidesTimer: null,
+      parkingTimer: null,
       smgSettleTimer: null,
       runtimeRef: null,
       lastExportSync: null,
@@ -467,6 +472,16 @@ function scheduleNextSides(intervalSec: number): void {
   });
 }
 
+function scheduleNextParking(delayMs = PARKING_INTERVAL_MS): void {
+  const state = schedulerState();
+  if (!state.started) return;
+  state.parkingTimer = armTimer(state.parkingTimer, delayMs, () => {
+    void drainParkingCalls().finally(() => {
+      scheduleNextParking();
+    });
+  });
+}
+
 async function tickSides(): Promise<void> {
   const state = schedulerState();
   if (!state.runtimeRef) return;
@@ -551,6 +566,7 @@ function startSchedulerLoop(runtime: SchedulerJobRuntime): void {
         })
       : FIRST_SIDES_REFRESH_DELAY_SEC;
     scheduleNextSides(sidesDelay);
+    scheduleNextParking(8_000);
   })();
 }
 
@@ -610,6 +626,10 @@ export function stopAutoScheduler(): void {
   if (state.sidesTimer) {
     clearTimeout(state.sidesTimer);
     state.sidesTimer = null;
+  }
+  if (state.parkingTimer) {
+    clearTimeout(state.parkingTimer);
+    state.parkingTimer = null;
   }
   clearSmgSettleTimer();
 }

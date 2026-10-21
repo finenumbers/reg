@@ -17,6 +17,8 @@ export const AUDIT_ACTIONS = {
   SETTINGS_UPDATE: "settings.update",
   SSH_KEY_REPLACE: "ssh.key_replace",
   SSH_TEST: "ssh.test",
+  PARKING_KEY_REPLACE: "parking.key_replace",
+  PARKING_TEST: "parking.test",
   GEOIP_KEY_REPLACE: "geoip.key_replace",
   GEOIP_TEST: "geoip.test",
   PSTN_KEY_REPLACE: "pstn.key_replace",

@@ -882,6 +882,73 @@ model SmgTraceCheckpoint {
   @@map("smg_trace_checkpoints")
 }
 
+// Parking RADIUS calls.log. Separate from the softswitch SSH profile.
+model ParkingSshSecret {
+  id                   Int      @id @default(1)
+  privateKeyCiphertext String?  @map("private_key_ciphertext")
+  keyFingerprint       String?  @map("key_fingerprint")
+  keyAlgo              String?  @map("key_algo")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  @@map("parking_ssh_secrets")
+}
+
+// Byte cursor for /var/log/freeradius/calls.log. pending holds an unfinished record.
+model RadiusIngestState {
+  id            Int       @id @default(1)
+  generation    Int       @default(1)
+  inode         String    @default("")
+  byteOffset    BigInt    @default(0) @map("byte_offset")
+  fileSize      BigInt    @default(0) @map("file_size")
+  pending       Bytes     @default(dbgenerated("'\\x'::bytea"))
+  lastSuccessAt DateTime? @map("last_success_at")
+  lastError     String?   @map("last_error")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  @@map("radius_ingest_states")
+}
+
+// Bytes that disappeared from calls.log before they were stored.
+model RadiusIngestGap {
+  id         String   @id @default(cuid())
+  generation Int
+  fromOffset BigInt   @map("from_offset")
+  toOffset   BigInt   @map("to_offset")
+  reason     String
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@map("radius_ingest_gaps")
+}
+
+// One FreeRADIUS detail block. raw is the exact bytes, including the separator.
+model RadiusCall {
+  id               String    @id @default(cuid())
+  generation       Int
+  byteOffset       BigInt    @map("byte_offset")
+  loggedAt         DateTime? @map("logged_at")
+  headerRaw        String    @default("") @map("header_raw")
+  packetType       String    @default("") @map("packet_type")
+  callOrigin       String    @default("") @map("call_origin")
+  userName         String    @default("") @map("user_name")
+  callingStationId String    @default("") @map("calling_station_id")
+  calledStationId  String    @default("") @map("called_station_id")
+  srcNumberOut     String    @default("") @map("src_number_out")
+  dstNumberOut     String    @default("") @map("dst_number_out")
+  inTrunk          String    @default("") @map("in_trunk")
+  outTrunk         String    @default("") @map("out_trunk")
+  remoteId         String    @default("") @map("remote_id")
+  srcIp            String    @default("") @map("src_ip")
+  acctSessionId    String    @default("") @map("acct_session_id")
+  attrs            Json
+  raw              Bytes
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  @@unique([generation, byteOffset])
+  @@index([loggedAt])
+  @@map("radius_calls")
+}
+
 model Verification {
   id         String   @id
   identifier String

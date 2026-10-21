@@ -1,7 +1,15 @@
-# Current Phase — production (v1.164.0)
+# Current Phase — production (v1.165.0)
 
-**Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog.  
+**Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal.  
 **Date:** 2026-10-21
+
+## v1.165.0 — АнтиФрод reads the Parking Access-Request journal
+
+Stop `app` before this update so `migrate` creates the new tables before the app starts. The migration adds `parking_ssh_secrets`, `radius_ingest_states`, `radius_ingest_gaps`, and `radius_calls`. It does not rewrite CDR rows and does not delete syslog cards. `smg-syslog` keeps writing. Do not change anything on `parking.finenumbers.com`.
+
+«АнтиФрод» sits in the SMG navigation between «Данные SMG» and «Архивы Syslog». The table is the Access-Request journal from `/var/log/freeradius/calls.log`. It is not a timeout verdict. The first read starts at byte 0. Identical requests stay, because the key is the file generation and the byte offset. A record split across a read, a bad header, and an unfinished tail are stored. A replaced or shortened file records a gap for the bytes that were not read. The month filter is display only. Rows without a date and the gap list stay visible on every month.
+
+The reader runs in the `app` process, every 60 seconds, and pauses while CDR `VACUUM FULL` is running. The page stays available during that pause. The parking key is uploaded once in Settings after deploy. Until that ciphertext exists, the reader does nothing. The app container needs outbound TCP 22 to `parking.finenumbers.com`. The host, user, port, path, and the two read commands are fixed in code.
 
 ## v1.164.0 — A call released before SIP keeps its antifraud card, and the panel reads the exchange
 

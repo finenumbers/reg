@@ -74,6 +74,16 @@ PTY для platform key **разрешён** (не ставить `no-pty`): `ch
 
 `export.py` — только чтение MySQL; пароли регистраций в ответе/таблице phones хранятся и показываются открытым текстом (доступ через RBAC `phones:read`).
 
+### Parking RADIUS
+
+`parking.finenumbers.com` не меняется. Отдельного пользователя и forced command там нет: сервер править нельзя, а доступный ключ — интерактивный admin с `NOPASSWD: ALL`. Компенсация в приложении:
+
+- секрет ключа лежит отдельно от `activeSshProfileId` и не подставляется в allowlist софтсвитча;
+- хост, пользователь, порт и путь `/var/log/freeradius/calls.log` — константы;
+- по SSH уходят только `stat` и `dd` этого файла, offset — десятичные цифры;
+- host key проверяется по закреплённому SHA256;
+- UI не задаёт команду.
+
 ## 3. PuTTYgen (.ppk) и секреты
 
 ### Hard requirement

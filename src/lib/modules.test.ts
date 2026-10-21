@@ -17,13 +17,16 @@ describe("FEATURE_MODULES nav groups", () => {
   });
 
   it("keeps SMG traffic before the full dump and syslog", () => {
-    expect(idsInGroup("smg")).toEqual(["smg-traffic", "smg", "smg-syslog"]);
+    expect(idsInGroup("smg")).toEqual(["smg-traffic", "smg", "antifraud", "smg-syslog"]);
     const hrefs = FEATURE_MODULES.map((module) => module.href);
     expect(hrefs.indexOf("/raw")).toBeLessThan(hrefs.indexOf("/smg/traffic"));
     expect(hrefs.indexOf("/smg/traffic")).toBeLessThan(hrefs.indexOf("/smg"));
-    expect(hrefs.indexOf("/smg")).toBeLessThan(hrefs.indexOf("/smg/syslog"));
+    expect(hrefs.indexOf("/smg")).toBeLessThan(hrefs.indexOf("/antifraud"));
+    expect(hrefs.indexOf("/antifraud")).toBeLessThan(hrefs.indexOf("/smg/syslog"));
     expect(hrefs.indexOf("/smg/syslog")).toBeLessThan(hrefs.indexOf("/detail"));
-    const titles = Object.fromEntries(FEATURE_MODULES.map((module) => [module.id, module.title]));
+    const titles = Object.fromEntries(
+      FEATURE_MODULES.map((module) => [module.id, module.title]),
+    );
     expect(titles.smg).toBe("Данные SMG");
     expect(titles["smg-syslog"]).toBe("Архивы Syslog");
   });

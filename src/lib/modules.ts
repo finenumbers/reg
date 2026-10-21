@@ -22,7 +22,8 @@ export type FeatureModuleId =
   | "detail"
   | "smg"
   | "smg-traffic"
-  | "smg-syslog";
+  | "smg-syslog"
+  | "antifraud";
 
 export type FeatureNavGroup = "primary" | "cdr" | "smg" | "analytics" | "admin";
 
@@ -122,6 +123,14 @@ export const FEATURE_MODULES: FeatureModuleDefinition[] = [
     title: "Данные SMG",
     description: "Полный дамп CDR цифровых шлюзов Eltex SMG-1016M из локальной БД",
     href: "/smg",
+    navPermission: "phones:read",
+    navGroup: "smg",
+  },
+  {
+    id: "antifraud",
+    title: "АнтиФрод",
+    description: "Журнал Access-Request с Radius Parking",
+    href: "/antifraud",
     navPermission: "phones:read",
     navGroup: "smg",
   },
