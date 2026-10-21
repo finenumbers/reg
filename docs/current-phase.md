@@ -1,7 +1,23 @@
-# Current Phase — production (v1.163.0)
+# Current Phase — production (v1.164.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog.  
 **Date:** 2026-10-21
+
+## v1.164.0 — A call released before SIP keeps its antifraud card, and the panel reads the exchange
+
+There is no migration. Do not stop `app` for this update. Parser version stays 6. The archive is not reread. Syslog cards are not deleted. `smg-syslog` keeps writing.
+
+A call released before `Set UniqueTag` gets a card when the bytes read after the mark contain the antifraud start (`Set Antifraud RADIUS-profile` or `Accs-Request for Antifraud`) and a real tag (`h323-conf-id` or `unique tag:`). A release echo alone still does not open a card. A span the reader already dropped does not come back. The floor is not moved.
+
+A request id left behind when the gateway sends the next id on the same side does not keep the card on «Ожидание АнтиФрода», and an accept after that timeout is «Пропущен на входе» / «Повтор на входе». `Retries are exhausted` still does not finish the group by itself. `srv-retries exhausted` is unchanged. An Access-Reject that releases the call is «Заблокирован на входе» once every earlier id on that side has been left behind.
+
+The trace drain recomputes stored `af_category` and `af_status` from the card text, in batches of 200, and does not read the archive. It does not overwrite a card saved again during the batch. After one full pass it stops until the label revision changes. The sheet classifies the open card from its text, so the panel matches the new labels before the batch reaches that row. Table filters keep using the stored columns.
+
+An exchange that crosses a ten-minute slot stays one card. The earlier slot stays first. A gzip replay does not repeat a line.
+
+`RADIUS: process modifiers` stays in the card. Other `ModTable` lines stay out. The reply digest is kept when it belongs to the request id that was just sent, including a later id on the same call. A digest whose id is shared by two calls is still dropped. A late digest for an id that has not yet been replaced is still kept.
+
+The call panel shows a summary above the syslog: the antifraud result, the status, and each server that was sent a request, with its answer. The shared secret stays in the syslog text and stays out of the summary. The syslog text uses a monospace font so the `=` column lines up. The heading stays as it is. «В syslog звонок ещё не закрыт» stays on an open card.
 
 ## v1.163.0 — SMG time sort stays on the start stamp, and a syslog migration does not rate the journal
 

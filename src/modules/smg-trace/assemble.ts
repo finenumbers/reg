@@ -334,6 +334,7 @@ function shouldStore(payload: string, span: TraceSpan, inDump: boolean): boolean
 }
 
 function excluded(payload: string): boolean {
+  if (/process modifiers/i.test(payload)) return false;
   if (/Seize on version/i.test(payload)) return true;
   if (/seize-time/i.test(payload)) return true;
   if (/session-ID\s*\[/i.test(payload)) return true;
@@ -410,13 +411,18 @@ function noteIdentity(span: TraceSpan, payload: string): void {
 function noteInflight(state: TraceState, span: TraceSpan, payload: string): void {
   const id = requestIdOf(payload);
   if (id == null) return;
-  const processing = /Processing Antifraud-Auth-Request|process Antifraud-Auth-Request/i.test(payload);
-  if (processing) {
+  const sent = /Request ID\s*\[\d+\]\s+(?:is sent|send)\b/i.test(payload);
+  const claim = sent || /Processing Antifraud-Auth-Request|process Antifraud-Auth-Request/i.test(payload);
+  if (claim) {
+    if (state.ambiguousIds.includes(id)) return;
     const others = state.inflight.some((item) => item.id === id && item.callref !== span.callref);
     if (others) {
       if (!state.ambiguousIds.includes(id)) state.ambiguousIds.push(id);
       state.inflight = state.inflight.filter((item) => item.id !== id);
       return;
+    }
+    if (sent) {
+      state.inflight = state.inflight.filter((item) => item.callref !== span.callref || item.id === id);
     }
     if (!state.inflight.some((item) => item.id === id && item.callref === span.callref)) {
       state.inflight.push({ id, callref: span.callref });
@@ -425,6 +431,13 @@ function noteInflight(state: TraceState, span: TraceSpan, payload: string): void
   if (/got valid reply/i.test(payload)) {
     state.inflight = state.inflight.filter((item) => item.id !== id || item.callref !== span.callref);
   }
+}
+
+/** A real tag plus the start of the exchange. A release echo alone does not qualify. */
+export function spanOpensCard(span: TraceSpan): boolean {
+  if (!span.tag) return false;
+  if (span.sawUniqueTag) return true;
+  return /Set Antifraud RADIUS-profile|Accs-Request for Antifraud/i.test(span.text);
 }
 
 function requestIdOf(payload: string): number | null {

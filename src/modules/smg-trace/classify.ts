@@ -170,8 +170,9 @@ function categoryOf(facts: Facts): string {
   if (inn === "reject") return AF_CATEGORY.rejectIgnoredIn;
   if (out === "reject") return AF_CATEGORY.rejectIgnoredOut;
 
-  const hole = facts.legs.some((leg) => leg.verdict === "none");
-  if (hole) {
+  const pending = facts.legs.some((leg) => leg.verdict === "none" && !leg.exhausted);
+  const everyNone = facts.legs.length > 0 && facts.legs.every((leg) => leg.verdict === "none");
+  if (pending || everyNone) {
     const anyVerdict = facts.legs.some((leg) => leg.verdict !== "none");
     if (facts.callReleased && !anyVerdict) return AF_CATEGORY.releasedNoReply;
     return AF_CATEGORY.noReply;
@@ -193,11 +194,13 @@ function categoryOf(facts: Facts): string {
 
 function sideVerdict(legs: readonly Leg[]): Verdict | "mixed" | "empty" {
   if (legs.length === 0) return "empty";
-  const accept = legs.some((leg) => leg.verdict === "accept");
-  const reject = legs.some((leg) => leg.verdict === "reject");
-  if (legs.some((leg) => leg.conflicted) || (accept && reject)) return "mixed";
+  const live = legs.filter((leg) => !(leg.exhausted && leg.verdict === "none"));
+  if (live.length === 0) return "none";
+  const accept = live.some((leg) => leg.verdict === "accept");
+  const reject = live.some((leg) => leg.verdict === "reject");
+  if (live.some((leg) => leg.conflicted) || (accept && reject)) return "mixed";
   if (reject) return "reject";
-  if (accept && legs.every((leg) => leg.verdict === "accept")) return "accept";
+  if (accept && live.every((leg) => leg.verdict === "accept")) return "accept";
   return "none";
 }
 
@@ -286,7 +289,10 @@ function readFacts(text: string): Facts {
           gotReply: false,
           exhausted: false,
         };
-        for (const previous of same) previous.retried = true;
+        for (const previous of same) {
+          previous.retried = true;
+          if (previous.verdict === "none") previous.exhausted = true;
+        }
         facts.legs.push(leg);
       }
     } else {

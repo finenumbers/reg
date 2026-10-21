@@ -419,4 +419,60 @@ describe("classifyAntifraud", () => {
     ].join("\n");
     expect(labels(false, text).category).toBe(AF_CATEGORY.waiting);
   });
+
+  it("blocks an incoming reject after earlier servers were left behind", () => {
+    const text = [
+      "Accs-Request for Antifraud: check TG(i/o): 0(ext)/-1(loc), USE_AF 1, SD 1, OS 0, RREQ 4.",
+      "RADIUS: Accs-Request [antifraud]",
+      "h323-call-origin                 = 'originate'",
+      "Request ID [077] is sent",
+      "Request ID[077]. Retries are exhausted",
+      "Request ID [079] is sent",
+      "Request ID[079]. Resend request. Attempt 2 out of 2",
+      "Request ID [080] is sent",
+      "Request ID[080]. Retries are exhausted",
+      "Request ID [083] is sent",
+      "Request ID [083] Accs-Reply [reject]",
+      "Cause '0x0015'",
+      "Release local reason: RADIUS reject",
+    ].join("\n");
+    expect(labels(false, text)).toEqual({
+      category: AF_CATEGORY.blockedIn,
+      status: AF_STATUS.retryIn,
+    });
+    expect(labels(true, text)).toEqual({
+      category: AF_CATEGORY.blockedIn,
+      status: AF_STATUS.retryIn,
+    });
+  });
+
+  it("passes on the next server after a timeout", () => {
+    const text = [
+      "Accs-Request for Antifraud: check TG(i/o): 0(ext)/-1(loc), USE_AF 1, SD 1, OS 0, RREQ 4.",
+      "RADIUS: Accs-Request [antifraud]",
+      "Request ID [077] is sent",
+      "Request ID[077]. Retries are exhausted",
+      "Request ID [079] is sent",
+      "Request ID [079] Accs-Reply [accept]",
+    ].join("\n");
+    expect(labels(false, text)).toEqual({
+      category: AF_CATEGORY.passedIn,
+      status: AF_STATUS.retryIn,
+    });
+    expect(labels(true, text)).toEqual({
+      category: AF_CATEGORY.passedIn,
+      status: AF_STATUS.retryIn,
+    });
+  });
+
+  it("waits while the latest request has no reply", () => {
+    const text = [
+      "Accs-Request for Antifraud: check TG(i/o): 0(ext)/-1(loc), USE_AF 1, SD 1, OS 0, RREQ 4.",
+      "RADIUS: Accs-Request [antifraud]",
+      "Request ID [077] is sent",
+      "Request ID[077]. Retries are exhausted",
+      "Request ID [079] is sent",
+    ].join("\n");
+    expect(labels(false, text).category).toBe(AF_CATEGORY.waiting);
+  });
 });

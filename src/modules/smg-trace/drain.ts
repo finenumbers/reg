@@ -3,6 +3,13 @@ import { prisma } from "@/lib/db";
 import { logger } from "@/lib/logger";
 import { projectSpan, SMG_TRACE_PARSER_VERSION } from "@/modules/smg-trace/assemble";
 import { classifyAntifraud } from "@/modules/smg-trace/classify";
+import {
+  advanceLabelMark,
+  LABEL_BATCH,
+  LABEL_DEVICE,
+  LABEL_FILE_KEY,
+  openLabelMark,
+} from "@/modules/smg-trace/label-pass";
 import { cardFromBlocks, logCardDiverge, mergeTraceCard } from "@/modules/smg-trace/merge";
 import { NO_TRACE_LABELS } from "@/modules/smg/row-tokens";
 import type { TraceBlocks } from "@/modules/smg-trace/types";
@@ -53,6 +60,7 @@ export async function drainSmgTraces(root = syslogRoot()): Promise<void> {
       });
     }
     await backfillTraceLabels();
+    await relabelStoredCards();
   } catch (error) {
     logger.warn("smg.trace.drain_failed", {
       error: error instanceof Error ? error.message : String(error),
@@ -188,4 +196,64 @@ async function backfillTraceLabels(): Promise<void> {
     });
   }
   logger.info("smg.trace.labels_backfill", { filled: rows.length });
+}
+
+/**
+ * One revision of the classifier, applied to cards already stored.
+ * A card saved again during the batch keeps the labels from that save.
+ */
+async function relabelStoredCards(): Promise<void> {
+  const stored = await prisma.smgTraceCheckpoint.findUnique({
+    where: { deviceIp_fileKey: { deviceIp: LABEL_DEVICE, fileKey: LABEL_FILE_KEY } },
+    select: { state: true },
+  });
+  const mark = openLabelMark(stored?.state);
+  if (mark.done) return;
+  const rows = await prisma.smgCallTrace.findMany({
+    where: mark.cursor ? { id: { gt: mark.cursor } } : {},
+    orderBy: { id: "asc" },
+    take: LABEL_BATCH,
+    select: { id: true, open: true, blocks: true, afCategory: true, afStatus: true, updatedAt: true },
+  });
+  for (const row of rows) {
+    let labels: { category: string; status: string } = NO_TRACE_LABELS;
+    if (isTraceBlocks(row.blocks)) {
+      try {
+        labels = classifyAntifraud({ closed: !row.open, blocks: row.blocks });
+      } catch (error) {
+        logger.warn("smg.trace.labels_revision_failed", {
+          id: row.id,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        continue;
+      }
+    }
+    if (row.afCategory === labels.category && row.afStatus === labels.status) continue;
+    await prisma.smgCallTrace.updateMany({
+      where: { id: row.id, updatedAt: row.updatedAt },
+      data: { afCategory: labels.category, afStatus: labels.status },
+    });
+  }
+  const next = advanceLabelMark(
+    mark,
+    rows.map((row) => row.id),
+    LABEL_BATCH,
+  );
+  const state = next as unknown as Prisma.InputJsonValue;
+  await prisma.smgTraceCheckpoint.upsert({
+    where: { deviceIp_fileKey: { deviceIp: LABEL_DEVICE, fileKey: LABEL_FILE_KEY } },
+    create: {
+      deviceIp: LABEL_DEVICE,
+      fileKey: LABEL_FILE_KEY,
+      size: 0,
+      version: SMG_TRACE_PARSER_VERSION,
+      state,
+    },
+    update: {
+      size: 0,
+      version: SMG_TRACE_PARSER_VERSION,
+      state,
+    },
+  });
+  logger.info("smg.trace.labels_revision", { scanned: rows.length, done: next.done });
 }

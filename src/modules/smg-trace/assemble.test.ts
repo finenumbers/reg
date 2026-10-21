@@ -279,6 +279,31 @@ describe("SMG syslog call assembly", () => {
     }
     expect(spans.find((span) => span.tag === TAG)?.text).toContain("got valid reply");
   });
+
+  it("keeps process modifiers and the digest of the request that was just sent", () => {
+    const text = [
+      line("C00001D", "Port SS7:00:21. Set Antifraud RADIUS-profile [0] options."),
+      line("C00001D", "Port SS7:00:21. Accs-Request for Antifraud: check TG(i/o): 0(ext)/-1(loc), USE_AF 1, SD 1, OS 0, RREQ 4."),
+      line("C00001D", "Port SS7:00:21. RADIUS: process modifiers. ModTable: in [-1:-1], out [-1:-1]"),
+      line("C00001D", "Port SS7:00:21. Check out-calling-modify: '1'(1). ModTable[-1]"),
+      line("C00001D", "RADIUS. Request proc. Request ID[077]. Processing Antifraud-Auth-Request"),
+      line("C00001D", "Request ID [077] is sent"),
+      line("C00001D", "Request ID[077]. Retries are exhausted"),
+      ...rcBlock(2, 77),
+      line("C00001D", "Request ID [083] is sent"),
+      ...rcBlock(3, 83),
+      ...rcBlock(3, 73),
+      ...rcBlock(2, 77),
+      line("C00001D", `h323-conf-id                     = '${TAG_SPACED}'`),
+    ].join("\n");
+    const blocks = projectSpan(spansOf(text)[0]!);
+    expect(blocks.text).toContain("process modifiers");
+    expect(blocks.text).not.toContain("Check out-calling-modify");
+    const digest77 = packetHex(2, 77, [cisco("h323-credit-time=3600")]).slice(0, 16);
+    expect(blocks.text).toContain(packetHex(3, 83, [cisco("h323-credit-time=3600")]).slice(0, 4));
+    expect(blocks.text.match(new RegExp(digest77, "g"))).toHaveLength(1);
+    expect(blocks.text).not.toContain(packetHex(3, 73, [cisco("h323-credit-time=3600")]).slice(0, 16));
+  });
 });
 
 describe("CDR card choice", () => {
@@ -751,14 +776,152 @@ describe("syslog file walk", () => {
       listTraceSourcesSince(root, "10.1.2.3", "10.1.2.3/2026/10/16/08/00").map((source) => source.fileKey),
     ).toEqual(["10.1.2.3/2026/10/16/08/00"]);
   });
+
+  it("saves a reject before SIP when the exchange started in the read bytes", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "smg-trace-"));
+    const hour = path.join(root, "10.1.2.3", "2026", "10", "16", "08");
+    mkdirSync(hour, { recursive: true });
+    const raw = path.join(hour, "00.log");
+    writeFileSync(raw, "noise\n");
+    const saved: { tag: string; open: boolean; text?: string }[] = [];
+    const repo = memoryRepo(saved);
+    await stepDevice("10.1.2.3", listTraceSources(root), repo.repo);
+    const call = [
+      line("C00001D", "Port SS7:00:21. Set Antifraud RADIUS-profile [0] options."),
+      line("C00001D", "Port SS7:00:21. Accs-Request for Antifraud: check TG(i/o): 0(ext)/-1(loc), USE_AF 1, SD 1, OS 0, RREQ 4."),
+      line("C00001D", "Port SS7:00:21. RADIUS: process modifiers. ModTable: in [-1:-1], out [-1:-1]"),
+      line("C00001D", "Port SS7:00:21. Check out-calling-modify: '1'(1). ModTable[-1]"),
+      line("C00001D", `h323-conf-id                     = '${TAG_SPACED}'`),
+      line("C00001D", "Request ID[077]. Processing Antifraud-Auth-Request"),
+      line("C00001D", "Access request ID[083]. Group[0] Server[2]: 10.0.0.3:1812:secret"),
+      line("C00001D", "Request ID [083] is sent"),
+      ...rcBlock(3, 83),
+      line("C00001D", "Request ID [083] got valid reply for accs (in 55 ms)"),
+      line("C00001D", "Request ID [083] Accs-Reply [reject]"),
+      line("C00001D", "Cause '0x0015'"),
+      line("C00001D", `unique tag: '${TAG_SPACED}'`),
+    ].join("\n");
+    appendFileSync(raw, `${call}\n`);
+    await stepDevice("10.1.2.3", listTraceSources(root), repo.repo);
+    const card = saved.find((row) => row.tag === TAG);
+    expect(card?.text).toContain("process modifiers");
+    expect(card?.text).not.toContain("Check out-calling-modify");
+    expect(card?.text).toContain("Calculating digest");
+    expect(card?.text).toContain("Accs-Reply [reject]");
+    expect(saved.filter((row) => row.tag === TAG)).toHaveLength(1);
+  });
+
+  it("joins a failover cut before the tag into one card", async () => {
+    const saved = await walkSplit(headBeforeTag(), tailWithTag());
+    expect(saved.before).toHaveLength(0);
+    expect(new Set(saved.after.map((row) => row.tag))).toEqual(new Set([TAG]));
+    const text = saved.after.at(-1)?.text ?? "";
+    expect(text).toContain("Request ID [077] is sent");
+    expect(text).toContain(`h323-conf-id                     = '${TAG_SPACED}'`);
+    expect(text).toContain("Accs-Reply [reject]");
+    expect(text.match(/Request ID \[077\] is sent/g)).toHaveLength(1);
+  });
+
+  it("joins a failover cut after the first timeout into one card", async () => {
+    const saved = await walkSplit(headAfterTimeout(), tailAfterTimeout());
+    expect(saved.before.some((row) => row.tag === TAG)).toBe(true);
+    expect(new Set(saved.after.map((row) => row.tag))).toEqual(new Set([TAG]));
+    const text = saved.after.at(-1)?.text ?? "";
+    expect(text).toContain("Request ID [077] is sent");
+    expect(text).toContain("Request ID [079] is sent");
+    expect(text).toContain("Request ID [080] is sent");
+    expect(text).toContain("Request ID [083] is sent");
+    expect(text).toContain("Accs-Reply [reject]");
+    expect(text).toContain("0x0015");
+    expect(text.match(/Request ID \[077\] is sent/g)).toHaveLength(1);
+    expect(text.match(/Request ID \[083\] is sent/g)).toHaveLength(1);
+  });
 });
+
+function headBeforeTag(): string {
+  return [
+    line("C00001D", "Port SS7:00:21. Set Antifraud RADIUS-profile [0] options."),
+    line("C00001D", "Port SS7:00:21. Accs-Request for Antifraud: check TG(i/o): 0(ext)/-1(loc), USE_AF 1, SD 1, OS 0, RREQ 4."),
+    line("C00001D", "Request ID[077]. Processing Antifraud-Auth-Request"),
+    line("C00001D", "Request ID [077] is sent"),
+  ].join("\n");
+}
+
+function tailWithTag(): string {
+  return [
+    line("C00001D", "-- RADIUS. Antifraud-Auth-Request [077] --"),
+    line("C00001D", `h323-conf-id                     = '${TAG_SPACED}'`),
+    line("C00001D", "--------------------------------"),
+    line("C00001D", "Request ID [083] is sent"),
+    line("C00001D", "Request ID [083] Accs-Reply [reject]"),
+    line("C00001D", `unique tag: '${TAG_SPACED}'`),
+  ].join("\n");
+}
+
+function headAfterTimeout(): string {
+  return [
+    line("C00001D", "Port SS7:00:21. Set Antifraud RADIUS-profile [0] options."),
+    line("C00001D", "Port SS7:00:21. Accs-Request for Antifraud: check TG(i/o): 0(ext)/-1(loc), USE_AF 1, SD 1, OS 0, RREQ 4."),
+    line("C00001D", `h323-conf-id                     = '${TAG_SPACED}'`),
+    line("C00001D", "Request ID[077]. Processing Antifraud-Auth-Request"),
+    line("C00001D", "Access request ID[077]. Group[0] Server[0]: 10.0.0.1:1812:secret"),
+    line("C00001D", "Request ID [077] is sent"),
+    line("C00001D", "Request ID[077]. Retries are exhausted"),
+  ].join("\n");
+}
+
+function tailAfterTimeout(): string {
+  return [
+    line("C00001D", "Access request ID[079]. Group[0] Server[1]: 10.0.0.2:1812:secret"),
+    line("C00001D", "Request ID [079] is sent"),
+    line("C00001D", "Request ID [080] is sent"),
+    line("C00001D", "Request ID [083] is sent"),
+    line("C00001D", "Request ID [083] Accs-Reply [reject]"),
+    line("C00001D", "Cause '0x0015'"),
+  ].join("\n");
+}
+
+async function walkSplit(head: string, tail: string): Promise<{
+  before: { tag: string; open: boolean; text?: string }[];
+  after: { tag: string; open: boolean; text?: string }[];
+}> {
+  const root = mkdtempSync(path.join(tmpdir(), "smg-trace-"));
+  const hour = path.join(root, "10.1.2.3", "2026", "10", "16", "08");
+  mkdirSync(hour, { recursive: true });
+  const saved: { tag: string; open: boolean; text?: string }[] = [];
+  const repo = memoryRepo(saved);
+  const sources = () => listTraceSources(root);
+  writeFileSync(path.join(hour, "00.log"), "noise\n");
+  await stepDevice("10.1.2.3", sources(), repo.repo);
+  await gzipSlot(hour, "00.log");
+  await stepDevice("10.1.2.3", sources(), repo.repo);
+  writeFileSync(path.join(hour, "10.log"), "noise\n");
+  await stepDevice("10.1.2.3", sources(), repo.repo);
+  appendFileSync(path.join(hour, "10.log"), `${head}\n`);
+  await stepDevice("10.1.2.3", sources(), repo.repo);
+  const before = saved.splice(0, saved.length);
+  await gzipSlot(hour, "10.log");
+  await stepDevice("10.1.2.3", sources(), repo.repo);
+  writeFileSync(path.join(hour, "20.log"), "noise\n");
+  await stepDevice("10.1.2.3", sources(), repo.repo);
+  appendFileSync(path.join(hour, "20.log"), `${tail}\n`);
+  await stepDevice("10.1.2.3", sources(), repo.repo);
+  return { before, after: saved };
+}
+
+function gzipSlot(hour: string, name: string): void {
+  const raw = path.join(hour, name);
+  const bytes = readFileSync(raw);
+  unlinkSync(raw);
+  writeFileSync(`${raw}.gz`, gzipSync(bytes));
+}
 
 function spansOfMark(repo: { rows: Map<string, { state: unknown }> }): Record<string, unknown> {
   const mark = repo.rows.get(LIVE_FILE_KEY)?.state as { state?: { spans?: Record<string, unknown> } };
   return mark.state?.spans ?? {};
 }
 
-function memoryRepo(saved: { tag: string; open: boolean }[]) {
+function memoryRepo(saved: { tag: string; open: boolean; text?: string }[]) {
   const rows = new Map<
     string,
     { fileKey: string; size: number; version: number; state: unknown }
@@ -785,7 +948,7 @@ function memoryRepo(saved: { tag: string; open: boolean }[]) {
     },
     async saveSpan(_ip, span) {
       cards.add(span.tag);
-      saved.push({ tag: span.tag, open: !span.sealed });
+      saved.push({ tag: span.tag, open: !span.sealed, text: span.text });
     },
     async saveCheckpoint(_ip, fileKey, size, state) {
       rows.set(fileKey, { fileKey, size, version: SMG_TRACE_PARSER_VERSION, state });

@@ -9,6 +9,7 @@ import {
   emptyTraceState,
   restoreTraceState,
   SMG_TRACE_PARSER_VERSION,
+  spanOpensCard,
   type TraceSpan,
   type TraceState,
 } from "@/modules/smg-trace/assemble";
@@ -418,7 +419,7 @@ async function saveTagged(
   deviceIp: string,
   span: TraceSpan,
 ): Promise<number> {
-  if (!span.tag || !span.sawUniqueTag) return 0;
+  if (!spanOpensCard(span)) return 0;
   await repo.saveSpan(deviceIp, span);
   return 1;
 }

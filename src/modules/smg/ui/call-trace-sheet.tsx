@@ -9,7 +9,11 @@ import {
 } from "@/components/ui/sheet";
 import { formatSmgSummaryCell } from "@/modules/smg/summary";
 import type { SmgListItem } from "@/modules/smg/service";
+import { formatServerLine, summarizeExchange } from "@/modules/smg-trace/summary";
 import type { TraceLookup } from "@/modules/smg-trace/types";
+
+const TRACE_FONT =
+  'ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", "DejaVu Sans Mono", monospace';
 
 type Props = {
   row: SmgListItem | null;
@@ -68,12 +72,42 @@ function TraceBody({ trace }: { trace: Extract<TraceLookup, { status: "ok" }> })
         <p className="text-xs text-muted-foreground tabular-nums">Callref {trace.callref}</p>
       ) : null}
       {trace.blocks.text ? (
-        <pre className="overflow-x-auto font-mono text-xs leading-5 whitespace-pre">
-          {trace.blocks.text}
-        </pre>
+        <>
+          <ExchangeSummary closed={!trace.open} blocks={trace.blocks} />
+          <pre
+            className="overflow-x-auto text-xs leading-5 whitespace-pre"
+            style={{ fontFamily: TRACE_FONT }}
+          >
+            {trace.blocks.text}
+          </pre>
+        </>
       ) : (
         <p className="text-sm text-muted-foreground">В syslog нет обмена с АнтиФродом.</p>
       )}
     </>
+  );
+}
+
+function ExchangeSummary({
+  closed,
+  blocks,
+}: {
+  closed: boolean;
+  blocks: Extract<TraceLookup, { status: "ok" }>["blocks"];
+}) {
+  const summary = summarizeExchange({ closed, blocks });
+  return (
+    <div className="space-y-2 text-sm">
+      <p>Результат: {summary.category}</p>
+      <p>Статус: {summary.status}</p>
+      {summary.stages.map((stage) => (
+        <div key={stage.title} className="space-y-1">
+          <p className="text-muted-foreground">{stage.title}</p>
+          {stage.servers.map((row) => (
+            <p key={`${stage.title}-${row.ip}`}>{formatServerLine(row)}</p>
+          ))}
+        </div>
+      ))}
+    </div>
   );
 }

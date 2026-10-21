@@ -63,6 +63,8 @@ v1.150.0 does not rewrite stored rows and does not delete syslog cards. There is
 
 v1.151.0 publishes that same behavior. There is no migration. Do not stop `app` for this update. SMG xlsx export refuses a machine API key. The dashboard syslog card limits its antifraud count to 8 seconds and shows «…» when that read fails.
 
+v1.164.0 does not delete syslog cards. There is no migration. Do not stop `app` for this update. Parser version stays 6 and the archive is not reread. A call released before `Set UniqueTag` gets a card when the bytes already read contain the antifraud start and a real tag. A span already dropped does not come back. The drain rewrites stored antifraud labels from the card text in batches of 200 and then stops. The call panel shows the server summary above a monospace copy of the syslog. The shared secret stays in that copy and stays out of the summary.
+
 v1.163.0 does not rewrite stored rows and does not delete syslog cards. There is no migration. Do not stop `app` for this update. «Трафик SMG» keeps the date filter and moves the start-stamp chevron to «Время». Phone search still matches four numbers; the yellow mark is only on «А выход», «Б выход», and «Переадресация». A migration that does not name the tariff backfill does not make `migrate` scan `cdr_records`. The tariff job and the blocking script turn statement and lock timeouts off on their own session. The app pool keeps the 5 second lock timeout.
 
 v1.162.0 does not rewrite stored rows and does not delete syslog cards. There is no migration. Do not stop `app` for this update. The navigation panel shows «Данные SMG» and «Архивы Syslog». Page headings, Excel names, dashboard cards, and the postponed-file line stay on the previous names.
