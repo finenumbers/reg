@@ -1,13 +1,16 @@
 import { Client, type ConnectConfig } from "ssh2";
-import { buildReadCommand, statCommand } from "@/modules/antifraud/commands";
 import {
-  PARKING_HOST,
-  PARKING_PORT,
-  PARKING_USER,
-  READ_CHUNK_BYTES,
-  STAT_COMMAND,
-} from "@/modules/antifraud/constants";
+  assertParkingCommand,
+  buildReadCommand,
+  statCommand,
+} from "@/modules/antifraud/commands";
+import { PARKING_PORT, READ_CHUNK_BYTES } from "@/modules/antifraud/constants";
 import { acceptParkingHostKey } from "@/modules/antifraud/host-key";
+import type {
+  ParkingHost,
+  ParkingLogPath,
+  ParkingUser,
+} from "@/modules/antifraud/target";
 
 const CONNECT_TIMEOUT_MS = 15_000;
 const EXEC_TIMEOUT_MS = 30_000;
@@ -26,13 +29,16 @@ export class ParkingSshError extends Error {
   }
 }
 
+export type ParkingLogin = {
+  host: ParkingHost;
+  username: ParkingUser;
+  privateKeyPem: string;
+};
+
 function assertAllowedCommand(command: string): void {
-  if (command === STAT_COMMAND) return;
-  const match =
-    /^sudo -n -- \/bin\/dd if=\/var\/log\/freeradius\/calls\.log bs=1048576 iflag=skip_bytes,count_bytes skip=(\d+) count=1048576 status=none$/.exec(
-      command,
-    );
-  if (!match?.[1] || buildReadCommand(BigInt(match[1])) !== command) {
+  try {
+    assertParkingCommand(command);
+  } catch {
     throw new ParkingSshError("Команда отклонена");
   }
 }
@@ -99,13 +105,14 @@ function execOn(client: Client, command: string): Promise<RemoteRead> {
  * The host key must match the pinned fingerprint.
  */
 export async function withParkingConnection<T>(
-  privateKeyPem: string,
+  login: ParkingLogin,
   fn: (exec: (command: string) => Promise<RemoteRead>) => Promise<T>,
 ): Promise<T> {
   const client = new Client();
   try {
     await new Promise<void>((resolve, reject) => {
       let settled = false;
+      let hostRejected = false;
       const finish = (error?: Error) => {
         if (settled) return;
         settled = true;
@@ -123,17 +130,25 @@ export async function withParkingConnection<T>(
       }, CONNECT_TIMEOUT_MS);
       client.on("ready", () => finish());
       client.on("error", () =>
-        finish(new ParkingSshError("SSH-соединение не установлено")),
+        finish(
+          new ParkingSshError(
+            hostRejected ? "Ключ хоста не совпал" : "SSH-соединение не установлено",
+          ),
+        ),
       );
       const config = {
-        host: PARKING_HOST,
+        host: login.host,
         port: PARKING_PORT,
-        username: PARKING_USER,
-        privateKey: privateKeyPem,
+        username: login.username,
+        privateKey: login.privateKeyPem,
         readyTimeout: CONNECT_TIMEOUT_MS,
         tryKeyboard: false,
         agent: undefined,
-        hostVerifier: (key: Buffer) => acceptParkingHostKey(key),
+        hostVerifier: (key: Buffer) => {
+          const accepted = acceptParkingHostKey(key);
+          if (!accepted) hostRejected = true;
+          return accepted;
+        },
       } as ConnectConfig;
       try {
         client.connect(config);
@@ -153,13 +168,15 @@ export async function withParkingConnection<T>(
 
 export async function readCallsStat(
   exec: (command: string) => Promise<RemoteRead>,
+  logPath: ParkingLogPath,
 ): Promise<RemoteRead> {
-  return exec(statCommand());
+  return exec(statCommand(logPath));
 }
 
 export async function readCallsChunk(
   exec: (command: string) => Promise<RemoteRead>,
   offset: bigint,
+  logPath: ParkingLogPath,
 ): Promise<RemoteRead> {
-  return exec(buildReadCommand(offset));
+  return exec(buildReadCommand(offset, logPath));
 }

@@ -1,5 +1,5 @@
 import { encodeFilters, type ColumnFilters } from "@/components/column-filters/types";
-import type { ListRadiusResult } from "@/modules/antifraud/service";
+import type { ListRadiusResult, RadiusLoadAge } from "@/modules/antifraud/service";
 import type { TimeSort } from "@/modules/traffic/traffic-sort";
 
 async function readJson(res: Response): Promise<unknown> {
@@ -55,6 +55,13 @@ export function buildAntifraudFacetsUrl(opts: {
   if (opts.q?.trim()) params.set("q", opts.q.trim());
   if (opts.limit != null) params.set("limit", String(opts.limit));
   return `/api/antifraud/facets?${params.toString()}`;
+}
+
+export async function fetchAntifraudStatus(): Promise<RadiusLoadAge | null> {
+  const res = await fetch("/api/antifraud/status", { cache: "no-store" });
+  const body = await readJson(res);
+  if (!res.ok) return null;
+  return body as RadiusLoadAge;
 }
 
 export async function fetchAntifraudList(opts: {

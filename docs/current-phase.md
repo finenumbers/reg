@@ -1,7 +1,13 @@
-# Current Phase — production (v1.165.0)
+# Current Phase — production (v1.166.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal.  
 **Date:** 2026-10-21
+
+## v1.166.0 — Parking connection settings and the АнтиФрод load clock
+
+Stop `app` before this update so both migrations finish before the new process starts. `20261021160000_radius_ingest_age` adds the load-clock columns on the one ingest row. `20261021170000_parking_target` adds the host, username, log path, and the path the cursor belongs to. Neither rewrites `radius_calls`. Syslog cards are not deleted. `smg-syslog` keeps writing. Do not change the log server.
+
+Settings → «Доступ к Parking» stores the host, SSH user, private key, and log path. Port 22 and the host-key fingerprint stay in code. A saved key starts one read immediately, then the existing minute timer continues. The page says the key is missing until a key is stored, and «Идёт первая загрузка» until the first pass stores bytes. The clock stamps once at the end of a pass. A pass that ends before the first stored byte, a CDR `VACUUM FULL` pause, and a missing key do not move it.
 
 ## v1.165.0 — АнтиФрод reads the Parking Access-Request journal
 

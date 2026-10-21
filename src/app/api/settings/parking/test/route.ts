@@ -6,7 +6,7 @@ import { sshTestRateLimiter } from "@/lib/rate-limit";
 import { requireSessionUserId } from "@/modules/auth/session";
 import { AUDIT_ACTIONS, auditService } from "@/modules/audit";
 import { parseStat } from "@/modules/antifraud/cursor";
-import { loadParkingPrivateKeyPem } from "@/modules/antifraud/secret";
+import { loadParkingPrivateKeyPem, loadParkingTarget } from "@/modules/antifraud/secret";
 import { readCallsStat, withParkingConnection } from "@/modules/antifraud/ssh-read";
 
 /**
@@ -45,7 +45,11 @@ export async function POST(request: Request) {
 
   const ip = await getRequestIp();
   try {
-    const read = await withParkingConnection(pem, (exec) => readCallsStat(exec));
+    const target = await loadParkingTarget();
+    const read = await withParkingConnection(
+      { host: target.host, username: target.username, privateKeyPem: pem },
+      (exec) => readCallsStat(exec, target.logPath),
+    );
     const stat = parseStat(read.stdout.toString("utf8"));
     if (!stat) {
       await auditService.append({

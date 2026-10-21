@@ -18,9 +18,12 @@ import {
 } from "@/modules/settings/schemas";
 import { inspectKeyMaterial } from "@/modules/ssh/key-material-hint";
 import { SyslogSettings } from "@/modules/smg-syslog/ui/syslog-settings";
+import type { ParkingKeyStatus } from "@/modules/antifraud/key-status";
+import { ParkingKeyPanel } from "./parking-key-panel";
 
 type Props = {
   initial: SettingsView;
+  parkingKey: ParkingKeyStatus;
 };
 
 type TestResultView = {
@@ -36,7 +39,7 @@ function formatTestResultLabel(result: string): string {
   return result;
 }
 
-export function SettingsForm({ initial }: Props) {
+export function SettingsForm({ initial, parkingKey }: Props) {
   const router = useRouter();
   const { setTimeZone } = useDisplayTimezone();
   const [settings, setSettings] = useState(initial);
@@ -944,6 +947,8 @@ export function SettingsForm({ initial }: Props) {
           </div>
         </div>
       </section>
+
+      <ParkingKeyPanel initial={parkingKey} />
 
       <section className="space-y-4">
         <h2 className="text-base font-semibold">Опрос и артефакты</h2>

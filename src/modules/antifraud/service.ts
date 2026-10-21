@@ -55,9 +55,20 @@ export type ListRadiusResult = {
   months: RadiusMonth[];
   undatedCount: number;
   gaps: RadiusGapView[];
-  lastSuccessAt: string | null;
+  configured: boolean;
+  lastPassAt: string | null;
+  hadCalls: boolean;
+  lastCheckedAt: string | null;
   lastError: string | null;
   timeZone: string;
+};
+
+export type RadiusLoadAge = {
+  configured: boolean;
+  lastPassAt: string | null;
+  hadCalls: boolean;
+  lastCheckedAt: string | null;
+  lastError: string | null;
 };
 
 const FACET_FIELD: Record<RadiusFacetColumn, keyof Prisma.RadiusCallWhereInput> = {
@@ -158,15 +169,57 @@ async function loadMonths(timeZone: string): Promise<RadiusMonth[]> {
   return months;
 }
 
+function ageFrom(
+  state: {
+    lastDataAt: Date | null;
+    lastDataHadRows: boolean;
+    lastCheckedAt: Date | null;
+    lastError: string | null;
+  } | null,
+  configured: boolean,
+): RadiusLoadAge {
+  return {
+    configured,
+    lastPassAt: state?.lastDataAt?.toISOString() ?? null,
+    hadCalls: state?.lastDataHadRows ?? false,
+    lastCheckedAt: state?.lastCheckedAt?.toISOString() ?? null,
+    lastError: state?.lastError ?? null,
+  };
+}
+
+async function parkingKeyConfigured(): Promise<boolean> {
+  const row = await prisma.parkingSshSecret.findUnique({
+    where: { id: 1 },
+    select: { privateKeyCiphertext: true },
+  });
+  return Boolean(row?.privateKeyCiphertext);
+}
+
+export async function getRadiusLoadAge(): Promise<RadiusLoadAge> {
+  const [state, configured] = await Promise.all([
+    prisma.radiusIngestState.findUnique({ where: { id: 1 } }),
+    parkingKeyConfigured(),
+  ]);
+  return ageFrom(state, configured);
+}
+
 async function loadChrome(
   timeZone: string,
 ): Promise<
   Pick<
     ListRadiusResult,
-    "months" | "undatedCount" | "gaps" | "lastSuccessAt" | "lastError" | "timeZone"
+    | "months"
+    | "undatedCount"
+    | "gaps"
+    | "configured"
+    | "lastPassAt"
+    | "hadCalls"
+    | "lastCheckedAt"
+    | "lastError"
+    | "timeZone"
   >
 > {
-  const [months, undatedCount, gaps, state] = await Promise.all([
+  const [months, undatedCount, gaps, state, configured] = await Promise.all([
     loadMonths(timeZone),
     prisma.radiusCall.count({ where: { loggedAt: null } }),
     prisma.radiusIngestGap.findMany({
@@ -174,6 +227,7 @@ async function loadChrome(
       take: 20,
     }),
     prisma.radiusIngestState.findUnique({ where: { id: 1 } }),
+    parkingKeyConfigured(),
   ]);
   return {
     months,
@@ -184,8 +238,7 @@ async function loadChrome(
       toOffset: gap.toOffset.toString(),
       reason: gap.reason,
     })),
-    lastSuccessAt: state?.lastSuccessAt?.toISOString() ?? null,
-    lastError: state?.lastError ?? null,
+    ...ageFrom(state, configured),
     timeZone,
   };
 }
@@ -209,7 +262,10 @@ function emptyResult(timeZone: string, month: string): ListRadiusResult {
     ],
     undatedCount: 0,
     gaps: [],
-    lastSuccessAt: null,
+    configured: false,
+    lastPassAt: null,
+    hadCalls: false,
+    lastCheckedAt: null,
     lastError: null,
     timeZone,
   };

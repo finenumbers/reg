@@ -4,6 +4,7 @@ import { requireApiPermission } from "@/modules/auth/guards";
 import { assertSameOrigin } from "@/lib/csrf";
 import { getRequestIp } from "@/lib/request-ip";
 import { requireSessionUserId } from "@/modules/auth/session";
+import { drainParkingCalls } from "@/modules/antifraud/ingest";
 import { replaceParkingPrivateKey } from "@/modules/antifraud/secret";
 import { isKeyImportError } from "@/modules/ssh/errors";
 import { keyReplaceSchema } from "@/modules/settings/schemas";
@@ -37,6 +38,7 @@ export async function PUT(request: Request) {
     const parsed = keyReplaceSchema.parse(body);
     const ip = await getRequestIp();
     const status = await replaceParkingPrivateKey(parsed, { userId, ip });
+    void drainParkingCalls();
     return NextResponse.json({ status });
   } catch (error) {
     if (error instanceof ZodError) {

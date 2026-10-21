@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  foldFileSwitch,
+  idleCheckMovesClock,
   parseStat,
   planFileChange,
+  planTickStamp,
   takeCompleteRecords,
   type IngestCursor,
+  type TickMemory,
 } from "@/modules/antifraud/cursor";
 
 const b = (value: number) => BigInt(value);
@@ -82,6 +86,37 @@ describe("planFileChange", () => {
     expect(change).toEqual({
       kind: "truncate-tail",
       gap: { fromOffset: b(200), toOffset: b(500) },
+    });
+  });
+
+  it("turns the clock red only when a tick stored nothing", () => {
+    expect(idleCheckMovesClock(0)).toBe(true);
+    expect(idleCheckMovesClock(1)).toBe(false);
+  });
+
+  it("stamps the end of a tick once, including a file switch and a late break", () => {
+    const empty: TickMemory = { priorBytes: 0, priorRows: false, bytes: 0, rows: false };
+    expect(planTickStamp({ ...empty, bytes: 10, rows: true }, "success")).toEqual({
+      kind: "data",
+      hadRows: true,
+      clearError: true,
+    });
+    expect(planTickStamp({ ...empty, bytes: 10, rows: false }, "break")).toEqual({
+      kind: "data",
+      hadRows: false,
+      clearError: false,
+    });
+    expect(planTickStamp(empty, "success")).toEqual({ kind: "idle" });
+    expect(planTickStamp(empty, "break")).toEqual({ kind: "none" });
+
+    const memory: TickMemory = { priorBytes: 0, priorRows: false, bytes: 20, rows: true };
+    foldFileSwitch(memory);
+    memory.bytes = 5;
+    memory.rows = false;
+    expect(planTickStamp(memory, "success")).toEqual({
+      kind: "data",
+      hadRows: true,
+      clearError: true,
     });
   });
 

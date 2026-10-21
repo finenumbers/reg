@@ -9,6 +9,6 @@ On `parking.finenumbers.com`, any change is forbidden. Only read operations are 
 
 Never write, edit, delete, truncate, chmod, chown, install, restart, or reconfigure anything on that host. This includes FreeRADIUS config, sudoers, scripts, packages, logrotate, services, and the log file itself.
 
-Do not upload files (scp, sftp put, rsync to the server). Do not run a shell that can write. Do not send a command whose arguments come from the UI.
+Do not upload files (scp, sftp put, rsync to the server). Do not run a shell that can write. Do not send a command whose arguments come from the UI, except the log path stored in settings after it has been checked as one absolute path.
 
-Reading `/var/log/freeradius/calls.log` is allowed, including `stat` of that file for size and inode and `dd` of a byte range. `sudo -n` may wrap only those two reads, because the file is mode `0600` and owned by `freerad`. No other remote command is allowed.
+Reading that configured log file is allowed, including `stat` of the file for size and inode and `dd` of a byte range. The default path is `/var/log/freeradius/calls.log`. `sudo -n` may wrap only those two reads, because the file is mode `0600` and owned by `freerad`. The host and the SSH user are connection fields, not command text. No other remote command is allowed.

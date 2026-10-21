@@ -4,7 +4,6 @@ import { getSettingsView } from "@/modules/settings";
 import { StorageView } from "@/modules/storage/ui/storage-view";
 import { SettingsForm } from "./settings-form";
 import { ApiKeysPanel } from "./api-keys-panel";
-import { ParkingKeyPanel } from "./parking-key-panel";
 
 export default async function SettingsPage() {
   await requirePagePermission("settings:write");
@@ -20,12 +19,11 @@ export default async function SettingsPage() {
           Настройки
         </h1>
         <p className="text-muted-foreground text-sm">
-          SSH-профиль, импорт зашифрованного ключа, параметры опроса и месяцы CDR. Ключи
-          маскируются при хранении и в UI — только замена.
+          SSH-профиль софтсвитча, ключ чтения Parking, параметры опроса и месяцы CDR.
+          Ключи маскируются при хранении и в UI — только замена.
         </p>
       </div>
-      <SettingsForm initial={settings} />
-      <ParkingKeyPanel initial={parkingKey} />
+      <SettingsForm initial={settings} parkingKey={parkingKey} />
       <ApiKeysPanel />
       <StorageView />
     </div>

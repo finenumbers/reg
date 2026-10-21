@@ -14,26 +14,36 @@ import {
 import { TableCountFooter, TableInfiniteBody } from "@/components/table-infinite-body";
 import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
 import { TABLE_PAGE_SIZE } from "@/lib/table-pagination";
-import { fetchAntifraudList } from "@/modules/antifraud/api-client";
+import { fetchAntifraudList, fetchAntifraudStatus } from "@/modules/antifraud/api-client";
 import { RADIUS_LABELS } from "@/modules/antifraud/columns";
 import type { ListRadiusResult, RadiusListItem } from "@/modules/antifraud/service";
 import { AntifraudTable } from "@/modules/antifraud/ui/antifraud-table";
 import type { TimeSort } from "@/modules/traffic/traffic-sort";
+import { LoadAgeChip } from "@/modules/traffic/ui/load-age-chip";
 
 const PHONE_SEARCH_DEBOUNCE_MS = 300;
+const STATUS_POLL_MS = 4000;
 
 type LoadOpts = {
   page?: number;
   replace?: boolean;
+  quiet?: boolean;
   filters?: ColumnFilters;
   phoneQ?: string;
   month?: string;
   timeSort?: TimeSort | null;
 };
 
+const ANTIFRAUD_CLOCK_LABELS = {
+  green: "в порции были запросы",
+  yellow: "порция без целой записи",
+  red: "новых записей не было",
+};
+
 function gapLabel(reason: string): string {
   if (reason === "inode_changed") return "файл сменился";
   if (reason === "file_shrunk") return "файл усечён";
+  if (reason === "source_changed") return "источник сменился";
   return reason;
 }
 
@@ -58,7 +68,10 @@ export function AntifraudView({
   const [error, setError] = useState<string | null>(initialListError);
   const [undatedCount, setUndatedCount] = useState(initial.undatedCount);
   const [gaps, setGaps] = useState(initial.gaps);
-  const [lastSuccessAt, setLastSuccessAt] = useState(initial.lastSuccessAt);
+  const [configured, setConfigured] = useState(initial.configured);
+  const [lastPassAt, setLastPassAt] = useState(initial.lastPassAt);
+  const [hadCalls, setHadCalls] = useState(initial.hadCalls);
+  const [lastCheckedAt, setLastCheckedAt] = useState(initial.lastCheckedAt);
   const [lastError, setLastError] = useState(initial.lastError);
   const [scrollRoot, setScrollRoot] = useState<HTMLDivElement | null>(null);
   const pageRef = useRef(initial.page);
@@ -67,6 +80,7 @@ export function AntifraudView({
   const monthRef = useRef(month);
   const timeSortRef = useRef(timeSort);
   const phoneTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastPassRef = useRef(initial.lastPassAt);
 
   useEffect(() => {
     filtersRef.current = filters;
@@ -81,15 +95,18 @@ export function AntifraudView({
     };
   }, []);
 
-  const loadList = useCallback(async (opts: LoadOpts = {}) => {
+  const loadList = useCallback(async (opts: LoadOpts = {}): Promise<boolean> => {
     const replace = opts.replace ?? true;
+    const quiet = opts.quiet === true;
     const nextFilters = opts.filters ?? filtersRef.current;
     const nextPhoneQ = opts.phoneQ ?? phoneQRef.current;
     const nextMonth = opts.month ?? monthRef.current;
     const nextTimeSort = "timeSort" in opts ? opts.timeSort : timeSortRef.current;
     const page = opts.page ?? 1;
-    if (replace) setLoading(true);
-    else setLoadingMore(true);
+    if (!quiet) {
+      if (replace) setLoading(true);
+      else setLoadingMore(true);
+    }
     setError(null);
     try {
       const data = await fetchAntifraudList({
@@ -105,18 +122,87 @@ export function AntifraudView({
       setMonths(data.months);
       setUndatedCount(data.undatedCount);
       setGaps(data.gaps);
-      setLastSuccessAt(data.lastSuccessAt);
+      setConfigured(data.configured);
+      lastPassRef.current = data.lastPassAt;
+      setLastPassAt(data.lastPassAt);
+      setHadCalls(data.hadCalls);
+      setLastCheckedAt(data.lastCheckedAt);
       setLastError(data.lastError);
       pageRef.current = data.page;
+      return true;
     } catch (loadError) {
       setError(
         loadError instanceof Error ? loadError.message : "Не удалось загрузить журнал",
       );
+      return false;
     } finally {
-      setLoading(false);
-      setLoadingMore(false);
+      if (!quiet) {
+        setLoading(false);
+        setLoadingMore(false);
+      }
     }
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    let timer: number | null = null;
+    let flight: Promise<void> | null = null;
+    let again = false;
+
+    const pull = async () => {
+      const status = await fetchAntifraudStatus();
+      if (cancelled || !status) return;
+      setConfigured(status.configured);
+      setHadCalls(status.hadCalls);
+      setLastCheckedAt(status.lastCheckedAt);
+      setLastError(status.lastError);
+      setLastPassAt(status.lastPassAt);
+      if (lastPassRef.current === status.lastPassAt) return;
+      if (flight) {
+        again = true;
+        return;
+      }
+      const run = async () => {
+        do {
+          again = false;
+          await loadList({ page: 1, replace: true, quiet: true });
+        } while (again && !cancelled);
+      };
+      flight = run().finally(() => {
+        flight = null;
+      });
+    };
+
+    const stop = () => {
+      if (timer != null) {
+        window.clearInterval(timer);
+        timer = null;
+      }
+    };
+    const start = () => {
+      if (cancelled || timer != null) return;
+      timer = window.setInterval(() => {
+        void pull();
+      }, STATUS_POLL_MS);
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        stop();
+        return;
+      }
+      void pull();
+      start();
+    };
+
+    void pull();
+    if (document.visibilityState !== "hidden") start();
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      cancelled = true;
+      stop();
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [loadList]);
 
   const hasMore = items.length < total;
   const sentinelRef = useInfiniteScroll({
@@ -146,11 +232,24 @@ export function AntifraudView({
             таймаута.
           </p>
         </div>
-        <p className="text-muted-foreground text-xs">
-          {lastSuccessAt
-            ? `Загрузка ${new Date(lastSuccessAt).toLocaleString("ru-RU")}`
-            : "Журнал ещё не загружался"}
-        </p>
+        {configured ? (
+          lastPassAt ? (
+            <LoadAgeChip
+              lastPassAt={lastPassAt}
+              hadCalls={hadCalls}
+              lastCheckedAt={lastCheckedAt}
+              colored
+              labels={ANTIFRAUD_CLOCK_LABELS}
+            />
+          ) : (
+            <p className="text-muted-foreground text-sm">Идёт первая загрузка</p>
+          )
+        ) : (
+          <p className="text-muted-foreground max-w-sm text-right text-sm">
+            Ключ Parking не загружен. После сохранения в настройках журнал читается сам,
+            раз в минуту.
+          </p>
+        )}
       </div>
       {lastError ? <p className="text-destructive text-sm">{lastError}</p> : null}
       {error ? <p className="text-destructive text-sm">{error}</p> : null}

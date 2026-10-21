@@ -35,12 +35,14 @@ export function LoadAgeChip({
   hadCalls = false,
   lastCheckedAt = null,
   colored,
+  labels,
   className,
 }: {
   lastPassAt: string | null;
   hadCalls?: boolean;
   lastCheckedAt?: string | null;
   colored: boolean;
+  labels?: { green: string; yellow: string; red: string };
   className?: string;
 }) {
   const [now, setNow] = useState(() => Date.now());
@@ -63,7 +65,7 @@ export function LoadAgeChip({
         lastCheckedAt: parseInstant(lastCheckedAt),
       })
     : null;
-  const state = loadAgeStateLabel(tone);
+  const state = tone ? (labels ? labels[tone] : loadAgeStateLabel(tone)) : null;
   const when = formatInstant(passAt);
   const title = state ? `${state}. ${when}` : when;
 

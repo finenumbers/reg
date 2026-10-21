@@ -101,6 +101,50 @@ export function planFileChange(state: IngestCursor, stat: StatSnapshot): FileCha
   return { kind: "continue" };
 }
 
+/**
+ * A look that finds no new bytes turns the load clock red.
+ * Bytes stored earlier in the same tick are still a load, so that look does not.
+ */
+export function idleCheckMovesClock(bytesRead: number): boolean {
+  return bytesRead === 0;
+}
+
+export type TickMemory = {
+  priorBytes: number;
+  priorRows: boolean;
+  bytes: number;
+  rows: boolean;
+};
+
+export type TickStamp =
+  | { kind: "data"; hadRows: boolean; clearError: boolean }
+  | { kind: "idle" }
+  | { kind: "none" };
+
+/**
+ * One clock write for a finished tick.
+ * Bytes already read before a file switch live in `priorBytes`.
+ * A break before the first stored byte writes nothing.
+ */
+export function planTickStamp(
+  memory: TickMemory,
+  outcome: "success" | "break",
+): TickStamp {
+  const bytes = memory.priorBytes + memory.bytes;
+  const rows = memory.priorRows || memory.rows;
+  if (bytes > 0)
+    return { kind: "data", hadRows: rows, clearError: outcome === "success" };
+  if (outcome === "success") return { kind: "idle" };
+  return { kind: "none" };
+}
+
+export function foldFileSwitch(memory: TickMemory): void {
+  memory.priorBytes += memory.bytes;
+  memory.priorRows = memory.priorRows || memory.rows;
+  memory.bytes = 0;
+  memory.rows = false;
+}
+
 /** `stat -c %s:%i` stdout. Anything else is refused so the cursor stays put. */
 export function parseStat(stdout: string): StatSnapshot | null {
   const line = stdout.trim().split(/\r?\n/).at(-1)?.trim() ?? "";
