@@ -60,8 +60,10 @@ describe("antifraud exchange summary", () => {
     expect(result.category).toBe(AF_CATEGORY.blocked);
     expect(result.status).toBe(AF_STATUS.retry);
     expect(linesOf(true, text)).toEqual([
-      `Dev Callhose ${DEV} — нет ответа, повторы исчерпаны, запрос 077`,
-      `Prod Callhose ${PROD} — нет ответа, повторы исчерпаны, запросы 079 и 080`,
+      `Dev Callhose ${DEV} — нет ответа, повторы исчерпаны, запрос 077, попытка 1`,
+      `Dev Callhose ${DEV} — нет ответа, повторы исчерпаны, запрос 077, попытка 2`,
+      `Prod Callhose ${PROD} — нет ответа, повторы исчерпаны, запрос 079`,
+      `Prod Callhose ${PROD} — нет ответа, повторы исчерпаны, запрос 080`,
       `Parking ${PARKING} — Access-Reject, 55 мс, вызов снят, запрос 083`,
     ]);
     expect(JSON.stringify(result)).not.toContain(SECRET);
@@ -73,7 +75,7 @@ describe("antifraud exchange summary", () => {
     expect(JSON.stringify(radiusDelayCells(text))).not.toContain(SECRET);
   });
 
-  it("keeps one row when the same server accepts on the second try", () => {
+  it("names each send when the same server accepts on a later request", () => {
     const text = [
       "Accs-Request for Antifraud: check TG(i/o): 0(ext)/-1(loc), USE_AF 1, SD 1, OS 0, RREQ 4.",
       "RADIUS: Accs-Request [antifraud]",
@@ -95,7 +97,9 @@ describe("antifraud exchange summary", () => {
     expect(result.category).toBe(AF_CATEGORY.passed);
     expect(result.status).toBe(AF_STATUS.retry);
     expect(linesOf(true, text)).toEqual([
-      `Dev Callhose ${DEV} — Access-Accept, 94 мс, запросы 073 и 074`,
+      `Dev Callhose ${DEV} — Access-Accept, 335 мс, запрос 073`,
+      `Dev Callhose ${DEV} — нет ответа, запрос 074, попытка 1`,
+      `Dev Callhose ${DEV} — Access-Accept, 94 мс, запрос 074, попытка 2`,
     ]);
     expect(JSON.stringify(result)).not.toContain(SECRET);
     expect(radiusDelayCells(text)).toEqual({
@@ -310,5 +314,38 @@ describe("antifraud exchange summary", () => {
       afDelayParking: "",
     });
     expect(JSON.stringify(radiusDelayCells(text))).not.toContain("Выход");
+  });
+
+  it("lists every resend of one request and keeps the reply on the last send", () => {
+    const text = [
+      "Set RADIUS-profile [1] options.",
+      "RADIUS: Accs-Request [out-seize]",
+      `Access request ID[240]. Group[0] Server[0]: ${DEV}:1812:${SECRET}`,
+      "Request ID [240] is sent",
+      "RADIUS. Request timeout. Request ID[240]. Resend request. Attempt 2 out of 3",
+      `Access request ID[240]. Group[0] Server[0]: ${DEV}:1812:${SECRET}`,
+      "Request ID [240] is sent",
+      "RADIUS. Request timeout. Request ID[240]. Resend request. Attempt 3 out of 3",
+      `Access request ID[240]. Group[0] Server[0]: ${DEV}:1812:${SECRET}`,
+      "Request ID [240] is sent",
+      "Request ID [240] got valid reply for accs (in 50 ms)",
+      "Request ID [240] Accs-Reply [reject]. Time [50:50]",
+      "Cause '0x0015'",
+      "Release local reason: RADIUS reject",
+    ].join("\n");
+    const result = summary(true, text);
+    expect(result.category).toBe(AF_CATEGORY.blocked);
+    expect(result.status).toBe(AF_STATUS.retry);
+    expect(linesOf(true, text)).toEqual([
+      `Dev Callhose ${DEV} — нет ответа, запрос 240, попытка 1`,
+      `Dev Callhose ${DEV} — нет ответа, запрос 240, попытка 2`,
+      `Dev Callhose ${DEV} — Access-Reject, 50 мс, вызов снят, запрос 240, попытка 3`,
+    ]);
+    expect(radiusDelayCells(text)).toEqual({
+      afDelay1Dev: "50",
+      afDelay1Prod: "",
+      afDelayParking: "",
+    });
+    expect(JSON.stringify(result)).not.toContain(SECRET);
   });
 });

@@ -1,7 +1,13 @@
-# Current Phase — production (v1.171.0)
+# Current Phase — production (v1.172.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal.  
 **Date:** 2026-10-22
+
+## v1.172.0 — The antifraud panel lists every sent request
+
+There is no migration. Do not stop `app`. Do not stop `smg-syslog`. Parser version stays 8. Syslog cards are not deleted. Stored CDR labels are not rewritten. Delay columns stay «Вход Dev», «Вход Prod», and «Parking».
+
+The summary above the syslog text lists each `Request ID [n] is sent` on its own line, in log order. A resend of the same Request ID is «попытка 2», «попытка 3», and so on. A send that timed out says «нет ответа». The Access-Accept or Access-Reject, its `in N ms`, and «вызов снят» stay on the send that received that reply. A single send keeps the previous wording, without «попытка». «Вход Dev», «Вход Prod», and «Parking» still take milliseconds only from `got valid reply (in N ms)`, so a timeout does not add a sample and a reply is not repeated once per attempt. The category and the status are unchanged. The shared secret stays in the card text and stays out of the summary. Rollback to v1.171.0 restores the one line per server and does not delete cards.
 
 ## v1.171.0 — SMG antifraud is one Radius out-seize request
 

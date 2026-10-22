@@ -117,7 +117,7 @@ function ExchangeSummary({
       <p>Результат: {summary.category}</p>
       <p>Статус: {summary.status}</p>
       {summary.servers.map((row) => (
-        <p key={row.ip}>{formatServerLine(row)}</p>
+        <p key={`${row.ip}-${row.requestId}-${row.attempt}`}>{formatServerLine(row)}</p>
       ))}
     </div>
   );
