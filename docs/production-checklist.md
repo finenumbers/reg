@@ -53,6 +53,8 @@ Optional publish ports: `APP_PUBLISH_PORT`, `POSTGRES_PUBLISH_PORT`.
 
 ## 3. Database
 
+v1.168.2 does not migrate and does not rewrite stored rows. Do not stop `smg-syslog`. The color legend on «Ответы АнтиФрода» and «Задержка АнтиФрода» sits below the minute labels.
+
 v1.168.1 does not migrate and does not rewrite stored rows. Do not stop `smg-syslog`. «Задержка АнтиФрода» reads the three millisecond arrays from the one card on a call. v1.168.0 failed that query before any row was read.
 
 v1.168.0 adds stored antifraud labels on `smg_cdr_records` (`unique_tag_norm`, `radius_session_norm`, `af_category`, `af_status`) and three indexes, then nullable delay arrays on `smg_call_traces`, `cdr_timezone` default `UTC` on `smg_syslog_nodes`, and an index on `smg_cdr_records(setup_time)`. Stop `app` before the update and start one new process only after `migrate` exits. The indexes block writes on `smg_cdr_records` and do not rewrite stored call text. The migrations do not fill the new values. `smg-syslog` keeps writing. Cards are not deleted. After `app` is up, the drain fills null CDR labels, newest first, and null delay arrays in batches of 200. A CDR row whose category is still null is absent from «Ответы АнтиФрода». Set «Пояс CDR» on each Syslog SMG node to the gateway clock; until then the answers and delay charts treat `setup_time` as UTC. A node whose identifier does not match the CDR «Узел» is omitted from those two charts. «АнтиФрод» displays UTC. Delay headers in both SMG tables are «Вход Dev», «Вход Prod», «Выход Dev», «Выход Prod», and «Parking».

@@ -1,7 +1,13 @@
-# Current Phase — production (v1.168.1)
+# Current Phase — production (v1.168.2)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal.  
 **Date:** 2026-10-22
+
+## v1.168.2 — Antifraud chart legends sit below the time labels
+
+There is no migration. Do not stop `smg-syslog`. Keep one `app` replica.
+
+On «Ответы АнтиФрода» and «Задержка АнтиФрода», the color legend is below the minute labels, on both the day chart and the two-hour chart. The minute labels stay against the line. Other dashboard charts have no legend.
 
 ## v1.168.1 — Delay chart reads the stored millisecond arrays
 

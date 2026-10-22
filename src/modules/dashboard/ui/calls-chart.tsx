@@ -219,50 +219,52 @@ function ConcurrencyChart({
         {note ? <p className="text-muted-foreground text-xs">{note}</p> : null}
       </div>
       {minutes != null && origin != null ? (
-        <div className="flex">
-          <Scale peak={peak} />
-          <div className="min-w-0 flex-1">
-            {lines != null ? (
-              <MultiPlot
-                lines={lines}
-                peak={peak}
-                span={span}
-                length={minutes.length}
-                hover={hover}
-                onHover={setHover}
-                label={caption}
-                windowMarks={windowMarks}
-              />
-            ) : (
-              <CallsPlot
-                minutes={minutes}
-                peak={peak}
-                span={span}
-                provisionalFrom={provisionalFrom}
-                events={events}
-                hover={hover}
-                onHover={setHover}
-                label={
-                  hover != null && hovered != null
-                    ? `${formatUtcMinute(origin, hover)}: ${countLabel(hovered)}`
-                    : `Максимум: ${countLabel(peak)}`
-                }
-                windowMarks={windowMarks}
-              />
-            )}
-            {lines != null ? <LineLegend lines={lines} /> : null}
-            <div className="relative h-4">
-              {labels.map((item) => (
-                <span
-                  key={item.key}
-                  className="text-muted-foreground absolute top-0 text-[10px] tabular-nums"
-                  style={item.style}
-                >
-                  {item.text}
-                </span>
-              ))}
+        <div className="flex flex-col gap-2">
+          <div className="flex">
+            <Scale peak={peak} />
+            <div className="min-w-0 flex-1">
+              {lines != null ? (
+                <MultiPlot
+                  lines={lines}
+                  peak={peak}
+                  span={span}
+                  length={minutes.length}
+                  hover={hover}
+                  onHover={setHover}
+                  label={caption}
+                  windowMarks={windowMarks}
+                />
+              ) : (
+                <CallsPlot
+                  minutes={minutes}
+                  peak={peak}
+                  span={span}
+                  provisionalFrom={provisionalFrom}
+                  events={events}
+                  hover={hover}
+                  onHover={setHover}
+                  label={
+                    hover != null && hovered != null
+                      ? `${formatUtcMinute(origin, hover)}: ${countLabel(hovered)}`
+                      : `Максимум: ${countLabel(peak)}`
+                  }
+                  windowMarks={windowMarks}
+                />
+              )}
+              <div className="relative h-4">
+                {labels.map((item) => (
+                  <span
+                    key={item.key}
+                    className="text-muted-foreground absolute top-0 text-[10px] tabular-nums"
+                    style={item.style}
+                  >
+                    {item.text}
+                  </span>
+                ))}
+              </div>
             </div>
           </div>
+          {lines != null ? <LineLegend lines={lines} /> : null}
         </div>
       ) : (
         <div className="text-muted-foreground flex h-36 items-center text-sm">
@@ -627,7 +629,7 @@ function segmentPath(
 function LineLegend({ lines }: { lines: DashboardChartLine[] }) {
   if (lines.length === 0) return null;
   return (
-    <ul className="text-muted-foreground flex flex-wrap gap-x-3 gap-y-1 pt-1 text-xs">
+    <ul className="text-muted-foreground flex flex-wrap gap-x-3 gap-y-1 text-xs">
       {lines.map((line) => (
         <li key={line.id} className="flex items-center gap-1.5">
           <span
