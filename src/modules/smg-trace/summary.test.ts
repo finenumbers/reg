@@ -22,9 +22,7 @@ function summary(closed: boolean, text: string, mismatch = false) {
 }
 
 function linesOf(closed: boolean, text: string): string[] {
-  return summary(closed, text).stages.flatMap((stage) =>
-    stage.servers.map((row) => formatServerLine(row)),
-  );
+  return summary(closed, text).servers.map((row) => formatServerLine(row));
 }
 
 describe("antifraud exchange summary", () => {
@@ -59,9 +57,8 @@ describe("antifraud exchange summary", () => {
       "Release local reason: RADIUS reject",
     ].join("\n");
     const result = summary(true, text);
-    expect(result.category).toBe(AF_CATEGORY.blockedIn);
-    expect(result.status).toBe(AF_STATUS.retryIn);
-    expect(result.stages.map((stage) => stage.title)).toEqual(["Вход"]);
+    expect(result.category).toBe(AF_CATEGORY.blocked);
+    expect(result.status).toBe(AF_STATUS.retry);
     expect(linesOf(true, text)).toEqual([
       `Dev Callhose ${DEV} — нет ответа, повторы исчерпаны, запрос 077`,
       `Prod Callhose ${PROD} — нет ответа, повторы исчерпаны, запросы 079 и 080`,
@@ -71,14 +68,12 @@ describe("antifraud exchange summary", () => {
     expect(radiusDelayCells(text)).toEqual({
       afDelay1Dev: "",
       afDelay1Prod: "",
-      afDelay2Dev: "",
-      afDelay2Prod: "",
       afDelayParking: "55",
     });
     expect(JSON.stringify(radiusDelayCells(text))).not.toContain(SECRET);
   });
 
-  it("keeps one outgoing row when the same server accepts on the second try", () => {
+  it("keeps one row when the same server accepts on the second try", () => {
     const text = [
       "Accs-Request for Antifraud: check TG(i/o): 0(ext)/-1(loc), USE_AF 1, SD 1, OS 0, RREQ 4.",
       "RADIUS: Accs-Request [antifraud]",
@@ -98,17 +93,14 @@ describe("antifraud exchange summary", () => {
     ].join("\n");
     const result = summary(true, text);
     expect(result.category).toBe(AF_CATEGORY.passed);
-    expect(result.status).toBe(AF_STATUS.retryOut);
+    expect(result.status).toBe(AF_STATUS.retry);
     expect(linesOf(true, text)).toEqual([
-      `Dev Callhose ${DEV} — Access-Accept, 335 мс, запрос 073`,
-      `Dev Callhose ${DEV} — Access-Accept, 94 мс, запрос 074`,
+      `Dev Callhose ${DEV} — Access-Accept, 94 мс, запросы 073 и 074`,
     ]);
     expect(JSON.stringify(result)).not.toContain(SECRET);
     expect(radiusDelayCells(text)).toEqual({
-      afDelay1Dev: "335",
+      afDelay1Dev: "335, 94",
       afDelay1Prod: "",
-      afDelay2Dev: "94",
-      afDelay2Prod: "",
       afDelayParking: "",
     });
     expect(radiusDelaySamples(text).afMsDev).toEqual([335, 94]);
@@ -165,8 +157,8 @@ describe("antifraud exchange summary", () => {
       "Request ID [079] Accs-Reply [accept]",
     ].join("\n");
     const result = summary(true, text);
-    expect(result.category).toBe(AF_CATEGORY.passedIn);
-    expect(result.status).toBe(AF_STATUS.retryIn);
+    expect(result.category).toBe(AF_CATEGORY.passed);
+    expect(result.status).toBe(AF_STATUS.retry);
     expect(linesOf(true, text)).toEqual([
       "10.0.0.1 — нет ответа, повторы исчерпаны, запрос 077",
       "10.0.0.2 — Access-Accept, 40 мс, запрос 079",
@@ -184,7 +176,7 @@ describe("antifraud exchange summary", () => {
       "RADIUS: release call. Accs. Cause[timeout]. RestrictOut[no restrict]. Link[y]",
     ].join("\n");
     const result = summary(true, text);
-    expect(result.category).toBe(AF_CATEGORY.rejectIgnoredOut);
+    expect(result.category).toBe(AF_CATEGORY.rejectIgnored);
     expect(result.status).toBe(AF_STATUS.firstTry);
     expect(linesOf(true, text)).toEqual(["10.0.0.4 — Access-Reject, 10 мс, запрос 011"]);
   });
@@ -223,7 +215,7 @@ describe("antifraud exchange summary", () => {
     ].join("\n");
     const result = summary(true, text);
     expect(result.category).toBe(AF_CATEGORY.releasedNoReply);
-    expect(result.status).toBe(AF_STATUS.retryIn);
+    expect(result.status).toBe(AF_STATUS.retry);
     expect(linesOf(true, text)).toEqual([
       `Dev Callhose ${DEV} — нет ответа, повторы исчерпаны, запрос 077`,
       `Prod Callhose ${PROD} — нет ответа, повторы исчерпаны, запрос 079`,
@@ -237,18 +229,17 @@ describe("antifraud exchange summary", () => {
       "Accs-Request for Antifraud: check TG(i/o): 0(ext)/0(ext), USE_AF 0, SD 0, OS 0, RREQ 5.",
     ].join("\n");
     expect(summary(true, off)).toEqual({
-      category: AF_CATEGORY.notSent,
-      status: AF_STATUS.noRequest,
-      stages: [],
+      category: AF_CATEGORY.notChecked,
+      status: AF_STATUS.unknown,
+      servers: [],
     });
     expect(summary(true, "Set Antifraud RADIUS-profile [0] options.").category).toBe(
       AF_CATEGORY.notChecked,
     );
-    expect(summary(true, "Set Antifraud RADIUS-profile [0] options.").stages).toEqual([]);
-    const missing =
-      "Accs-Request for Antifraud: check TG(i/o): 0(ext)/0(ext), USE_AF 1, SD 1, OS 0, RREQ 4.";
+    expect(summary(true, "Set Antifraud RADIUS-profile [0] options.").servers).toEqual([]);
+    const missing = "Set RADIUS-profile [1] options.";
     expect(summary(true, missing).category).toBe(AF_CATEGORY.requestMissing);
-    expect(summary(true, missing).stages).toEqual([]);
+    expect(summary(true, missing).servers).toEqual([]);
   });
 
   it("keeps the servers when the card does not agree with itself", () => {
@@ -275,7 +266,7 @@ describe("antifraud exchange summary", () => {
       "Request ID [073] Accs-Reply [accept]",
     ].join("\n");
     const result = summary(true, text);
-    expect(result.category).toBe(AF_CATEGORY.passedIn);
+    expect(result.category).toBe(AF_CATEGORY.passed);
     expect(result.status).toBe(AF_STATUS.wrongType);
     expect(linesOf(true, text)).toEqual(["10.0.0.1 — Access-Accept, 12 мс, запрос 073"]);
   });
@@ -293,5 +284,31 @@ describe("antifraud exchange summary", () => {
       "Request ID [002] Accs-Reply [accept]",
     ].join("\n");
     expect(radiusDelaySamples(text).afMsDev).toEqual([12]);
+  });
+
+  it("puts the out-seize Dev reply into Вход Dev", () => {
+    const text = [
+      "Set RADIUS-profile [1] options.",
+      "RADIUS: Accs-Request [out-seize]",
+      "h323-call-origin                 = 'answer'",
+      "Cisco-AVPair                     = 'xpgk-request-type=number'",
+      `Access request ID[189]. Group[0] Server[0]: ${DEV}:1812:${SECRET}`,
+      "Request ID [189] is sent",
+      "Request ID [189] got valid reply for accs (in 23 ms)",
+      "Request ID [189] Accs-Reply [accept]. Time [23:23]",
+      "RADIUS: process call. Accs req status: out-seize",
+    ].join("\n");
+    const result = summary(true, text);
+    expect(result.category).toBe(AF_CATEGORY.passed);
+    expect(result.status).toBe(AF_STATUS.firstTry);
+    expect(linesOf(true, text)).toEqual([
+      `Dev Callhose ${DEV} — Access-Accept, 23 мс, запрос 189`,
+    ]);
+    expect(radiusDelayCells(text)).toEqual({
+      afDelay1Dev: "23",
+      afDelay1Prod: "",
+      afDelayParking: "",
+    });
+    expect(JSON.stringify(radiusDelayCells(text))).not.toContain("Выход");
   });
 });

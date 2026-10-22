@@ -116,13 +116,8 @@ function ExchangeSummary({
     <div className="space-y-2 text-sm">
       <p>Результат: {summary.category}</p>
       <p>Статус: {summary.status}</p>
-      {summary.stages.map((stage) => (
-        <div key={stage.title} className="space-y-1">
-          <p className="text-muted-foreground">{stage.title}</p>
-          {stage.servers.map((row) => (
-            <p key={`${stage.title}-${row.ip}`}>{formatServerLine(row)}</p>
-          ))}
-        </div>
+      {summary.servers.map((row) => (
+        <p key={row.ip}>{formatServerLine(row)}</p>
       ))}
     </div>
   );

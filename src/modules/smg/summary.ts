@@ -75,8 +75,6 @@ export const SMG_SUMMARY_LABELS: Record<SmgSummaryColumn, string> = {
   antifraudStatus: "Статус АнтиФрод",
   afDelay1Dev: "Вход Dev",
   afDelay1Prod: "Вход Prod",
-  afDelay2Dev: "Выход Dev",
-  afDelay2Prod: "Выход Prod",
   afDelayParking: "Parking",
 };
 
@@ -127,8 +125,6 @@ type ClockSource = {
   antifraudStatus?: string;
   afDelay1Dev?: string;
   afDelay1Prod?: string;
-  afDelay2Dev?: string;
-  afDelay2Prod?: string;
   afDelayParking?: string;
 };
 

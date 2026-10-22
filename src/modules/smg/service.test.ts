@@ -222,8 +222,8 @@ describe("listSmgCalls", () => {
       {
         id: "trace-1",
         tagNorm: "1100004f00000001",
-        afCategory: AF_CATEGORY.blockedIn,
-        afStatus: AF_STATUS.retryIn,
+        afCategory: AF_CATEGORY.blocked,
+        afStatus: AF_STATUS.retry,
       },
     ]);
 
@@ -423,7 +423,7 @@ describe("listSmgFacets", () => {
       column: "antifraud",
       month: "2026-10",
       device: "mts",
-      filters: { setupDay: ["2026-10-13"], antifraud: [AF_CATEGORY.blockedIn] },
+      filters: { setupDay: ["2026-10-13"], antifraud: [AF_CATEGORY.blocked] },
     });
 
     expect(groupBy).not.toHaveBeenCalledWith(
@@ -435,7 +435,7 @@ describe("listSmgFacets", () => {
       .find((text) => text.includes("GROUP BY"));
     expect(facetSql).toContain("af_category");
     expect(facetSql).toContain("2026-10-13");
-    expect(facetSql).not.toContain(AF_CATEGORY.blockedIn);
+    expect(facetSql).not.toContain(AF_CATEGORY.blocked);
     expect(facetSql).not.toContain("smg_call_traces");
   });
 

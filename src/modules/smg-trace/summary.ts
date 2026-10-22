@@ -16,22 +16,15 @@ export type ServerRow = {
   requestIds: number[];
 };
 
-export type ExchangeStage = {
-  title: "Вход" | "Выход";
-  servers: ServerRow[];
-};
-
 export type ExchangeSummary = {
   category: string;
   status: string;
-  stages: ExchangeStage[];
+  servers: ServerRow[];
 };
 
-type Side = "in" | "out";
 type Verdict = "none" | "accept" | "reject";
 
 type Attempt = {
-  side: Side;
   id: number;
   ip: string;
   ms: number | null;
@@ -53,8 +46,6 @@ const RADIUS_SERVERS = {
 export type RadiusDelayCells = {
   afDelay1Dev: string;
   afDelay1Prod: string;
-  afDelay2Dev: string;
-  afDelay2Prod: string;
   afDelayParking: string;
 };
 
@@ -62,11 +53,9 @@ export type RadiusDelayCells = {
 export function radiusDelayCells(text: string): RadiusDelayCells {
   const attempts = readAttempts(text);
   return {
-    afDelay1Dev: delayOf(attempts, RADIUS_SERVERS.dev, "in"),
-    afDelay1Prod: delayOf(attempts, RADIUS_SERVERS.prod, "in"),
-    afDelay2Dev: delayOf(attempts, RADIUS_SERVERS.dev, "out"),
-    afDelay2Prod: delayOf(attempts, RADIUS_SERVERS.prod, "out"),
-    afDelayParking: delayOf(attempts, RADIUS_SERVERS.parking, null),
+    afDelay1Dev: delayOf(attempts, RADIUS_SERVERS.dev),
+    afDelay1Prod: delayOf(attempts, RADIUS_SERVERS.prod),
+    afDelayParking: delayOf(attempts, RADIUS_SERVERS.parking),
   };
 }
 
@@ -80,14 +69,14 @@ export type RadiusDelaySamples = {
 
 /**
  * The same cells as the table, packed for the delay chart.
- * Dev is «Вход Dev» plus «Выход Dev». A value that does not fit in Postgres
- * integer is dropped so one bad syslog line cannot fail the card save.
+ * Dev is «Вход Dev» only. A value that does not fit in Postgres integer is
+ * dropped so one bad syslog line cannot fail the card save.
  */
 export function radiusDelaySamples(text: string): RadiusDelaySamples {
   const cells = radiusDelayCells(text);
   return {
-    afMsDev: parseDelaySamples(cells.afDelay1Dev, cells.afDelay2Dev),
-    afMsProd: parseDelaySamples(cells.afDelay1Prod, cells.afDelay2Prod),
+    afMsDev: parseDelaySamples(cells.afDelay1Dev),
+    afMsProd: parseDelaySamples(cells.afDelay1Prod),
     afMsParking: parseDelaySamples(cells.afDelayParking),
   };
 }
@@ -113,12 +102,11 @@ function serverIp(name: string): string {
   return "";
 }
 
-function delayOf(attempts: readonly Attempt[], ip: string, side: Side | null): string {
+function delayOf(attempts: readonly Attempt[], ip: string): string {
   if (!ip) return "";
   const parts: string[] = [];
   for (const attempt of attempts) {
     if (attempt.ip !== ip) continue;
-    if (side != null && attempt.side !== side) continue;
     if (attempt.ms == null) continue;
     parts.push(String(attempt.ms));
   }
@@ -133,7 +121,7 @@ export function summarizeExchange(input: {
   return {
     category: labels.category,
     status: labels.status,
-    stages: stagesOf(readAttempts(input.blocks.text)),
+    servers: rowsOf(readAttempts(input.blocks.text)),
   };
 }
 
@@ -148,19 +136,6 @@ function requestPhrase(ids: readonly number[]): string {
   if (padded.length === 1) return `запрос ${padded[0]}`;
   if (padded.length === 2) return `запросы ${padded[0]} и ${padded[1]}`;
   return `запросы ${padded.slice(0, -1).join(", ")} и ${padded.at(-1)}`;
-}
-
-function stagesOf(attempts: readonly Attempt[]): ExchangeStage[] {
-  const order: Side[] = [];
-  for (const attempt of attempts) {
-    if (!order.includes(attempt.side)) order.push(attempt.side);
-  }
-  return order
-    .map((side) => ({
-      title: side === "in" ? ("Вход" as const) : ("Выход" as const),
-      servers: rowsOf(attempts.filter((attempt) => attempt.side === side)),
-    }))
-    .filter((stage) => stage.servers.length > 0);
 }
 
 function rowsOf(attempts: readonly Attempt[]): ServerRow[] {
@@ -179,15 +154,14 @@ function rowsOf(attempts: readonly Attempt[]): ServerRow[] {
 }
 
 function outcomeOf(attempts: readonly Attempt[]): string {
-  const reject = [...attempts].reverse().find((attempt) => attempt.verdict === "reject");
-  if (reject) {
-    const ms = reject.ms != null ? `, ${reject.ms} мс` : "";
-    const cut = attempts.some((attempt) => attempt.released) ? ", вызов снят" : "";
+  const decided = [...attempts].reverse().find((attempt) => attempt.verdict !== "none");
+  if (decided?.verdict === "reject") {
+    const ms = decided.ms != null ? `, ${decided.ms} мс` : "";
+    const cut = decided.released ? ", вызов снят" : "";
     return `Access-Reject${ms}${cut}`;
   }
-  const accept = [...attempts].reverse().find((attempt) => attempt.verdict === "accept");
-  if (accept) {
-    const ms = accept.ms != null ? `, ${accept.ms} мс` : "";
+  if (decided?.verdict === "accept") {
+    const ms = decided.ms != null ? `, ${decided.ms} мс` : "";
     return `Access-Accept${ms}`;
   }
   if (attempts.every((attempt) => attempt.exhausted))
@@ -198,13 +172,8 @@ function outcomeOf(attempts: readonly Attempt[]): string {
 function readAttempts(text: string): Attempt[] {
   const attempts: Attempt[] = [];
   const pendingIp = new Map<number, string>();
-  let side: Side = "in";
 
   for (const line of text.split("\n")) {
-    if (/Accs-Request \[(antifraud(?:_out)?)\]/i.test(line)) {
-      side = /antifraud_out/i.test(line) ? "out" : "in";
-    }
-
     const access = line.match(
       /Access request ID\[(\d+)\].*Server\[\d+\]:\s*(\d{1,3}(?:\.\d{1,3}){3})/i,
     );
@@ -222,11 +191,9 @@ function readAttempts(text: string): Attempt[] {
       const ip = id == null ? undefined : pendingIp.get(id);
       if (id != null && ip && !attempts.some((attempt) => attempt.id === id)) {
         for (const previous of attempts) {
-          if (previous.side === side && previous.verdict === "none")
-            previous.exhausted = true;
+          if (previous.verdict === "none") previous.exhausted = true;
         }
         attempts.push({
-          side,
           id,
           ip,
           ms: null,

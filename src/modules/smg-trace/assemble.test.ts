@@ -99,15 +99,15 @@ describe("SMG syslog call assembly", () => {
       line("C0001B7", "Port SIPT:00da. Accs-Request for Antifraud: check TG(i/o): 5(ext)/-1(loc), USE_AF 0, SD 0, OS 0, RREQ 4."),
       line("C0001B7", "Port SS7:00:01. Check out-calling-from-RADIUS-modify: '4996660400'(10)."),
       line("C0001B7", `Port SS7:00:01. Set UniqueTag: '${TAG_SPACED}'`),
-      line("C0001B7", "Port SS7:00:01. Set Antifraud RADIUS-profile [0] options."),
+      line("C0001B7", "Port SS7:00:01. Set RADIUS-profile [0] options."),
       line("C0001B7", "SS7/ISUP. RX. IAM- Initial Address Message"),
       line("C0001B7", "Port SIPT:00da. Accs-Request for Antifraud: check TG(i/o): 5(ext)/0(ext), USE_AF 1, SD 1, OS 0, RREQ 4."),
-      line("C0001B7", "Port SIPT:00da. RADIUS: Accs-Request [antifraud]"),
-      line("C0001B7", "RADIUS. Request proc. Port SIPT:00da. Request ID[078]. Processing Antifraud-Auth-Request"),
+      line("C0001B7", "Port SIPT:00da. RADIUS: Accs-Request [out-seize]"),
+      line("C0001B7", "RADIUS. Request proc. Port SIPT:00da. Request ID[078]. Processing Accs-Request"),
       line("C0001B7", `RADIUS. Send request. Access request ID[078]. Group[0] Server[0]: 91.195.253.131:1812:${SECRET}`),
       line("C0001B7", "RADIUS. Send request. Request ID [078] is sent"),
       line("C0001B7", ""),
-      line("C0001B7", "-- RADIUS. Antifraud-Auth-Request [078] --"),
+      line("C0001B7", "-- RADIUS. Accs-Request [078] --"),
       line("C0001B7", "Password                         = ''"),
       line("C0001B7", `h323-conf-id                     = '${TAG_SPACED}'`),
       line("C0001B7", "Acct-Session-Id                  = '06000001 6ad34e68 3911cf0a 2430f5f0'"),
@@ -119,13 +119,13 @@ describe("SMG syslog call assembly", () => {
       "<14> <smg1016m>  13:20:25.326000  [INFO] RADIUS. Reply queue. Processing Reply message",
       line("C0001B7", "RADIUS. Proc Reply. Request ID [078] process reply"),
       line("C0001B7", "RADIUS. Proc Reply. Request ID [078] Accs-Reply [accept]. Time [27:27]"),
-      line("C0001B7", "Port SIPT:00da. RADIUS: process call. Accs req status: antifraud"),
+      line("C0001B7", "Port SIPT:00da. RADIUS: process call. Accs req status: out-seize"),
       line("C0001B7", "Port SS7:00:01. Accs-Request for Antifraud: check TG(i/o): 5(ext)/0(ext), USE_AF 1, SD 0, OS 1, RREQ 5."),
-      line("C0001B7", "Port SS7:00:01. RADIUS: Accs-Request [antifraud_out]"),
-      line("C0001B7", "RADIUS. Request proc. Request ID[079]. Processing Antifraud-Auth-Request"),
+      line("C0001B7", "Port SS7:00:01. RADIUS: Accs-Request [out-seize]"),
+      line("C0001B7", "RADIUS. Request proc. Request ID[079]. Processing Accs-Request"),
       line("C0001B7", `RADIUS. Send request. Server[0]: 91.195.253.131:1812:${SECRET}`),
       line("C0001B7", "RADIUS. Send request. Request ID [079] is sent"),
-      line("C0001B7", "-- RADIUS. Antifraud-Auth-Request [079] --"),
+      line("C0001B7", "-- RADIUS. Accs-Request [079] --"),
       line("C0001B7", "h323-call-origin                 = 'answer'"),
       line("C0001B7", "--------------------------------"),
       ...rcBlock(2, 79),
@@ -134,7 +134,7 @@ describe("SMG syslog call assembly", () => {
       line("C0001B7", "RADIUS. Proc Reply. Request ID [079] process reply"),
       line("C0001B7", "stage antifraud_out blocking behaviour is set."),
       line("C0001B7", "Request ID [079] Accs-Reply [accept]. Time [20:20]"),
-      line("C0001B7", "Port SS7:00:01. RADIUS: process call. Accs req status: antifraud_out"),
+      line("C0001B7", "Port SS7:00:01. RADIUS: process call. Accs req status: out-seize"),
       line("C0001B7", "Port SS7:00:01. Accs-Request for Antifraud: check TG(i/o): 5(ext)/0(ext), USE_AF 1, SD 0, OS 0, RREQ 5."),
       line("C0001B7", "Port SS7:00:01. Accs-Request for Antifraud: no flags set - skip."),
       line("C0001B7", "RADIUS server rejected: :0 (replied 0)"),
@@ -146,8 +146,8 @@ describe("SMG syslog call assembly", () => {
     expect(blocks.text).toContain("Reply queue");
     expect(blocks.text).toContain("in 27 ms");
     expect(blocks.text).toContain("in 20 ms");
-    expect(blocks.text).toContain("no flags set - skip");
-    expect(blocks.text).toContain("USE_AF 0");
+    expect(blocks.text).not.toContain("no flags set - skip");
+    expect(blocks.text).not.toContain("USE_AF");
     expect(blocks.text).not.toContain("ANTIFRAUD");
     expect(blocks.text).not.toContain("from-RADIUS-modify");
     expect(blocks.text).not.toContain("IAM-");
@@ -157,14 +157,38 @@ describe("SMG syslog call assembly", () => {
     expect(blocks.text.split("\n").some((row) => row === "[C0001B7]")).toBe(true);
   });
 
+  it("keeps one out-seize accept and drops probes and accounting", () => {
+    const text = [
+      line("C000441", `Set UniqueTag: '${TAG}'`),
+      line("C000441", "Accs-Request for Antifraud: check TG(i/o): 0(ext)/-1(loc), USE_AF 0, SD 0, OS 0, RREQ 4."),
+      line("C000441", "Set RADIUS-profile [1] options."),
+      line("C000441", "RADIUS: Accs-Request [out-seize]"),
+      line("C000441", "RADIUS. Request proc. Request ID[189]. Processing Accs-Request"),
+      line("C000441", "Request ID [189] is sent"),
+      line("C000441", "Request ID [189] got valid reply for accs (in 23 ms)"),
+      line("C000441", "Request ID [189] Accs-Reply [accept]. Time [23:23]"),
+      line("C000441", "RADIUS: process call. Accs req status: out-seize"),
+      line("C000441", "RADIUS: Accounting-Request [start]. Request ID [200]"),
+      line("C000441", "Accs-Request for Antifraud: check TG(i/o): 0(ext)/1(ext), USE_AF 0, SD 0, OS 0, RREQ 5."),
+    ].join("\n");
+    const blocks = projectSpan(spansOf(text)[0]!);
+    expect(blocks.text).toContain("Set RADIUS-profile");
+    expect(blocks.text).toContain("Accs-Request [out-seize]");
+    expect(blocks.text).toContain("in 23 ms");
+    expect(blocks.text).toContain("process call. Accs req status: out-seize");
+    expect(blocks.text).not.toContain("USE_AF");
+    expect(blocks.text).not.toContain("Accounting");
+    expect(blocks.text).not.toContain("[200]");
+  });
+
   it("keeps an old-firmware ignore leg and does not steal another digest", () => {
     const text = [
       line("C02B7D1", `Port SIPT:00ee. Set UniqueTag: '${TAG}'`),
       line("C02B7D1", "Port SIPT:00ee. Accs-Request for Antifraud: check TG(i/o): 27(ext)/26(ext), USE_AF 1, SD 1, OS 0, RREQ 4."),
-      line("C02B7D1", "Port SIPT:00ee. RADIUS: Accs-Request [antifraud]"),
-      line("C02B7D1", "Port SIPT:00ee. RADIUS: Request ID [081] process Antifraud-Auth-Request."),
+      line("C02B7D1", "Port SIPT:00ee. RADIUS: Accs-Request [out-seize]"),
+      line("C02B7D1", "Port SIPT:00ee. RADIUS: Request ID [081] process Accs-Request."),
       line("C02B7D1", "Port SIPT:00ee. RADIUS: Request ID [081] send. Attempt: 1. Srv-grp [0]"),
-      line("C02B7D1", "-- RADIUS. Antifraud-Auth-Request [081] --"),
+      line("C02B7D1", "-- RADIUS. Accs-Request [081] --"),
       line("C02B7D1", "h323-call-origin                 = 'originate'"),
       line("C02B7D1", "--------------------------------"),
       ...rcBlock(2, 81),
@@ -172,12 +196,12 @@ describe("SMG syslog call assembly", () => {
       "<14> <smg1016m>  10:30:19.720307  [INFO]  RADIUS: process queue",
       line("C02B7D1", "RADIUS: Request ID [081] process reply"),
       line("C02B7D1", "Port SIPT:00ee. RADIUS: Request ID [081] Accs-Reply [accept]. Time [185:185]"),
-      line("C02B7D1", "Port SIPT:00ee. RADIUS: process call. Accs req status: antifraud"),
+      line("C02B7D1", "Port SIPT:00ee. RADIUS: process call. Accs req status: out-seize"),
       line("C02B7D1", "Port SIPT:07cc. Accs-Request for Antifraud: check TG(i/o): 27(ext)/26(ext), USE_AF 1, SD 0, OS 1, RREQ 5."),
-      line("C02B7D1", "Port SIPT:07cc. RADIUS: Accs-Request [antifraud_out]"),
-      line("C02B7D1", "Port SIPT:07cc. RADIUS: Request ID [085] process Antifraud-Auth-Request."),
+      line("C02B7D1", "Port SIPT:07cc. RADIUS: Accs-Request [out-seize]"),
+      line("C02B7D1", "Port SIPT:07cc. RADIUS: Request ID [085] process Accs-Request."),
       line("C02B7D1", "Port SIPT:07cc. RADIUS: Request ID [085] send. Attempt: 1. Srv-grp [0]"),
-      line("C02B7D1", "-- RADIUS. Antifraud-Auth-Request [085] --"),
+      line("C02B7D1", "-- RADIUS. Accs-Request [085] --"),
       line("C02B7D1", "h323-call-origin                 = 'answer'"),
       line("C02B7D1", "--------------------------------"),
       ...rcBlock(2, 85),
@@ -206,10 +230,10 @@ describe("SMG syslog call assembly", () => {
       [
         line("C02A0E3", `Port SIPT:0001. Set UniqueTag: '${TAG_SPACED}'`),
         line("C02A0E3", "Port SIPT:0001. Accs-Request for Antifraud: check TG(i/o): 1(ext)/0(ext), USE_AF 1, SD 1, OS 0, RREQ 4."),
-        line("C02A0E3", "Port SIPT:0001. RADIUS: Accs-Request [antifraud]"),
-        line("C02A0E3", "RADIUS. Request proc. Request ID[196]. Processing Antifraud-Auth-Request"),
+        line("C02A0E3", "Port SIPT:0001. RADIUS: Accs-Request [out-seize]"),
+        line("C02A0E3", "RADIUS. Request proc. Request ID[196]. Processing Accs-Request"),
         line("C02A0E3", "RADIUS. Send request. Request ID [196] is sent"),
-        line("C02A0E3", "-- RADIUS. Antifraud-Auth-Request [196] --"),
+        line("C02A0E3", "-- RADIUS. Accs-Request [196] --"),
         line("C02A0E3", "Password                         = 'hunter2'"),
       ].join("\n"),
     );
@@ -237,7 +261,7 @@ describe("SMG syslog call assembly", () => {
       line("C0000F6", `unique tag: '${TAG}'`),
       line("C0000F6", "Port SIPT:0001. Release time-stamp: 13:20:33.654 GMT Fri Oct 16 2026, msec-diff: 6328"),
       line("C0000F6", `Port SIPT:0002. Set UniqueTag: '${next}'`),
-      line("C0000F6", "Port SIPT:0002. Set Antifraud RADIUS-profile [0] options."),
+      line("C0000F6", "Port SIPT:0002. Set RADIUS-profile [0] options."),
     ].join("\n");
     const spans = spansOf(text);
     const first = spans.find((span) => span.tag === TAG)!;
@@ -251,7 +275,7 @@ describe("SMG syslog call assembly", () => {
       spansOf(
         [
           line("C0000F6", `Set UniqueTag: '${TAG}'`),
-          "NO PREFIX [C0000F6] Port SIPT:0001. Set Antifraud RADIUS-profile [1] options.",
+          "NO PREFIX [C0000F6] Port SIPT:0001. Set RADIUS-profile [1] options.",
         ].join("\n"),
       )[0]!,
     );
@@ -262,13 +286,13 @@ describe("SMG syslog call assembly", () => {
     const text = [
       line("C0000A1", `Set UniqueTag: '${TAG}'`),
       line("C0000A1", "Accs-Request for Antifraud: check TG(i/o): 1(ext)/0(ext), USE_AF 1, SD 1, OS 0, RREQ 4."),
-      line("C0000A1", "RADIUS: Accs-Request [antifraud]"),
-      line("C0000A1", "Request ID[010]. Processing Antifraud-Auth-Request"),
+      line("C0000A1", "RADIUS: Accs-Request [out-seize]"),
+      line("C0000A1", "Request ID[010]. Processing Accs-Request"),
       line("C0000A1", "Request ID [010] is sent"),
       line("C0000B2", `Set UniqueTag: '${ANSWER}'`),
       line("C0000B2", "Accs-Request for Antifraud: check TG(i/o): 1(ext)/0(ext), USE_AF 1, SD 1, OS 0, RREQ 4."),
-      line("C0000B2", "RADIUS: Accs-Request [antifraud]"),
-      line("C0000B2", "Request ID[010]. Processing Antifraud-Auth-Request"),
+      line("C0000B2", "RADIUS: Accs-Request [out-seize]"),
+      line("C0000B2", "Request ID[010]. Processing Accs-Request"),
       line("C0000B2", "Request ID [010] is sent"),
       ...rcBlock(2, 10),
       line("C0000A1", "Request ID [010] got valid reply for accs (in 5 ms)"),
@@ -280,13 +304,13 @@ describe("SMG syslog call assembly", () => {
     expect(spans.find((span) => span.tag === TAG)?.text).toContain("got valid reply");
   });
 
-  it("keeps process modifiers and the digest of the request that was just sent", () => {
+  it("drops process modifiers and keeps the digest of the request that was just sent", () => {
     const text = [
-      line("C00001D", "Port SS7:00:21. Set Antifraud RADIUS-profile [0] options."),
+      line("C00001D", "Port SS7:00:21. Set RADIUS-profile [0] options."),
       line("C00001D", "Port SS7:00:21. Accs-Request for Antifraud: check TG(i/o): 0(ext)/-1(loc), USE_AF 1, SD 1, OS 0, RREQ 4."),
       line("C00001D", "Port SS7:00:21. RADIUS: process modifiers. ModTable: in [-1:-1], out [-1:-1]"),
       line("C00001D", "Port SS7:00:21. Check out-calling-modify: '1'(1). ModTable[-1]"),
-      line("C00001D", "RADIUS. Request proc. Request ID[077]. Processing Antifraud-Auth-Request"),
+      line("C00001D", "RADIUS. Request proc. Request ID[077]. Processing Accs-Request"),
       line("C00001D", "Request ID [077] is sent"),
       line("C00001D", "Request ID[077]. Retries are exhausted"),
       ...rcBlock(2, 77),
@@ -297,7 +321,7 @@ describe("SMG syslog call assembly", () => {
       line("C00001D", `h323-conf-id                     = '${TAG_SPACED}'`),
     ].join("\n");
     const blocks = projectSpan(spansOf(text)[0]!);
-    expect(blocks.text).toContain("process modifiers");
+    expect(blocks.text).not.toContain("process modifiers");
     expect(blocks.text).not.toContain("Check out-calling-modify");
     const digest77 = packetHex(2, 77, [cisco("h323-credit-time=3600")]).slice(0, 16);
     expect(blocks.text).toContain(packetHex(3, 83, [cisco("h323-credit-time=3600")]).slice(0, 4));
@@ -404,7 +428,7 @@ describe("syslog file walk", () => {
     const hour = path.join(root, "10.1.2.3", "2026", "10", "16", "06");
     mkdirSync(hour, { recursive: true });
     const first = [
-      line("C02A0E3", "RADIUS. Request proc. Request ID[196]. Processing Antifraud-Auth-Request"),
+      line("C02A0E3", "RADIUS. Request proc. Request ID[196]. Processing Accs-Request"),
       line("C02A0E3", `Port SIPT:0001. Set UniqueTag: '${TAG}'`),
     ].join("\n");
     const second = [
@@ -631,7 +655,7 @@ describe("syslog file walk", () => {
     await stepDevice("10.1.2.3", sources(), repo.repo);
     const call = [
       line("C0000F6", `Port SIPT:0001. Set UniqueTag: '${TAG}'`),
-      line("C0000F6", "Accs-Request for Antifraud: check TG(i/o): 5(ext)/0(ext), USE_AF 1, SD 1, OS 0, RREQ 4."),
+      line("C0000F6", "RADIUS: Accs-Request [out-seize]"),
     ].join("\n");
     appendFileSync(second, `${call}\n`);
     await stepDevice("10.1.2.3", sources(), repo.repo);
@@ -640,7 +664,7 @@ describe("syslog file walk", () => {
     writeFileSync(`${second}.gz`, gzipSync(full));
     await stepDevice("10.1.2.3", sources(), repo.repo);
     const span = spansOfMark(repo).C0000F6 as { text?: string };
-    expect(span.text?.match(/Accs-Request for Antifraud/g)).toEqual(["Accs-Request for Antifraud"]);
+    expect(span.text?.match(/Accs-Request \[out-seize\]/g)).toEqual(["Accs-Request [out-seize]"]);
   });
 
   it("does not seed again when the current mark cannot be read", async () => {
@@ -787,12 +811,12 @@ describe("syslog file walk", () => {
     const repo = memoryRepo(saved);
     await stepDevice("10.1.2.3", listTraceSources(root), repo.repo);
     const call = [
-      line("C00001D", "Port SS7:00:21. Set Antifraud RADIUS-profile [0] options."),
+      line("C00001D", "Port SS7:00:21. Set RADIUS-profile [0] options."),
       line("C00001D", "Port SS7:00:21. Accs-Request for Antifraud: check TG(i/o): 0(ext)/-1(loc), USE_AF 1, SD 1, OS 0, RREQ 4."),
       line("C00001D", "Port SS7:00:21. RADIUS: process modifiers. ModTable: in [-1:-1], out [-1:-1]"),
       line("C00001D", "Port SS7:00:21. Check out-calling-modify: '1'(1). ModTable[-1]"),
       line("C00001D", `h323-conf-id                     = '${TAG_SPACED}'`),
-      line("C00001D", "Request ID[077]. Processing Antifraud-Auth-Request"),
+      line("C00001D", "Request ID[077]. Processing Accs-Request"),
       line("C00001D", "Access request ID[083]. Group[0] Server[2]: 10.0.0.3:1812:secret"),
       line("C00001D", "Request ID [083] is sent"),
       ...rcBlock(3, 83),
@@ -804,7 +828,7 @@ describe("syslog file walk", () => {
     appendFileSync(raw, `${call}\n`);
     await stepDevice("10.1.2.3", listTraceSources(root), repo.repo);
     const card = saved.find((row) => row.tag === TAG);
-    expect(card?.text).toContain("process modifiers");
+    expect(card?.text).not.toContain("process modifiers");
     expect(card?.text).not.toContain("Check out-calling-modify");
     expect(card?.text).toContain("Calculating digest");
     expect(card?.text).toContain("Accs-Reply [reject]");
@@ -840,16 +864,16 @@ describe("syslog file walk", () => {
 
 function headBeforeTag(): string {
   return [
-    line("C00001D", "Port SS7:00:21. Set Antifraud RADIUS-profile [0] options."),
+    line("C00001D", "Port SS7:00:21. Set RADIUS-profile [0] options."),
     line("C00001D", "Port SS7:00:21. Accs-Request for Antifraud: check TG(i/o): 0(ext)/-1(loc), USE_AF 1, SD 1, OS 0, RREQ 4."),
-    line("C00001D", "Request ID[077]. Processing Antifraud-Auth-Request"),
+    line("C00001D", "Request ID[077]. Processing Accs-Request"),
     line("C00001D", "Request ID [077] is sent"),
   ].join("\n");
 }
 
 function tailWithTag(): string {
   return [
-    line("C00001D", "-- RADIUS. Antifraud-Auth-Request [077] --"),
+    line("C00001D", "-- RADIUS. Accs-Request [077] --"),
     line("C00001D", `h323-conf-id                     = '${TAG_SPACED}'`),
     line("C00001D", "--------------------------------"),
     line("C00001D", "Request ID [083] is sent"),
@@ -860,10 +884,10 @@ function tailWithTag(): string {
 
 function headAfterTimeout(): string {
   return [
-    line("C00001D", "Port SS7:00:21. Set Antifraud RADIUS-profile [0] options."),
+    line("C00001D", "Port SS7:00:21. Set RADIUS-profile [0] options."),
     line("C00001D", "Port SS7:00:21. Accs-Request for Antifraud: check TG(i/o): 0(ext)/-1(loc), USE_AF 1, SD 1, OS 0, RREQ 4."),
     line("C00001D", `h323-conf-id                     = '${TAG_SPACED}'`),
-    line("C00001D", "Request ID[077]. Processing Antifraud-Auth-Request"),
+    line("C00001D", "Request ID[077]. Processing Accs-Request"),
     line("C00001D", "Access request ID[077]. Group[0] Server[0]: 10.0.0.1:1812:secret"),
     line("C00001D", "Request ID [077] is sent"),
     line("C00001D", "Request ID[077]. Retries are exhausted"),

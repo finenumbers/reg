@@ -52,7 +52,7 @@ describe("resolveStoredTraces", () => {
     expect(
       resolveStoredTraces([
         { id: "a", category: AF_CATEGORY.passed, status: AF_STATUS.firstTry },
-        { id: "b", category: AF_CATEGORY.blockedIn, status: AF_STATUS.retryIn },
+        { id: "b", category: AF_CATEGORY.blocked, status: AF_STATUS.retry },
       ]),
     ).toEqual({
       kind: "ready",

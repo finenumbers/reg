@@ -23,17 +23,15 @@ const base = {
 };
 
 describe("SMG summary columns", () => {
-  it("keeps 23 working columns and does not reuse a CDR field name for a derived cell", () => {
-    expect(SMG_SUMMARY_COLUMNS).toHaveLength(23);
+  it("keeps 21 working columns and does not reuse a CDR field name for a derived cell", () => {
+    expect(SMG_SUMMARY_COLUMNS).toHaveLength(21);
     expect(SMG_SUMMARY_COLUMNS).not.toContain("incomingType");
     expect(SMG_SUMMARY_COLUMNS).not.toContain("outgoingType");
-    expect(SMG_SUMMARY_COLUMNS.slice(-7)).toEqual([
+    expect(SMG_SUMMARY_COLUMNS.slice(-5)).toEqual([
       "antifraud",
       "antifraudStatus",
       "afDelay1Dev",
       "afDelay1Prod",
-      "afDelay2Dev",
-      "afDelay2Prod",
       "afDelayParking",
     ]);
     for (const column of SMG_SUMMARY_DERIVED) {

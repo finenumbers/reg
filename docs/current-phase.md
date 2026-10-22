@@ -1,7 +1,17 @@
-# Current Phase — production (v1.170.0)
+# Current Phase — production (v1.171.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal.  
 **Date:** 2026-10-22
+
+## v1.171.0 — SMG antifraud is one Radius out-seize request
+
+Stop `app` before this update. There is no migration. Parser version 8 deletes every syslog card on the first turn, then marks the end of the newest syslog file and does not read the archive. Checkpoints that are not version 8 are deleted and their JSON is not read. `smg-syslog` keeps writing. The Parking journal is not deleted. Keep one `app` replica. A leftover v1.170.0 process still writes version-7 cards; if it is running when the cards are deleted, it writes them back.
+
+The wipe runs in the new process, about five seconds after it starts, not in `migrate`. It also blanks stored CDR antifraud labels, so existing rows stay «Нет данных» / «Неизвестно» until a card is assembled from bytes after the mark. «Ответы АнтиФрода» and «Задержка АнтиФрода» lose the history that lived on the deleted cards. «Таймаут АнтиФрода» still counts Parking `radius_calls`. Rolling back to v1.170.0 deletes the version-8 cards and does not restore them.
+
+The exchange is one authorization at outgoing seize: `Set RADIUS-profile`, then `RADIUS: Accs-Request [out-seize]`, then one reply. `Accs-Request for Antifraud` and `Set Antifraud RADIUS-profile` are not that exchange. `USE_AF 0` probes do not label the call «Не отправлялся». Accounting is not a second stage and is not stored. The server address chooses the delay cell. The headers are «Вход Dev» (`91.195.253.131`), «Вход Prod» (`91.195.252.131`), and «Parking» (`5.227.161.183`). «Выход Dev» and «Выход Prod» are gone from both SMG tables and both workbooks. The milliseconds are `got valid reply (in N ms)`. `Time [a:b]` is not the cell. `h323-call-origin` does not choose a column.
+
+An accept is «Пропущен». A later request after a timeout or a reject is «Повтор», not «Разбор не сошёлся». A reject that releases the call is «Заблокирован». A reject that leaves the call up is «Отказ не применён». A sent request with no verdict is «Нет ответа сервера», or «Снят без ответа сервера» when Radius releases the call. An open card with no verdict stays «Ожидание АнтиФрода», including while one server is exhausted and the next request has not been sent. A closed profile that never sent is «Запрос не ушёл». A closed call with no profile and no request is «Не проверялся». The call panel lists servers without «Вход» / «Выход» headings. The shared secret stays in the card text and stays out of the summary. A node with «АнтиФрод» off still shows «Нет АнтиФрода» and empty delay cells.
 
 ## v1.170.0 — SMG menus show the node name from Settings
 

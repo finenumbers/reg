@@ -149,7 +149,7 @@ describe("querySmgFacetValues", () => {
         month,
         deviceSigns: ["gw"],
         phoneQ: "",
-        filters: { antifraud: [AF_CATEGORY.blockedIn], setupDay: ["2026-10-13"] },
+        filters: { antifraud: [AF_CATEGORY.blocked], setupDay: ["2026-10-13"] },
         q: "",
         limit: 10,
         storedAf: true,
@@ -161,7 +161,7 @@ describe("querySmgFacetValues", () => {
     expect(seen).toHaveLength(1);
     expect(seen[0]).toContain("af_category");
     expect(seen[0]).toContain("2026-10-13");
-    expect(seen[0]).not.toContain(AF_CATEGORY.blockedIn);
+    expect(seen[0]).not.toContain(AF_CATEGORY.blocked);
     expect(seen[0]).not.toContain("smg_call_traces");
   });
 });

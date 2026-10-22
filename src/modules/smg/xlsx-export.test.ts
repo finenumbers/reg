@@ -27,8 +27,6 @@ describe("SMG xlsx columns", () => {
       "Статус АнтиФрод",
       "Вход Dev",
       "Вход Prod",
-      "Выход Dev",
-      "Выход Prod",
       "Parking",
     ]);
   });
@@ -56,14 +54,12 @@ describe("SMG xlsx columns", () => {
       headers.indexOf(SMG_HEADER_LABELS.uniqueTag),
     );
     expect(
-      headers.slice(headers.indexOf("АнтиФрод"), headers.indexOf("АнтиФрод") + 7),
+      headers.slice(headers.indexOf("АнтиФрод"), headers.indexOf("АнтиФрод") + 5),
     ).toEqual([
       "АнтиФрод",
       "Статус АнтиФрод",
       "Вход Dev",
       "Вход Prod",
-      "Выход Dev",
-      "Выход Prod",
       "Parking",
     ]);
   });
@@ -120,8 +116,6 @@ describe("SMG xlsx file", () => {
       "Статус АнтиФрод",
       "Вход Dev",
       "Вход Prod",
-      "Выход Dev",
-      "Выход Prod",
       "Parking",
     ]);
     const phoneIndex =

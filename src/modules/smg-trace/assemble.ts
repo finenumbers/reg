@@ -3,11 +3,11 @@ import { realTag } from "@/modules/smg-trace/tag";
 import type { TraceBlocks } from "@/modules/smg-trace/types";
 
 /**
- * Version 7 drops every stored card once, when no live mark of this version
+ * Version 8 drops every stored card once, when no live mark of this version
  * exists yet. A foreign mark deletes checkpoints and is not read. The pass
  * then continues from the end of the open file. Older archives are not read.
  */
-export const SMG_TRACE_PARSER_VERSION = 7;
+export const SMG_TRACE_PARSER_VERSION = 8;
 
 /** A call with no release and no reject leaves the assembler after this long. */
 export const SMG_TRACE_HOLD_MS = 4 * 60 * 60 * 1000;
@@ -226,9 +226,10 @@ export function applyLine(state: TraceState, rawLine: string): TraceSpan | null 
   }
 
   const inDump = state.collecting?.callref === callref;
+  openWindow(span, payload);
   if (shouldStore(payload, span, inDump)) {
     appendLine(span, stripped);
-    updateWindow(span, payload);
+    closeWindow(span, payload);
     updateDump(state, span, payload);
   }
   return taken.detached;
@@ -325,16 +326,23 @@ function flushBlank(span: TraceSpan, payload: string): void {
 function shouldStore(payload: string, span: TraceSpan, inDump: boolean): boolean {
   if (excluded(payload)) return false;
   if (inDump) return true;
-  if (/Set Antifraud RADIUS-profile/i.test(payload)) return true;
-  if (/Accs-Request for Antifraud/i.test(payload)) return true;
+  if (isRadiusProfile(payload) || isOutSeize(payload)) return true;
   if (radiusReleaseLine(payload)) return true;
   if (!span.attemptOpen) return false;
   if (exchangeLine(payload) || /\bRADIUS\b/i.test(payload)) return true;
   return false;
 }
 
+/** Ordinary SMG profile. The license line `Set Antifraud RADIUS-profile` is not this. */
+function isRadiusProfile(payload: string): boolean {
+  return /Set RADIUS-profile\b/i.test(payload);
+}
+
+function isOutSeize(payload: string): boolean {
+  return /Accs-Request \[out-seize\]/i.test(payload);
+}
+
 function excluded(payload: string): boolean {
-  if (/process modifiers/i.test(payload)) return false;
   if (/Seize on version/i.test(payload)) return true;
   if (/seize-time/i.test(payload)) return true;
   if (/session-ID\s*\[/i.test(payload)) return true;
@@ -342,6 +350,8 @@ function excluded(payload: string): boolean {
   if (/from-RADIUS-modify/i.test(payload)) return true;
   if (/\bConn\[/.test(payload)) return true;
   if (/server rejected/i.test(payload)) return true;
+  if (/process modifiers/i.test(payload)) return true;
+  if (/Accounting-Request|Acct-Request/i.test(payload)) return true;
   if (/\b(IAM|ACM|ANM|REL|RLC|CPG|CON)-/.test(payload)) return true;
   if (/\bDial\b/i.test(payload) && !/Antifraud/i.test(payload)) return true;
   if (/Modify at|Number tranzit|ModTable\b|Prefix linked|CheckRTP|rtp-cfg|fax_mode/i.test(payload)) {
@@ -353,12 +363,10 @@ function excluded(payload: string): boolean {
 function exchangeLine(payload: string): boolean {
   return (
     /modified for transit/i.test(payload) ||
-    /process modifiers/i.test(payload) ||
     /Accs-Request \[/i.test(payload) ||
-    /Prepare Antifraud/i.test(payload) ||
+    /Prepare Authorization-Request|Prepare Antifraud/i.test(payload) ||
     /profile idx/i.test(payload) ||
     /clg\s*</i.test(payload) ||
-    /Antifraud/i.test(payload) ||
     /Request ID/i.test(payload) ||
     /Attempt:?\s*\d+/i.test(payload) ||
     /Srv-grp|Server\[\d+\]/i.test(payload) ||
@@ -370,23 +378,22 @@ function exchangeLine(payload: string): boolean {
     /process reply/i.test(payload) ||
     /Accs-Reply/i.test(payload) ||
     /ignore for not antifraud/i.test(payload) ||
-    /process call\./i.test(payload) ||
-    /no flags set/i.test(payload) ||
-    /Accounting-Request|Acct-Request/i.test(payload)
+    /process call\./i.test(payload)
   );
 }
 
-function updateWindow(span: TraceSpan, payload: string): void {
-  if (/Accs-Request for Antifraud/i.test(payload) && /USE_AF\s+1\b/.test(payload)) {
+function openWindow(span: TraceSpan, payload: string): void {
+  if (
+    isRadiusProfile(payload) ||
+    isOutSeize(payload) ||
+    /Processing Accs-Request|process Accs-Request/i.test(payload)
+  ) {
     span.attemptOpen = true;
   }
-  if (
-    /process call\.\s*Accs req status:\s*antifraud/i.test(payload) ||
-    /no flags set\s*-\s*skip/i.test(payload) ||
-    /ignore for not antifraud/i.test(payload)
-  ) {
-    span.attemptOpen = false;
-  }
+}
+
+function closeWindow(span: TraceSpan, payload: string): void {
+  if (/process call\.\s*Accs req status:/i.test(payload)) span.attemptOpen = false;
 }
 
 function updateDump(state: TraceState, span: TraceSpan, payload: string): void {
@@ -411,8 +418,9 @@ function noteIdentity(span: TraceSpan, payload: string): void {
 function noteInflight(state: TraceState, span: TraceSpan, payload: string): void {
   const id = requestIdOf(payload);
   if (id == null) return;
+  if (/Accounting-Request|Acct-Request/i.test(payload)) return;
   const sent = /Request ID\s*\[\d+\]\s+(?:is sent|send)\b/i.test(payload);
-  const claim = sent || /Processing Antifraud-Auth-Request|process Antifraud-Auth-Request/i.test(payload);
+  const claim = sent || /Processing Accs-Request|process Accs-Request/i.test(payload);
   if (claim) {
     if (state.ambiguousIds.includes(id)) return;
     const others = state.inflight.some((item) => item.id === id && item.callref !== span.callref);
@@ -437,7 +445,7 @@ function noteInflight(state: TraceState, span: TraceSpan, payload: string): void
 export function spanOpensCard(span: TraceSpan): boolean {
   if (!span.tag) return false;
   if (span.sawUniqueTag) return true;
-  return /Set Antifraud RADIUS-profile|Accs-Request for Antifraud/i.test(span.text);
+  return /Set RADIUS-profile\b|Accs-Request \[out-seize\]/i.test(span.text);
 }
 
 function requestIdOf(payload: string): number | null {
