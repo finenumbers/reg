@@ -1,7 +1,13 @@
-# Current Phase — production (v1.177.0)
+# Current Phase — production (v1.178.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal.  
 **Date:** 2026-10-23
+
+## v1.178.0 — The call summary paints the antifraud verdict and the server
+
+There is no migration. Do not stop `app`. Do not stop `smg-syslog`. Stored rows are not rewritten. Parser version stays 9. Syslog cards are not deleted.
+
+The summary above the syslog text paints «Пропущен» and Access-Accept bold green (`text-green-600`), «Заблокирован» and Access-Reject bold red (`text-red-600`), and the server name with its address bold blue (`text-blue-600`). An unknown address is the blue server name. Milliseconds, «вызов снят», the request id, and the attempt stay plain. «Отказ не применён» stays plain when the server line is Access-Reject. The syslog text under the summary, the traffic table, and the workbook are unchanged.
 
 ## v1.177.0 — A restart continues only the purge that was running
 

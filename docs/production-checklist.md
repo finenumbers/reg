@@ -53,6 +53,8 @@ Optional publish ports: `APP_PUBLISH_PORT`, `POSTGRES_PUBLISH_PORT`.
 
 ## 3. Database
 
+v1.178.0 does not migrate and does not rewrite stored rows. Do not stop `app`. Do not stop `smg-syslog`. Parser version stays 9. The call panel summary paints «Пропущен» and Access-Accept bold green, «Заблокирован» and Access-Reject bold red, and the server name with its address bold blue. The syslog text and the traffic table are unchanged.
+
 v1.177.0 does not migrate and does not rewrite stored rows. Do not stop `app`. Do not stop `smg-syslog`. Parser version stays 9. A quiet restart deletes nothing. If a month purge is running when `app` restarts, that month is deleted to completion and its import hold stays until then. Older interrupted purges are not continued into a call delete. Do not deploy during a month delete unless that continuation is intended. UFW sheets are unchanged. The toast counts endpoints whose registration is neither «Да» nor «Нет».
 
 v1.176.0 does not migrate and does not rewrite stored rows. Do not stop `app`. Do not stop `smg-syslog`. Parser version stays 9. Two unused type aliases are removed. Screens, workbooks, and the SMG trace walker are unchanged.

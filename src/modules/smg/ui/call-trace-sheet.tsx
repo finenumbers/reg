@@ -10,8 +10,86 @@ import {
 } from "@/components/ui/sheet";
 import { formatSmgSummaryCell } from "@/modules/smg/summary";
 import type { SmgListItem } from "@/modules/smg/service";
+import { AF_CATEGORY } from "@/modules/smg-trace/classify";
 import { formatServerLine, summarizeExchange } from "@/modules/smg-trace/summary";
 import type { TraceLookup } from "@/modules/smg-trace/types";
+
+/** Saturated on the white call sheet. No `dark:` shade: that variant follows the OS scheme while the sheet stays white. */
+export const AF_SUMMARY_PASS_CLASS = "font-bold text-green-600";
+export const AF_SUMMARY_BLOCK_CLASS = "font-bold text-red-600";
+export const AF_SUMMARY_SERVER_CLASS = "font-bold text-blue-600";
+
+const SERVER_MARK = " — ";
+const ACCEPT = "Access-Accept";
+const REJECT = "Access-Reject";
+
+export type SummaryTone = "pass" | "block";
+
+/** Whole category only. «Отказ не применён» stays plain beside a red Access-Reject. */
+export function categoryTone(category: string): SummaryTone | null {
+  if (category === AF_CATEGORY.passed) return "pass";
+  if (category === AF_CATEGORY.blocked) return "block";
+  return null;
+}
+
+export function summaryToneClass(tone: SummaryTone): string {
+  return tone === "pass" ? AF_SUMMARY_PASS_CLASS : AF_SUMMARY_BLOCK_CLASS;
+}
+
+export type ServerLineParts = {
+  server: string;
+  lead: string;
+  outcome: string;
+  outcomeTone: SummaryTone | null;
+  tail: string;
+};
+
+/**
+ * Split one `formatServerLine` result. The first em dash separates the server
+ * from the outcome. Access-Accept and Access-Reject count only as a whole token.
+ */
+export function splitServerSummaryLine(line: string): ServerLineParts {
+  const at = line.indexOf(SERVER_MARK);
+  if (at < 0) {
+    return { server: line, lead: "", outcome: "", outcomeTone: null, tail: "" };
+  }
+  const body = line.slice(at + SERVER_MARK.length);
+  const accept = takeToken(body, ACCEPT);
+  if (accept != null) {
+    return {
+      server: line.slice(0, at),
+      lead: SERVER_MARK,
+      outcome: ACCEPT,
+      outcomeTone: "pass",
+      tail: accept,
+    };
+  }
+  const reject = takeToken(body, REJECT);
+  if (reject != null) {
+    return {
+      server: line.slice(0, at),
+      lead: SERVER_MARK,
+      outcome: REJECT,
+      outcomeTone: "block",
+      tail: reject,
+    };
+  }
+  return {
+    server: line.slice(0, at),
+    lead: SERVER_MARK,
+    outcome: "",
+    outcomeTone: null,
+    tail: body,
+  };
+}
+
+/** The text after the token, when the token ends the body or is followed by a comma. */
+function takeToken(body: string, token: string): string | null {
+  if (!body.startsWith(token)) return null;
+  const next = body[token.length];
+  if (next != null && next !== ",") return null;
+  return body.slice(token.length);
+}
 
 const TRACE_FONT =
   'ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", "DejaVu Sans Mono", monospace';
@@ -112,13 +190,37 @@ function ExchangeSummary({
   blocks: Extract<TraceLookup, { status: "ok" }>["blocks"];
 }) {
   const summary = summarizeExchange({ closed, blocks });
+  const tone = categoryTone(summary.category);
   return (
     <div className="space-y-2 text-sm">
-      <p>Результат: {summary.category}</p>
+      <p>
+        Результат:{" "}
+        {tone ? (
+          <span className={summaryToneClass(tone)}>{summary.category}</span>
+        ) : (
+          summary.category
+        )}
+      </p>
       <p>Статус: {summary.status}</p>
       {summary.servers.map((row) => (
-        <p key={`${row.ip}-${row.requestId}-${row.attempt}`}>{formatServerLine(row)}</p>
+        <p key={`${row.ip}-${row.requestId}-${row.attempt}`}>
+          <ServerSummaryLine line={formatServerLine(row)} />
+        </p>
       ))}
     </div>
+  );
+}
+
+function ServerSummaryLine({ line }: { line: string }) {
+  const parts = splitServerSummaryLine(line);
+  return (
+    <>
+      <span className={AF_SUMMARY_SERVER_CLASS}>{parts.server}</span>
+      {parts.lead}
+      {parts.outcomeTone ? (
+        <span className={summaryToneClass(parts.outcomeTone)}>{parts.outcome}</span>
+      ) : null}
+      {parts.tail}
+    </>
   );
 }
