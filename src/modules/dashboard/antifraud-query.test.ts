@@ -46,11 +46,13 @@ describe("antifraud chart sql", () => {
   it("keeps a delay sample only after one card is selected", () => {
     const sql = flattenSql(delayMinutesSql(afternoon));
     const cards = sql.text.indexOf("count(DISTINCT trace_id)");
-    const unnest = sql.text.indexOf("unnest(af_ms_dev)");
+    const chosen = sql.text.indexOf("cards = 1");
+    const unnest = sql.text.indexOf("LATERAL unnest(v.arr)");
     expect(cards).toBeGreaterThan(-1);
-    expect(unnest).toBeGreaterThan(cards);
+    expect(chosen).toBeGreaterThan(cards);
+    expect(unnest).toBeGreaterThan(chosen);
     expect(sql.text).not.toContain("date_trunc");
-    expect(sql.text).toContain("cards = 1");
+    expect(sql.text).not.toContain("array_agg");
     expect(sql.text).toContain("af_ms_dev IS NOT NULL");
     expect(sql.text).not.toContain("c.device_ip");
   });

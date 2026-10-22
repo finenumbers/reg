@@ -88,10 +88,7 @@ export function delayMinutesSql(bounds: UtcCallWindow): Prisma.Sql {
       SELECT
         z.id AS cdr_id,
         z.instant,
-        t.id AS trace_id,
-        t.af_ms_dev,
-        t.af_ms_prod,
-        t.af_ms_parking
+        t.id AS trace_id
       FROM zoned z
       INNER JOIN smg_call_traces t
         ON t.tag_norm <> ''
@@ -108,33 +105,32 @@ export function delayMinutesSql(bounds: UtcCallWindow): Prisma.Sql {
         cdr_id,
         min(instant) AS instant,
         count(DISTINCT trace_id) AS cards,
-        (array_agg(af_ms_dev))[1] AS af_ms_dev,
-        (array_agg(af_ms_prod))[1] AS af_ms_prod,
-        (array_agg(af_ms_parking))[1] AS af_ms_parking
+        min(trace_id) AS trace_id
       FROM matched
       GROUP BY cdr_id
     ),
+    chosen AS (
+      SELECT
+        s.instant,
+        t.af_ms_dev,
+        t.af_ms_prod,
+        t.af_ms_parking
+      FROM single s
+      INNER JOIN smg_call_traces t ON t.id = s.trace_id
+      WHERE s.cards = 1
+        AND t.af_ms_dev IS NOT NULL
+        AND t.af_ms_prod IS NOT NULL
+        AND t.af_ms_parking IS NOT NULL
+    ),
     samples AS (
-      SELECT instant, 'dev'::text AS line, unnest(af_ms_dev) AS ms
-      FROM single
-      WHERE cards = 1
-        AND af_ms_dev IS NOT NULL
-        AND af_ms_prod IS NOT NULL
-        AND af_ms_parking IS NOT NULL
-      UNION ALL
-      SELECT instant, 'prod'::text, unnest(af_ms_prod)
-      FROM single
-      WHERE cards = 1
-        AND af_ms_dev IS NOT NULL
-        AND af_ms_prod IS NOT NULL
-        AND af_ms_parking IS NOT NULL
-      UNION ALL
-      SELECT instant, 'parking'::text, unnest(af_ms_parking)
-      FROM single
-      WHERE cards = 1
-        AND af_ms_dev IS NOT NULL
-        AND af_ms_prod IS NOT NULL
-        AND af_ms_parking IS NOT NULL
+      SELECT c.instant, v.line, u.ms
+      FROM chosen c
+      CROSS JOIN LATERAL (VALUES
+        ('dev'::text, c.af_ms_dev),
+        ('prod'::text, c.af_ms_prod),
+        ('parking'::text, c.af_ms_parking)
+      ) AS v(line, arr)
+      CROSS JOIN LATERAL unnest(v.arr) AS u(ms)
     )
     SELECT
       floor(extract(epoch FROM instant) / 60)::int AS minute_key,

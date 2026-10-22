@@ -1,7 +1,13 @@
-# Current Phase — production (v1.168.0)
+# Current Phase — production (v1.168.1)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal.  
 **Date:** 2026-10-22
+
+## v1.168.1 — Delay chart reads the stored millisecond arrays
+
+There is no migration. Do not stop `smg-syslog`. Keep one `app` replica. Stored delay arrays are not rewritten.
+
+«Задержка АнтиФрода» again reads `af_ms_dev`, `af_ms_prod`, and `af_ms_parking` from the one card on a call. v1.168.0 asked Postgres to unnest an integer, so both delay charts answered «График звонков недоступен.» An empty array still adds no point. A null array still drops the call. Two cards on one call still contribute nothing. A measured 0 ms is still a point.
 
 ## v1.168.0 — Antifraud charts in UTC, and the CDR zone of each SMG
 
