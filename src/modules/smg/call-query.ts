@@ -78,7 +78,7 @@ export type SqlQuery = <T>(query: Prisma.Sql) => Promise<T>;
 
 type Scope = {
   month: CdrMonth;
-  device: string;
+  deviceSigns: readonly string[];
   phoneQ: string;
   filters: ColumnFilters;
   excludeColumn?: string;
@@ -138,12 +138,18 @@ function col(field: SmgField): Prisma.Sql {
   return Prisma.raw(SQL_COLUMN[field]);
 }
 
+function devicePredicate(signs: readonly string[]): Prisma.Sql {
+  if (signs.length === 0) return Prisma.sql`FALSE`;
+  if (signs.length === 1) return Prisma.sql`device_sign = ${signs[0] ?? ""}`;
+  return Prisma.sql`device_sign IN (${Prisma.join([...signs])})`;
+}
+
 function baseWhere(scope: Scope): Prisma.Sql {
   const range = smgMonthTimeRange(scope.month);
   const parts: Prisma.Sql[] = [
     Prisma.sql`disconnect_time >= ${range.gte}`,
     Prisma.sql`disconnect_time < ${range.lt}`,
-    Prisma.sql`device_sign = ${scope.device}`,
+    devicePredicate(scope.deviceSigns),
   ];
   const phone = scope.phoneQ.trim();
   if (phone) {

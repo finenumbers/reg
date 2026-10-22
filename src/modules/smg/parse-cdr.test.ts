@@ -58,7 +58,7 @@ describe("parseSmgText", () => {
     expect(parsed.rows[0]?.recordKey.startsWith("kazan\u001faa bb")).toBe(true);
   });
 
-  it("keeps good rows and reports an empty device sign", () => {
+  it("keeps a call whose device sign is blank", () => {
     const text = [
       BANNER,
       headerLine("short"),
@@ -66,10 +66,28 @@ describe("parseSmgText", () => {
       dataLine("short", { ...CALL, deviceSign: "", uniqueTag: "tag-2" }),
     ].join("\n");
     const parsed = parseSmgText(text, "20261013.cdr");
-    expect(parsed.rows).toHaveLength(1);
+    expect(parsed.error).toBeNull();
+    expect(parsed.linesBad).toBe(0);
+    expect(parsed.rows).toHaveLength(2);
+    expect(parsed.rows[1]?.fields.deviceSign).toBe("");
+    expect(parsed.rows[1]?.recordKey.startsWith("\u001ftag-2")).toBe(true);
+  });
+
+  it("still rejects a blank node that has no call identity", () => {
+    const text = [
+      BANNER,
+      headerLine("short"),
+      dataLine("short", {
+        ...CALL,
+        deviceSign: "",
+        uniqueTag: "",
+        sequenceNumber: "",
+      }),
+    ].join("\n");
+    const parsed = parseSmgText(text, "20261013.cdr");
+    expect(parsed.rows).toHaveLength(0);
     expect(parsed.linesBad).toBe(1);
-    expect(parsed.error).toMatch(/строка 4/);
-    expect(parsed.error).toMatch(/пустой узел/);
+    expect(parsed.error).toMatch(/нет идентификатора вызова/);
   });
 
   it("collapses a repeated call identity inside one file", () => {

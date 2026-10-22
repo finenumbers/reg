@@ -128,14 +128,6 @@ export function parseSmgText(text: string, filename: string): ParseSmgResult {
       fields[column.field] = values[at]?.trim() ?? "";
     }
 
-    if (!fields.deviceSign) {
-      linesBad += 1;
-      if (firstBadLine == null) {
-        firstBadLine = lineNo;
-        firstReason = "пустой узел";
-      }
-      continue;
-    }
     const disconnect = DISCONNECT_RE.exec(fields.disconnectTime);
     if (!disconnect) {
       linesBad += 1;

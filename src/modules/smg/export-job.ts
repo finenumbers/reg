@@ -3,7 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import type { ColumnFilters } from "@/components/column-filters/types";
-import { writeSmgExport } from "@/modules/smg/service";
+import { smgDeviceFileLabel, writeSmgExport } from "@/modules/smg/service";
 import {
   smgExportFilename,
   SmgExportTooLargeError,
@@ -104,6 +104,11 @@ async function runSmgExportJob(
     }
     job.dir = dir;
     job.filePath = path.join(dir, "output.xlsx");
+    job.filename = smgExportFilename(
+      input.layout,
+      input.month.key,
+      await smgDeviceFileLabel(input.device),
+    );
     await writeSmgExport({ ...input, filePath: job.filePath });
     if (store().job !== job) {
       await discardJob(job);

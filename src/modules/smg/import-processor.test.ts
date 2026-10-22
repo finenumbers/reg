@@ -126,6 +126,30 @@ describe("processSmgImport", () => {
     expect(listSmgPoisonEntries()).toEqual([]);
   });
 
+  it("stores a call with an empty device sign and deletes the file", async () => {
+    const abs = await put(
+      "20261013120200.cdr",
+      [
+        BANNER,
+        headerLine(),
+        dataLine({ ...CALL, deviceSign: "", uniqueTag: "tag-blank" }),
+      ].join("\n"),
+    );
+    const result = await processSmgImport({ trigger: "schedule" });
+    expect(result.status).toBe("success");
+    expect(result.phonesParsed).toBe(1);
+    expect(result.linesBad).toBe(0);
+    const inserted = createMany.mock.calls.flatMap(
+      (call) =>
+        (call[0] as { data: { recordKey: string; deviceSign: string }[] }).data,
+    );
+    expect(inserted).toHaveLength(1);
+    expect(inserted[0]?.deviceSign).toBe("");
+    expect(inserted[0]?.recordKey.startsWith("\u001ftag-blank")).toBe(true);
+    await expect(readFile(abs)).rejects.toThrow();
+    expect(listSmgPoisonEntries()).toEqual([]);
+  });
+
   it("inserts good rows, keeps a partial file, and poisons it", async () => {
     const abs = await put(
       "20261013120100.cdr",
@@ -133,7 +157,7 @@ describe("processSmgImport", () => {
         BANNER,
         headerLine(),
         dataLine(CALL),
-        dataLine({ ...CALL, deviceSign: "", uniqueTag: "tag-2" }),
+        dataLine({ ...CALL, disconnectTime: "not-a-time", uniqueTag: "tag-2" }),
       ].join("\n"),
     );
     const result = await processSmgImport({ trigger: "schedule" });
@@ -295,7 +319,7 @@ describe("processSmgImport", () => {
         BANNER,
         headerLine(),
         dataLine(CALL),
-        dataLine({ ...CALL, deviceSign: "", uniqueTag: "tag-2" }),
+        dataLine({ ...CALL, disconnectTime: "not-a-time", uniqueTag: "tag-2" }),
       ].join("\n"),
     );
     const held = await processSmgImport({ trigger: "schedule" });

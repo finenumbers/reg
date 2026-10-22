@@ -482,10 +482,17 @@ export async function markCdrLabels(done: boolean): Promise<void> {
  * True when this gateway-month can filter on the stored pair.
  * A missing mark or any null row keeps the join that the table uses today.
  */
-export async function cdrLabelsReady(month: CdrMonth, device: string): Promise<boolean> {
-  if (!device) return false;
+export async function cdrLabelsReady(
+  month: CdrMonth,
+  signs: readonly string[],
+): Promise<boolean> {
+  if (signs.length === 0) return false;
   const range = smgMonthTimeRange(month);
   const revision = String(AF_LABEL_REVISION);
+  const deviceSql =
+    signs.length === 1
+      ? Prisma.sql`device_sign = ${signs[0] ?? ""}`
+      : Prisma.sql`device_sign IN (${Prisma.join([...signs])})`;
   const rows = await prisma.$queryRaw<Array<{ ready: boolean; pending: boolean }>>`
     SELECT
       EXISTS (
@@ -499,7 +506,7 @@ export async function cdrLabelsReady(month: CdrMonth, device: string): Promise<b
       EXISTS (
         SELECT 1
         FROM smg_cdr_records
-        WHERE device_sign = ${device}
+        WHERE ${deviceSql}
           AND disconnect_time >= ${range.gte}
           AND disconnect_time < ${range.lt}
           AND af_category IS NULL

@@ -1,7 +1,19 @@
-# Current Phase — production (v1.169.0)
+# Current Phase — production (v1.170.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal.  
 **Date:** 2026-10-22
+
+## v1.170.0 — SMG menus show the node name from Settings
+
+There is no migration. Do not stop `app`. Do not stop `smg-syslog`. Stored CDR rows are not rewritten. There is no new index on `smg_cdr_records`.
+
+«Трафик SMG» and «Данные SMG» name each gateway from Settings → Syslog — SMG. The link is `identifier = lower(btrim(device_sign))`. The menu lists a node only when that month has calls, as `Название (счётчик)`, in settings name order. The count ignores the phone search and the column filters. A node with no identifier, and a node with no calls this month, are omitted. The first open can land on a different node than before, because the order is the node name, not `device_sign`.
+
+Calls whose «Узел» is blank or does not match a saved identifier share the last item, «Нет данных», and only when that month has such calls. The table column «Узел» stays the raw CDR value, so an unknown token or a blank cell stays visible. The workbook file name uses the menu name. «Ответы АнтиФрода» and «Задержка АнтиФрода» still omit a call that does not match an identifier. «Нет данных» in the menu does not paint «Нет АнтиФрода».
+
+A CDR row with an empty Device Sign is stored. Its call key starts with the record separator, then the UniqueTag, or the sequence number and the setup time. Two blank-node calls with the same tag, or the same sequence and setup time, stay one call. A blank node with neither is still a bad line. Files already in the inbox only because of «пустой узел» are read again by the next `smg.import`: new rows are inserted, duplicates are skipped, and a file with no other bad line is deleted. A file already deleted is not recovered. Do not empty the inbox before this update.
+
+The page still reads `(device_sign, disconnect_time, id)`. The month's distinct signs are grouped once and kept in the process until the next completed `smg.import`. A later page, a column filter, and a facet do not walk the month again. An empty selection still matches nothing.
 
 ## v1.169.0 — A Syslog SMG can be marked as having no antifraud exchange
 

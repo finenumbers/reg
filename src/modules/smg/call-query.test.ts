@@ -22,7 +22,7 @@ describe("querySmgIdPage", () => {
       query,
       {
         month,
-        device: "gw",
+        deviceSigns: ["gw"],
         phoneQ: "",
         filters: { setupDay: ["2026-10-13"] },
         setupSort: null,
@@ -52,7 +52,7 @@ describe("querySmgIdPage", () => {
       query,
       {
         month,
-        device: "gw",
+        deviceSigns: ["gw"],
         phoneQ: "",
         filters: { antifraud: [AF_CATEGORY.conflict] },
         setupSort: "desc",
@@ -91,7 +91,7 @@ describe("querySmgFacetValues", () => {
       {
         column: "incomingCgpn",
         month,
-        device: "gw",
+        deviceSigns: ["gw"],
         phoneQ: "",
         filters: { antifraud: [AF_CATEGORY.passed] },
         q: "",
@@ -121,7 +121,7 @@ describe("querySmgFacetValues", () => {
       {
         column: "setupDay",
         month,
-        device: "gw",
+        deviceSigns: ["gw"],
         phoneQ: "",
         filters: { setupDay: ["2026-09-30"], antifraud: [AF_CATEGORY.passed] },
         q: "",
@@ -147,7 +147,7 @@ describe("querySmgFacetValues", () => {
       {
         column: "antifraud",
         month,
-        device: "gw",
+        deviceSigns: ["gw"],
         phoneQ: "",
         filters: { antifraud: [AF_CATEGORY.blockedIn], setupDay: ["2026-10-13"] },
         q: "",
@@ -178,7 +178,7 @@ describe("querySmgIdPage stored labels", () => {
       query,
       {
         month,
-        device: "gw",
+        deviceSigns: ["gw"],
         phoneQ: "",
         filters: { antifraud: [AF_CATEGORY.passed], setupDay: ["2026-10-13"] },
         setupSort: null,

@@ -1,15 +1,24 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { count, findMany, groupBy, queryRaw, traceFindMany, nodeFindFirst } = vi.hoisted(
-  () => ({
-    count: vi.fn(),
-    findMany: vi.fn(),
-    groupBy: vi.fn(),
-    queryRaw: vi.fn(),
-    traceFindMany: vi.fn(),
-    nodeFindFirst: vi.fn(),
-  }),
-);
+const {
+  count,
+  findMany,
+  groupBy,
+  queryRaw,
+  traceFindMany,
+  nodeFindFirst,
+  nodeFindMany,
+  jobFindFirst,
+} = vi.hoisted(() => ({
+  count: vi.fn(),
+  findMany: vi.fn(),
+  groupBy: vi.fn(),
+  queryRaw: vi.fn(),
+  traceFindMany: vi.fn(),
+  nodeFindFirst: vi.fn(),
+  nodeFindMany: vi.fn(),
+  jobFindFirst: vi.fn(),
+}));
 
 vi.mock("@/lib/db", () => ({
   prisma: {
@@ -24,6 +33,10 @@ vi.mock("@/lib/db", () => ({
     },
     smgSyslogNode: {
       findFirst: (...args: unknown[]) => nodeFindFirst(...args),
+      findMany: (...args: unknown[]) => nodeFindMany(...args),
+    },
+    jobRun: {
+      findFirst: (...args: unknown[]) => jobFindFirst(...args),
     },
   },
 }));
@@ -38,7 +51,16 @@ vi.mock("@/modules/storage/vacuum/gate", () => ({
 
 import { AF_CATEGORY, AF_STATUS } from "@/modules/smg-trace/classify";
 import { NO_ANTIFRAUD_LABEL } from "@/modules/smg/row-tokens";
-import { listSmgCalls, listSmgFacets } from "@/modules/smg/service";
+import {
+  listSmgCalls,
+  listSmgFacets,
+  resetSmgDeviceCacheForTests,
+} from "@/modules/smg/service";
+
+const NODES = [
+  { identifier: "kazan", name: "Казань" },
+  { identifier: "mts", name: "МТС" },
+];
 
 const OCTOBER = {
   disconnectTime: { gte: "2026-10-01 00:00:00", lt: "2026-11-01 00:00:00" },
@@ -52,15 +74,29 @@ describe("listSmgCalls", () => {
     queryRaw.mockReset();
     traceFindMany.mockReset();
     nodeFindFirst.mockReset();
+    nodeFindMany.mockReset();
+    jobFindFirst.mockReset();
+    resetSmgDeviceCacheForTests();
     count.mockResolvedValue(0);
     findMany.mockResolvedValue([]);
     queryRaw.mockResolvedValue([]);
     groupBy.mockResolvedValue([]);
     traceFindMany.mockResolvedValue([]);
     nodeFindFirst.mockResolvedValue(null);
+    nodeFindMany.mockResolvedValue(NODES);
+    jobFindFirst.mockResolvedValue(null);
   });
 
+  async function warmSigns() {
+    await listSmgCalls({ month: "2026-10", device: "mts", includeDevices: true });
+    groupBy.mockClear();
+    queryRaw.mockClear();
+    findMany.mockClear();
+    count.mockClear();
+  }
+
   it("keeps the requested gateway and skips the menu recount", async () => {
+    await warmSigns();
     const result = await listSmgCalls({
       month: "2026-10",
       device: "kazan",
@@ -90,8 +126,8 @@ describe("listSmgCalls", () => {
 
     expect(result.device).toBe("kazan");
     expect(result.devices).toEqual([
-      { sign: "kazan", count: 2 },
-      { sign: "mts", count: 9 },
+      { sign: "kazan", name: "Казань", count: 2 },
+      { sign: "mts", name: "МТС", count: 9 },
     ]);
     expect(findMany).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -110,7 +146,7 @@ describe("listSmgCalls", () => {
     });
 
     expect(result.device).toBe("kazan");
-    expect(result.devices).toEqual([{ sign: "kazan", count: 2 }]);
+    expect(result.devices).toEqual([{ sign: "kazan", name: "Казань", count: 2 }]);
   });
 
   it("matches nothing when the recounted month has no gateways", async () => {
@@ -130,6 +166,7 @@ describe("listSmgCalls", () => {
   });
 
   it("does not recount gateways or months while the next page loads", async () => {
+    await warmSigns();
     await listSmgCalls({
       month: "2026-10",
       device: "mts",
@@ -141,6 +178,7 @@ describe("listSmgCalls", () => {
   });
 
   it("orders by the start stamp when the date chevron is on", async () => {
+    await warmSigns();
     await listSmgCalls({
       month: "2026-10",
       device: "mts",
@@ -157,6 +195,7 @@ describe("listSmgCalls", () => {
   });
 
   it("uses SQL for a start-day filter", async () => {
+    await warmSigns();
     await listSmgCalls({
       month: "2026-10",
       device: "mts",
@@ -298,10 +337,15 @@ describe("listSmgFacets", () => {
     queryRaw.mockReset();
     count.mockReset();
     nodeFindFirst.mockReset();
+    nodeFindMany.mockReset();
+    jobFindFirst.mockReset();
+    resetSmgDeviceCacheForTests();
     groupBy.mockResolvedValue([]);
     queryRaw.mockResolvedValue([]);
     count.mockResolvedValue(0);
     nodeFindFirst.mockResolvedValue(null);
+    nodeFindMany.mockResolvedValue(NODES);
+    jobFindFirst.mockResolvedValue(null);
   });
 
   it("reads the requested gateway and drops a node column filter", async () => {
@@ -312,7 +356,11 @@ describe("listSmgFacets", () => {
       filters: { deviceSign: ["other"], incomingIp: ["10.0.0.1"] },
     });
 
-    expect(groupBy).toHaveBeenCalledTimes(1);
+    expect(groupBy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        by: ["deviceSign"],
+      }),
+    );
     expect(groupBy).toHaveBeenCalledWith(
       expect.objectContaining({
         by: ["incomingIp"],
@@ -322,15 +370,16 @@ describe("listSmgFacets", () => {
   });
 
   it("does not substitute another gateway", async () => {
-    await listSmgFacets({
+    const result = await listSmgFacets({
       column: "incomingIp",
       month: "2026-10",
       device: "nope",
     });
 
-    expect(groupBy).toHaveBeenCalledWith(
+    expect(result).toEqual({ items: [], truncated: false });
+    expect(groupBy).not.toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { AND: [OCTOBER, { deviceSign: "nope" }] },
+        by: ["incomingIp"],
       }),
     );
   });
@@ -354,7 +403,12 @@ describe("listSmgFacets", () => {
     });
 
     expect(queryRaw).not.toHaveBeenCalled();
-    expect(groupBy).toHaveBeenCalledTimes(1);
+    expect(groupBy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        by: ["incomingIp"],
+        where: { AND: [OCTOBER, { deviceSign: "mts" }] },
+      }),
+    );
   });
 
   it("groups a ready antifraud menu with the selected date and without cards", async () => {
@@ -372,7 +426,9 @@ describe("listSmgFacets", () => {
       filters: { setupDay: ["2026-10-13"], antifraud: [AF_CATEGORY.blockedIn] },
     });
 
-    expect(groupBy).not.toHaveBeenCalled();
+    expect(groupBy).not.toHaveBeenCalledWith(
+      expect.objectContaining({ by: ["antifraud"] }),
+    );
     expect(result.items).toEqual([{ value: AF_CATEGORY.passed, count: 4 }]);
     const facetSql = queryRaw.mock.calls
       .map((call) => rawText(call[0]))

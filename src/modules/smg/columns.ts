@@ -165,10 +165,13 @@ export function isSmgField(value: string): value is SmgField {
   return SMG_FIELDS.includes(value as SmgField);
 }
 
-/** Call identity. Empty device sign or missing tag and fallback is null. */
+/**
+ * Call identity. A blank node still keys the row: the leading separator keeps
+ * it apart from a call that names a node. Two blank-node calls with the same
+ * tag, or the same sequence and setup time, are one call.
+ */
 export function smgRecordKey(fields: Record<SmgField, string>): string | null {
   const device = fields.deviceSign;
-  if (!device) return null;
   if (fields.uniqueTag) return `${device}${KEY_SEP}${fields.uniqueTag}`;
   if (fields.sequenceNumber && fields.setupTime) {
     return `${device}${KEY_SEP}${fields.sequenceNumber}${KEY_SEP}${fields.setupTime}`;

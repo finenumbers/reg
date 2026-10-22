@@ -33,7 +33,16 @@ import {
   smgFacetNeedsSql,
   smgListNeedsSql,
 } from "@/modules/smg/call-query";
-import { pickSmgDevice, type SmgDeviceOption } from "@/modules/smg/device";
+import {
+  foldSmgDevices,
+  pickSmgDevice,
+  SMG_NO_DATA_DEVICE,
+  SMG_NO_DATA_LABEL,
+  smgDeviceSigns,
+  type SmgDeviceOption,
+  type SmgNodeName,
+  type SmgSignCount,
+} from "@/modules/smg/device";
 import { smgNodeAntifraudOff } from "@/modules/smg/antifraud-gate";
 import {
   maskDisabledAntifraud,
@@ -174,25 +183,26 @@ function applyPhoneQ(
   };
 }
 
-function applyDevice(
+function applyDeviceSigns(
   base: Prisma.SmgCdrRecordWhereInput,
-  device: string,
+  signs: readonly string[],
 ): Prisma.SmgCdrRecordWhereInput {
   // Stored ids are cuids. An empty id matches nothing when the month has no gateway.
-  if (!device) return { AND: [base, { id: "" }] };
-  return { AND: [base, { deviceSign: device }] };
+  if (signs.length === 0) return { AND: [base, { id: "" }] };
+  if (signs.length === 1) return { AND: [base, { deviceSign: signs[0] }] };
+  return { AND: [base, { deviceSign: { in: [...signs] } }] };
 }
 
 function buildWhere(
   month: CdrMonth,
-  device: string,
+  signs: readonly string[],
   filters: ColumnFilters,
   phoneQ: string,
   opts: { excludeColumn?: string; storedAf?: boolean } = {},
 ): Prisma.SmgCdrRecordWhereInput {
   return applyPhoneQ(
     applyStoredAfFilters(
-      applyColumnFilters(applyDevice(monthWhere(month), device), filters, opts),
+      applyColumnFilters(applyDeviceSigns(monthWhere(month), signs), filters, opts),
       filters,
       opts,
     ),
@@ -200,18 +210,52 @@ function buildWhere(
   );
 }
 
-async function querySmgDevices(month: CdrMonth): Promise<SmgDeviceOption[]> {
+type SignCache = { key: string; groups: SmgSignCount[] };
+
+let signCache: SignCache | null = null;
+
+export function resetSmgDeviceCacheForTests(): void {
+  signCache = null;
+}
+
+async function loadSmgNodeNames(): Promise<SmgNodeName[]> {
+  return prisma.smgSyslogNode.findMany({
+    orderBy: { name: "asc" },
+    select: { identifier: true, name: true },
+  });
+}
+
+async function monthSignGroups(month: CdrMonth, refresh: boolean): Promise<SmgSignCount[]> {
+  if (isDatabaseVacuumActive()) return [];
+  const cursor = await latestSmgImportCursor();
+  const key = `${month.key}\n${cursor ?? ""}`;
+  if (!refresh && signCache?.key === key) return signCache.groups;
   const range = smgMonthTimeRange(month);
   const grouped = await prisma.smgCdrRecord.groupBy({
     by: ["deviceSign"],
-    where: {
-      disconnectTime: { gte: range.gte, lt: range.lt },
-      deviceSign: { not: "" },
-    },
+    where: { disconnectTime: { gte: range.gte, lt: range.lt } },
     _count: { id: true },
-    orderBy: { deviceSign: "asc" },
   });
-  return grouped.map((row) => ({ sign: row.deviceSign, count: row._count.id }));
+  const groups = grouped.map((row) => ({ sign: row.deviceSign, count: row._count.id }));
+  signCache = { key, groups };
+  return groups;
+}
+
+async function resolveDeviceSigns(month: CdrMonth, device: string): Promise<string[]> {
+  const [groups, nodes] = await Promise.all([
+    monthSignGroups(month, false),
+    loadSmgNodeNames(),
+  ]);
+  return smgDeviceSigns(groups, nodes, device);
+}
+
+/** Download name for the selected menu value. An unknown value adds no node. */
+export async function smgDeviceFileLabel(device: string): Promise<string> {
+  const id = device.trim();
+  if (id === SMG_NO_DATA_DEVICE) return SMG_NO_DATA_LABEL;
+  if (!id) return "";
+  const nodes = await loadSmgNodeNames();
+  return nodes.find((node) => node.identifier === id)?.name ?? "";
 }
 
 export async function querySmgMonthCounts(): Promise<CdrMonth[]> {
@@ -275,7 +319,7 @@ async function readSmgSlice(input: {
   where: Prisma.SmgCdrRecordWhereInput;
   useSql: boolean;
   month: CdrMonth;
-  device: string;
+  deviceSigns: readonly string[];
   phoneQ: string;
   filters: ColumnFilters;
   setupSort: TimeSort | null;
@@ -295,7 +339,7 @@ async function readSmgSlice(input: {
     queryRaw,
     {
       month: input.month,
-      device: input.device,
+      deviceSigns: input.deviceSigns,
       phoneQ: input.phoneQ,
       filters: input.filters,
       setupSort: input.setupSort,
@@ -471,8 +515,13 @@ export async function listSmgCalls(input: {
     };
   }
 
-  const devices = includeDevices ? await querySmgDevices(month) : null;
+  const [groups, nodes] = await Promise.all([
+    monthSignGroups(month, includeDevices),
+    loadSmgNodeNames(),
+  ]);
+  const devices = includeDevices ? foldSmgDevices(groups, nodes) : null;
   const device = includeDevices ? pickSmgDevice(devices ?? [], requested) : requested;
+  const signs = smgDeviceSigns(groups, nodes, device);
   const mode = await readAntifraudMode(device, input.filters ?? {});
   if (mode.off && mode.empty) {
     return {
@@ -491,11 +540,11 @@ export async function listSmgCalls(input: {
   const phoneQ = input.phoneQ ?? "";
   const setupSort = input.setupSort ?? null;
   const storedAf =
-    Boolean(device) && filtersTouchAf(filters)
-      ? await cdrLabelsReady(month, device)
+    signs.length > 0 && filtersTouchAf(filters)
+      ? await cdrLabelsReady(month, signs)
       : false;
-  const where = buildWhere(month, device, filters, phoneQ, { storedAf });
-  const useSql = Boolean(device) && smgListNeedsSql(filters, storedAf);
+  const where = buildWhere(month, signs, filters, phoneQ, { storedAf });
+  const useSql = signs.length > 0 && smgListNeedsSql(filters, storedAf);
   let total: number;
   let rows: Awaited<ReturnType<typeof prisma.smgCdrRecord.findMany>>;
   let months: CdrMonth[];
@@ -503,7 +552,7 @@ export async function listSmgCalls(input: {
     where,
     useSql,
     month,
-    device,
+    deviceSigns: signs,
     phoneQ,
     filters,
     setupSort,
@@ -512,7 +561,16 @@ export async function listSmgCalls(input: {
   if (useSql) {
     const counted = await querySmgIdPage(
       queryRaw,
-      { month, device, phoneQ, filters, setupSort, skip: 0, take: 1, storedAf },
+      {
+        month,
+        deviceSigns: signs,
+        phoneQ,
+        filters,
+        setupSort,
+        skip: 0,
+        take: 1,
+        storedAf,
+      },
       labelsForTraceIds,
     );
     total = counted.total;
@@ -564,8 +622,9 @@ export async function writeSmgExport(input: {
   filePath: string;
 }): Promise<number> {
   const device = input.device.trim();
+  const signs = await resolveDeviceSigns(input.month, device);
   const mode = await readAntifraudMode(device, input.filters);
-  if (!device || mode.empty) {
+  if (signs.length === 0 || mode.empty) {
     return writeSmgExportFile({
       layout: input.layout,
       filePath: input.filePath,
@@ -574,9 +633,9 @@ export async function writeSmgExport(input: {
   }
   const exportFilters = mode.filters;
   const storedAf = filtersTouchAf(exportFilters)
-    ? await cdrLabelsReady(input.month, device)
+    ? await cdrLabelsReady(input.month, signs)
     : false;
-  const where = buildWhere(input.month, device, exportFilters, input.phoneQ, {
+  const where = buildWhere(input.month, signs, exportFilters, input.phoneQ, {
     storedAf,
   });
   const setupSort = input.setupSort ?? null;
@@ -587,7 +646,7 @@ export async function writeSmgExport(input: {
           queryRaw,
           {
             month: input.month,
-            device,
+            deviceSigns: signs,
             phoneQ: input.phoneQ,
             filters: exportFilters,
             setupSort,
@@ -609,7 +668,7 @@ export async function writeSmgExport(input: {
           where,
           useSql,
           month: input.month,
-          device,
+          deviceSigns: signs,
           phoneQ: input.phoneQ,
           filters: exportFilters,
           setupSort,
@@ -657,6 +716,8 @@ export async function listSmgFacets(input: {
     if (q && !NO_ANTIFRAUD_LABEL.toLowerCase().includes(q.toLowerCase())) {
       return { items: [], truncated: false };
     }
+    const signs = await resolveDeviceSigns(month, device);
+    if (signs.length === 0) return { items: [], truncated: false };
     const phoneQ = input.phoneQ ?? "";
     const total = smgListNeedsSql(masked.filters, false)
       ? (
@@ -664,7 +725,7 @@ export async function listSmgFacets(input: {
             queryRaw,
             {
               month,
-              device,
+              deviceSigns: signs,
               phoneQ,
               filters: masked.filters,
               setupSort: null,
@@ -676,25 +737,27 @@ export async function listSmgFacets(input: {
           )
         ).total
       : await prisma.smgCdrRecord.count({
-          where: buildWhere(month, device, masked.filters, phoneQ, { storedAf: false }),
+          where: buildWhere(month, signs, masked.filters, phoneQ, { storedAf: false }),
         });
     if (total === 0) return { items: [], truncated: false };
     return { items: [{ value: NO_ANTIFRAUD_LABEL, count: total }], truncated: false };
   }
   if (mode.off && mode.empty) return { items: [], truncated: false };
+  const signs = await resolveDeviceSigns(month, device);
+  if (signs.length === 0) return { items: [], truncated: false };
   const filters = mode.filters;
   const touchAf =
     input.column === "antifraud" ||
     input.column === "antifraudStatus" ||
     filtersTouchAf(filters);
-  const storedAf = touchAf ? await cdrLabelsReady(month, device) : false;
+  const storedAf = touchAf ? await cdrLabelsReady(month, signs) : false;
   if (smgFacetNeedsSql(input.column, filters, storedAf)) {
     const items = await querySmgFacetValues(
       queryRaw,
       {
         column: input.column,
         month,
-        device,
+        deviceSigns: signs,
         phoneQ: input.phoneQ ?? "",
         filters,
         q,
@@ -705,7 +768,7 @@ export async function listSmgFacets(input: {
     );
     return { items: items.slice(0, limit), truncated: items.length > limit };
   }
-  let where = buildWhere(month, device, filters, input.phoneQ ?? "", {
+  let where = buildWhere(month, signs, filters, input.phoneQ ?? "", {
     excludeColumn: input.column,
     storedAf,
   });

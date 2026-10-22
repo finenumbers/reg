@@ -485,9 +485,9 @@ export function SmgView({
     devices.length > 0
       ? devices.map((item) => ({
           value: item.sign,
-          label: `${item.sign} (${formatCount(item.count)})`,
+          label: `${item.name} (${formatCount(item.count)})`,
         }))
-      : [{ value: "", label: "Нет шлюзов" }];
+      : [{ value: "", label: "Нет узлов" }];
   const facetSet = facetColumns ? new Set<string>(facetColumns) : null;
   const showsFacet = (column: string) => {
     if (column === "deviceSign") return false;
@@ -561,7 +561,7 @@ export function SmgView({
         <div className="flex flex-wrap items-center gap-2">
           <FitSelect
             id="smg-gateway"
-            aria-label="Шлюз"
+            aria-label="Узел"
             textClassName={FILTER_TOOLBAR_TEXT}
             value={devices.length > 0 ? device : ""}
             options={gatewayOptions}
