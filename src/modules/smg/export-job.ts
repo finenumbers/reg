@@ -22,11 +22,25 @@ export type SmgExportJobView = {
 };
 
 type Job = SmgExportJobView & {
+  actorUserId: string;
   dir: string | null;
   filePath: string | null;
   filename: string;
   createdAt: number;
 };
+
+/** True while this build must keep the single slot, including a fresh file of another user. */
+export function smgExportSlotHeld(
+  job: { status: Job["status"]; actorUserId: string; createdAt: number } | null,
+  actorUserId: string,
+  now: number,
+): boolean {
+  if (!job) return false;
+  if (job.status === "running") return true;
+  if (job.status !== "ready") return false;
+  if (job.actorUserId === actorUserId) return false;
+  return now - job.createdAt < KEEP_MS;
+}
 
 type Store = { job: Job | null };
 
@@ -36,13 +50,13 @@ function store(): Store {
   return holder[KEY];
 }
 
-export function readSmgExportJob(id: string): SmgExportJobView | null {
+export function readSmgExportJob(id: string, actorUserId: string): SmgExportJobView | null {
   const job = store().job;
-  if (!job || job.id !== id) return null;
+  if (!job || job.id !== id || job.actorUserId !== actorUserId) return null;
   return { id: job.id, status: job.status, error: job.error };
 }
 
-/** One build at a time. A finished file is dropped when the next build starts. */
+/** One build at a time. Another user's fresh file stays until they download it or it expires. */
 export function beginSmgExportJob(input: {
   month: CdrMonth;
   device: string;
@@ -50,12 +64,14 @@ export function beginSmgExportJob(input: {
   filters: ColumnFilters;
   setupSort?: TimeSort | null;
   layout: SmgExportLayout;
+  actorUserId: string;
 }): SmgExportJobView | "busy" {
   const current = store().job;
-  if (current?.status === "running") return "busy";
+  if (smgExportSlotHeld(current, input.actorUserId, Date.now())) return "busy";
   if (current) void discardJob(current);
   const job: Job = {
     id: randomUUID(),
+    actorUserId: input.actorUserId,
     status: "running",
     error: null,
     dir: null,
@@ -70,9 +86,17 @@ export function beginSmgExportJob(input: {
 
 export function takeSmgExportFile(
   id: string,
+  actorUserId: string,
 ): { filePath: string; filename: string; dir: string } | null {
   const job = store().job;
-  if (!job || job.id !== id || job.status !== "ready" || !job.filePath || !job.dir) {
+  if (
+    !job ||
+    job.id !== id ||
+    job.actorUserId !== actorUserId ||
+    job.status !== "ready" ||
+    !job.filePath ||
+    !job.dir
+  ) {
     return null;
   }
   const taken = { filePath: job.filePath, filename: job.filename, dir: job.dir };

@@ -40,8 +40,9 @@ export async function POST(request: Request) {
   const busy = cdrVacuumBusyResponse();
   if (busy) return busy;
 
+  let userId: string;
   try {
-    requireSessionUserId(gate.ctx);
+    userId = requireSessionUserId(gate.ctx);
   } catch {
     return NextResponse.json(
       { error: "Forbidden", code: "FORBIDDEN" },
@@ -82,6 +83,7 @@ export async function POST(request: Request) {
     filters: readFilters(record.filters),
     setupSort: parseTimeSort(typeof record.setupSort === "string" ? record.setupSort : null),
     layout,
+    actorUserId: userId,
   });
   if (started === "busy") {
     return NextResponse.json(

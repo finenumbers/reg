@@ -5,8 +5,9 @@
  * 1. Validate server env (fail loud on invalid / weak production secrets)
  * 2. Ensure platform baseline (RBAC, allowlist, app_settings)
  * 3. Idempotent admin bootstrap from ADMIN_* env
- * 4. Reclaim orphan running job_runs (process restart) and clear purge holds
- * 5. Resume jobs and audit for a purge whose calls are already gone
+ * 4. Reclaim orphan running job_runs. A purge that was running and still has
+ *    calls keeps its hold and is continued. Other purge holds are cleared.
+ * 5. Resume jobs and audit when that continuation is not running and calls are already gone
  * 6. Start Settings-gated scheduler loop (always-on timer; ticks respect regsPollEnabled)
  * 7. Tariff reconcile, then FTP and the CDR import drain
  */
@@ -60,19 +61,27 @@ export async function register() {
       });
     }
 
+    let continueMonth: string | null = null;
     try {
       const { reclaimOrphanJobRuns } = await import("@/modules/jobs/reclaim-orphans");
       const reclaim = await reclaimOrphanJobRuns();
       logger.info("jobs.reclaim_orphans", reclaim);
-      const { clearAllPurgeHolds } = await import("@/modules/traffic/poison");
-      const released = clearAllPurgeHolds();
-      if (released > 0) {
-        logger.info("cdr.purge.holds_released", { released });
+      const { prepareCallContinuation } = await import("@/modules/traffic/purge/resume");
+      const prepared = await prepareCallContinuation(reclaim.runningPurges);
+      continueMonth = prepared.month;
+      if (continueMonth) {
+        const { setPurgeTargetMonth } = await import("@/modules/traffic/purge/target");
+        setPurgeTargetMonth(continueMonth);
       }
-      const { clearAllSmgPurgeHolds } = await import("@/modules/smg/poison");
-      const smgReleased = clearAllSmgPurgeHolds();
+      const { clearPurgeHoldsExcept } = await import("@/modules/traffic/poison");
+      const released = clearPurgeHoldsExcept(continueMonth);
+      if (released > 0) {
+        logger.info("cdr.purge.holds_released", { released, kept: continueMonth });
+      }
+      const { clearSmgPurgeHoldsExcept } = await import("@/modules/smg/poison");
+      const smgReleased = clearSmgPurgeHoldsExcept(continueMonth);
       if (smgReleased > 0) {
-        logger.info("smg.purge.holds_released", { released: smgReleased });
+        logger.info("smg.purge.holds_released", { released: smgReleased, kept: continueMonth });
       }
     } catch (error) {
       logger.error("jobs.reclaim_orphans.failed", {
@@ -94,14 +103,23 @@ export async function register() {
     }
 
     try {
-      const { enqueueAbandonedPurgeHistory } =
-        await import("@/modules/traffic/purge/resume");
       const { jobRuntime } = await import("@/modules/jobs/runtime");
-      const resumed = await enqueueAbandonedPurgeHistory((input) =>
-        jobRuntime.enqueue(input),
-      );
-      if (resumed.month) {
-        logger.info("cdr.purge.resume", resumed);
+      if (continueMonth) {
+        const { enqueueAbandonedPurgeCalls } =
+          await import("@/modules/traffic/purge/resume");
+        const resumed = await enqueueAbandonedPurgeCalls(continueMonth, (input) =>
+          jobRuntime.enqueue(input),
+        );
+        logger.info("cdr.purge.continue", resumed);
+      } else {
+        const { enqueueAbandonedPurgeHistory } =
+          await import("@/modules/traffic/purge/resume");
+        const resumed = await enqueueAbandonedPurgeHistory((input) =>
+          jobRuntime.enqueue(input),
+        );
+        if (resumed.month) {
+          logger.info("cdr.purge.resume", resumed);
+        }
       }
     } catch (error) {
       logger.error("cdr.purge.resume_failed", {

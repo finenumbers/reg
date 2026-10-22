@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ORPHAN_RECLAIM_MESSAGE } from "@/modules/jobs/reclaim-orphans";
 
 const findMany = vi.fn();
+const update = vi.fn();
 const count = vi.fn();
 const queryRaw = vi.fn();
 
@@ -11,6 +12,7 @@ vi.mock("@/lib/db", () => ({
   prisma: {
     jobRun: {
       findMany: (...args: unknown[]) => findMany(...args),
+      update: (...args: unknown[]) => update(...args),
     },
     cdrRecord: {
       count: (...args: unknown[]) => count(...args),
@@ -25,10 +27,15 @@ vi.mock("@/lib/logger", () => ({
 
 import {
   PURGE_FK_INDEX_NAMES,
+  continuesDelete,
   deletedCallsFromPurgeJob,
   enqueueAbandonedPurgeHistory,
   missingPurgeFkIndexNames,
+  prepareCallContinuation,
+  selectCallContinuation,
   selectResumeMonth,
+  withContinueDelete,
+  withoutContinueDelete,
   type ResumePurgeJob,
 } from "@/modules/traffic/purge/resume";
 
@@ -200,6 +207,155 @@ describe("selectResumeMonth", () => {
         remainders: new Map([["2026-08", { calls: 0, smg: 50, jobs: 0, audit: 0 }]]),
       }),
     ).toBeNull();
+  });
+});
+
+describe("selectCallContinuation", () => {
+  it("ignores an old interrupted month that still has calls", () => {
+    expect(
+      selectCallContinuation({
+        jobs: [
+          {
+            ...interruptedAugust(),
+            id: "old",
+            justReclaimed: false,
+          },
+        ],
+        currentMonth: "2026-10",
+        remainders: new Map([["2026-08", { calls: 20, smg: 0, jobs: 1, audit: 0 }]]),
+      }),
+    ).toBeNull();
+  });
+
+  it("continues the purge this process just reclaimed", () => {
+    expect(
+      selectCallContinuation({
+        jobs: [
+          {
+            id: "live",
+            justReclaimed: true,
+            errorMessage: ORPHAN_RECLAIM_MESSAGE,
+            phonesParsed: 10,
+            meta: { month: "2026-08", deletedCount: 10, phase: "calls" },
+          },
+        ],
+        currentMonth: "2026-10",
+        remainders: new Map([["2026-08", { calls: 20, smg: 0, jobs: 1, audit: 0 }]]),
+      }),
+    ).toEqual({ month: "2026-08", jobId: "live" });
+  });
+
+  it("continues a flagged month from the previous boot", () => {
+    expect(
+      selectCallContinuation({
+        jobs: [
+          {
+            id: "flagged",
+            justReclaimed: false,
+            errorMessage: ORPHAN_RECLAIM_MESSAGE,
+            phonesParsed: 10,
+            meta: { month: "2026-08", continueDelete: true, deletedCount: 10 },
+          },
+        ],
+        currentMonth: "2026-10",
+        remainders: new Map([["2026-08", { calls: 4, smg: 0, jobs: 0, audit: 0 }]]),
+      }),
+    ).toEqual({ month: "2026-08", jobId: "flagged" });
+  });
+
+  it("does not continue a flagged month whose calls are already gone", () => {
+    expect(
+      selectCallContinuation({
+        jobs: [
+          {
+            id: "flagged",
+            justReclaimed: false,
+            errorMessage: ORPHAN_RECLAIM_MESSAGE,
+            phonesParsed: 10,
+            meta: { month: "2026-08", continueDelete: true },
+          },
+        ],
+        currentMonth: "2026-10",
+        remainders: new Map([["2026-08", { calls: 0, smg: 2, jobs: 1, audit: 0 }]]),
+      }),
+    ).toBeNull();
+  });
+
+  it("keeps the continue flag beside the existing meta", () => {
+    expect(withContinueDelete({ month: "2026-08", phase: "calls" })).toEqual({
+      month: "2026-08",
+      phase: "calls",
+      continueDelete: true,
+    });
+    expect(withoutContinueDelete({ month: "2026-08", continueDelete: true })).toEqual({
+      month: "2026-08",
+    });
+    expect(continuesDelete({ continueDelete: true })).toBe(true);
+    expect(continuesDelete({ month: "2026-08" })).toBe(false);
+  });
+});
+
+describe("prepareCallContinuation", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    update.mockResolvedValue({});
+    queryRaw.mockResolvedValue([{ n: 0 }]);
+  });
+
+  it("marks only the purge that was running and still has calls", async () => {
+    findMany.mockResolvedValue([]);
+    count.mockResolvedValue(12);
+    const result = await prepareCallContinuation([
+      {
+        id: "live",
+        errorMessage: ORPHAN_RECLAIM_MESSAGE,
+        phonesParsed: 10,
+        meta: { month: "2026-08", deletedCount: 10, phase: "calls" },
+      },
+    ]);
+    expect(result).toEqual({ month: "2026-08" });
+    expect(update).toHaveBeenCalledWith({
+      where: { id: "live" },
+      data: {
+        meta: {
+          month: "2026-08",
+          deletedCount: 10,
+          phase: "calls",
+          continueDelete: true,
+        },
+      },
+    });
+  });
+
+  it("does not mark an old interrupted row", async () => {
+    findMany.mockResolvedValue([
+      {
+        id: "old",
+        errorMessage: ORPHAN_RECLAIM_MESSAGE,
+        phonesParsed: 10,
+        meta: { month: "2026-07", deletedCount: 10 },
+      },
+    ]);
+    count.mockResolvedValue(40);
+    await expect(prepareCallContinuation([])).resolves.toEqual({ month: null });
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it("clears a flag once the month has no calls left", async () => {
+    findMany.mockResolvedValue([
+      {
+        id: "flagged",
+        errorMessage: ORPHAN_RECLAIM_MESSAGE,
+        phonesParsed: 10,
+        meta: { month: "2026-08", continueDelete: true, phase: "calls" },
+      },
+    ]);
+    count.mockResolvedValue(0);
+    await expect(prepareCallContinuation([])).resolves.toEqual({ month: null });
+    expect(update).toHaveBeenCalledWith({
+      where: { id: "flagged" },
+      data: { meta: { month: "2026-08", phase: "calls" } },
+    });
   });
 });
 

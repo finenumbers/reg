@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildUfwSheets,
+  countSkippedRegistration,
   mergeAddressLists,
   UFW_GROUP_OPERATOR,
   UFW_GROUP_REGISTRATION,
@@ -88,6 +89,35 @@ describe("buildUfwSheets", () => {
         rtu: "ep-trunk",
         name: "No reg",
         fromAddress: "9.9.9.9",
+      },
+    ]);
+  });
+
+  it("counts registration errors and leaves them off the sheets", () => {
+    const endpoints: PhoneRowData[] = [
+      {
+        Название: "ep-err",
+        Описание: "Bad reg",
+        Регистрация: "Ошибка",
+        "ИНИЦ. список адресов": "9.9.9.9",
+        "ТЕРМ. список адресов": "8.8.8.8",
+      },
+      {
+        Название: "ep-trunk",
+        Описание: "No reg",
+        Регистрация: "Нет",
+        "ИНИЦ. список адресов": "1.1.1.1",
+      },
+    ];
+    const sheets = buildUfwSheets({ gateways: [], endpoints });
+    expect(countSkippedRegistration(endpoints)).toBe(1);
+    expect(sheets.registered).toEqual([]);
+    expect(sheets.unregistered).toEqual([
+      {
+        group: UFW_GROUP_TRUNK,
+        rtu: "ep-trunk",
+        name: "No reg",
+        fromAddress: "1.1.1.1",
       },
     ]);
   });

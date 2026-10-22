@@ -161,6 +161,11 @@ export function PhonesView({
 
   useEffect(() => {
     if (kind === "endpoints_error" && errorCount === 0) {
+      if (phoneSearchTimerRef.current != null) {
+        window.clearTimeout(phoneSearchTimerRef.current);
+        phoneSearchTimerRef.current = null;
+      }
+      setPhoneInput(phoneQRef.current);
       setKind("endpoints_registered");
       void loadList({ kind: "endpoints_registered", page: 1, replace: true });
     }
@@ -441,6 +446,12 @@ export function PhonesView({
       toast.error(result.message);
       return;
     }
+    if (result.noticeCount != null && result.noticeCount > 0) {
+      toast.success(
+        `Файл для импорта в UFW скачан. Номеров с регистрацией не «Да» и не «Нет»: ${formatCount(result.noticeCount)} — в файл не вошли`,
+      );
+      return;
+    }
     toast.success("Файл для импорта в UFW скачан");
   }
 
@@ -448,6 +459,10 @@ export function PhonesView({
 
   function switchKind(next: PhoneKind) {
     selectKind(next, kind, (k) => {
+      if (phoneSearchTimerRef.current != null) {
+        window.clearTimeout(phoneSearchTimerRef.current);
+        phoneSearchTimerRef.current = null;
+      }
       setKind(k);
       setFilters({});
       setPhoneInput("");

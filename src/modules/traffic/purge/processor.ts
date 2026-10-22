@@ -54,7 +54,10 @@ import {
   purgeSmgCountSql,
   utcMonthInterval,
 } from "@/modules/traffic/purge/sql";
-import { assertPurgeFkIndexes } from "@/modules/traffic/purge/resume";
+import {
+  assertPurgeFkIndexes,
+  clearPurgeContinuationFlags,
+} from "@/modules/traffic/purge/resume";
 import {
   notePurgeBatchCommitted,
   purgeDeleteCommitted,
@@ -69,6 +72,11 @@ export type CdrPurgeProcessorInput = {
   month?: string;
   /** Jobs and audit only. Calls for this month are already gone. Not set by the HTTP route. */
   historyOnly?: boolean;
+  /**
+   * Continue call deletion for a purge this process just interrupted.
+   * Skips the oldest-month gate. Not set by the HTTP route.
+   */
+  resumeCalls?: boolean;
   deletedCalls?: number;
 };
 
@@ -388,6 +396,7 @@ export async function processCdrPurgeMonth(
   let deletedAudit = 0;
   let targetCount = 0;
   let succeeded = false;
+  const resumeCalls = input.resumeCalls === true;
   const target = requested;
 
   try {
@@ -505,20 +514,39 @@ export async function processCdrPurgeMonth(
       };
     }
 
-    const deletable = await resolveDeletableMonthKey();
-    if (!target || !deletable || target.key !== deletable) {
-      const message = !target
-        ? "Укажите месяц в формате YYYY-MM"
-        : !deletable
-          ? "Нет полного месяца для удаления"
-          : `Удалить можно только самый старый полный месяц (${deletable})`;
+    if (!resumeCalls) {
+      const deletable = await resolveDeletableMonthKey();
+      if (!target || !deletable || target.key !== deletable) {
+        const message = !target
+          ? "Укажите месяц в формате YYYY-MM"
+          : !deletable
+            ? "Нет полного месяца для удаления"
+            : `Удалить можно только самый старый полный месяц (${deletable})`;
+        await finish(jobRun.id, startedAt, input, {
+          status: "failed",
+          deleted: 0,
+          deletedJobs: 0,
+          deletedAudit: 0,
+          targetCount: 0,
+          month: target?.key ?? null,
+          errorMessage: message,
+        });
+        return {
+          status: "failed",
+          jobRunId: jobRun.id,
+          phonesParsed: 0,
+          errorMessage: message,
+        };
+      }
+    } else if (!target) {
+      const message = "Укажите месяц в формате YYYY-MM";
       await finish(jobRun.id, startedAt, input, {
         status: "failed",
         deleted: 0,
         deletedJobs: 0,
         deletedAudit: 0,
         targetCount: 0,
-        month: target?.key ?? null,
+        month: null,
         errorMessage: message,
       });
       return {
@@ -672,7 +700,20 @@ export async function processCdrPurgeMonth(
   } finally {
     resetAntifraudMonthStatsCache();
     const month = target?.key ?? null;
-    if (succeeded || !purgeDeleteCommitted()) {
+    const release = resumeCalls ? succeeded : succeeded || !purgeDeleteCommitted();
+    let holdRelease = release;
+    if (holdRelease && succeeded && resumeCalls && month) {
+      try {
+        await clearPurgeContinuationFlags(month);
+      } catch (error) {
+        holdRelease = false;
+        logger.error("cdr.purge.continue_flag_clear_failed", {
+          month,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+    if (holdRelease) {
       setPurgeTargetMonth(null);
       if (month) {
         clearPurgeHolds(month);

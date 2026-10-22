@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { requireApiPermission } from "@/modules/auth/guards";
-import { buildUfwExportXlsx } from "@/modules/phones/ufw-export";
+import {
+  buildUfwExportXlsx,
+  UFW_SKIPPED_REGISTRATION_HEADER,
+} from "@/modules/phones/ufw-export";
 import {
   XLSX_CONTENT_TYPE,
   xlsxContentDisposition,
@@ -14,13 +17,14 @@ export async function GET() {
   if (!gate.ok) return gate.response;
 
   try {
-    const { buffer, filename } = await buildUfwExportXlsx();
+    const { buffer, filename, skippedRegistrationError } = await buildUfwExportXlsx();
     return new NextResponse(new Uint8Array(buffer), {
       status: 200,
       headers: {
         "Content-Type": XLSX_CONTENT_TYPE,
         "Content-Disposition": xlsxContentDisposition(filename),
         "Cache-Control": "no-store",
+        [UFW_SKIPPED_REGISTRATION_HEADER]: String(skippedRegistrationError),
       },
     });
   } catch (error) {

@@ -36,7 +36,9 @@ export type CdrSidesRefreshResult = {
 async function currentJobsBusy(): Promise<boolean> {
   const { jobRuntime } = await import("@/modules/jobs/runtime");
   return (
-    jobRuntime.isInFlight("phones.sync") || jobRuntime.isInFlight("cdr.import")
+    jobRuntime.isInFlight("phones.sync") ||
+    jobRuntime.isInFlight("cdr.import") ||
+    jobRuntime.isInFlight("cdr.purge.month")
   );
 }
 

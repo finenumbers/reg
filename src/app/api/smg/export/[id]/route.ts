@@ -11,8 +11,9 @@ type RouteContext = { params: Promise<{ id: string }> };
 export async function GET(_request: Request, context: RouteContext) {
   const gate = await requireApiPermission("phones:read");
   if (!gate.ok) return gate.response;
+  let userId: string;
   try {
-    requireSessionUserId(gate.ctx);
+    userId = requireSessionUserId(gate.ctx);
   } catch {
     return NextResponse.json(
       { error: "Forbidden", code: "FORBIDDEN" },
@@ -20,9 +21,9 @@ export async function GET(_request: Request, context: RouteContext) {
     );
   }
   const { id } = await context.params;
-  const job = readSmgExportJob(id);
+  const job = readSmgExportJob(id, userId);
   if (!job) {
-    return NextResponse.json({ error: "Выгрузка не найдена", code: "NOT_FOUND" }, { status: 404 });
+    return NextResponse.json({ error: "Задача не найдена", code: "NOT_FOUND" }, { status: 404 });
   }
   return NextResponse.json({ job });
 }

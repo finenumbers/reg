@@ -155,6 +155,24 @@ export function clearPurgeHolds(month: string, cwd?: string): number {
   return removed;
 }
 
+/**
+ * Drop purge holds for every month except `month`.
+ * A null month drops every purge hold. Real parse-failure poison stays.
+ */
+export function clearPurgeHoldsExcept(month: string | null, cwd?: string): number {
+  if (!month) return clearAllPurgeHolds(cwd);
+  const map = readMap(cwd);
+  let removed = 0;
+  for (const [filename, entry] of Object.entries(map)) {
+    if (!isPurgeHoldError(entry.error)) continue;
+    if (errorHoldsMonth(entry.error, month)) continue;
+    delete map[filename];
+    removed += 1;
+  }
+  if (removed > 0) writeMap(map, cwd);
+  return removed;
+}
+
 /** Drop every purge hold. Real parse-failure poison stays. */
 export function clearAllPurgeHolds(cwd?: string): number {
   const map = readMap(cwd);

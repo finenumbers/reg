@@ -62,6 +62,17 @@ export type ResumeMonth = {
   deletedCalls: number;
 };
 
+export type CallContinuationJob = ResumePurgeJob & {
+  id: string;
+  /** This process just reclaimed the row from `running`. */
+  justReclaimed: boolean;
+};
+
+export type CallContinuation = {
+  month: string;
+  jobId: string;
+};
+
 type ResumeEnqueue = (input: {
   actionCode: "cdr.purge.month";
   trigger: "schedule";
@@ -221,4 +232,159 @@ export async function enqueueAbandonedPurgeHistory(
     logger.warn("cdr.purge.resume.rejected", { month: selected.month });
   }
   return { month: selected.month, accepted: result.accepted };
+}
+
+export function continuesDelete(meta: unknown): boolean {
+  return objectMeta(meta)?.continueDelete === true;
+}
+
+export function withContinueDelete(meta: unknown): Record<string, unknown> {
+  return { ...(objectMeta(meta) ?? {}), continueDelete: true };
+}
+
+export function withoutContinueDelete(meta: unknown): Record<string, unknown> {
+  const next = { ...(objectMeta(meta) ?? {}) };
+  delete next.continueDelete;
+  return next;
+}
+
+function storedMeta(meta: Record<string, unknown>): Prisma.InputJsonValue {
+  return meta as Prisma.InputJsonValue;
+}
+
+/**
+ * Month whose call delete must continue.
+ * A historical interrupted row is ignored unless it carries `continueDelete`
+ * or this process just reclaimed it from `running`.
+ * Calls already gone stay on the history-only path.
+ */
+export function selectCallContinuation(input: {
+  jobs: readonly CallContinuationJob[];
+  currentMonth: string;
+  remainders: ReadonlyMap<string, MonthRemainder>;
+}): CallContinuation | null {
+  let best: CallContinuation & { justReclaimed: boolean } | null = null;
+  for (const job of input.jobs) {
+    if (!job.justReclaimed && !continuesDelete(job.meta)) continue;
+    const month = monthFromJob(job);
+    if (!month || month === input.currentMonth) continue;
+    if (!purgeHasResumeTrace(job)) continue;
+    const left = input.remainders.get(month);
+    if (!left || left.calls <= 0) continue;
+    const candidate = { month, jobId: job.id, justReclaimed: job.justReclaimed };
+    if (
+      !best ||
+      (candidate.justReclaimed && !best.justReclaimed) ||
+      (candidate.justReclaimed === best.justReclaimed &&
+        (compareMonthKey(month, best.month) < 0 ||
+          (month === best.month && candidate.jobId < best.jobId)))
+    ) {
+      best = candidate;
+    }
+  }
+  return best ? { month: best.month, jobId: best.jobId } : null;
+}
+
+type ContinuationSource = ResumePurgeJob & { id: string };
+
+/**
+ * Mark the purge this process interrupted, when that month still has calls.
+ * A flag whose month no longer has calls is cleared so a later import is kept.
+ */
+export async function prepareCallContinuation(
+  justReclaimed: readonly ContinuationSource[],
+): Promise<{ month: string | null }> {
+  const flagged = await prisma.jobRun.findMany({
+    where: {
+      actionCode: "cdr.purge.month",
+      meta: { path: ["continueDelete"], equals: true },
+    },
+    select: { id: true, errorMessage: true, phonesParsed: true, meta: true },
+  });
+
+  const byId = new Map<string, CallContinuationJob>();
+  for (const job of flagged) {
+    byId.set(job.id, { ...job, justReclaimed: false });
+  }
+  for (const job of justReclaimed) {
+    byId.set(job.id, { ...job, justReclaimed: true });
+  }
+  const jobs = [...byId.values()];
+  const currentMonth = currentUtcMonth().key;
+  const remainders = new Map<string, MonthRemainder>();
+  const seenMonths = new Set<string>();
+  for (const job of jobs) {
+    if (!job.justReclaimed && !continuesDelete(job.meta)) continue;
+    const month = monthFromJob(job);
+    if (!month || month === currentMonth || seenMonths.has(month)) continue;
+    if (!purgeHasResumeTrace(job)) continue;
+    seenMonths.add(month);
+    remainders.set(month, await monthRemainder(month));
+  }
+
+  for (const job of jobs) {
+    if (!continuesDelete(job.meta)) continue;
+    const month = monthFromJob(job);
+    const left = month ? remainders.get(month) : undefined;
+    if (!month || !left || left.calls !== 0) continue;
+    const meta = withoutContinueDelete(job.meta);
+    job.meta = meta;
+    await prisma.jobRun.update({
+      where: { id: job.id },
+      data: { meta: storedMeta(meta) },
+    });
+  }
+
+  const selected = selectCallContinuation({ jobs, currentMonth, remainders });
+  if (!selected) return { month: null };
+  const source = jobs.find((job) => job.id === selected.jobId);
+  if (!source) return { month: null };
+  await prisma.jobRun.update({
+    where: { id: source.id },
+    data: { meta: storedMeta(withContinueDelete(source.meta)) },
+  });
+  return { month: selected.month };
+}
+
+/** Drop `continueDelete` on every purge row for this month. */
+export async function clearPurgeContinuationFlags(month: string): Promise<number> {
+  const rows = await prisma.jobRun.findMany({
+    where: {
+      actionCode: "cdr.purge.month",
+      meta: { path: ["continueDelete"], equals: true },
+    },
+    select: { id: true, errorMessage: true, phonesParsed: true, meta: true },
+  });
+  let cleared = 0;
+  for (const row of rows) {
+    if (monthFromJob(row) !== month || !continuesDelete(row.meta)) continue;
+    await prisma.jobRun.update({
+      where: { id: row.id },
+      data: { meta: storedMeta(withoutContinueDelete(row.meta)) },
+    });
+    cleared += 1;
+  }
+  return cleared;
+}
+
+/** Continue call deletion for a month already chosen by `prepareCallContinuation`. */
+export async function enqueueAbandonedPurgeCalls(
+  month: string,
+  enqueue: (input: {
+    actionCode: "cdr.purge.month";
+    trigger: "schedule";
+    month: string;
+    resumeCalls: true;
+  }) => Promise<{ accepted: boolean }>,
+): Promise<{ month: string; accepted: boolean }> {
+  const result = await enqueue({
+    actionCode: "cdr.purge.month",
+    trigger: "schedule",
+    month,
+    resumeCalls: true,
+  });
+  if (!result.accepted) {
+    logger.warn("cdr.purge.continue.rejected", { month });
+  }
+  return { month, accepted: result.accepted };
 }

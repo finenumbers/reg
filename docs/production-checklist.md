@@ -53,6 +53,8 @@ Optional publish ports: `APP_PUBLISH_PORT`, `POSTGRES_PUBLISH_PORT`.
 
 ## 3. Database
 
+v1.177.0 does not migrate and does not rewrite stored rows. Do not stop `app`. Do not stop `smg-syslog`. Parser version stays 9. A quiet restart deletes nothing. If a month purge is running when `app` restarts, that month is deleted to completion and its import hold stays until then. Older interrupted purges are not continued into a call delete. Do not deploy during a month delete unless that continuation is intended. UFW sheets are unchanged. The toast counts endpoints whose registration is neither «Да» nor «Нет».
+
 v1.176.0 does not migrate and does not rewrite stored rows. Do not stop `app`. Do not stop `smg-syslog`. Parser version stays 9. Two unused type aliases are removed. Screens, workbooks, and the SMG trace walker are unchanged.
 
 v1.175.0 does not migrate and does not rewrite stored rows. Do not stop `app`. Do not stop `smg-syslog`. One left-nav clock value turns red for the open table. CDR, АнтиФрод, and syslog paint `UTC`. Registrations, audit, and jobs paint only the Settings row. SMG call tables paint the selected node's «Пояс CDR», and switching nodes moves that red value. «Трафик SMG» fills a row gray when the Parking delay cell has a value, including a blocked call, and red when «Заблокирован» has no Parking delay. «Данные SMG» and the workbook are not filled.

@@ -81,7 +81,7 @@ Core **не знает** бизнес-семантику регистраций 
 | UI tables | Custom tables + column filters (shadcn Table) |
 | Database | PostgreSQL 16 |
 | ORM | Prisma |
-| Job orchestration | `p-queue` (in-process; concurrency=1 для `regs.poll`); bootstrap eval via `instrumentation.ts` |
+| Job orchestration | `p-queue` (in-process; concurrency=3, anti-overlap на action code); bootstrap eval via `instrumentation.ts` |
 | Auth | Better Auth (username + password, session cookies); RBAC поверх |
 | RBAC | Роли `admin` / `operator` + permissions |
 | SSH client | `ssh2` (Node), только `exec` разрешённой команды |

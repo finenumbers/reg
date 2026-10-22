@@ -6,6 +6,7 @@ import {
   clearAllPurgeHolds,
   clearPoisonExceptMonthHold,
   clearPurgeHolds,
+  clearPurgeHoldsExcept,
   errorHoldsMonth,
   isPoisoned,
   listPoisonEntries,
@@ -70,6 +71,20 @@ describe("poison journal", () => {
 
     expect(clearAllPurgeHolds()).toBe(2);
     expect(listPoisonEntries()).toEqual([]);
+  });
+
+  it("keeps the interrupted month and drops other purge holds", () => {
+    markPoisoned("bad.csv", 1, "Нет даты");
+    markPoisoned("july.csv", 2, purgeHoldMessage("2026-07"));
+    markPoisoned("aug.csv", 3, purgeHoldMessage("2026-08"));
+
+    expect(clearPurgeHoldsExcept("2026-08")).toBe(1);
+    expect(listPoisonEntries().map((item) => item.filename)).toEqual([
+      "aug.csv",
+      "bad.csv",
+    ]);
+    expect(clearPurgeHoldsExcept(null)).toBe(1);
+    expect(listPoisonEntries().map((item) => item.filename)).toEqual(["bad.csv"]);
   });
 
   it("releases an empty-file hold when the dump later has bytes", () => {

@@ -73,9 +73,12 @@ export type UfwExportSheets = {
   unregistered: UfwRuleRow[];
 };
 
+export const UFW_SKIPPED_REGISTRATION_HEADER = "X-Ufw-Skipped-Registration-Error";
+
 export type UfwExportResult = {
   buffer: Buffer;
   filename: string;
+  skippedRegistrationError: number;
 };
 
 function asStringRecord(data: unknown): PhoneRowData {
@@ -125,6 +128,16 @@ function ruleFromData(
 function mapGatewayToUfwRule(data: PhoneRowData): UfwRuleRow | null {
   const address = mergeAddressLists(data[FIELD_INIT], data[FIELD_TERM]);
   return ruleFromData(UFW_GROUP_OPERATOR, data, address);
+}
+
+/** Endpoints whose «Регистрация» is neither Да nor Нет. They are not written to the sheets. */
+export function countSkippedRegistration(endpoints: readonly PhoneRowData[]): number {
+  let skipped = 0;
+  for (const data of endpoints) {
+    const reg = (data[REGISTRATION_FIELD] ?? "").trim();
+    if (reg !== REGISTRATION_YES && reg !== REGISTRATION_NO) skipped += 1;
+  }
+  return skipped;
 }
 
 function mapEndpointToUfwRule(data: PhoneRowData): UfwRuleRow | null {
@@ -221,13 +234,18 @@ export async function buildUfwExportXlsx(): Promise<UfwExportResult> {
     getDisplayTimezone(),
   ]);
 
+  const endpointRows = endpoints.map((r) => asStringRecord(r.data));
   const sheets = buildUfwSheets({
     gateways: gateways.map((r) => asStringRecord(r.data)),
-    endpoints: endpoints.map((r) => asStringRecord(r.data)),
+    endpoints: endpointRows,
   });
 
   const workbook = workbookFromUfwSheets(sheets);
   const buffer = await workbookToBuffer(workbook);
   const filename = `ufw-phones-${formatExportTimestamp(new Date(), timeZone)}.xlsx`;
-  return { buffer, filename };
+  return {
+    buffer,
+    filename,
+    skippedRegistrationError: countSkippedRegistration(endpointRows),
+  };
 }

@@ -176,7 +176,11 @@ export async function downloadPhonesExport(): Promise<DownloadXlsxResult> {
 }
 
 export async function downloadPhonesUfwExport(): Promise<DownloadXlsxResult> {
-  return downloadXlsxFromUrl("/api/phones/ufw-export", "ufw-phones.xlsx");
+  return downloadXlsxFromUrl(
+    "/api/phones/ufw-export",
+    "ufw-phones.xlsx",
+    "X-Ufw-Skipped-Registration-Error",
+  );
 }
 
 export type RtuImportClientResult =

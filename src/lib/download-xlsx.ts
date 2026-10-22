@@ -3,8 +3,15 @@
  */
 
 export type DownloadXlsxResult =
-  | { ok: true; filename: string }
+  | { ok: true; filename: string; noticeCount?: number }
   | { ok: false; status: number; message: string };
+
+function readNoticeCount(raw: string | null): number | undefined {
+  if (raw == null || raw.trim() === "") return undefined;
+  const count = Number(raw);
+  if (!Number.isInteger(count) || count < 0) return undefined;
+  return count;
+}
 
 function filenameFromContentDisposition(
   header: string | null,
@@ -27,6 +34,7 @@ function filenameFromContentDisposition(
 export async function downloadXlsxFromUrl(
   url: string,
   fallbackFilename: string,
+  noticeHeader?: string,
 ): Promise<DownloadXlsxResult> {
   const res = await fetch(url, { method: "GET", cache: "no-store" });
   if (!res.ok) {
@@ -46,7 +54,10 @@ export async function downloadXlsxFromUrl(
     fallbackFilename,
   );
   triggerBlobDownload(blob, filename);
-  return { ok: true, filename };
+  const noticeCount = readNoticeCount(
+    noticeHeader ? res.headers.get(noticeHeader) : null,
+  );
+  return noticeCount == null ? { ok: true, filename } : { ok: true, filename, noticeCount };
 }
 
 /** Keep the blob alive long enough for the browser to start saving it. */

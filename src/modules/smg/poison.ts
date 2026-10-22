@@ -87,6 +87,24 @@ export function clearSmgPurgeHolds(month: string, cwd?: string): number {
   return removed;
 }
 
+/**
+ * Drop SMG purge holds for every month except `month`.
+ * A null month drops every purge hold. Real parse-failure poison stays.
+ */
+export function clearSmgPurgeHoldsExcept(month: string | null, cwd?: string): number {
+  if (!month) return clearAllSmgPurgeHolds(cwd);
+  const map = readMap(cwd);
+  let removed = 0;
+  for (const [filename, entry] of Object.entries(map)) {
+    if (!isPurgeHoldError(entry.error)) continue;
+    if (errorHoldsMonth(entry.error, month)) continue;
+    delete map[filename];
+    removed += 1;
+  }
+  if (removed > 0) writeMap(map, cwd);
+  return removed;
+}
+
 /** Drop every purge hold. Real parse-failure poison stays. */
 export function clearAllSmgPurgeHolds(cwd?: string): number {
   const map = readMap(cwd);

@@ -62,6 +62,8 @@ export type JobEnqueueInput = {
   month?: string;
   /** Internal. Resume jobs and audit after calls for this month are already gone. */
   historyOnly?: boolean;
+  /** Internal. Continue deleting calls for a purge this process just interrupted. */
+  resumeCalls?: boolean;
   deletedCalls?: number;
 };
 
@@ -204,6 +206,7 @@ export class PQueueJobRuntime implements JobRuntime {
             actorUserId: input.actorUserId,
             month: input.month,
             historyOnly: input.historyOnly,
+            resumeCalls: input.resumeCalls,
             deletedCalls: input.deletedCalls,
           });
         }

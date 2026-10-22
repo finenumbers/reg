@@ -488,6 +488,31 @@ describe("PQueueJobRuntime anti-overlap", () => {
     resetPurgeTargetForTests();
   });
 
+  it("forwards a call continuation without the history-only flag", async () => {
+    resetPurgeTargetForTests();
+    processCdrPurgeMonth.mockResolvedValue({
+      status: "success",
+      jobRunId: "purge-continue",
+      phonesParsed: 12,
+    });
+    const runtime = new PQueueJobRuntime();
+    await runtime.enqueue({
+      actionCode: "cdr.purge.month",
+      trigger: "schedule",
+      month: "2026-08",
+      resumeCalls: true,
+    });
+    await new Promise((r) => setTimeout(r, 20));
+    expect(processCdrPurgeMonth).toHaveBeenCalledWith(
+      expect.objectContaining({
+        month: "2026-08",
+        resumeCalls: true,
+        trigger: "schedule",
+      }),
+    );
+    resetPurgeTargetForTests();
+  });
+
   it("rejects db.vacuum while cdr.import is in flight", async () => {
     processCdrImport.mockImplementation(
       () =>

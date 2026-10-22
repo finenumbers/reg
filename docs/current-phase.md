@@ -1,7 +1,17 @@
-# Current Phase — production (v1.176.0)
+# Current Phase — production (v1.177.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal.  
-**Date:** 2026-10-22
+**Date:** 2026-10-23
+
+## v1.177.0 — A restart continues only the purge that was running
+
+There is no migration. Do not stop `app`. Do not stop `smg-syslog`. Stored rows are not rewritten. Parser version stays 9. Syslog cards are not deleted.
+
+A quiet restart deletes nothing. If `cdr.purge.month` is running when `app` stops, that month keeps its import hold and the new process finishes the delete, including when calls remain. Older interrupted purges are not continued into a call delete. History resume, when calls are already gone, is unchanged. Do not deploy while a month delete is running unless that continuation is intended.
+
+UFW export sheets are unchanged. The download toast counts endpoints whose registration is neither «Да» nor «Нет»; those rows stay out of the file. A missing count header keeps the previous toast.
+
+Phone search on «Телефонные номера» does not apply after a tab change. An SMG workbook stays with the user who started it. Another user cannot download it or replace it while it is fresh. A failed build can be replaced.
 
 ## v1.176.0 — Unused export types are gone
 

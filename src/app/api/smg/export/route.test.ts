@@ -92,9 +92,12 @@ describe("SMG export session guard", () => {
       job: { id: "job-1", status: "running", error: null },
     });
     expect(beginSmgExportJob).toHaveBeenCalledOnce();
+    expect(beginSmgExportJob).toHaveBeenCalledWith(
+      expect.objectContaining({ actorUserId: "user-1", layout: "calls" }),
+    );
     expect(status.status).toBe(200);
-    expect(readSmgExportJob).toHaveBeenCalledWith("job-1");
+    expect(readSmgExportJob).toHaveBeenCalledWith("job-1", "user-1");
     expect(file.status).toBe(409);
-    expect(takeSmgExportFile).toHaveBeenCalledWith("job-1");
+    expect(takeSmgExportFile).toHaveBeenCalledWith("job-1", "user-1");
   });
 });
