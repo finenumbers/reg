@@ -48,7 +48,13 @@ const METRIC_FIELDS = [
   "smgMinutes",
 ] as const;
 
+const AF_FIELDS = ["journal", "cards", "delays"] as const;
+
 const METRIC_HEADS = ["Звонки", "Секунды", "Минуты"] as const;
+
+const AF_HEADS = ["Журнал", "Карточки", "Задержки"] as const;
+
+const DATA_COLS = METRIC_FIELDS.length + AF_FIELDS.length + 1;
 
 type ColumnWidths = {
   month: number;
@@ -71,7 +77,8 @@ function guessWidth(text: string, border: boolean): number {
 
 function maxMetric(months: readonly StorageMonthRow[]): number {
   return months.reduce((max, row) => {
-    return METRIC_FIELDS.reduce((inner, field) => Math.max(inner, row[field]), max);
+    const fields = [...METRIC_FIELDS, ...AF_FIELDS];
+    return fields.reduce((inner, field) => Math.max(inner, row[field]), max);
   }, 0);
 }
 
@@ -149,7 +156,7 @@ function StorageFigures({
   }, [guessed, measureKey, months.length]);
 
   const widths = measured?.key === measureKey ? measured.widths : guessed;
-  const tableWidth = widths.month + widths.data * 7 + widths.delete;
+  const tableWidth = widths.month + widths.data * DATA_COLS + widths.delete;
   const cdrBytes = formatByteParts(data.cdrTableBytes);
   const smgBytes = formatByteParts(data.smgTableBytes);
 
@@ -213,6 +220,10 @@ function StorageFigures({
           Syslog:{" "}
           <span className="font-semibold">{formatBytes(data.totalSyslogBytes)}</span>
         </p>
+        <p className="mt-2 text-sm tabular-nums">
+          АнтиФрод: журнал {formatCount(data.totalJournal)} · карточки{" "}
+          {formatCount(data.totalCards)} · задержки {formatCount(data.totalDelays)}
+        </p>
       </div>
 
       <div className="overflow-auto">
@@ -220,6 +231,9 @@ function StorageFigures({
           <colgroup>
             <col style={{ width: widths.month }} />
             {METRIC_FIELDS.map((field) => (
+              <col key={field} style={{ width: widths.data }} />
+            ))}
+            {AF_FIELDS.map((field) => (
               <col key={field} style={{ width: widths.data }} />
             ))}
             <col style={{ width: widths.data }} />
@@ -235,6 +249,9 @@ function StorageFigures({
               </TableHead>
               <TableHead colSpan={3} className="text-center">
                 Звонки Eltex SMG-1016M
+              </TableHead>
+              <TableHead colSpan={3} className="text-center">
+                АнтиФрод
               </TableHead>
               <TableHead
                 rowSpan={2}
@@ -252,19 +269,23 @@ function StorageFigures({
             <TableRow>
               {(["cdr", "smg"] as const).flatMap((side) =>
                 METRIC_HEADS.map((label) => (
-                  <TableHead
-                    key={`${side}-${label}`}
-                    className={cn(
-                      "top-7 text-center",
-                      side === "smg" &&
-                        label === "Минуты" &&
-                        "shadow-[inset_-1px_-1px_0_0_var(--border)]!",
-                    )}
-                  >
+                  <TableHead key={`${side}-${label}`} className="top-7 text-center">
                     {label}
                   </TableHead>
                 )),
               )}
+              {AF_HEADS.map((label, index) => (
+                <TableHead
+                  key={label}
+                  className={cn(
+                    "top-7 text-center",
+                    index === AF_HEADS.length - 1 &&
+                      "shadow-[inset_-1px_-1px_0_0_var(--border)]!",
+                  )}
+                >
+                  {label}
+                </TableHead>
+              ))}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -272,6 +293,11 @@ function StorageFigures({
               <TableRow key={row.key}>
                 <TableCell>{monthLabel(row)}</TableCell>
                 {METRIC_FIELDS.map((field) => (
+                  <TableCell key={field} className="text-right tabular-nums">
+                    {formatCount(row[field])}
+                  </TableCell>
+                ))}
+                {AF_FIELDS.map((field) => (
                   <TableCell key={field} className="text-right tabular-nums">
                     {formatCount(row[field])}
                   </TableCell>
@@ -367,11 +393,13 @@ export function StorageView() {
       <div>
         <h2 className="text-base font-semibold">Хранение данных</h2>
         <p className="text-muted-foreground text-sm">
-          Месяцы CDR (колонка «Дата»), звонков SMG (день разъединения) и архивов Syslog.
-          Одно удаление снимает звонки обоих источников, карточки АнтиФрода этих звонков
-          SMG, архивы Syslog, задачи и записи аудита этого месяца UTC. Удалить можно
-          только самый старый полный месяц, по одному. Текущий месяц трогать нельзя. Место
-          на диске после удаления возвращает кнопка «Сжать базу», когда она закончится.
+          Месяцы CDR (колонка «Дата»), звонков SMG (день разъединения), журнала АнтиФрода
+          (UTC) и архивов Syslog. Одно удаление снимает звонки обоих источников, журнал
+          АнтиФрода этого месяца UTC, карточки АнтиФрода этих звонков SMG и их задержки,
+          архивы Syslog, задачи и записи аудита. Записи журнала без даты не входят в месяц
+          и не удаляются. Удалить можно только самый старый полный месяц, по одному.
+          Текущий месяц трогать нельзя. Место на диске после удаления возвращает кнопка
+          «Сжать базу», когда она закончится.
         </p>
       </div>
 
@@ -507,9 +535,11 @@ export function StorageView() {
                 {formatCount(confirm.cdrSeconds)} сек, {formatCount(confirm.cdrMinutes)}{" "}
                 мин), связанные ссылки VoIPmonitor, {formatCount(confirm.smgCalls)}{" "}
                 звонков SMG ({formatCount(confirm.smgSeconds)} сек,{" "}
-                {formatCount(confirm.smgMinutes)} мин), карточки АнтиФрода этих звонков
-                SMG, архивы Syslog ({formatBytes(confirm.syslogBytes)}), а также задачи и
-                записи аудита за этот месяц UTC. Введите ключ месяца{" "}
+                {formatCount(confirm.smgMinutes)} мин), {formatCount(confirm.journal)}{" "}
+                записей журнала АнтиФрода, {formatCount(confirm.cards)} карточек АнтиФрода
+                и {formatCount(confirm.delays)} задержек этих звонков SMG, архивы Syslog (
+                {formatBytes(confirm.syslogBytes)}), а также задачи и записи аудита за
+                этот месяц UTC. Введите ключ месяца{" "}
                 <span className="font-mono">{confirm.key}</span>.
               </p>
             </div>
@@ -566,8 +596,9 @@ export function StorageView() {
                 ждут. Новые файлы CDR и SMG остаются в очереди и загружаются после
                 окончания. На томе базы нужно свободно не меньше{" "}
                 {formatBytes(data.tableBytes * 2)} — это удвоенный размер таблиц CDR,
-                ссылок VoIPmonitor и звонков SMG, новая копия и её журнал. Перезапуск
-                обрывает текущую таблицу и не стирает живые строки. Введите{" "}
+                ссылок VoIPmonitor, звонков SMG, журнала АнтиФрода и карточек АнтиФрода,
+                новая копия и её журнал. Перезапуск обрывает текущую таблицу и не стирает
+                живые строки. Введите{" "}
                 <span className="font-mono">{DATABASE_VACUUM_CONFIRM}</span>.
               </p>
             </div>

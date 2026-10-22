@@ -1,7 +1,16 @@
 import { formatCount } from "@/lib/format-count";
 import { parseMonthKey } from "@/modules/traffic/cdr-month";
 
-export const PURGE_STAGE_ORDER = ["calls", "cards", "smg", "syslog", "jobs", "audit"] as const;
+export const PURGE_STAGE_ORDER = [
+  "calls",
+  "journal",
+  "cards",
+  "delays",
+  "smg",
+  "syslog",
+  "jobs",
+  "audit",
+] as const;
 
 export type PurgeStageId = (typeof PURGE_STAGE_ORDER)[number];
 
@@ -13,11 +22,13 @@ export type PurgeStageCounts = {
 export type PurgeStagesMeta = Record<PurgeStageId, PurgeStageCounts>;
 
 export const PURGE_INTERRUPT_NOTE =
-  "При перезапуске сервера текущий запрос обрывается. Если звонки CDR месяца уже удалены, после старта продолжаются карточки АнтиФрода, звонки SMG, архивы Syslog, затем задачи и аудит.";
+  "При перезапуске сервера текущий запрос обрывается. Если звонки CDR месяца уже удалены, после старта продолжаются журнал АнтиФрода, карточки и задержки АнтиФрода, звонки SMG, архивы Syslog, затем задачи и аудит.";
 
 const STAGE_LABEL: Record<PurgeStageId, string> = {
   calls: "Звонки CDR",
+  journal: "Журнал АнтиФрода",
   cards: "Карточки АнтиФрода",
+  delays: "Задержки АнтиФрода",
   smg: "Звонки SMG",
   syslog: "Архивы Syslog",
   jobs: "Задачи",
@@ -82,10 +93,11 @@ export function purgeStageViews(
   const phaseIndex = PURGE_STAGE_ORDER.indexOf(phase);
   return PURGE_STAGE_ORDER.map((id, index) => {
     const counts = stages[id];
+    const delaysWithCards = id === "delays" && phase === "cards" && counts.total > 0;
     const state =
       counts.total === 0 || index < phaseIndex
         ? "done"
-        : index === phaseIndex
+        : index === phaseIndex || delaysWithCards
           ? "active"
           : "pending";
     return {

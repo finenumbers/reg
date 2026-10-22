@@ -77,6 +77,34 @@ export function purgeAuditBatchSql(
   `;
 }
 
+/** UTC month of `logged_at`. A null timestamp is not in any month. */
+export function purgeJournalWhereSql(start: Date, end: Date): Prisma.Sql {
+  return Prisma.sql`"logged_at" >= ${start} AND "logged_at" < ${end}`;
+}
+
+export function purgeJournalCountSql(start: Date, end: Date): Prisma.Sql {
+  return Prisma.sql`
+    SELECT COUNT(*)::bigint AS n
+    FROM radius_calls
+    WHERE ${purgeJournalWhereSql(start, end)}
+  `;
+}
+
+export function purgeJournalBatchSql(
+  start: Date,
+  end: Date,
+  limit = CDR_PURGE_BATCH_SIZE,
+): Prisma.Sql {
+  return Prisma.sql`
+    DELETE FROM radius_calls
+    WHERE id IN (
+      SELECT id FROM radius_calls
+      WHERE ${purgeJournalWhereSql(start, end)}
+      LIMIT ${limit}
+    )
+  `;
+}
+
 export function purgeSmgWhereSql(year: number, month: number): Prisma.Sql {
   const range = smgMonthDayRange({ year, month, key: monthKey(year, month) });
   return Prisma.sql`disconnect_day >= ${range.gte} AND disconnect_day < ${range.lt}`;

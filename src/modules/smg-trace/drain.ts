@@ -47,10 +47,36 @@ import {
   stepDevice,
   type TraceRepository,
 } from "@/modules/smg-trace/walk";
+import {
+  isJournalResetDone,
+  resetRadiusJournalOnce,
+} from "@/modules/antifraud/journal-reset";
 import { syslogRoot } from "@/modules/smg-syslog/paths";
+import { deferTraceCut } from "@/modules/smg-trace/cut-gate";
 import { isDatabaseVacuumActive } from "@/modules/storage/vacuum/gate";
+import { getPurgeTargetMonth } from "@/modules/traffic/purge/target";
 
 let running = false;
+let cutSettled = false;
+
+/** Pages of the one-time CDR label blank. The steady pass stays at 40. */
+const CUT_LABEL_BATCH = 2000;
+
+async function cutStillPending(): Promise<boolean> {
+  const [journalDone, rows] = await Promise.all([
+    isJournalResetDone(),
+    prisma.smgTraceCheckpoint.findMany({
+      where: { fileKey: LIVE_FILE_KEY },
+      select: { version: true },
+    }),
+  ]);
+  return deferTraceCut({
+    vacuum: false,
+    purge: true,
+    journalDone,
+    hasCurrentLiveMark: rows.some((row) => row.version === SMG_TRACE_PARSER_VERSION),
+  });
+}
 
 /**
  * Directories whose node is explicitly off stay at their checkpoint.
@@ -66,6 +92,7 @@ export function traceDeviceIps(
 /** One pass at a time, outside CDR import and outside the UDP receiver. */
 export async function drainSmgTraces(root = syslogRoot()): Promise<void> {
   if (running || isDatabaseVacuumActive()) return;
+  if (!cutSettled && getPurgeTargetMonth() !== null && (await cutStillPending())) return;
   running = true;
   try {
     await forgetCardsIfUnmarked({
@@ -79,10 +106,11 @@ export async function drainSmgTraces(root = syslogRoot()): Promise<void> {
       async deleteAllCards() {
         await markCdrLabels(false);
         await prisma.smgCallTrace.deleteMany();
-        await blankStoredCdrLabels();
+        await blankStoredCdrLabels(CUT_LABEL_BATCH);
         await markCdrLabels(true);
       },
     });
+    await resetRadiusJournalOnce();
     const disabledRows = await prisma.smgSyslogNode.findMany({
       where: { antifraudEnabled: false },
       select: { ip: true },
@@ -107,6 +135,7 @@ export async function drainSmgTraces(root = syslogRoot()): Promise<void> {
     await relabelStoredCards();
     await backfillCdrLabelsTick();
     await backfillDelaySamples();
+    if (!cutSettled && !(await cutStillPending())) cutSettled = true;
   } catch (error) {
     logger.warn("smg.trace.drain_failed", {
       error: error instanceof Error ? error.message : String(error),

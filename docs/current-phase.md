@@ -1,7 +1,19 @@
-# Current Phase — production (v1.172.0)
+# Current Phase — production (v1.173.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal.  
 **Date:** 2026-10-22
+
+## v1.173.0 — Antifraud history starts at this deploy
+
+Stop `app` before this update. There is no migration. Keep one `app` replica. Do not stop `smg-syslog`. Parser version 9 deletes every syslog card once, blanks stored CDR antifraud labels in pages of 2000, and deletes every `radius_calls` row once. The Parking byte cursor does not move. The pass then marks the end of the newest syslog file and does not read the archive. A leftover v1.172.0 process writes version-8 cards back if it is still running. A later restart does not repeat the journal delete. Rollback does not restore the deleted cards or journal rows.
+
+After the cut, «АнтиФрод» and «Статус АнтиФрод» on stored SMG rows are «Нет данных» / «Неизвестно» until a new card is assembled from bytes after the mark. Delay columns are empty because the cards are gone. «Таймаут АнтиФрода» is empty until Parking writes new rows. Old syslog and the old `calls.log` are not reread. Rows that arrive after the delete stay.
+
+The cut waits if a month purge or `VACUUM FULL` is already running, and runs on the next drain tick. It does not run inside `migrate`.
+
+Settings month delete now also removes the Parking journal for that UTC month, the syslog cards owned by that SMG month, and the delay arrays on those cards. Undated journal rows are not in a month and are not removed by month delete; the one-time wipe does remove them. `VACUUM FULL` also copies `radius_calls` and `smg_call_traces`. The free-space check includes those tables.
+
+Delay headers in both SMG tables and both workbooks are «Dev AF», «Prod AF», and «Parking». «Трафик SMG» and its workbook no longer have «Минуты»; «Секунды» stays the CDR `duration`. «Данные SMG», Satel minutes, and the Settings «Минуты» columns stay. The AntiFraud month menu sits on the right. Dashboard series stay «Dev», «Prod», and «Parking».
 
 ## v1.172.0 — The antifraud panel lists every sent request
 

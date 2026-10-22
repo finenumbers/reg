@@ -1,5 +1,6 @@
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
+import { queryAntifraudMonthStats } from "@/modules/antifraud/month-stats";
 import { jobRuntime } from "@/modules/jobs/runtime";
 import { isDatabaseVacuumActive } from "@/modules/storage/vacuum/gate";
 import {
@@ -34,6 +35,9 @@ export type StorageMonthRow = {
   smgCalls: number;
   smgSeconds: number;
   smgMinutes: number;
+  journal: number;
+  cards: number;
+  delays: number;
   syslogBytes: number;
 };
 
@@ -47,6 +51,9 @@ export type StorageSnapshot = {
   totalSmgCalls: number;
   totalSmgSeconds: number;
   totalSmgMinutes: number;
+  totalJournal: number;
+  totalCards: number;
+  totalDelays: number;
   totalSyslogBytes: number;
   cdrTableBytes: number;
   smgTableBytes: number;
@@ -65,7 +72,12 @@ export type StorageSnapshot = {
   monthsHidden: boolean;
 };
 
-type SizeRow = { cdr_bytes: number; smg_bytes: number };
+type SizeRow = {
+  cdr_bytes: number;
+  smg_bytes: number;
+  journal_bytes: number;
+  card_bytes: number;
+};
 
 function emptySnapshot(
   flags: Pick<
@@ -89,6 +101,9 @@ function emptySnapshot(
     totalSmgCalls: 0,
     totalSmgSeconds: 0,
     totalSmgMinutes: 0,
+    totalJournal: 0,
+    totalCards: 0,
+    totalDelays: 0,
     totalSyslogBytes: 0,
     cdrTableBytes: 0,
     smgTableBytes: 0,
@@ -201,7 +216,7 @@ export async function listStorageSnapshot(): Promise<StorageSnapshot> {
     });
   }
 
-  const [cdrStats, smgStats, sizeRows, syslogMonths] = await Promise.all([
+  const [cdrStats, smgStats, sizeRows, syslogMonths, antifraud] = await Promise.all([
     queryMonthStatsWithMinutes(),
     querySmgMonthStats(),
     prisma.$queryRaw<SizeRow[]>(Prisma.sql`
@@ -210,20 +225,21 @@ export async function listStorageSnapshot(): Promise<StorageSnapshot> {
           pg_total_relation_size('cdr_records') +
           pg_total_relation_size('cdr_voipmonitor_links')
         )::bigint AS cdr_bytes,
-        pg_total_relation_size('smg_cdr_records')::bigint AS smg_bytes
+        pg_total_relation_size('smg_cdr_records')::bigint AS smg_bytes,
+        pg_total_relation_size('radius_calls')::bigint AS journal_bytes,
+        pg_total_relation_size('smg_call_traces')::bigint AS card_bytes
     `),
     listSyslogMonthInventory(syslogRoot()),
+    queryAntifraudMonthStats(),
   ]);
-  const toSide = (
-    row: {
-      year: number;
-      month: number;
-      key: string;
-      count?: number;
-      seconds: number;
-      minutes: number;
-    },
-  ): MonthTrafficStats => ({
+  const toSide = (row: {
+    year: number;
+    month: number;
+    key: string;
+    count?: number;
+    seconds: number;
+    minutes: number;
+  }): MonthTrafficStats => ({
     year: row.year,
     month: row.month,
     key: row.key,
@@ -236,6 +252,7 @@ export async function listStorageSnapshot(): Promise<StorageSnapshot> {
     smgStats.map(toSide),
     syslogMonths,
     current,
+    antifraud,
   );
   const deletableKey = deletableStorageMonthKey(merged, current.key);
   const busy = purgeInFlight || importInFlight;
@@ -249,12 +266,17 @@ export async function listStorageSnapshot(): Promise<StorageSnapshot> {
     smgCalls: item.smgCalls,
     smgSeconds: item.smgSeconds,
     smgMinutes: item.smgMinutes,
+    journal: item.journal,
+    cards: item.cards,
+    delays: item.delays,
     syslogBytes: item.syslogBytes,
     incomplete: item.key === current.key,
     canDelete: item.key === deletableKey && !busy,
   }));
   const cdrTableBytes = Number(sizeRows[0]?.cdr_bytes ?? 0);
   const smgTableBytes = Number(sizeRows[0]?.smg_bytes ?? 0);
+  const journalTableBytes = Number(sizeRows[0]?.journal_bytes ?? 0);
+  const cardTableBytes = Number(sizeRows[0]?.card_bytes ?? 0);
 
   return {
     months: rows,
@@ -264,10 +286,13 @@ export async function listStorageSnapshot(): Promise<StorageSnapshot> {
     totalSmgCalls: rows.reduce((sum, row) => sum + row.smgCalls, 0),
     totalSmgSeconds: rows.reduce((sum, row) => sum + row.smgSeconds, 0),
     totalSmgMinutes: rows.reduce((sum, row) => sum + row.smgMinutes, 0),
+    totalJournal: rows.reduce((sum, row) => sum + row.journal, 0),
+    totalCards: rows.reduce((sum, row) => sum + row.cards, 0),
+    totalDelays: rows.reduce((sum, row) => sum + row.delays, 0),
     totalSyslogBytes: rows.reduce((sum, row) => sum + row.syslogBytes, 0),
     cdrTableBytes,
     smgTableBytes,
-    tableBytes: cdrTableBytes + smgTableBytes,
+    tableBytes: cdrTableBytes + smgTableBytes + journalTableBytes + cardTableBytes,
     deletableKey,
     importInFlight,
     cdrImportInFlight,

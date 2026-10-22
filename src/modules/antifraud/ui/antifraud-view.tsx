@@ -268,20 +268,46 @@ export function AntifraudView({
           ))}
         </ul>
       ) : null}
-      <div className={`flex flex-wrap items-center gap-2 ${FILTER_TOOLBAR_TEXT}`}>
-        <PhoneSearchInput
-          id="antifraud-phone-search"
-          value={phoneInput}
-          onChange={(value) => {
-            setPhoneInput(value);
-            if (phoneTimerRef.current) clearTimeout(phoneTimerRef.current);
-            phoneTimerRef.current = setTimeout(() => {
-              const next = value.trim();
-              setPhoneQ(next);
-              void loadList({ page: 1, replace: true, phoneQ: next });
-            }, PHONE_SEARCH_DEBOUNCE_MS);
-          }}
-        />
+      <div
+        className={`flex flex-wrap items-center justify-between gap-2 ${FILTER_TOOLBAR_TEXT}`}
+      >
+        <div className="flex flex-wrap items-center gap-2">
+          <PhoneSearchInput
+            id="antifraud-phone-search"
+            value={phoneInput}
+            onChange={(value) => {
+              setPhoneInput(value);
+              if (phoneTimerRef.current) clearTimeout(phoneTimerRef.current);
+              phoneTimerRef.current = setTimeout(() => {
+                const next = value.trim();
+                setPhoneQ(next);
+                void loadList({ page: 1, replace: true, phoneQ: next });
+              }, PHONE_SEARCH_DEBOUNCE_MS);
+            }}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={!filtersActive}
+            onClick={() => {
+              if (phoneTimerRef.current) clearTimeout(phoneTimerRef.current);
+              setFilters({});
+              setPhoneInput("");
+              setPhoneQ("");
+              setTimeSort("desc");
+              void loadList({
+                page: 1,
+                replace: true,
+                filters: {},
+                phoneQ: "",
+                timeSort: "desc",
+              });
+            }}
+          >
+            Сбросить фильтры
+          </Button>
+        </div>
         <FitSelect
           id="antifraud-month"
           aria-label="Месяц"
@@ -293,28 +319,6 @@ export function AntifraudView({
             void loadList({ page: 1, replace: true, month: next });
           }}
         />
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={!filtersActive}
-          onClick={() => {
-            if (phoneTimerRef.current) clearTimeout(phoneTimerRef.current);
-            setFilters({});
-            setPhoneInput("");
-            setPhoneQ("");
-            setTimeSort("desc");
-            void loadList({
-              page: 1,
-              replace: true,
-              filters: {},
-              phoneQ: "",
-              timeSort: "desc",
-            });
-          }}
-        >
-          Сбросить фильтры
-        </Button>
       </div>
       <ActiveFiltersBar
         filters={filters}

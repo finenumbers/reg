@@ -7,6 +7,8 @@ export const VACUUM_TABLE_ORDER = [
   "cdr_voipmonitor_links",
   "cdr_records",
   "smg_cdr_records",
+  "radius_calls",
+  "smg_call_traces",
 ] as const;
 
 export type VacuumTableId = (typeof VACUUM_TABLE_ORDER)[number];
@@ -15,12 +17,16 @@ export const VACUUM_TABLE_LABEL: Record<VacuumTableId, string> = {
   cdr_voipmonitor_links: "Ссылки VoIPmonitor",
   cdr_records: "Звонки",
   smg_cdr_records: "Звонки SMG",
+  radius_calls: "Журнал АнтиФрода",
+  smg_call_traces: "Карточки АнтиФрода",
 };
 
 export const DATABASE_VACUUM_SQL: Record<VacuumTableId, string> = {
   cdr_voipmonitor_links: "VACUUM (FULL) cdr_voipmonitor_links",
   cdr_records: "VACUUM (FULL) cdr_records",
   smg_cdr_records: "VACUUM (FULL) smg_cdr_records",
+  radius_calls: "VACUUM (FULL) radius_calls",
+  smg_call_traces: "VACUUM (FULL) smg_call_traces",
 };
 
 export const VACUUM_STATEMENT_TIMEOUT_SQL = "SET statement_timeout = 0";

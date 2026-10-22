@@ -10,7 +10,9 @@ import {
 function stages(overrides?: Partial<PurgeStagesMeta>): PurgeStagesMeta {
   return {
     calls: { done: 10, total: 10 },
+    journal: { done: 1, total: 1 },
     cards: { done: 3, total: 3 },
+    delays: { done: 2, total: 2 },
     smg: { done: 4, total: 4 },
     syslog: { done: 6, total: 6 },
     jobs: { done: 2, total: 8 },
@@ -37,10 +39,24 @@ describe("purgeProgressFromJob", () => {
           state: "done",
         },
         {
+          id: "journal",
+          label: "Журнал АнтиФрода",
+          done: 1,
+          total: 1,
+          state: "done",
+        },
+        {
           id: "cards",
           label: "Карточки АнтиФрода",
           done: 3,
           total: 3,
+          state: "done",
+        },
+        {
+          id: "delays",
+          label: "Задержки АнтиФрода",
+          done: 2,
+          total: 2,
           state: "done",
         },
         {
@@ -83,7 +99,9 @@ describe("purgeProgressFromJob", () => {
         phase: "calls",
         stages: stages({
           calls: { done: 1, total: 3 },
+          journal: { done: 0, total: 0 },
           cards: { done: 0, total: 0 },
+          delays: { done: 0, total: 0 },
           smg: { done: 0, total: 0 },
           syslog: { done: 0, total: 0 },
           jobs: { done: 0, total: 0 },
@@ -99,8 +117,29 @@ describe("purgeProgressFromJob", () => {
       "done",
       "done",
       "done",
+      "done",
+      "done",
       "pending",
     ]);
+  });
+
+  it("marks delays active while cards are still deleting", () => {
+    const progress = purgeProgressFromJob({
+      phonesParsed: 1,
+      meta: {
+        month: "2026-08",
+        phase: "cards",
+        stages: stages({
+          cards: { done: 1, total: 3 },
+          delays: { done: 0, total: 2 },
+        }),
+      },
+    });
+    expect(progress?.mode).toBe("stages");
+    if (progress?.mode !== "stages") return;
+    expect(progress.stages.find((stage) => stage.id === "cards")?.state).toBe("active");
+    expect(progress.stages.find((stage) => stage.id === "delays")?.state).toBe("active");
+    expect(progress.stages.find((stage) => stage.id === "smg")?.state).toBe("pending");
   });
 
   it("keeps a finished stage done when the count and the deletes differ", () => {
@@ -118,13 +157,13 @@ describe("purgeProgressFromJob", () => {
     expect(purgeStageLine(progress.stages[0])).toBe(
       `Звонки CDR — готово, ${formatCount(11)} / ${formatCount(10)}`,
     );
-    expect(purgeStageLine(progress.stages[2])).toBe(
+    expect(purgeStageLine(progress.stages[4])).toBe(
       `Звонки SMG — готово, ${formatCount(4)}`,
     );
-    expect(purgeStageLine(progress.stages[4])).toBe(
+    expect(purgeStageLine(progress.stages[6])).toBe(
       `Задачи — ${formatCount(2)} / ${formatCount(8)}`,
     );
-    expect(purgeStageLine(progress.stages[5])).toBe(`Аудит — ожидает, ${formatCount(4)}`);
+    expect(purgeStageLine(progress.stages[7])).toBe(`Аудит — ожидает, ${formatCount(4)}`);
   });
 
   it("falls back to one calls line when stages are missing or broken", () => {

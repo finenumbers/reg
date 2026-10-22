@@ -290,7 +290,7 @@ describe("antifraud exchange summary", () => {
     expect(radiusDelaySamples(text).afMsDev).toEqual([12]);
   });
 
-  it("puts the out-seize Dev reply into Вход Dev", () => {
+  it("puts the out-seize Dev reply into Dev AF", () => {
     const text = [
       "Set RADIUS-profile [1] options.",
       "RADIUS: Accs-Request [out-seize]",

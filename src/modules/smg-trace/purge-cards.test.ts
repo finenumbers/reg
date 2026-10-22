@@ -14,10 +14,7 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
-import {
-  collectMonthTraceKeys,
-  deleteTraceCards,
-} from "@/modules/smg-trace/purge-cards";
+import { collectMonthTraceKeys, deleteTraceCards } from "@/modules/smg-trace/purge-cards";
 
 const KEPT = "aaaaaaaaaaaaaaaa";
 const GONE = "bbbbbbbbbbbbbbbb";
@@ -55,14 +52,22 @@ describe("deleteTraceCards", () => {
     vi.clearAllMocks();
   });
 
-  it("reports rows removed", async () => {
-    deleteMany.mockResolvedValueOnce({ count: 2 });
-    const seen: number[] = [];
+  it("reports cards removed and how many had a delay array", async () => {
+    queryRaw.mockResolvedValueOnce([{ had: true }, { had: false }]);
+    const seen: Array<[number, number]> = [];
     await expect(
-      deleteTraceCards([GONE, KEPT], async (done) => {
-        seen.push(done);
+      deleteTraceCards([GONE], async (cards, delays) => {
+        seen.push([cards, delays]);
       }),
-    ).resolves.toBe(2);
-    expect(seen).toEqual([2]);
+    ).resolves.toEqual({ cards: 2, delays: 1 });
+    expect(seen).toEqual([[2, 1]]);
+  });
+
+  it("does not query when there are no tags", async () => {
+    await expect(deleteTraceCards([], async () => {})).resolves.toEqual({
+      cards: 0,
+      delays: 0,
+    });
+    expect(queryRaw).not.toHaveBeenCalled();
   });
 });

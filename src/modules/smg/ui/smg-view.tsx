@@ -65,7 +65,6 @@ const TABULAR_COLUMNS = new Set<string>([
   "connectClock",
   "disconnectClock",
   "duration",
-  "billableMinutes",
   ...SMG_RADIUS_DELAY_COLUMNS,
 ]);
 

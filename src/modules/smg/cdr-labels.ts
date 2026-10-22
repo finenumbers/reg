@@ -448,8 +448,11 @@ export async function backfillCdrLabelsTick(): Promise<void> {
   await fillNullRows(Date.now());
 }
 
-/** Every stored pair becomes «Нет данных». Callers turn the fast path off first. */
-export async function blankStoredCdrLabels(): Promise<number> {
+/**
+ * Every stored pair becomes «Нет данных». Callers turn the fast path off first.
+ * The default page is the steady backfill. The one-time cut passes a larger page.
+ */
+export async function blankStoredCdrLabels(batch = BLANK_BATCH): Promise<number> {
   let total = 0;
   for (;;) {
     const rows = await prisma.$queryRaw<Array<{ id: string }>>`
@@ -459,7 +462,7 @@ export async function blankStoredCdrLabels(): Promise<number> {
         WHERE af_category IS DISTINCT FROM ${NO_TRACE_LABELS.category}
            OR af_status IS DISTINCT FROM ${NO_TRACE_LABELS.status}
            OR af_category IS NULL
-        LIMIT ${BLANK_BATCH}
+        LIMIT ${batch}
       )
       UPDATE smg_cdr_records AS r
       SET af_category = ${NO_TRACE_LABELS.category},
@@ -469,7 +472,7 @@ export async function blankStoredCdrLabels(): Promise<number> {
       RETURNING r.id
     `;
     total += rows.length;
-    if (rows.length < BLANK_BATCH) return total;
+    if (rows.length < batch) return total;
     await new Promise((resolve) => setImmediate(resolve));
   }
 }

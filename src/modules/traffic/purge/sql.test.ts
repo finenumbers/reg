@@ -6,6 +6,8 @@ import {
   purgeDeleteBatchSql,
   purgeJobsBatchSql,
   purgeJobsCountSql,
+  purgeJournalBatchSql,
+  purgeJournalCountSql,
   purgeMonthPrefixSql,
   purgeSmgBatchSql,
   purgeSmgCountSql,
@@ -55,6 +57,22 @@ describe("purge SQL", () => {
     const del = flattenSql(purgeSmgBatchSql(2026, 9, 2000));
     expect(del.text).toContain("DELETE FROM smg_cdr_records");
     expect(del.values).toEqual(["2026-09-01", "2026-10-01", 2000]);
+  });
+
+  it("deletes dated Parking journal rows and leaves a null logged_at", () => {
+    const { start, end } = utcMonthInterval(2026, 8);
+    const count = flattenSql(purgeJournalCountSql(start, end));
+    expect(count.text).toContain("COUNT(*)::bigint");
+    expect(count.text).toContain("FROM radius_calls");
+    expect(count.text).toContain('"logged_at" >=');
+    expect(count.text).toContain('"logged_at" <');
+    expect(count.text).not.toContain("IS NULL");
+    expect(count.values).toEqual([start, end]);
+
+    const del = flattenSql(purgeJournalBatchSql(start, end, 2000));
+    expect(del.text).toContain("DELETE FROM radius_calls");
+    expect(del.text).not.toContain("IS NULL");
+    expect(del.values).toEqual([start, end, 2000]);
   });
 });
 

@@ -5,6 +5,10 @@
 import { prisma } from "@/lib/db";
 import { formatCount } from "@/lib/format-count";
 import { logger } from "@/lib/logger";
+import {
+  queryAntifraudMonthStats,
+  resetAntifraudMonthStatsCache,
+} from "@/modules/antifraud/month-stats";
 import { AUDIT_ACTIONS, auditService } from "@/modules/audit";
 import { failJobRunIfStillRunning } from "@/modules/jobs/finalize";
 import { requestCdrImportDrain } from "@/modules/traffic/enqueue";
@@ -33,6 +37,7 @@ import { listSyslogMonthInventory } from "@/modules/smg-syslog/month-inventory";
 import {
   collectMonthTraceKeys,
   countTraceCards,
+  countTraceDelays,
   deleteTraceCards,
 } from "@/modules/smg-trace/purge-cards";
 import type { PurgeStageId, PurgeStagesMeta } from "@/modules/traffic/purge/progress";
@@ -43,6 +48,8 @@ import {
   purgeDeleteBatchSql,
   purgeJobsBatchSql,
   purgeJobsCountSql,
+  purgeJournalBatchSql,
+  purgeJournalCountSql,
   purgeSmgBatchSql,
   purgeSmgCountSql,
   utcMonthInterval,
@@ -180,10 +187,11 @@ function sideFromCounts(row: CdrMonth): MonthTrafficStats {
 
 export async function resolveDeletableMonthKey(): Promise<string | null> {
   const current = currentUtcMonth();
-  const [cdr, smg, syslog] = await Promise.all([
+  const [cdr, smg, syslog, antifraud] = await Promise.all([
     queryMonthCallCounts(),
     querySmgMonthCallCounts(),
     listSyslogMonthInventory(syslogRoot()),
+    queryAntifraudMonthStats(),
   ]);
   return deletableStorageMonthKey(
     mergeStorageMonths(
@@ -191,9 +199,42 @@ export async function resolveDeletableMonthKey(): Promise<string | null> {
       smg.map(sideFromCounts),
       syslog,
       current,
+      antifraud,
     ),
     current.key,
   );
+}
+
+async function countJournalMonth(year: number, month: number): Promise<number> {
+  const { start, end } = utcMonthInterval(year, month);
+  const rows = await prisma.$queryRaw<{ n: unknown }[]>(purgeJournalCountSql(start, end));
+  return sqlCount(rows[0]?.n);
+}
+
+async function deleteJournalMonth(
+  year: number,
+  month: number,
+  monthKeyValue: string,
+  total: number,
+  onProgress: (deleted: number) => Promise<void>,
+): Promise<number> {
+  if (total <= 0) return 0;
+  const { start, end } = utcMonthInterval(year, month);
+  let deleted = 0;
+  while (true) {
+    if (currentUtcMonth().key === monthKeyValue) {
+      throw new Error("Текущий месяц удалить нельзя");
+    }
+    const batch = rawCount(
+      await prisma.$executeRaw(purgeJournalBatchSql(start, end, CDR_PURGE_BATCH_SIZE)),
+    );
+    if (batch <= 0) break;
+    notePurgeBatchCommitted(batch);
+    deleted += batch;
+    await onProgress(deleted);
+    await sleep(BATCH_PAUSE_MS);
+  }
+  return deleted;
 }
 
 async function countSmgMonth(year: number, month: number): Promise<number> {
@@ -213,9 +254,7 @@ async function deleteSmgMonth(
       throw new Error("Текущий месяц удалить нельзя");
     }
     const batch = rawCount(
-      await prisma.$executeRaw(
-        purgeSmgBatchSql(year, month, CDR_PURGE_BATCH_SIZE),
-      ),
+      await prisma.$executeRaw(purgeSmgBatchSql(year, month, CDR_PURGE_BATCH_SIZE)),
     );
     if (batch <= 0) break;
     notePurgeBatchCommitted(batch);
@@ -233,8 +272,8 @@ async function countSyslogFiles(year: number, month: number): Promise<number> {
 }
 
 /**
- * Cards, then SMG rows, then syslog files, then jobs and audit.
- * Card tags are read before the SMG rows disappear.
+ * Journal, then cards and their delay arrays, then SMG rows, syslog, jobs, and audit.
+ * Card tags are read before the SMG rows disappear. Delays are the same rows as cards.
  */
 async function deleteMonthRemainder(
   jobRunId: string,
@@ -242,20 +281,45 @@ async function deleteMonthRemainder(
   stages: PurgeStagesMeta,
   cardKeys: string[] | null,
 ): Promise<{ cards: number; smg: number; syslog: number; jobs: number; audit: number }> {
+  stages.journal = { done: 0, total: await countJournalMonth(target.year, target.month) };
+  await publishPurgeProgress(jobRunId, target.key, "journal", stages);
+  await deleteJournalMonth(
+    target.year,
+    target.month,
+    target.key,
+    stages.journal.total,
+    async (deleted) => {
+      stages.journal.done = deleted;
+      await publishPurgeProgress(jobRunId, target.key, "journal", stages);
+    },
+  );
+
   const keys = cardKeys ?? (await collectMonthTraceKeys(target.year, target.month));
-  stages.cards = { done: 0, total: await countTraceCards(keys) };
+  const [cardTotal, delayTotal] = await Promise.all([
+    countTraceCards(keys),
+    countTraceDelays(keys),
+  ]);
+  stages.cards = { done: 0, total: cardTotal };
+  stages.delays = { done: 0, total: delayTotal };
   await publishPurgeProgress(jobRunId, target.key, "cards", stages);
-  const cards = await deleteTraceCards(keys, async (deleted) => {
-    if (deleted > 0) notePurgeBatchCommitted(deleted);
-    stages.cards.done = deleted;
+  const removed = await deleteTraceCards(keys, async (cards, delays) => {
+    if (cards > 0) notePurgeBatchCommitted(cards);
+    stages.cards.done = cards;
+    stages.delays.done = delays;
     await publishPurgeProgress(jobRunId, target.key, "cards", stages);
   });
+  const cards = removed.cards;
 
   await publishPurgeProgress(jobRunId, target.key, "smg", stages);
-  const smg = await deleteSmgMonth(target.year, target.month, target.key, async (deletedCount) => {
-    stages.smg.done = deletedCount;
-    await publishPurgeProgress(jobRunId, target.key, "smg", stages);
-  });
+  const smg = await deleteSmgMonth(
+    target.year,
+    target.month,
+    target.key,
+    async (deletedCount) => {
+      stages.smg.done = deletedCount;
+      await publishPurgeProgress(jobRunId, target.key, "smg", stages);
+    },
+  );
 
   const syslog = await deleteSyslogMonth(
     syslogRoot(),
@@ -383,7 +447,9 @@ export async function processCdrPurgeMonth(
       ]);
       const stages: PurgeStagesMeta = {
         calls: { done: priorCalls, total: priorCalls },
+        journal: { done: 0, total: 0 },
         cards: { done: 0, total: 0 },
+        delays: { done: 0, total: 0 },
         smg: { done: 0, total: smgTotal },
         syslog: { done: 0, total: syslogFiles },
         jobs: { done: 0, total: historyTotals.jobs },
@@ -485,7 +551,15 @@ export async function processCdrPurgeMonth(
     setPurgeTargetMonth(target.key);
     await assertPurgeFkIndexes();
     const cardKeys = await collectMonthTraceKeys(target.year, target.month);
-    const [callTotal, smgTotal, historyTotals, syslogFiles, cardTotal] = await Promise.all([
+    const [
+      callTotal,
+      smgTotal,
+      historyTotals,
+      syslogFiles,
+      cardTotal,
+      journalTotal,
+      delayTotal,
+    ] = await Promise.all([
       prisma.cdrRecord.count({
         where: { cdrDate: { startsWith: `${target.key}-` } },
       }),
@@ -493,11 +567,15 @@ export async function processCdrPurgeMonth(
       countMonthHistory(target.year, target.month, jobRun.id),
       countSyslogFiles(target.year, target.month),
       countTraceCards(cardKeys),
+      countJournalMonth(target.year, target.month),
+      countTraceDelays(cardKeys),
     ]);
     targetCount = callTotal;
     const stages: PurgeStagesMeta = {
       calls: { done: 0, total: targetCount },
+      journal: { done: 0, total: journalTotal },
       cards: { done: 0, total: cardTotal },
+      delays: { done: 0, total: delayTotal },
       smg: { done: 0, total: smgTotal },
       syslog: { done: 0, total: syslogFiles },
       jobs: { done: 0, total: historyTotals.jobs },
@@ -592,6 +670,7 @@ export async function processCdrPurgeMonth(
       errorMessage,
     };
   } finally {
+    resetAntifraudMonthStatsCache();
     const month = target?.key ?? null;
     if (succeeded || !purgeDeleteCommitted()) {
       setPurgeTargetMonth(null);

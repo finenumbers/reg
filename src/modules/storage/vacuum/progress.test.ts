@@ -8,25 +8,24 @@ import {
   vacuumStageMeta,
   vacuumViews,
 } from "@/modules/storage/vacuum/progress";
-import {
-  DATABASE_VACUUM_SQL,
-  VACUUM_TABLE_ORDER,
-} from "@/modules/storage/vacuum/sql";
+import { DATABASE_VACUUM_SQL, VACUUM_TABLE_ORDER } from "@/modules/storage/vacuum/sql";
 
 describe("database vacuum statements", () => {
-  it("is exactly three VACUUM FULL commands and nothing that deletes rows", () => {
+  it("is exactly five VACUUM FULL commands and nothing that deletes rows", () => {
     expect(VACUUM_TABLE_ORDER).toEqual([
       "cdr_voipmonitor_links",
       "cdr_records",
       "smg_cdr_records",
+      "radius_calls",
+      "smg_call_traces",
     ]);
     expect(DATABASE_VACUUM_SQL.cdr_voipmonitor_links).toBe(
       "VACUUM (FULL) cdr_voipmonitor_links",
     );
     expect(DATABASE_VACUUM_SQL.cdr_records).toBe("VACUUM (FULL) cdr_records");
-    expect(DATABASE_VACUUM_SQL.smg_cdr_records).toBe(
-      "VACUUM (FULL) smg_cdr_records",
-    );
+    expect(DATABASE_VACUUM_SQL.smg_cdr_records).toBe("VACUUM (FULL) smg_cdr_records");
+    expect(DATABASE_VACUUM_SQL.radius_calls).toBe("VACUUM (FULL) radius_calls");
+    expect(DATABASE_VACUUM_SQL.smg_call_traces).toBe("VACUUM (FULL) smg_call_traces");
     const text = Object.values(DATABASE_VACUUM_SQL).join("\n");
     expect(text).not.toMatch(/\bDELETE\b|\bTRUNCATE\b/i);
     expect(text).not.toMatch(/VACUUM FULL;/);
@@ -52,6 +51,8 @@ describe("vacuum progress", () => {
       "done",
       "active",
       "pending",
+      "pending",
+      "pending",
     ]);
     expect(vacuumStageLine(view.stages[1])).toBe(
       "Звонки — идёт, запись новой кучи — просмотрено 10, записано 4",
@@ -75,10 +76,7 @@ describe("vacuum progress", () => {
   });
 
   it("explains a restart in Russian and keeps the failed table", () => {
-    const message = vacuumFailureMessage(
-      VACUUM_RESTART_MARK,
-      "Звонки",
-    );
+    const message = vacuumFailureMessage(VACUUM_RESTART_MARK, "Звонки");
     expect(message).toMatch(/перезапуском/);
     expect(message).toMatch(/Звонки/);
     const view = vacuumViews({
@@ -89,6 +87,8 @@ describe("vacuum progress", () => {
     expect(view.stages.map((stage) => stage.state)).toEqual([
       "done",
       "failed",
+      "pending",
+      "pending",
       "pending",
     ]);
     expect(view.stages[1]?.error).toBe(message);

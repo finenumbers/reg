@@ -3,11 +3,12 @@ import { realTag } from "@/modules/smg-trace/tag";
 import type { TraceBlocks } from "@/modules/smg-trace/types";
 
 /**
- * Version 8 drops every stored card once, when no live mark of this version
+ * Version 9 drops every stored card once, when no live mark of this version
  * exists yet. A foreign mark deletes checkpoints and is not read. The pass
  * then continues from the end of the open file. Older archives are not read.
+ * The Parking journal is cleared once by a separate flag, not by this version.
  */
-export const SMG_TRACE_PARSER_VERSION = 8;
+export const SMG_TRACE_PARSER_VERSION = 9;
 
 /** A call with no release and no reject leaves the assembler after this long. */
 export const SMG_TRACE_HOLD_MS = 4 * 60 * 60 * 1000;
@@ -78,7 +79,9 @@ export function restoreTraceState(value: unknown): TraceState {
   const row = value as Partial<TraceState>;
   if (!row.spans || typeof row.spans !== "object") return empty;
   const spans: Record<string, TraceSpan> = {};
-  for (const [key, span] of Object.entries(row.spans as Record<string, Partial<TraceSpan>>)) {
+  for (const [key, span] of Object.entries(
+    row.spans as Record<string, Partial<TraceSpan>>,
+  )) {
     if (!span || typeof span !== "object") continue;
     spans[key] = {
       ...createSpan(typeof span.callref === "string" ? span.callref : key),
@@ -97,7 +100,9 @@ export function restoreTraceState(value: unknown): TraceState {
     collecting: row.collecting ?? null,
     rcHex: typeof row.rcHex === "string" ? row.rcHex : "",
     rcActive: row.rcActive === true,
-    rcLines: Array.isArray(row.rcLines) ? row.rcLines.filter((line) => typeof line === "string") : [],
+    rcLines: Array.isArray(row.rcLines)
+      ? row.rcLines.filter((line) => typeof line === "string")
+      : [],
     rcStage: row.rcStage === "calc" || row.rcStage === "reply" ? row.rcStage : "body",
     heldQueue: typeof row.heldQueue === "string" ? row.heldQueue : null,
     dirty: [],
@@ -319,7 +324,8 @@ function queueBelongs(span: TraceSpan, payload: string): boolean {
 
 function flushBlank(span: TraceSpan, payload: string): void {
   if (!span.pendingBlank) return;
-  if (/^--\s*RADIUS\./i.test(payload) || /^-{6,}$/.test(payload)) appendLine(span, span.pendingBlank);
+  if (/^--\s*RADIUS\./i.test(payload) || /^-{6,}$/.test(payload))
+    appendLine(span, span.pendingBlank);
   span.pendingBlank = null;
 }
 
@@ -354,7 +360,11 @@ function excluded(payload: string): boolean {
   if (/Accounting-Request|Acct-Request/i.test(payload)) return true;
   if (/\b(IAM|ACM|ANM|REL|RLC|CPG|CON)-/.test(payload)) return true;
   if (/\bDial\b/i.test(payload) && !/Antifraud/i.test(payload)) return true;
-  if (/Modify at|Number tranzit|ModTable\b|Prefix linked|CheckRTP|rtp-cfg|fax_mode/i.test(payload)) {
+  if (
+    /Modify at|Number tranzit|ModTable\b|Prefix linked|CheckRTP|rtp-cfg|fax_mode/i.test(
+      payload,
+    )
+  ) {
     return true;
   }
   return false;
@@ -423,21 +433,27 @@ function noteInflight(state: TraceState, span: TraceSpan, payload: string): void
   const claim = sent || /Processing Accs-Request|process Accs-Request/i.test(payload);
   if (claim) {
     if (state.ambiguousIds.includes(id)) return;
-    const others = state.inflight.some((item) => item.id === id && item.callref !== span.callref);
+    const others = state.inflight.some(
+      (item) => item.id === id && item.callref !== span.callref,
+    );
     if (others) {
       if (!state.ambiguousIds.includes(id)) state.ambiguousIds.push(id);
       state.inflight = state.inflight.filter((item) => item.id !== id);
       return;
     }
     if (sent) {
-      state.inflight = state.inflight.filter((item) => item.callref !== span.callref || item.id === id);
+      state.inflight = state.inflight.filter(
+        (item) => item.callref !== span.callref || item.id === id,
+      );
     }
     if (!state.inflight.some((item) => item.id === id && item.callref === span.callref)) {
       state.inflight.push({ id, callref: span.callref });
     }
   }
   if (/got valid reply/i.test(payload)) {
-    state.inflight = state.inflight.filter((item) => item.id !== id || item.callref !== span.callref);
+    state.inflight = state.inflight.filter(
+      (item) => item.id !== id || item.callref !== span.callref,
+    );
   }
 }
 
@@ -517,7 +533,8 @@ function takeSpan(
 }
 
 function markEnd(span: TraceSpan, payload: string): void {
-  if (/Release\s+time-stamp:/.test(payload) || /Call rejected/i.test(payload)) span.ended = true;
+  if (/Release\s+time-stamp:/.test(payload) || /Call rejected/i.test(payload))
+    span.ended = true;
 }
 
 function markEcho(span: TraceSpan, payload: string): void {

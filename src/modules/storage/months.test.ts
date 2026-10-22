@@ -7,12 +7,7 @@ import {
 
 const current = { year: 2026, month: 10, key: "2026-10" };
 
-function side(
-  key: string,
-  calls: number,
-  seconds = 0,
-  minutes = 0,
-): MonthTrafficStats {
+function side(key: string, calls: number, seconds = 0, minutes = 0): MonthTrafficStats {
   const [year, month] = key.split("-").map(Number);
   return { year: year!, month: month!, key, calls, seconds, minutes };
 }
@@ -53,6 +48,25 @@ describe("mergeStorageMonths", () => {
       syslogBytes: 0,
       count: 1,
     });
+    expect(deletableStorageMonthKey(merged, current.key)).toBe("2026-08");
+  });
+
+  it("makes a journal-only month the oldest deletable month and does not count delays alone", () => {
+    const merged = mergeStorageMonths([side("2026-09", 10)], [], [], current, [
+      { year: 2026, month: 8, key: "2026-08", journal: 3, cards: 0, delays: 0 },
+      { year: 2026, month: 7, key: "2026-07", journal: 0, cards: 0, delays: 4 },
+      { year: 2026, month: 6, key: "2026-06", journal: 0, cards: 0, delays: 0 },
+    ]);
+    expect(merged.find((row) => row.key === "2026-08")).toMatchObject({
+      journal: 3,
+      cards: 0,
+      count: 3,
+    });
+    expect(merged.find((row) => row.key === "2026-07")).toMatchObject({
+      delays: 4,
+      count: 0,
+    });
+    expect(merged.find((row) => row.key === "2026-06")).toBeUndefined();
     expect(deletableStorageMonthKey(merged, current.key)).toBe("2026-08");
   });
 

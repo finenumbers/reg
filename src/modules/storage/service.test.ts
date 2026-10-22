@@ -21,8 +21,7 @@ vi.mock("@/modules/jobs/runtime", () => ({
 }));
 
 vi.mock("@/modules/traffic/cdr-month-stats", () => ({
-  queryMonthStatsWithMinutes: (...args: unknown[]) =>
-    queryMonthStatsWithMinutes(...args),
+  queryMonthStatsWithMinutes: (...args: unknown[]) => queryMonthStatsWithMinutes(...args),
 }));
 
 vi.mock("@/modules/smg/month-stats", () => ({
@@ -74,6 +73,8 @@ describe("listStorageSnapshot during vacuum", () => {
     expect(snapshot.vacuum?.stages.map((stage) => stage.state)).toEqual([
       "done",
       "active",
+      "pending",
+      "pending",
       "pending",
     ]);
   });

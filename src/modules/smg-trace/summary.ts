@@ -76,7 +76,7 @@ export type RadiusDelaySamples = {
 
 /**
  * The same cells as the table, packed for the delay chart.
- * Dev is «Вход Dev» only. A value that does not fit in Postgres integer is
+ * Dev is «Dev AF» only. A value that does not fit in Postgres integer is
  * dropped so one bad syslog line cannot fail the card save.
  */
 export function radiusDelaySamples(text: string): RadiusDelaySamples {
@@ -141,7 +141,8 @@ export function formatServerLine(row: ServerRow): string {
 
 function rowsOf(attempts: readonly Attempt[]): ServerRow[] {
   const counts = new Map<number, number>();
-  for (const attempt of attempts) counts.set(attempt.id, (counts.get(attempt.id) ?? 0) + 1);
+  for (const attempt of attempts)
+    counts.set(attempt.id, (counts.get(attempt.id) ?? 0) + 1);
   return attempts.map((attempt) => ({
     name: SERVER_NAMES[attempt.ip] ?? "",
     ip: attempt.ip,
@@ -210,7 +211,10 @@ function readAttempts(text: string): Attempt[] {
     }
 
     const named = latestAttempt(attempts, requestIdOf(line));
-    if (named?.verdict === "none" && /Retries are exhausted|srv-retries exhausted/i.test(line)) {
+    if (
+      named?.verdict === "none" &&
+      /Retries are exhausted|srv-retries exhausted/i.test(line)
+    ) {
       named.exhausted = true;
     }
     if (named?.verdict === "none" && /Request timeout|Resend request/i.test(line)) {

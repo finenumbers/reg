@@ -17,7 +17,7 @@ export type MergedStorageMonth = {
   year: number;
   month: number;
   key: string;
-  /** CDR calls plus SMG calls, plus one when the month has syslog files. */
+  /** CDR calls plus SMG calls, plus one when syslog is present, plus journal and cards. */
   count: number;
   cdrCalls: number;
   cdrSeconds: number;
@@ -28,6 +28,21 @@ export type MergedStorageMonth = {
   syslogBytes: number;
   syslogFiles: number;
   syslogPresent: boolean;
+  /** Parking `radius_calls` whose `logged_at` falls in this UTC month. */
+  journal: number;
+  /** Syslog cards owned by the newest SMG month that still carries the tag. */
+  cards: number;
+  /** Cards in `cards` whose `af_ms_dev` is not null. Not added to `count`. */
+  delays: number;
+};
+
+export type AntifraudMonthStats = {
+  year: number;
+  month: number;
+  key: string;
+  journal: number;
+  cards: number;
+  delays: number;
 };
 
 export type SyslogMonthPresence = {
@@ -54,15 +69,19 @@ function blank(row: Pick<CdrMonth, "year" | "month" | "key">): MergedStorageMont
     syslogBytes: 0,
     syslogFiles: 0,
     syslogPresent: false,
+    journal: 0,
+    cards: 0,
+    delays: 0,
   };
 }
 
-/** One row per month that has CDR rows, SMG rows, syslog files, or is current. */
+/** One row per month that has CDR rows, SMG rows, syslog files, antifraud rows, or is current. */
 export function mergeStorageMonths(
   cdr: readonly MonthTrafficStats[],
   smg: readonly MonthTrafficStats[],
   syslog: readonly SyslogMonthPresence[],
   current: CdrMonth,
+  antifraud: readonly AntifraudMonthStats[] = [],
 ): MergedStorageMonth[] {
   const byKey = new Map<string, MergedStorageMonth>();
   const ensure = (row: Pick<CdrMonth, "year" | "month" | "key">) => {
@@ -92,9 +111,21 @@ export function mergeStorageMonths(
     item.syslogFiles = row.files;
     item.syslogPresent = true;
   }
+  for (const row of antifraud) {
+    if (row.journal <= 0 && row.cards <= 0 && row.delays <= 0) continue;
+    const item = ensure(row);
+    item.journal = row.journal;
+    item.cards = row.cards;
+    item.delays = row.delays;
+  }
   if (!byKey.has(current.key)) byKey.set(current.key, blank(current));
   for (const item of byKey.values()) {
-    item.count = item.cdrCalls + item.smgCalls + (item.syslogPresent ? 1 : 0);
+    item.count =
+      item.cdrCalls +
+      item.smgCalls +
+      (item.syslogPresent ? 1 : 0) +
+      item.journal +
+      item.cards;
   }
   return [...byKey.values()].sort((a, b) => compareMonthKey(b.key, a.key));
 }

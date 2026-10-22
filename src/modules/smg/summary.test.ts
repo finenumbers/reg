@@ -10,7 +10,6 @@ import {
   formatSmgPoisonSummary,
   formatSmgSummaryCell,
   isSmgSummaryDerived,
-  smgBillableMinutesCell,
 } from "@/modules/smg/summary";
 
 const base = {
@@ -23,8 +22,9 @@ const base = {
 };
 
 describe("SMG summary columns", () => {
-  it("keeps 21 working columns and does not reuse a CDR field name for a derived cell", () => {
-    expect(SMG_SUMMARY_COLUMNS).toHaveLength(21);
+  it("keeps 20 working columns and does not reuse a CDR field name for a derived cell", () => {
+    expect(SMG_SUMMARY_COLUMNS).toHaveLength(20);
+    expect(SMG_SUMMARY_COLUMNS).not.toContain("billableMinutes");
     expect(SMG_SUMMARY_COLUMNS).not.toContain("incomingType");
     expect(SMG_SUMMARY_COLUMNS).not.toContain("outgoingType");
     expect(SMG_SUMMARY_COLUMNS.slice(-5)).toEqual([
@@ -128,22 +128,6 @@ describe("formatSmgSummaryCell", () => {
       }),
     ).toBe("7800");
     expect(formatSmgSummaryCell("redirectNumber", base)).toBe("");
-  });
-});
-
-describe("smgBillableMinutesCell", () => {
-  it("uses the same grace as the SMG month total", () => {
-    expect(smgBillableMinutesCell("")).toBe("0");
-    expect(smgBillableMinutesCell("abc")).toBe("0");
-    expect(smgBillableMinutesCell("3")).toBe("0");
-    expect(smgBillableMinutesCell("4")).toBe("1");
-    expect(smgBillableMinutesCell("60")).toBe("1");
-    expect(smgBillableMinutesCell("61")).toBe("2");
-    expect(smgBillableMinutesCell("0004")).toBe("1");
-  });
-
-  it("does not treat an unsafe integer as a minute count", () => {
-    expect(smgBillableMinutesCell("9".repeat(18))).toBe("0");
   });
 });
 

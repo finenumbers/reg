@@ -47,7 +47,15 @@ export type MonthRemainder = {
   audit: number;
 };
 
-const RESUME_PHASES = new Set(["cards", "smg", "syslog", "jobs", "audit"]);
+const RESUME_PHASES = new Set([
+  "journal",
+  "cards",
+  "delays",
+  "smg",
+  "syslog",
+  "jobs",
+  "audit",
+]);
 
 export type ResumeMonth = {
   month: string;
@@ -165,9 +173,7 @@ async function monthRemainder(month: string): Promise<MonthRemainder> {
       where: { cdrDate: { startsWith: `${month}-` } },
     }),
     prisma.$queryRaw<{ n: unknown }[]>(purgeSmgCountSql(parsed.year, parsed.month)),
-    prisma.$queryRaw<{ n: unknown }[]>(
-      purgeJobsCountSql(start, end, "__purge_resume__"),
-    ),
+    prisma.$queryRaw<{ n: unknown }[]>(purgeJobsCountSql(start, end, "__purge_resume__")),
     prisma.$queryRaw<{ n: unknown }[]>(purgeAuditCountSql(start, end)),
   ]);
   return {

@@ -23,8 +23,8 @@ export type SmgAntifraudColumn = (typeof SMG_ANTIFRAUD_COLUMNS)[number];
 export const SMG_ANTIFRAUD_LABELS: Record<SmgAntifraudColumn, string> = {
   antifraud: "АнтиФрод",
   antifraudStatus: "Статус АнтиФрод",
-  afDelay1Dev: "Вход Dev",
-  afDelay1Prod: "Вход Prod",
+  afDelay1Dev: "Dev AF",
+  afDelay1Prod: "Prod AF",
   afDelayParking: "Parking",
 };
 
@@ -98,7 +98,10 @@ export function classifyAntifraud(input: {
   const facts = readFacts(input.blocks.text);
   if (!input.closed && replyOutstanding(facts)) {
     const anyVerdict = facts.legs.some((leg) => leg.verdict !== "none" || leg.conflicted);
-    if ((input.blocks.mismatch && anyVerdict) || facts.legs.some((leg) => leg.conflicted)) {
+    if (
+      (input.blocks.mismatch && anyVerdict) ||
+      facts.legs.some((leg) => leg.conflicted)
+    ) {
       return conflict();
     }
     return WAITING;
@@ -226,7 +229,8 @@ function readFacts(text: string): Facts {
 
     applyVerdict(facts, line);
     const named = legById(facts, requestIdOf(line));
-    if (named && /srv-retries exhausted|retries exhausted/i.test(line)) named.exhausted = true;
+    if (named && /srv-retries exhausted|retries exhausted/i.test(line))
+      named.exhausted = true;
     if (named?.verdictFrom === "packet" && /invalid reply|Silent ignore/i.test(line)) {
       named.verdict = "none";
       named.verdictFrom = "";

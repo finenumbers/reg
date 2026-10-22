@@ -25,8 +25,8 @@ describe("SMG xlsx columns", () => {
       ...SMG_COLUMNS.map((column) => column.label),
       "АнтиФрод",
       "Статус АнтиФрод",
-      "Вход Dev",
-      "Вход Prod",
+      "Dev AF",
+      "Prod AF",
       "Parking",
     ]);
   });
@@ -39,6 +39,7 @@ describe("SMG xlsx columns", () => {
       SMG_HEADER_LABELS.uniqueTag,
     ]);
     expect(headers).not.toContain("Длительность вызова");
+    expect(headers).not.toContain("Минуты");
     expect(headers).toContain(SMG_HEADER_LABELS.radiusSessionId);
     expect(headers.filter((header) => header === "АнтиФрод")).toEqual(["АнтиФрод"]);
     expect(headers.filter((header) => header === "Статус АнтиФрод")).toEqual([
@@ -49,19 +50,13 @@ describe("SMG xlsx columns", () => {
     expect(headers.filter((header) => header === SMG_HEADER_LABELS.incomingType)).toEqual(
       [SMG_HEADER_LABELS.incomingType],
     );
-    expect(headers.filter((header) => header === "Вход Dev")).toEqual(["Вход Dev"]);
-    expect(headers.indexOf("Вход Dev")).toBeLessThan(
+    expect(headers.filter((header) => header === "Dev AF")).toEqual(["Dev AF"]);
+    expect(headers.indexOf("Dev AF")).toBeLessThan(
       headers.indexOf(SMG_HEADER_LABELS.uniqueTag),
     );
     expect(
       headers.slice(headers.indexOf("АнтиФрод"), headers.indexOf("АнтиФрод") + 5),
-    ).toEqual([
-      "АнтиФрод",
-      "Статус АнтиФрод",
-      "Вход Dev",
-      "Вход Prod",
-      "Parking",
-    ]);
+    ).toEqual(["АнтиФрод", "Статус АнтиФрод", "Dev AF", "Prod AF", "Parking"]);
   });
 
   it("keeps a phone as text and neutralizes a formula", () => {
@@ -114,8 +109,8 @@ describe("SMG xlsx file", () => {
       ...SMG_COLUMNS.map((column) => column.label),
       "АнтиФрод",
       "Статус АнтиФрод",
-      "Вход Dev",
-      "Вход Prod",
+      "Dev AF",
+      "Prod AF",
       "Parking",
     ]);
     const phoneIndex =

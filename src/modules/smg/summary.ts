@@ -4,7 +4,6 @@
  */
 
 import { formatCount } from "@/lib/format-count";
-import { billableMinutes } from "@/modules/enrich/types";
 import { isSmgField, type SmgField } from "@/modules/smg/columns";
 import {
   AF_CATEGORY,
@@ -16,9 +15,6 @@ import {
 } from "@/modules/smg-trace/classify";
 import { formatCdrDayDisplay, splitCdrDateParts } from "@/modules/traffic/cdr-date-parts";
 
-/** Same predicate as `smgDurationSecondsSql`. Anything else is 0 seconds. */
-const DURATION_DIGITS = /^[0-9]{1,18}$/;
-
 const EMPTY_ANSWER = "—";
 
 export const SMG_SUMMARY_DERIVED = [
@@ -27,7 +23,6 @@ export const SMG_SUMMARY_DERIVED = [
   "connectClock",
   "disconnectClock",
   "redirectNumber",
-  "billableMinutes",
 ] as const;
 
 export type SmgSummaryDerived = (typeof SMG_SUMMARY_DERIVED)[number];
@@ -43,7 +38,6 @@ export const SMG_SUMMARY_COLUMNS = [
   "outgoingCdpn",
   "redirectNumber",
   "duration",
-  "billableMinutes",
   "incomingDescription",
   "outgoingDescription",
   "releaseCause",
@@ -65,7 +59,6 @@ export const SMG_SUMMARY_LABELS: Record<SmgSummaryColumn, string> = {
   outgoingCdpn: "Б выход",
   redirectNumber: "Переадресация",
   duration: "Секунды",
-  billableMinutes: "Минуты",
   incomingDescription: "Вход",
   outgoingDescription: "Выход",
   releaseCause: "Q.850",
@@ -73,8 +66,8 @@ export const SMG_SUMMARY_LABELS: Record<SmgSummaryColumn, string> = {
   releaseSideMark: "Сброс",
   antifraud: "АнтиФрод",
   antifraudStatus: "Статус АнтиФрод",
-  afDelay1Dev: "Вход Dev",
-  afDelay1Prod: "Вход Prod",
+  afDelay1Dev: "Dev AF",
+  afDelay1Prod: "Prod AF",
   afDelayParking: "Parking",
 };
 
@@ -139,15 +132,6 @@ function legClock(raw: string, setupDay: string, empty: string): string {
   return parts.time;
 }
 
-/** Billable minutes for one SMG `duration` string. Non-numeric and unsafe integers are 0. */
-export function smgBillableMinutesCell(duration: string): string {
-  const trimmed = duration.trim();
-  if (!DURATION_DIGITS.test(trimmed)) return formatCount(0);
-  const seconds = Number(trimmed);
-  if (!Number.isSafeInteger(seconds)) return formatCount(0);
-  return formatCount(billableMinutes(seconds));
-}
-
 export function formatSmgSummaryCell(
   column: SmgSummaryDerived,
   row: ClockSource,
@@ -171,8 +155,6 @@ export function formatSmgSummaryCell(
       if (outgoing) return outgoing;
       return row.incomingRedirectingNumber.trim();
     }
-    case "billableMinutes":
-      return smgBillableMinutesCell(row.duration);
   }
 }
 
