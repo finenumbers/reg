@@ -1,7 +1,13 @@
-# Current Phase — production (v1.173.0)
+# Current Phase — production (v1.174.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal.  
 **Date:** 2026-10-22
+
+## v1.174.0 — Sidebar keeps a Moscow clock
+
+There is no migration. Do not stop `app`. Do not stop `smg-syslog`. Stored rows are not rewritten.
+
+The left nav shows `UTC+3` between `UTC` and the Settings display zone. That row is `Europe/Moscow` on the same tick as the other clocks. The date above them stays the UTC calendar day. Choosing Москва shows two identical `UTC+3` rows. Choosing UTC shows `UTC`, then `UTC+3`, then `UTC` again. The hint under «Часовой пояс дат» says the `UTC+3` row is always Moscow and the row under it follows the selected zone.
 
 ## v1.173.0 — Antifraud history starts at this deploy
 

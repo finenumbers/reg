@@ -111,9 +111,11 @@ export function LiveClocks({ className }: { className?: string }) {
 
   const utcDate = now ? formatDisplayUtcDate(now) : DATE_WIDTH_SAMPLE;
   const utc = now ? formatDisplayClock(now, "UTC") : CLOCK_WIDTH_SAMPLE;
+  const moscow = now ? formatDisplayClock(now, "Europe/Moscow") : CLOCK_WIDTH_SAMPLE;
   const local = now ? formatDisplayClock(now, timeZone) : CLOCK_WIDTH_SAMPLE;
   const iso = now?.toISOString();
   const utcDateTime = iso?.slice(0, 10);
+  const moscowLabel = formatUtcOffsetLabel("Europe/Moscow");
   const localLabel = formatUtcOffsetLabel(timeZone);
 
   return (
@@ -136,6 +138,13 @@ export function LiveClocks({ className }: { className?: string }) {
         className={cn("font-bold text-black tabular-nums", !now && "invisible")}
       >
         {utc}
+      </time>
+      <span>{moscowLabel}:</span>
+      <time
+        dateTime={iso}
+        className={cn("font-bold text-black tabular-nums", !now && "invisible")}
+      >
+        {moscow}
       </time>
       <span>{localLabel}:</span>
       <time
