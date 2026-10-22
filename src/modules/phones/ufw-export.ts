@@ -37,8 +37,6 @@ export const UFW_HEADERS = [
   "ruleComment",
 ] as const;
 
-export type UfwHeader = (typeof UFW_HEADERS)[number];
-
 export const UFW_SHEET_GATEWAYS = "Шлюзы";
 export const UFW_SHEET_REGISTERED = "Транки с регистрацией";
 export const UFW_SHEET_UNREGISTERED = "Транки без регистрации";

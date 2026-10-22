@@ -22,8 +22,6 @@ export type BorderRole =
   | "headerGroupMid"
   | "headerGroupEnd";
 
-export type SheetKind = "traffic" | "detail";
-
 /** 0-based column → body role (non-last row). Category, type, and status sit at 2–4. */
 export function trafficBodyRole(col: number, lastRow: boolean): BorderRole {
   const map: Record<number, [BorderRole, BorderRole]> = {

@@ -1,7 +1,13 @@
-# Current Phase — production (v1.175.0)
+# Current Phase — production (v1.176.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal.  
 **Date:** 2026-10-22
+
+## v1.176.0 — Unused export types are gone
+
+There is no migration. Do not stop `app`. Do not stop `smg-syslog`. Stored rows are not rewritten. Parser version stays 9. Syslog cards are not deleted.
+
+Two type aliases with no references are removed: `SheetKind` on the enrich workbook borders and `UfwHeader` on the UFW phone export. Screens, workbooks, FTP, and the SMG trace walker are unchanged.
 
 ## v1.175.0 — The nav clock matches the open table
 
