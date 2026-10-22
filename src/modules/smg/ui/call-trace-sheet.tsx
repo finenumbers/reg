@@ -46,20 +46,25 @@ export function SmgCallTraceSheet({ row, onOpenChange, loading, error, trace }: 
         side="right"
         className="w-full gap-0 overflow-y-auto data-[side=right]:w-full data-[side=right]:sm:max-w-3xl"
       >
-        <SheetHeader className="border-b border-border">
+        <SheetHeader className="border-border border-b">
           <SheetTitle className="pr-8 text-lg tabular-nums">
             {calling} → {called}
           </SheetTitle>
           <SheetDescription>{when || "Звонок SMG"}</SheetDescription>
         </SheetHeader>
         <div className="space-y-4 px-4 pb-6">
-          {loading ? <p className="text-sm text-muted-foreground">Загрузка трассы…</p> : null}
-          {error ? <p className="text-sm text-destructive">{error}</p> : null}
+          {loading ? (
+            <p className="text-muted-foreground text-sm">Загрузка трассы…</p>
+          ) : null}
+          {error ? <p className="text-destructive text-sm">{error}</p> : null}
           {trace?.status === "missing" ? (
-            <p className="text-sm text-muted-foreground">Трассы нет.</p>
+            <p className="text-muted-foreground text-sm">Трассы нет.</p>
+          ) : null}
+          {trace?.status === "noAntifraud" ? (
+            <p className="text-muted-foreground text-sm">Нет АнтиФрода.</p>
           ) : null}
           {trace?.status === "ambiguous" ? (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-muted-foreground text-sm">
               Несколько карточек с этим идентификатором. Ни одна не показана.
             </p>
           ) : null}
@@ -74,10 +79,12 @@ function TraceBody({ trace }: { trace: Extract<TraceLookup, { status: "ok" }> })
   return (
     <>
       {trace.open ? (
-        <p className="text-sm text-muted-foreground">В syslog звонок ещё не закрыт.</p>
+        <p className="text-muted-foreground text-sm">В syslog звонок ещё не закрыт.</p>
       ) : null}
       {trace.callref ? (
-        <p className="text-xs text-muted-foreground tabular-nums">Callref {trace.callref}</p>
+        <p className="text-muted-foreground text-xs tabular-nums">
+          Callref {trace.callref}
+        </p>
       ) : null}
       {trace.blocks.text ? (
         <>
@@ -91,7 +98,7 @@ function TraceBody({ trace }: { trace: Extract<TraceLookup, { status: "ok" }> })
           </pre>
         </>
       ) : (
-        <p className="text-sm text-muted-foreground">В syslog нет обмена с АнтиФродом.</p>
+        <p className="text-muted-foreground text-sm">В syslog нет обмена с АнтиФродом.</p>
       )}
     </>
   );

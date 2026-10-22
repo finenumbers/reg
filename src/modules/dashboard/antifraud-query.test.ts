@@ -38,6 +38,7 @@ describe("antifraud chart sql", () => {
     expect(sql.text).toContain("lower(btrim(c.device_sign))");
     expect(sql.text).toContain("make_timestamptz");
     expect(sql.text).toContain("af_category IS NOT NULL");
+    expect(sql.text).toContain("n.antifraud_enabled");
     expect(sql.values).toContain("2026-10-16 00:00:00");
     expect(sql.values).toContain("2026-10-16 21:23:00");
     expect(sql.values).toContain("Europe/Moscow");
@@ -54,6 +55,7 @@ describe("antifraud chart sql", () => {
     expect(sql.text).not.toContain("date_trunc");
     expect(sql.text).not.toContain("array_agg");
     expect(sql.text).toContain("af_ms_dev IS NOT NULL");
+    expect(sql.text).toContain("n.antifraud_enabled");
     expect(sql.text).not.toContain("c.device_ip");
   });
 
@@ -63,6 +65,7 @@ describe("antifraud chart sql", () => {
     expect(sql.text).toContain("floor(extract(epoch FROM logged_at) / 60)");
     expect(sql.text).toContain("logged_at IS NOT NULL");
     expect(sql.text).not.toContain("smg_cdr_records");
+    expect(sql.text).not.toContain("antifraud_enabled");
     expect(sql.values).toContain(afternoon.dayStart);
     expect(sql.values).toContain(afternoon.recentStart);
   });

@@ -138,7 +138,7 @@ function unavailableCalls(series: DashboardSeriesId): DashboardCalls {
 async function antifraudPreface(series: DashboardSeriesId): Promise<Preface> {
   if (series !== "af-answers" && series !== "af-delay") return { stamp: "", note: null };
   const nodes = await prisma.smgSyslogNode.findMany({
-    select: { identifier: true, cdrTimezone: true },
+    select: { identifier: true, cdrTimezone: true, antifraudEnabled: true },
   });
   const zones = zoneCacheKey(nodes);
   if (series === "af-answers") return { stamp: zones, note: null };

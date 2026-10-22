@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { AF_CATEGORY, AF_STATUS } from "@/modules/smg-trace/classify";
 import { formatSmgSummaryCell } from "@/modules/smg/summary";
 import {
+  maskDisabledAntifraud,
+  NO_ANTIFRAUD_LABEL,
   NO_TRACE_LABELS,
   redirectToken,
   resolveStoredTraces,
@@ -70,5 +72,28 @@ describe("resolveStoredTraces", () => {
       kind: "pending",
       traceId: "a",
     });
+  });
+});
+
+describe("maskDisabledAntifraud", () => {
+  it("keeps a row filter that does not name antifraud", () => {
+    const filters = { setupDay: ["2026-10-13"] };
+    expect(maskDisabledAntifraud(filters)).toEqual({ empty: false, filters });
+  });
+
+  it("treats the label as a match inside one column and AND across columns", () => {
+    expect(
+      maskDisabledAntifraud({
+        antifraud: [NO_ANTIFRAUD_LABEL, AF_CATEGORY.passed],
+        setupDay: ["2026-10-13"],
+      }),
+    ).toEqual({ empty: false, filters: { setupDay: ["2026-10-13"] } });
+    expect(
+      maskDisabledAntifraud({
+        antifraud: [NO_ANTIFRAUD_LABEL],
+        antifraudStatus: [AF_STATUS.firstTry],
+      }).empty,
+    ).toBe(true);
+    expect(maskDisabledAntifraud({ antifraud: [AF_CATEGORY.passed] }).empty).toBe(true);
   });
 });

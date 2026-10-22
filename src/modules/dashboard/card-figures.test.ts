@@ -3,9 +3,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const executeRaw = vi.fn();
 const queryRaw = vi.fn();
+const nodeFindMany = vi.fn();
 const transaction = vi.fn(
   async (
-    fn: (tx: { $executeRaw: typeof executeRaw; $queryRaw: typeof queryRaw }) => Promise<unknown>,
+    fn: (tx: {
+      $executeRaw: typeof executeRaw;
+      $queryRaw: typeof queryRaw;
+    }) => Promise<unknown>,
     _opts?: unknown,
   ) => fn({ $executeRaw: executeRaw, $queryRaw: queryRaw }),
 );
@@ -13,6 +17,9 @@ const vacuum = vi.fn(() => false);
 
 vi.mock("@/lib/db", () => ({
   prisma: {
+    smgSyslogNode: {
+      findMany: (...args: unknown[]) => nodeFindMany(...args),
+    },
     $transaction: (
       fn: (tx: {
         $executeRaw: typeof executeRaw;
@@ -69,6 +76,8 @@ describe("antifraudEventsSql", () => {
     expect(values).toContain(ANTIFRAUD_SENT_PATTERN);
     expect(text).toContain("'gi'");
     expect(text).not.toContain("\\b");
+    expect(text).toContain("antifraud_enabled = false");
+    expect(text).toContain("device_ip NOT IN");
     expect(ANTIFRAUD_SENT_PATTERN).toBe(
       "Request ID\\s*\\[\\d+\\]\\s+(?:is sent|send)(?:[^A-Za-z]|$)",
     );
@@ -81,6 +90,8 @@ describe("dashboardAntifraudEvents", () => {
     vacuum.mockReturnValue(false);
     queryRaw.mockResolvedValue([{ n: 4 }]);
     executeRaw.mockResolvedValue(0);
+    nodeFindMany.mockReset();
+    nodeFindMany.mockResolvedValue([]);
     resetDashboardCardFiguresForTests();
   });
 
@@ -105,7 +116,9 @@ describe("dashboardAntifraudEvents", () => {
   });
 
   it("does not cache a failed read", async () => {
-    queryRaw.mockRejectedValueOnce(new Error("canceling statement due to statement timeout"));
+    queryRaw.mockRejectedValueOnce(
+      new Error("canceling statement due to statement timeout"),
+    );
     await expect(dashboardAntifraudEvents()).resolves.toBeNull();
     queryRaw.mockResolvedValue([{ n: 3 }]);
     await expect(dashboardAntifraudEvents()).resolves.toBe(3);
@@ -128,6 +141,15 @@ describe("dashboardAntifraudEvents", () => {
     vacuum.mockReturnValue(true);
     await expect(dashboardAntifraudEvents()).resolves.toBeNull();
     expect(transaction).not.toHaveBeenCalled();
+    expect(nodeFindMany).not.toHaveBeenCalled();
+  });
+
+  it("reads again when a node turns antifraud off", async () => {
+    await expect(dashboardAntifraudEvents()).resolves.toBe(4);
+    nodeFindMany.mockResolvedValue([{ ip: "10.0.0.8" }]);
+    queryRaw.mockResolvedValue([{ n: 1 }]);
+    await expect(dashboardAntifraudEvents()).resolves.toBe(1);
+    expect(queryRaw).toHaveBeenCalledTimes(2);
   });
 
   it("shares one read between two callers", async () => {
@@ -139,8 +161,9 @@ describe("dashboardAntifraudEvents", () => {
     );
     const first = dashboardAntifraudEvents();
     const second = dashboardAntifraudEvents();
-    expect(transaction).toHaveBeenCalledTimes(1);
     await Promise.resolve();
+    await Promise.resolve();
+    expect(transaction).toHaveBeenCalledTimes(1);
     await Promise.resolve();
     expect(queryRaw).toHaveBeenCalledTimes(1);
     release([{ n: 9 }]);

@@ -108,6 +108,7 @@ export async function POST(request: Request) {
       name: z.string(),
       identifier: z.string(),
       cdrTimezone: z.string().optional(),
+      antifraudEnabled: z.boolean().optional(),
     })
     .safeParse(body);
   if (!parsed.success) {
@@ -122,6 +123,7 @@ export async function POST(request: Request) {
       name: parsed.data.name,
       identifier: parsed.data.identifier,
       cdrTimezone: parsed.data.cdrTimezone,
+      antifraudEnabled: parsed.data.antifraudEnabled,
       actorUserId: userId,
       requestIp: await getRequestIp(),
     });

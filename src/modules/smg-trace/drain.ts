@@ -52,6 +52,17 @@ import { isDatabaseVacuumActive } from "@/modules/storage/vacuum/gate";
 
 let running = false;
 
+/**
+ * Directories whose node is explicitly off stay at their checkpoint.
+ * A directory with no node row is still walked.
+ */
+export function traceDeviceIps(
+  dirs: readonly string[],
+  disabledIps: ReadonlySet<string>,
+): string[] {
+  return dirs.filter((ip) => !disabledIps.has(ip));
+}
+
 /** One pass at a time, outside CDR import and outside the UDP receiver. */
 export async function drainSmgTraces(root = syslogRoot()): Promise<void> {
   if (running || isDatabaseVacuumActive()) return;
@@ -72,7 +83,12 @@ export async function drainSmgTraces(root = syslogRoot()): Promise<void> {
         await markCdrLabels(true);
       },
     });
-    for (const deviceIp of listDeviceIps(root)) {
+    const disabledRows = await prisma.smgSyslogNode.findMany({
+      where: { antifraudEnabled: false },
+      select: { ip: true },
+    });
+    const disabledIps = new Set(disabledRows.map((row) => row.ip));
+    for (const deviceIp of traceDeviceIps(listDeviceIps(root), disabledIps)) {
       try {
         const floor = await liveFloor(deviceIp);
         const files = listTraceSourcesSince(root, deviceIp, floor);

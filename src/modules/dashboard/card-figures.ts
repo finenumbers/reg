@@ -18,7 +18,7 @@ export const ANTIFRAUD_SENT_PATTERN =
   "Request ID\\s*\\[\\d+\\]\\s+(?:is sent|send)(?:[^A-Za-z]|$)";
 
 type Cache = {
-  antifraud: { at: number; value: number } | null;
+  antifraud: { at: number; stamp: string; value: number } | null;
   antifraudInflight: Promise<number | null> | null;
   smgMonth: { at: number; key: string; calls: number; minutes: number } | null;
 };
@@ -52,27 +52,55 @@ export function antifraudEventsSql(): Prisma.Sql {
       END
     ), 0)::int AS n
     FROM smg_call_traces
+    WHERE device_ip NOT IN (
+      SELECT ip FROM smg_syslog_nodes WHERE antifraud_enabled = false
+    )
   `;
+}
+
+/** Sorted IPs of nodes with the antifraud checkbox off. A failed read is a gap. */
+async function disabledAntifraudStamp(): Promise<string | null> {
+  try {
+    const rows = await prisma.smgSyslogNode.findMany({
+      where: { antifraudEnabled: false },
+      select: { ip: true },
+      orderBy: { ip: "asc" },
+    });
+    return rows.map((row) => row.ip).join(",");
+  } catch (error) {
+    logger.warn("dashboard.antifraud.nodes_failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return null;
+  }
 }
 
 /** Sent AntiFraud requests stored in call cards. A cold value is read at most once a minute. */
 export async function dashboardAntifraudEvents(): Promise<number | null> {
   if (isDatabaseVacuumActive()) return null;
-  const now = Date.now();
   const held = cache();
-  if (held.antifraud && now - held.antifraud.at < TTL_MS) return held.antifraud.value;
   if (held.antifraudInflight) return held.antifraudInflight;
 
-  const promise = readAntifraudEvents()
-    .then((value) => {
-      if (value == null || isDatabaseVacuumActive()) return null;
-      cache().antifraud = { at: Date.now(), value };
-      return value;
-    })
-    .finally(() => {
-      const current = cache();
-      if (current.antifraudInflight === promise) current.antifraudInflight = null;
-    });
+  const promise = (async () => {
+    const stamp = await disabledAntifraudStamp();
+    if (stamp == null || isDatabaseVacuumActive()) return null;
+    const now = Date.now();
+    const current = cache();
+    if (
+      current.antifraud &&
+      current.antifraud.stamp === stamp &&
+      now - current.antifraud.at < TTL_MS
+    ) {
+      return current.antifraud.value;
+    }
+    const value = await readAntifraudEvents();
+    if (value == null || isDatabaseVacuumActive()) return null;
+    cache().antifraud = { at: Date.now(), stamp, value };
+    return value;
+  })().finally(() => {
+    const current = cache();
+    if (current.antifraudInflight === promise) current.antifraudInflight = null;
+  });
   held.antifraudInflight = promise;
   return promise;
 }
@@ -106,7 +134,11 @@ export async function dashboardSmgMonth(
   const month = currentUtcMonth(new Date(now));
   const held = cache();
   const at = Date.now();
-  if (held.smgMonth && held.smgMonth.key === month.key && at - held.smgMonth.at < TTL_MS) {
+  if (
+    held.smgMonth &&
+    held.smgMonth.key === month.key &&
+    at - held.smgMonth.at < TTL_MS
+  ) {
     return { calls: held.smgMonth.calls, minutes: held.smgMonth.minutes };
   }
   const stats = await querySmgMonthStats();

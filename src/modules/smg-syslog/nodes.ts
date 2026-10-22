@@ -9,15 +9,25 @@ const NAME_MAX = 64;
 const BAD_IDENTIFIER =
   "Идентификатор: латинская буква, затем буквы, цифры или _, до 32 символов";
 const BAD_TIMEZONE = "Пояс CDR — UTC, Калининград, Москва или Новосибирск";
+const ANTIFRAUD_NEEDS_IDENTIFIER = "Чтобы выключить АнтиФрод, укажите идентификатор";
+const ANTIFRAUD_KEEPS_IDENTIFIER =
+  "Нельзя очистить идентификатор, пока АнтиФрод выключен";
 
 export type SyslogNode = {
   ip: string;
   name: string;
   identifier: string | null;
   cdrTimezone: string;
+  antifraudEnabled: boolean;
 };
 
-const nodeSelect = { ip: true, name: true, identifier: true, cdrTimezone: true } as const;
+const nodeSelect = {
+  ip: true,
+  name: true,
+  identifier: true,
+  cdrTimezone: true,
+  antifraudEnabled: true,
+} as const;
 
 export class SyslogNodeError extends Error {
   constructor(
@@ -26,6 +36,7 @@ export class SyslogNodeError extends Error {
       | "BAD_NAME"
       | "BAD_IDENTIFIER"
       | "BAD_TIMEZONE"
+      | "ANTIFRAUD_IDENTIFIER"
       | "DUPLICATE"
       | "NOT_FOUND",
     message: string,
@@ -65,6 +76,19 @@ function cleanIdentifier(raw: string, required: boolean): string | null {
 function cleanCdrTimezone(raw: string): DisplayTimezoneId {
   if (isDisplayTimezoneId(raw)) return raw;
   throw new SyslogNodeError("BAD_TIMEZONE", BAD_TIMEZONE);
+}
+
+/** Off without an identifier would leave the call table on the stored card. */
+export function assertAntifraudIdentifier(input: {
+  enabled: boolean;
+  identifier: string | null;
+  identifierCleared: boolean;
+}): void {
+  if (input.enabled || input.identifier) return;
+  throw new SyslogNodeError(
+    "ANTIFRAUD_IDENTIFIER",
+    input.identifierCleared ? ANTIFRAUD_KEEPS_IDENTIFIER : ANTIFRAUD_NEEDS_IDENTIFIER,
+  );
 }
 
 export async function listSyslogNodes(): Promise<SyslogNode[]> {
@@ -120,6 +144,7 @@ export async function addSyslogNode(input: {
   name: string;
   identifier: string;
   cdrTimezone?: string;
+  antifraudEnabled?: boolean;
   actorUserId: string;
   requestIp: string | null;
 }): Promise<SyslogNode> {
@@ -127,9 +152,15 @@ export async function addSyslogNode(input: {
   const name = cleanName(input.name);
   const identifier = cleanIdentifier(input.identifier, true);
   const cdrTimezone = cleanCdrTimezone(input.cdrTimezone ?? "UTC");
+  const antifraudEnabled = input.antifraudEnabled ?? true;
+  assertAntifraudIdentifier({
+    enabled: antifraudEnabled,
+    identifier,
+    identifierCleared: false,
+  });
   try {
     const row = await prisma.smgSyslogNode.create({
-      data: { ip, name, identifier, cdrTimezone },
+      data: { ip, name, identifier, cdrTimezone, antifraudEnabled },
       select: nodeSelect,
     });
     await auditService.append({
@@ -143,6 +174,7 @@ export async function addSyslogNode(input: {
         name: row.name,
         identifier: row.identifier,
         cdrTimezone: row.cdrTimezone,
+        antifraudEnabled: row.antifraudEnabled,
       },
     });
     return row;
@@ -159,6 +191,7 @@ export async function renameSyslogNode(input: {
   name: string;
   identifier?: string;
   cdrTimezone?: string;
+  antifraudEnabled?: boolean;
   actorUserId: string;
   requestIp: string | null;
 }): Promise<SyslogNode> {
@@ -173,6 +206,16 @@ export async function renameSyslogNode(input: {
     select: nodeSelect,
   });
   if (!existing) throw new SyslogNodeError("NOT_FOUND", "Узел не найден");
+  const antifraudEnabled =
+    input.antifraudEnabled === undefined
+      ? existing.antifraudEnabled
+      : input.antifraudEnabled;
+  const nextIdentifier = identifier === undefined ? existing.identifier : identifier;
+  assertAntifraudIdentifier({
+    enabled: antifraudEnabled,
+    identifier: nextIdentifier,
+    identifierCleared: identifier === null,
+  });
   try {
     const row = await prisma.smgSyslogNode.update({
       where: { ip },
@@ -180,6 +223,7 @@ export async function renameSyslogNode(input: {
         name,
         ...(identifier !== undefined ? { identifier } : {}),
         ...(cdrTimezone !== undefined ? { cdrTimezone } : {}),
+        ...(input.antifraudEnabled !== undefined ? { antifraudEnabled } : {}),
       },
       select: nodeSelect,
     });
@@ -194,9 +238,11 @@ export async function renameSyslogNode(input: {
         name: row.name,
         identifier: row.identifier,
         cdrTimezone: row.cdrTimezone,
+        antifraudEnabled: row.antifraudEnabled,
         previousName: existing.name,
         previousIdentifier: existing.identifier,
         previousCdrTimezone: existing.cdrTimezone,
+        previousAntifraudEnabled: existing.antifraudEnabled,
       },
     });
     return row;

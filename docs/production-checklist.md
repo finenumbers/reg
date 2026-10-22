@@ -53,6 +53,8 @@ Optional publish ports: `APP_PUBLISH_PORT`, `POSTGRES_PUBLISH_PORT`.
 
 ## 3. Database
 
+v1.169.0 adds `antifraud_enabled BOOLEAN NOT NULL DEFAULT true` on `smg_syslog_nodes`. Stop `app` before the update and start one new process only after `migrate` exits. The migration does not rewrite CDR rows, syslog cards, or checkpoints, and it does not index `smg_cdr_records`. Do not stop `smg-syslog`. Existing nodes stay enabled. If the new app starts before `migrate`, the trace drain's node query fails the whole tick and no gateway gets a card. Settings → Syslog — SMG gains «АнтиФрод» per node, on by default. Off requires an identifier; the identifier cannot be cleared while off. Reception continues. That IP is not assembled, and its checkpoint does not move. Both SMG antifraud columns and both workbooks say «Нет АнтиФрода», delay cells stay empty, and the panel does not show the card. «Ответы АнтиФрода» and «Задержка АнтиФрода» omit the node. «Таймаут АнтиФрода» and the Parking journal stay as they are. Turning the box on resumes from the frozen checkpoint, one slot per drain tick. Rolling the app back leaves the column; the old drain ignores the flag and assembles again.
+
 v1.168.2 does not migrate and does not rewrite stored rows. Do not stop `smg-syslog`. The color legend on «Ответы АнтиФрода» and «Задержка АнтиФрода» sits below the minute labels.
 
 v1.168.1 does not migrate and does not rewrite stored rows. Do not stop `smg-syslog`. «Задержка АнтиФрода» reads the three millisecond arrays from the one card on a call. v1.168.0 failed that query before any row was read.

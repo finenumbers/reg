@@ -24,6 +24,7 @@ type NodeRow = {
   name: string;
   identifier: string | null;
   cdrTimezone: string;
+  antifraudEnabled: boolean;
 };
 
 type Draft = { ip: string; name: string; identifier: string };
@@ -54,6 +55,7 @@ export function SyslogSettings() {
   const [name, setName] = useState("");
   const [identifier, setIdentifier] = useState("");
   const [cdrTimezone, setCdrTimezone] = useState("UTC");
+  const [addAntifraud, setAddAntifraud] = useState(true);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [busy, setBusy] = useState(false);
   const [leftover, setLeftover] = useState<NodeRow | null>(null);
@@ -107,7 +109,13 @@ export function SyslogSettings() {
       const res = await fetch("/api/settings/smg-syslog", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ ip, name, identifier, cdrTimezone }),
+        body: JSON.stringify({
+          ip,
+          name,
+          identifier,
+          cdrTimezone,
+          antifraudEnabled: addAntifraud,
+        }),
       });
       const body = (await res.json()) as { error?: string };
       if (!res.ok) {
@@ -118,6 +126,7 @@ export function SyslogSettings() {
       setName("");
       setIdentifier("");
       setCdrTimezone("UTC");
+      setAddAntifraud(true);
       await reload();
     } finally {
       setBusy(false);
@@ -138,6 +147,29 @@ export function SyslogSettings() {
       const body = (await res.json()) as { error?: string };
       if (!res.ok) {
         toast.error(body.error ?? "Не удалось сохранить пояс CDR");
+        return;
+      }
+      await reload();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveAntifraud(node: NodeRow, next: boolean) {
+    if (typeof node.antifraudEnabled !== "boolean") return;
+    setBusy(true);
+    try {
+      const res = await fetch(
+        `/api/settings/smg-syslog/nodes/${encodeURIComponent(node.ip)}`,
+        {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ name: node.name, antifraudEnabled: next }),
+        },
+      );
+      const body = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        toast.error(body.error ?? "Не удалось сохранить АнтиФрод");
         return;
       }
       await reload();
@@ -359,6 +391,17 @@ export function SyslogSettings() {
           Добавить
         </Button>
       </div>
+      <div className="flex items-center gap-2">
+        <input
+          id="syslog-node-antifraud"
+          type="checkbox"
+          className="size-4 rounded border"
+          checked={addAntifraud}
+          disabled={busy}
+          onChange={(event) => setAddAntifraud(event.target.checked)}
+        />
+        <Label htmlFor="syslog-node-antifraud">АнтиФрод</Label>
+      </div>
       {(data?.nodes.length ?? 0) > 0 ? (
         <div className="overflow-auto">
           <Table>
@@ -368,6 +411,7 @@ export function SyslogSettings() {
                 <TableHead className="text-center">IP адрес</TableHead>
                 <TableHead className="text-center">Идентификатор</TableHead>
                 <TableHead className="text-center">Пояс CDR</TableHead>
+                <TableHead className="text-center">АнтиФрод</TableHead>
                 <TableHead className="text-center">Последний пакет (UTC)</TableHead>
                 <TableHead className="text-center">Переименовать</TableHead>
                 <TableHead className="text-center">Удалить</TableHead>
@@ -431,6 +475,18 @@ export function SyslogSettings() {
                           </option>
                         ))}
                       </select>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <input
+                        type="checkbox"
+                        className="size-4 rounded border"
+                        aria-label={`АнтиФрод ${node.name}`}
+                        checked={node.antifraudEnabled === true}
+                        disabled={busy || typeof node.antifraudEnabled !== "boolean"}
+                        onChange={(event) =>
+                          void saveAntifraud(node, event.target.checked)
+                        }
+                      />
                     </TableCell>
                     <TableCell>{packetLabel}</TableCell>
                     <TableCell>

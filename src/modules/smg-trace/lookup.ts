@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { smgNodeAntifraudOff } from "@/modules/smg/antifraud-gate";
 import { decideTraceRows, type TraceHitRow } from "@/modules/smg-trace/match";
 import { traceSearchKeys } from "@/modules/smg-trace/tag";
 import type { TraceBlocks, TraceLookup } from "@/modules/smg-trace/types";
@@ -10,9 +11,10 @@ import type { TraceBlocks, TraceLookup } from "@/modules/smg-trace/types";
 export async function lookupSmgTrace(cdrId: string): Promise<TraceLookup | null> {
   const record = await prisma.smgCdrRecord.findUnique({
     where: { id: cdrId },
-    select: { uniqueTag: true, radiusSessionId: true },
+    select: { uniqueTag: true, radiusSessionId: true, deviceSign: true },
   });
   if (!record) return null;
+  if (await smgNodeAntifraudOff(record.deviceSign)) return { status: "noAntifraud" };
 
   const keys = traceSearchKeys(record.uniqueTag, record.radiusSessionId);
   if (keys.length === 0) return { status: "missing" };

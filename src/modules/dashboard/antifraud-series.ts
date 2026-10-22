@@ -59,11 +59,17 @@ export function widenedSetupBounds(bounds: UtcCallWindow): {
 }
 
 export function zoneCacheKey(
-  nodes: readonly { identifier: string | null; cdrTimezone: string }[],
+  nodes: readonly {
+    identifier: string | null;
+    cdrTimezone: string;
+    antifraudEnabled: boolean;
+  }[],
 ): string {
   return nodes
     .flatMap((node) =>
-      node.identifier ? [`${node.identifier}=${node.cdrTimezone}`] : [],
+      node.identifier
+        ? [`${node.identifier}=${node.cdrTimezone}:${node.antifraudEnabled ? "1" : "0"}`]
+        : [],
     )
     .sort()
     .join("|");

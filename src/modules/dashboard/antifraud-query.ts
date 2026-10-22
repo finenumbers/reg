@@ -40,6 +40,7 @@ function zonedFrom(bounds: UtcCallWindow): Prisma.Sql {
       ON n.identifier IS NOT NULL
      AND n.identifier <> ''
      AND n.identifier = lower(btrim(c.device_sign))
+     AND n.antifraud_enabled
     WHERE c.setup_time >= ${window.start}
       AND c.setup_time < ${window.end}
       AND btrim(c.setup_time) ~ ${CDR_DATE_CIVIL_REGEX}

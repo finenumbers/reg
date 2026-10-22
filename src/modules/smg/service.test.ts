@@ -1,12 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { count, findMany, groupBy, queryRaw, traceFindMany } = vi.hoisted(() => ({
-  count: vi.fn(),
-  findMany: vi.fn(),
-  groupBy: vi.fn(),
-  queryRaw: vi.fn(),
-  traceFindMany: vi.fn(),
-}));
+const { count, findMany, groupBy, queryRaw, traceFindMany, nodeFindFirst } = vi.hoisted(
+  () => ({
+    count: vi.fn(),
+    findMany: vi.fn(),
+    groupBy: vi.fn(),
+    queryRaw: vi.fn(),
+    traceFindMany: vi.fn(),
+    nodeFindFirst: vi.fn(),
+  }),
+);
 
 vi.mock("@/lib/db", () => ({
   prisma: {
@@ -18,6 +21,9 @@ vi.mock("@/lib/db", () => ({
     },
     smgCallTrace: {
       findMany: (...args: unknown[]) => traceFindMany(...args),
+    },
+    smgSyslogNode: {
+      findFirst: (...args: unknown[]) => nodeFindFirst(...args),
     },
   },
 }));
@@ -31,6 +37,7 @@ vi.mock("@/modules/storage/vacuum/gate", () => ({
 }));
 
 import { AF_CATEGORY, AF_STATUS } from "@/modules/smg-trace/classify";
+import { NO_ANTIFRAUD_LABEL } from "@/modules/smg/row-tokens";
 import { listSmgCalls, listSmgFacets } from "@/modules/smg/service";
 
 const OCTOBER = {
@@ -44,11 +51,13 @@ describe("listSmgCalls", () => {
     groupBy.mockReset();
     queryRaw.mockReset();
     traceFindMany.mockReset();
+    nodeFindFirst.mockReset();
     count.mockResolvedValue(0);
     findMany.mockResolvedValue([]);
     queryRaw.mockResolvedValue([]);
     groupBy.mockResolvedValue([]);
     traceFindMany.mockResolvedValue([]);
+    nodeFindFirst.mockResolvedValue(null);
   });
 
   it("keeps the requested gateway and skips the menu recount", async () => {
@@ -219,6 +228,61 @@ describe("listSmgCalls", () => {
     expect(sql).toContain("smg_call_traces");
     expect(count).not.toHaveBeenCalled();
   });
+
+  it("paints both columns and skips the card when the node is off", async () => {
+    nodeFindFirst.mockResolvedValue({ ip: "10.0.0.8" });
+    findMany.mockResolvedValue([
+      {
+        id: "cdr-1",
+        uniqueTag: "1100004f00000001",
+        radiusSessionId: "",
+        afCategory: AF_CATEGORY.passed,
+        afStatus: AF_STATUS.firstTry,
+      },
+    ]);
+    traceFindMany.mockResolvedValue([
+      {
+        id: "trace-1",
+        tagNorm: "1100004f00000001",
+        afCategory: AF_CATEGORY.passed,
+        afStatus: AF_STATUS.firstTry,
+      },
+    ]);
+
+    const result = await listSmgCalls({
+      month: "2026-10",
+      device: "mts",
+      includeDevices: false,
+    });
+
+    expect(result.items[0]?.antifraud).toBe(NO_ANTIFRAUD_LABEL);
+    expect(result.items[0]?.antifraudStatus).toBe(NO_ANTIFRAUD_LABEL);
+    expect(result.items[0]?.afDelay1Dev).toBe("");
+    expect(traceFindMany).not.toHaveBeenCalled();
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { AND: [OCTOBER, { deviceSign: "mts" }] },
+      }),
+    );
+  });
+
+  it("matches nothing when a disabled node is filtered to a stored verdict", async () => {
+    nodeFindFirst.mockResolvedValue({ ip: "10.0.0.8" });
+
+    const result = await listSmgCalls({
+      month: "2026-10",
+      device: "mts",
+      includeDevices: false,
+      page: 2,
+      filters: { antifraud: [AF_CATEGORY.passed] },
+    });
+
+    expect(result.total).toBe(0);
+    expect(result.items).toEqual([]);
+    expect(findMany).not.toHaveBeenCalled();
+    expect(count).not.toHaveBeenCalled();
+    expect(queryRaw).not.toHaveBeenCalled();
+  });
 });
 
 function rawText(query: unknown): string {
@@ -232,8 +296,12 @@ describe("listSmgFacets", () => {
   beforeEach(() => {
     groupBy.mockReset();
     queryRaw.mockReset();
+    count.mockReset();
+    nodeFindFirst.mockReset();
     groupBy.mockResolvedValue([]);
     queryRaw.mockResolvedValue([]);
+    count.mockResolvedValue(0);
+    nodeFindFirst.mockResolvedValue(null);
   });
 
   it("reads the requested gateway and drops a node column filter", async () => {
@@ -313,5 +381,55 @@ describe("listSmgFacets", () => {
     expect(facetSql).toContain("2026-10-13");
     expect(facetSql).not.toContain(AF_CATEGORY.blockedIn);
     expect(facetSql).not.toContain("smg_call_traces");
+  });
+
+  it("offers only Нет АнтиФрода when the node is off, ignoring its own chip", async () => {
+    nodeFindFirst.mockResolvedValue({ ip: "10.0.0.8" });
+    count.mockResolvedValue(6);
+
+    const result = await listSmgFacets({
+      column: "antifraud",
+      month: "2026-10",
+      device: "mts",
+      filters: { antifraud: [AF_CATEGORY.passed] },
+    });
+
+    expect(result.items).toEqual([{ value: NO_ANTIFRAUD_LABEL, count: 6 }]);
+    expect(queryRaw).not.toHaveBeenCalled();
+    expect(count).toHaveBeenCalledWith({
+      where: { AND: [OCTOBER, { deviceSign: "mts" }] },
+    });
+  });
+
+  it("counts a disabled antifraud menu through the day filter", async () => {
+    nodeFindFirst.mockResolvedValue({ ip: "10.0.0.8" });
+    queryRaw.mockResolvedValue([{ n: 2 }]);
+
+    const result = await listSmgFacets({
+      column: "antifraudStatus",
+      month: "2026-10",
+      device: "mts",
+      filters: { antifraudStatus: [AF_STATUS.firstTry], setupDay: ["2026-10-13"] },
+    });
+
+    expect(result.items).toEqual([{ value: NO_ANTIFRAUD_LABEL, count: 2 }]);
+    const sql = queryRaw.mock.calls.map((call) => rawText(call[0])).join("\n");
+    expect(sql).toContain("2026-10-13");
+    expect(sql).not.toContain(AF_STATUS.firstTry);
+    expect(count).not.toHaveBeenCalled();
+  });
+
+  it("returns an empty menu for another column when the disabled filter misses", async () => {
+    nodeFindFirst.mockResolvedValue({ ip: "10.0.0.8" });
+
+    const result = await listSmgFacets({
+      column: "incomingIp",
+      month: "2026-10",
+      device: "mts",
+      filters: { antifraud: [AF_CATEGORY.passed] },
+    });
+
+    expect(result).toEqual({ items: [], truncated: false });
+    expect(groupBy).not.toHaveBeenCalled();
   });
 });

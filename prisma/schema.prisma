@@ -161,6 +161,8 @@ model SmgSyslogNode {
   identifier String?  @unique
   /// Civil clock of this gateway's CDR `setup_time`. Charts convert it to UTC.
   cdrTimezone String   @default("UTC") @map("cdr_timezone")
+  /// Off means this gateway has no antifraud exchange. Existing rows stay on.
+  antifraudEnabled Boolean @default(true) @map("antifraud_enabled")
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
 

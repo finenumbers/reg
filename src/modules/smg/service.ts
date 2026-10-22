@@ -34,7 +34,13 @@ import {
   smgListNeedsSql,
 } from "@/modules/smg/call-query";
 import { pickSmgDevice, type SmgDeviceOption } from "@/modules/smg/device";
-import { NO_TRACE_LABELS, resolveStoredTraces } from "@/modules/smg/row-tokens";
+import { smgNodeAntifraudOff } from "@/modules/smg/antifraud-gate";
+import {
+  maskDisabledAntifraud,
+  NO_ANTIFRAUD_LABEL,
+  NO_TRACE_LABELS,
+  resolveStoredTraces,
+} from "@/modules/smg/row-tokens";
 import {
   AF_CATEGORY,
   AF_STATUS,
@@ -82,6 +88,26 @@ const STORED_AF = {
   antifraud: "afCategory",
   antifraudStatus: "afStatus",
 } as const;
+
+async function readAntifraudMode(
+  device: string,
+  filters: ColumnFilters,
+): Promise<{ off: boolean; empty: boolean; filters: ColumnFilters }> {
+  if (!device || !(await smgNodeAntifraudOff(device))) {
+    return { off: false, empty: false, filters };
+  }
+  const masked = maskDisabledAntifraud(filters);
+  return { off: true, empty: masked.empty, filters: masked.filters };
+}
+
+function paintNoAntifraud(items: SmgListItem[]): void {
+  const delays = radiusDelayCells("");
+  for (const item of items) {
+    item.antifraud = NO_ANTIFRAUD_LABEL;
+    item.antifraudStatus = NO_ANTIFRAUD_LABEL;
+    Object.assign(item, delays);
+  }
+}
 
 function filtersTouchAf(filters: ColumnFilters): boolean {
   return (
@@ -447,7 +473,21 @@ export async function listSmgCalls(input: {
 
   const devices = includeDevices ? await querySmgDevices(month) : null;
   const device = includeDevices ? pickSmgDevice(devices ?? [], requested) : requested;
-  const filters = input.filters ?? {};
+  const mode = await readAntifraudMode(device, input.filters ?? {});
+  if (mode.off && mode.empty) {
+    return {
+      items: [],
+      total: 0,
+      page,
+      pageSize: TABLE_PAGE_SIZE,
+      month: month.key,
+      months: page === 1 ? await querySmgMonthCounts() : [],
+      device,
+      devices,
+      poisonFiles,
+    };
+  }
+  const filters = mode.filters;
   const phoneQ = input.phoneQ ?? "";
   const setupSort = input.setupSort ?? null;
   const storedAf =
@@ -495,7 +535,8 @@ export async function listSmgCalls(input: {
   }
 
   const items = rows.map((row) => toListItem(row, storedAf));
-  await attachAntifraud(items, storedAf);
+  if (mode.off) paintNoAntifraud(items);
+  else await attachAntifraud(items, storedAf);
   return {
     items,
     total,
@@ -523,21 +564,23 @@ export async function writeSmgExport(input: {
   filePath: string;
 }): Promise<number> {
   const device = input.device.trim();
-  if (!device) {
+  const mode = await readAntifraudMode(device, input.filters);
+  if (!device || mode.empty) {
     return writeSmgExportFile({
       layout: input.layout,
       filePath: input.filePath,
       eachRow: async () => {},
     });
   }
-  const storedAf = filtersTouchAf(input.filters)
+  const exportFilters = mode.filters;
+  const storedAf = filtersTouchAf(exportFilters)
     ? await cdrLabelsReady(input.month, device)
     : false;
-  const where = buildWhere(input.month, device, input.filters, input.phoneQ, {
+  const where = buildWhere(input.month, device, exportFilters, input.phoneQ, {
     storedAf,
   });
   const setupSort = input.setupSort ?? null;
-  const useSql = smgListNeedsSql(input.filters, storedAf);
+  const useSql = smgListNeedsSql(exportFilters, storedAf);
   const total = useSql
     ? (
         await querySmgIdPage(
@@ -546,7 +589,7 @@ export async function writeSmgExport(input: {
             month: input.month,
             device,
             phoneQ: input.phoneQ,
-            filters: input.filters,
+            filters: exportFilters,
             setupSort,
             skip: 0,
             take: 1,
@@ -568,14 +611,15 @@ export async function writeSmgExport(input: {
           month: input.month,
           device,
           phoneQ: input.phoneQ,
-          filters: input.filters,
+          filters: exportFilters,
           setupSort,
           storedAf,
           skip,
           take: SMG_EXPORT_PAGE_SIZE,
         });
         const items = rows.map((row) => toListItem(row, storedAf));
-        await attachAntifraud(items, storedAf);
+        if (mode.off) paintNoAntifraud(items);
+        else await attachAntifraud(items, storedAf);
         for (const item of items) await visit(item);
       }
     },
@@ -603,7 +647,42 @@ export async function listSmgFacets(input: {
   const month = resolveMonthKey(input.month);
   const limit = Math.min(200, Math.max(1, input.limit ?? 200));
   const q = input.q?.trim() ?? "";
-  const filters = input.filters ?? {};
+  const requestedFilters = input.filters ?? {};
+  const mode = await readAntifraudMode(device, requestedFilters);
+  if (mode.off && (input.column === "antifraud" || input.column === "antifraudStatus")) {
+    const withoutSelf = { ...requestedFilters };
+    delete withoutSelf[input.column];
+    const masked = maskDisabledAntifraud(withoutSelf);
+    if (masked.empty) return { items: [], truncated: false };
+    if (q && !NO_ANTIFRAUD_LABEL.toLowerCase().includes(q.toLowerCase())) {
+      return { items: [], truncated: false };
+    }
+    const phoneQ = input.phoneQ ?? "";
+    const total = smgListNeedsSql(masked.filters, false)
+      ? (
+          await querySmgIdPage(
+            queryRaw,
+            {
+              month,
+              device,
+              phoneQ,
+              filters: masked.filters,
+              setupSort: null,
+              skip: 0,
+              take: 1,
+              storedAf: false,
+            },
+            labelsForTraceIds,
+          )
+        ).total
+      : await prisma.smgCdrRecord.count({
+          where: buildWhere(month, device, masked.filters, phoneQ, { storedAf: false }),
+        });
+    if (total === 0) return { items: [], truncated: false };
+    return { items: [{ value: NO_ANTIFRAUD_LABEL, count: total }], truncated: false };
+  }
+  if (mode.off && mode.empty) return { items: [], truncated: false };
+  const filters = mode.filters;
   const touchAf =
     input.column === "antifraud" ||
     input.column === "antifraudStatus" ||

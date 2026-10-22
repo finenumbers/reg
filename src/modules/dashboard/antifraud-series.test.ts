@@ -33,11 +33,22 @@ describe("zoneCacheKey", () => {
   it("ignores a node without an identifier and sorts the rest", () => {
     expect(
       zoneCacheKey([
-        { identifier: "mts", cdrTimezone: "UTC" },
-        { identifier: null, cdrTimezone: "Europe/Moscow" },
-        { identifier: "kazan", cdrTimezone: "Europe/Moscow" },
+        { identifier: "mts", cdrTimezone: "UTC", antifraudEnabled: true },
+        { identifier: null, cdrTimezone: "Europe/Moscow", antifraudEnabled: false },
+        { identifier: "kazan", cdrTimezone: "Europe/Moscow", antifraudEnabled: true },
       ]),
-    ).toBe("kazan=Europe/Moscow|mts=UTC");
+    ).toBe("kazan=Europe/Moscow:1|mts=UTC:1");
+  });
+
+  it("changes when a named node turns antifraud off", () => {
+    const on = zoneCacheKey([
+      { identifier: "kazan", cdrTimezone: "UTC", antifraudEnabled: true },
+    ]);
+    const off = zoneCacheKey([
+      { identifier: "kazan", cdrTimezone: "UTC", antifraudEnabled: false },
+    ]);
+    expect(on).not.toBe(off);
+    expect(off).toBe("kazan=UTC:0");
   });
 });
 

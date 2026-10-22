@@ -29,6 +29,29 @@ export const NO_TRACE_LABELS = {
   status: AF_STATUS.unknown,
 } as const;
 
+/** Both antifraud columns when the gateway is configured without an exchange. */
+export const NO_ANTIFRAUD_LABEL = "Нет АнтиФрода";
+
+/**
+ * A disabled gateway's calls are all this one label.
+ * Values inside one column are OR. The two columns are AND.
+ * A matching column is removed so the stored verdict is not read.
+ */
+export function maskDisabledAntifraud<T extends Record<string, string[] | undefined>>(
+  filters: T,
+): { empty: boolean; filters: T } {
+  const category = filters.antifraud ?? [];
+  const status = filters.antifraudStatus ?? [];
+  const categoryOk = category.length === 0 || category.includes(NO_ANTIFRAUD_LABEL);
+  const statusOk = status.length === 0 || status.includes(NO_ANTIFRAUD_LABEL);
+  if (!categoryOk || !statusOk) return { empty: true, filters };
+  if (category.length === 0 && status.length === 0) return { empty: false, filters };
+  const next = { ...filters };
+  delete next.antifraud;
+  delete next.antifraudStatus;
+  return { empty: false, filters: next };
+}
+
 /**
  * Same choice as the call list. Two hits of one card count once.
  * Two cards are «Разбор не сошёлся», and their stored labels are not used.

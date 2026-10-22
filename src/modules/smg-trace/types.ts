@@ -14,5 +14,6 @@ export type TraceBlocks = {
 
 export type TraceLookup =
   | { status: "missing" }
+  | { status: "noAntifraud" }
   | { status: "ambiguous" }
   | { status: "ok"; open: boolean; callref: string; blocks: TraceBlocks };

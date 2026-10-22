@@ -1,7 +1,19 @@
-# Current Phase — production (v1.168.2)
+# Current Phase — production (v1.169.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal.  
 **Date:** 2026-10-22
+
+## v1.169.0 — A Syslog SMG can be marked as having no antifraud exchange
+
+Stop `app` before this update. Start one new process only after `migrate` exits. One migration adds `antifraud_enabled BOOLEAN NOT NULL DEFAULT true` on `smg_syslog_nodes`. It does not rewrite CDR rows, syslog cards, or checkpoints, and it does not add an index on `smg_cdr_records`. `smg-syslog` keeps writing. Do not stop it. Existing nodes stay enabled. Rolling the app back leaves the column in place; the previous drain does not read it and assembles cards again.
+
+Settings → Syslog — SMG has an «АнтиФрод» checkbox on each node and on the add form. The box is on until an operator turns it off. Turning it off requires an identifier. Clearing the identifier while the box is off is refused. A timezone save and a rename that omit the field leave it unchanged.
+
+While the box is off, UDP reception and the syslog archives continue. The trace drain does not call `stepDevice` for that IP, and the checkpoint stays where it is. Global label and delay backfill passes still run. Calls whose «Узел» is `lower(btrim(device_sign))` equal to that identifier show «Нет АнтиФрода» in both «АнтиФрод» and «Статус АнтиФрод». The five delay cells stay empty. The call panel says «Нет АнтиФрода.» and does not load the card text. A filter for any other antifraud value matches nothing. A filter for «Нет АнтиФрода» matches the calls. The facet menu for that column offers only that value and ignores its own selected chip. Both workbooks use the same mask. Stored `af_category` is not rewritten.
+
+«Ответы АнтиФрода» and «Задержка АнтиФрода» add `antifraud_enabled` to the existing node join, so a disabled node's stored verdicts and delay arrays are not drawn. The chart cache key includes the flag. «События Антифрод» does not count cards whose `device_ip` belongs to a disabled node. «Таймаут АнтиФрода» and the Parking journal are unchanged: `radius_calls` has no SMG node.
+
+Turning the box on lifts the mask at once. Cards and labels already stored are shown again. The unread syslog tail is assembled from the frozen checkpoint, one slot per drain tick, oldest first, so that node's live tail waits. Other nodes still get their slot on the same tick. A node that has never had a live mark still seeds the mark at the end of the newest file and does not read older bytes.
 
 ## v1.168.2 — Antifraud chart legends sit below the time labels
 
