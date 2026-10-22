@@ -11,6 +11,7 @@ import { AUDIT_ACTIONS, auditService } from "@/modules/audit";
 import { failJobRunIfStillRunning } from "@/modules/jobs/finalize";
 import { noteLoadFilePass } from "@/modules/jobs/scheduler";
 import { filePassHadCalls, isFilePassJob } from "@/modules/traffic/load-age";
+import { recomputeCdrLabels, stampImportedCdr } from "@/modules/smg/cdr-labels";
 import { SMG_FILE_SETTLE_MS, SMG_INSERT_BATCH_SIZE } from "@/modules/smg/columns";
 import { consumeSmgInboxDirty } from "@/modules/smg/enqueue";
 import {
@@ -139,11 +140,18 @@ async function importOneFile(
   const flush = async () => {
     if (batch.length === 0) return;
     const chunk = batch.splice(0, batch.length);
+    const tags = new Set<string>();
+    for (const row of chunk) {
+      for (const tag of stampImportedCdr(row)) tags.add(tag);
+    }
     const result = await prisma.smgCdrRecord.createMany({
       data: chunk,
       skipDuplicates: true,
     });
     inserted += result.count;
+    for (const tag of [...tags].sort()) {
+      await recomputeCdrLabels([tag], { onlyNull: true });
+    }
   };
 
   for (const row of parsed.rows) {

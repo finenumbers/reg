@@ -45,6 +45,7 @@ import { radiusDelayCells, type RadiusDelayCells } from "@/modules/smg-trace/sum
 import { traceSearchKeys } from "@/modules/smg-trace/tag";
 import type { TraceBlocks } from "@/modules/smg-trace/types";
 import type { TimeSort } from "@/modules/traffic/traffic-sort";
+import { cdrLabelsReady } from "@/modules/smg/cdr-labels";
 import { smgMonthTimeRange } from "@/modules/smg/month-range";
 import { listSmgPoisonEntries, type SmgPoisonItem } from "@/modules/smg/poison";
 import { findLastFileImport } from "@/modules/jobs/last-file-import";
@@ -75,6 +76,38 @@ type MonthCountRow = { key: string; count: number };
 function monthWhere(month: CdrMonth): Prisma.SmgCdrRecordWhereInput {
   const range = smgMonthTimeRange(month);
   return { disconnectTime: { gte: range.gte, lt: range.lt } };
+}
+
+const STORED_AF = {
+  antifraud: "afCategory",
+  antifraudStatus: "afStatus",
+} as const;
+
+function filtersTouchAf(filters: ColumnFilters): boolean {
+  return (
+    (filters.antifraud?.length ?? 0) > 0 || (filters.antifraudStatus?.length ?? 0) > 0
+  );
+}
+
+function applyStoredAfFilters(
+  base: Prisma.SmgCdrRecordWhereInput,
+  filters: ColumnFilters,
+  opts: { excludeColumn?: string; storedAf?: boolean },
+): Prisma.SmgCdrRecordWhereInput {
+  if (!opts.storedAf) return base;
+  const extras: Prisma.SmgCdrRecordWhereInput[] = [];
+  for (const [column, field] of Object.entries(STORED_AF)) {
+    if (opts.excludeColumn === column) continue;
+    const values = filters[column];
+    if (!values?.length) continue;
+    extras.push({
+      OR: values.map((raw) => ({
+        [field]: raw === EMPTY_FILTER_TOKEN ? "" : raw,
+      })),
+    });
+  }
+  if (extras.length === 0) return base;
+  return { AND: [base, ...extras] };
 }
 
 function applyColumnFilters(
@@ -129,10 +162,14 @@ function buildWhere(
   device: string,
   filters: ColumnFilters,
   phoneQ: string,
-  opts: { excludeColumn?: string } = {},
+  opts: { excludeColumn?: string; storedAf?: boolean } = {},
 ): Prisma.SmgCdrRecordWhereInput {
   return applyPhoneQ(
-    applyColumnFilters(applyDevice(monthWhere(month), device), filters, opts),
+    applyStoredAfFilters(
+      applyColumnFilters(applyDevice(monthWhere(month), device), filters, opts),
+      filters,
+      opts,
+    ),
     phoneQ,
   );
 }
@@ -171,11 +208,22 @@ export async function querySmgMonthCounts(): Promise<CdrMonth[]> {
   );
 }
 
-function toListItem(row: { id: string } & Record<SmgField, string>): SmgListItem {
+function toListItem(
+  row: { id: string; afCategory?: string | null; afStatus?: string | null } & Record<
+    SmgField,
+    string
+  >,
+  keepStored: boolean,
+): SmgListItem {
   const item = { id: row.id } as SmgListItem;
   for (const field of SMG_FIELDS) item[field] = row[field] ?? "";
-  item.antifraud = AF_CATEGORY.noData;
-  item.antifraudStatus = AF_STATUS.unknown;
+  if (keepStored && row.afCategory && row.afStatus) {
+    item.antifraud = row.afCategory;
+    item.antifraudStatus = row.afStatus;
+  } else {
+    item.antifraud = AF_CATEGORY.noData;
+    item.antifraudStatus = AF_STATUS.unknown;
+  }
   Object.assign(item, radiusDelayCells(""));
   return item;
 }
@@ -207,6 +255,7 @@ async function readSmgSlice(input: {
   setupSort: TimeSort | null;
   skip: number;
   take: number;
+  storedAf: boolean;
 }): Promise<Awaited<ReturnType<typeof prisma.smgCdrRecord.findMany>>> {
   if (!input.useSql) {
     return prisma.smgCdrRecord.findMany({
@@ -226,6 +275,7 @@ async function readSmgSlice(input: {
       setupSort: input.setupSort,
       skip: input.skip,
       take: input.take,
+      storedAf: input.storedAf,
     },
     labelsForTraceIds,
   );
@@ -287,7 +337,10 @@ async function readTraceCards(ids: string[]): Promise<Map<string, TraceCardRead>
 }
 
 /** One query for the page. Two cards for one tag stay unresolved. */
-async function attachAntifraud(items: SmgListItem[]): Promise<void> {
+async function attachAntifraud(
+  items: SmgListItem[],
+  keepStoredLabels = false,
+): Promise<void> {
   if (items.length === 0) return;
   const keysByItem = new Map<string, string[]>();
   const allKeys = new Set<string>();
@@ -322,8 +375,10 @@ async function attachAntifraud(items: SmgListItem[]): Promise<void> {
     }
     if (hits.length === 0) continue;
     if (hits.length > 1) {
-      item.antifraud = AF_CATEGORY.conflict;
-      item.antifraudStatus = AF_STATUS.unknown;
+      if (!keepStoredLabels) {
+        item.antifraud = AF_CATEGORY.conflict;
+        item.antifraudStatus = AF_STATUS.unknown;
+      }
       continue;
     }
     const hit = hits[0]!;
@@ -331,13 +386,15 @@ async function attachAntifraud(items: SmgListItem[]): Promise<void> {
       { id: hit.id, category: hit.afCategory, status: hit.afStatus },
     ]);
     if (resolved.kind === "ready") {
-      item.antifraud = resolved.category;
-      item.antifraudStatus = resolved.status;
+      if (!keepStoredLabels) {
+        item.antifraud = resolved.category;
+        item.antifraudStatus = resolved.status;
+      }
       queued.push({ item, traceId: hit.id, fillLabels: false });
       continue;
     }
     if (resolved.kind === "pending") {
-      queued.push({ item, traceId: hit.id, fillLabels: true });
+      queued.push({ item, traceId: hit.id, fillLabels: !keepStoredLabels });
     }
   }
   if (queued.length === 0) return;
@@ -393,26 +450,34 @@ export async function listSmgCalls(input: {
   const filters = input.filters ?? {};
   const phoneQ = input.phoneQ ?? "";
   const setupSort = input.setupSort ?? null;
-  const where = buildWhere(month, device, filters, phoneQ);
-  const useSql = Boolean(device) && smgListNeedsSql(filters);
+  const storedAf =
+    Boolean(device) && filtersTouchAf(filters)
+      ? await cdrLabelsReady(month, device)
+      : false;
+  const where = buildWhere(month, device, filters, phoneQ, { storedAf });
+  const useSql = Boolean(device) && smgListNeedsSql(filters, storedAf);
   let total: number;
   let rows: Awaited<ReturnType<typeof prisma.smgCdrRecord.findMany>>;
   let months: CdrMonth[];
+  const slice = {
+    where,
+    useSql,
+    month,
+    device,
+    phoneQ,
+    filters,
+    setupSort,
+    storedAf,
+  };
   if (useSql) {
     const counted = await querySmgIdPage(
       queryRaw,
-      { month, device, phoneQ, filters, setupSort, skip: 0, take: 1 },
+      { month, device, phoneQ, filters, setupSort, skip: 0, take: 1, storedAf },
       labelsForTraceIds,
     );
     total = counted.total;
     rows = await readSmgSlice({
-      where,
-      useSql,
-      month,
-      device,
-      phoneQ,
-      filters,
-      setupSort,
+      ...slice,
       skip: (page - 1) * TABLE_PAGE_SIZE,
       take: TABLE_PAGE_SIZE,
     });
@@ -421,13 +486,7 @@ export async function listSmgCalls(input: {
     [total, rows, months] = await Promise.all([
       prisma.smgCdrRecord.count({ where }),
       readSmgSlice({
-        where,
-        useSql,
-        month,
-        device,
-        phoneQ,
-        filters,
-        setupSort,
+        ...slice,
         skip: (page - 1) * TABLE_PAGE_SIZE,
         take: TABLE_PAGE_SIZE,
       }),
@@ -435,8 +494,8 @@ export async function listSmgCalls(input: {
     ]);
   }
 
-  const items = rows.map((row) => toListItem(row));
-  await attachAntifraud(items);
+  const items = rows.map((row) => toListItem(row, storedAf));
+  await attachAntifraud(items, storedAf);
   return {
     items,
     total,
@@ -471,9 +530,14 @@ export async function writeSmgExport(input: {
       eachRow: async () => {},
     });
   }
-  const where = buildWhere(input.month, device, input.filters, input.phoneQ);
+  const storedAf = filtersTouchAf(input.filters)
+    ? await cdrLabelsReady(input.month, device)
+    : false;
+  const where = buildWhere(input.month, device, input.filters, input.phoneQ, {
+    storedAf,
+  });
   const setupSort = input.setupSort ?? null;
-  const useSql = smgListNeedsSql(input.filters);
+  const useSql = smgListNeedsSql(input.filters, storedAf);
   const total = useSql
     ? (
         await querySmgIdPage(
@@ -486,6 +550,7 @@ export async function writeSmgExport(input: {
             setupSort,
             skip: 0,
             take: 1,
+            storedAf,
           },
           labelsForTraceIds,
         )
@@ -505,11 +570,12 @@ export async function writeSmgExport(input: {
           phoneQ: input.phoneQ,
           filters: input.filters,
           setupSort,
+          storedAf,
           skip,
           take: SMG_EXPORT_PAGE_SIZE,
         });
-        const items = rows.map((row) => toListItem(row));
-        await attachAntifraud(items);
+        const items = rows.map((row) => toListItem(row, storedAf));
+        await attachAntifraud(items, storedAf);
         for (const item of items) await visit(item);
       }
     },
@@ -538,7 +604,12 @@ export async function listSmgFacets(input: {
   const limit = Math.min(200, Math.max(1, input.limit ?? 200));
   const q = input.q?.trim() ?? "";
   const filters = input.filters ?? {};
-  if (smgFacetNeedsSql(input.column, filters)) {
+  const touchAf =
+    input.column === "antifraud" ||
+    input.column === "antifraudStatus" ||
+    filtersTouchAf(filters);
+  const storedAf = touchAf ? await cdrLabelsReady(month, device) : false;
+  if (smgFacetNeedsSql(input.column, filters, storedAf)) {
     const items = await querySmgFacetValues(
       queryRaw,
       {
@@ -549,6 +620,7 @@ export async function listSmgFacets(input: {
         filters,
         q,
         limit,
+        storedAf,
       },
       labelsForTraceIds,
     );
@@ -556,6 +628,7 @@ export async function listSmgFacets(input: {
   }
   let where = buildWhere(month, device, filters, input.phoneQ ?? "", {
     excludeColumn: input.column,
+    storedAf,
   });
   if (q) {
     const valueWhere: Prisma.SmgCdrRecordWhereInput = facetQueryMatchesEmptyLabel(q)

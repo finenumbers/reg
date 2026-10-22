@@ -52,7 +52,11 @@ export async function PATCH(request: Request, context: RouteContext) {
     );
   }
   const parsed = z
-    .object({ name: z.string(), identifier: z.string().optional() })
+    .object({
+      name: z.string(),
+      identifier: z.string().optional(),
+      cdrTimezone: z.string().optional(),
+    })
     .safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
@@ -65,6 +69,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       ip: decodeURIComponent(ip),
       name: parsed.data.name,
       identifier: parsed.data.identifier,
+      cdrTimezone: parsed.data.cdrTimezone,
       actorUserId: userId,
       requestIp: await getRequestIp(),
     });

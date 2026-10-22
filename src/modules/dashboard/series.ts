@@ -7,11 +7,17 @@ export const DASHBOARD_SERIES = [
   { id: "parking-in", label: "Входящий паркинг" },
   { id: "parking-out", label: "Исходящий паркинг" },
   { id: "errors", label: "Ошибки звонков" },
+  { id: "af-answers", label: "Ответы АнтиФрода" },
+  { id: "af-delay", label: "Задержка АнтиФрода" },
+  { id: "af-timeout", label: "Таймаут АнтиФрода" },
 ] as const;
 
 export type DashboardSeriesId = (typeof DASHBOARD_SERIES)[number]["id"];
 
-export type ConcurrencySeriesId = Exclude<DashboardSeriesId, "errors">;
+export type ConcurrencySeriesId = Exclude<
+  DashboardSeriesId,
+  "errors" | "af-answers" | "af-delay" | "af-timeout"
+>;
 
 const SERIES_IDS = new Set<string>(DASHBOARD_SERIES.map((item) => item.id));
 

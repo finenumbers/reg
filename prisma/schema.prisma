@@ -7,8 +7,9 @@
 // After generation, commit the merged schema.
 
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  provider        = "prisma-client"
+  output          = "../src/generated/prisma"
+  previewFeatures = ["partialIndexes"]
 }
 
 datasource db {
@@ -158,6 +159,8 @@ model SmgSyslogNode {
   name       String   @unique
   /// Stable variable for later use. Null until the operator sets it.
   identifier String?  @unique
+  /// Civil clock of this gateway's CDR `setup_time`. Charts convert it to UTC.
+  cdrTimezone String   @default("UTC") @map("cdr_timezone")
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
 
@@ -840,10 +843,19 @@ model SmgCdrRecord {
   importedAt                DateTime @default(now()) @map("imported_at")
   lastJobRunId              String?  @map("last_job_run_id")
   lastJobRun                JobRun?  @relation(fields: [lastJobRunId], references: [id], onDelete: SetNull)
+  // Resolved antifraud pair for the traffic filters. Null means not projected yet.
+  uniqueTagNorm             String   @default("") @map("unique_tag_norm")
+  radiusSessionNorm         String   @default("") @map("radius_session_norm")
+  afCategory                String?  @map("af_category")
+  afStatus                  String?  @map("af_status")
 
   @@index([disconnectDay])
+  @@index([uniqueTagNorm], map: "smg_cdr_records_unique_tag_norm_idx", where: raw("\"unique_tag_norm\" <> ''"))
+  @@index([radiusSessionNorm], map: "smg_cdr_records_radius_session_norm_idx", where: raw("\"radius_session_norm\" <> ''"))
+  @@index([deviceSign, disconnectTime], map: "smg_cdr_records_af_category_null_idx", where: raw("\"af_category\" IS NULL"))
   @@index([disconnectTime(sort: Desc), id(sort: Desc)])
   @@index([deviceSign, disconnectTime(sort: Desc), id(sort: Desc)])
+  @@index([setupTime], map: "smg_cdr_records_setup_time_idx")
   @@index([incomingCgpn])
   @@index([outgoingCgpn])
   @@index([incomingCdpn])
@@ -862,6 +874,11 @@ model SmgCallTrace {
   blocks     Json
   afCategory String?  @map("af_category")
   afStatus   String?  @map("af_status")
+  /// Reply milliseconds for the delay chart. NULL is not computed. `{}` is computed and empty.
+  /// Prisma cannot model a nullable integer array, so this stays an unsupported column.
+  afMsDev     Unsupported("integer[]")? @map("af_ms_dev")
+  afMsProd    Unsupported("integer[]")? @map("af_ms_prod")
+  afMsParking Unsupported("integer[]")? @map("af_ms_parking")
   updatedAt  DateTime @updatedAt @map("updated_at")
 
   @@unique([deviceIp, tagNorm])

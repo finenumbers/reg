@@ -73,10 +73,10 @@ export const SMG_SUMMARY_LABELS: Record<SmgSummaryColumn, string> = {
   releaseSideMark: "Сброс",
   antifraud: "АнтиФрод",
   antifraudStatus: "Статус АнтиФрод",
-  afDelay1Dev: "1 Dev",
-  afDelay1Prod: "1 Prod",
-  afDelay2Dev: "2 Dev",
-  afDelay2Prod: "2 Prod",
+  afDelay1Dev: "Вход Dev",
+  afDelay1Prod: "Вход Prod",
+  afDelay2Dev: "Выход Dev",
+  afDelay2Prod: "Выход Prod",
   afDelayParking: "Parking",
 };
 

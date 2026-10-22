@@ -1,5 +1,33 @@
 import type { DashboardSeriesId } from "@/modules/dashboard/series";
 
+export type DashboardLineTone =
+  | "amber"
+  | "zinc"
+  | "stone"
+  | "slate"
+  | "orange"
+  | "emerald"
+  | "green"
+  | "teal"
+  | "red"
+  | "rose"
+  | "violet"
+  | "purple"
+  | "fuchsia"
+  | "sky"
+  | "blue"
+  | "pink";
+
+export type DashboardChartLine = {
+  id: string;
+  label: string;
+  tone: DashboardLineTone;
+  /** Null is a gap. A count chart uses zero instead. */
+  minutes: Array<number | null>;
+  /** Window sum for answers. Delay leaves this empty. */
+  total: number | null;
+};
+
 export type DashboardBadge = "ok" | "running" | "failed" | "empty" | "off";
 
 export type DashboardAlert = {
@@ -44,6 +72,7 @@ export type DashboardCallSeries = {
   start: string;
   minutes: number[];
   peak: number;
+  lines?: DashboardChartLine[];
 };
 
 export type DashboardCalls =
@@ -56,5 +85,8 @@ export type DashboardCalls =
       day: string;
       minutes: number[];
       peak: number;
+      lines?: DashboardChartLine[];
+      /** Shown while the delay arrays are still being filled. */
+      note?: string | null;
       recent: DashboardCallSeries;
     };

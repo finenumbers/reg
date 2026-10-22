@@ -70,6 +70,42 @@ export function radiusDelayCells(text: string): RadiusDelayCells {
   };
 }
 
+const INT4_MAX = 2_147_483_647;
+
+export type RadiusDelaySamples = {
+  afMsDev: number[];
+  afMsProd: number[];
+  afMsParking: number[];
+};
+
+/**
+ * The same cells as the table, packed for the delay chart.
+ * Dev is «Вход Dev» plus «Выход Dev». A value that does not fit in Postgres
+ * integer is dropped so one bad syslog line cannot fail the card save.
+ */
+export function radiusDelaySamples(text: string): RadiusDelaySamples {
+  const cells = radiusDelayCells(text);
+  return {
+    afMsDev: parseDelaySamples(cells.afDelay1Dev, cells.afDelay2Dev),
+    afMsProd: parseDelaySamples(cells.afDelay1Prod, cells.afDelay2Prod),
+    afMsParking: parseDelaySamples(cells.afDelayParking),
+  };
+}
+
+function parseDelaySamples(...cells: string[]): number[] {
+  const samples: number[] = [];
+  for (const cell of cells) {
+    if (!cell) continue;
+    for (const part of cell.split(", ")) {
+      if (!/^\d+$/.test(part)) continue;
+      const value = Number(part);
+      if (!Number.isSafeInteger(value) || value > INT4_MAX) continue;
+      samples.push(value);
+    }
+  }
+  return samples;
+}
+
 function serverIp(name: string): string {
   for (const [ip, label] of Object.entries(SERVER_NAMES)) {
     if (label === name) return ip;
@@ -89,7 +125,10 @@ function delayOf(attempts: readonly Attempt[], ip: string, side: Side | null): s
   return parts.join(", ");
 }
 
-export function summarizeExchange(input: { closed: boolean; blocks: TraceBlocks }): ExchangeSummary {
+export function summarizeExchange(input: {
+  closed: boolean;
+  blocks: TraceBlocks;
+}): ExchangeSummary {
   const labels = classifyAntifraud(input);
   return {
     category: labels.category,
@@ -151,7 +190,8 @@ function outcomeOf(attempts: readonly Attempt[]): string {
     const ms = accept.ms != null ? `, ${accept.ms} мс` : "";
     return `Access-Accept${ms}`;
   }
-  if (attempts.every((attempt) => attempt.exhausted)) return "нет ответа, повторы исчерпаны";
+  if (attempts.every((attempt) => attempt.exhausted))
+    return "нет ответа, повторы исчерпаны";
   return "ждём ответ";
 }
 
@@ -165,8 +205,15 @@ function readAttempts(text: string): Attempt[] {
       side = /antifraud_out/i.test(line) ? "out" : "in";
     }
 
-    const access = line.match(/Access request ID\[(\d+)\].*Server\[\d+\]:\s*(\d{1,3}(?:\.\d{1,3}){3})/i);
-    if (access?.[1] && access[2] && !/is timed out/i.test(line) && !/Skipping/i.test(line)) {
+    const access = line.match(
+      /Access request ID\[(\d+)\].*Server\[\d+\]:\s*(\d{1,3}(?:\.\d{1,3}){3})/i,
+    );
+    if (
+      access?.[1] &&
+      access[2] &&
+      !/is timed out/i.test(line) &&
+      !/Skipping/i.test(line)
+    ) {
       pendingIp.set(Number(access[1]), access[2]);
     }
 
@@ -175,20 +222,32 @@ function readAttempts(text: string): Attempt[] {
       const ip = id == null ? undefined : pendingIp.get(id);
       if (id != null && ip && !attempts.some((attempt) => attempt.id === id)) {
         for (const previous of attempts) {
-          if (previous.side === side && previous.verdict === "none") previous.exhausted = true;
+          if (previous.side === side && previous.verdict === "none")
+            previous.exhausted = true;
         }
-        attempts.push({ side, id, ip, ms: null, verdict: "none", exhausted: false, released: false });
+        attempts.push({
+          side,
+          id,
+          ip,
+          ms: null,
+          verdict: "none",
+          exhausted: false,
+          released: false,
+        });
       }
     }
 
     const named = attemptById(attempts, requestIdOf(line));
-    if (named && /Retries are exhausted|srv-retries exhausted/i.test(line)) named.exhausted = true;
+    if (named && /Retries are exhausted|srv-retries exhausted/i.test(line))
+      named.exhausted = true;
     const ms = line.match(/got valid reply[\s\S]*\(in\s+(\d+)\s+ms\)/i);
     if (named && ms?.[1]) named.ms = Number(ms[1]);
     if (named && /Accs-Reply\s*\[accept\]/i.test(line)) named.verdict = "accept";
     if (named && /Accs-Reply\s*\[reject\]/i.test(line)) named.verdict = "reject";
     if (radiusReleaseLine(line) && !timeoutContinue(line)) {
-      const reject = [...attempts].reverse().find((attempt) => attempt.verdict === "reject");
+      const reject = [...attempts]
+        .reverse()
+        .find((attempt) => attempt.verdict === "reject");
       if (reject) reject.released = true;
     }
   }
@@ -196,7 +255,10 @@ function readAttempts(text: string): Attempt[] {
   return attempts;
 }
 
-function attemptById(attempts: readonly Attempt[], id: number | null): Attempt | undefined {
+function attemptById(
+  attempts: readonly Attempt[],
+  id: number | null,
+): Attempt | undefined {
   if (id == null) return undefined;
   return attempts.find((attempt) => attempt.id === id);
 }

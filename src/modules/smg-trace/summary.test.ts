@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { AF_CATEGORY, AF_STATUS } from "@/modules/smg-trace/classify";
-import { formatServerLine, radiusDelayCells, summarizeExchange } from "@/modules/smg-trace/summary";
+import {
+  formatServerLine,
+  radiusDelayCells,
+  radiusDelaySamples,
+  summarizeExchange,
+} from "@/modules/smg-trace/summary";
 import type { TraceBlocks } from "@/modules/smg-trace/types";
 
 const DEV = "91.195.253.131";
@@ -17,7 +22,9 @@ function summary(closed: boolean, text: string, mismatch = false) {
 }
 
 function linesOf(closed: boolean, text: string): string[] {
-  return summary(closed, text).stages.flatMap((stage) => stage.servers.map((row) => formatServerLine(row)));
+  return summary(closed, text).stages.flatMap((stage) =>
+    stage.servers.map((row) => formatServerLine(row)),
+  );
 }
 
 describe("antifraud exchange summary", () => {
@@ -104,6 +111,7 @@ describe("antifraud exchange summary", () => {
       afDelay2Prod: "",
       afDelayParking: "",
     });
+    expect(radiusDelaySamples(text).afMsDev).toEqual([335, 94]);
   });
 
   it("keeps a measured zero and joins two replies on the same side", () => {
@@ -135,6 +143,12 @@ describe("antifraud exchange summary", () => {
       afDelay1Dev: "10, 20",
       afDelayParking: "7",
     });
+    expect(radiusDelaySamples(pair)).toEqual({
+      afMsDev: [10, 20],
+      afMsProd: [],
+      afMsParking: [7],
+    });
+    expect(radiusDelaySamples(zero).afMsDev).toEqual([0]);
     expect(JSON.stringify(radiusDelayCells(pair))).not.toContain(SECRET);
   });
 
@@ -227,7 +241,9 @@ describe("antifraud exchange summary", () => {
       status: AF_STATUS.noRequest,
       stages: [],
     });
-    expect(summary(true, "Set Antifraud RADIUS-profile [0] options.").category).toBe(AF_CATEGORY.notChecked);
+    expect(summary(true, "Set Antifraud RADIUS-profile [0] options.").category).toBe(
+      AF_CATEGORY.notChecked,
+    );
     expect(summary(true, "Set Antifraud RADIUS-profile [0] options.").stages).toEqual([]);
     const missing =
       "Accs-Request for Antifraud: check TG(i/o): 0(ext)/0(ext), USE_AF 1, SD 1, OS 0, RREQ 4.";
@@ -262,5 +278,20 @@ describe("antifraud exchange summary", () => {
     expect(result.category).toBe(AF_CATEGORY.passedIn);
     expect(result.status).toBe(AF_STATUS.wrongType);
     expect(linesOf(true, text)).toEqual(["10.0.0.1 — Access-Accept, 12 мс, запрос 073"]);
+  });
+
+  it("drops a reply delay that does not fit in a Postgres integer", () => {
+    const text = [
+      "RADIUS: Accs-Request [antifraud]",
+      `Access request ID[001]. Group[0] Server[0]: ${DEV}:1812:${SECRET}`,
+      "Request ID [001] is sent",
+      "Request ID [001] got valid reply for accs (in 3000000000 ms)",
+      "Request ID [001] Accs-Reply [accept]",
+      `Access request ID[002]. Group[0] Server[0]: ${DEV}:1812:${SECRET}`,
+      "Request ID [002] is sent",
+      "Request ID [002] got valid reply for accs (in 12 ms)",
+      "Request ID [002] Accs-Reply [accept]",
+    ].join("\n");
+    expect(radiusDelaySamples(text).afMsDev).toEqual([12]);
   });
 });

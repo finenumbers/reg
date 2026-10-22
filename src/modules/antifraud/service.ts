@@ -1,17 +1,18 @@
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
 import { formatDisplayTimestamp } from "@/lib/format-display-time";
-import { DEFAULT_DISPLAY_TIMEZONE } from "@/lib/display-timezone";
 import { TABLE_PAGE_SIZE } from "@/lib/table-pagination";
 import {
   EMPTY_FILTER_TOKEN,
   type ColumnFilters,
 } from "@/components/column-filters/types";
-import { getDisplayTimezone } from "@/modules/settings/service";
 import { isRadiusFacetColumn, type RadiusFacetColumn } from "@/modules/antifraud/columns";
 import { parseMonthKey, zonedMonth, zonedMonthRange } from "@/modules/antifraud/month";
 import { formatMonthOption } from "@/modules/traffic/month-labels";
 import type { TimeSort } from "@/modules/traffic/traffic-sort";
+
+/** The АнтиФрод journal is UTC. The display timezone is not applied here. */
+const PAGE_ZONE = "UTC";
 
 export type RadiusMonth = {
   key: string;
@@ -142,8 +143,8 @@ async function loadMonths(timeZone: string): Promise<RadiusMonth[]> {
   const rows = await prisma.$queryRaw<Array<{ y: number; m: number; c: bigint }>>(
     Prisma.sql`
       SELECT
-        EXTRACT(YEAR FROM (("logged_at" AT TIME ZONE 'UTC') AT TIME ZONE ${timeZone}))::int AS y,
-        EXTRACT(MONTH FROM (("logged_at" AT TIME ZONE 'UTC') AT TIME ZONE ${timeZone}))::int AS m,
+        EXTRACT(YEAR FROM ("logged_at" AT TIME ZONE 'UTC'))::int AS y,
+        EXTRACT(MONTH FROM ("logged_at" AT TIME ZONE 'UTC'))::int AS m,
         COUNT(*)::bigint AS c
       FROM "radius_calls"
       WHERE "logged_at" IS NOT NULL
@@ -279,7 +280,7 @@ export async function listRadiusCalls(opts: {
   page?: number;
   pageSize?: number;
 }): Promise<ListRadiusResult> {
-  const timeZone = await getDisplayTimezone().catch(() => DEFAULT_DISPLAY_TIMEZONE);
+  const timeZone = PAGE_ZONE;
   const month = resolveMonth(opts.month, timeZone);
   const pageSize = Math.min(200, Math.max(1, opts.pageSize ?? TABLE_PAGE_SIZE));
   const page = Math.max(1, opts.page ?? 1);
@@ -336,7 +337,7 @@ export async function listRadiusFacets(opts: {
   if (!isRadiusFacetColumn(opts.column)) {
     return { items: [], truncated: false };
   }
-  const timeZone = await getDisplayTimezone().catch(() => DEFAULT_DISPLAY_TIMEZONE);
+  const timeZone = PAGE_ZONE;
   const month = resolveMonth(opts.month, timeZone);
   const range = zonedMonthRange(month.year, month.month, timeZone);
   const filters = { ...(opts.filters ?? {}) };
@@ -372,7 +373,7 @@ export async function loadAntifraudPageInitial(): Promise<{
   initial: ListRadiusResult;
   initialListError: string | null;
 }> {
-  const timeZone = DEFAULT_DISPLAY_TIMEZONE;
+  const timeZone = PAGE_ZONE;
   const month = zonedMonth(new Date(), timeZone).key;
   try {
     const initial = await listRadiusCalls({ month, page: 1, pageSize: TABLE_PAGE_SIZE });

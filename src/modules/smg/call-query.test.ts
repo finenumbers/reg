@@ -97,7 +97,10 @@ describe("querySmgFacetValues", () => {
         q: "",
         limit: 10,
       },
-      async () => new Map([["trace-1", { category: AF_CATEGORY.passed, status: AF_STATUS.firstTry }]]),
+      async () =>
+        new Map([
+          ["trace-1", { category: AF_CATEGORY.passed, status: AF_STATUS.firstTry }],
+        ]),
     );
 
     expect(items).toEqual([{ value: "7495", count: 1 }]);
@@ -130,6 +133,68 @@ describe("querySmgFacetValues", () => {
     expect(items).toEqual([{ value: "2026-10-13", count: 2 }]);
     expect(seen[1]).toContain(AF_CATEGORY.passed);
     expect(seen[1]).not.toContain("2026-09-30");
+  });
+
+  it("groups a stored antifraud label without joining cards", async () => {
+    const seen: string[] = [];
+    const query = (async (sql: Prisma.Sql) => {
+      seen.push(sqlText(sql));
+      return [{ value: AF_CATEGORY.passed, count: 3 }];
+    }) as unknown as SqlQuery;
+
+    const items = await querySmgFacetValues(
+      query,
+      {
+        column: "antifraud",
+        month,
+        device: "gw",
+        phoneQ: "",
+        filters: { antifraud: [AF_CATEGORY.blockedIn], setupDay: ["2026-10-13"] },
+        q: "",
+        limit: 10,
+        storedAf: true,
+      },
+      async () => new Map(),
+    );
+
+    expect(items).toEqual([{ value: AF_CATEGORY.passed, count: 3 }]);
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toContain("af_category");
+    expect(seen[0]).toContain("2026-10-13");
+    expect(seen[0]).not.toContain(AF_CATEGORY.blockedIn);
+    expect(seen[0]).not.toContain("smg_call_traces");
+  });
+});
+
+describe("querySmgIdPage stored labels", () => {
+  it("filters the stored pair and the start day in one pass", async () => {
+    const seen: string[] = [];
+    const query = (async (sql: Prisma.Sql) => {
+      seen.push(sqlText(sql));
+      return seen.length === 1 ? [{ n: 2 }] : [{ id: "cdr-9" }];
+    }) as unknown as SqlQuery;
+
+    const page = await querySmgIdPage(
+      query,
+      {
+        month,
+        device: "gw",
+        phoneQ: "",
+        filters: { antifraud: [AF_CATEGORY.passed], setupDay: ["2026-10-13"] },
+        setupSort: null,
+        skip: 0,
+        take: 100,
+        storedAf: true,
+      },
+      async () => new Map(),
+    );
+
+    expect(page).toEqual({ ids: ["cdr-9"], total: 2 });
+    expect(seen).toHaveLength(2);
+    expect(seen[0]).toContain("af_category");
+    expect(seen[0]).toContain(AF_CATEGORY.passed);
+    expect(seen[0]).toContain("2026-10-13");
+    expect(seen.join("\n")).not.toContain("smg_call_traces");
   });
 });
 

@@ -12,6 +12,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SMG_COLUMNS } from "@/modules/smg/columns";
+import { NO_TRACE_LABELS } from "@/modules/smg/row-tokens";
 
 const { createMany } = vi.hoisted(() => ({
   createMany: vi.fn(async ({ data }: { data: unknown[] }) => ({
@@ -206,9 +207,26 @@ describe("processSmgImport", () => {
     expect(result.errorMessage).toMatch(/Отложено: идёт удаление 2026-10/);
     await expect(readFile(abs, "utf8")).resolves.toContain("tag-1");
     const inserted = createMany.mock.calls.flatMap(
-      (call) => (call[0] as { data: { disconnectDay: string }[] }).data,
+      (call) =>
+        (
+          call[0] as {
+            data: {
+              disconnectDay: string;
+              uniqueTagNorm: string;
+              radiusSessionNorm: string;
+              afCategory: string | null;
+              afStatus: string | null;
+            }[];
+          }
+        ).data,
     );
     expect(inserted.map((row) => row.disconnectDay)).toEqual(["2026-09-02"]);
+    expect(inserted[0]).toMatchObject({
+      uniqueTagNorm: "",
+      radiusSessionNorm: "",
+      afCategory: NO_TRACE_LABELS.category,
+      afStatus: NO_TRACE_LABELS.status,
+    });
     resetPurgeTargetForTests();
   });
 

@@ -14,11 +14,17 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { CDR_TIMEZONE_OPTIONS } from "@/lib/display-timezone";
 import { formatLastPacket } from "@/modules/smg-syslog/format-last-packet";
 import type { SyslogStatus } from "@/modules/smg-syslog/status";
 import { formatBytes } from "@/modules/storage/format-bytes";
 
-type NodeRow = { ip: string; name: string; identifier: string | null };
+type NodeRow = {
+  ip: string;
+  name: string;
+  identifier: string | null;
+  cdrTimezone: string;
+};
 
 type Draft = { ip: string; name: string; identifier: string };
 
@@ -47,6 +53,7 @@ export function SyslogSettings() {
   const [ip, setIp] = useState("");
   const [name, setName] = useState("");
   const [identifier, setIdentifier] = useState("");
+  const [cdrTimezone, setCdrTimezone] = useState("UTC");
   const [draft, setDraft] = useState<Draft | null>(null);
   const [busy, setBusy] = useState(false);
   const [leftover, setLeftover] = useState<NodeRow | null>(null);
@@ -100,7 +107,7 @@ export function SyslogSettings() {
       const res = await fetch("/api/settings/smg-syslog", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ ip, name, identifier }),
+        body: JSON.stringify({ ip, name, identifier, cdrTimezone }),
       });
       const body = (await res.json()) as { error?: string };
       if (!res.ok) {
@@ -110,6 +117,29 @@ export function SyslogSettings() {
       setIp("");
       setName("");
       setIdentifier("");
+      setCdrTimezone("UTC");
+      await reload();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveZone(node: NodeRow, nextZone: string) {
+    setBusy(true);
+    try {
+      const res = await fetch(
+        `/api/settings/smg-syslog/nodes/${encodeURIComponent(node.ip)}`,
+        {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ name: node.name, cdrTimezone: nextZone }),
+        },
+      );
+      const body = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        toast.error(body.error ?? "Не удалось сохранить пояс CDR");
+        return;
+      }
       await reload();
     } finally {
       setBusy(false);
@@ -274,7 +304,7 @@ export function SyslogSettings() {
             : ""}
         </p>
       ) : null}
-      <div className="grid gap-3 sm:grid-cols-[1fr_1fr_1fr_auto] sm:items-end">
+      <div className="grid gap-3 sm:grid-cols-[1fr_1fr_1fr_auto_auto] sm:items-end">
         <div className="space-y-2">
           <Label htmlFor="syslog-node-ip">IPv4 узла</Label>
           <Input
@@ -305,6 +335,22 @@ export function SyslogSettings() {
             autoComplete="off"
           />
         </div>
+        <div className="space-y-2">
+          <Label htmlFor="syslog-node-zone">Пояс CDR</Label>
+          <select
+            id="syslog-node-zone"
+            value={cdrTimezone}
+            disabled={busy}
+            onChange={(event) => setCdrTimezone(event.target.value)}
+            className="border-input bg-background h-9 w-full rounded-md border px-3 text-sm"
+          >
+            {CDR_TIMEZONE_OPTIONS.map((option) => (
+              <option key={option.id} value={option.id}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
         <Button
           type="button"
           disabled={busy || !ip.trim() || !name.trim() || !identifier.trim()}
@@ -321,6 +367,7 @@ export function SyslogSettings() {
                 <TableHead className="text-center">Узел Eltex SMG-1016M</TableHead>
                 <TableHead className="text-center">IP адрес</TableHead>
                 <TableHead className="text-center">Идентификатор</TableHead>
+                <TableHead className="text-center">Пояс CDR</TableHead>
                 <TableHead className="text-center">Последний пакет (UTC)</TableHead>
                 <TableHead className="text-center">Переименовать</TableHead>
                 <TableHead className="text-center">Удалить</TableHead>
@@ -369,6 +416,21 @@ export function SyslogSettings() {
                       ) : (
                         (node.identifier ?? "—")
                       )}
+                    </TableCell>
+                    <TableCell>
+                      <select
+                        aria-label={`Пояс CDR ${node.name}`}
+                        value={node.cdrTimezone}
+                        disabled={busy}
+                        onChange={(event) => void saveZone(node, event.target.value)}
+                        className="border-input bg-background h-8 rounded-md border px-2 text-xs"
+                      >
+                        {CDR_TIMEZONE_OPTIONS.map((option) => (
+                          <option key={option.id} value={option.id}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
                     </TableCell>
                     <TableCell>{packetLabel}</TableCell>
                     <TableCell>

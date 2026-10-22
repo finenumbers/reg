@@ -1,5 +1,6 @@
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
+import { isDisplayTimezoneId, type DisplayTimezoneId } from "@/lib/display-timezone";
 import { AUDIT_ACTIONS, auditService } from "@/modules/audit";
 import { duplicateFieldMessage, parseIdentifier } from "@/modules/smg-syslog/identifier";
 import { canonicalIpv4 } from "@/modules/smg-syslog/ip";
@@ -7,18 +8,26 @@ import { canonicalIpv4 } from "@/modules/smg-syslog/ip";
 const NAME_MAX = 64;
 const BAD_IDENTIFIER =
   "Идентификатор: латинская буква, затем буквы, цифры или _, до 32 символов";
+const BAD_TIMEZONE = "Пояс CDR — UTC, Калининград, Москва или Новосибирск";
 
 export type SyslogNode = {
   ip: string;
   name: string;
   identifier: string | null;
+  cdrTimezone: string;
 };
 
-const nodeSelect = { ip: true, name: true, identifier: true } as const;
+const nodeSelect = { ip: true, name: true, identifier: true, cdrTimezone: true } as const;
 
 export class SyslogNodeError extends Error {
   constructor(
-    readonly code: "BAD_IP" | "BAD_NAME" | "BAD_IDENTIFIER" | "DUPLICATE" | "NOT_FOUND",
+    readonly code:
+      | "BAD_IP"
+      | "BAD_NAME"
+      | "BAD_IDENTIFIER"
+      | "BAD_TIMEZONE"
+      | "DUPLICATE"
+      | "NOT_FOUND",
     message: string,
   ) {
     super(message);
@@ -51,6 +60,11 @@ function cleanIdentifier(raw: string, required: boolean): string | null {
   const parsed = parseIdentifier(raw, required);
   if (!parsed.ok) throw new SyslogNodeError("BAD_IDENTIFIER", BAD_IDENTIFIER);
   return parsed.value;
+}
+
+function cleanCdrTimezone(raw: string): DisplayTimezoneId {
+  if (isDisplayTimezoneId(raw)) return raw;
+  throw new SyslogNodeError("BAD_TIMEZONE", BAD_TIMEZONE);
 }
 
 export async function listSyslogNodes(): Promise<SyslogNode[]> {
@@ -105,15 +119,17 @@ export async function addSyslogNode(input: {
   ip: string;
   name: string;
   identifier: string;
+  cdrTimezone?: string;
   actorUserId: string;
   requestIp: string | null;
 }): Promise<SyslogNode> {
   const ip = cleanIp(input.ip);
   const name = cleanName(input.name);
   const identifier = cleanIdentifier(input.identifier, true);
+  const cdrTimezone = cleanCdrTimezone(input.cdrTimezone ?? "UTC");
   try {
     const row = await prisma.smgSyslogNode.create({
-      data: { ip, name, identifier },
+      data: { ip, name, identifier, cdrTimezone },
       select: nodeSelect,
     });
     await auditService.append({
@@ -122,7 +138,12 @@ export async function addSyslogNode(input: {
       entityType: "smg_syslog_node",
       entityId: row.ip,
       ip: input.requestIp,
-      meta: { ip: row.ip, name: row.name, identifier: row.identifier },
+      meta: {
+        ip: row.ip,
+        name: row.name,
+        identifier: row.identifier,
+        cdrTimezone: row.cdrTimezone,
+      },
     });
     return row;
   } catch (error) {
@@ -137,6 +158,7 @@ export async function renameSyslogNode(input: {
   ip: string;
   name: string;
   identifier?: string;
+  cdrTimezone?: string;
   actorUserId: string;
   requestIp: string | null;
 }): Promise<SyslogNode> {
@@ -144,6 +166,8 @@ export async function renameSyslogNode(input: {
   const name = cleanName(input.name);
   const identifier =
     input.identifier === undefined ? undefined : cleanIdentifier(input.identifier, false);
+  const cdrTimezone =
+    input.cdrTimezone === undefined ? undefined : cleanCdrTimezone(input.cdrTimezone);
   const existing = await prisma.smgSyslogNode.findUnique({
     where: { ip },
     select: nodeSelect,
@@ -152,7 +176,11 @@ export async function renameSyslogNode(input: {
   try {
     const row = await prisma.smgSyslogNode.update({
       where: { ip },
-      data: { name, ...(identifier !== undefined ? { identifier } : {}) },
+      data: {
+        name,
+        ...(identifier !== undefined ? { identifier } : {}),
+        ...(cdrTimezone !== undefined ? { cdrTimezone } : {}),
+      },
       select: nodeSelect,
     });
     await auditService.append({
@@ -165,8 +193,10 @@ export async function renameSyslogNode(input: {
         ip: row.ip,
         name: row.name,
         identifier: row.identifier,
+        cdrTimezone: row.cdrTimezone,
         previousName: existing.name,
         previousIdentifier: existing.identifier,
+        previousCdrTimezone: existing.cdrTimezone,
       },
     });
     return row;

@@ -103,7 +103,12 @@ export async function POST(request: Request) {
     );
   }
   const parsed = z
-    .object({ ip: z.string(), name: z.string(), identifier: z.string() })
+    .object({
+      ip: z.string(),
+      name: z.string(),
+      identifier: z.string(),
+      cdrTimezone: z.string().optional(),
+    })
     .safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
@@ -116,6 +121,7 @@ export async function POST(request: Request) {
       ip: parsed.data.ip,
       name: parsed.data.name,
       identifier: parsed.data.identifier,
+      cdrTimezone: parsed.data.cdrTimezone,
       actorUserId: userId,
       requestIp: await getRequestIp(),
     });

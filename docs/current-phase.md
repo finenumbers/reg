@@ -1,7 +1,21 @@
-# Current Phase — production (v1.167.0)
+# Current Phase — production (v1.168.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal.  
-**Date:** 2026-10-21
+**Date:** 2026-10-22
+
+## v1.168.0 — Antifraud charts in UTC, and the CDR zone of each SMG
+
+Stop `app` before this update. Start one new process only after `migrate` exits. Two migrations run. `20261022120000_smg_cdr_af_labels` adds `unique_tag_norm`, `radius_session_norm`, `af_category`, and `af_status` on `smg_cdr_records`, plus three indexes. `20261022180000_smg_af_charts` adds nullable `af_ms_dev`, `af_ms_prod`, and `af_ms_parking` on `smg_call_traces`, `cdr_timezone` on `smg_syslog_nodes` (default `UTC`), and an index on `smg_cdr_records(setup_time)`. The indexes block writes on `smg_cdr_records` until they finish and do not rewrite stored call text. Neither migration fills the new values. `smg-syslog` keeps writing. Syslog cards are not deleted. Parser version stays 7. The archive is not reread. Parking rows are not rewritten.
+
+The dashboard menu gains «Ответы АнтиФрода», «Задержка АнтиФрода», and «Таймаут АнтиФрода». Each has the UTC day and the rolling two hours. There is no blue tail. «Ответы» counts SMG calls by the stored antifraud category. A row whose category is still null is not drawn. The drain fills those nulls after `app` is up, newest first. A call whose gateway identifier does not match «Узел» is left off that chart and off «Задержка». `setup_time` is read in the node's «Пояс CDR» and placed on the UTC minute. «Таймаут» counts Parking `radius_calls` by `logged_at`, which is already UTC. An empty delay minute is a gap. A measured 0 ms is a point. The point is the integer mean of the stored samples. Two cards on one call contribute nothing. A past minute can still change.
+
+The SMG tables and workbooks still compute the five delay cells from the card text. The chart reads the three arrays written when the card is saved. Cards already stored are filled in batches of 200. Until that pass finishes, the delay chart says the history is still filling. Changing «Пояс CDR» recomputes the charts on the next read and does not rewrite the arrays. The default is UTC until the operator sets the real zone. The chart cache includes those zones.
+
+«АнтиФрод» shows the date, the time, the month, and the load-clock tooltip in UTC. The chip on other pages stays on the browser clock. The visible elapsed text is unchanged.
+
+Both SMG tables and both workbooks rename «1 Dev» to «Вход Dev», «1 Prod» to «Вход Prod», «2 Dev» to «Выход Dev», and «2 Prod» to «Выход Prod». «Parking» stays. The column ids stay.
+
+Settings → Syslog — SMG has «Пояс CDR» on each node: UTC, Kaliningrad, Moscow, Novosibirsk.
 
 ## v1.167.0 — SMG call card reads the outgoing numbers, and old antifraud cards are dropped once
 

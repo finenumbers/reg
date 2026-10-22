@@ -34,6 +34,9 @@ describe("parseDashboardSeries", () => {
     expect(parseDashboardSeries("")).toBe("phone");
     expect(parseDashboardSeries("client")).toBe("client");
     expect(parseDashboardSeries("errors")).toBe("errors");
+    expect(parseDashboardSeries("af-answers")).toBe("af-answers");
+    expect(parseDashboardSeries("af-delay")).toBe("af-delay");
+    expect(parseDashboardSeries("af-timeout")).toBe("af-timeout");
     expect(parseDashboardSeries("phone ")).toBeNull();
     expect(parseDashboardSeries("smg")).toBeNull();
   });

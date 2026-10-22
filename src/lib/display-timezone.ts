@@ -14,6 +14,14 @@ export const DISPLAY_TIMEZONES = [
 
 export type DisplayTimezoneId = (typeof DISPLAY_TIMEZONES)[number]["id"];
 
+/** Short names for the SMG «Пояс CDR» field. Same zones, no DST. */
+export const CDR_TIMEZONE_OPTIONS = [
+  { id: "UTC", label: "UTC" },
+  { id: "Europe/Kaliningrad", label: "Калининград" },
+  { id: "Europe/Moscow", label: "Москва" },
+  { id: "Asia/Novosibirsk", label: "Новосибирск" },
+] as const satisfies readonly { id: DisplayTimezoneId; label: string }[];
+
 /** Fixed offsets — curated display zones have no DST. */
 export const TZ_OFFSET_HOURS: Record<DisplayTimezoneId, number> = {
   UTC: 0,

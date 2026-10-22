@@ -182,6 +182,14 @@ export function eventCountLabel(count: number): string {
   return countedLabel(count, "событие", "события", "событий");
 }
 
+export function callCountLabel(count: number): string {
+  return countedLabel(count, "звонок", "звонка", "звонков");
+}
+
+export function requestCountLabel(count: number): string {
+  return countedLabel(count, "запрос", "запроса", "запросов");
+}
+
 function countedLabel(count: number, one: string, few: string, many: string): string {
   const n = Math.abs(Math.trunc(count));
   const mod10 = n % 10;

@@ -25,10 +25,10 @@ export type SmgAntifraudColumn = (typeof SMG_ANTIFRAUD_COLUMNS)[number];
 export const SMG_ANTIFRAUD_LABELS: Record<SmgAntifraudColumn, string> = {
   antifraud: "АнтиФрод",
   antifraudStatus: "Статус АнтиФрод",
-  afDelay1Dev: "1 Dev",
-  afDelay1Prod: "1 Prod",
-  afDelay2Dev: "2 Dev",
-  afDelay2Prod: "2 Prod",
+  afDelay1Dev: "Вход Dev",
+  afDelay1Prod: "Вход Prod",
+  afDelay2Dev: "Выход Dev",
+  afDelay2Prod: "Выход Prod",
   afDelayParking: "Parking",
 };
 
@@ -130,7 +130,8 @@ export function classifyAntifraud(input: {
     return WAITING;
   }
   if (input.blocks.mismatch) return conflict();
-  if (facts.sideClash || facts.legs.some((leg) => leg.side === "" || leg.conflicted)) return conflict();
+  if (facts.sideClash || facts.legs.some((leg) => leg.side === "" || leg.conflicted))
+    return conflict();
 
   const category = categoryOf(facts);
   return { category, status: statusOf(category, facts) };
@@ -155,7 +156,13 @@ function schemeIsOff(facts: Facts): boolean {
   return incoming.every((check) => check.clean) && outgoing.every((check) => check.clean);
 }
 
-function noteStage(facts: Facts, line: string, useAf: string, sd: string, os: string): void {
+function noteStage(
+  facts: Facts,
+  line: string,
+  useAf: string,
+  sd: string,
+  os: string,
+): void {
   const route = line.match(/check TG\(i\/o\):\s*[^/,\s]+\/([^,\s]+),/);
   const rreq = line.match(/\bRREQ\s+(\d+)/);
   if (!route?.[1] || !rreq?.[1]) return;
@@ -179,11 +186,14 @@ function categoryOf(facts: Facts): string {
   const outgoing = facts.legs.filter((leg) => leg.side === "out");
   const inn = sideVerdict(incoming);
   const out = sideVerdict(outgoing);
-  const innRelease = incoming.some((leg) => leg.released) || (facts.callReleased && inn === "reject");
-  const outRelease = outgoing.some((leg) => leg.released) || (facts.callReleased && out === "reject");
+  const innRelease =
+    incoming.some((leg) => leg.released) || (facts.callReleased && inn === "reject");
+  const outRelease =
+    outgoing.some((leg) => leg.released) || (facts.callReleased && out === "reject");
 
   if (inn === "mixed" || out === "mixed") return AF_CATEGORY.conflict;
-  if (inn === "reject" && out === "reject" && innRelease && outRelease) return AF_CATEGORY.conflict;
+  if (inn === "reject" && out === "reject" && innRelease && outRelease)
+    return AF_CATEGORY.conflict;
   if (inn === "reject" && innRelease) return AF_CATEGORY.blockedIn;
   if (out === "reject" && outRelease) return AF_CATEGORY.blockedOut;
   if (inn === "reject" && out === "reject") return AF_CATEGORY.rejectIgnoredBoth;
@@ -191,18 +201,26 @@ function categoryOf(facts: Facts): string {
   if (out === "reject") return AF_CATEGORY.rejectIgnoredOut;
 
   const pending = facts.legs.some((leg) => leg.verdict === "none" && !leg.exhausted);
-  const everyNone = facts.legs.length > 0 && facts.legs.every((leg) => leg.verdict === "none");
+  const everyNone =
+    facts.legs.length > 0 && facts.legs.every((leg) => leg.verdict === "none");
   if (pending || everyNone) {
     const anyVerdict = facts.legs.some((leg) => leg.verdict !== "none");
     if (facts.callReleased && !anyVerdict) return AF_CATEGORY.releasedNoReply;
     return AF_CATEGORY.noReply;
   }
 
-  if (incoming.length > 0 && outgoing.length > 0 && inn === "accept" && out === "accept") {
+  if (
+    incoming.length > 0 &&
+    outgoing.length > 0 &&
+    inn === "accept" &&
+    out === "accept"
+  ) {
     return AF_CATEGORY.passed;
   }
-  if (incoming.length > 0 && outgoing.length === 0 && inn === "accept") return AF_CATEGORY.passedIn;
-  if (outgoing.length > 0 && incoming.length === 0 && out === "accept") return AF_CATEGORY.passedOut;
+  if (incoming.length > 0 && outgoing.length === 0 && inn === "accept")
+    return AF_CATEGORY.passedIn;
+  if (outgoing.length > 0 && incoming.length === 0 && out === "accept")
+    return AF_CATEGORY.passedOut;
 
   if (facts.legs.length === 0) {
     if (facts.useAfOn) return AF_CATEGORY.requestMissing;
@@ -362,7 +380,11 @@ function applyPacket(facts: Facts, code: number, id: number): void {
   if (code === 3) setVerdict(leg, "reject", "packet");
 }
 
-function setVerdict(leg: Leg, verdict: Exclude<Verdict, "none">, source: Exclude<VerdictSource, "">): void {
+function setVerdict(
+  leg: Leg,
+  verdict: Exclude<Verdict, "none">,
+  source: Exclude<VerdictSource, "">,
+): void {
   if (leg.verdict === "none") {
     leg.verdict = verdict;
     leg.verdictFrom = source;
@@ -414,7 +436,12 @@ function consumeRc(
   active: boolean,
   hex: string,
   stage: "body" | "calc" | "reply",
-): { active: boolean; hex: string; stage: "body" | "calc" | "reply"; packet: { code: number; id: number } | null } {
+): {
+  active: boolean;
+  hex: string;
+  stage: "body" | "calc" | "reply";
+  packet: { code: number; id: number } | null;
+} {
   const payload = line.replace(/^.*\brc:\s*/i, "").trim();
   if (/Calculating digest on/i.test(payload)) {
     return { active: true, hex: "", stage: "body", packet: null };

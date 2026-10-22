@@ -82,11 +82,15 @@ type Scope = {
   phoneQ: string;
   filters: ColumnFilters;
   excludeColumn?: string;
+  /** Stored af_category / af_status are complete for this gateway-month. */
+  storedAf?: boolean;
 };
 
 function valuesOf(filters: ColumnFilters, column: string, exclude?: string): string[] {
   if (exclude === column) return [];
-  return (filters[column] ?? []).map((value) => (value === EMPTY_FILTER_TOKEN ? "" : value));
+  return (filters[column] ?? []).map((value) =>
+    value === EMPTY_FILTER_TOKEN ? "" : value,
+  );
 }
 
 function antifraudActive(filters: ColumnFilters, exclude?: string): boolean {
@@ -96,16 +100,21 @@ function antifraudActive(filters: ColumnFilters, exclude?: string): boolean {
   );
 }
 
-export function smgListNeedsSql(filters: ColumnFilters): boolean {
+export function smgListNeedsSql(filters: ColumnFilters, storedAf = false): boolean {
   return (
     valuesOf(filters, "setupDay").length > 0 ||
     valuesOf(filters, "redirectNumber").length > 0 ||
-    antifraudActive(filters)
+    (!storedAf && antifraudActive(filters))
   );
 }
 
-export function smgFacetNeedsSql(column: string, filters: ColumnFilters): boolean {
-  return DERIVED.has(column) || smgListNeedsSql(withoutColumn(filters, column));
+export function smgFacetNeedsSql(
+  column: string,
+  filters: ColumnFilters,
+  storedAf = false,
+): boolean {
+  if (storedAf && (column === "antifraud" || column === "antifraudStatus")) return true;
+  return DERIVED.has(column) || smgListNeedsSql(withoutColumn(filters, column), storedAf);
 }
 
 function withoutColumn(filters: ColumnFilters, column: string): ColumnFilters {
@@ -160,6 +169,18 @@ function baseWhere(scope: Scope): Prisma.Sql {
     valuesOf(scope.filters, "redirectNumber", scope.excludeColumn),
   );
   if (redirect) parts.push(redirect);
+  if (scope.storedAf) {
+    const category = inList(
+      Prisma.sql`af_category`,
+      valuesOf(scope.filters, "antifraud", scope.excludeColumn),
+    );
+    const status = inList(
+      Prisma.sql`af_status`,
+      valuesOf(scope.filters, "antifraudStatus", scope.excludeColumn),
+    );
+    if (category) parts.push(category);
+    if (status) parts.push(status);
+  }
   return andAll(parts);
 }
 
@@ -251,9 +272,11 @@ function asCount(rows: Array<{ n: number | bigint }>): number {
 export async function querySmgIdPage(
   query: SqlQuery,
   input: Scope & { setupSort: TimeSort | null; skip: number; take: number },
-  labelsForTraces: (traceIds: string[]) => Promise<Map<string, { category: string; status: string }>>,
+  labelsForTraces: (
+    traceIds: string[],
+  ) => Promise<Map<string, { category: string; status: string }>>,
 ): Promise<{ ids: string[]; total: number }> {
-  if (!antifraudActive(input.filters, input.excludeColumn)) {
+  if (input.storedAf || !antifraudActive(input.filters, input.excludeColumn)) {
     const where = baseWhere(input);
     const total = asCount(
       await query<Array<{ n: number }>>(
@@ -298,10 +321,16 @@ export async function querySmgIdPage(
     WHERE pending_trace IS NOT NULL OR (${labels})
     ORDER BY ${orderSql(input.setupSort)}
   `);
-  const needed = [...new Set(rows.flatMap((row) => (row.pending_trace ? [row.pending_trace] : [])))];
+  const needed = [
+    ...new Set(rows.flatMap((row) => (row.pending_trace ? [row.pending_trace] : []))),
+  ];
   const resolved = needed.length > 0 ? await labelsForTraces(needed) : new Map();
-  const wantedCategory = new Set(valuesOf(input.filters, "antifraud", input.excludeColumn));
-  const wantedStatus = new Set(valuesOf(input.filters, "antifraudStatus", input.excludeColumn));
+  const wantedCategory = new Set(
+    valuesOf(input.filters, "antifraud", input.excludeColumn),
+  );
+  const wantedStatus = new Set(
+    valuesOf(input.filters, "antifraudStatus", input.excludeColumn),
+  );
   const matched: string[] = [];
   for (const row of rows) {
     const category = row.pending_trace
@@ -315,7 +344,10 @@ export async function querySmgIdPage(
     if (wantedStatus.size > 0 && !wantedStatus.has(status)) continue;
     matched.push(row.id);
   }
-  return { ids: matched.slice(input.skip, input.skip + input.take), total: matched.length };
+  return {
+    ids: matched.slice(input.skip, input.skip + input.take),
+    total: matched.length,
+  };
 }
 
 function searchWhere(column: string, q: string): Prisma.Sql {
@@ -340,18 +372,33 @@ function facetOrder(column: string): Prisma.Sql {
 export async function querySmgFacetValues(
   query: SqlQuery,
   input: Scope & { column: string; q: string; limit: number },
-  labelsForTraces: (traceIds: string[]) => Promise<Map<string, { category: string; status: string }>>,
+  labelsForTraces: (
+    traceIds: string[],
+  ) => Promise<Map<string, { category: string; status: string }>>,
 ): Promise<FacetItem[]> {
   const scope: Scope = { ...input, excludeColumn: input.column };
   const search = searchWhere(input.column, input.q);
   const limit = input.limit + 1;
-  if (!antifraudActive(scope.filters) && input.column !== "antifraud" && input.column !== "antifraudStatus") {
+  const direct =
+    input.storedAf ||
+    (!antifraudActive(scope.filters) &&
+      input.column !== "antifraud" &&
+      input.column !== "antifraudStatus");
+  if (direct) {
     const value =
-      input.column === "setupDay"
-        ? DAY_EXPR
-        : input.column === "redirectNumber"
-          ? REDIRECT_EXPR
-          : col(input.column as SmgField);
+      input.column === "antifraud"
+        ? Prisma.sql`af_category`
+        : input.column === "antifraudStatus"
+          ? Prisma.sql`af_status`
+          : input.column === "setupDay"
+            ? DAY_EXPR
+            : input.column === "redirectNumber"
+              ? REDIRECT_EXPR
+              : col(input.column as SmgField);
+    const present =
+      input.column === "antifraud" || input.column === "antifraudStatus"
+        ? Prisma.sql`value IS NOT NULL AND`
+        : Prisma.empty;
     const rows = await query<Array<{ value: string | null; count: number }>>(Prisma.sql`
       SELECT value, COUNT(*)::int AS count
       FROM (
@@ -359,7 +406,7 @@ export async function querySmgFacetValues(
         FROM smg_cdr_records
         WHERE ${baseWhere(scope)}
       ) cells
-      WHERE ${search}
+      WHERE ${present} ${search}
       GROUP BY 1
       ORDER BY ${facetOrder(input.column)}
       LIMIT ${limit}
@@ -386,7 +433,9 @@ export async function querySmgFacetValues(
   );
   if (pending === 0) {
     const rows =
-      input.column === "antifraud" || input.column === "antifraudStatus" || DERIVED.has(input.column)
+      input.column === "antifraud" ||
+      input.column === "antifraudStatus" ||
+      DERIVED.has(input.column)
         ? await query<Array<{ value: string | null; count: number }>>(Prisma.sql`
             SELECT value, COUNT(*)::int AS count
             FROM (
@@ -436,15 +485,23 @@ export async function querySmgFacetValues(
         JOIN (${src}) labeled ON labeled.id = smg_cdr_records.id
         WHERE labeled.pending_trace IS NOT NULL OR (${labels})
       `);
-  const needed = [...new Set(rows.flatMap((row) => (row.pending_trace ? [row.pending_trace] : [])))];
+  const needed = [
+    ...new Set(rows.flatMap((row) => (row.pending_trace ? [row.pending_trace] : []))),
+  ];
   const resolved = needed.length > 0 ? await labelsForTraces(needed) : new Map();
-  const wantedCategory = new Set(valuesOf(scope.filters, "antifraud", scope.excludeColumn));
-  const wantedStatus = new Set(valuesOf(scope.filters, "antifraudStatus", scope.excludeColumn));
+  const wantedCategory = new Set(
+    valuesOf(scope.filters, "antifraud", scope.excludeColumn),
+  );
+  const wantedStatus = new Set(
+    valuesOf(scope.filters, "antifraudStatus", scope.excludeColumn),
+  );
   const counts = new Map<string, number>();
   const needle = input.q.trim().toLowerCase();
   const emptyToo = facetQueryMatchesEmptyLabel(input.q);
   const dayNeedles =
-    input.column === "setupDay" && needle ? cdrDaySearchNeedles(input.q.trim()).map((item) => item.toLowerCase()) : [];
+    input.column === "setupDay" && needle
+      ? cdrDaySearchNeedles(input.q.trim()).map((item) => item.toLowerCase())
+      : [];
   for (const row of rows) {
     const category = row.pending_trace
       ? resolved.get(row.pending_trace)?.category
@@ -464,7 +521,8 @@ export async function querySmgFacetValues(
     if (needle) {
       const hay = value.toLowerCase();
       const needles = dayNeedles.length > 0 ? dayNeedles : [needle];
-      const hit = needles.some((item) => item && hay.includes(item)) || (emptyToo && value === "");
+      const hit =
+        needles.some((item) => item && hay.includes(item)) || (emptyToo && value === "");
       if (!hit) continue;
     }
     counts.set(value, (counts.get(value) ?? 0) + 1);

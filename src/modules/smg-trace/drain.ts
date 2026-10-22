@@ -4,13 +4,38 @@ import { logger } from "@/lib/logger";
 import { projectSpan, SMG_TRACE_PARSER_VERSION } from "@/modules/smg-trace/assemble";
 import { classifyAntifraud } from "@/modules/smg-trace/classify";
 import {
+  advanceDelayMark,
+  DELAY_BATCH,
+  DELAY_DEVICE,
+  DELAY_FILE_KEY,
+  openDelayMark,
+} from "@/modules/smg-trace/delay-pass";
+import {
   advanceLabelMark,
   LABEL_BATCH,
   LABEL_DEVICE,
   LABEL_FILE_KEY,
   openLabelMark,
 } from "@/modules/smg-trace/label-pass";
-import { cardFromBlocks, logCardDiverge, mergeTraceCard } from "@/modules/smg-trace/merge";
+import {
+  cardFromBlocks,
+  logCardDiverge,
+  mergeTraceCard,
+} from "@/modules/smg-trace/merge";
+import {
+  fillDelaySampleSql,
+  writeDelaySamplesSql,
+} from "@/modules/smg-trace/delay-samples";
+import { radiusDelaySamples } from "@/modules/smg-trace/summary";
+import {
+  backfillCdrLabelsTick,
+  blankStoredCdrLabels,
+  expandedTagSet,
+  loadCdrsForTags,
+  markCdrLabels,
+  withCdrTagLocks,
+  writeResolvedCdrLabels,
+} from "@/modules/smg/cdr-labels";
 import { NO_TRACE_LABELS } from "@/modules/smg/row-tokens";
 import type { TraceBlocks } from "@/modules/smg-trace/types";
 import {
@@ -41,7 +66,10 @@ export async function drainSmgTraces(root = syslogRoot()): Promise<void> {
         return rows.map((row) => row.version);
       },
       async deleteAllCards() {
+        await markCdrLabels(false);
         await prisma.smgCallTrace.deleteMany();
+        await blankStoredCdrLabels();
+        await markCdrLabels(true);
       },
     });
     for (const deviceIp of listDeviceIps(root)) {
@@ -61,6 +89,8 @@ export async function drainSmgTraces(root = syslogRoot()): Promise<void> {
     }
     await backfillTraceLabels();
     await relabelStoredCards();
+    await backfillCdrLabelsTick();
+    await backfillDelaySamples();
   } catch (error) {
     logger.warn("smg.trace.drain_failed", {
       error: error instanceof Error ? error.message : String(error),
@@ -99,49 +129,87 @@ const prismaRepository: TraceRepository = {
     });
   },
   async deleteCards(deviceIp) {
-    await prisma.smgCallTrace.deleteMany({ where: { deviceIp } });
+    const found = await prisma.smgCallTrace.findMany({
+      where: { deviceIp },
+      select: { tagNorm: true },
+    });
+    await prisma.smgCallTrace.deleteMany({ where: { deviceIp, tagNorm: "" } });
+    const tags = [
+      ...new Set(found.map((row) => row.tagNorm).filter((tag) => tag.length > 0)),
+    ];
+    for (const tag of tags) {
+      await withCdrTagLocks([tag], async (tx, locked) => {
+        await tx.smgCallTrace.deleteMany({ where: { deviceIp, tagNorm: tag } });
+        const cdrs = await loadCdrsForTags(tx, locked);
+        const expand = expandedTagSet(locked, cdrs);
+        if (expand) return expand;
+        await writeResolvedCdrLabels(tx, cdrs, { onlyNull: false });
+        return null;
+      });
+    }
   },
   async saveSpan(deviceIp, span) {
-    const projected = projectSpan(span);
-    const incoming = {
-      text: projected.text,
-      mismatch: projected.mismatch,
-      startedKey: projected.startedKey ?? "",
-      open: !span.sealed,
-    };
-    const existing = await prisma.smgCallTrace.findUnique({
-      where: { deviceIp_tagNorm: { deviceIp, tagNorm: span.tag } },
-      select: { blocks: true, open: true },
-    });
-    const stored =
-      existing && isTraceBlocks(existing.blocks) ? cardFromBlocks(existing.blocks, existing.open) : null;
-    const merged = mergeTraceCard(stored, incoming);
-    if (merged.diverged) logCardDiverge(span.tag, stored?.text.length ?? 0, incoming.text.length);
-    const blocks = {
-      text: merged.text,
-      mismatch: merged.mismatch,
-      startedKey: merged.startedKey,
-    };
-    const labels = classifyAntifraud({ closed: !merged.open, blocks });
-    const payload = blocks as Prisma.InputJsonValue;
-    await prisma.smgCallTrace.upsert({
-      where: { deviceIp_tagNorm: { deviceIp, tagNorm: span.tag } },
-      create: {
-        deviceIp,
-        tagNorm: span.tag,
-        callref: span.callref,
-        open: merged.open,
-        blocks: payload,
-        afCategory: labels.category,
-        afStatus: labels.status,
-      },
-      update: {
-        callref: span.callref,
-        open: merged.open,
-        blocks: payload,
-        afCategory: labels.category,
-        afStatus: labels.status,
-      },
+    if (!span.tag) return;
+    await withCdrTagLocks([span.tag], async (tx, tags) => {
+      const projected = projectSpan(span);
+      const incoming = {
+        text: projected.text,
+        mismatch: projected.mismatch,
+        startedKey: projected.startedKey ?? "",
+        open: !span.sealed,
+      };
+      const existing = await tx.smgCallTrace.findUnique({
+        where: { deviceIp_tagNorm: { deviceIp, tagNorm: span.tag } },
+        select: { blocks: true, open: true },
+      });
+      const stored =
+        existing && isTraceBlocks(existing.blocks)
+          ? cardFromBlocks(existing.blocks, existing.open)
+          : null;
+      const merged = mergeTraceCard(stored, incoming);
+      if (merged.diverged)
+        logCardDiverge(span.tag, stored?.text.length ?? 0, incoming.text.length);
+      const blocks = {
+        text: merged.text,
+        mismatch: merged.mismatch,
+        startedKey: merged.startedKey,
+      };
+      const labels = classifyAntifraud({ closed: !merged.open, blocks });
+      const samples = radiusDelaySamples(merged.text);
+      const payload = blocks as Prisma.InputJsonValue;
+      await tx.smgCallTrace.upsert({
+        where: { deviceIp_tagNorm: { deviceIp, tagNorm: span.tag } },
+        create: {
+          deviceIp,
+          tagNorm: span.tag,
+          callref: span.callref,
+          open: merged.open,
+          blocks: payload,
+          afCategory: labels.category,
+          afStatus: labels.status,
+        },
+        update: {
+          callref: span.callref,
+          open: merged.open,
+          blocks: payload,
+          afCategory: labels.category,
+          afStatus: labels.status,
+        },
+      });
+      await tx.$executeRaw(
+        writeDelaySamplesSql({
+          deviceIp,
+          tagNorm: span.tag,
+          dev: samples.afMsDev,
+          prod: samples.afMsProd,
+          parking: samples.afMsParking,
+        }),
+      );
+      const cdrs = await loadCdrsForTags(tx, tags);
+      const expand = expandedTagSet(tags, cdrs);
+      if (expand) return expand;
+      await writeResolvedCdrLabels(tx, cdrs, { onlyNull: false });
+      return null;
     });
   },
   async saveCheckpoint(deviceIp, fileKey, size, state) {
@@ -164,6 +232,14 @@ const prismaRepository: TraceRepository = {
   },
 };
 
+function parseBlocks(value: string): unknown {
+  try {
+    return JSON.parse(value) as unknown;
+  } catch {
+    return value;
+  }
+}
+
 function isTraceBlocks(value: unknown): value is TraceBlocks {
   if (!value || typeof value !== "object") return false;
   return typeof (value as { text?: unknown }).text === "string";
@@ -175,7 +251,7 @@ async function backfillTraceLabels(): Promise<void> {
     where: { afCategory: null },
     orderBy: { id: "asc" },
     take: 200,
-    select: { id: true, open: true, blocks: true },
+    select: { id: true, open: true, blocks: true, tagNorm: true },
   });
   if (rows.length === 0) return;
   for (const row of rows) {
@@ -190,9 +266,24 @@ async function backfillTraceLabels(): Promise<void> {
         });
       }
     }
-    await prisma.smgCallTrace.update({
-      where: { id: row.id },
-      data: { afCategory: labels.category, afStatus: labels.status },
+    if (!row.tagNorm) {
+      await prisma.smgCallTrace.updateMany({
+        where: { id: row.id, afCategory: null },
+        data: { afCategory: labels.category, afStatus: labels.status },
+      });
+      continue;
+    }
+    await withCdrTagLocks([row.tagNorm], async (tx, tags) => {
+      const updated = await tx.smgCallTrace.updateMany({
+        where: { id: row.id, afCategory: null },
+        data: { afCategory: labels.category, afStatus: labels.status },
+      });
+      if (updated.count === 0) return null;
+      const cdrs = await loadCdrsForTags(tx, tags);
+      const expand = expandedTagSet(tags, cdrs);
+      if (expand) return expand;
+      await writeResolvedCdrLabels(tx, cdrs, { onlyNull: false });
+      return null;
     });
   }
   logger.info("smg.trace.labels_backfill", { filled: rows.length });
@@ -213,7 +304,15 @@ async function relabelStoredCards(): Promise<void> {
     where: mark.cursor ? { id: { gt: mark.cursor } } : {},
     orderBy: { id: "asc" },
     take: LABEL_BATCH,
-    select: { id: true, open: true, blocks: true, afCategory: true, afStatus: true, updatedAt: true },
+    select: {
+      id: true,
+      tagNorm: true,
+      open: true,
+      blocks: true,
+      afCategory: true,
+      afStatus: true,
+      updatedAt: true,
+    },
   });
   for (const row of rows) {
     let labels: { category: string; status: string } = NO_TRACE_LABELS;
@@ -229,9 +328,24 @@ async function relabelStoredCards(): Promise<void> {
       }
     }
     if (row.afCategory === labels.category && row.afStatus === labels.status) continue;
-    await prisma.smgCallTrace.updateMany({
-      where: { id: row.id, updatedAt: row.updatedAt },
-      data: { afCategory: labels.category, afStatus: labels.status },
+    if (!row.tagNorm) {
+      await prisma.smgCallTrace.updateMany({
+        where: { id: row.id, updatedAt: row.updatedAt },
+        data: { afCategory: labels.category, afStatus: labels.status },
+      });
+      continue;
+    }
+    await withCdrTagLocks([row.tagNorm], async (tx, tags) => {
+      const updated = await tx.smgCallTrace.updateMany({
+        where: { id: row.id, updatedAt: row.updatedAt },
+        data: { afCategory: labels.category, afStatus: labels.status },
+      });
+      if (updated.count === 0) return null;
+      const cdrs = await loadCdrsForTags(tx, tags);
+      const expand = expandedTagSet(tags, cdrs);
+      if (expand) return expand;
+      await writeResolvedCdrLabels(tx, cdrs, { onlyNull: false });
+      return null;
     });
   }
   const next = advanceLabelMark(
@@ -256,4 +370,69 @@ async function relabelStoredCards(): Promise<void> {
     },
   });
   logger.info("smg.trace.labels_revision", { scanned: rows.length, done: next.done });
+}
+
+/**
+ * Cards saved before the delay arrays existed. One tick fills a page of NULLs.
+ * The update keeps the NULL condition so a save that landed between the read
+ * and the write is not replaced with the older text.
+ */
+async function backfillDelaySamples(): Promise<void> {
+  const stored = await prisma.smgTraceCheckpoint.findUnique({
+    where: { deviceIp_fileKey: { deviceIp: DELAY_DEVICE, fileKey: DELAY_FILE_KEY } },
+    select: { state: true },
+  });
+  const mark = openDelayMark(stored?.state);
+  if (mark.done) return;
+  const rows = await prisma.$queryRaw<Array<{ id: string; blocks: unknown }>>`
+    SELECT id, blocks
+    FROM smg_call_traces
+    WHERE af_ms_dev IS NULL
+    ORDER BY id ASC
+    LIMIT ${DELAY_BATCH}
+  `;
+  for (const row of rows) {
+    const blocks = typeof row.blocks === "string" ? parseBlocks(row.blocks) : row.blocks;
+    let samples = {
+      afMsDev: [] as number[],
+      afMsProd: [] as number[],
+      afMsParking: [] as number[],
+    };
+    if (isTraceBlocks(blocks)) {
+      try {
+        samples = radiusDelaySamples(blocks.text);
+      } catch (error) {
+        logger.warn("smg.trace.delay_backfill_failed", {
+          id: row.id,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+    await prisma.$executeRaw(
+      fillDelaySampleSql({
+        id: row.id,
+        dev: samples.afMsDev,
+        prod: samples.afMsProd,
+        parking: samples.afMsParking,
+      }),
+    );
+  }
+  const next = advanceDelayMark(mark, rows.length, DELAY_BATCH);
+  const state = next as unknown as Prisma.InputJsonValue;
+  await prisma.smgTraceCheckpoint.upsert({
+    where: { deviceIp_fileKey: { deviceIp: DELAY_DEVICE, fileKey: DELAY_FILE_KEY } },
+    create: {
+      deviceIp: DELAY_DEVICE,
+      fileKey: DELAY_FILE_KEY,
+      size: 0,
+      version: SMG_TRACE_PARSER_VERSION,
+      state,
+    },
+    update: {
+      size: 0,
+      version: SMG_TRACE_PARSER_VERSION,
+      state,
+    },
+  });
+  logger.info("smg.trace.delay_backfill", { filled: rows.length, done: next.done });
 }

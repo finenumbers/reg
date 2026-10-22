@@ -240,6 +240,7 @@ export function AntifraudView({
               lastCheckedAt={lastCheckedAt}
               colored
               labels={ANTIFRAUD_CLOCK_LABELS}
+              timeZone="UTC"
             />
           ) : (
             <p className="text-muted-foreground text-sm">Идёт первая загрузка</p>

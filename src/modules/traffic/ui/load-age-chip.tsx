@@ -21,12 +21,13 @@ function parseInstant(value: string | null | undefined): number | null {
   return Number.isFinite(ms) ? ms : null;
 }
 
-function formatInstant(ms: number): string {
+function formatInstant(ms: number, timeZone?: string): string {
   return new Date(ms).toLocaleString("ru-RU", {
     day: "numeric",
     month: "short",
     hour: "2-digit",
     minute: "2-digit",
+    ...(timeZone ? { timeZone } : {}),
   });
 }
 
@@ -36,6 +37,7 @@ export function LoadAgeChip({
   lastCheckedAt = null,
   colored,
   labels,
+  timeZone,
   className,
 }: {
   lastPassAt: string | null;
@@ -43,6 +45,8 @@ export function LoadAgeChip({
   lastCheckedAt?: string | null;
   colored: boolean;
   labels?: { green: string; yellow: string; red: string };
+  /** Set on the АнтиФрод page. Other pages keep the browser clock. */
+  timeZone?: string;
   className?: string;
 }) {
   const [now, setNow] = useState(() => Date.now());
@@ -66,7 +70,7 @@ export function LoadAgeChip({
       })
     : null;
   const state = tone ? (labels ? labels[tone] : loadAgeStateLabel(tone)) : null;
-  const when = formatInstant(passAt);
+  const when = formatInstant(passAt, timeZone);
   const title = state ? `${state}. ${when}` : when;
 
   return (

@@ -14,7 +14,9 @@ import {
 const dirs: string[] = [];
 
 afterEach(async () => {
-  await Promise.all(dirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
+  await Promise.all(
+    dirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })),
+  );
 });
 
 describe("SMG xlsx columns", () => {
@@ -23,10 +25,10 @@ describe("SMG xlsx columns", () => {
       ...SMG_COLUMNS.map((column) => column.label),
       "АнтиФрод",
       "Статус АнтиФрод",
-      "1 Dev",
-      "1 Prod",
-      "2 Dev",
-      "2 Prod",
+      "Вход Dev",
+      "Вход Prod",
+      "Выход Dev",
+      "Выход Prod",
       "Parking",
     ]);
   });
@@ -41,21 +43,27 @@ describe("SMG xlsx columns", () => {
     expect(headers).not.toContain("Длительность вызова");
     expect(headers).toContain(SMG_HEADER_LABELS.radiusSessionId);
     expect(headers.filter((header) => header === "АнтиФрод")).toEqual(["АнтиФрод"]);
-    expect(headers.filter((header) => header === "Статус АнтиФрод")).toEqual(["Статус АнтиФрод"]);
+    expect(headers.filter((header) => header === "Статус АнтиФрод")).toEqual([
+      "Статус АнтиФрод",
+    ]);
     expect(headers).not.toContain("Тип входа");
     expect(headers).not.toContain("Тип выхода");
-    expect(headers.filter((header) => header === SMG_HEADER_LABELS.incomingType)).toEqual([
-      SMG_HEADER_LABELS.incomingType,
-    ]);
-    expect(headers.filter((header) => header === "1 Dev")).toEqual(["1 Dev"]);
-    expect(headers.indexOf("1 Dev")).toBeLessThan(headers.indexOf(SMG_HEADER_LABELS.uniqueTag));
-    expect(headers.slice(headers.indexOf("АнтиФрод"), headers.indexOf("АнтиФрод") + 7)).toEqual([
+    expect(headers.filter((header) => header === SMG_HEADER_LABELS.incomingType)).toEqual(
+      [SMG_HEADER_LABELS.incomingType],
+    );
+    expect(headers.filter((header) => header === "Вход Dev")).toEqual(["Вход Dev"]);
+    expect(headers.indexOf("Вход Dev")).toBeLessThan(
+      headers.indexOf(SMG_HEADER_LABELS.uniqueTag),
+    );
+    expect(
+      headers.slice(headers.indexOf("АнтиФрод"), headers.indexOf("АнтиФрод") + 7),
+    ).toEqual([
       "АнтиФрод",
       "Статус АнтиФрод",
-      "1 Dev",
-      "1 Prod",
-      "2 Dev",
-      "2 Prod",
+      "Вход Dev",
+      "Вход Prod",
+      "Выход Dev",
+      "Выход Prod",
       "Parking",
     ]);
   });
@@ -68,7 +76,10 @@ describe("SMG xlsx columns", () => {
     row.radiusSessionId = "+7900";
     const traffic = smgExportColumns("traffic");
     const cell = (header: string) =>
-      smgExportCell(traffic.find((column) => column.header === header)!, row);
+      smgExportCell(
+        traffic.find((column) => column.header === header)!,
+        row,
+      );
     expect(cell("Дата")).toBe("16.10.2026");
     expect(cell("Время")).toBe("17:07:27");
     expect(cell("А вход")).toBe("9277751863");
@@ -107,13 +118,14 @@ describe("SMG xlsx file", () => {
       ...SMG_COLUMNS.map((column) => column.label),
       "АнтиФрод",
       "Статус АнтиФрод",
-      "1 Dev",
-      "1 Prod",
-      "2 Dev",
-      "2 Prod",
+      "Вход Dev",
+      "Вход Prod",
+      "Выход Dev",
+      "Выход Prod",
       "Parking",
     ]);
-    const phoneIndex = SMG_COLUMNS.findIndex((column) => column.field === "incomingCgpn") + 1;
+    const phoneIndex =
+      SMG_COLUMNS.findIndex((column) => column.field === "incomingCgpn") + 1;
     const tagIndex = SMG_COLUMNS.findIndex((column) => column.field === "uniqueTag") + 1;
     const phone = sheet?.getRow(2).getCell(phoneIndex).value;
     const tag = sheet?.getRow(2).getCell(tagIndex).value;
