@@ -60,6 +60,27 @@ describe("foldSmgDevices", () => {
       { sign: "mts", name: "МТС", count: 1 },
     ]);
   });
+
+  it("keeps the first node's CDR zone and leaves no-data without one", () => {
+    expect(
+      foldSmgDevices(
+        [
+          { sign: "kazan", count: 1 },
+          { sign: "mts", count: 1 },
+          { sign: "x", count: 1 },
+        ],
+        [
+          { identifier: "kazan", name: "Казань", cdrTimezone: "Europe/Moscow" },
+          { identifier: "kazan", name: "Другая", cdrTimezone: "UTC" },
+          { identifier: "mts", name: "МТС", cdrTimezone: "Asia/Novosibirsk" },
+        ],
+      ),
+    ).toEqual([
+      { sign: "kazan", name: "Казань", count: 1, cdrTimezone: "Europe/Moscow" },
+      { sign: "mts", name: "МТС", count: 1, cdrTimezone: "Asia/Novosibirsk" },
+      { sign: SMG_NO_DATA_DEVICE, name: SMG_NO_DATA_LABEL, count: 1 },
+    ]);
+  });
 });
 
 describe("smgDeviceSigns", () => {

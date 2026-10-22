@@ -11,9 +11,11 @@ import {
   type ColumnFilters,
 } from "@/components/column-filters";
 import { EMPTY_FILTER_TOKEN, encodeFilters } from "@/components/column-filters/types";
+import { useDisplayTimezone } from "@/components/display-timezone-provider";
 import { FILTER_TOOLBAR_TEXT } from "@/components/filter-toolbar";
 import { FitSelect } from "@/components/fit-select";
 import { HighlightText } from "@/components/highlight-text";
+import { usePublishNavClock } from "@/components/nav-clock-provider";
 import { PhoneSearchInput } from "@/components/phone-search-input";
 import { TableCountFooter, TableInfiniteBody } from "@/components/table-infinite-body";
 import { Button } from "@/components/ui/button";
@@ -28,6 +30,8 @@ import {
 import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
 import { downloadXlsxFromUrl } from "@/lib/download-xlsx";
 import { formatCount } from "@/lib/format-count";
+import { navClockRowForZone } from "@/lib/nav-clock";
+import { cn } from "@/lib/utils";
 import {
   isSmgField,
   SMG_FIELDS,
@@ -39,6 +43,7 @@ import {
   SMG_SUMMARY_HIGHLIGHT_COLUMNS,
   smgSummaryCellText,
 } from "@/modules/smg/summary";
+import { smgTrafficRowFill } from "@/modules/smg/traffic-row-fill";
 import { formatCdrDayDisplay } from "@/modules/traffic/cdr-date-parts";
 import {
   nextTimeSort,
@@ -154,6 +159,7 @@ export function SmgView({
   showOps = true,
   searchInputId = "smg-phone-search",
   highlightPhones = false,
+  paintRows = false,
   facetColumns = null,
   exportLayout,
 }: {
@@ -167,6 +173,8 @@ export function SmgView({
   showOps?: boolean;
   searchInputId?: string;
   highlightPhones?: boolean;
+  /** «Трафик SMG» paints Parking gray and a blocked call without that delay red. */
+  paintRows?: boolean;
   /** Null keeps a facet on every CDR field except the gateway. */
   facetColumns?: readonly string[] | null;
   exportLayout: "calls" | "traffic";
@@ -179,6 +187,9 @@ export function SmgView({
   const [months, setMonths] = useState(initial.months);
   const [device, setDevice] = useState(initial.device);
   const [devices, setDevices] = useState(initial.devices ?? []);
+  const { timeZone } = useDisplayTimezone();
+  const selectedZone = devices.find((item) => item.sign === device)?.cdrTimezone;
+  usePublishNavClock(navClockRowForZone(selectedZone, timeZone));
   const [openColumn, setOpenColumn] = useState<string | null>(null);
   const [page, setPage] = useState(initial.page);
   const [items, setItems] = useState<SmgListItem[]>(initial.items);
@@ -745,32 +756,43 @@ export function SmgView({
                 </TableCell>
               </TableRow>
             ) : (
-              items.map((row) => (
-                <TableRow
-                  key={row.id}
-                  data-state={traceRow?.id === row.id ? "selected" : undefined}
-                  className="cursor-pointer"
-                  onClick={() => openTrace(row)}
-                >
-                  {columns.map((field) => {
-                    const text = smgSummaryCellText(field, row);
-                    const className = BOLD_PHONE_FIELDS.has(field)
-                      ? "font-medium tabular-nums"
-                      : PHONE_FIELDS.has(field) || TABULAR_COLUMNS.has(field)
-                        ? "tabular-nums"
-                        : undefined;
-                    return (
-                      <TableCell key={field} className={className}>
-                        {highlightPhones && HIGHLIGHT_FIELDS.has(field) ? (
-                          <HighlightText text={text} query={phoneQ} />
-                        ) : (
-                          text
-                        )}
-                      </TableCell>
-                    );
-                  })}
-                </TableRow>
-              ))
+              items.map((row) => {
+                const fill = paintRows
+                  ? smgTrafficRowFill(row.antifraud, row.afDelayParking)
+                  : null;
+                return (
+                  <TableRow
+                    key={row.id}
+                    data-state={traceRow?.id === row.id ? "selected" : undefined}
+                    className={cn(
+                      "cursor-pointer",
+                      fill === "parking" &&
+                        "bg-gray-200 hover:bg-gray-300/90 data-[state=selected]:bg-gray-200 dark:bg-gray-950 dark:hover:bg-gray-900 dark:data-[state=selected]:bg-gray-950",
+                      fill === "blocked" &&
+                        "bg-destructive/25 hover:bg-destructive/35 data-[state=selected]:bg-destructive/25",
+                    )}
+                    onClick={() => openTrace(row)}
+                  >
+                    {columns.map((field) => {
+                      const text = smgSummaryCellText(field, row);
+                      const className = BOLD_PHONE_FIELDS.has(field)
+                        ? "font-medium tabular-nums"
+                        : PHONE_FIELDS.has(field) || TABULAR_COLUMNS.has(field)
+                          ? "tabular-nums"
+                          : undefined;
+                      return (
+                        <TableCell key={field} className={className}>
+                          {highlightPhones && HIGHLIGHT_FIELDS.has(field) ? (
+                            <HighlightText text={text} query={phoneQ} />
+                          ) : (
+                            text
+                          )}
+                        </TableCell>
+                      );
+                    })}
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>

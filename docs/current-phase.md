@@ -1,7 +1,17 @@
-# Current Phase — production (v1.174.0)
+# Current Phase — production (v1.175.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal.  
 **Date:** 2026-10-22
+
+## v1.175.0 — The nav clock matches the open table
+
+There is no migration. Do not stop `app`. Do not stop `smg-syslog`. Stored rows are not rewritten.
+
+One left-nav clock value turns red (`text-red-600`). The label stays black. The date and the database size stay as they are. The red row is the clock of the open table, chosen by place, so two rows with the same offset are not both red.
+
+«Телефонный трафик», «Операторы связи», «География звонков», «Сырые данные», «АнтиФрод», and «Архивы Syslog» paint `UTC`. «Регистрации», «Аудит», and «Задачи» paint only the bottom Settings row, even when that row is also labeled `UTC` or `UTC+3`. «Трафик SMG» and «Данные SMG» paint the selected node's saved «Пояс CDR» on the same click as the node menu. UTC and Moscow use their own rows. Kaliningrad and Novosibirsk paint the Settings row only when that row is the same zone. «Нет данных», an empty node menu, and a page with no single clock leave all three times black. Switching the syslog node does not move the red clock. A node left at the default «Пояс CDR» paints `UTC`.
+
+«Трафик SMG» fills a row gray, the same shade as «Недозвон» on phone traffic, when the Parking delay cell has a value, including `0` and a «Заблокирован» call. A blocked call with an empty Parking cell is red, the same shade as «Ошибки звонков». Dev and Prod delays do not paint a row. «Данные SMG» and the workbook are not filled.
 
 ## v1.174.0 — Sidebar keeps a Moscow clock
 

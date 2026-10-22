@@ -1,10 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { useDisplayTimezone } from "@/components/display-timezone-provider";
+import { useNavClockRow } from "@/components/nav-clock-provider";
 import { formatUtcOffsetLabel } from "@/lib/display-timezone";
 import { formatDatabaseGigabytes } from "@/lib/format-db-gigabytes";
 import { formatDisplayClock, formatDisplayUtcDate } from "@/lib/format-display-time";
+import { navClockSource, type NavClockRow } from "@/lib/nav-clock";
 import { cn } from "@/lib/utils";
 
 const CLOCK_WIDTH_SAMPLE = "00:00:00";
@@ -19,6 +22,10 @@ function msUntilNextSecond(nowMs: number = Date.now()): number {
 
 export function LiveClocks({ className }: { className?: string }) {
   const { timeZone } = useDisplayTimezone();
+  const pathname = usePathname() ?? "";
+  const smgRow = useNavClockRow();
+  const source = navClockSource(pathname);
+  const active: NavClockRow | null = source === "smg" ? smgRow : source;
   const [now, setNow] = useState<Date | null>(null);
   const [dbBytes, setDbBytes] = useState<number | null>(null);
 
@@ -117,6 +124,12 @@ export function LiveClocks({ className }: { className?: string }) {
   const utcDateTime = iso?.slice(0, 10);
   const moscowLabel = formatUtcOffsetLabel("Europe/Moscow");
   const localLabel = formatUtcOffsetLabel(timeZone);
+  const clockClass = (row: NavClockRow) =>
+    cn(
+      "font-bold tabular-nums",
+      active === row ? "text-red-600" : "text-black",
+      !now && "invisible",
+    );
 
   return (
     <div
@@ -133,24 +146,15 @@ export function LiveClocks({ className }: { className?: string }) {
         {utcDate}
       </time>
       <span>UTC:</span>
-      <time
-        dateTime={iso}
-        className={cn("font-bold text-black tabular-nums", !now && "invisible")}
-      >
+      <time dateTime={iso} className={clockClass("utc")}>
         {utc}
       </time>
       <span>{moscowLabel}:</span>
-      <time
-        dateTime={iso}
-        className={cn("font-bold text-black tabular-nums", !now && "invisible")}
-      >
+      <time dateTime={iso} className={clockClass("moscow")}>
         {moscow}
       </time>
       <span>{localLabel}:</span>
-      <time
-        dateTime={iso}
-        className={cn("font-bold text-black tabular-nums", !now && "invisible")}
-      >
+      <time dateTime={iso} className={clockClass("settings")}>
         {local}
       </time>
       <span>БД:</span>

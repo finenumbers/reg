@@ -1,3 +1,9 @@
+import {
+  isAcceptedDisplayTimezone,
+  resolveDisplayTimezone,
+  type DisplayTimezoneId,
+} from "@/lib/display-timezone";
+
 export const SMG_NO_DATA_DEVICE = "__no_data__";
 export const SMG_NO_DATA_LABEL = "Нет данных";
 
@@ -5,6 +11,8 @@ export type SmgDeviceOption = {
   sign: string;
   name: string;
   count: number;
+  /** Saved «Пояс CDR». Absent on «Нет данных». */
+  cdrTimezone?: DisplayTimezoneId;
 };
 
 export type SmgSignCount = {
@@ -15,7 +23,19 @@ export type SmgSignCount = {
 export type SmgNodeName = {
   identifier: string | null;
   name: string;
+  cdrTimezone?: string;
 };
+
+type NodeMenu = {
+  name: string;
+  cdrTimezone?: DisplayTimezoneId;
+};
+
+function knownCdrZone(value: string | undefined): DisplayTimezoneId | undefined {
+  const trimmed = value?.trim() ?? "";
+  if (!trimmed || !isAcceptedDisplayTimezone(trimmed)) return undefined;
+  return resolveDisplayTimezone(trimmed);
+}
 
 /**
  * Keep the requested node when it is in this month's list.
@@ -31,12 +51,13 @@ export function pickSmgDevice(
   return devices[0]?.sign ?? "";
 }
 
-function nodeIds(nodes: readonly SmgNodeName[]): Map<string, string> {
-  const byId = new Map<string, string>();
+function nodeIds(nodes: readonly SmgNodeName[]): Map<string, NodeMenu> {
+  const byId = new Map<string, NodeMenu>();
   for (const node of nodes) {
     const id = node.identifier?.trim().toLowerCase() ?? "";
     if (!id || byId.has(id)) continue;
-    byId.set(id, node.name);
+    const cdrTimezone = knownCdrZone(node.cdrTimezone);
+    byId.set(id, cdrTimezone ? { name: node.name, cdrTimezone } : { name: node.name });
   }
   return byId;
 }
@@ -62,10 +83,15 @@ export function foldSmgDevices(
     counts.set(key, (counts.get(key) ?? 0) + row.count);
   }
   const options: SmgDeviceOption[] = [];
-  for (const [id, name] of byId) {
+  for (const [id, node] of byId) {
     const count = counts.get(id) ?? 0;
     if (count <= 0) continue;
-    options.push({ sign: id, name, count });
+    options.push({
+      sign: id,
+      name: node.name,
+      count,
+      ...(node.cdrTimezone ? { cdrTimezone: node.cdrTimezone } : {}),
+    });
   }
   if (noData > 0) {
     options.push({ sign: SMG_NO_DATA_DEVICE, name: SMG_NO_DATA_LABEL, count: noData });

@@ -221,7 +221,7 @@ export function resetSmgDeviceCacheForTests(): void {
 async function loadSmgNodeNames(): Promise<SmgNodeName[]> {
   return prisma.smgSyslogNode.findMany({
     orderBy: { name: "asc" },
-    select: { identifier: true, name: true },
+    select: { identifier: true, name: true, cdrTimezone: true },
   });
 }
 

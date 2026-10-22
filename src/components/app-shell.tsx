@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { EXTERNAL_NAV_LINKS, FEATURE_MODULES } from "@/lib/modules";
 import { LiveClocks } from "@/components/live-clocks";
+import { NavClockProvider } from "@/components/nav-clock-provider";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { authClient } from "@/modules/auth/auth-client";
@@ -82,105 +83,107 @@ export function AppShell({
   }
 
   return (
-    <div className="bg-background text-foreground flex h-screen overflow-hidden">
-      {/* 142px keeps the aside on a whole pixel so border-r is not painted between device pixels. */}
-      <aside className="border-border bg-card sticky top-0 flex h-screen w-[calc(2.5rem+142px+1px)] shrink-0 flex-col overflow-hidden border-r px-3 py-4">
-        <Link href="/" className="flex shrink-0 justify-center pb-4">
-          <img
-            src="/brand/logo-full.png"
-            alt="fine numbers"
-            className="h-auto w-[140px] bg-transparent object-contain"
-          />
-        </Link>
-        <Separator className="mb-2 shrink-0" />
-        <nav className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto">
-          {primaryNav.map((item) => (
-            <NavLink
-              key={item.href}
-              href={item.href!}
-              label={item.title}
-              active={isNavActive(pathname, item.href!)}
+    <NavClockProvider>
+      <div className="bg-background text-foreground flex h-screen overflow-hidden">
+        {/* 142px keeps the aside on a whole pixel so border-r is not painted between device pixels. */}
+        <aside className="border-border bg-card sticky top-0 flex h-screen w-[calc(2.5rem+142px+1px)] shrink-0 flex-col overflow-hidden border-r px-3 py-4">
+          <Link href="/" className="flex shrink-0 justify-center pb-4">
+            <img
+              src="/brand/logo-full.png"
+              alt="fine numbers"
+              className="h-auto w-[140px] bg-transparent object-contain"
             />
-          ))}
-          {cdrNav.length > 0 ? (
-            <>
-              <Separator className="my-1.5 shrink-0" />
-              {cdrNav.map((item) => (
-                <NavLink
-                  key={item.href}
-                  href={item.href!}
-                  label={item.title}
-                  active={isNavActive(pathname, item.href!)}
-                />
-              ))}
-            </>
-          ) : null}
-          {smgNav.length > 0 ? (
-            <>
-              <Separator className="my-1.5 shrink-0" />
-              {smgNav.map((item) => (
-                <NavLink
-                  key={item.href}
-                  href={item.href!}
-                  label={item.title}
-                  active={isNavActive(pathname, item.href!)}
-                />
-              ))}
-            </>
-          ) : null}
-          {analyticsNav.length > 0 ? (
-            <>
-              <Separator className="my-1.5 shrink-0" />
-              {analyticsNav.map((item) => (
-                <NavLink
-                  key={item.href}
-                  href={item.href!}
-                  label={item.title}
-                  active={isNavActive(pathname, item.href!)}
-                />
-              ))}
-            </>
-          ) : null}
-          <>
-            <Separator className="my-1.5 shrink-0" />
-            {EXTERNAL_NAV_LINKS.map((item) => (
-              <ExternalNavLink key={item.id} href={item.href} label={item.title} />
+          </Link>
+          <Separator className="mb-2 shrink-0" />
+          <nav className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto">
+            {primaryNav.map((item) => (
+              <NavLink
+                key={item.href}
+                href={item.href!}
+                label={item.title}
+                active={isNavActive(pathname, item.href!)}
+              />
             ))}
-          </>
-          {adminNav.length > 0 ? (
+            {cdrNav.length > 0 ? (
+              <>
+                <Separator className="my-1.5 shrink-0" />
+                {cdrNav.map((item) => (
+                  <NavLink
+                    key={item.href}
+                    href={item.href!}
+                    label={item.title}
+                    active={isNavActive(pathname, item.href!)}
+                  />
+                ))}
+              </>
+            ) : null}
+            {smgNav.length > 0 ? (
+              <>
+                <Separator className="my-1.5 shrink-0" />
+                {smgNav.map((item) => (
+                  <NavLink
+                    key={item.href}
+                    href={item.href!}
+                    label={item.title}
+                    active={isNavActive(pathname, item.href!)}
+                  />
+                ))}
+              </>
+            ) : null}
+            {analyticsNav.length > 0 ? (
+              <>
+                <Separator className="my-1.5 shrink-0" />
+                {analyticsNav.map((item) => (
+                  <NavLink
+                    key={item.href}
+                    href={item.href!}
+                    label={item.title}
+                    active={isNavActive(pathname, item.href!)}
+                  />
+                ))}
+              </>
+            ) : null}
             <>
               <Separator className="my-1.5 shrink-0" />
-              {adminNav.map((item) => (
-                <NavLink
-                  key={item.href}
-                  href={item.href!}
-                  label={item.title}
-                  active={isNavActive(pathname, item.href!)}
-                />
+              {EXTERNAL_NAV_LINKS.map((item) => (
+                <ExternalNavLink key={item.id} href={item.href} label={item.title} />
               ))}
             </>
-          ) : null}
-        </nav>
-        <div className="mt-auto shrink-0 space-y-2 px-2 pt-4">
-          <LiveClocks />
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="w-full"
-            aria-label="Выйти"
-            onClick={onLogout}
-          >
-            Выйти -{" "}
-            <span className="text-muted-foreground text-xs font-normal">
-              {releaseLabel}
-            </span>
-          </Button>
-        </div>
-      </aside>
-      <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pt-4 pr-6 pb-3 pl-4">
-        {children}
-      </main>
-    </div>
+            {adminNav.length > 0 ? (
+              <>
+                <Separator className="my-1.5 shrink-0" />
+                {adminNav.map((item) => (
+                  <NavLink
+                    key={item.href}
+                    href={item.href!}
+                    label={item.title}
+                    active={isNavActive(pathname, item.href!)}
+                  />
+                ))}
+              </>
+            ) : null}
+          </nav>
+          <div className="mt-auto shrink-0 space-y-2 px-2 pt-4">
+            <LiveClocks />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="w-full"
+              aria-label="Выйти"
+              onClick={onLogout}
+            >
+              Выйти -{" "}
+              <span className="text-muted-foreground text-xs font-normal">
+                {releaseLabel}
+              </span>
+            </Button>
+          </div>
+        </aside>
+        <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pt-4 pr-6 pb-3 pl-4">
+          {children}
+        </main>
+      </div>
+    </NavClockProvider>
   );
 }

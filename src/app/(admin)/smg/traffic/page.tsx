@@ -24,6 +24,7 @@ export default async function SmgTrafficPage() {
       showOps={false}
       searchInputId="smg-traffic-phone-search"
       highlightPhones
+      paintRows
       facetColumns={SMG_SUMMARY_FACET_COLUMNS}
       exportLayout="traffic"
     />
