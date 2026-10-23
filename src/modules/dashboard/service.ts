@@ -12,7 +12,11 @@ import { lastRtuEmptyScanAt, lastSmgEmptyScanAt } from "@/modules/jobs/scheduler
 import { hasPermission } from "@/modules/rbac/permissions";
 import { listSmgInboxFiles } from "@/modules/smg/inbox";
 import { listSmgPoisonEntries } from "@/modules/smg/poison";
-import { dashboardAntifraudEvents, dashboardSmgMonth } from "@/modules/dashboard/card-figures";
+import { listAntifraudChartNodes } from "@/modules/dashboard/antifraud-nodes";
+import {
+  dashboardAntifraudEvents,
+  dashboardSmgMonth,
+} from "@/modules/dashboard/card-figures";
 import {
   listStoredByteDevices,
   peekSyslogStoredBytes,
@@ -44,7 +48,10 @@ import {
   type ScheduledPulse,
   type SyslogPulse,
 } from "@/modules/dashboard/rules";
-import type { DashboardSnapshot } from "@/modules/dashboard/types";
+import type {
+  DashboardAntifraudNode,
+  DashboardSnapshot,
+} from "@/modules/dashboard/types";
 
 const CACHE_TTL_MS = 15_000;
 const CACHE_KEY = "__reg_dashboard_snapshot__";
@@ -123,10 +130,24 @@ async function buildFresh(
   now: number,
 ): Promise<DashboardSnapshot> {
   const facts = await gatherFacts(permissions, now);
+  const calls = hasPermission(permissions, "phones:read");
   return {
     ...toDashboardSnapshot(buildDashboard(facts)),
-    calls: hasPermission(permissions, "phones:read"),
+    calls,
+    antifraudNodes: calls ? await readAntifraudNodes() : null,
   };
+}
+
+async function readAntifraudNodes(): Promise<DashboardAntifraudNode[] | null> {
+  try {
+    return await listAntifraudChartNodes();
+  } catch (error) {
+    console.error(
+      "[dashboard]",
+      error instanceof Error ? error.message : "antifraud nodes failed",
+    );
+    return null;
+  }
 }
 
 async function gatherFacts(
@@ -175,13 +196,14 @@ async function gatherFacts(
   let smg: DashboardFacts["smg"] = null;
   let syslog: SyslogPulse | null = null;
   if (includePhones) {
-    const [trafficExtra, smgExtra, syslogPulse, smgMonth, antifraudEvents] = await Promise.all([
-      loadTrafficExtra(now, vacuumActive),
-      loadSmgExtra(),
-      soft(() => Promise.resolve(readSyslog(syslogEnabled))),
-      soft(() => dashboardSmgMonth(now)),
-      soft(() => dashboardAntifraudEvents()),
-    ]);
+    const [trafficExtra, smgExtra, syslogPulse, smgMonth, antifraudEvents] =
+      await Promise.all([
+        loadTrafficExtra(now, vacuumActive),
+        loadSmgExtra(),
+        soft(() => Promise.resolve(readSyslog(syslogEnabled))),
+        soft(() => dashboardSmgMonth(now)),
+        soft(() => dashboardAntifraudEvents()),
+      ]);
     traffic = {
       ...importPulse("cdr.import", latest),
       ...trafficExtra,

@@ -1,7 +1,15 @@
-# Current Phase — production (v1.178.0)
+# Current Phase — production (v1.179.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal.  
 **Date:** 2026-10-23
+
+## v1.179.0 — Antifraud charts can show one SMG node
+
+Stop `app` before this update and start one new process only. There is no migration. Do not stop `smg-syslog`. Do not change the Parking host. Stored rows are not rewritten. Parser version stays 9. Syslog cards are not deleted.
+
+The dashboard menu gains a node list to the left of the traffic class. It is shown only for «Ответы АнтиФрода», «Задержка АнтиФрода», and «Таймаут АнтиФрода». The default is «Все узлы Eltex SMG-1016M», and those three charts keep the queries they have now. A node is listed when its «АнтиФрод» box is on and it has an identifier. The label is the node name from Settings.
+
+Choosing a node limits «Ответы» and «Задержка» with `n.ip` on the existing identifier join. The card match stays by tag. «Таймаут» adds `src_ip` after the existing `logged_at` window: `Packet-Src-IP-Address` must equal that node's syslog IP. Counts on «Ответы» add up to the combined chart. Delay averages do not. Parking rows whose source IP is not a listed node, including a node with «АнтиФрод» off, stay in «Все узлы» only. An address that is not in the menu does not read CDR or the journal. Turning the box off drops that node on the next read. One old `app` process ignores `node` and draws the combined chart under the node name, so that process must be stopped first. Before trusting a node's «Таймаут», compare recent `radius_calls.src_ip` with that node's IP. A node whose address never appears has an empty timeout chart. «Ответы» and «Задержка» still follow the identifier.
 
 ## v1.178.0 — The call summary paints the antifraud verdict and the server
 

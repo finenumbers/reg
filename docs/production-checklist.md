@@ -53,6 +53,8 @@ Optional publish ports: `APP_PUBLISH_PORT`, `POSTGRES_PUBLISH_PORT`.
 
 ## 3. Database
 
+v1.179.0 does not migrate and does not rewrite stored rows. Stop `app` before the update and start one new process only. Do not stop `smg-syslog`. Do not change the Parking host. The dashboard node menu sits left of the traffic class and is shown only for «Ответы АнтиФрода», «Задержка АнтиФрода», and «Таймаут АнтиФрода». «Все узлы Eltex SMG-1016M» keeps the current queries. A listed node has «АнтиФрод» on and an identifier. One node limits answers and delay by that IP on the identifier join, and limits Parking rows to the same source IP. An old `app` process ignores the node and draws the combined chart, so it must be stopped first. Compare recent `radius_calls.src_ip` with the node IP before trusting that node's «Таймаут».
+
 v1.178.0 does not migrate and does not rewrite stored rows. Do not stop `app`. Do not stop `smg-syslog`. Parser version stays 9. The call panel summary paints «Пропущен» and Access-Accept bold green, «Заблокирован» and Access-Reject bold red, and the server name with its address bold blue. The syslog text and the traffic table are unchanged.
 
 v1.177.0 does not migrate and does not rewrite stored rows. Do not stop `app`. Do not stop `smg-syslog`. Parser version stays 9. A quiet restart deletes nothing. If a month purge is running when `app` restarts, that month is deleted to completion and its import hold stays until then. Older interrupted purges are not continued into a call delete. Do not deploy during a month delete unless that continuation is intended. UFW sheets are unchanged. The toast counts endpoints whose registration is neither «Да» nor «Нет».

@@ -1,6 +1,6 @@
 /**
  * Dashboard call charts for today and the rolling last two hours.
- * Each series has its own cache and in-flight query.
+ * Each series and antifraud node has its own cache and in-flight query.
  * Postgres does one sweep. This process only fills the quiet minutes.
  * A failure is not cached and is never turned into a line of zeros.
  */
@@ -35,14 +35,23 @@ import {
   type UtcCallWindow,
 } from "@/modules/dashboard/concurrency";
 import {
+  antifraudChartNodeAllowed,
+  dashboardCallsCacheKey,
+  DASHBOARD_NODE_REJECTED,
+} from "@/modules/dashboard/antifraud-nodes";
+import {
   DELAY_DEVICE,
   DELAY_FILE_KEY,
   openDelayMark,
 } from "@/modules/smg-trace/delay-pass";
-import type { ConcurrencySeriesId, DashboardSeriesId } from "@/modules/dashboard/series";
+import {
+  isAntifraudChartSeries,
+  type ConcurrencySeriesId,
+  type DashboardSeriesId,
+} from "@/modules/dashboard/series";
 import type { DashboardCalls, DashboardChartLine } from "@/modules/dashboard/types";
 
-const CACHE_KEY = "__reg_dashboard_calls_v4__";
+const CACHE_KEY = "__reg_dashboard_calls_v5__";
 const DELAY_NOTE = "Задержка по сохранённым карточкам ещё досчитывается.";
 const CACHE_TTL_MS = 60_000;
 const STATEMENT_TIMEOUT = "8s";
@@ -55,8 +64,13 @@ type CacheSlot = { at: number; dayStartMs: number; stamp: string; value: ReadyCa
 type Preface = { stamp: string; note: string | null };
 
 type CacheStore = {
-  cached: Map<DashboardSeriesId, CacheSlot>;
-  inflight: Map<DashboardSeriesId, Promise<DashboardCalls>>;
+  cached: Map<string, CacheSlot>;
+  inflight: Map<string, Promise<DashboardCalls>>;
+};
+
+export type DashboardCallsRejection = {
+  status: "rejected";
+  message: string;
 };
 
 type CallSeriesRow = {
@@ -77,10 +91,24 @@ function cacheStore(): CacheStore {
 export async function getDashboardCalls(
   permissions: readonly string[],
   series: DashboardSeriesId,
+  nodeIp: string | null = null,
   now = new Date(),
-): Promise<DashboardCalls> {
+): Promise<DashboardCalls | DashboardCallsRejection> {
+  const node = isAntifraudChartSeries(series) ? nodeIp : null;
   if (!hasPermission(permissions, "phones:read")) return { status: "hidden" };
-  if (isDatabaseVacuumActive()) return vacuumCalls(series);
+  if (isDatabaseVacuumActive()) return vacuumCalls(series, node);
+  if (node) {
+    try {
+      const allowed = await antifraudChartNodeAllowed(node);
+      if (!allowed) return { status: "rejected", message: DASHBOARD_NODE_REJECTED };
+    } catch (error) {
+      console.error(
+        "[dashboard-calls]",
+        error instanceof Error ? error.message : "node read failed",
+      );
+      return unavailableCalls(series, node);
+    }
+  }
 
   const bounds = utcCallWindow(now);
   let preface: Preface;
@@ -91,10 +119,11 @@ export async function getDashboardCalls(
       "[dashboard-calls]",
       error instanceof Error ? error.message : "zone read failed",
     );
-    return unavailableCalls(series);
+    return unavailableCalls(series, node);
   }
+  const key = dashboardCallsCacheKey(series, node);
   const store = cacheStore();
-  const hit = store.cached.get(series);
+  const hit = store.cached.get(key);
   if (
     hit &&
     hit.stamp === preface.stamp &&
@@ -103,14 +132,14 @@ export async function getDashboardCalls(
   ) {
     return hit.value;
   }
-  const pending = store.inflight.get(series);
+  const pending = store.inflight.get(key);
   if (pending) return pending;
 
-  const promise = readCalls(bounds, series, preface.note)
+  const promise = readCalls(bounds, series, preface.note, node)
     .then((value) => {
-      if (isDatabaseVacuumActive()) return vacuumCalls(series);
+      if (isDatabaseVacuumActive()) return vacuumCalls(series, node);
       if (value.status === "ready") {
-        cacheStore().cached.set(series, {
+        cacheStore().cached.set(key, {
           at: Date.now(),
           dayStartMs: bounds.dayStart.getTime(),
           stamp: preface.stamp,
@@ -121,18 +150,21 @@ export async function getDashboardCalls(
     })
     .finally(() => {
       const current = cacheStore();
-      if (current.inflight.get(series) === promise) current.inflight.delete(series);
+      if (current.inflight.get(key) === promise) current.inflight.delete(key);
     });
-  store.inflight.set(series, promise);
+  store.inflight.set(key, promise);
   return promise;
 }
 
-function vacuumCalls(series: DashboardSeriesId): DashboardCalls {
-  return { status: "vacuum", series, message: CDR_VACUUM_BUSY_MESSAGE };
+function vacuumCalls(series: DashboardSeriesId, node: string | null): DashboardCalls {
+  return { status: "vacuum", series, node, message: CDR_VACUUM_BUSY_MESSAGE };
 }
 
-function unavailableCalls(series: DashboardSeriesId): DashboardCalls {
-  return { status: "unavailable", series, message: UNAVAILABLE };
+function unavailableCalls(
+  series: DashboardSeriesId,
+  node: string | null,
+): DashboardCalls {
+  return { status: "unavailable", series, node, message: UNAVAILABLE };
 }
 
 async function antifraudPreface(series: DashboardSeriesId): Promise<Preface> {
@@ -154,48 +186,52 @@ async function readCalls(
   bounds: UtcCallWindow,
   series: DashboardSeriesId,
   note: string | null,
+  node: string | null,
 ): Promise<DashboardCalls> {
-  if (isDatabaseVacuumActive()) return vacuumCalls(series);
+  if (isDatabaseVacuumActive()) return vacuumCalls(series, node);
   try {
     if (series === "errors") {
       const rows = await prisma.$transaction((tx) => queryErrorMinutes(tx, bounds), {
         maxWait: 5_000,
         timeout: 12_000,
       });
-      return countsFromRows("errors", bounds, rows);
+      return countsFromRows("errors", bounds, rows, node);
     }
     if (series === "af-timeout") {
-      const rows = await prisma.$transaction((tx) => queryTimeoutMinutes(tx, bounds), {
-        maxWait: 5_000,
-        timeout: 12_000,
-      });
-      return countsFromRows("af-timeout", bounds, rows);
+      const rows = await prisma.$transaction(
+        (tx) => queryTimeoutMinutes(tx, bounds, node),
+        { maxWait: 5_000, timeout: 12_000 },
+      );
+      return countsFromRows("af-timeout", bounds, rows, node);
     }
     if (series === "af-answers") {
-      const rows = await prisma.$transaction((tx) => queryAnswerMinutes(tx, bounds), {
-        maxWait: 5_000,
-        timeout: 12_000,
-      });
-      return answersFromRows(bounds, rows, note);
+      const rows = await prisma.$transaction(
+        (tx) => queryAnswerMinutes(tx, bounds, node),
+        { maxWait: 5_000, timeout: 12_000 },
+      );
+      return answersFromRows(bounds, rows, note, node);
     }
     if (series === "af-delay") {
-      const rows = await prisma.$transaction((tx) => queryDelayMinutes(tx, bounds), {
-        maxWait: 5_000,
-        timeout: 12_000,
-      });
-      return delaysFromRows(bounds, rows, note);
+      const rows = await prisma.$transaction(
+        (tx) => queryDelayMinutes(tx, bounds, node),
+        {
+          maxWait: 5_000,
+          timeout: 12_000,
+        },
+      );
+      return delaysFromRows(bounds, rows, note, node);
     }
     const rows = await prisma.$transaction((tx) => queryCallMinutes(tx, bounds, series), {
       maxWait: 5_000,
       timeout: 12_000,
     });
-    return seriesFromRows(bounds, series, rows);
+    return seriesFromRows(bounds, series, rows, node);
   } catch (error) {
     console.error(
       "[dashboard-calls]",
       error instanceof Error ? error.message : "query failed",
     );
-    return unavailableCalls(series);
+    return unavailableCalls(series, node);
   }
 }
 
@@ -225,9 +261,10 @@ async function queryErrorMinutes(
 async function queryTimeoutMinutes(
   tx: Prisma.TransactionClient,
   bounds: UtcCallWindow,
+  node: string | null,
 ): Promise<ErrorMinuteRow[]> {
   await tx.$executeRaw`SELECT set_config('statement_timeout', ${STATEMENT_TIMEOUT}, true)`;
-  return tx.$queryRaw<ErrorMinuteRow[]>(timeoutMinutesSql(bounds));
+  return tx.$queryRaw<ErrorMinuteRow[]>(timeoutMinutesSql(bounds, node));
 }
 
 type AnswerMinuteRow = {
@@ -240,9 +277,10 @@ type AnswerMinuteRow = {
 async function queryAnswerMinutes(
   tx: Prisma.TransactionClient,
   bounds: UtcCallWindow,
+  node: string | null,
 ): Promise<AnswerMinuteRow[]> {
   await tx.$executeRaw`SELECT set_config('statement_timeout', ${STATEMENT_TIMEOUT}, true)`;
-  return tx.$queryRaw<AnswerMinuteRow[]>(answerMinutesSql(bounds));
+  return tx.$queryRaw<AnswerMinuteRow[]>(answerMinutesSql(bounds, node));
 }
 
 type DelayMinuteRow = {
@@ -255,18 +293,20 @@ type DelayMinuteRow = {
 async function queryDelayMinutes(
   tx: Prisma.TransactionClient,
   bounds: UtcCallWindow,
+  node: string | null,
 ): Promise<DelayMinuteRow[]> {
   await tx.$executeRaw`SELECT set_config('statement_timeout', ${STATEMENT_TIMEOUT}, true)`;
-  return tx.$queryRaw<DelayMinuteRow[]>(delayMinutesSql(bounds));
+  return tx.$queryRaw<DelayMinuteRow[]>(delayMinutesSql(bounds, node));
 }
 
 function seriesFromRows(
   bounds: UtcCallWindow,
   series: ConcurrencySeriesId,
   rows: CallSeriesRow[],
+  node: string | null,
 ): DashboardCalls {
   const row = rows[0];
-  if (!row) return unavailableCalls(series);
+  if (!row) return unavailableCalls(series, node);
   const dayOrigin = Math.floor(bounds.dayStart.getTime() / 60_000);
   const recentOrigin = Math.floor(bounds.recentStart.getTime() / 60_000);
   const minutes = buildSeries(
@@ -281,10 +321,11 @@ function seriesFromRows(
     asInt(row.recent_carry),
     row.recent_minutes,
   );
-  if (!minutes || !recentMinutes) return unavailableCalls(series);
+  if (!minutes || !recentMinutes) return unavailableCalls(series, node);
   return {
     status: "ready",
     series,
+    node,
     day: bounds.day,
     minutes,
     peak: seriesPeak(minutes),
@@ -300,6 +341,7 @@ function countsFromRows(
   series: "errors" | "af-timeout",
   bounds: UtcCallWindow,
   rows: ErrorMinuteRow[],
+  node: string | null,
 ): DashboardCalls {
   const dayOrigin = Math.floor(bounds.dayStart.getTime() / 60_000);
   const recentOrigin = Math.floor(bounds.recentStart.getTime() / 60_000);
@@ -310,7 +352,7 @@ function countsFromRows(
     const dayCount = asIntOrNull(row.day_n);
     const recentCount = asIntOrNull(row.recent_n);
     if (minuteKey == null || dayCount == null || recentCount == null) {
-      return unavailableCalls(series);
+      return unavailableCalls(series, node);
     }
     if (dayCount > 0) dayEvents.push({ minute: minuteKey - dayOrigin, count: dayCount });
     if (recentCount > 0) {
@@ -322,6 +364,7 @@ function countsFromRows(
   return {
     status: "ready",
     series,
+    node,
     day: bounds.day,
     minutes,
     peak: seriesPeak(minutes),
@@ -337,6 +380,7 @@ function answersFromRows(
   bounds: UtcCallWindow,
   rows: AnswerMinuteRow[],
   note: string | null,
+  node: string | null,
 ): DashboardCalls {
   const dayOrigin = Math.floor(bounds.dayStart.getTime() / 60_000);
   const recentOrigin = Math.floor(bounds.recentStart.getTime() / 60_000);
@@ -352,7 +396,7 @@ function answersFromRows(
       dayCount == null ||
       recentCount == null
     ) {
-      return unavailableCalls("af-answers");
+      return unavailableCalls("af-answers", node);
     }
     if (dayCount > 0) {
       dayRows.push({
@@ -375,6 +419,7 @@ function answersFromRows(
     buildAnswerLines(bounds.minuteCount, dayRows),
     buildAnswerLines(TWO_HOUR_MINUTES, recentRows),
     note,
+    node,
   );
 }
 
@@ -382,6 +427,7 @@ function delaysFromRows(
   bounds: UtcCallWindow,
   rows: DelayMinuteRow[],
   note: string | null,
+  node: string | null,
 ): DashboardCalls {
   const dayOrigin = Math.floor(bounds.dayStart.getTime() / 60_000);
   const recentOrigin = Math.floor(bounds.recentStart.getTime() / 60_000);
@@ -390,13 +436,13 @@ function delaysFromRows(
   for (const row of rows) {
     const minuteKey = asIntOrNull(row.minute_key);
     if (row.line !== "dev" && row.line !== "prod" && row.line !== "parking") {
-      return unavailableCalls("af-delay");
+      return unavailableCalls("af-delay", node);
     }
-    if (minuteKey == null) return unavailableCalls("af-delay");
+    if (minuteKey == null) return unavailableCalls("af-delay", node);
     const dayMean = optionalInt(row.day_mean);
     const recentMean = optionalInt(row.recent_mean);
     if (dayMean === undefined || recentMean === undefined)
-      return unavailableCalls("af-delay");
+      return unavailableCalls("af-delay", node);
     if (dayMean != null) {
       dayRows.push({ line: row.line, minute: minuteKey - dayOrigin, mean: dayMean });
     }
@@ -414,6 +460,7 @@ function delaysFromRows(
     buildDelayLines(bounds.minuteCount, dayRows),
     buildDelayLines(TWO_HOUR_MINUTES, recentRows),
     note,
+    node,
   );
 }
 
@@ -423,12 +470,14 @@ function linedCalls(
   lines: DashboardChartLine[],
   recentLines: DashboardChartLine[],
   note: string | null,
+  node: string | null,
 ): DashboardCalls {
   const minutes = envelopeMinutes(lines, bounds.minuteCount);
   const recentMinutes = envelopeMinutes(recentLines, TWO_HOUR_MINUTES);
   return {
     status: "ready",
     series,
+    node,
     day: bounds.day,
     minutes,
     peak: linesPeak(lines),

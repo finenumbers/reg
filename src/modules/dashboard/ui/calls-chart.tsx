@@ -39,7 +39,13 @@ type XLabel = {
   style: CSSProperties;
 };
 
-export function CallsChart({ series }: { series: DashboardSeriesId }) {
+export function CallsChart({
+  series,
+  node,
+}: {
+  series: DashboardSeriesId;
+  node: string | null;
+}) {
   const [body, setBody] = useState<DashboardCalls | null>(null);
 
   useEffect(() => {
@@ -51,17 +57,36 @@ export function CallsChart({ series }: { series: DashboardSeriesId }) {
       if (loading || document.visibilityState === "hidden") return;
       loading = true;
       try {
-        const response = await fetch(
-          `/api/dashboard/calls?series=${encodeURIComponent(series)}`,
-          { cache: "no-store" },
-        );
-        if (!response.ok) throw new Error(String(response.status));
+        const params = new URLSearchParams({ series });
+        if (node) params.set("node", node);
+        const response = await fetch(`/api/dashboard/calls?${params}`, {
+          cache: "no-store",
+        });
+        if (!response.ok) {
+          let message = UNAVAILABLE;
+          try {
+            const failed = (await response.json()) as { message?: unknown };
+            if (typeof failed.message === "string" && failed.message.trim() !== "") {
+              message = failed.message;
+            }
+          } catch {
+            message = UNAVAILABLE;
+          }
+          if (!cancelled) setBody({ status: "unavailable", series, node, message });
+          return;
+        }
         const next = (await response.json()) as DashboardCalls;
         if (cancelled) return;
-        if (next.status !== "hidden" && next.series !== series) return;
+        if (
+          next.status !== "hidden" &&
+          (next.series !== series || (next.node ?? "") !== (node ?? ""))
+        ) {
+          return;
+        }
         setBody(next);
       } catch {
-        if (!cancelled) setBody({ status: "unavailable", series, message: UNAVAILABLE });
+        if (!cancelled)
+          setBody({ status: "unavailable", series, node, message: UNAVAILABLE });
       } finally {
         loading = false;
       }
@@ -95,10 +120,14 @@ export function CallsChart({ series }: { series: DashboardSeriesId }) {
       stop();
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [series]);
+  }, [series, node]);
 
   const shown =
-    body && (body.status === "hidden" || body.series === series) ? body : null;
+    body &&
+    (body.status === "hidden" ||
+      (body.series === series && (body.node ?? "") === (node ?? "")))
+      ? body
+      : null;
   if (shown?.status === "hidden") return null;
 
   const ready = shown?.status === "ready" ? shown : null;

@@ -39,6 +39,7 @@ describe("antifraud chart sql", () => {
     expect(sql.text).toContain("make_timestamptz");
     expect(sql.text).toContain("af_category IS NOT NULL");
     expect(sql.text).toContain("n.antifraud_enabled");
+    expect(sql.text).not.toContain("n.ip");
     expect(sql.values).toContain("2026-10-16 00:00:00");
     expect(sql.values).toContain("2026-10-16 21:23:00");
     expect(sql.values).toContain("Europe/Moscow");
@@ -56,6 +57,7 @@ describe("antifraud chart sql", () => {
     expect(sql.text).not.toContain("array_agg");
     expect(sql.text).toContain("af_ms_dev IS NOT NULL");
     expect(sql.text).toContain("n.antifraud_enabled");
+    expect(sql.text).not.toContain("n.ip");
     expect(sql.text).not.toContain("c.device_ip");
   });
 
@@ -66,7 +68,31 @@ describe("antifraud chart sql", () => {
     expect(sql.text).toContain("logged_at IS NOT NULL");
     expect(sql.text).not.toContain("smg_cdr_records");
     expect(sql.text).not.toContain("antifraud_enabled");
+    expect(sql.text).not.toContain("src_ip");
+    expect(sql.text).not.toContain("IS NULL OR");
     expect(sql.values).toContain(afternoon.dayStart);
     expect(sql.values).toContain(afternoon.recentStart);
+  });
+
+  it("limits answers and delay to one node without putting the address in the text", () => {
+    const answers = flattenSql(answerMinutesSql(afternoon, "10.0.0.8"));
+    const delay = flattenSql(delayMinutesSql(afternoon, "10.0.0.8"));
+    expect(answers.text).toContain("n.ip");
+    expect(delay.text).toContain("n.ip");
+    expect(answers.text).not.toContain("10.0.0.8");
+    expect(delay.text).not.toContain("10.0.0.8");
+    expect(answers.text).not.toContain("IS NULL OR");
+    expect(answers.values).toContain("10.0.0.8");
+    expect(delay.values).toContain("10.0.0.8");
+  });
+
+  it("limits the parking journal to one source address after the logged_at window", () => {
+    const sql = flattenSql(timeoutMinutesSql(afternoon, "10.0.0.8"));
+    const logged = sql.text.lastIndexOf("logged_at <");
+    const source = sql.text.indexOf("src_ip");
+    expect(source).toBeGreaterThan(logged);
+    expect(sql.text).not.toContain("10.0.0.8");
+    expect(sql.text).not.toContain("IS NULL OR");
+    expect(sql.values).toContain("10.0.0.8");
   });
 });

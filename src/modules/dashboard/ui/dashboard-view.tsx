@@ -15,8 +15,10 @@ import { FILTER_TOOLBAR_TEXT } from "@/components/filter-toolbar";
 import { FitSelect } from "@/components/fit-select";
 import { LoadAgeChip } from "@/modules/traffic/ui/load-age-chip";
 import { formatElapsed } from "@/modules/traffic/load-age";
+import { ALL_ANTIFRAUD_NODES_LABEL } from "@/modules/dashboard/antifraud-nodes";
 import {
   DASHBOARD_SERIES,
+  isAntifraudChartSeries,
   parseDashboardSeries,
   type DashboardSeriesId,
 } from "@/modules/dashboard/series";
@@ -46,6 +48,7 @@ export function DashboardView() {
   const [data, setData] = useState<DashboardSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [series, setSeries] = useState<DashboardSeriesId>("phone");
+  const [node, setNode] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -61,6 +64,11 @@ export function DashboardView() {
         const body = (await response.json()) as DashboardSnapshot;
         if (!cancelled) {
           setData(body);
+          setNode((current) => {
+            if (current === "" || !Array.isArray(body.antifraudNodes)) return current;
+            if (body.antifraudNodes.some((item) => item.ip === current)) return current;
+            return "";
+          });
           setError(null);
         }
       } catch {
@@ -100,24 +108,53 @@ export function DashboardView() {
     };
   }, []);
 
+  const antifraud = isAntifraudChartSeries(series);
+  const listedNodes = data?.antifraudNodes ?? null;
+  const selectedNode =
+    node !== "" &&
+    Array.isArray(listedNodes) &&
+    !listedNodes.some((item) => item.ip === node)
+      ? ""
+      : node;
+  const chartNode = antifraud && selectedNode !== "" ? selectedNode : null;
+  const nodeOptions = [
+    { value: "", label: ALL_ANTIFRAUD_NODES_LABEL },
+    ...(listedNodes ?? []).map((item) => ({ value: item.ip, label: item.name })),
+  ];
+  if (listedNodes == null && selectedNode !== "") {
+    nodeOptions.push({ value: selectedNode, label: selectedNode });
+  }
+
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
-      <div className="flex shrink-0 items-center justify-between gap-4">
-        <h1 className="text-xl font-semibold tracking-tight [text-box:trim-start_cap_alphabetic]">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-4">
+        <h1 className="min-w-0 text-xl font-semibold tracking-tight [text-box:trim-start_cap_alphabetic]">
           Finenumbers OSS Platform
         </h1>
         {data?.calls ? (
-          <FitSelect
-            id="dashboard-call-series"
-            value={series}
-            options={SERIES_OPTIONS}
-            onChange={(value) => {
-              const next = parseDashboardSeries(value);
-              if (next === value) setSeries(next);
-            }}
-            aria-label="Вид трафика"
-            textClassName={FILTER_TOOLBAR_TEXT}
-          />
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {antifraud ? (
+              <FitSelect
+                id="dashboard-af-node"
+                value={selectedNode}
+                options={nodeOptions}
+                onChange={setNode}
+                aria-label="Узел Eltex SMG-1016M"
+                textClassName={FILTER_TOOLBAR_TEXT}
+              />
+            ) : null}
+            <FitSelect
+              id="dashboard-call-series"
+              value={series}
+              options={SERIES_OPTIONS}
+              onChange={(value) => {
+                const next = parseDashboardSeries(value);
+                if (next === value) setSeries(next);
+              }}
+              aria-label="Вид трафика"
+              textClassName={FILTER_TOOLBAR_TEXT}
+            />
+          </div>
         ) : null}
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto">
@@ -161,7 +198,7 @@ export function DashboardView() {
               </div>
             </div>
           ) : null}
-          {data?.calls ? <CallsChart series={series} /> : null}
+          {data?.calls ? <CallsChart series={series} node={chartNode} /> : null}
         </div>
       </div>
     </div>

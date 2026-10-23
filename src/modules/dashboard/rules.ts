@@ -318,7 +318,7 @@ export function buildDashboard(facts: DashboardFacts): {
 export function toDashboardSnapshot(model: {
   alerts: DashboardAlert[];
   cards: CardModel[];
-}): Omit<DashboardSnapshot, "calls"> {
+}): Omit<DashboardSnapshot, "calls" | "antifraudNodes"> {
   return {
     alerts: model.alerts,
     cards: model.cards.map((card) => ({

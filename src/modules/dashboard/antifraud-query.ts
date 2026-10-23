@@ -32,8 +32,9 @@ function zonedInstant(): Prisma.Sql {
   END`;
 }
 
-function zonedFrom(bounds: UtcCallWindow): Prisma.Sql {
+function zonedFrom(bounds: UtcCallWindow, nodeIp: string | null): Prisma.Sql {
   const window = widenedSetupBounds(bounds);
+  const nodeClause = nodeIp ? Prisma.sql`AND n.ip = ${nodeIp}` : Prisma.empty;
   return Prisma.sql`
     FROM smg_cdr_records c
     INNER JOIN smg_syslog_nodes n
@@ -44,17 +45,21 @@ function zonedFrom(bounds: UtcCallWindow): Prisma.Sql {
     WHERE c.setup_time >= ${window.start}
       AND c.setup_time < ${window.end}
       AND btrim(c.setup_time) ~ ${CDR_DATE_CIVIL_REGEX}
+      ${nodeClause}
   `;
 }
 
-export function answerMinutesSql(bounds: UtcCallWindow): Prisma.Sql {
+export function answerMinutesSql(
+  bounds: UtcCallWindow,
+  nodeIp: string | null = null,
+): Prisma.Sql {
   const scan = errorScanStart(bounds);
   return Prisma.sql`
     WITH zoned AS (
       SELECT
         c.af_category,
         ${zonedInstant()} AS instant
-      ${zonedFrom(bounds)}
+      ${zonedFrom(bounds, nodeIp)}
         AND c.af_category IS NOT NULL
     )
     SELECT
@@ -74,7 +79,10 @@ export function answerMinutesSql(bounds: UtcCallWindow): Prisma.Sql {
   `;
 }
 
-export function delayMinutesSql(bounds: UtcCallWindow): Prisma.Sql {
+export function delayMinutesSql(
+  bounds: UtcCallWindow,
+  nodeIp: string | null = null,
+): Prisma.Sql {
   const scan = errorScanStart(bounds);
   return Prisma.sql`
     WITH zoned AS (
@@ -83,7 +91,7 @@ export function delayMinutesSql(bounds: UtcCallWindow): Prisma.Sql {
         c.unique_tag_norm,
         c.radius_session_norm,
         ${zonedInstant()} AS instant
-      ${zonedFrom(bounds)}
+      ${zonedFrom(bounds, nodeIp)}
     ),
     matched AS (
       SELECT
@@ -147,8 +155,12 @@ export function delayMinutesSql(bounds: UtcCallWindow): Prisma.Sql {
   `;
 }
 
-export function timeoutMinutesSql(bounds: UtcCallWindow): Prisma.Sql {
+export function timeoutMinutesSql(
+  bounds: UtcCallWindow,
+  nodeIp: string | null = null,
+): Prisma.Sql {
   const scan = errorScanStart(bounds);
+  const nodeClause = nodeIp ? Prisma.sql`AND src_ip = ${nodeIp}` : Prisma.empty;
   return Prisma.sql`
     SELECT
       floor(extract(epoch FROM logged_at) / 60)::int AS minute_key,
@@ -162,6 +174,7 @@ export function timeoutMinutesSql(bounds: UtcCallWindow): Prisma.Sql {
     WHERE logged_at IS NOT NULL
       AND logged_at >= ${scan}
       AND logged_at < ${bounds.seriesEnd}
+      ${nodeClause}
     GROUP BY 1
   `;
 }

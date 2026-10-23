@@ -19,6 +19,18 @@ export type ConcurrencySeriesId = Exclude<
   "errors" | "af-answers" | "af-delay" | "af-timeout"
 >;
 
+export type AntifraudChartSeriesId = Extract<
+  DashboardSeriesId,
+  "af-answers" | "af-delay" | "af-timeout"
+>;
+
+/** The three dashboard charts that can be limited to one SMG node. */
+export function isAntifraudChartSeries(
+  id: DashboardSeriesId,
+): id is AntifraudChartSeriesId {
+  return id === "af-answers" || id === "af-delay" || id === "af-timeout";
+}
+
 const SERIES_IDS = new Set<string>(DASHBOARD_SERIES.map((item) => item.id));
 
 /** Missing query means the phone chart. Any other unknown value is rejected. */

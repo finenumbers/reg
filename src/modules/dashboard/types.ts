@@ -60,11 +60,21 @@ export type DashboardCard = {
   note: string | null;
 };
 
+export type DashboardAntifraudNode = {
+  ip: string;
+  name: string;
+};
+
 export type DashboardSnapshot = {
   alerts: DashboardAlert[];
   cards: DashboardCard[];
   /** The signed-in user may see the concurrent-call chart. */
   calls: boolean;
+  /**
+   * Nodes that can filter the antifraud charts.
+   * Null means the list could not be read. An empty array means none qualify.
+   */
+  antifraudNodes: DashboardAntifraudNode[] | null;
 };
 
 export type DashboardCallSeries = {
@@ -77,11 +87,18 @@ export type DashboardCallSeries = {
 
 export type DashboardCalls =
   | { status: "hidden" }
-  | { status: "vacuum"; series: DashboardSeriesId; message: string }
-  | { status: "unavailable"; series: DashboardSeriesId; message: string }
+  | { status: "vacuum"; series: DashboardSeriesId; node: string | null; message: string }
+  | {
+      status: "unavailable";
+      series: DashboardSeriesId;
+      node: string | null;
+      message: string;
+    }
   | {
       status: "ready";
       series: DashboardSeriesId;
+      /** Null is every node. An address is that syslog node. */
+      node: string | null;
       day: string;
       minutes: number[];
       peak: number;
