@@ -79,6 +79,27 @@ describe("antifraud summary paint", () => {
     expect(parts.tail).toBe("нет ответа, повторы исчерпаны, запрос 077, попытка 1");
   });
 
+  it("paints an accept whose server address was not logged", () => {
+    const text = [
+      "RADIUS: Accs-Request [out-seize]",
+      "Request ID [170] is sent",
+      "Conn[0032]: Dest set [YES]. Need activate [NO]. Time [27:25]",
+      "Request ID [170] got valid reply for accs (in 27 ms)",
+      "Request ID [170] Accs-Reply [accept]. Time [27:27]",
+    ].join("\n");
+    const line = formatServerLine(
+      summarizeExchange({ closed: true, blocks: { text, mismatch: false } }).servers[0]!,
+    );
+    const parts = splitServerSummaryLine(line);
+    expect(joined(line)).toBe(line);
+    expect(parts.server).toBe("сервер не назван");
+    expect(parts.outcome).toBe("Access-Accept");
+    expect(parts.outcomeTone).toBe("pass");
+    expect(parts.tail).toBe(", 27 мс, запрос 170");
+    expect(summaryToneClass("pass")).toBe(AF_SUMMARY_PASS_CLASS);
+    expect(AF_SUMMARY_SERVER_CLASS).toBe("font-bold text-blue-600");
+  });
+
   it("does not paint a longer word that starts with Access-Reject", () => {
     const line = "10.0.0.1 — Access-Rejecting, запрос 001";
     const parts = splitServerSummaryLine(line);

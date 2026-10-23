@@ -348,4 +348,86 @@ describe("antifraud exchange summary", () => {
     });
     expect(JSON.stringify(result)).not.toContain(SECRET);
   });
+
+  it("reads Accs-Reply Time when the gateway omitted got valid reply", () => {
+    const text = [
+      "Set RADIUS-profile [1] options.",
+      "RADIUS: Accs-Request [out-seize]",
+      `Access request ID[185]. Group[0] Server[0]: ${DEV}:1812:${SECRET}`,
+      "Request ID [185] is sent",
+      "Conn[0041]: Dest set [NO]. Need activate [NO]. Time [13:10]",
+      "Request ID [185] Accs-Reply [accept]. Time [132:131]",
+    ].join("\n");
+    expect(radiusDelayCells(text)).toEqual({
+      afDelay1Dev: "131",
+      afDelay1Prod: "",
+      afDelayParking: "",
+    });
+    expect(linesOf(true, text)).toEqual([
+      `Dev Callhose ${DEV} — Access-Accept, 131 мс, запрос 185`,
+    ]);
+    expect(JSON.stringify(radiusDelayCells(text))).not.toContain(SECRET);
+  });
+
+  it("keeps the in-ms delay when Accs-Reply Time is one millisecond higher", () => {
+    const text = [
+      "RADIUS: Accs-Request [out-seize]",
+      `Access request ID[184]. Group[0] Server[0]: ${DEV}:1812:${SECRET}`,
+      "Request ID [184] is sent",
+      "Conn[0040]: Dest set [NO]. Need activate [NO]. Time [23:20]",
+      "Request ID [184] got valid reply for accs (in 267 ms)",
+      "Request ID [184] Accs-Reply [accept]. Time [268:267]",
+    ].join("\n");
+    expect(radiusDelayCells(text).afDelay1Dev).toBe("267");
+    expect(linesOf(true, text)).toEqual([
+      `Dev Callhose ${DEV} — Access-Accept, 267 мс, запрос 184`,
+    ]);
+  });
+
+  it("names a send whose server address was not logged and leaves the delay cells empty", () => {
+    const text = [
+      "RADIUS: Accs-Request [out-seize]",
+      "Request ID [170] is sent",
+      "Conn[0032]: Dest set [YES]. Need activate [NO]. Time [27:25]",
+      "Request ID [170] got valid reply for accs (in 27 ms)",
+      "Request ID [170] Accs-Reply [accept]. Time [27:27]",
+    ].join("\n");
+    const result = summary(true, text);
+    expect(result.category).toBe(AF_CATEGORY.passed);
+    expect(result.status).toBe(AF_STATUS.firstTry);
+    expect(linesOf(true, text)).toEqual([
+      "сервер не назван — Access-Accept, 27 мс, запрос 170",
+    ]);
+    expect(radiusDelayCells(text)).toEqual({
+      afDelay1Dev: "",
+      afDelay1Prod: "",
+      afDelayParking: "",
+    });
+  });
+
+  it("keeps a measured zero taken from Accs-Reply Time", () => {
+    const text = [
+      "RADIUS: Accs-Request [antifraud]",
+      `Access request ID[001]. Group[0] Server[0]: ${DEV}:1812:${SECRET}`,
+      "Request ID [001] is sent",
+      "Request ID [001] Accs-Reply [accept]. Time [4:0]",
+    ].join("\n");
+    expect(radiusDelayCells(text).afDelay1Dev).toBe("0");
+  });
+
+  it("reads a reject delay from Accs-Reply Time", () => {
+    const text = [
+      "RADIUS: Accs-Request [out-seize]",
+      `Access request ID[240]. Group[0] Server[0]: ${DEV}:1812:${SECRET}`,
+      "Request ID [240] is sent",
+      "Request ID [240] Accs-Reply [reject]. Time [50:50]",
+      "Cause '0x0015'",
+      "Release local reason: RADIUS reject",
+    ].join("\n");
+    expect(radiusDelayCells(text).afDelay1Dev).toBe("50");
+    expect(linesOf(true, text)).toEqual([
+      `Dev Callhose ${DEV} — Access-Reject, 50 мс, вызов снят, запрос 240`,
+    ]);
+    expect(JSON.stringify(radiusDelayCells(text))).not.toContain(SECRET);
+  });
 });

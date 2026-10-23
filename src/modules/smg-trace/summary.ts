@@ -3,6 +3,8 @@ import { classifyAntifraud } from "@/modules/smg-trace/classify";
 import type { TraceBlocks } from "@/modules/smg-trace/types";
 
 /** Names the operator uses. An unknown address is shown as the address alone. */
+const UNNAMED_SERVER = "сервер не назван";
+
 const SERVER_NAMES: Record<string, string> = {
   "91.195.253.131": "Dev Callhose",
   "91.195.252.131": "Prod Callhose",
@@ -133,7 +135,8 @@ export function summarizeExchange(input: {
 }
 
 export function formatServerLine(row: ServerRow): string {
-  const who = row.name ? `${row.name} ${row.ip}` : row.ip;
+  const named = row.name ? `${row.name} ${row.ip}` : row.ip;
+  const who = named || UNNAMED_SERVER;
   const request = `запрос ${String(row.requestId).padStart(3, "0")}`;
   const attempt = row.showAttempt ? `, попытка ${row.attempt}` : "";
   return `${who} — ${row.outcome}, ${request}${attempt}`;
@@ -187,8 +190,7 @@ function readAttempts(text: string): Attempt[] {
 
     if (isSentLine(line)) {
       const id = requestIdOf(line);
-      const ip = id == null ? undefined : pendingIp.get(id);
-      if (id != null && ip) {
+      if (id != null) {
         const earlier = attempts.filter((attempt) => attempt.id === id);
         const open = earlier.at(-1);
         if (open && open.verdict === "none") open.closed = true;
@@ -200,7 +202,7 @@ function readAttempts(text: string): Attempt[] {
         attempts.push({
           id,
           attempt: earlier.length + 1,
-          ip,
+          ip: pendingIp.get(id) ?? "",
           ms: null,
           verdict: "none",
           exhausted: false,
@@ -222,6 +224,14 @@ function readAttempts(text: string): Attempt[] {
     }
     const ms = line.match(/got valid reply[\s\S]*\(in\s+(\d+)\s+ms\)/i);
     if (named && ms?.[1]) named.ms = Number(ms[1]);
+    // `(in N ms)` is the radius timer. On Accs-Reply, `Time [a:b]` repeats it
+    // as `b`. Conn `Time [a:b]` is a different clock and is not this reply.
+    const replyTime = line.match(
+      /Accs-Reply\s*\[(?:accept|reject)\][\s\S]*\bTime\s*\[(\d+):(\d+)\]/i,
+    );
+    if (named && named.ms == null && replyTime?.[2] != null) {
+      named.ms = Number(replyTime[2]);
+    }
     if (named && /Accs-Reply\s*\[accept\]/i.test(line)) named.verdict = "accept";
     if (named && /Accs-Reply\s*\[reject\]/i.test(line)) named.verdict = "reject";
     if (radiusReleaseLine(line) && !timeoutContinue(line)) {

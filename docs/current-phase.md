@@ -1,7 +1,17 @@
-# Current Phase — production (v1.179.1)
+# Current Phase — production (v1.180.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal.  
-**Date:** 2026-10-23
+**Date:** 2026-10-24
+
+## v1.180.0 — A missing radius timing line still fills the delay cell
+
+There is no migration. Do not stop `app`. Do not stop `smg-syslog`. Stored rows are not rewritten. Parser version stays 9. Syslog cards are not deleted. Stored delay arrays are not rewritten.
+
+The table, both workbooks, and the call panel read milliseconds from the card text on open. `(in N ms)` still wins. When that line is absent, the second number of `Accs-Reply ... Time [a:b]` is the delay, including `0`. `Conn ... Time [a:b]` is not a reply and does not fill a cell. A reply that already has `(in N ms)` keeps that value when `Time [a:b]` is one millisecond higher.
+
+A send logged without `Access request ... Server[n]` still appears in the summary as «сервер не назван», with the reply and its milliseconds. That row does not fill «Dev AF», «Prod AF», or «Parking». The category and the status are unchanged. The shared secret stays in the card text and stays out of the summary.
+
+«Задержка АнтиФрода» keeps the arrays written when the card was saved. A reply saved with an empty array stays off the chart. A card whose arrays are still null is filled by the existing pass, which now uses this rule. New saves write the new samples.
 
 ## v1.179.1 — The node menu does not import the database client
 
