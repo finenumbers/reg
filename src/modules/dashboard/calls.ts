@@ -34,8 +34,8 @@ import {
   type MinuteEventRow,
   type UtcCallWindow,
 } from "@/modules/dashboard/concurrency";
+import { antifraudChartNodeAllowed } from "@/modules/dashboard/antifraud-node-query";
 import {
-  antifraudChartNodeAllowed,
   dashboardCallsCacheKey,
   DASHBOARD_NODE_REJECTED,
 } from "@/modules/dashboard/antifraud-nodes";

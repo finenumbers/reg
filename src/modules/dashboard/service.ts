@@ -12,7 +12,7 @@ import { lastRtuEmptyScanAt, lastSmgEmptyScanAt } from "@/modules/jobs/scheduler
 import { hasPermission } from "@/modules/rbac/permissions";
 import { listSmgInboxFiles } from "@/modules/smg/inbox";
 import { listSmgPoisonEntries } from "@/modules/smg/poison";
-import { listAntifraudChartNodes } from "@/modules/dashboard/antifraud-nodes";
+import { listAntifraudChartNodes } from "@/modules/dashboard/antifraud-node-query";
 import {
   dashboardAntifraudEvents,
   dashboardSmgMonth,

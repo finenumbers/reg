@@ -1,7 +1,11 @@
-# Current Phase — production (v1.179.0)
+# Current Phase — production (v1.179.1)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal.  
 **Date:** 2026-10-23
+
+## v1.179.1 — The node menu does not import the database client
+
+v1.179.0 did not publish an image. The dashboard page imported the node helper that also opens Prisma, so the client build could not resolve `dns`, `fs`, `net`, or `tls`. This release keeps the node reads on the server. The screen, the queries, and the deploy rules are the v1.179.0 text below. Stop `app` before this update and start one new process only.
 
 ## v1.179.0 — Antifraud charts can show one SMG node
 

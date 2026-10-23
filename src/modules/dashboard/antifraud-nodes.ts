@@ -4,14 +4,11 @@
  * A node address never becomes SQL text.
  */
 
-import { Prisma } from "@/generated/prisma/client";
-import { prisma } from "@/lib/db";
 import { canonicalIpv4 } from "@/modules/smg-syslog/ip";
 import {
   isAntifraudChartSeries,
   type DashboardSeriesId,
 } from "@/modules/dashboard/series";
-import type { DashboardAntifraudNode } from "@/modules/dashboard/types";
 
 export const ALL_ANTIFRAUD_NODES_LABEL = "Все узлы Eltex SMG-1016M";
 export const DASHBOARD_NODE_REJECTED = "Этот узел не участвует в АнтиФроде.";
@@ -30,7 +27,7 @@ export function dashboardCallsCacheKey(series: string, nodeIp: string | null): s
   return nodeIp ? `${series}\n${nodeIp}` : series;
 }
 
-export function antifraudChartNodeWhere(): Prisma.SmgSyslogNodeWhereInput {
+export function antifraudChartNodeWhere() {
   return {
     antifraudEnabled: true,
     AND: [{ identifier: { not: null } }, { identifier: { not: "" } }],
@@ -50,20 +47,4 @@ export function parseDashboardAntifraudNode(
   const ip = canonicalIpv4(raw);
   if (!ip) return { ok: false };
   return { ok: true, ip };
-}
-
-export async function listAntifraudChartNodes(): Promise<DashboardAntifraudNode[]> {
-  return prisma.smgSyslogNode.findMany({
-    where: antifraudChartNodeWhere(),
-    select: { ip: true, name: true },
-    orderBy: { name: "asc" },
-  });
-}
-
-export async function antifraudChartNodeAllowed(ip: string): Promise<boolean> {
-  const node = await prisma.smgSyslogNode.findUnique({
-    where: { ip },
-    select: { antifraudEnabled: true, identifier: true },
-  });
-  return node != null && isAntifraudChartNode(node);
 }
