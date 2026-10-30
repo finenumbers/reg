@@ -14,6 +14,16 @@ vi.mock("@/lib/db", () => ({
   prisma: {
     $executeRaw: (...args: unknown[]) => executeRaw(...args),
     $queryRaw: (...args: unknown[]) => queryRaw(...args),
+    $transaction: async (
+      fn: (tx: {
+        $executeRaw: typeof executeRaw;
+        jobRun: { update: typeof jobRunUpdate };
+      }) => Promise<unknown>,
+    ) =>
+      fn({
+        $executeRaw: executeRaw,
+        jobRun: { update: jobRunUpdate },
+      }),
     jobRun: {
       create: (...args: unknown[]) => jobRunCreate(...args),
       update: (...args: unknown[]) => jobRunUpdate(...args),
@@ -341,6 +351,56 @@ describe("processCdrPurgeMonth resumeCalls", () => {
     expect(queryMonthCallCounts).not.toHaveBeenCalled();
     expect(clearPurgeHolds).not.toHaveBeenCalled();
     expect(getPurgeTargetMonth()).toBe("2026-08");
+  });
+
+  it("keeps continueDelete when a committed call batch is followed by a failure", async () => {
+    let batches = 0;
+    executeRaw.mockImplementation(async () => {
+      batches += 1;
+      if (batches === 1) return 3;
+      throw new Error("disk");
+    });
+    const result = await processCdrPurgeMonth({
+      trigger: "schedule",
+      month: "2026-08",
+      resumeCalls: true,
+    });
+    expect(result.status).toBe("failed");
+    expect(result.errorMessage).toBe("disk");
+    expect(jobRunUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "resume-calls" },
+        data: expect.objectContaining({
+          status: "failed",
+          phonesParsed: 3,
+          meta: expect.objectContaining({
+            continueDelete: true,
+            deletedCount: 3,
+          }),
+        }),
+      }),
+    );
+    expect(clearPurgeHolds).not.toHaveBeenCalled();
+  });
+
+  it("retries a lock timeout and then deletes the batch", async () => {
+    let batches = 0;
+    executeRaw.mockImplementation(async () => {
+      batches += 1;
+      if (batches === 1) {
+        throw Object.assign(new Error("canceling statement due to lock timeout"), {
+          code: "55P03",
+        });
+      }
+      return batches === 2 ? 2 : 0;
+    });
+    const result = await processCdrPurgeMonth({
+      trigger: "schedule",
+      month: "2026-08",
+      resumeCalls: true,
+    });
+    expect(result.status).toBe("success");
+    expect(result.phonesParsed).toBe(2);
   });
 });
 

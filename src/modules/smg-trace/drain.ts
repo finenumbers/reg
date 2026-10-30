@@ -120,7 +120,7 @@ export async function drainSmgTraces(root = syslogRoot()): Promise<void> {
       try {
         const floor = await liveFloor(deviceIp);
         const files = listTraceSourcesSince(root, deviceIp, floor);
-        await stepDevice(deviceIp, files, prismaRepository);
+        await stepDevice(deviceIp, files, prismaRepository, { root });
       } catch (error) {
         logger.warn("smg.trace.device_failed", {
           deviceIp,

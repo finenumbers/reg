@@ -22,4 +22,6 @@ export type ListNumberGeographyResult = {
   page: number;
   pageSize: number;
   refresh: NumberGeographyRefresh;
+  /** `max(lastSyncedAt)` of phone endpoints. Changes when phones.sync replaces the catalog. */
+  catalogStamp: string;
 };

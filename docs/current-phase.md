@@ -1,7 +1,17 @@
-# Current Phase — production (v1.183.0)
+# Current Phase — production (v1.184.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, number geography, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal.  
 **Date:** 2026-10-31
+
+## v1.184.0 — A bad clock no longer stops the journal
+
+There is no migration. Stop `app` before the update and start one new process only. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. Parser version stays 9. Syslog cards are not deleted. The Parking byte cursor does not move.
+
+A stored `cdr_date` or SMG `setup_time` that matches the digit shape but is not a real clock (`2026-02-31`, hour `25`, 29 February in a common year) no longer aborts `syncCdrAtFromCdrDate` or the antifraud charts. That row keeps the `cdrAt` it already has. The file importer still accepts the line, so a dump is not left in the FTP inbox as poison. Fractional seconds still sync.
+
+A CDR month delete writes the deleted count and `continueDelete` in the same transaction as each call batch. A lock timeout retries that batch. A failure after a committed batch keeps the import hold until the next start finishes the month. A quiet restart, and any purge that failed before its first committed batch, still deletes nothing. Older `job_runs` are not marked for continuation. `cdr.tariff.rate` is not blocked for the whole pass.
+
+A syslog slot is closed only when both `.log` and `.log.gz` are absent. A read error leaves the checkpoint where it is. The one-time Parking journal wipe deletes `radius_calls` and writes its done flag in one statement. «География номеров» keeps asking the rest of the open page after one PSTN error, and a success does not lift the 60-second pause. A further page is replaced when `phones.sync` changes the catalog. `POST /api/auth/sign-in/email` is rejected. Username sign-in is unchanged. Phone and gateway pages break name ties by id. Exports do not.
 
 ## v1.183.0 — Phone suppliers, geography export, blank capacity as Премиум
 

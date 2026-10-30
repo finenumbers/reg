@@ -37,6 +37,7 @@ describe("antifraud chart sql", () => {
     expect(sql.text).toContain("floor(extract(epoch FROM instant) / 60)");
     expect(sql.text).toContain("lower(btrim(c.device_sign))");
     expect(sql.text).toContain("make_timestamptz");
+    expect(sql.text).toContain("THEN 29 ELSE 28");
     expect(sql.text).toContain("af_category IS NOT NULL");
     expect(sql.text).toContain("n.antifraud_enabled");
     expect(sql.text).not.toContain("n.ip");

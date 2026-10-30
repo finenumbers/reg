@@ -1,5 +1,6 @@
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
+import { civilTimestamptzSql } from "@/modules/traffic/civil-timestamptz";
 import { CDR_DATE_CIVIL_REGEX } from "@/modules/traffic/cdr-date-parts";
 
 export { CDR_DATE_CIVIL_REGEX };
@@ -15,19 +16,12 @@ export function buildSyncCdrAtSql(): Prisma.Sql {
     FROM (
       SELECT
         id,
-        make_timestamptz(
-          substring(cdr_date from 1 for 4)::int,
-          substring(cdr_date from 6 for 2)::int,
-          substring(cdr_date from 9 for 2)::int,
-          substring(cdr_date from 12 for 2)::int,
-          substring(cdr_date from 15 for 2)::int,
-          substring(cdr_date from 18 for 2)::double precision,
-          'UTC'
-        ) AS parsed
+        ${civilTimestamptzSql(Prisma.sql`cdr_date`, Prisma.sql`'UTC'`)} AS parsed
       FROM cdr_records
       WHERE cdr_date ~ ${CDR_DATE_CIVIL_REGEX}
     ) AS v
     WHERE c.id = v.id
+      AND v.parsed IS NOT NULL
       AND c."cdrAt" IS DISTINCT FROM v.parsed
   `;
 }

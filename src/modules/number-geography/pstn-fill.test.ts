@@ -224,6 +224,47 @@ describe("fillNumberGeographyPstn", () => {
     expect(lookup).toHaveBeenCalledTimes(3);
   });
 
+  it("keeps the network pause when a lookup already in flight then succeeds", async () => {
+    resetPstnFillForTests({ concurrency: 4 });
+    let failures = 0;
+    let releaseSuccess: () => void = () => {};
+    const successGate = new Promise<void>((resolve) => {
+      releaseSuccess = resolve;
+    });
+    const lookup = vi.fn(async (phone: string) => {
+      if (phone === "9000000004") {
+        await successGate;
+        return found;
+      }
+      failures += 1;
+      throw new PstnLookupError("TIMEOUT", "slow");
+    });
+    const pending = fillNumberGeographyPstn(
+      ["a", "b", "c", "d", "e"],
+      deps({
+        lookup,
+        loadEndpoints: async () => [
+          { id: "a", number: "79000000001" },
+          { id: "b", number: "79000000002" },
+          { id: "c", number: "79000000003" },
+          { id: "d", number: "79000000004" },
+          { id: "e", number: "79000000005" },
+        ],
+        loadLabels: async (ids) =>
+          ids.map((id) => ({
+            id,
+            operator: found.operator ?? "",
+            geography: found.garTerritory ?? "",
+          })),
+      }),
+    );
+    await vi.waitFor(() => expect(failures).toBe(3));
+    releaseSuccess();
+    await pending;
+    expect(lookup).toHaveBeenCalledTimes(4);
+    expect(lookup).not.toHaveBeenCalledWith("9000000005", creds);
+  });
+
   it("lets a success clear the timeout streak", async () => {
     const lookup = vi
       .fn()

@@ -131,7 +131,6 @@ async function runLookup(
     const fields = await deps.lookup(phone, creds);
     await deps.upsert(phone, fields);
     consecutiveNetFailures = 0;
-    netBlockedUntil = 0;
     return "filled";
   } catch (error) {
     if (error instanceof PstnLookupError && error.code === "RATE_LIMITED") {
@@ -143,7 +142,6 @@ async function runLookup(
             const fields = await deps.lookup(phone, creds);
             await deps.upsert(phone, fields);
             consecutiveNetFailures = 0;
-            netBlockedUntil = 0;
             return "filled";
           } catch (retryError) {
             noteFailure(phone, retryError);

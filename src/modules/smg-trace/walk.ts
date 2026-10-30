@@ -42,6 +42,43 @@ export function isLiveFileKey(fileKey: string): boolean {
   return fileKey.startsWith("@");
 }
 
+const TRACE_SLOT = /^(00|10|20|30|40|50)$/;
+
+export type TailPresence = "present" | "absent" | "unreadable";
+
+/**
+ * Direct stat of the open slot. ENOENT on both forms means the file is gone.
+ * Any other error means the listing cannot be trusted and the slot stays open.
+ */
+export function tailPresence(root: string, fileKey: string): TailPresence {
+  const parts = fileKey.split("/");
+  if (parts.length !== 6) return "unreadable";
+  if (parts.some((part) => part.length === 0 || part === "." || part === "..")) {
+    return "unreadable";
+  }
+  const slot = parts[5]!;
+  if (!TRACE_SLOT.test(slot)) return "unreadable";
+  const dir = path.join(root, ...parts.slice(0, 5));
+  let missing = 0;
+  for (const suffix of [".log", ".log.gz"] as const) {
+    try {
+      const stat = statSync(path.join(dir, `${slot}${suffix}`));
+      if (stat.isFile()) return "present";
+    } catch (error) {
+      const code =
+        error && typeof error === "object" && "code" in error
+          ? (error as { code?: unknown }).code
+          : undefined;
+      if (code === "ENOENT") {
+        missing += 1;
+        continue;
+      }
+      return "unreadable";
+    }
+  }
+  return missing === 2 ? "absent" : "unreadable";
+}
+
 export type TraceRepository = {
   /** Keys, sizes and assembler marks. Never the JSON state. */
   loadCheckpointMeta(deviceIp: string): Promise<TraceCheckpointMeta[]>;
@@ -171,6 +208,7 @@ export async function stepDevice(
   deviceIp: string,
   files: readonly TraceSource[],
   repo: TraceRepository,
+  opts?: { root?: string },
 ): Promise<boolean> {
   const saved = await repo.loadCheckpointMeta(deviceIp);
   const foreign = saved.some((row) => row.version !== SMG_TRACE_PARSER_VERSION);
@@ -210,6 +248,20 @@ export async function stepDevice(
     return false;
   }
   if (job.kind === "missing") {
+    if (opts?.root) {
+      const presence = tailPresence(opts.root, job.fileKey);
+      if (presence !== "absent") {
+        logger.warn(
+          presence === "present" ? "smg.trace.slot_still_there" : "smg.trace.slot_unreadable",
+          {
+            deviceIp,
+            fileKey: job.fileKey,
+            presence,
+          },
+        );
+        return false;
+      }
+    }
     logger.warn("smg.trace.slot_missing", { deviceIp, fileKey: job.fileKey });
     finishKey(mark, job.fileKey);
     await repo.saveCheckpoint(deviceIp, LIVE_FILE_KEY, 0, mark);

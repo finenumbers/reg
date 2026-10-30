@@ -83,6 +83,13 @@ function facetsFromGroups(
   return aggregateFacetItems(values(), opts);
 }
 
+async function readCatalogStamp(): Promise<string> {
+  const row = await prisma.phoneEndpoint.aggregate({
+    _max: { lastSyncedAt: true },
+  });
+  return row._max.lastSyncedAt?.toISOString() ?? "";
+}
+
 async function readRefresh(): Promise<NumberGeographyRefresh> {
   const row = await prisma.appSetting.findUnique({
     where: { id: 1 },
@@ -110,13 +117,14 @@ export async function listNumberGeography(opts: {
   const page = clampPage(opts.page ?? 1);
   const pageSize = clampPageSize(opts.pageSize);
   const filters = opts.filters ?? {};
-  const refresh = await readRefresh();
+  const [refresh, catalogStamp] = await Promise.all([readRefresh(), readCatalogStamp()]);
   const empty: ListNumberGeographyResult = {
     items: [],
     total: 0,
     page,
     pageSize,
     refresh,
+    catalogStamp,
   };
   const projection = listProjection(filters);
   if (projection === "empty") return empty;
@@ -134,6 +142,7 @@ export async function listNumberGeography(opts: {
       page,
       pageSize,
       refresh,
+      catalogStamp,
     };
   }
 
@@ -149,6 +158,7 @@ export async function listNumberGeography(opts: {
     page,
     pageSize,
     refresh,
+    catalogStamp,
   };
 }
 

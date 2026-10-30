@@ -65,6 +65,20 @@ import {
 } from "@/modules/traffic/purge/target";
 
 const BATCH_PAUSE_MS = 50;
+const CALL_LOCK_ATTEMPTS = 30;
+const CALL_LOCK_PAUSE_MS = 1000;
+
+export function isPurgeLockTimeout(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const record = error as {
+    code?: unknown;
+    message?: unknown;
+    meta?: { code?: unknown };
+  };
+  if (record.code === "55P03" || record.meta?.code === "55P03") return true;
+  const message = typeof record.message === "string" ? record.message : "";
+  return message.includes("55P03") || /lock timeout/i.test(message);
+}
 
 export type CdrPurgeProcessorInput = {
   trigger: "schedule" | "manual" | "test";
@@ -126,6 +140,60 @@ async function publishPurgeProgress(
       },
     },
   });
+}
+
+/**
+ * One committed CDR delete and the continuation mark. A lock timeout retries
+ * the same batch. A rollback leaves neither the rows nor the mark.
+ */
+async function deleteCallBatch(
+  jobRunId: string,
+  month: string,
+  year: number,
+  monthNumber: number,
+  deleted: number,
+  stages: PurgeStagesMeta,
+): Promise<number> {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await prisma.$transaction(
+        async (tx) => {
+          const batch = rawCount(
+            await tx.$executeRaw(
+              purgeDeleteBatchSql(year, monthNumber, CDR_PURGE_BATCH_SIZE),
+            ),
+          );
+          if (batch <= 0) return 0;
+          const done = deleted + batch;
+          const nextStages: PurgeStagesMeta = {
+            ...stages,
+            calls: { done, total: stages.calls.total },
+          };
+          await tx.jobRun.update({
+            where: { id: jobRunId },
+            data: {
+              phonesParsed: done,
+              meta: {
+                month,
+                phase: "calls",
+                targetCount: stages.calls.total,
+                deletedCount: done,
+                deletedSmg: stages.smg.done,
+                stages: nextStages,
+                continueDelete: true,
+              },
+            },
+          });
+          return batch;
+        },
+        { maxWait: 5_000, timeout: 20_000 },
+      );
+    } catch (error) {
+      if (attempt >= CALL_LOCK_ATTEMPTS || !isPurgeLockTimeout(error)) throw error;
+      logger.warn("cdr.purge.month.lock_timeout", { jobRunId, month, attempt });
+      await sleep(CALL_LOCK_PAUSE_MS);
+    }
+  }
 }
 
 async function countMonthHistory(
@@ -633,16 +701,11 @@ export async function processCdrPurgeMonth(
       if (currentUtcMonth().key === target.key) {
         throw new Error("Текущий месяц удалить нельзя");
       }
-      const batch = rawCount(
-        await prisma.$executeRaw(
-          purgeDeleteBatchSql(target.year, target.month, CDR_PURGE_BATCH_SIZE),
-        ),
-      );
+      const batch = await deleteCallBatch(jobRun.id, target.key, target.year, target.month, deleted, stages);
       if (batch <= 0) break;
       notePurgeBatchCommitted(batch);
       deleted += batch;
       stages.calls.done = deleted;
-      await publishPurgeProgress(jobRun.id, target.key, "calls", stages);
       await sleep(BATCH_PAUSE_MS);
     }
 
@@ -778,6 +841,9 @@ async function finish(
         deletedSyslog,
         deletedJobs: result.deletedJobs,
         deletedAudit: result.deletedAudit,
+        ...(result.status === "failed" && result.deleted > 0 && input.historyOnly !== true
+          ? { continueDelete: true }
+          : {}),
       },
     },
   });

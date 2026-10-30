@@ -22,7 +22,7 @@ import {
   fetchNumberGeographyPstnFill,
 } from "@/modules/number-geography/api-client";
 import { NUMBER_GEOGRAPHY_HEADERS } from "@/modules/number-geography/columns";
-import { refreshIntervalMs } from "@/modules/number-geography/paging";
+import { geographyAppendAllowed, refreshIntervalMs } from "@/modules/number-geography/paging";
 import { PSTN_FILL_MAX_IDS } from "@/modules/number-geography/pstn-fill-contract";
 import {
   blankPstnRowIds,
@@ -66,6 +66,7 @@ export function NumberGeographyView({ initial, canRequest }: Props) {
   const itemsLenRef = useRef(items.length);
   const openColumnRef = useRef(openColumn);
   const refreshRef = useRef<NumberGeographyRefresh>(initial.refresh);
+  const catalogStampRef = useRef(initial.catalogStamp ?? "");
   const armRef = useRef<() => void>(() => {});
   const loadListRef = useRef<
     (opts: {
@@ -127,6 +128,18 @@ export function NumberGeographyView({ initial, canRequest }: Props) {
         setListError(result.message);
         return;
       }
+
+      const nextStamp = result.data.catalogStamp ?? "";
+      if (!replace && !geographyAppendAllowed(catalogStampRef.current, nextStamp)) {
+        await loadList({
+          filters: nextFilters,
+          page: 1,
+          replace: true,
+          soft,
+        });
+        return;
+      }
+      catalogStampRef.current = nextStamp;
 
       const prevRefresh = refreshRef.current;
       const nextRefresh = result.data.refresh;
@@ -196,10 +209,8 @@ export function NumberGeographyView({ initial, canRequest }: Props) {
         }
         const updates: { id: string; operator: string; geography: string }[] =
           [];
-        let stop = false;
         for (const item of result.data.items) {
           if (item.status === "invalid") fillInvalid.current.add(item.id);
-          if (item.status === "error") stop = true;
           if (
             (item.status === "filled" || item.status === "cached") &&
             item.operator != null &&
@@ -214,11 +225,6 @@ export function NumberGeographyView({ initial, canRequest }: Props) {
         }
         if (generation === fillGeneration.current) {
           setItems((prev) => mergePstnLabels(prev, updates));
-        }
-        if (stop) {
-          fillQueue.current = [];
-          fillQueued.current = new Set();
-          return;
         }
       }
     } finally {

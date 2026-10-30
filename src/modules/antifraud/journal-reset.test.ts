@@ -28,17 +28,18 @@ describe("resetRadiusJournalOnce", () => {
     upsert.mockResolvedValue({});
   });
 
-  it("deletes the journal once and writes the flag only after that statement", async () => {
+  it("deletes the journal and writes the flag in one statement", async () => {
     findUnique.mockResolvedValue(null);
     await expect(resetRadiusJournalOnce()).resolves.toBe(true);
     expect(executeRaw).toHaveBeenCalledTimes(1);
     const text = sqlText(executeRaw.mock.calls[0]?.[0]);
-    expect(text).toBe("DELETE FROM radius_calls");
+    expect(text).toContain("DELETE FROM radius_calls");
+    expect(text).toContain("INSERT INTO smg_trace_checkpoints");
+    expect(text).toContain("ON CONFLICT (device_ip, file_key)");
+    expect(text).toContain('{"done":true}');
     expect(text).not.toContain("radius_ingest");
     expect(text).not.toContain("LIMIT");
-    const deleteOrder = executeRaw.mock.invocationCallOrder[0] ?? 0;
-    const flagOrder = upsert.mock.invocationCallOrder[0] ?? 0;
-    expect(flagOrder).toBeGreaterThan(deleteOrder);
+    expect(upsert).not.toHaveBeenCalled();
   });
 
   it("does not delete again when the flag is already done, even from an older version", async () => {

@@ -10,6 +10,9 @@ describe("syncCdrAt SQL contract", () => {
 
   it("computes civil UTC once and skips already-aligned rows", () => {
     expect(text).toContain("make_timestamptz");
+    expect(text).toContain("THEN 29 ELSE 28");
+    expect(text).toContain("ELSE NULL");
+    expect(text).toContain("v.parsed IS NOT NULL");
     expect(text).toContain("'UTC'");
     expect(text).toContain("IS DISTINCT FROM");
     expect(text).toContain("v.parsed");

@@ -6,6 +6,7 @@ import { createAuthMiddleware, APIError } from "better-auth/api";
 import { prisma } from "@/lib/db";
 import { loginRateLimiter } from "@/lib/rate-limit";
 import { trustedClientIp } from "@/lib/request-ip";
+import { rejectsEmailSignIn } from "@/modules/auth/email-sign-in";
 import { AUDIT_ACTIONS, auditService } from "@/modules/audit";
 
 /**
@@ -58,6 +59,11 @@ export const auth = betterAuth({
   plugins: [username(), nextCookies()],
   hooks: {
     before: createAuthMiddleware(async (ctx) => {
+      if (rejectsEmailSignIn(ctx.path)) {
+        throw new APIError("FORBIDDEN", {
+          message: "Sign in with username.",
+        });
+      }
       if (ctx.path === "/sign-in/username") {
         const ip = trustedClientIp(ctx.headers) ?? "unknown";
         const limited = loginRateLimiter.check(`login:${ip}`);

@@ -15,6 +15,14 @@ export function clampPageSize(value: number | undefined): number {
   );
 }
 
+/**
+ * A further page may be appended only while the catalog snapshot is the same.
+ * `phones.sync` replaces every endpoint id.
+ */
+export function geographyAppendAllowed(loadedStamp: string, nextStamp: string): boolean {
+  return loadedStamp === nextStamp;
+}
+
 /** Client timer floor. Matches the settings schema. */
 export function refreshIntervalMs(intervalSec: number): number {
   const sec = Number.isFinite(intervalSec) ? intervalSec : 60;

@@ -8,18 +8,11 @@ import { Prisma } from "@/generated/prisma/client";
 import { errorScanStart } from "@/modules/dashboard/call-query";
 import { widenedSetupBounds } from "@/modules/dashboard/antifraud-series";
 import type { UtcCallWindow } from "@/modules/dashboard/concurrency";
+import { civilTimestamptzSql } from "@/modules/traffic/civil-timestamptz";
 import { CDR_DATE_CIVIL_REGEX } from "@/modules/traffic/cdr-date-parts";
 
 function atZone(zone: string): Prisma.Sql {
-  return Prisma.sql`make_timestamptz(
-    substring(btrim(c.setup_time) from 1 for 4)::int,
-    substring(btrim(c.setup_time) from 6 for 2)::int,
-    substring(btrim(c.setup_time) from 9 for 2)::int,
-    substring(btrim(c.setup_time) from 12 for 2)::int,
-    substring(btrim(c.setup_time) from 15 for 2)::int,
-    substring(btrim(c.setup_time) from 18 for 2)::int,
-    ${zone}
-  )`;
+  return civilTimestamptzSql(Prisma.sql`btrim(c.setup_time)`, Prisma.sql`${zone}`);
 }
 
 function zonedInstant(): Prisma.Sql {
