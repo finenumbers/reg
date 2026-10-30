@@ -63,6 +63,10 @@ export function SettingsForm({ initial, parkingKey }: Props) {
   const [cdrSidesRefreshIntervalSec, setCdrSidesRefreshIntervalSec] = useState(
     String(initial.cdrSidesRefreshIntervalSec),
   );
+  const [numberGeographyRefreshEnabled, setNumberGeographyRefreshEnabled] =
+    useState(initial.numberGeographyRefreshEnabled);
+  const [numberGeographyRefreshIntervalSec, setNumberGeographyRefreshIntervalSec] =
+    useState(String(initial.numberGeographyRefreshIntervalSec));
   const [artifactRetentionDays, setArtifactRetentionDays] = useState(
     String(initial.artifactRetentionDays),
   );
@@ -161,6 +165,10 @@ export function SettingsForm({ initial, parkingKey }: Props) {
     setExportSyncIntervalSec(String(next.exportSyncIntervalSec));
     setCdrSidesRefreshEnabled(next.cdrSidesRefreshEnabled);
     setCdrSidesRefreshIntervalSec(String(next.cdrSidesRefreshIntervalSec));
+    setNumberGeographyRefreshEnabled(next.numberGeographyRefreshEnabled);
+    setNumberGeographyRefreshIntervalSec(
+      String(next.numberGeographyRefreshIntervalSec),
+    );
     setArtifactRetentionDays(String(next.artifactRetentionDays));
     setArtifactKeepLastRuns(String(next.artifactKeepLastRuns));
     setGeoipBaseUrl(next.geoipBaseUrl ?? DEFAULT_GEOIP_BASE_URL);
@@ -186,6 +194,8 @@ export function SettingsForm({ initial, parkingKey }: Props) {
       exportSyncIntervalSec: Number(exportSyncIntervalSec),
       cdrSidesRefreshEnabled,
       cdrSidesRefreshIntervalSec: Number(cdrSidesRefreshIntervalSec),
+      numberGeographyRefreshEnabled,
+      numberGeographyRefreshIntervalSec: Number(numberGeographyRefreshIntervalSec),
       artifactRetentionDays: Number(artifactRetentionDays),
       artifactKeepLastRuns: Number(artifactKeepLastRuns),
       displayTimezone,
@@ -1033,6 +1043,38 @@ export function SettingsForm({ initial, parkingKey }: Props) {
               onChange={(e) => setCdrSidesRefreshIntervalSec(e.target.value)}
             />
           </div>
+          <div className="flex items-center gap-3">
+            <input
+              id="number-geography-refresh-enabled"
+              type="checkbox"
+              className="size-4 rounded border"
+              checked={numberGeographyRefreshEnabled}
+              onChange={(e) =>
+                setNumberGeographyRefreshEnabled(e.target.checked)
+              }
+            />
+            <Label htmlFor="number-geography-refresh-enabled">
+              Автообновление географии номеров
+            </Label>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Пока раздел открыт, таблица перечитывает каталог. Номера, тариф и
+            кэш PSTN по-прежнему обновляются своими расписаниями.
+          </p>
+          <div className="space-y-2">
+            <Label htmlFor="number-geography-refresh-interval">
+              Интервал автообновления географии номеров (секунды)
+            </Label>
+            <Input
+              id="number-geography-refresh-interval"
+              type="number"
+              min={30}
+              value={numberGeographyRefreshIntervalSec}
+              onChange={(e) =>
+                setNumberGeographyRefreshIntervalSec(e.target.value)
+              }
+            />
+          </div>
           <div className="space-y-2">
             <Label htmlFor="retention">Хранение артефактов (дни)</Label>
             <Input
@@ -1072,6 +1114,9 @@ export function SettingsForm({ initial, parkingKey }: Props) {
             {" · "}
             Описания в журнале: {cdrSidesRefreshEnabled ? "вкл" : "выкл"} /{" "}
             {cdrSidesRefreshIntervalSec} с
+            {" · "}
+            География номеров: {numberGeographyRefreshEnabled ? "вкл" : "выкл"} /{" "}
+            {numberGeographyRefreshIntervalSec} с
           </p>
           <Button type="button" disabled={pending} onClick={onSaveSettings}>
             Сохранить настройки

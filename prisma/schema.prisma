@@ -103,6 +103,9 @@ model AppSetting {
   /// Backfill cdr_records.side_* from the phones catalog (diff-only).
   cdrSidesRefreshEnabled     Boolean @default(true)
   cdrSidesRefreshIntervalSec Int     @default(300)
+  /// Browser reload of «География номеров». Not a scheduler job.
+  numberGeographyRefreshEnabled     Boolean @default(true)
+  numberGeographyRefreshIntervalSec Int     @default(60)
   /// Last successfully applied phone → Описание map (JSON object).
   cdrSidesRefreshMap         Json?
   /// phone_import_state.lastSyncedAt used when the map was saved.

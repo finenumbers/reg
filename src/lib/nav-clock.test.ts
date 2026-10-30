@@ -28,6 +28,7 @@ describe("navClockSource", () => {
     expect(navClockSource("/settings")).toBeNull();
     expect(navClockSource("/phones")).toBeNull();
     expect(navClockSource("/groups")).toBeNull();
+    expect(navClockSource("/number-geography")).toBeNull();
   });
 });
 

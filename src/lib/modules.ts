@@ -12,6 +12,7 @@ export type FeatureModuleId =
   | "registrations"
   | "phones"
   | "groups"
+  | "number-geography"
   | "raw"
   | "traffic"
   | "geography"
@@ -69,6 +70,13 @@ export const FEATURE_MODULES: FeatureModuleDefinition[] = [
     title: "Входящие группы",
     description: "Справочник routing groups с softswitch (только просмотр)",
     href: "/groups",
+    navPermission: "phones:read",
+  },
+  {
+    id: "number-geography",
+    title: "География номеров",
+    description: "Город, оператор и территория оконечных номеров",
+    href: "/number-geography",
     navPermission: "phones:read",
   },
   {

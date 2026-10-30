@@ -51,6 +51,13 @@ export const settingsUpdateSchema = z.object({
   exportSyncIntervalSec: z.number().int().min(30).max(86400).optional(),
   cdrSidesRefreshEnabled: z.boolean().optional(),
   cdrSidesRefreshIntervalSec: z.number().int().min(30).max(86400).optional(),
+  numberGeographyRefreshEnabled: z.boolean().optional(),
+  numberGeographyRefreshIntervalSec: z
+    .number()
+    .int()
+    .min(30)
+    .max(86400)
+    .optional(),
   artifactRetentionDays: z.number().int().min(1).max(365).optional(),
   artifactKeepLastRuns: z.number().int().min(1).max(1000).optional(),
   artifactMaxBytes: z.number().int().min(1024).max(50_000_000).optional(),
@@ -122,6 +129,8 @@ export type SettingsView = {
   exportSyncIntervalSec: number;
   cdrSidesRefreshEnabled: boolean;
   cdrSidesRefreshIntervalSec: number;
+  numberGeographyRefreshEnabled: boolean;
+  numberGeographyRefreshIntervalSec: number;
   artifactRetentionDays: number;
   artifactKeepLastRuns: number;
   artifactMaxBytes: number;

@@ -62,6 +62,18 @@ describe("settings schemas and masked view contract", () => {
     expect(() =>
       settingsUpdateSchema.parse({ cdrSidesRefreshIntervalSec: 10 }),
     ).toThrow();
+    expect(() =>
+      settingsUpdateSchema.parse({ numberGeographyRefreshIntervalSec: 10 }),
+    ).toThrow();
+    expect(
+      settingsUpdateSchema.parse({
+        numberGeographyRefreshEnabled: false,
+        numberGeographyRefreshIntervalSec: 60,
+      }),
+    ).toMatchObject({
+      numberGeographyRefreshEnabled: false,
+      numberGeographyRefreshIntervalSec: 60,
+    });
   });
 
   it("accepts display timezones from the curated list", () => {
@@ -141,6 +153,8 @@ describe("settings schemas and masked view contract", () => {
       exportSyncIntervalSec: 300,
       cdrSidesRefreshEnabled: true,
       cdrSidesRefreshIntervalSec: 300,
+      numberGeographyRefreshEnabled: true,
+      numberGeographyRefreshIntervalSec: 60,
       artifactRetentionDays: 14,
       artifactKeepLastRuns: 50,
       artifactMaxBytes: 1_048_576,

@@ -1,0 +1,182 @@
+/**
+ * Live projection of phone endpoints. No stored geography table.
+ */
+
+import {
+  aggregateFacetItems,
+  type ColumnFilters,
+  type FacetResponse,
+} from "@/components/column-filters/types";
+import { prisma } from "@/lib/db";
+import {
+  isNumberGeographyColumn,
+  type NumberGeographyColumn,
+} from "@/modules/number-geography/columns";
+import { clampPage, clampPageSize } from "@/modules/number-geography/paging";
+import {
+  catalogCountSql,
+  catalogFacetSql,
+  catalogListSql,
+  cheapWhere,
+  expensiveWhere,
+  facetProjection,
+  listProjection,
+  pageCountSql,
+  pageFacetSql,
+  pageListSql,
+} from "@/modules/number-geography/sql";
+import type {
+  ListNumberGeographyResult,
+  NumberGeographyItem,
+  NumberGeographyRefresh,
+} from "@/modules/number-geography/types";
+
+const DEFAULT_REFRESH: NumberGeographyRefresh = {
+  enabled: true,
+  intervalSec: 60,
+};
+
+type DbRow = {
+  id: string;
+  number: string;
+  client: string;
+  capacity: string;
+  supplier: string;
+  title: string;
+  city: string;
+  operator: string;
+  geography: string;
+  city_alert: boolean | null;
+};
+
+type CountRow = { n: number };
+type FacetRow = { value: string | null; count: number };
+
+function mapRow(row: DbRow): NumberGeographyItem {
+  return {
+    id: row.id,
+    city: row.city ?? "",
+    supplier: row.supplier ?? "",
+    number: row.number ?? "",
+    client: row.client ?? "",
+    capacity: row.capacity ?? "",
+    operator: row.operator ?? "",
+    geography: row.geography ?? "",
+    title: row.title ?? "",
+    cityAlert: row.city_alert === true,
+  };
+}
+
+function facetsFromGroups(
+  rows: FacetRow[],
+  opts: { q?: string; limit?: number },
+): FacetResponse {
+  function* values(): Generator<string> {
+    for (const row of rows) {
+      const n = Number(row.count) || 0;
+      const value = row.value ?? "";
+      for (let i = 0; i < n; i++) yield value;
+    }
+  }
+  return aggregateFacetItems(values(), opts);
+}
+
+async function readRefresh(): Promise<NumberGeographyRefresh> {
+  const row = await prisma.appSetting.findUnique({
+    where: { id: 1 },
+    select: {
+      numberGeographyRefreshEnabled: true,
+      numberGeographyRefreshIntervalSec: true,
+    },
+  });
+  if (!row) return DEFAULT_REFRESH;
+  const interval = row.numberGeographyRefreshIntervalSec;
+  return {
+    enabled: row.numberGeographyRefreshEnabled,
+    intervalSec:
+      Number.isFinite(interval) && interval >= 30 && interval <= 86400
+        ? interval
+        : DEFAULT_REFRESH.intervalSec,
+  };
+}
+
+export async function listNumberGeography(opts: {
+  filters?: ColumnFilters;
+  page?: number;
+  pageSize?: number;
+}): Promise<ListNumberGeographyResult> {
+  const page = clampPage(opts.page ?? 1);
+  const pageSize = clampPageSize(opts.pageSize);
+  const filters = opts.filters ?? {};
+  const refresh = await readRefresh();
+  const empty: ListNumberGeographyResult = {
+    items: [],
+    total: 0,
+    page,
+    pageSize,
+    refresh,
+  };
+  const projection = listProjection(filters);
+  if (projection === "empty") return empty;
+
+  const offset = (page - 1) * pageSize;
+  if (projection === "page") {
+    const cheap = cheapWhere(filters);
+    const [counts, rows] = await Promise.all([
+      prisma.$queryRaw<CountRow[]>(pageCountSql(cheap)),
+      prisma.$queryRaw<DbRow[]>(pageListSql(cheap, pageSize, offset)),
+    ]);
+    return {
+      items: rows.map(mapRow),
+      total: Number(counts[0]?.n ?? 0),
+      page,
+      pageSize,
+      refresh,
+    };
+  }
+
+  const cheap = cheapWhere(filters);
+  const expensive = expensiveWhere(filters);
+  const [counts, rows] = await Promise.all([
+    prisma.$queryRaw<CountRow[]>(catalogCountSql(cheap, expensive)),
+    prisma.$queryRaw<DbRow[]>(catalogListSql(cheap, expensive, pageSize, offset)),
+  ]);
+  return {
+    items: rows.map(mapRow),
+    total: Number(counts[0]?.n ?? 0),
+    page,
+    pageSize,
+    refresh,
+  };
+}
+
+export async function listNumberGeographyFacets(opts: {
+  column: string;
+  filters?: ColumnFilters;
+  q?: string;
+  limit?: number;
+}): Promise<FacetResponse> {
+  const column = opts.column.trim();
+  if (!isNumberGeographyColumn(column)) {
+    return { items: [], truncated: false };
+  }
+  const filters = opts.filters ?? {};
+  const projection = facetProjection(column, filters);
+  if (projection === "empty") return { items: [], truncated: false };
+
+  const rows =
+    projection === "page"
+      ? await prisma.$queryRaw<FacetRow[]>(
+          pageFacetSql(column, cheapWhere(filters, column)),
+        )
+      : await prisma.$queryRaw<FacetRow[]>(
+          catalogFacetSql(
+            column,
+            cheapWhere(filters, column),
+            expensiveWhere(filters, column),
+          ),
+        );
+  return facetsFromGroups(rows, { q: opts.q, limit: opts.limit });
+}
+
+export type { NumberGeographyColumn };

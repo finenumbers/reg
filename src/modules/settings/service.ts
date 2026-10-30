@@ -79,6 +79,8 @@ function toSettingsView(
     exportSyncIntervalSec: settings.exportSyncIntervalSec,
     cdrSidesRefreshEnabled: settings.cdrSidesRefreshEnabled,
     cdrSidesRefreshIntervalSec: settings.cdrSidesRefreshIntervalSec,
+    numberGeographyRefreshEnabled: settings.numberGeographyRefreshEnabled,
+    numberGeographyRefreshIntervalSec: settings.numberGeographyRefreshIntervalSec,
     artifactRetentionDays: settings.artifactRetentionDays,
     artifactKeepLastRuns: settings.artifactKeepLastRuns,
     artifactMaxBytes: settings.artifactMaxBytes,
@@ -168,6 +170,8 @@ export async function updateSettings(
     parsed.exportSyncIntervalSec !== undefined ||
     parsed.cdrSidesRefreshEnabled !== undefined ||
     parsed.cdrSidesRefreshIntervalSec !== undefined;
+  // numberGeographyRefresh* only reloads an open table. It does not
+  // reschedule regs, export, or side refresh.
 
   let createdProfile = false;
 
@@ -194,6 +198,8 @@ export async function updateSettings(
     exportSyncIntervalSec?: number;
     cdrSidesRefreshEnabled?: boolean;
     cdrSidesRefreshIntervalSec?: number;
+    numberGeographyRefreshEnabled?: boolean;
+    numberGeographyRefreshIntervalSec?: number;
     artifactRetentionDays?: number;
     artifactKeepLastRuns?: number;
     artifactMaxBytes?: number;
@@ -229,6 +235,14 @@ export async function updateSettings(
   }
   if (parsed.cdrSidesRefreshIntervalSec !== undefined) {
     settingsData.cdrSidesRefreshIntervalSec = parsed.cdrSidesRefreshIntervalSec;
+  }
+  if (parsed.numberGeographyRefreshEnabled !== undefined) {
+    settingsData.numberGeographyRefreshEnabled =
+      parsed.numberGeographyRefreshEnabled;
+  }
+  if (parsed.numberGeographyRefreshIntervalSec !== undefined) {
+    settingsData.numberGeographyRefreshIntervalSec =
+      parsed.numberGeographyRefreshIntervalSec;
   }
   if (parsed.artifactRetentionDays !== undefined) {
     settingsData.artifactRetentionDays = parsed.artifactRetentionDays;
@@ -340,6 +354,8 @@ export async function updateSettings(
       exportSyncIntervalSec: view.exportSyncIntervalSec,
       cdrSidesRefreshEnabled: view.cdrSidesRefreshEnabled,
       cdrSidesRefreshIntervalSec: view.cdrSidesRefreshIntervalSec,
+      numberGeographyRefreshEnabled: view.numberGeographyRefreshEnabled,
+      numberGeographyRefreshIntervalSec: view.numberGeographyRefreshIntervalSec,
       artifactRetentionDays: view.artifactRetentionDays,
       artifactKeepLastRuns: view.artifactKeepLastRuns,
       artifactMaxBytes: view.artifactMaxBytes,

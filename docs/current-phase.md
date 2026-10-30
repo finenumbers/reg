@@ -1,7 +1,19 @@
-# Current Phase — production (v1.180.0)
+# Current Phase — production (v1.181.0)
 
-**Status:** in production. Modules beyond Phase 7: phones, groups, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal.  
-**Date:** 2026-10-24
+**Status:** in production. Modules beyond Phase 7: phones, groups, number geography, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal.  
+**Date:** 2026-10-31
+
+## v1.181.0 — Number geography sits under incoming groups
+
+Migrate before the new `app` process. The migration adds `numberGeographyRefreshEnabled` (default on) and `numberGeographyRefreshIntervalSec` (default 60) to `app_settings`. It does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `smg-syslog`. One `app` process. The old process does not read the new columns.
+
+«География номеров» is the next primary item under «Входящие группы», at `/number-geography`, with `phones:read`. It lists every endpoint that has a terminal number, ordered by that number, then id. Gateways are absent. The same number on two endpoints stays two rows.
+
+«Номер» is the terminal number. «Клиент» is «Описание». «Канальность» is «ТЕРМ. емкость». «Название» is the equipment name. «Поставщик» is empty. «Город» is `cdr_tariff_direction` of the stored number: a direction that starts with «г. » is shown without that prefix (`г. Москва` → `Москва`). «Мобильные РФ» and «Бесплатный вызов» stay as written. Any other direction, including an empty one and a bare «г. », paints the whole row red. «Оператор связи» and «География» come from `pstn_phone_cache`, including a row older than 24 hours. This screen does not call PSTN. A number that has never been looked up stays blank. A cached miss is «Нет в реестре МинЦифры».
+
+Each column header filters like «Телефонные номера»: AND across columns, OR inside one column, and the open column’s counts ignore its own selection. A page that is not filtered by city, operator, or geography limits the catalog first and only then rates those rows. Filtering or faceting those three columns rates the selected catalog.
+
+«Опрос и артефакты» gains «Автообновление географии номеров» and its interval (30–86400 seconds). The timer reloads the open first page and keeps the filters. It pauses while the tab is hidden, while a filter menu is open, while a request is in flight, and after the reader has loaded a further page. It does not start a job and does not reschedule registrations, export, or side refresh.
 
 ## v1.180.0 — A missing radius timing line still fills the delay cell
 

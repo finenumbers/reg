@@ -60,6 +60,19 @@ describe("middleware protected routes", () => {
     expect(res.headers.get("location")).toContain("next=%2Ftariffs");
   });
 
+  it("redirects anonymous users from /groups to /login", () => {
+    const res = middleware(makeRequest("/groups"));
+    expect(res.status).toBe(307);
+    expect(res.headers.get("location")).toContain("/login");
+  });
+
+  it("redirects anonymous users from /number-geography to /login", () => {
+    const res = middleware(makeRequest("/number-geography"));
+    expect(res.status).toBe(307);
+    expect(res.headers.get("location")).toContain("/login");
+    expect(res.headers.get("location")).toContain("next=%2Fnumber-geography");
+  });
+
   it("redirects anonymous users from /settings to /login", () => {
     const res = middleware(makeRequest("/settings"));
     expect(res.status).toBe(307);
