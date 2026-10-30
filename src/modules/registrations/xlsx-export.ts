@@ -10,6 +10,7 @@ import {
 } from "@/lib/xlsx-export";
 import { loadAllRegistrationItems } from "@/modules/registrations/service";
 import { getDisplayTimezone } from "@/modules/settings";
+import { displayTermCapacity } from "@/modules/phones/capacity";
 import type { RegistrationListItem } from "@/modules/registrations/types";
 import {
   formatEndpoint,
@@ -30,7 +31,7 @@ export function registrationExportCell(
     case "phone":
       return row.phone;
     case "channelality":
-      return row.channelality ?? "";
+      return displayTermCapacity(row.channelality);
     case "description":
       return row.description ?? "";
     case "status":

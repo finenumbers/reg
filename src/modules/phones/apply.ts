@@ -6,6 +6,11 @@
 
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
+import {
+  PHONE_CATALOG_LOCK_SQL,
+  stampSupplier,
+  supplierMapFromEndpoints,
+} from "@/modules/phones/supplier";
 import type { ParsedPhonesPayload } from "@/modules/phones/types";
 
 const APPLY_TX = { maxWait: 10_000, timeout: 180_000 } as const;
@@ -32,6 +37,13 @@ export async function applyPhonesSnapshot(
 ): Promise<ApplyPhonesResult> {
   await prisma.$transaction(
     async (tx) => {
+      await tx.$executeRawUnsafe(PHONE_CATALOG_LOCK_SQL);
+      const previous = await tx.phoneEndpoint.findMany({
+        select: { name: true, endpointNumber: true, data: true },
+        orderBy: { name: "asc" },
+      });
+      const suppliers = supplierMapFromEndpoints(previous);
+
       await tx.phoneEndpoint.deleteMany({});
       await tx.phoneGateway.deleteMany({});
 
@@ -41,7 +53,11 @@ export async function applyPhonesSnapshot(
           payload.endpoints.map((row) => ({
             name: row.name,
             endpointNumber: row.endpointNumber,
-            data: row.data as Prisma.InputJsonValue,
+            data: stampSupplier(
+              row.data,
+              row.endpointNumber,
+              suppliers,
+            ) as Prisma.InputJsonValue,
             lastSyncedAt: syncedAt,
             lastJobRunId: jobRunId,
           })),

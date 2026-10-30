@@ -7,6 +7,7 @@ import {
   cellToFilterToken,
   type ColumnFilters,
 } from "@/components/column-filters/types";
+import { displayTermCapacity } from "@/modules/phones/capacity";
 import type { RegistrationListItem } from "@/modules/registrations/types";
 import { formatEndpoint } from "@/modules/registrations/ui-format";
 
@@ -31,7 +32,7 @@ export function columnCellValue(
     case "phone":
       return row.phone;
     case "channelality":
-      return row.channelality ?? "";
+      return displayTermCapacity(row.channelality);
     case "description":
       return row.description ?? "";
     case "status":

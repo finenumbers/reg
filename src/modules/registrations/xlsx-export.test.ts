@@ -45,7 +45,7 @@ describe("registrations XLSX columns", () => {
     expect(registrationExportRow(sample, tz)[1]).toBe("10");
     expect(
       registrationExportRow({ ...sample, channelality: null }, tz)[1],
-    ).toBe("");
+    ).toBe("Премиум");
     expect(registrationExportRow(sample, tz)).toHaveLength(
       REG_EXPORT_COLUMNS.length,
     );

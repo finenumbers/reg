@@ -3,9 +3,6 @@ import {
   MISSING_BILLING_LABEL,
   MISSING_PSTN_LABEL,
   descriptionOrMissing,
-  failOpenEnrichStages,
-  isFinishedEnrichJob,
-  isResumableEnrichJob,
   pstnOrMissing,
 } from "@/modules/enrich/types";
 
@@ -34,39 +31,5 @@ describe("enrich field rules", () => {
       geography: "Кемерово",
       missing: false,
     });
-  });
-});
-
-describe("enrich job lifetime", () => {
-  it("resumes only queued or running jobs", () => {
-    expect(isResumableEnrichJob({ status: "queued" })).toBe(true);
-    expect(isResumableEnrichJob({ status: "running" })).toBe(true);
-    expect(isResumableEnrichJob({ status: "completed" })).toBe(false);
-    expect(isResumableEnrichJob({ status: "failed" })).toBe(false);
-    expect(isResumableEnrichJob(null)).toBe(false);
-  });
-
-  it("treats completed and failed as finished", () => {
-    expect(isFinishedEnrichJob({ status: "completed" })).toBe(true);
-    expect(isFinishedEnrichJob({ status: "failed" })).toBe(true);
-    expect(isFinishedEnrichJob({ status: "running" })).toBe(false);
-    expect(isFinishedEnrichJob(null)).toBe(false);
-  });
-
-  it("fails open stages and keeps done/error", () => {
-    expect(
-      failOpenEnrichStages(
-        [
-          { id: "parse", label: "p", status: "done" },
-          { id: "phones", label: "ph", status: "running" },
-          { id: "pstn", label: "pstn", status: "pending" },
-        ],
-        "stop",
-      ),
-    ).toEqual([
-      { id: "parse", label: "p", status: "done" },
-      { id: "phones", label: "ph", status: "error", detail: "stop" },
-      { id: "pstn", label: "pstn", status: "error", detail: "stop" },
-    ]);
   });
 });

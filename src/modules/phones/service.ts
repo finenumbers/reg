@@ -11,7 +11,9 @@ import {
 } from "@/components/column-filters/types";
 import { prisma } from "@/lib/db";
 import { getJobRunSummary } from "@/modules/jobs/query";
+import { displayTermCapacity, TERM_CAPACITY_FIELD } from "@/modules/phones/capacity";
 import { applyJsonColumnFilters } from "@/modules/phones/json-filters";
+import { withSupplierHeader } from "@/modules/phones/supplier";
 import {
   isSipUnregistered,
   sipUnregisteredFilterPhones,
@@ -82,6 +84,10 @@ function asStringRecord(data: unknown): PhoneRowData {
   return out;
 }
 
+function endpointHeaders(value: unknown): string[] {
+  return withSupplierHeader(asStringArray(value, ENDPOINT_HEADERS));
+}
+
 function asStringArray(value: unknown, fallback: readonly string[]): string[] {
   if (!Array.isArray(value)) return [...fallback];
   const cleaned = value
@@ -134,6 +140,11 @@ async function countRegistrationBuckets(): Promise<{
     unregisteredCount,
     errorCount: Math.max(0, endpointTotal - registeredCount - unregisteredCount),
   };
+}
+
+function facetCell(column: string, raw: string): string {
+  if (column === TERM_CAPACITY_FIELD) return displayTermCapacity(raw);
+  return raw;
 }
 
 function readCell(data: unknown, column: string): string {
@@ -254,7 +265,7 @@ export async function listPhones(opts: {
         return {
           kind: opts.kind,
           items: [],
-          headers: asStringArray(state?.headersEndpoints, ENDPOINT_HEADERS),
+          headers: endpointHeaders(state?.headersEndpoints),
           total: 0,
           page,
           pageSize,
@@ -291,7 +302,7 @@ export async function listPhones(opts: {
           ? isSipUnregistered(row.endpointNumber, unregSet)
           : false,
       })),
-      headers: asStringArray(state?.headersEndpoints, ENDPOINT_HEADERS),
+      headers: endpointHeaders(state?.headersEndpoints),
       total,
       page,
       pageSize,
@@ -391,7 +402,7 @@ export async function listPhoneFacets(opts: {
       select: { data: true },
     });
     return aggregateFacetItems(
-      rows.map((r) => cellToFilterToken(readCell(r.data, column))),
+      rows.map((r) => cellToFilterToken(facetCell(column, readCell(r.data, column)))),
       { q: opts.q, limit: opts.limit },
     );
   }
@@ -409,7 +420,7 @@ export async function listPhoneFacets(opts: {
     select: { data: true },
   });
   return aggregateFacetItems(
-    rows.map((r) => cellToFilterToken(readCell(r.data, column))),
+    rows.map((r) => cellToFilterToken(facetCell(column, readCell(r.data, column)))),
     { q: opts.q, limit: opts.limit },
   );
 }

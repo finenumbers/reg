@@ -14,6 +14,7 @@ import {
 } from "@/components/column-filters";
 import { HighlightText } from "@/components/highlight-text";
 import { useDisplayTimezone } from "@/components/display-timezone-provider";
+import { displayTermCapacity } from "@/modules/phones/capacity";
 import type { RegistrationListItem } from "@/modules/registrations/types";
 import {
   buildRegsFacetsUrl,
@@ -131,13 +132,7 @@ export function RegsTable({
                     <HighlightText text={row.phone} query={phoneQ} />
                   </span>
                 </TableCell>
-                <TableCell>
-                  {row.channelality ? (
-                    row.channelality
-                  ) : (
-                    <span className="text-muted-foreground">—</span>
-                  )}
-                </TableCell>
+                <TableCell>{displayTermCapacity(row.channelality)}</TableCell>
                 <TableCell>
                   {row.description ? (
                     row.description

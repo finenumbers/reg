@@ -2,8 +2,6 @@ export const MISSING_BILLING_LABEL = "-";
 export const MISSING_PSTN_LABEL = "Нет в реестре МинЦифры";
 
 export const EXCEL_MAX_ROWS = 1_048_575;
-export const ENRICH_MAX_UPLOAD_BYTES = 200 * 1024 * 1024;
-export const ENRICH_ARTIFACT_TTL_MS = 24 * 60 * 60 * 1000;
 
 export const TRAFFIC_HEADERS = [
   "Дата",
@@ -68,74 +66,6 @@ export const DETAIL_WIDTHS = [
   32.33203125,
 ];
 
-export type EnrichStageId =
-  | "parse"
-  | "phones"
-  | "pstn"
-  | "geoip"
-  | "xlsx"
-  | "download";
-
-export type EnrichStageStatus = "pending" | "running" | "done" | "error";
-
-export type EnrichStageView = {
-  id: EnrichStageId;
-  label: string;
-  status: EnrichStageStatus;
-  current?: number;
-  total?: number;
-  detail?: string;
-};
-
-export const INITIAL_STAGES: EnrichStageView[] = [
-  { id: "parse", label: "Загрузка и разбор CSV", status: "pending" },
-  {
-    id: "phones",
-    label: "Сторона А/B из «Телефонные номера»",
-    status: "pending",
-  },
-  { id: "pstn", label: "PSTN: оператор и география", status: "pending" },
-  {
-    id: "geoip",
-    label: "GeoIP: страна / город / провайдер",
-    status: "pending",
-  },
-  { id: "xlsx", label: "Формирование XLSX", status: "pending" },
-  { id: "download", label: "Скачивание", status: "pending" },
-];
-
-export type EnrichSummary = {
-  rows: number;
-  badLines: number;
-  uniquePhones: number;
-  uniqueIps: number;
-  descriptionFound: number;
-  descriptionMissing: number;
-  pstnFound: number;
-  pstnMissing: number;
-  pstnCacheHits: number;
-  pstnLiveLookups: number;
-  geoipLookedUp: number;
-  geoipCacheHits: number;
-  geoipLiveLookups: number;
-  outputFilename: string;
-};
-
-export type CdrJsonlRow = {
-  time: string;
-  aNumber: string;
-  bNumber: string;
-  seconds: number;
-  initDevice: string;
-  termDevice: string;
-  dialObject: string;
-  cause: string;
-  initEndpoint: string;
-  termEndpoint: string;
-  initIp: string | null;
-  termIp: string | null;
-};
-
 /** Per-row values already resolved (month export snapshot). */
 export type ResolvedEnrichedRow = {
   time: string;
@@ -168,40 +98,6 @@ export type ResolvedEnrichedRow = {
   tariffPrice?: string;
   tariffCharge?: string;
 };
-
-export type EnrichJobView = {
-  id: string;
-  status: "queued" | "running" | "completed" | "failed";
-  sourceFilename: string;
-  stages: EnrichStageView[];
-  summary: EnrichSummary | null;
-  errorMessage: string | null;
-  downloadUrl: string | null;
-};
-
-export function isResumableEnrichJob(
-  job: Pick<EnrichJobView, "status"> | null,
-): boolean {
-  return job != null && (job.status === "queued" || job.status === "running");
-}
-
-export function isFinishedEnrichJob(
-  job: Pick<EnrichJobView, "status"> | null,
-): boolean {
-  return job != null && (job.status === "completed" || job.status === "failed");
-}
-
-/** Mark in-flight / pending stages as error (orphan reclaim, pipeline catch). */
-export function failOpenEnrichStages(
-  stages: EnrichStageView[],
-  detail: string,
-): EnrichStageView[] {
-  return stages.map((stage) =>
-    stage.status === "done" || stage.status === "error"
-      ? stage
-      : { ...stage, status: "error", detail },
-  );
-}
 
 /** Ceiled seconds at or below this stay 0 minutes. The SQL rater uses the same bound. */
 export const MINUTE_GRACE_SECONDS = 3;

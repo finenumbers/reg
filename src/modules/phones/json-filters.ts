@@ -8,20 +8,49 @@ import {
   EMPTY_FILTER_TOKEN,
   type ColumnFilters,
 } from "@/components/column-filters/types";
+import {
+  PREMIUM_CAPACITY,
+  TERM_CAPACITY_FIELD,
+} from "@/modules/phones/capacity";
 
 type JsonDataWhere = {
   data?: Prisma.JsonFilter<"PhoneEndpoint"> | Prisma.JsonFilter<"PhoneGateway">;
   OR?: JsonDataWhere[];
 };
 
-function jsonColumnOr(column: string, values: string[]): JsonDataWhere | null {
-  if (values.length === 0) return null;
-  const ors: JsonDataWhere[] = values.map((raw) => ({
+function jsonEquals(column: string, value: string): JsonDataWhere {
+  return {
     data: {
       path: [column],
-      equals: raw === EMPTY_FILTER_TOKEN ? "" : raw,
+      equals: value === EMPTY_FILTER_TOKEN ? "" : value,
     },
-  }));
+  };
+}
+
+/**
+ * «Премиум» is the screen label for a blank «ТЕРМ. емкость». The JSON cell
+ * stays "". Selecting «Премиум» matches that blank and a literal «Премиум».
+ */
+function jsonColumnOr(column: string, values: string[]): JsonDataWhere | null {
+  if (values.length === 0) return null;
+  const ors: JsonDataWhere[] = [];
+  const seen = new Set<string>();
+  for (const raw of values) {
+    if (
+      column === TERM_CAPACITY_FIELD &&
+      (raw === PREMIUM_CAPACITY || raw === EMPTY_FILTER_TOKEN)
+    ) {
+      if (seen.has("")) continue;
+      seen.add("");
+      seen.add(PREMIUM_CAPACITY);
+      ors.push(jsonEquals(column, ""));
+      ors.push(jsonEquals(column, PREMIUM_CAPACITY));
+      continue;
+    }
+    if (seen.has(raw)) continue;
+    seen.add(raw);
+    ors.push(jsonEquals(column, raw));
+  }
   if (ors.length === 1) return ors[0]!;
   return { OR: ors };
 }

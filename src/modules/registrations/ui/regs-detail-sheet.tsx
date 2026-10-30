@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
 import { useDisplayTimezone } from "@/components/display-timezone-provider";
+import { displayTermCapacity } from "@/modules/phones/capacity";
 import type { RegistrationDetailResult } from "@/modules/registrations/service";
 import {
   describeHistoryEvent,
@@ -72,7 +73,7 @@ export function RegsDetailSheet({
                 <dt className="text-muted-foreground">Номер</dt>
                 <dd className="tabular-nums">{current.phone}</dd>
                 <dt className="text-muted-foreground">Канальность</dt>
-                <dd>{current.channelality ?? "—"}</dd>
+                <dd>{displayTermCapacity(current.channelality)}</dd>
                 <dt className="text-muted-foreground">Описание</dt>
                 <dd>{current.description ?? "—"}</dd>
                 <dt className="text-muted-foreground">Статус</dt>

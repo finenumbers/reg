@@ -7,7 +7,9 @@ import {
   type ColumnFilters,
   type FacetResponse,
 } from "@/components/column-filters/types";
+import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
+import { EXCEL_MAX_ROWS } from "@/modules/enrich/types";
 import {
   isNumberGeographyColumn,
   type NumberGeographyColumn,
@@ -148,6 +150,22 @@ export async function listNumberGeography(opts: {
     pageSize,
     refresh,
   };
+}
+
+/** Full catalog, one snapshot. Used by the XLSX download. */
+export async function listAllNumberGeography(): Promise<NumberGeographyItem[]> {
+  const rows = await prisma.$queryRaw<DbRow[]>(
+    catalogListSql(
+      Prisma.sql`TRUE`,
+      Prisma.sql`TRUE`,
+      EXCEL_MAX_ROWS + 1,
+      0,
+    ),
+  );
+  if (rows.length > EXCEL_MAX_ROWS) {
+    throw new Error("Слишком много строк для одного файла XLSX");
+  }
+  return rows.map(mapRow);
 }
 
 export async function listNumberGeographyFacets(opts: {

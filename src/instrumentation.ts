@@ -128,19 +128,6 @@ export async function register() {
     }
 
     try {
-      const { reclaimOrphanEnrichJobs, pruneEnrichArtifacts } =
-        await import("@/modules/enrich/reclaim");
-      const enrichReclaim = await reclaimOrphanEnrichJobs();
-      logger.info("enrich.reclaim_orphans", enrichReclaim);
-      const pruned = await pruneEnrichArtifacts();
-      logger.info("enrich.artifacts_pruned", pruned);
-    } catch (error) {
-      logger.error("enrich.reclaim_orphans.failed", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
-
-    try {
       const { pruneMonthExportArtifacts } =
         await import("@/modules/traffic/month-export-reclaim");
       const pruned = await pruneMonthExportArtifacts();

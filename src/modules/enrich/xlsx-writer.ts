@@ -1,5 +1,5 @@
 /**
- * Stream two-sheet enriched XLSX from JSONL + lookup maps.
+ * Stream the month-export workbook from resolved JSONL rows.
  */
 
 import { createReadStream } from "node:fs";
@@ -13,7 +13,7 @@ import {
   classifyCallType,
   classifyExportStatus,
 } from "@/modules/traffic/call-class";
-import { rateCdrCall, type TariffRateLookup } from "@/modules/traffic/cdr-tariff";
+import type { TariffRateLookup } from "@/modules/traffic/cdr-tariff";
 import { SEEDED_DIAL_EXCEPTIONS } from "@/modules/traffic/tariff-match";
 import { cdrRowTone } from "@/modules/traffic/row-tone";
 import {
@@ -23,13 +23,8 @@ import {
   TRAFFIC_HEADERS,
   TRAFFIC_WIDTHS,
   billableMinutes,
-  descriptionOrMissing,
-  pstnOrMissing,
-  type CdrJsonlRow,
   type ResolvedEnrichedRow,
 } from "@/modules/enrich/types";
-import type { PstnFields } from "@/modules/pstn/types";
-import type { GeoFields } from "@/modules/geoip/types";
 import {
   detailBodyRole,
   detailHeaderRole,
@@ -254,18 +249,6 @@ function sideText(value: string): string {
   return text(value);
 }
 
-function geoBits(geo: GeoFields | undefined): {
-  country: string;
-  city: string;
-  isp: string;
-} {
-  return {
-    country: geo?.countryIso ?? "",
-    city: geo?.city ?? "",
-    isp: geo?.isp ?? "",
-  };
-}
-
 export type XlsxSheetProgress = {
   sheet: "traffic" | "detail";
   current: number;
@@ -291,97 +274,6 @@ function excelMoney(raw: string | undefined): number | "" {
   if (!trimmed) return "";
   const n = Number(trimmed);
   return Number.isFinite(n) ? n : "";
-}
-
-function rateExportRow(
-  row: Pick<
-    ResolvedEnrichedRow,
-    | "sideA"
-    | "sideB"
-    | "initDevice"
-    | "termDevice"
-    | "dialObject"
-    | "cause"
-    | "elapsedTime"
-    | "seconds"
-    | "aNumber"
-    | "bNumber"
-  >,
-  rates: readonly TariffRateLookup[],
-  exceptions: readonly string[],
-): ReturnType<typeof rateCdrCall> {
-  const elapsed =
-    row.elapsedTime !== undefined
-      ? row.elapsedTime
-      : String(Math.max(0, Math.trunc(row.seconds)) * 1000);
-  return rateCdrCall({
-    category: categoryOf(row, rates, exceptions),
-    callType: typeOf(row, rates, exceptions),
-    status: statusOf(row),
-    billDnis: row.bNumber,
-    elapsedTime: elapsed,
-    rates,
-  });
-}
-
-function resolveFromMaps(
-  row: CdrJsonlRow,
-  maps: {
-    descriptions: Map<string, string>;
-    pstn: Map<string, PstnFields>;
-    geo: Map<string, GeoFields>;
-    rates: readonly TariffRateLookup[];
-    exceptions: readonly string[];
-  },
-): ResolvedEnrichedRow {
-  const sideA = descriptionOrMissing(maps.descriptions.get(row.aNumber));
-  const sideB = descriptionOrMissing(maps.descriptions.get(row.bNumber));
-  const pstnA = pstnOrMissing(maps.pstn.get(row.aNumber));
-  const pstnB = pstnOrMissing(maps.pstn.get(row.bNumber));
-  const geoA = geoBits(row.initIp ? maps.geo.get(row.initIp) : undefined);
-  const geoB = geoBits(row.termIp ? maps.geo.get(row.termIp) : undefined);
-  const rated = rateExportRow(
-    {
-      sideA,
-      sideB,
-      initDevice: row.initDevice,
-      termDevice: row.termDevice,
-      dialObject: row.dialObject,
-      cause: row.cause,
-      seconds: row.seconds,
-      aNumber: row.aNumber,
-      bNumber: row.bNumber,
-    },
-    maps.rates,
-    maps.exceptions,
-  );
-  return {
-    time: row.time,
-    aNumber: row.aNumber,
-    bNumber: row.bNumber,
-    seconds: row.seconds,
-    initDevice: row.initDevice,
-    termDevice: row.termDevice,
-    dialObject: row.dialObject,
-    cause: row.cause,
-    initEndpoint: row.initEndpoint,
-    termEndpoint: row.termEndpoint,
-    sideA,
-    sideB,
-    operatorA: pstnA.operator,
-    geographyA: pstnA.geography,
-    operatorB: pstnB.operator,
-    geographyB: pstnB.geography,
-    countryA: geoA.country,
-    cityA: geoA.city,
-    providerA: geoA.isp,
-    countryB: geoB.country,
-    cityB: geoB.city,
-    providerB: geoB.isp,
-    tariffDirection: rated.direction,
-    tariffPrice: rated.price,
-    tariffCharge: rated.charge,
-  };
 }
 
 const PROGRESS_EVERY = 250;
@@ -555,40 +447,6 @@ async function writeResolvedSheets(opts: {
   };
   await detail.commit();
   await workbook.commit();
-}
-
-export async function writeEnrichedXlsx(opts: {
-  jsonlPath: string;
-  outputPath: string;
-  rowCount: number;
-  descriptions: Map<string, string>;
-  pstn: Map<string, PstnFields>;
-  geo: Map<string, GeoFields>;
-  rates?: readonly TariffRateLookup[];
-  exceptions?: readonly string[];
-  trafficSheetName?: string;
-  onProgress?: (info: XlsxSheetProgress) => void;
-}): Promise<void> {
-  const exceptions = opts.exceptions ?? SEEDED_DIAL_EXCEPTIONS;
-  await writeResolvedSheets({
-    trafficSheetName: opts.trafficSheetName ?? "Трафик",
-    outputPath: opts.outputPath,
-    rowCount: opts.rowCount,
-    rates: opts.rates ?? [],
-    exceptions,
-    onProgress: opts.onProgress,
-    eachRow: (visit) =>
-      eachJsonlRow<CdrJsonlRow>(opts.jsonlPath, (row, index) => {
-        visit(
-          resolveFromMaps(row, {
-            ...opts,
-            rates: opts.rates ?? [],
-            exceptions,
-          }),
-          index,
-        );
-      }),
-  });
 }
 
 export async function writeResolvedEnrichedXlsx(opts: {

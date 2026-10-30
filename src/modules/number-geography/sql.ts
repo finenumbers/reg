@@ -11,6 +11,7 @@ import {
   type ColumnFilters,
 } from "@/components/column-filters/types";
 import { MISSING_PSTN_LABEL } from "@/modules/enrich/types";
+import { PREMIUM_CAPACITY } from "@/modules/phones/capacity";
 import {
   EXPENSIVE_COLUMNS,
   FREE_CALL_DIRECTION,
@@ -37,16 +38,9 @@ export function pstnCacheKey(raw: string | null | undefined): string | null {
 /**
  * Page: sort and limit first, then tariff and PSTN for that page.
  * Catalog: a city, operator, or geography filter must see every row.
- * Empty: supplier was filtered to a value that cannot exist.
+ * Empty is reserved. Supplier is a cheap column like number and client.
  */
 export function listProjection(filters: ColumnFilters): ListProjection {
-  const supplier = filters.supplier ?? [];
-  if (
-    supplier.length > 0 &&
-    !supplier.includes(EMPTY_FILTER_TOKEN)
-  ) {
-    return "empty";
-  }
   for (const column of EXPENSIVE_COLUMNS) {
     const values = filters[column];
     if (values && values.length > 0) return "catalog";
@@ -66,7 +60,7 @@ export function facetProjection(
   return base;
 }
 
-/** Columns that actually restrict the query. Supplier «пусто» matches every row. */
+/** Columns that actually restrict the query. */
 export function activeFilterColumns(
   filters: ColumnFilters,
   excludeColumn?: string,
@@ -76,10 +70,6 @@ export function activeFilterColumns(
     if (column === excludeColumn) continue;
     const values = filters[column];
     if (!values || values.length === 0) continue;
-    if (column === "supplier") {
-      if (!values.includes(EMPTY_FILTER_TOKEN)) out.push(column);
-      continue;
-    }
     out.push(column);
   }
   return out;
@@ -140,7 +130,6 @@ function whereFor(
     const expensive = EXPENSIVE_COLUMNS.has(column);
     if (scope === "cheap" && expensive) continue;
     if (scope === "expensive" && !expensive) continue;
-    if (column === "supplier") continue;
     clauses.push(filterMatchSql(column, filters[column] ?? []));
   }
   return andWhere(clauses);
@@ -166,8 +155,11 @@ const baseCte = Prisma.sql`
       e.id,
       btrim(e."endpointNumber") AS number,
       btrim(COALESCE(e.data->>'Описание', '')) AS client,
-      btrim(COALESCE(e.data->>'ТЕРМ. емкость', '')) AS capacity,
-      ''::text AS supplier,
+      CASE
+        WHEN btrim(COALESCE(e.data->>'ТЕРМ. емкость', '')) = '' THEN ${PREMIUM_CAPACITY}
+        ELSE btrim(e.data->>'ТЕРМ. емкость')
+      END AS capacity,
+      btrim(COALESCE(e.data->>'Поставщик', '')) AS supplier,
       CASE
         WHEN btrim(COALESCE(e.data->>'Название', '')) <> ''
           THEN btrim(e.data->>'Название')

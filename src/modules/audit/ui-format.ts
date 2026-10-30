@@ -47,6 +47,7 @@ const ACTION_LABELS: Record<string, string> = {
   "phones.sync_manual": "Ручная синхронизация телефонов",
   "phones.sync_start": "Старт синхронизации телефонов",
   "phones.sync_finish": "Завершение синхронизации телефонов",
+  "phones.suppliers_import": "Загрузка поставщиков номеров",
   "groups.sync_manual": "Ручная загрузка входящих групп",
   "groups.sync_start": "Старт загрузки входящих групп",
   "groups.sync_finish": "Завершение загрузки входящих групп",

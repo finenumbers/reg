@@ -1,7 +1,19 @@
-# Current Phase — production (v1.182.0)
+# Current Phase — production (v1.183.0)
 
-**Status:** in production. Modules beyond Phase 7: phones, groups, number geography, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal.  
+**Status:** in production. Modules beyond Phase 7: phones, groups, number geography, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal.  
 **Date:** 2026-10-31
+
+## v1.183.0 — Phone suppliers, geography export, blank capacity as Премиум
+
+Migrate before the new `app` process. The migration drops `enrich_jobs` and `EnrichJobStatus` only. It does not rewrite phone, tariff, CDR, or PSTN rows. Stop `app` before the update and start one new process only. Do not stop `smg-syslog`. The migration is label-free, so startup does not rescan the CDR journal. Leave the old `reg_enrich_data` volume in place; this release does not delete it.
+
+«Обогатить данные» (`/enrich` and `/api/enrich`) is gone. Month XLSX, CDR import, and the PSTN and GeoIP caches stay.
+
+«Поставщик» is stored on `phone_endpoints.data` under that key. «Телефонные номера» shows it immediately after the terminal number when the softswitch file does not already have the column. Gateways do not show it. «География номеров» reads the same value. «Сохранить данные» downloads the full catalog, not the open page and not the current filters, as one XLSX with thin borders. A city that would paint the row red uses the same fill. The file refuses to truncate past the Excel row limit. «Загрузить поставщиков» takes an XLSX whose first row has «Поставщик» and «Номер». A match writes the phone row; a number that is not in the catalog is counted and does not create a row. An empty supplier cell clears the stored value. The cell is at most 200 characters.
+
+`phones.sync`, both the manual load and the scheduler, keeps a non-empty supplier when the trimmed terminal number is unchanged, including when the other fields change. A number that is absent from the new snapshot is deleted with its supplier. Changing `7495…` to `8495…` is a different number and drops the supplier. An empty snapshot of a live catalog is still rejected and leaves suppliers in place. A failed SSH pull does the same. A snapshot that has gateways and no endpoints is not empty and removes every endpoint, including its supplier. The softswitch XLSX template is unchanged: it does not add «Поставщик», and a blank capacity stays blank in that file.
+
+A blank «ТЕРМ. емкость» is shown as «Премиум» on «География номеров», «Регистрации», and the phones table, including a number with no catalog row. The stored JSON stays empty, so the next sync does not write the word back. «0» stays «0». «Канальность» on client traffic detail remains the error counter. The CDR call type of that name is unchanged.
 
 ## v1.182.0 — Number geography fills missing PSTN cache rows
 

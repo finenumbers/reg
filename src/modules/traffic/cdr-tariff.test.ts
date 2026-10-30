@@ -648,15 +648,10 @@ describe("cdr tariff migration", () => {
     expect(sql).not.toContain("CREATE OR REPLACE FUNCTION cdr_rate_call");
     expect(sql).not.toContain("DROP FUNCTION");
     expect(sql.indexOf("b ~ '[*#]'")).toBeLessThan(sql.indexOf("b ~ '^[0-9]{10,15}$'"));
-    const enrich = readFileSync(
-      path.join(process.cwd(), "src/modules/enrich/pipeline.ts"),
-      "utf8",
-    );
     const month = readFileSync(
       path.join(process.cwd(), "src/modules/traffic/month-export-pipeline.ts"),
       "utf8",
     );
-    expect(enrich).toContain("loadDialExceptions()");
     expect(month).toContain("loadDialExceptions()");
   });
 

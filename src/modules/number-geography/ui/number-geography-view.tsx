@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { downloadXlsxFromUrl } from "@/lib/download-xlsx";
 import { FILTER_TOOLBAR_TEXT } from "@/components/filter-toolbar";
 import { Button } from "@/components/ui/button";
 import {
@@ -38,9 +39,10 @@ const PAGE_SIZE = TABLE_PAGE_SIZE;
 
 type Props = {
   initial: ListNumberGeographyResult;
+  canRequest: boolean;
 };
 
-export function NumberGeographyView({ initial }: Props) {
+export function NumberGeographyView({ initial, canRequest }: Props) {
   const [filters, setFilters] = useState<ColumnFilters>({});
   const [openColumn, setOpenColumn] = useState<string | null>(null);
   const [page, setPage] = useState(initial.page);
@@ -48,6 +50,11 @@ export function NumberGeographyView({ initial }: Props) {
   const [total, setTotal] = useState(initial.total);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const supplierFileRef = useRef<HTMLInputElement>(null);
   const [listError, setListError] = useState<string | null>(null);
   const [scrollRoot, setScrollRoot] = useState<Element | null>(null);
 
@@ -314,6 +321,58 @@ export function NumberGeographyView({ initial }: Props) {
     void loadList({ filters: {}, page: 1, replace: true });
   }
 
+  async function onExport() {
+    if (exporting || uploading) return;
+    setExporting(true);
+    setActionError(null);
+    setActionMessage(null);
+    const result = await downloadXlsxFromUrl(
+      "/api/number-geography/export",
+      "number-geography.xlsx",
+    );
+    setExporting(false);
+    if (!result.ok) setActionError(result.message);
+  }
+
+  async function onSupplierFile(file: File | undefined) {
+    if (!file || uploading || exporting) return;
+    setUploading(true);
+    setActionError(null);
+    setActionMessage(null);
+    try {
+      const body = new FormData();
+      body.set("file", file);
+      const res = await fetch("/api/phones/suppliers", {
+        method: "POST",
+        body,
+      });
+      const payload = (await res.json().catch(() => null)) as {
+        error?: string;
+        details?: string[];
+        updated?: number;
+        cleared?: number;
+        unmatched?: number;
+      } | null;
+      if (!res.ok) {
+        const details = payload?.details?.filter(Boolean).join("; ");
+        setActionError(
+          [payload?.error, details].filter(Boolean).join(": ") ||
+            "Не удалось загрузить поставщиков",
+        );
+        return;
+      }
+      setActionMessage(
+        `Поставщики: обновлено ${payload?.updated ?? 0}, очищено ${payload?.cleared ?? 0}, не найдено ${payload?.unmatched ?? 0}`,
+      );
+      await loadList({ filters, page: 1, replace: true });
+    } catch {
+      setActionError("Не удалось загрузить поставщиков");
+    } finally {
+      setUploading(false);
+      if (supplierFileRef.current) supplierFileRef.current.value = "";
+    }
+  }
+
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
       <div className="flex shrink-0 flex-wrap items-start justify-between gap-4">
@@ -339,7 +398,44 @@ export function NumberGeographyView({ initial }: Props) {
         >
           Сбросить фильтры
         </Button>
+        <Button
+          type="button"
+          variant="outline"
+          className={FILTER_TOOLBAR_TEXT}
+          disabled={exporting || uploading}
+          onClick={() => void onExport()}
+        >
+          {exporting ? "Сохранение…" : "Сохранить данные"}
+        </Button>
+        {canRequest ? (
+          <>
+            <input
+              ref={supplierFileRef}
+              type="file"
+              accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              className="hidden"
+              onChange={(event) =>
+                void onSupplierFile(event.target.files?.[0])
+              }
+            />
+            <Button
+              type="button"
+              className={FILTER_TOOLBAR_TEXT}
+              disabled={uploading || exporting}
+              onClick={() => supplierFileRef.current?.click()}
+            >
+              {uploading ? "Загрузка…" : "Загрузить поставщиков"}
+            </Button>
+          </>
+        ) : null}
       </div>
+
+      {actionError ? (
+        <p className="text-destructive shrink-0 text-sm">{actionError}</p>
+      ) : null}
+      {actionMessage ? (
+        <p className="text-muted-foreground shrink-0 text-sm">{actionMessage}</p>
+      ) : null}
 
       <ActiveFiltersBar
         filters={filters}

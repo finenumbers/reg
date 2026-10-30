@@ -361,33 +361,6 @@ model PstnPhoneCache {
   @@map("pstn_phone_cache")
 }
 
-enum EnrichJobStatus {
-  queued
-  running
-  completed
-  failed
-}
-
-/// Ephemeral CDR enrich run. Artifact paths are derived from id, not stored.
-/// At most one queued|running row — partial unique index enrich_jobs_one_active.
-model EnrichJob {
-  id             String          @id @default(cuid())
-  status         EnrichJobStatus
-  actorUserId    String?
-  sourceFilename String
-  stages         Json
-  summary        Json?
-  errorMessage   String?
-  createdAt      DateTime        @default(now())
-  startedAt      DateTime?
-  finishedAt     DateTime?
-  updatedAt      DateTime        @updatedAt
-
-  @@index([status, createdAt(sort: Desc)])
-  @@index([actorUserId, createdAt(sort: Desc)])
-  @@map("enrich_jobs")
-}
-
 // ---------------------------------------------------------------------------
 // Phones module (export.py JSON → local snapshot)
 // ---------------------------------------------------------------------------

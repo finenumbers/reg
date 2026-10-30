@@ -60,8 +60,8 @@ describe("list projection", () => {
     expect(listProjection({ geography: ["край"] })).toBe("catalog");
   });
 
-  it("returns no rows when supplier is filtered to a real value", () => {
-    expect(listProjection({ supplier: ["Ростелеком"] })).toBe("empty");
+  it("keeps a supplier filter on the cheap page path", () => {
+    expect(listProjection({ supplier: ["Ростелеком"] })).toBe("page");
     expect(
       listProjection({ supplier: [EMPTY_FILTER_TOKEN, "Ростелеком"] }),
     ).toBe("page");
@@ -72,13 +72,13 @@ describe("list projection", () => {
     expect(facetProjection("client", { number: ["7900"] })).toBe("page");
     expect(facetProjection("number", { city: ["Москва"] })).toBe("catalog");
     expect(facetProjection("client", { supplier: ["нет такого"] })).toBe(
-      "empty",
+      "page",
     );
   });
 });
 
 describe("filter clauses", () => {
-  it("drops the open column and ignores an empty supplier", () => {
+  it("drops the open column and keeps an empty supplier filter", () => {
     expect(
       activeFilterColumns(
         {
@@ -89,7 +89,7 @@ describe("filter clauses", () => {
         },
         "city",
       ),
-    ).toEqual(["number"]);
+    ).toEqual(["supplier", "number"]);
   });
 
   it("binds filter text and does not paste it into the statement", () => {
@@ -125,6 +125,8 @@ describe("pstn cache key", () => {
     const flat = flattenSql(pageListSql(Prisma.sql`TRUE`, 100, 0));
     expect(flat.values).toContain(PSTN_ELEVEN_DIGIT);
     expect(flat.values).toContain(PSTN_TEN_DIGIT);
+    expect(flat.text).toContain("data->>'Поставщик'");
+    expect(flat.values).toContain("Премиум");
   });
 });
 

@@ -16,13 +16,15 @@ import { HighlightText } from "@/components/highlight-text";
 import { cn } from "@/lib/utils";
 import type { PhoneListItem } from "@/modules/phones/service";
 import { buildPhonesFacetsUrl } from "@/modules/phones/api-client";
+import { displayTermCapacity, TERM_CAPACITY_FIELD } from "@/modules/phones/capacity";
 import {
   ENDPOINT_NUMBER_FIELD,
   type PhoneKind,
 } from "@/modules/phones/types";
 
 /** Display value for phones table cells (plaintext, including SIP password). */
-export function displayPhoneCellValue(_header: string, value: string): string {
+export function displayPhoneCellValue(header: string, value: string): string {
+  if (header === TERM_CAPACITY_FIELD) return displayTermCapacity(value);
   return value;
 }
 

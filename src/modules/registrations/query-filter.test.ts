@@ -80,7 +80,7 @@ describe("applyRegistrationQuery", () => {
     expect(filtered.map((r) => r.status)).toEqual(["Unregistered"]);
   });
 
-  it("filters channelality; empty capacity and catalog miss share __empty__", () => {
+  it("filters channelality; empty capacity and catalog miss share Премиум", () => {
     expect(
       applyRegistrationQuery(rows, {
         filters: { channelality: ["10"] },
@@ -88,9 +88,10 @@ describe("applyRegistrationQuery", () => {
     ).toEqual(["73852222205"]);
     expect(
       applyRegistrationQuery(rows, {
-        filters: { channelality: ["__empty__"] },
+        filters: { channelality: ["Премиум"] },
       }).map((r) => r.phone),
     ).toEqual(["73912193303"]);
+    expect(registrationFacetToken(rows[1]!, "channelality")).toBe("Премиум");
   });
 
   it("counts Unregistered rows independently of list filters", () => {

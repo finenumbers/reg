@@ -228,9 +228,9 @@ Full snapshot всех номеров на каждый run **не хранит�
 
 Отдельная 1:1 проекция на `cdr_records`. URL пишется **только** после match (`matched_exact` / `matched_fallback`). `voipmonitor_legs` — JSON `{ in?, out? }` с отдельными `fcallid`-ссылками на входное и исходящее плечо Satel. Точный Call-ID: две строки Satel могут показать один Calltrace. Аксиома: загруженный CDR обычно есть в VoIPmonitor; пустая ячейка после успокоения очереди чаще дефект matcher, но после потолка попыток «не нашли» джоба не крутится (записи в VM может не быть). Job `voipmonitor.match` берёт час live, затем archive-часы до бюджета, ретраит miss с backoff. Ссылки не читаются из Collector.
 
-### Enrich (`enrich_jobs`)
+### Enrich
 
-Эфемерный прогон CSV→XLSX. Не больше одного `queued|running` (partial unique index). Артефакты на диске по id, TTL 24h. Full per-run snapshot регистраций **не** хранится.
+Таблица `enrich_jobs` удалена в v1.183.0 вместе с экраном «Обогатить данные». Кэш PSTN, кэш GeoIP и колонки обогащения CDR остаются. Поставщик номера хранится в `phone_endpoints.data['Поставщик']` и переносится снимком `phones.sync`, пока текст номера не изменился.
 
 ## 6. Пример формата источника
 

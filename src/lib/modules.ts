@@ -18,7 +18,6 @@ export type FeatureModuleId =
   | "geography"
   | "operators"
   | "audit"
-  | "enrich"
   | "stats"
   | "detail"
   | "smg"
@@ -77,13 +76,6 @@ export const FEATURE_MODULES: FeatureModuleDefinition[] = [
     title: "География номеров",
     description: "Город, оператор и территория оконечных номеров",
     href: "/number-geography",
-    navPermission: "phones:read",
-  },
-  {
-    id: "enrich",
-    title: "Обогатить данные",
-    description: "Обогащение CDR: описания, PSTN и GeoIP → XLSX",
-    href: "/enrich",
     navPermission: "phones:read",
   },
   {
