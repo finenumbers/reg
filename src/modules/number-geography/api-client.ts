@@ -7,6 +7,7 @@ import {
   type ColumnFilters,
   type FacetResponse,
 } from "@/components/column-filters/types";
+import type { PstnFillResponse } from "@/modules/number-geography/pstn-fill-contract";
 import type { ListNumberGeographyResult } from "@/modules/number-geography/types";
 
 export type FetchNumberGeographyResult =
@@ -81,6 +82,34 @@ export async function fetchNumberGeographyList(opts: {
     };
   }
   return { ok: true, data: body as ListNumberGeographyResult };
+}
+
+export async function fetchNumberGeographyPstnFill(
+  ids: string[],
+): Promise<{ ok: true; data: PstnFillResponse } | { ok: false }> {
+  try {
+    const res = await fetch("/api/number-geography/pstn-fill", {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ ids }),
+      cache: "no-store",
+    });
+    const body = await readJson(res);
+    if (
+      !res.ok ||
+      !body ||
+      typeof body !== "object" ||
+      !("configured" in body)
+    ) {
+      return { ok: false };
+    }
+    return { ok: true, data: body as PstnFillResponse };
+  } catch {
+    return { ok: false };
+  }
 }
 
 export type { FacetResponse };

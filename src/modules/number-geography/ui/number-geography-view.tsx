@@ -16,11 +16,20 @@ import {
 } from "@/components/table-infinite-body";
 import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
 import { TABLE_PAGE_SIZE } from "@/lib/table-pagination";
-import { fetchNumberGeographyList } from "@/modules/number-geography/api-client";
+import {
+  fetchNumberGeographyList,
+  fetchNumberGeographyPstnFill,
+} from "@/modules/number-geography/api-client";
 import { NUMBER_GEOGRAPHY_HEADERS } from "@/modules/number-geography/columns";
 import { refreshIntervalMs } from "@/modules/number-geography/paging";
+import { PSTN_FILL_MAX_IDS } from "@/modules/number-geography/pstn-fill-contract";
+import {
+  blankPstnRowIds,
+  mergePstnLabels,
+} from "@/modules/number-geography/pstn-fill-rows";
 import type {
   ListNumberGeographyResult,
+  NumberGeographyItem,
   NumberGeographyRefresh,
 } from "@/modules/number-geography/types";
 import { NumberGeographyTable } from "@/modules/number-geography/ui/number-geography-table";
@@ -59,6 +68,14 @@ export function NumberGeographyView({ initial }: Props) {
       soft?: boolean;
     }) => Promise<void>
   >(async () => {});
+  const fillGeneration = useRef(0);
+  const fillQueue = useRef<string[]>([]);
+  const fillQueued = useRef(new Set<string>());
+  const fillInvalid = useRef(new Set<string>());
+  const fillDraining = useRef(false);
+  const enqueueFillRef = useRef<
+    (rows: NumberGeographyItem[], mode: "append" | "replace" | "soft") => void
+  >(() => {});
 
   const hasMore = items.length < total;
   const filtersActive = hasActiveFilters(filters);
@@ -119,6 +136,10 @@ export function NumberGeographyView({ initial }: Props) {
       ) {
         armRef.current();
       }
+      enqueueFillRef.current(
+        result.data.items,
+        replace ? (soft ? "soft" : "replace") : "append",
+      );
     } finally {
       if (seq === refreshSeq.current) {
         inFlightRef.current = false;
@@ -129,13 +150,92 @@ export function NumberGeographyView({ initial }: Props) {
     }
   }
 
+  function enqueueFill(
+    rows: NumberGeographyItem[],
+    mode: "append" | "replace" | "soft",
+  ) {
+    if (mode !== "append") {
+      fillGeneration.current += 1;
+      fillQueue.current = [];
+      fillQueued.current = new Set();
+      if (mode === "replace") fillInvalid.current = new Set();
+    }
+    const generation = fillGeneration.current;
+    for (const id of blankPstnRowIds(rows, fillInvalid.current)) {
+      if (fillQueued.current.has(id)) continue;
+      fillQueued.current.add(id);
+      fillQueue.current.push(id);
+    }
+    void drainFill(generation);
+  }
+
+  async function drainFill(generation: number) {
+    if (fillDraining.current) return;
+    if (generation !== fillGeneration.current) return;
+    fillDraining.current = true;
+    try {
+      while (
+        fillQueue.current.length > 0 &&
+        generation === fillGeneration.current
+      ) {
+        const chunk = fillQueue.current.splice(0, PSTN_FILL_MAX_IDS);
+        const result = await fetchNumberGeographyPstnFill(chunk);
+        if (generation !== fillGeneration.current) return;
+        for (const id of chunk) fillQueued.current.delete(id);
+        if (!result.ok || !result.data.configured) {
+          fillQueue.current = [];
+          fillQueued.current = new Set();
+          return;
+        }
+        const updates: { id: string; operator: string; geography: string }[] =
+          [];
+        let stop = false;
+        for (const item of result.data.items) {
+          if (item.status === "invalid") fillInvalid.current.add(item.id);
+          if (item.status === "error") stop = true;
+          if (
+            (item.status === "filled" || item.status === "cached") &&
+            item.operator != null &&
+            item.geography != null
+          ) {
+            updates.push({
+              id: item.id,
+              operator: item.operator,
+              geography: item.geography,
+            });
+          }
+        }
+        if (generation === fillGeneration.current) {
+          setItems((prev) => mergePstnLabels(prev, updates));
+        }
+        if (stop) {
+          fillQueue.current = [];
+          fillQueued.current = new Set();
+          return;
+        }
+      }
+    } finally {
+      fillDraining.current = false;
+      if (fillQueue.current.length > 0) {
+        void drainFill(fillGeneration.current);
+      }
+    }
+  }
+
   useEffect(() => {
     filtersRef.current = filters;
     pageRef.current = page;
     itemsLenRef.current = items.length;
     openColumnRef.current = openColumn;
     loadListRef.current = loadList;
+    enqueueFillRef.current = enqueueFill;
   });
+
+  useEffect(() => {
+    enqueueFillRef.current(initial.items, "replace");
+    // The server payload is the first page. Later pages enqueue from loadList.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     let timer: number | null = null;
@@ -222,8 +322,9 @@ export function NumberGeographyView({ initial }: Props) {
             География номеров
           </h1>
           <p className="text-muted-foreground text-sm">
-            Оконечные номера каталога. Город из тарификации, оператор и
-            территория из кэша PSTN.
+            Оконечные номера каталога. Город из тарификации. Оператор и
+            территория из кэша PSTN; пустые ячейки дозапрашиваются при
+            просмотре.
           </p>
         </div>
       </div>

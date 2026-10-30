@@ -18,6 +18,7 @@ import {
   PSTN_ELEVEN_DIGIT,
   PSTN_TEN_DIGIT,
   pstnCacheKey,
+  pstnLabelsByIdsSql,
 } from "@/modules/number-geography/sql";
 import { normalizePstnPhone } from "@/modules/pstn/types";
 import { CITY_DIRECTION_PREFIX } from "@/modules/traffic/call-class";
@@ -152,5 +153,22 @@ describe("city sql phrase", () => {
       catalog.text.lastIndexOf("LIMIT"),
     );
     expect(catalog.values).toContain(MISSING_PSTN_LABEL);
+  });
+});
+
+describe("pstn labels by id", () => {
+  it("uses the table's miss label and does not rate the number", () => {
+    const hostile = "id'); DROP TABLE pstn_phone_cache;--";
+    const flat = flattenSql(pstnLabelsByIdsSql([hostile, "endpoint-2"]));
+    const page = flattenSql(pageListSql(Prisma.sql`TRUE`, 10, 0));
+    expect(flat.text).not.toContain("DROP TABLE");
+    expect(flat.text).not.toContain("cdr_tariff_direction");
+    expect(flat.text).toContain("pstn_phone IS NULL");
+    expect(flat.values).toContain(hostile);
+    expect(flat.values).toContain(MISSING_PSTN_LABEL);
+    expect(page.values).toContain(MISSING_PSTN_LABEL);
+    expect(flat.values.filter((value) => value === MISSING_PSTN_LABEL).length).toBe(
+      page.values.filter((value) => value === MISSING_PSTN_LABEL).length,
+    );
   });
 });

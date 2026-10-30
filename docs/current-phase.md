@@ -1,7 +1,13 @@
-# Current Phase — production (v1.181.0)
+# Current Phase — production (v1.182.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, number geography, CDR/FTP, enrich, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal.  
 **Date:** 2026-10-31
+
+## v1.182.0 — Number geography fills missing PSTN cache rows
+
+There is no migration. Stop `app` before the update and start one new process only. Do not stop `smg-syslog`. Phone, tariff, and CDR rows are not rewritten. A PSTN cache row that already exists is not refreshed and is not deleted.
+
+«География номеров» still reads operator and geography from the shared `pstn_phone_cache`, including a row older than 24 hours. A pair of empty cells means that number has never been stored. The open page then asks PSTN for those catalog endpoints, 16 ids at a time and at most 8 lookups at once, and writes the answer with the same upsert CDR import, month export, and CSV enrich already use. While the row is younger than 24 hours those paths reuse it and do not call PSTN. A cached miss stays «Нет в реестре МинЦифры» and is not asked again. Numbers the reader has not loaded are not asked. A transport error is not stored; that number is skipped for 5 minutes. Three timeouts or network failures pause new lookups for 60 seconds. One unauthorized response pauses them for 10 minutes. A Retry-After longer than 2 seconds fails that number and does not hold the request. The table paints the cells in place. The timer, the filters, and the red-row rule are unchanged.
 
 ## v1.181.0 — Number geography sits under incoming groups
 

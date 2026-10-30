@@ -387,3 +387,44 @@ export function catalogFacetSql(
     GROUP BY 1
   `;
 }
+
+/**
+ * Operator and geography labels for a handful of endpoints.
+ * Same CASE as the table. No tariff lookup.
+ */
+export function pstnLabelsByIdsSql(ids: string[]): Prisma.Sql {
+  const idList = Prisma.join(ids.map((id) => Prisma.sql`${id}`));
+  return Prisma.sql`
+    WITH src AS (
+      SELECT
+        e.id,
+        btrim(e."endpointNumber") AS number
+      FROM phone_endpoints e
+      WHERE e.id IN (${idList})
+        AND e."endpointNumber" IS NOT NULL
+        AND btrim(e."endpointNumber") <> ''
+    ),
+    keyed AS (
+      SELECT
+        src.id,
+        regexp_replace(src.number, '[^0-9]', '', 'g') AS digits
+      FROM src
+    ),
+    joined AS (
+      SELECT
+        k.id,
+        c.phone AS pstn_phone,
+        c.found AS pstn_found,
+        c.operator AS pstn_operator,
+        c."garTerritory" AS pstn_geography
+      FROM keyed k
+      LEFT JOIN pstn_phone_cache c
+        ON c.phone = ${pstnKeyFromDigits(Prisma.sql`k.digits`)}
+    )
+    SELECT
+      id,
+      ${operatorLabelSql()} AS operator,
+      ${geographyLabelSql()} AS geography
+    FROM joined
+  `;
+}
