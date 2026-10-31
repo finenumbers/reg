@@ -657,6 +657,15 @@ export function TrafficView({
             value={phoneInput}
             onChange={setPhoneInput}
           />
+          <Button
+            type="button"
+            variant="outline"
+            className={FILTER_TOOLBAR_TEXT}
+            disabled={!filtersActive}
+            onClick={onResetFilters}
+          >
+            Сбросить фильтры
+          </Button>
           <div className="flex items-center gap-2">
             <input
               id={`${searchInputId}-phantom`}
@@ -729,15 +738,6 @@ export function TrafficView({
               Успешные
             </Label>
           </div>
-          <Button
-            type="button"
-            variant="outline"
-            className={FILTER_TOOLBAR_TEXT}
-            disabled={!filtersActive}
-            onClick={onResetFilters}
-          >
-            Сбросить фильтры
-          </Button>
         </div>
         <FitSelect
           id={`${searchInputId}-month`}

@@ -10,6 +10,7 @@ import {
 import {
   activeFilterColumns,
   catalogListSql,
+  cheapWhere,
   cityAlertSql,
   cityLabelSql,
   facetProjection,
@@ -68,6 +69,33 @@ describe("list projection", () => {
     expect(facetProjection("client", { number: ["7900"] })).toBe("page");
     expect(facetProjection("number", { city: ["Москва"] })).toBe("catalog");
     expect(facetProjection("client", { supplier: ["нет такого"] })).toBe("page");
+  });
+});
+
+describe("phone search", () => {
+  it("matches a substring of Номер and keeps the other cheap filters", () => {
+    const flat = flattenSql(cheapWhere({ client: ["А"] }, undefined, "90%"));
+    expect(flat.text).toContain("client IN");
+    expect(flat.text).toContain("number ILIKE");
+    expect(flat.text).toContain("ESCAPE '\\'");
+    expect(flat.values).toContain("%90\\%%");
+    expect(flat.values).toContain("А");
+  });
+
+  it("leaves a blank phone query out of the clause", () => {
+    expect(flattenSql(cheapWhere({ number: ["1"] }, undefined, "  "))).toEqual(
+      flattenSql(cheapWhere({ number: ["1"] })),
+    );
+  });
+
+  it("keeps the phone query when the open facet is Номер", () => {
+    const flat = flattenSql(
+      cheapWhere({ number: ["7900"], city: ["Москва"] }, "number", "495"),
+    );
+    expect(flat.text).toContain("number ILIKE");
+    expect(flat.text).not.toContain("number IN");
+    expect(flat.values).toContain("%495%");
+    expect(flat.values).not.toContain("7900");
   });
 });
 

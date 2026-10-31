@@ -230,6 +230,8 @@ export function SmgView({
   deviceRef.current = device;
 
   const hasMore = items.length < total;
+  const filtersActive =
+    hasActiveFilters(filters) || phoneQ.trim().length > 0 || setupSort !== null;
 
   const loadList = useCallback(async (opts: LoadOpts = {}) => {
     const background = opts.background ?? false;
@@ -397,6 +399,22 @@ export function SmgView({
     onLoadMore,
     root: scrollRoot,
   });
+
+  function onResetFilters() {
+    setPhoneInput("");
+    setPhoneQ("");
+    setFilters({});
+    setSetupSort(null);
+    setupSortRef.current = null;
+    setOpenColumn(null);
+    void loadList({
+      page: 1,
+      replace: true,
+      filters: {},
+      phoneQ: "",
+      setupSort: null,
+    });
+  }
 
   async function onExport() {
     if (exportingRef.current) return;
@@ -568,11 +586,22 @@ export function SmgView({
       </div>
 
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
-        <PhoneSearchInput
-          id={searchInputId}
-          value={phoneInput}
-          onChange={setPhoneInput}
-        />
+        <div className="flex flex-wrap items-center gap-3">
+          <PhoneSearchInput
+            id={searchInputId}
+            value={phoneInput}
+            onChange={setPhoneInput}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            className={FILTER_TOOLBAR_TEXT}
+            disabled={!filtersActive}
+            onClick={onResetFilters}
+          >
+            Сбросить фильтры
+          </Button>
+        </div>
         <div className="flex flex-wrap items-center gap-2">
           <FitSelect
             id="smg-gateway"
@@ -787,7 +816,11 @@ export function SmgView({
                           : undefined;
                       return (
                         <TableCell key={field} className={className}>
-                          {highlightPhones && HIGHLIGHT_FIELDS.has(field) ? (
+                          {(
+                            highlightPhones
+                              ? HIGHLIGHT_FIELDS.has(field)
+                              : PHONE_FIELDS.has(field)
+                          ) ? (
                             <HighlightText text={text} query={phoneQ} />
                           ) : (
                             text

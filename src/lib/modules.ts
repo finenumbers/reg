@@ -128,7 +128,7 @@ export const FEATURE_MODULES: FeatureModuleDefinition[] = [
   },
   {
     id: "antifraud",
-    title: "АнтиФрод",
+    title: "Ошибки АнтиФрод",
     description: "Журнал Access-Request с Radius Parking",
     href: "/antifraud",
     navPermission: "phones:read",

@@ -14,10 +14,7 @@ import {
   setColumnFilterValues,
   type ColumnFilters,
 } from "@/components/column-filters";
-import {
-  TableCountFooter,
-  TableInfiniteBody,
-} from "@/components/table-infinite-body";
+import { TableCountFooter, TableInfiniteBody } from "@/components/table-infinite-body";
 import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
 import {
   REGS_UNREGISTERED_POLL_MS,
@@ -67,9 +64,7 @@ export function RegistrationsView({ canPoll, initial }: Props) {
   const [phoneInput, setPhoneInput] = useState("");
   const [phoneQ, setPhoneQ] = useState("");
   const [unregisteredOnly, setUnregisteredOnly] = useState(false);
-  const [unregisteredCount, setUnregisteredCount] = useState(
-    initial.unregisteredCount,
-  );
+  const [unregisteredCount, setUnregisteredCount] = useState(initial.unregisteredCount);
   const [openColumn, setOpenColumn] = useState<string | null>(null);
   const [page, setPage] = useState(initial.page);
   const [items, setItems] = useState(initial.items);
@@ -100,9 +95,7 @@ export function RegistrationsView({ canPoll, initial }: Props) {
 
   const hasMore = items.length < total;
   const filtersActive =
-    hasActiveFilters(filters) ||
-    phoneQ.trim().length > 0 ||
-    unregisteredOnly;
+    hasActiveFilters(filters) || phoneQ.trim().length > 0 || unregisteredOnly;
 
   useEffect(() => {
     return () => {
@@ -113,18 +106,19 @@ export function RegistrationsView({ canPoll, initial }: Props) {
     };
   }, []);
 
-  async function loadList(opts: {
-    filters?: ColumnFilters;
-    phoneQ?: string;
-    unregisteredOnly?: boolean;
-    page?: number;
-    replace?: boolean;
-    soft?: boolean;
-  } = {}) {
+  async function loadList(
+    opts: {
+      filters?: ColumnFilters;
+      phoneQ?: string;
+      unregisteredOnly?: boolean;
+      page?: number;
+      replace?: boolean;
+      soft?: boolean;
+    } = {},
+  ) {
     const replace = opts.replace ?? true;
     const nextFilters = opts.filters ?? filtersRef.current;
-    const nextPhoneQ =
-      opts.phoneQ !== undefined ? opts.phoneQ : phoneQRef.current;
+    const nextPhoneQ = opts.phoneQ !== undefined ? opts.phoneQ : phoneQRef.current;
     const nextUnregisteredOnly =
       opts.unregisteredOnly !== undefined
         ? opts.unregisteredOnly
@@ -168,9 +162,7 @@ export function RegistrationsView({ canPoll, initial }: Props) {
     setTotal(result.data.total);
     setPage(result.data.page);
     setUnregisteredCount(result.data.unregisteredCount);
-    setItems((prev) =>
-      replace ? result.data.items : [...prev, ...result.data.items],
-    );
+    setItems((prev) => (replace ? result.data.items : [...prev, ...result.data.items]));
     setLoading(false);
     setLoadingMore(false);
     loadingMoreRef.current = false;
@@ -200,10 +192,7 @@ export function RegistrationsView({ canPoll, initial }: Props) {
     root: scrollRoot,
   });
 
-  function applyFilters(
-    next: ColumnFilters,
-    opts: { closeDropdown?: boolean } = {},
-  ) {
+  function applyFilters(next: ColumnFilters, opts: { closeDropdown?: boolean } = {}) {
     setFilters(next);
     if (opts.closeDropdown) setOpenColumn(null);
     void loadList({ filters: next, page: 1, replace: true });
@@ -328,9 +317,7 @@ export function RegistrationsView({ canPoll, initial }: Props) {
       }
     } catch {
       const message = "Не удалось выполнить опрос";
-      setPollState(
-        reducePollUiState(IDLE_POLL_STATE, { type: "ERROR", message }),
-      );
+      setPollState(reducePollUiState(IDLE_POLL_STATE, { type: "ERROR", message }));
       toast.error(message);
     } finally {
       pollInFlightRef.current = false;
@@ -401,10 +388,11 @@ export function RegistrationsView({ canPoll, initial }: Props) {
     <div className="flex h-full min-h-0 flex-col gap-4">
       <div className="flex shrink-0 flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight [text-box:trim-start_cap_alphabetic]">Регистрации</h1>
-          <p className="text-sm text-muted-foreground">
-            Текущее состояние SIP-регистраций из локальной базы после успешных
-            опросов.
+          <h1 className="text-xl font-semibold tracking-tight [text-box:trim-start_cap_alphabetic]">
+            Регистрации
+          </h1>
+          <p className="text-muted-foreground text-sm">
+            Текущее состояние SIP-регистраций из локальной базы после успешных опросов.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -427,7 +415,7 @@ export function RegistrationsView({ canPoll, initial }: Props) {
       {listError ? (
         <div
           role="alert"
-          className="shrink-0 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+          className="border-destructive/30 bg-destructive/10 text-destructive shrink-0 rounded-md border px-3 py-2 text-sm"
         >
           {listError}
           <Button
@@ -450,7 +438,7 @@ export function RegistrationsView({ canPoll, initial }: Props) {
           className={
             pollState.status === "success"
               ? "shrink-0 rounded-md border border-emerald-600/30 bg-emerald-600/10 px-3 py-2 text-sm text-emerald-800 dark:text-emerald-200"
-              : "shrink-0 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+              : "border-destructive/30 bg-destructive/10 text-destructive shrink-0 rounded-md border px-3 py-2 text-sm"
           }
         >
           {pollState.message}
@@ -463,6 +451,15 @@ export function RegistrationsView({ canPoll, initial }: Props) {
           value={phoneInput}
           onChange={onPhoneInputChange}
         />
+        <Button
+          type="button"
+          variant="outline"
+          className={FILTER_TOOLBAR_TEXT}
+          disabled={!filtersActive}
+          onClick={onResetFilters}
+        >
+          Сбросить фильтры
+        </Button>
         <div className="flex items-center gap-2">
           <input
             id="regs-unregistered-only"
@@ -477,23 +474,12 @@ export function RegistrationsView({ canPoll, initial }: Props) {
             </RowColorMark>
           </Label>
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          className={FILTER_TOOLBAR_TEXT}
-          disabled={!filtersActive}
-          onClick={onResetFilters}
-        >
-          Сбросить фильтры
-        </Button>
       </div>
 
       <ActiveFiltersBar
         filters={filters}
         headers={REG_COLUMN_HEADERS}
-        formatValue={(field, value) =>
-          displayFacetForColumn(field, value, timeZone)
-        }
+        formatValue={(field, value) => displayFacetForColumn(field, value, timeZone)}
         phoneQuery={phoneQ}
         onClearPhoneQuery={onClearPhoneQuery}
         onRemoveFacet={onRemoveFacet}

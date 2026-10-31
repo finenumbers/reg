@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { downloadXlsxFromUrl } from "@/lib/download-xlsx";
 import { FILTER_TOOLBAR_TEXT } from "@/components/filter-toolbar";
+import { PhoneSearchInput } from "@/components/phone-search-input";
 import { Button } from "@/components/ui/button";
 import {
   ActiveFiltersBar,
@@ -36,6 +37,7 @@ import type {
 import { NumberGeographyTable } from "@/modules/number-geography/ui/number-geography-table";
 
 const PAGE_SIZE = TABLE_PAGE_SIZE;
+const PHONE_SEARCH_DEBOUNCE_MS = 300;
 
 type Props = {
   initial: ListNumberGeographyResult;
@@ -44,6 +46,8 @@ type Props = {
 
 export function NumberGeographyView({ initial, canRequest }: Props) {
   const [filters, setFilters] = useState<ColumnFilters>({});
+  const [phoneInput, setPhoneInput] = useState("");
+  const [phoneQ, setPhoneQ] = useState("");
   const [openColumn, setOpenColumn] = useState<string | null>(null);
   const [page, setPage] = useState(initial.page);
   const [items, setItems] = useState(initial.items);
@@ -63,6 +67,8 @@ export function NumberGeographyView({ initial, canRequest }: Props) {
   const inFlightRef = useRef(false);
   const loadingMoreRef = useRef(false);
   const filtersRef = useRef(filters);
+  const phoneQRef = useRef(phoneQ);
+  const phoneSearchTimerRef = useRef<number | null>(null);
   const pageRef = useRef(page);
   const itemsLenRef = useRef(items.length);
   const openColumnRef = useRef(openColumn);
@@ -72,6 +78,7 @@ export function NumberGeographyView({ initial, canRequest }: Props) {
   const loadListRef = useRef<
     (opts: {
       filters?: ColumnFilters;
+      phoneQ?: string;
       page?: number;
       replace?: boolean;
       soft?: boolean;
@@ -87,10 +94,11 @@ export function NumberGeographyView({ initial, canRequest }: Props) {
   >(() => {});
 
   const hasMore = items.length < total;
-  const filtersActive = hasActiveFilters(filters);
+  const filtersActive = hasActiveFilters(filters) || phoneQ.trim().length > 0;
 
   async function loadList(opts: {
     filters?: ColumnFilters;
+    phoneQ?: string;
     page?: number;
     replace?: boolean;
     soft?: boolean;
@@ -98,6 +106,7 @@ export function NumberGeographyView({ initial, canRequest }: Props) {
     const replace = opts.replace ?? true;
     const soft = opts.soft === true;
     const nextFilters = opts.filters ?? filtersRef.current;
+    const nextPhoneQ = opts.phoneQ !== undefined ? opts.phoneQ : phoneQRef.current;
     const nextPage = opts.page ?? (replace ? 1 : pageRef.current);
     const seq = ++refreshSeq.current;
     inFlightRef.current = true;
@@ -115,6 +124,7 @@ export function NumberGeographyView({ initial, canRequest }: Props) {
     try {
       const result = await fetchNumberGeographyList({
         filters: nextFilters,
+        phoneQ: nextPhoneQ,
         page: nextPage,
         pageSize: PAGE_SIZE,
       });
@@ -134,6 +144,7 @@ export function NumberGeographyView({ initial, canRequest }: Props) {
       if (!replace && !geographyAppendAllowed(catalogStampRef.current, nextStamp)) {
         await loadList({
           filters: nextFilters,
+          phoneQ: nextPhoneQ,
           page: 1,
           replace: true,
           soft,
@@ -262,6 +273,7 @@ export function NumberGeographyView({ initial, canRequest }: Props) {
 
   useEffect(() => {
     filtersRef.current = filters;
+    phoneQRef.current = phoneQ;
     pageRef.current = page;
     itemsLenRef.current = items.length;
     openColumnRef.current = openColumn;
@@ -346,10 +358,38 @@ export function NumberGeographyView({ initial, canRequest }: Props) {
     void loadList({ filters: next, page: 1, replace: true });
   }
 
+  function onPhoneInputChange(value: string) {
+    setPhoneInput(value);
+    if (phoneSearchTimerRef.current != null) {
+      window.clearTimeout(phoneSearchTimerRef.current);
+    }
+    phoneSearchTimerRef.current = window.setTimeout(() => {
+      const next = value.trim();
+      setPhoneQ(next);
+      void loadList({ phoneQ: next, page: 1, replace: true });
+    }, PHONE_SEARCH_DEBOUNCE_MS);
+  }
+
+  function onClearPhoneQuery() {
+    if (phoneSearchTimerRef.current != null) {
+      window.clearTimeout(phoneSearchTimerRef.current);
+      phoneSearchTimerRef.current = null;
+    }
+    setPhoneInput("");
+    setPhoneQ("");
+    void loadList({ phoneQ: "", page: 1, replace: true });
+  }
+
   function onResetFilters() {
+    if (phoneSearchTimerRef.current != null) {
+      window.clearTimeout(phoneSearchTimerRef.current);
+      phoneSearchTimerRef.current = null;
+    }
+    setPhoneInput("");
+    setPhoneQ("");
     setFilters({});
     setOpenColumn(null);
-    void loadList({ filters: {}, page: 1, replace: true });
+    void loadList({ filters: {}, phoneQ: "", page: 1, replace: true });
   }
 
   async function onExport() {
@@ -449,6 +489,11 @@ export function NumberGeographyView({ initial, canRequest }: Props) {
       </div>
 
       <div className="flex shrink-0 flex-wrap items-center gap-3">
+        <PhoneSearchInput
+          id="number-geography-phone-search"
+          value={phoneInput}
+          onChange={onPhoneInputChange}
+        />
         <Button
           type="button"
           variant="outline"
@@ -470,6 +515,8 @@ export function NumberGeographyView({ initial, canRequest }: Props) {
       <ActiveFiltersBar
         filters={filters}
         headers={NUMBER_GEOGRAPHY_HEADERS}
+        phoneQuery={phoneQ}
+        onClearPhoneQuery={onClearPhoneQuery}
         onRemoveFacet={onRemoveFacet}
       />
 
@@ -492,6 +539,7 @@ export function NumberGeographyView({ initial, canRequest }: Props) {
                 : "Нет данных."
             }
             filters={filters}
+            phoneQ={phoneQ}
             lookupFailed={lookupFailed}
             openColumn={openColumn}
             onOpenColumnChange={setOpenColumn}

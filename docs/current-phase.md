@@ -1,7 +1,19 @@
-# Current Phase — production (v1.187.0)
+# Current Phase — production (v1.188.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, number geography, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal.  
 **Date:** 2026-10-31
+
+## v1.188.0 — Geography phone search, endpoint order, Ошибки АнтиФрод
+
+There is no migration. Do not stop `app`. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten.
+
+«Регистрации» is ordered by «Телефон». «География номеров» is ordered by «Номер», then id. «Телефонные номера» lists endpoints by «Номер оконечного оборудования», then id. An empty number is last. Gateway pages break name ties by id. Phone exports stay ordered by name.
+
+«География номеров» puts «Телефонный номер» on the filter row, immediately left of «Сбросить фильтры». The query is a case-insensitive substring of «Номер», applied after 300 ms. A hit in «Номер» is painted yellow. Column filters and the query apply together, and a column menu keeps the query. «Сбросить фильтры» clears the query, the column filters, and the open menu. «Сохранить данные» is still the full catalog.
+
+«Данные SMG» paints a phone-search hit yellow in «Входящий номер вызывающего», «Исходящий номер вызывающего», «Входящий номер вызываемого», and «Исходящий номер вызываемого». «Трафик SMG» keeps its existing yellow marks. Both pages, and every other table that has «Телефонный номер», put «Сбросить фильтры» immediately to the right of that field. On the SMG tables the button clears the query, the column filters, and the time sort. The month and the node stay.
+
+The SMG navigation item and the page heading are «Ошибки АнтиФрод». The columns «АнтиФрод» and «Статус АнтиФрод» keep those names.
 
 ## v1.187.0 — Category on a number, three geography row colors
 

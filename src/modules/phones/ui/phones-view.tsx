@@ -15,10 +15,7 @@ import {
   setColumnFilterValues,
   type ColumnFilters,
 } from "@/components/column-filters";
-import {
-  TableCountFooter,
-  TableInfiniteBody,
-} from "@/components/table-infinite-body";
+import { TableCountFooter, TableInfiniteBody } from "@/components/table-infinite-body";
 import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
 import {
   PHONES_REGS_UNREGISTERED_POLL_MS,
@@ -68,11 +65,7 @@ function selectKind(next: PhoneKind, current: PhoneKind, load: (k: PhoneKind) =>
   load(next);
 }
 
-export function PhonesView({
-  canRequest,
-  initial,
-  initialRegsUnregisteredCount,
-}: Props) {
+export function PhonesView({ canRequest, initial, initialRegsUnregisteredCount }: Props) {
   const { timeZone } = useDisplayTimezone();
   const [kind, setKind] = useState<PhoneKind>(initial.kind);
   const [filters, setFilters] = useState<ColumnFilters>({});
@@ -86,12 +79,8 @@ export function PhonesView({
   const [total, setTotal] = useState(initial.total);
   const [endpointCount, setEndpointCount] = useState(initial.endpointCount);
   const [gatewayCount, setGatewayCount] = useState(initial.gatewayCount);
-  const [registeredCount, setRegisteredCount] = useState(
-    initial.registeredCount,
-  );
-  const [unregisteredCount, setUnregisteredCount] = useState(
-    initial.unregisteredCount,
-  );
+  const [registeredCount, setRegisteredCount] = useState(initial.registeredCount);
+  const [unregisteredCount, setUnregisteredCount] = useState(initial.unregisteredCount);
   const [regsUnregisteredCount, setRegsUnregisteredCount] = useState(
     initialRegsUnregisteredCount,
   );
@@ -126,9 +115,7 @@ export function PhonesView({
 
   const hasMore = items.length < total;
   const filtersActive =
-    hasActiveFilters(filters) ||
-    phoneQ.trim().length > 0 ||
-    sipUnregisteredOnly;
+    hasActiveFilters(filters) || phoneQ.trim().length > 0 || sipUnregisteredOnly;
 
   const headerLabels = useMemo(() => {
     const map: Record<string, string> = {};
@@ -184,8 +171,7 @@ export function PhonesView({
     const replace = opts.replace ?? true;
     const nextKind = opts.kind ?? kindRef.current;
     const nextFilters = opts.filters ?? filtersRef.current;
-    const nextPhoneQ =
-      opts.phoneQ !== undefined ? opts.phoneQ : phoneQRef.current;
+    const nextPhoneQ = opts.phoneQ !== undefined ? opts.phoneQ : phoneQRef.current;
     const nextSipOnly =
       opts.sipUnregisteredOnly !== undefined
         ? opts.sipUnregisteredOnly
@@ -207,8 +193,7 @@ export function PhonesView({
       kind: nextKind,
       filters: nextFilters,
       phoneQ: nextPhoneQ,
-      sipUnregisteredOnly:
-        nextKind === "endpoints_registered" ? nextSipOnly : false,
+      sipUnregisteredOnly: nextKind === "endpoints_registered" ? nextSipOnly : false,
       page: nextPage,
       pageSize: PAGE_SIZE,
     });
@@ -237,9 +222,7 @@ export function PhonesView({
     setUnregisteredCount(result.data.unregisteredCount);
     setErrorCount(result.data.errorCount);
     setLastSyncedAt(result.data.lastSyncedAt);
-    setItems((prev) =>
-      replace ? result.data.items : [...prev, ...result.data.items],
-    );
+    setItems((prev) => (replace ? result.data.items : [...prev, ...result.data.items]));
     setLoading(false);
     setLoadingMore(false);
     loadingMoreRef.current = false;
@@ -269,10 +252,7 @@ export function PhonesView({
     root: scrollRoot,
   });
 
-  function applyFilters(
-    next: ColumnFilters,
-    opts: { closeDropdown?: boolean } = {},
-  ) {
+  function applyFilters(next: ColumnFilters, opts: { closeDropdown?: boolean } = {}) {
     setFilters(next);
     if (opts.closeDropdown) setOpenColumn(null);
     void loadList({ filters: next, page: 1, replace: true });
@@ -392,9 +372,7 @@ export function PhonesView({
       }
     } catch {
       const message = "Не удалось выполнить запрос";
-      setSyncState(
-        reduceSyncUiState(IDLE_SYNC_STATE, { type: "ERROR", message }),
-      );
+      setSyncState(reduceSyncUiState(IDLE_SYNC_STATE, { type: "ERROR", message }));
       toast.error(message);
     } finally {
       syncInFlightRef.current = false;
@@ -487,16 +465,12 @@ export function PhonesView({
           <h1 className="text-xl font-semibold tracking-tight [text-box:trim-start_cap_alphabetic]">
             Телефонные номера
           </h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-muted-foreground text-sm">
             Последняя синхронизация: {formatSyncedAt(lastSyncedAt, timeZone)}. Шлюзы:{" "}
-            {formatCount(gatewayCount)}
-            , с рег.: {formatCount(registeredCount)}, без рег.:{" "}
+            {formatCount(gatewayCount)}, с рег.: {formatCount(registeredCount)}, без рег.:{" "}
             {formatCount(unregisteredCount)}
             {errorCount > 0 ? `, ошибка: ${formatCount(errorCount)}` : ""}
-            {endpointCount > 0
-              ? ` (всего EP: ${formatCount(endpointCount)})`
-              : ""}
-            .
+            {endpointCount > 0 ? ` (всего EP: ${formatCount(endpointCount)})` : ""}.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -546,7 +520,7 @@ export function PhonesView({
       {rtuError ? (
         <div
           role="alert"
-          className="flex min-h-0 shrink-0 flex-col rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+          className="border-destructive/40 bg-destructive/5 text-destructive flex min-h-0 shrink-0 flex-col rounded-md border px-3 py-2 text-sm"
         >
           <p className="shrink-0 font-medium">{rtuError.error}</p>
           <ul className="mt-1 max-h-[min(40vh,20rem)] list-disc space-y-0.5 overflow-y-auto pl-5">
@@ -562,7 +536,7 @@ export function PhonesView({
           className={
             syncState.status === "success"
               ? "shrink-0 text-sm text-emerald-700"
-              : "shrink-0 text-sm text-destructive"
+              : "text-destructive shrink-0 text-sm"
           }
         >
           {syncState.message}
@@ -576,24 +550,6 @@ export function PhonesView({
             value={phoneInput}
             onChange={onPhoneInputChange}
           />
-          {kind === "endpoints_registered" ? (
-            <div className="flex items-center gap-2">
-              <input
-                id="phones-sip-unregistered-only"
-                type="checkbox"
-                className="size-4 rounded border"
-                checked={sipUnregisteredOnly}
-                onChange={(e) =>
-                  onSipUnregisteredOnlyChange(e.target.checked)
-                }
-              />
-              <Label htmlFor="phones-sip-unregistered-only">
-                <RowColorMark tone="unregistered">
-                  {formatUnregisteredOnlyLabel(regsUnregisteredCount)}
-                </RowColorMark>
-              </Label>
-            </div>
-          ) : null}
           <Button
             type="button"
             variant="outline"
@@ -603,6 +559,22 @@ export function PhonesView({
           >
             Сбросить фильтры
           </Button>
+          {kind === "endpoints_registered" ? (
+            <div className="flex items-center gap-2">
+              <input
+                id="phones-sip-unregistered-only"
+                type="checkbox"
+                className="size-4 rounded border"
+                checked={sipUnregisteredOnly}
+                onChange={(e) => onSipUnregisteredOnlyChange(e.target.checked)}
+              />
+              <Label htmlFor="phones-sip-unregistered-only">
+                <RowColorMark tone="unregistered">
+                  {formatUnregisteredOnlyLabel(regsUnregisteredCount)}
+                </RowColorMark>
+              </Label>
+            </div>
+          ) : null}
         </div>
         <FitSelect
           id="phones-kind"
@@ -623,7 +595,7 @@ export function PhonesView({
       />
 
       {listError ? (
-        <p className="shrink-0 text-sm text-destructive">{listError}</p>
+        <p className="text-destructive shrink-0 text-sm">{listError}</p>
       ) : null}
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -644,9 +616,7 @@ export function PhonesView({
             }
             filters={filters}
             phoneQ={phoneQ}
-            sipUnregisteredOnly={
-              kind === "endpoints_registered" && sipUnregisteredOnly
-            }
+            sipUnregisteredOnly={kind === "endpoints_registered" && sipUnregisteredOnly}
             openColumn={openColumn}
             onOpenColumnChange={setOpenColumn}
             onColumnFilterChange={onColumnChange}

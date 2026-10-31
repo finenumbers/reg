@@ -137,8 +137,26 @@ function whereFor(
   return andWhere(clauses);
 }
 
-export function cheapWhere(filters: ColumnFilters, excludeColumn?: string): Prisma.Sql {
-  return whereFor(filters, "cheap", excludeColumn);
+function phoneLikePattern(value: string): string {
+  return `%${value.replace(/[\\%_]/g, (char) => `\\${char}`)}%`;
+}
+
+/** Substring of the trimmed «Номер». A blank query matches every row. */
+export function phoneNumberSql(phoneQ: string | undefined): Prisma.Sql | null {
+  const q = phoneQ?.trim() ?? "";
+  if (!q) return null;
+  return Prisma.sql`number ILIKE ${phoneLikePattern(q)} ESCAPE '\\'`;
+}
+
+export function cheapWhere(
+  filters: ColumnFilters,
+  excludeColumn?: string,
+  phoneQ?: string,
+): Prisma.Sql {
+  const base = whereFor(filters, "cheap", excludeColumn);
+  const phone = phoneNumberSql(phoneQ);
+  if (!phone) return base;
+  return Prisma.sql`(${base} AND ${phone})`;
 }
 
 export function expensiveWhere(

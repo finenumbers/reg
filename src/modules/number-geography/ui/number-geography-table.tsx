@@ -9,6 +9,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ColumnFilterDropdown, type ColumnFilters } from "@/components/column-filters";
+import { HighlightText } from "@/components/highlight-text";
 import { buildNumberGeographyFacetsUrl } from "@/modules/number-geography/api-client";
 import {
   NUMBER_GEOGRAPHY_COLUMNS,
@@ -26,6 +27,7 @@ type Props = {
   loading?: boolean;
   emptyMessage?: string;
   filters: ColumnFilters;
+  phoneQ?: string;
   lookupFailed?: ReadonlySet<string>;
   openColumn: string | null;
   onOpenColumnChange: (column: string | null) => void;
@@ -48,6 +50,7 @@ export function NumberGeographyTable({
   loading = false,
   emptyMessage = "Нет данных.",
   filters,
+  phoneQ = "",
   lookupFailed,
   openColumn,
   onOpenColumnChange,
@@ -72,6 +75,7 @@ export function NumberGeographyTable({
                   buildNumberGeographyFacetsUrl({
                     column: col,
                     filters: next,
+                    phoneQ,
                     q,
                   })
                 }
@@ -118,7 +122,11 @@ export function NumberGeographyTable({
                       : undefined
                   }
                 >
-                  {cellText(row, column)}
+                  {column === "number" ? (
+                    <HighlightText text={cellText(row, column)} query={phoneQ} />
+                  ) : (
+                    cellText(row, column)
+                  )}
                 </TableCell>
               ))}
             </TableRow>

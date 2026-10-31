@@ -280,7 +280,7 @@ export async function listPhones(opts: {
       prisma.phoneEndpoint.count({ where }),
       prisma.phoneEndpoint.findMany({
         where,
-        orderBy: [{ name: "asc" }, { id: "asc" }],
+        orderBy: [{ endpointNumber: "asc" }, { id: "asc" }],
         skip,
         take: pageSize,
       }),

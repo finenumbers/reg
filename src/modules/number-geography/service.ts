@@ -116,12 +116,14 @@ async function readRefresh(): Promise<NumberGeographyRefresh> {
 
 export async function listNumberGeography(opts: {
   filters?: ColumnFilters;
+  phoneQ?: string;
   page?: number;
   pageSize?: number;
 }): Promise<ListNumberGeographyResult> {
   const page = clampPage(opts.page ?? 1);
   const pageSize = clampPageSize(opts.pageSize);
   const filters = opts.filters ?? {};
+  const phoneQ = opts.phoneQ?.trim() ?? "";
   const [refresh, catalogStamp] = await Promise.all([readRefresh(), readCatalogStamp()]);
   const empty: ListNumberGeographyResult = {
     items: [],
@@ -136,7 +138,7 @@ export async function listNumberGeography(opts: {
 
   const offset = (page - 1) * pageSize;
   if (projection === "page") {
-    const cheap = cheapWhere(filters);
+    const cheap = cheapWhere(filters, undefined, phoneQ);
     const [counts, rows] = await Promise.all([
       prisma.$queryRaw<CountRow[]>(pageCountSql(cheap)),
       prisma.$queryRaw<DbRow[]>(pageListSql(cheap, pageSize, offset)),
@@ -151,7 +153,7 @@ export async function listNumberGeography(opts: {
     };
   }
 
-  const cheap = cheapWhere(filters);
+  const cheap = cheapWhere(filters, undefined, phoneQ);
   const expensive = expensiveWhere(filters);
   const [counts, rows] = await Promise.all([
     prisma.$queryRaw<CountRow[]>(catalogCountSql(cheap, expensive)),
@@ -181,6 +183,7 @@ export async function listAllNumberGeography(): Promise<NumberGeographyItem[]> {
 export async function listNumberGeographyFacets(opts: {
   column: string;
   filters?: ColumnFilters;
+  phoneQ?: string;
   q?: string;
   limit?: number;
 }): Promise<FacetResponse> {
@@ -189,18 +192,19 @@ export async function listNumberGeographyFacets(opts: {
     return { items: [], truncated: false };
   }
   const filters = opts.filters ?? {};
+  const phoneQ = opts.phoneQ?.trim() ?? "";
   const projection = facetProjection(column, filters);
   if (projection === "empty") return { items: [], truncated: false };
 
   const rows =
     projection === "page"
       ? await prisma.$queryRaw<FacetRow[]>(
-          pageFacetSql(column, cheapWhere(filters, column)),
+          pageFacetSql(column, cheapWhere(filters, column, phoneQ)),
         )
       : await prisma.$queryRaw<FacetRow[]>(
           catalogFacetSql(
             column,
-            cheapWhere(filters, column),
+            cheapWhere(filters, column, phoneQ),
             expensiveWhere(filters, column),
           ),
         );

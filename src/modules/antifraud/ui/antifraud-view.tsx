@@ -225,7 +225,7 @@ export function AntifraudView({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold tracking-tight [text-box:trim-start_cap_alphabetic]">
-            АнтиФрод
+            Ошибки АнтиФрод
           </h1>
           <p className="text-muted-foreground text-sm">
             Запросы Access-Request из calls.log Parking. Это журнал запросов, не вердикт

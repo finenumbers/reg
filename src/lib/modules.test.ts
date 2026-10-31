@@ -28,6 +28,7 @@ describe("FEATURE_MODULES nav groups", () => {
       FEATURE_MODULES.map((module) => [module.id, module.title]),
     );
     expect(titles.smg).toBe("Данные SMG");
+    expect(titles.antifraud).toBe("Ошибки АнтиФрод");
     expect(titles["smg-syslog"]).toBe("Архивы Syslog");
   });
 
