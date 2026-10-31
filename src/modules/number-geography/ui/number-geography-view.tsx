@@ -11,10 +11,7 @@ import {
   setColumnFilterValues,
   type ColumnFilters,
 } from "@/components/column-filters";
-import {
-  TableCountFooter,
-  TableInfiniteBody,
-} from "@/components/table-infinite-body";
+import { TableCountFooter, TableInfiniteBody } from "@/components/table-infinite-body";
 import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
 import { TABLE_PAGE_SIZE } from "@/lib/table-pagination";
 import {
@@ -22,7 +19,10 @@ import {
   fetchNumberGeographyPstnFill,
 } from "@/modules/number-geography/api-client";
 import { NUMBER_GEOGRAPHY_HEADERS } from "@/modules/number-geography/columns";
-import { geographyAppendAllowed, refreshIntervalMs } from "@/modules/number-geography/paging";
+import {
+  geographyAppendAllowed,
+  refreshIntervalMs,
+} from "@/modules/number-geography/paging";
 import { PSTN_FILL_MAX_IDS } from "@/modules/number-geography/pstn-fill-contract";
 import {
   blankPstnRowIds,
@@ -54,6 +54,7 @@ export function NumberGeographyView({ initial, canRequest }: Props) {
   const [uploading, setUploading] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [lookupFailed, setLookupFailed] = useState<ReadonlySet<string>>(() => new Set());
   const supplierFileRef = useRef<HTMLInputElement>(null);
   const [listError, setListError] = useState<string | null>(null);
   const [scrollRoot, setScrollRoot] = useState<Element | null>(null);
@@ -146,9 +147,7 @@ export function NumberGeographyView({ initial, canRequest }: Props) {
       refreshRef.current = nextRefresh;
       setTotal(result.data.total);
       setPage(result.data.page);
-      setItems((prev) =>
-        replace ? result.data.items : [...prev, ...result.data.items],
-      );
+      setItems((prev) => (replace ? result.data.items : [...prev, ...result.data.items]));
       setListError(null);
       if (
         prevRefresh.enabled !== nextRefresh.enabled ||
@@ -170,10 +169,34 @@ export function NumberGeographyView({ initial, canRequest }: Props) {
     }
   }
 
-  function enqueueFill(
-    rows: NumberGeographyItem[],
-    mode: "append" | "replace" | "soft",
-  ) {
+  function rememberLookupFailed(ids: readonly string[]) {
+    if (ids.length === 0) return;
+    setLookupFailed((prev) => {
+      const next = new Set(prev);
+      let changed = false;
+      for (const id of ids) {
+        if (next.has(id)) continue;
+        next.add(id);
+        changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }
+
+  function forgetLookupFailed(ids: readonly string[]) {
+    if (ids.length === 0) return;
+    setLookupFailed((prev) => {
+      const next = new Set(prev);
+      let changed = false;
+      for (const id of ids) {
+        if (!next.delete(id)) continue;
+        changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }
+
+  function enqueueFill(rows: NumberGeographyItem[], mode: "append" | "replace" | "soft") {
     if (mode !== "append") {
       fillGeneration.current += 1;
       fillQueue.current = [];
@@ -181,11 +204,14 @@ export function NumberGeographyView({ initial, canRequest }: Props) {
       if (mode === "replace") fillInvalid.current = new Set();
     }
     const generation = fillGeneration.current;
+    const queuedNow: string[] = [];
     for (const id of blankPstnRowIds(rows, fillInvalid.current)) {
       if (fillQueued.current.has(id)) continue;
       fillQueued.current.add(id);
       fillQueue.current.push(id);
+      queuedNow.push(id);
     }
+    forgetLookupFailed(queuedNow);
     void drainFill(generation);
   }
 
@@ -194,23 +220,22 @@ export function NumberGeographyView({ initial, canRequest }: Props) {
     if (generation !== fillGeneration.current) return;
     fillDraining.current = true;
     try {
-      while (
-        fillQueue.current.length > 0 &&
-        generation === fillGeneration.current
-      ) {
+      while (fillQueue.current.length > 0 && generation === fillGeneration.current) {
         const chunk = fillQueue.current.splice(0, PSTN_FILL_MAX_IDS);
         const result = await fetchNumberGeographyPstnFill(chunk);
         if (generation !== fillGeneration.current) return;
         for (const id of chunk) fillQueued.current.delete(id);
         if (!result.ok || !result.data.configured) {
+          const failedIds = [...chunk, ...fillQueue.current];
           fillQueue.current = [];
           fillQueued.current = new Set();
+          rememberLookupFailed(failedIds);
           return;
         }
-        const updates: { id: string; operator: string; geography: string }[] =
-          [];
+        const updates: { id: string; operator: string; geography: string }[] = [];
         for (const item of result.data.items) {
           if (item.status === "invalid") fillInvalid.current.add(item.id);
+          if (item.status === "error") rememberLookupFailed([item.id]);
           if (
             (item.status === "filled" || item.status === "cached") &&
             item.operator != null &&
@@ -357,6 +382,8 @@ export function NumberGeographyView({ initial, canRequest }: Props) {
         details?: string[];
         updated?: number;
         cleared?: number;
+        categoryUpdated?: number;
+        categoryCleared?: number;
         unmatched?: number;
       } | null;
       if (!res.ok) {
@@ -368,7 +395,7 @@ export function NumberGeographyView({ initial, canRequest }: Props) {
         return;
       }
       setActionMessage(
-        `Поставщики: обновлено ${payload?.updated ?? 0}, очищено ${payload?.cleared ?? 0}, не найдено ${payload?.unmatched ?? 0}`,
+        `Поставщики: обновлено ${payload?.updated ?? 0}, очищено ${payload?.cleared ?? 0}, не найдено ${payload?.unmatched ?? 0}. Категории: обновлено ${payload?.categoryUpdated ?? 0}, очищено ${payload?.categoryCleared ?? 0}`,
       );
       await loadList({ filters, page: 1, replace: true });
     } catch {
@@ -387,8 +414,8 @@ export function NumberGeographyView({ initial, canRequest }: Props) {
             География номеров
           </h1>
           <p className="text-muted-foreground text-sm">
-            Оконечные номера каталога. Город из тарификации. Оператор и
-            территория из кэша PSTN.
+            Оконечные номера каталога. Город из тарификации. Оператор и территория из кэша
+            PSTN.
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
@@ -399,9 +426,7 @@ export function NumberGeographyView({ initial, canRequest }: Props) {
                 type="file"
                 accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 className="hidden"
-                onChange={(event) =>
-                  void onSupplierFile(event.target.files?.[0])
-                }
+                onChange={(event) => void onSupplierFile(event.target.files?.[0])}
               />
               <Button
                 type="button"
@@ -467,6 +492,7 @@ export function NumberGeographyView({ initial, canRequest }: Props) {
                 : "Нет данных."
             }
             filters={filters}
+            lookupFailed={lookupFailed}
             openColumn={openColumn}
             onOpenColumnChange={setOpenColumn}
             onColumnFilterChange={onColumnChange}

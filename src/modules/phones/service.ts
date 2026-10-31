@@ -13,6 +13,7 @@ import { prisma } from "@/lib/db";
 import { getJobRunSummary } from "@/modules/jobs/query";
 import { displayTermCapacity, TERM_CAPACITY_FIELD } from "@/modules/phones/capacity";
 import { applyJsonColumnFilters } from "@/modules/phones/json-filters";
+import { withCategoryHeader } from "@/modules/phones/category";
 import { withSupplierHeader } from "@/modules/phones/supplier";
 import {
   isSipUnregistered,
@@ -85,7 +86,7 @@ function asStringRecord(data: unknown): PhoneRowData {
 }
 
 function endpointHeaders(value: unknown): string[] {
-  return withSupplierHeader(asStringArray(value, ENDPOINT_HEADERS));
+  return withCategoryHeader(withSupplierHeader(asStringArray(value, ENDPOINT_HEADERS)));
 }
 
 function asStringArray(value: unknown, fallback: readonly string[]): string[] {
@@ -323,10 +324,7 @@ export async function listPhones(opts: {
     };
   }
 
-  const where = applyJsonColumnFilters(
-    {},
-    filters,
-  ) as Prisma.PhoneGatewayWhereInput;
+  const where = applyJsonColumnFilters({}, filters) as Prisma.PhoneGatewayWhereInput;
 
   const [total, rows] = await Promise.all([
     prisma.phoneGateway.count({ where }),

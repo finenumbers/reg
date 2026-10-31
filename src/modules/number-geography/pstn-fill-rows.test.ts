@@ -8,10 +8,12 @@ import type { NumberGeographyItem } from "@/modules/number-geography/types";
 function row(over: Partial<NumberGeographyItem> = {}): NumberGeographyItem {
   return {
     id: "a",
+    category: "",
     city: "Ростов-на-Дону",
     supplier: "",
     number: "78633334460",
-    client: "ООО \"ИНТЕРНОД\"",
+    pstnStatus: "pending",
+    client: 'ООО "ИНТЕРНОД"',
     capacity: "4",
     operator: "",
     geography: "",
@@ -27,7 +29,11 @@ describe("blankPstnRowIds", () => {
       [
         row({ id: "blank" }),
         row({ id: "again" }),
-        row({ id: "labeled", operator: "Нет в реестре МинЦифры", geography: "Нет в реестре МинЦифры" }),
+        row({
+          id: "labeled",
+          operator: "Нет в реестре МинЦифры",
+          geography: "Нет в реестре МинЦифры",
+        }),
         row({ id: "operator", operator: "МТС", geography: "" }),
         row({ id: "dup" }),
         row({ id: "dup" }),

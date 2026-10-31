@@ -11,7 +11,7 @@ export const runtime = "nodejs";
 const MAX_BYTES = 20 * 1024 * 1024;
 
 /**
- * POST /api/phones/suppliers — fill «Поставщик» on matching endpoint numbers.
+ * POST /api/phones/suppliers — fill «Поставщик» and «Категория» on matching numbers.
  */
 export async function POST(request: Request) {
   const origin = assertSameOrigin(request);
@@ -30,10 +30,7 @@ export async function POST(request: Request) {
   try {
     userId = requireSessionUserId(gate.ctx);
   } catch {
-    return NextResponse.json(
-      { error: "Forbidden", code: "FORBIDDEN" },
-      { status: 403 },
-    );
+    return NextResponse.json({ error: "Forbidden", code: "FORBIDDEN" }, { status: 403 });
   }
 
   let form: FormData;
@@ -96,6 +93,8 @@ export async function POST(request: Request) {
       rows: parsed.rows.length,
       updated: result.updated,
       cleared: result.cleared,
+      categoryUpdated: result.categoryUpdated,
+      categoryCleared: result.categoryCleared,
       unmatched: result.unmatched,
     },
   });

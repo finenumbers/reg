@@ -27,10 +27,11 @@ import {
   pageFacetSql,
   pageListSql,
 } from "@/modules/number-geography/sql";
-import type {
-  ListNumberGeographyResult,
-  NumberGeographyItem,
-  NumberGeographyRefresh,
+import {
+  parsePstnLookupStatus,
+  type ListNumberGeographyResult,
+  type NumberGeographyItem,
+  type NumberGeographyRefresh,
 } from "@/modules/number-geography/types";
 
 const DEFAULT_REFRESH: NumberGeographyRefresh = {
@@ -44,11 +45,13 @@ type DbRow = {
   client: string;
   capacity: string;
   supplier: string;
+  category: string;
   title: string;
   city: string;
   operator: string;
   geography: string;
   city_alert: boolean | null;
+  pstn_status: string | null;
 };
 
 type CountRow = { n: number };
@@ -57,6 +60,7 @@ type FacetRow = { value: string | null; count: number };
 function mapRow(row: DbRow): NumberGeographyItem {
   return {
     id: row.id,
+    category: row.category ?? "",
     city: row.city ?? "",
     supplier: row.supplier ?? "",
     number: row.number ?? "",
@@ -66,6 +70,7 @@ function mapRow(row: DbRow): NumberGeographyItem {
     geography: row.geography ?? "",
     title: row.title ?? "",
     cityAlert: row.city_alert === true,
+    pstnStatus: parsePstnLookupStatus(row.pstn_status),
   };
 }
 
@@ -165,12 +170,7 @@ export async function listNumberGeography(opts: {
 /** Full catalog, one snapshot. Used by the XLSX download. */
 export async function listAllNumberGeography(): Promise<NumberGeographyItem[]> {
   const rows = await prisma.$queryRaw<DbRow[]>(
-    catalogListSql(
-      Prisma.sql`TRUE`,
-      Prisma.sql`TRUE`,
-      EXCEL_MAX_ROWS + 1,
-      0,
-    ),
+    catalogListSql(Prisma.sql`TRUE`, Prisma.sql`TRUE`, EXCEL_MAX_ROWS + 1, 0),
   );
   if (rows.length > EXCEL_MAX_ROWS) {
     throw new Error("Слишком много строк для одного файла XLSX");

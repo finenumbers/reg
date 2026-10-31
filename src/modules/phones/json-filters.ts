@@ -3,20 +3,21 @@
  * AND across columns, OR within a column; `__empty__` → equals "".
  */
 
-import type { Prisma } from "@/generated/prisma/client";
+import { Prisma } from "@/generated/prisma/client";
 import {
   EMPTY_FILTER_TOKEN,
   type ColumnFilters,
 } from "@/components/column-filters/types";
-import {
-  PREMIUM_CAPACITY,
-  TERM_CAPACITY_FIELD,
-} from "@/modules/phones/capacity";
+import { PREMIUM_CAPACITY, TERM_CAPACITY_FIELD } from "@/modules/phones/capacity";
+import { CATEGORY_FIELD } from "@/modules/phones/category";
+import { SUPPLIER_FIELD } from "@/modules/phones/supplier";
 
 type JsonDataWhere = {
   data?: Prisma.JsonFilter<"PhoneEndpoint"> | Prisma.JsonFilter<"PhoneGateway">;
   OR?: JsonDataWhere[];
 };
+
+const ANNOTATION_FIELDS = new Set<string>([SUPPLIER_FIELD, CATEGORY_FIELD]);
 
 function jsonEquals(column: string, value: string): JsonDataWhere {
   return {
@@ -24,6 +25,16 @@ function jsonEquals(column: string, value: string): JsonDataWhere {
       path: [column],
       equals: value === EMPTY_FILTER_TOKEN ? "" : value,
     },
+  };
+}
+
+/** A deleted annotation key is empty on screen. `equals ""` does not match it. */
+function jsonBlankAnnotation(column: string): JsonDataWhere {
+  return {
+    OR: [
+      { data: { path: [column], equals: "" } },
+      { data: { path: [column], equals: Prisma.AnyNull } },
+    ],
   };
 }
 
@@ -49,6 +60,10 @@ function jsonColumnOr(column: string, values: string[]): JsonDataWhere | null {
     }
     if (seen.has(raw)) continue;
     seen.add(raw);
+    if (raw === EMPTY_FILTER_TOKEN && ANNOTATION_FIELDS.has(column)) {
+      ors.push(jsonBlankAnnotation(column));
+      continue;
+    }
     ors.push(jsonEquals(column, raw));
   }
   if (ors.length === 1) return ors[0]!;

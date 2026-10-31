@@ -53,6 +53,8 @@ Optional publish ports: `APP_PUBLISH_PORT`, `POSTGRES_PUBLISH_PORT`.
 
 ## 3. Database
 
+v1.187.0 does not migrate and does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `app`. Do not stop `smg-syslog`. «Категория» is stored on the phone endpoint like «Поставщик» and is shown after it. «География номеров» leads with «Категория», «Поставщик», «Город», «Номер». Red is a number PSTN did not determine, yellow is the former tariff red row, and blue is an empty supplier or category. Red wins, then yellow. The supplier upload requires those four headers in that order. «Город» is not stored. An old two-column file is rejected.
+
 v1.186.0 does not migrate and does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `app`. Do not stop `smg-syslog`. «География номеров» drops the subtitle clause about empty cells being filled on view; the fill itself stays. «Телефонный трафик» shows the white extended export left of the black plain export. «Данные SMG» shows white «Повторить импорт» left of black «Сохранить данные». «Трафик SMG» has no retry button.
 
 v1.185.0 does not migrate and does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `app`. Do not stop `smg-syslog`. «География номеров» moves «Загрузить поставщиков» and «Сохранить данные» onto the title row, right-aligned. The supplier button is white and sits left of the black save button. «Сбросить фильтры» stays on the next row. Upload still requires `phones:request`. The file, the export, and the mutual disable are unchanged.

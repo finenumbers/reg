@@ -4,8 +4,9 @@
  */
 
 export const NUMBER_GEOGRAPHY_COLUMNS = [
-  "city",
+  "category",
   "supplier",
+  "city",
   "number",
   "client",
   "capacity",
@@ -17,6 +18,7 @@ export const NUMBER_GEOGRAPHY_COLUMNS = [
 export type NumberGeographyColumn = (typeof NUMBER_GEOGRAPHY_COLUMNS)[number];
 
 export const NUMBER_GEOGRAPHY_HEADERS: Record<NumberGeographyColumn, string> = {
+  category: "Категория",
   city: "Город",
   supplier: "Поставщик",
   number: "Номер",
@@ -33,9 +35,7 @@ export const FREE_CALL_DIRECTION = "Бесплатный вызов";
 
 const COLUMN_SET = new Set<string>(NUMBER_GEOGRAPHY_COLUMNS);
 
-export function isNumberGeographyColumn(
-  value: string,
-): value is NumberGeographyColumn {
+export function isNumberGeographyColumn(value: string): value is NumberGeographyColumn {
   return COLUMN_SET.has(value);
 }
 

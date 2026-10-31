@@ -1,11 +1,25 @@
 /**
- * Supplier workbook: columns «Поставщик» and «Номер». Extra columns are ignored.
+ * Supplier workbook. The first four headers are fixed:
+ * «Категория», «Поставщик», «Город», «Номер».
+ * Columns to the right are ignored. «Город» is not stored.
  */
 
 import ExcelJS from "exceljs";
+import { CATEGORY_FIELD, CATEGORY_MAX_LENGTH } from "@/modules/phones/category";
 import { SUPPLIER_FIELD, SUPPLIER_MAX_LENGTH } from "@/modules/phones/supplier";
 
 export const SUPPLIER_NUMBER_HEADER = "Номер";
+export const SUPPLIER_CITY_HEADER = "Город";
+
+const FILE_HEADERS = [
+  CATEGORY_FIELD,
+  SUPPLIER_FIELD,
+  SUPPLIER_CITY_HEADER,
+  SUPPLIER_NUMBER_HEADER,
+] as const;
+
+const HEADER_DETAIL =
+  "Первая строка должна начинаться со столбцов «Категория», «Поставщик», «Город», «Номер»";
 
 export type SupplierFileRow = {
   /** 1-based worksheet row, header is 1. */
@@ -13,11 +27,12 @@ export type SupplierFileRow = {
   number: string;
   /** Trimmed. Empty clears the supplier. */
   supplier: string;
+  /** Trimmed. Empty clears the category. */
+  category: string;
 };
 
 export type SupplierXlsxResult =
-  | { ok: true; rows: SupplierFileRow[] }
-  | { ok: false; error: string; details: string[] };
+  { ok: true; rows: SupplierFileRow[] } | { ok: false; error: string; details: string[] };
 
 function cellText(value: ExcelJS.CellValue): string {
   if (value == null) return "";
@@ -30,7 +45,10 @@ function cellText(value: ExcelJS.CellValue): string {
   if (value instanceof Date) return "";
   if (typeof value === "object") {
     if ("richText" in value && Array.isArray(value.richText)) {
-      return value.richText.map((part) => part.text ?? "").join("").trim();
+      return value.richText
+        .map((part) => part.text ?? "")
+        .join("")
+        .trim();
     }
     if ("text" in value && typeof value.text === "string") return value.text.trim();
     if ("result" in value) return cellText(value.result as ExcelJS.CellValue);
@@ -38,9 +56,7 @@ function cellText(value: ExcelJS.CellValue): string {
   return "";
 }
 
-export async function parseSupplierXlsx(
-  buffer: Buffer,
-): Promise<SupplierXlsxResult> {
+export async function parseSupplierXlsx(buffer: Buffer): Promise<SupplierXlsxResult> {
   const workbook = new ExcelJS.Workbook();
   try {
     await workbook.xlsx.load(buffer as unknown as ExcelJS.Buffer);
@@ -48,7 +64,7 @@ export async function parseSupplierXlsx(
     return {
       ok: false,
       error: "Файл XLSX не прочитан",
-      details: ["Ожидается книга Excel со столбцами «Поставщик» и «Номер»"],
+      details: [HEADER_DETAIL],
     };
   }
 
@@ -62,18 +78,14 @@ export async function parseSupplierXlsx(
   }
 
   const headerRow = sheet.getRow(1);
-  let supplierCol = 0;
-  let numberCol = 0;
-  headerRow.eachCell({ includeEmpty: false }, (cell, col) => {
-    const header = cellText(cell.value);
-    if (header === SUPPLIER_FIELD) supplierCol = col;
-    if (header === SUPPLIER_NUMBER_HEADER) numberCol = col;
-  });
-  if (supplierCol === 0 || numberCol === 0) {
+  const headers = FILE_HEADERS.map((_, index) =>
+    cellText(headerRow.getCell(index + 1).value),
+  );
+  if (headers.some((header, index) => header !== FILE_HEADERS[index])) {
     return {
       ok: false,
       error: "В файле нет нужных столбцов",
-      details: ["Первая строка должна содержать «Поставщик» и «Номер»"],
+      details: [HEADER_DETAIL],
     };
   }
 
@@ -82,20 +94,29 @@ export async function parseSupplierXlsx(
   const last = sheet.rowCount;
   for (let rowNumber = 2; rowNumber <= last; rowNumber++) {
     const row = sheet.getRow(rowNumber);
-    const supplier = cellText(row.getCell(supplierCol).value);
-    const number = cellText(row.getCell(numberCol).value);
-    if (!supplier && !number) continue;
+    const category = cellText(row.getCell(1).value);
+    const supplier = cellText(row.getCell(2).value);
+    const city = cellText(row.getCell(3).value);
+    const number = cellText(row.getCell(4).value);
+    if (!category && !supplier && !city && !number) continue;
     if (!number) {
       details.push(`Строка ${rowNumber}: пустой «Номер»`);
       continue;
+    }
+    if (category.length > CATEGORY_MAX_LENGTH) {
+      details.push(
+        `Строка ${rowNumber}: «Категория» длиннее ${CATEGORY_MAX_LENGTH} символов`,
+      );
     }
     if (supplier.length > SUPPLIER_MAX_LENGTH) {
       details.push(
         `Строка ${rowNumber}: «Поставщик» длиннее ${SUPPLIER_MAX_LENGTH} символов`,
       );
+    }
+    if (category.length > CATEGORY_MAX_LENGTH || supplier.length > SUPPLIER_MAX_LENGTH) {
       continue;
     }
-    rows.push({ rowNumber, number, supplier });
+    rows.push({ rowNumber, number, supplier, category });
   }
 
   if (details.length > 0) {

@@ -3,8 +3,21 @@ export type NumberGeographyRefresh = {
   intervalSec: number;
 };
 
+/** Cache join for the row color. Not a table column. */
+export type PstnLookupStatus = "resolved" | "pending" | "unresolved";
+
+export function parsePstnLookupStatus(
+  value: string | null | undefined,
+): PstnLookupStatus {
+  if (value === "resolved" || value === "unresolved" || value === "pending") {
+    return value;
+  }
+  return "pending";
+}
+
 export type NumberGeographyItem = {
   id: string;
+  category: string;
   city: string;
   supplier: string;
   number: string;
@@ -14,6 +27,7 @@ export type NumberGeographyItem = {
   geography: string;
   title: string;
   cityAlert: boolean;
+  pstnStatus: PstnLookupStatus;
 };
 
 export type ListNumberGeographyResult = {

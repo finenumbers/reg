@@ -7,14 +7,32 @@ import {
   createSimpleWorkbook,
   formatExportTimestamp,
   workbookToBuffer,
-  XLSX_UNREGISTERED_FILL,
 } from "@/lib/xlsx-export";
 import {
   NUMBER_GEOGRAPHY_COLUMNS,
   NUMBER_GEOGRAPHY_HEADERS,
 } from "@/modules/number-geography/columns";
+import {
+  geographyRowTone,
+  type GeographyRowTone,
+} from "@/modules/number-geography/row-tone";
 import { listAllNumberGeography } from "@/modules/number-geography/service";
 import { getDisplayTimezone } from "@/modules/settings";
+
+const TONE_FILL: Record<Exclude<GeographyRowTone, "none">, string> = {
+  red: "FFFEE2E2",
+  yellow: "FFFEF3C7",
+  blue: "FFDBEAFE",
+};
+
+function toneFill(tone: GeographyRowTone) {
+  if (tone === "none") return undefined;
+  return {
+    type: "pattern" as const,
+    pattern: "solid" as const,
+    fgColor: { argb: TONE_FILL[tone] },
+  };
+}
 
 export type NumberGeographyExportResult = {
   buffer: Buffer;
@@ -36,8 +54,13 @@ export async function buildNumberGeographyExportXlsx(): Promise<NumberGeographyE
     sheetName: "География номеров",
     headers,
     rows,
-    highlightFill: XLSX_UNREGISTERED_FILL,
-    highlightRow: (index) => items[index]?.cityAlert === true,
+    styleCell: ({ rowIndex, cell }) => {
+      if (rowIndex < 0) return;
+      const item = items[rowIndex];
+      if (!item) return;
+      const fill = toneFill(geographyRowTone(item, { surface: "export" }));
+      if (fill) cell.fill = fill;
+    },
   });
   const buffer = await workbookToBuffer(workbook);
   return {

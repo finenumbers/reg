@@ -77,6 +77,8 @@ export function activeFilterColumns(
 
 function columnRef(column: NumberGeographyColumn): Prisma.Sql {
   switch (column) {
+    case "category":
+      return Prisma.sql`category`;
     case "city":
       return Prisma.sql`city`;
     case "supplier":
@@ -135,10 +137,7 @@ function whereFor(
   return andWhere(clauses);
 }
 
-export function cheapWhere(
-  filters: ColumnFilters,
-  excludeColumn?: string,
-): Prisma.Sql {
+export function cheapWhere(filters: ColumnFilters, excludeColumn?: string): Prisma.Sql {
   return whereFor(filters, "cheap", excludeColumn);
 }
 
@@ -160,6 +159,7 @@ const baseCte = Prisma.sql`
         ELSE btrim(e.data->>'ТЕРМ. емкость')
       END AS capacity,
       btrim(COALESCE(e.data->>'Поставщик', '')) AS supplier,
+      btrim(COALESCE(e.data->>'Категория', '')) AS category,
       CASE
         WHEN btrim(COALESCE(e.data->>'Название', '')) <> ''
           THEN btrim(e.data->>'Название')
@@ -196,7 +196,7 @@ export function cityLabelSql(direction: Prisma.Sql): Prisma.Sql {
   )`;
 }
 
-/** Red row from the raw direction, before the «г. » prefix is removed. */
+/** Tariff row that used to paint red. The screen now paints it yellow. */
 export function cityAlertSql(direction: Prisma.Sql): Prisma.Sql {
   const start = CITY_DIRECTION_PREFIX.length + 1;
   return Prisma.sql`(
@@ -207,6 +207,24 @@ export function cityAlertSql(direction: Prisma.Sql): Prisma.Sql {
       WHEN starts_with(btrim(${direction}), ${CITY_DIRECTION_PREFIX})
         AND btrim(substring(btrim(${direction}) FROM ${start}::int)) <> '' THEN FALSE
       ELSE TRUE
+    END
+  )`;
+}
+
+/**
+ * unresolved: no PSTN key, or a cache row that did not find an operator.
+ * pending: a key with no cache row yet. resolved: a non-empty operator.
+ * pstn_phone alone cannot tell a short number from a cache miss.
+ */
+export function pstnStatusSql(): Prisma.Sql {
+  return Prisma.sql`(
+    CASE
+      WHEN pstn_key IS NULL THEN ${"unresolved"}
+      WHEN pstn_phone IS NULL THEN ${"pending"}
+      WHEN pstn_found IS NOT TRUE
+        OR pstn_operator IS NULL
+        OR btrim(pstn_operator) = '' THEN ${"unresolved"}
+      ELSE ${"resolved"}
     END
   )`;
 }
@@ -252,8 +270,10 @@ function joinedFrom(source: Prisma.Sql, cheap: Prisma.Sql): Prisma.Sql {
         k.client,
         k.capacity,
         k.supplier,
+        k.category,
         k.title,
         cdr_tariff_direction(k.number) AS direction,
+        ${pstnKeyFromDigits(Prisma.sql`k.digits`)} AS pstn_key,
         c.phone AS pstn_phone,
         c.found AS pstn_found,
         c.operator AS pstn_operator,
@@ -273,7 +293,9 @@ function labeledSelect(): Prisma.Sql {
       client,
       capacity,
       supplier,
+      category,
       title,
+      ${pstnStatusSql()} AS pstn_status,
       ${cityLabelSql(Prisma.sql`direction`)} AS city,
       ${cityAlertSql(Prisma.sql`direction`)} AS city_alert,
       ${operatorLabelSql()} AS operator,
@@ -311,10 +333,7 @@ export function pageListSql(
   `;
 }
 
-export function catalogCountSql(
-  cheap: Prisma.Sql,
-  expensive: Prisma.Sql,
-): Prisma.Sql {
+export function catalogCountSql(cheap: Prisma.Sql, expensive: Prisma.Sql): Prisma.Sql {
   return Prisma.sql`
     WITH ${baseCte},
     ${joinedFrom(Prisma.sql`base`, cheap)},

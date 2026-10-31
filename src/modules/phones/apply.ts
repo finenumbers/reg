@@ -6,6 +6,7 @@
 
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
+import { categoryMapFromEndpoints, stampCategory } from "@/modules/phones/category";
 import {
   PHONE_CATALOG_LOCK_SQL,
   stampSupplier,
@@ -35,70 +36,68 @@ export async function applyPhonesSnapshot(
   jobRunId: string,
   syncedAt: Date = new Date(),
 ): Promise<ApplyPhonesResult> {
-  await prisma.$transaction(
-    async (tx) => {
-      await tx.$executeRawUnsafe(PHONE_CATALOG_LOCK_SQL);
-      const previous = await tx.phoneEndpoint.findMany({
-        select: { name: true, endpointNumber: true, data: true },
-        orderBy: { name: "asc" },
-      });
-      const suppliers = supplierMapFromEndpoints(previous);
+  await prisma.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe(PHONE_CATALOG_LOCK_SQL);
+    const previous = await tx.phoneEndpoint.findMany({
+      select: { name: true, endpointNumber: true, data: true },
+      orderBy: { name: "asc" },
+    });
+    const suppliers = supplierMapFromEndpoints(previous);
+    const categories = categoryMapFromEndpoints(previous);
 
-      await tx.phoneEndpoint.deleteMany({});
-      await tx.phoneGateway.deleteMany({});
+    await tx.phoneEndpoint.deleteMany({});
+    await tx.phoneGateway.deleteMany({});
 
-      if (payload.endpoints.length > 0) {
-        await createManyBatched(
-          (args) => tx.phoneEndpoint.createMany(args),
-          payload.endpoints.map((row) => ({
-            name: row.name,
-            endpointNumber: row.endpointNumber,
-            data: stampSupplier(
-              row.data,
-              row.endpointNumber,
-              suppliers,
-            ) as Prisma.InputJsonValue,
-            lastSyncedAt: syncedAt,
-            lastJobRunId: jobRunId,
-          })),
-        );
-      }
-
-      if (payload.gateways.length > 0) {
-        await createManyBatched(
-          (args) => tx.phoneGateway.createMany(args),
-          payload.gateways.map((row) => ({
-            name: row.name,
-            data: row.data as Prisma.InputJsonValue,
-            lastSyncedAt: syncedAt,
-            lastJobRunId: jobRunId,
-          })),
-        );
-      }
-
-      await tx.phoneImportState.upsert({
-        where: { id: 1 },
-        create: {
-          id: 1,
-          endpointCount: payload.endpoints.length,
-          gatewayCount: payload.gateways.length,
-          headersEndpoints: payload.endpointHeaders as Prisma.InputJsonValue,
-          headersGateways: payload.gatewayHeaders as Prisma.InputJsonValue,
+    if (payload.endpoints.length > 0) {
+      await createManyBatched(
+        (args) => tx.phoneEndpoint.createMany(args),
+        payload.endpoints.map((row) => ({
+          name: row.name,
+          endpointNumber: row.endpointNumber,
+          data: stampCategory(
+            stampSupplier(row.data, row.endpointNumber, suppliers),
+            row.endpointNumber,
+            categories,
+          ) as Prisma.InputJsonValue,
           lastSyncedAt: syncedAt,
           lastJobRunId: jobRunId,
-        },
-        update: {
-          endpointCount: payload.endpoints.length,
-          gatewayCount: payload.gateways.length,
-          headersEndpoints: payload.endpointHeaders as Prisma.InputJsonValue,
-          headersGateways: payload.gatewayHeaders as Prisma.InputJsonValue,
+        })),
+      );
+    }
+
+    if (payload.gateways.length > 0) {
+      await createManyBatched(
+        (args) => tx.phoneGateway.createMany(args),
+        payload.gateways.map((row) => ({
+          name: row.name,
+          data: row.data as Prisma.InputJsonValue,
           lastSyncedAt: syncedAt,
           lastJobRunId: jobRunId,
-        },
-      });
-    },
-    APPLY_TX,
-  );
+        })),
+      );
+    }
+
+    await tx.phoneImportState.upsert({
+      where: { id: 1 },
+      create: {
+        id: 1,
+        endpointCount: payload.endpoints.length,
+        gatewayCount: payload.gateways.length,
+        headersEndpoints: payload.endpointHeaders as Prisma.InputJsonValue,
+        headersGateways: payload.gatewayHeaders as Prisma.InputJsonValue,
+        lastSyncedAt: syncedAt,
+        lastJobRunId: jobRunId,
+      },
+      update: {
+        endpointCount: payload.endpoints.length,
+        gatewayCount: payload.gateways.length,
+        headersEndpoints: payload.endpointHeaders as Prisma.InputJsonValue,
+        headersGateways: payload.gatewayHeaders as Prisma.InputJsonValue,
+        lastSyncedAt: syncedAt,
+        lastJobRunId: jobRunId,
+      },
+    });
+  }, APPLY_TX);
 
   return {
     endpointCount: payload.endpoints.length,

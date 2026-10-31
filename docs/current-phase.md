@@ -1,7 +1,19 @@
-# Current Phase — production (v1.186.0)
+# Current Phase — production (v1.187.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, number geography, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal.  
 **Date:** 2026-10-31
+
+## v1.187.0 — Category on a number, three geography row colors
+
+There is no migration. Do not stop `app`. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. Deploy does not fill «Категория».
+
+«Категория» is stored on `phone_endpoints.data` under that key, the same way as «Поставщик». «Телефонные номера» shows it immediately after «Поставщик» when the softswitch file does not already have the column. Gateways do not show it. A blank filter on either column matches a missing key and a stored empty string. Other phone columns are unchanged. The softswitch XLSX template does not add the column.
+
+«География номеров» reads the same value. Column order is «Категория», «Поставщик», «Город», «Номер», then the rest as before. «Номер» is bold black. «Сохранить данные» uses that order and the same row colors as the screen.
+
+The old red row is yellow. It is still the tariff direction that is not «Мобильные РФ», «Бесплатный вызов», or «г. …» with a place name. Red is now a number PSTN did not determine: no PSTN key, or a cache row with no operator, or the label «Нет в реестре МинЦифры». A national number that is not in the cache yet stays uncolored until the lookup returns, so the first page does not flash red. A lookup error, or PSTN left unconfigured, paints that row red and the error is retried later. A found operator is not red, even when the territory is empty. Blue is an empty «Поставщик» or an empty «Категория». Red wins over yellow, and yellow wins over blue. The download has no in-flight lookup, so a number still missing from the cache is red in the file.
+
+«Загрузить поставщиков» still requires `phones:request`. The first four headers must be «Категория», «Поставщик», «Город», «Номер», in that order. Columns to the right are ignored, so a geography download can be edited and uploaded. «Город» is not written. An empty category cell clears the category, and an empty supplier cell clears the supplier, only for numbers present in the file. A number absent from the file is left alone. A file that is not in this shape, including the old two-column supplier file, is rejected and writes nothing. A cell is at most 200 characters. `phones.sync` keeps a non-empty category by the trimmed terminal number, separately from the supplier. Changing the number text drops that annotation. An empty snapshot of a live catalog is still rejected.
 
 ## v1.186.0 — Save stays the rightmost action
 

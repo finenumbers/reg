@@ -8,17 +8,17 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  ColumnFilterDropdown,
-  type ColumnFilters,
-} from "@/components/column-filters";
-import { cn } from "@/lib/utils";
+import { ColumnFilterDropdown, type ColumnFilters } from "@/components/column-filters";
 import { buildNumberGeographyFacetsUrl } from "@/modules/number-geography/api-client";
 import {
   NUMBER_GEOGRAPHY_COLUMNS,
   NUMBER_GEOGRAPHY_HEADERS,
   type NumberGeographyColumn,
 } from "@/modules/number-geography/columns";
+import {
+  geographyRowTone,
+  type GeographyRowTone,
+} from "@/modules/number-geography/row-tone";
 import type { NumberGeographyItem } from "@/modules/number-geography/types";
 
 type Props = {
@@ -26,9 +26,17 @@ type Props = {
   loading?: boolean;
   emptyMessage?: string;
   filters: ColumnFilters;
+  lookupFailed?: ReadonlySet<string>;
   openColumn: string | null;
   onOpenColumnChange: (column: string | null) => void;
   onColumnFilterChange: (column: string, values: string[]) => void;
+};
+
+const ROW_TONE_CLASS: Record<GeographyRowTone, string> = {
+  red: "bg-destructive/10 hover:bg-destructive/15",
+  yellow: "bg-amber-400/25 hover:bg-amber-400/35",
+  blue: "bg-sky-500/15 hover:bg-sky-500/25",
+  none: "",
 };
 
 function cellText(row: NumberGeographyItem, column: NumberGeographyColumn): string {
@@ -40,6 +48,7 @@ export function NumberGeographyTable({
   loading = false,
   emptyMessage = "Нет данных.",
   filters,
+  lookupFailed,
   openColumn,
   onOpenColumnChange,
   onColumnFilterChange,
@@ -66,9 +75,7 @@ export function NumberGeographyTable({
                     q,
                   })
                 }
-                onToggle={() =>
-                  onOpenColumnChange(openColumn === column ? null : column)
-                }
+                onToggle={() => onOpenColumnChange(openColumn === column ? null : column)}
                 onChange={(values) => onColumnFilterChange(column, values)}
                 onClear={() => onColumnFilterChange(column, [])}
               />
@@ -93,12 +100,24 @@ export function NumberGeographyTable({
           data.map((row) => (
             <TableRow
               key={row.id}
-              className={cn(
-                row.cityAlert && "bg-destructive/10 hover:bg-destructive/15",
-              )}
+              className={
+                ROW_TONE_CLASS[
+                  geographyRowTone(row, {
+                    surface: "screen",
+                    lookupFailed: lookupFailed?.has(row.id) === true,
+                  })
+                ]
+              }
             >
               {NUMBER_GEOGRAPHY_COLUMNS.map((column) => (
-                <TableCell key={`${row.id}-${column}`}>
+                <TableCell
+                  key={`${row.id}-${column}`}
+                  className={
+                    column === "number"
+                      ? "font-bold text-black dark:text-white"
+                      : undefined
+                  }
+                >
                   {cellText(row, column)}
                 </TableCell>
               ))}

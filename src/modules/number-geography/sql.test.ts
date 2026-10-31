@@ -5,6 +5,7 @@ import { MISSING_PSTN_LABEL } from "@/modules/enrich/types";
 import {
   FREE_CALL_DIRECTION,
   MOBILE_RF_DIRECTION,
+  NUMBER_GEOGRAPHY_COLUMNS,
 } from "@/modules/number-geography/columns";
 import {
   activeFilterColumns,
@@ -46,34 +47,27 @@ function flattenSql(sql: Prisma.Sql): { text: string; values: unknown[] } {
 
 describe("list projection", () => {
   it("keeps number and client filters on the cheap page path", () => {
-    expect(listProjection({ number: ["79001112233"], client: ["А"] })).toBe(
-      "page",
-    );
+    expect(listProjection({ number: ["79001112233"], client: ["А"] })).toBe("page");
     expect(listProjection({ supplier: [EMPTY_FILTER_TOKEN] })).toBe("page");
   });
 
   it("uses the full catalog when city or operator is filtered", () => {
     expect(listProjection({ city: ["Москва"] })).toBe("catalog");
-    expect(listProjection({ operator: ["МТС"], number: ["7900"] })).toBe(
-      "catalog",
-    );
+    expect(listProjection({ operator: ["МТС"], number: ["7900"] })).toBe("catalog");
     expect(listProjection({ geography: ["край"] })).toBe("catalog");
   });
 
   it("keeps a supplier filter on the cheap page path", () => {
+    expect(listProjection({ category: ["VIP"] })).toBe("page");
     expect(listProjection({ supplier: ["Ростелеком"] })).toBe("page");
-    expect(
-      listProjection({ supplier: [EMPTY_FILTER_TOKEN, "Ростелеком"] }),
-    ).toBe("page");
+    expect(listProjection({ supplier: [EMPTY_FILTER_TOKEN, "Ростелеком"] })).toBe("page");
   });
 
   it("still projects the catalog for a city facet when other filters are cheap", () => {
     expect(facetProjection("city", { number: ["7900"] })).toBe("catalog");
     expect(facetProjection("client", { number: ["7900"] })).toBe("page");
     expect(facetProjection("number", { city: ["Москва"] })).toBe("catalog");
-    expect(facetProjection("client", { supplier: ["нет такого"] })).toBe(
-      "page",
-    );
+    expect(facetProjection("client", { supplier: ["нет такого"] })).toBe("page");
   });
 });
 
@@ -94,13 +88,22 @@ describe("filter clauses", () => {
 
   it("binds filter text and does not paste it into the statement", () => {
     const hostile = "Москва'); DROP TABLE phone_endpoints;--";
-    const flat = flattenSql(
-      filterMatchSql("city", [hostile, EMPTY_FILTER_TOKEN]),
-    );
+    const flat = flattenSql(filterMatchSql("city", [hostile, EMPTY_FILTER_TOKEN]));
     expect(flat.text).not.toContain("DROP TABLE");
     expect(flat.text).toContain("= ''");
     expect(flat.values).toContain(hostile);
     expect(flat.values).not.toContain(EMPTY_FILTER_TOKEN);
+  });
+});
+
+describe("geography columns", () => {
+  it("leads with category, then supplier, then city, then number", () => {
+    expect(NUMBER_GEOGRAPHY_COLUMNS.slice(0, 4)).toEqual([
+      "category",
+      "supplier",
+      "city",
+      "number",
+    ]);
   });
 });
 
@@ -126,6 +129,12 @@ describe("pstn cache key", () => {
     expect(flat.values).toContain(PSTN_ELEVEN_DIGIT);
     expect(flat.values).toContain(PSTN_TEN_DIGIT);
     expect(flat.text).toContain("data->>'Поставщик'");
+    expect(flat.text).toContain("data->>'Категория'");
+    expect(flat.text).toContain("k.category");
+    expect(flat.text).toContain("pstn_key");
+    expect(flat.values).toContain("unresolved");
+    expect(flat.values).toContain("pending");
+    expect(flat.values).toContain("resolved");
     expect(flat.values).toContain("Премиум");
   });
 });
