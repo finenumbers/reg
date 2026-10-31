@@ -115,9 +115,6 @@ export function MonthExportButtons({ month }: { month: string }) {
   return (
     <div className="flex flex-col items-end gap-1">
       <div className="flex flex-wrap items-center justify-end gap-2">
-        <Button type="button" disabled={busy} onClick={() => void start(false)}>
-          {starting ? "Запуск…" : "Сохранить данные"}
-        </Button>
         <Button
           type="button"
           variant="outline"
@@ -125,6 +122,9 @@ export function MonthExportButtons({ month }: { month: string }) {
           onClick={() => void start(true)}
         >
           {starting ? "Запуск…" : "Сохранить расширенные данные"}
+        </Button>
+        <Button type="button" disabled={busy} onClick={() => void start(false)}>
+          {starting ? "Запуск…" : "Сохранить данные"}
         </Button>
       </div>
 

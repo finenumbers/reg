@@ -551,14 +551,19 @@ export function SmgView({
               colored
             />
           ) : null}
-          <Button type="button" onClick={() => void onExport()} disabled={exporting}>
-            {exporting ? "Сохранение…" : "Сохранить данные"}
-          </Button>
           {showOps && canRetry ? (
-            <Button type="button" onClick={() => void onRetry()} disabled={pending}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => void onRetry()}
+              disabled={pending}
+            >
               {pending ? "Импорт…" : "Повторить импорт"}
             </Button>
           ) : null}
+          <Button type="button" onClick={() => void onExport()} disabled={exporting}>
+            {exporting ? "Сохранение…" : "Сохранить данные"}
+          </Button>
         </div>
       </div>
 

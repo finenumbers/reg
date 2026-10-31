@@ -388,8 +388,7 @@ export function NumberGeographyView({ initial, canRequest }: Props) {
           </h1>
           <p className="text-muted-foreground text-sm">
             Оконечные номера каталога. Город из тарификации. Оператор и
-            территория из кэша PSTN; пустые ячейки дозапрашиваются при
-            просмотре.
+            территория из кэша PSTN.
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">

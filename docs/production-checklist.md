@@ -53,6 +53,8 @@ Optional publish ports: `APP_PUBLISH_PORT`, `POSTGRES_PUBLISH_PORT`.
 
 ## 3. Database
 
+v1.186.0 does not migrate and does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `app`. Do not stop `smg-syslog`. «География номеров» drops the subtitle clause about empty cells being filled on view; the fill itself stays. «Телефонный трафик» shows the white extended export left of the black plain export. «Данные SMG» shows white «Повторить импорт» left of black «Сохранить данные». «Трафик SMG» has no retry button.
+
 v1.185.0 does not migrate and does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `app`. Do not stop `smg-syslog`. «География номеров» moves «Загрузить поставщиков» and «Сохранить данные» onto the title row, right-aligned. The supplier button is white and sits left of the black save button. «Сбросить фильтры» stays on the next row. Upload still requires `phones:request`. The file, the export, and the mutual disable are unchanged.
 
 v1.184.0 does not migrate and does not rewrite phone, tariff, CDR, or PSTN rows. Stop `app` before the update and start one new process only. Do not stop `smg-syslog`. A stored clock that is not a real calendar date no longer stops CDR import, month export, or the antifraud charts. A month delete that has already committed a batch is finished after restart. A syslog read error does not drop the open slot. `POST /api/auth/sign-in/email` is closed.

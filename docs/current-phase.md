@@ -1,7 +1,17 @@
-# Current Phase — production (v1.185.0)
+# Current Phase — production (v1.186.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, number geography, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal.  
 **Date:** 2026-10-31
+
+## v1.186.0 — Save stays the rightmost action
+
+There is no migration. Do not stop `app`. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten.
+
+«География номеров» drops «; пустые ячейки дозапрашиваются при просмотре» from the subtitle. The page still fills empty operator and geography cells. The buttons are unchanged.
+
+«Телефонный трафик» puts «Сохранить расширенные данные» to the left of «Сохранить данные». The extended button stays white and still exports the detail. The plain button stays black and is the rightmost. The jobs are unchanged.
+
+«Данные SMG» puts «Повторить импорт» to the left of «Сохранить данные». «Повторить импорт» is the white outline button and still requires `phones:request`. «Сохранить данные» stays black and is the rightmost. «Трафик SMG» has no retry button.
 
 ## v1.185.0 — Geography actions sit on the title row
 
