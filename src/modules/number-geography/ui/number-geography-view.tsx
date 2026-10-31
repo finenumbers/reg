@@ -392,6 +392,36 @@ export function NumberGeographyView({ initial, canRequest }: Props) {
             просмотре.
           </p>
         </div>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          {canRequest ? (
+            <>
+              <input
+                ref={supplierFileRef}
+                type="file"
+                accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                className="hidden"
+                onChange={(event) =>
+                  void onSupplierFile(event.target.files?.[0])
+                }
+              />
+              <Button
+                type="button"
+                variant="outline"
+                disabled={uploading || exporting}
+                onClick={() => supplierFileRef.current?.click()}
+              >
+                {uploading ? "Загрузка…" : "Загрузить поставщиков"}
+              </Button>
+            </>
+          ) : null}
+          <Button
+            type="button"
+            disabled={exporting || uploading}
+            onClick={() => void onExport()}
+          >
+            {exporting ? "Сохранение…" : "Сохранить данные"}
+          </Button>
+        </div>
       </div>
 
       <div className="flex shrink-0 flex-wrap items-center gap-3">
@@ -404,36 +434,6 @@ export function NumberGeographyView({ initial, canRequest }: Props) {
         >
           Сбросить фильтры
         </Button>
-        <Button
-          type="button"
-          variant="outline"
-          className={FILTER_TOOLBAR_TEXT}
-          disabled={exporting || uploading}
-          onClick={() => void onExport()}
-        >
-          {exporting ? "Сохранение…" : "Сохранить данные"}
-        </Button>
-        {canRequest ? (
-          <>
-            <input
-              ref={supplierFileRef}
-              type="file"
-              accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-              className="hidden"
-              onChange={(event) =>
-                void onSupplierFile(event.target.files?.[0])
-              }
-            />
-            <Button
-              type="button"
-              className={FILTER_TOOLBAR_TEXT}
-              disabled={uploading || exporting}
-              onClick={() => supplierFileRef.current?.click()}
-            >
-              {uploading ? "Загрузка…" : "Загрузить поставщиков"}
-            </Button>
-          </>
-        ) : null}
       </div>
 
       {actionError ? (

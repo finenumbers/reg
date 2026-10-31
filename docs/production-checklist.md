@@ -53,6 +53,8 @@ Optional publish ports: `APP_PUBLISH_PORT`, `POSTGRES_PUBLISH_PORT`.
 
 ## 3. Database
 
+v1.185.0 does not migrate and does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `app`. Do not stop `smg-syslog`. «География номеров» moves «Загрузить поставщиков» and «Сохранить данные» onto the title row, right-aligned. The supplier button is white and sits left of the black save button. «Сбросить фильтры» stays on the next row. Upload still requires `phones:request`. The file, the export, and the mutual disable are unchanged.
+
 v1.184.0 does not migrate and does not rewrite phone, tariff, CDR, or PSTN rows. Stop `app` before the update and start one new process only. Do not stop `smg-syslog`. A stored clock that is not a real calendar date no longer stops CDR import, month export, or the antifraud charts. A month delete that has already committed a batch is finished after restart. A syslog read error does not drop the open slot. `POST /api/auth/sign-in/email` is closed.
 
 v1.183.0 migrates before the new `app` process and only drops `enrich_jobs` and `EnrichJobStatus`. It does not rewrite phone, tariff, CDR, or PSTN rows. Stop `app` before the update and start one new process only. Do not stop `smg-syslog`. The migration is label-free, so startup does not rescan the CDR journal. Leave the old `reg_enrich_data` volume in place. «Обогатить данные» is gone. «Поставщик» lives on the phone endpoint and is kept by `phones.sync` when the trimmed number text is unchanged. A blank «ТЕРМ. емкость» displays as «Премиум» and is not written into the catalog.
