@@ -12,6 +12,7 @@ describe("capacity filter", () => {
           OR: [
             { data: { path: ["ТЕРМ. емкость"], equals: "" } },
             { data: { path: ["ТЕРМ. емкость"], equals: "Премиум" } },
+            { data: { path: ["ТЕРМ. емкость"], equals: Prisma.AnyNull } },
           ],
         },
       ],

@@ -40,7 +40,7 @@ function jsonBlankAnnotation(column: string): JsonDataWhere {
 
 /**
  * «Премиум» is the screen label for a blank «ТЕРМ. емкость». The JSON cell
- * stays "". Selecting «Премиум» matches that blank and a literal «Премиум».
+ * stays "". Selecting «Премиум» matches that blank, a missing key, and a literal «Премиум».
  */
 function jsonColumnOr(column: string, values: string[]): JsonDataWhere | null {
   if (values.length === 0) return null;
@@ -56,6 +56,7 @@ function jsonColumnOr(column: string, values: string[]): JsonDataWhere | null {
       seen.add(PREMIUM_CAPACITY);
       ors.push(jsonEquals(column, ""));
       ors.push(jsonEquals(column, PREMIUM_CAPACITY));
+      ors.push({ data: { path: [column], equals: Prisma.AnyNull } });
       continue;
     }
     if (seen.has(raw)) continue;

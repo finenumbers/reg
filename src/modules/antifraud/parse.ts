@@ -34,6 +34,10 @@ export type ParsedDetail = {
   attrs: Record<string, string[]>;
 };
 
+function isLeapYear(year: number): boolean {
+  return year % 400 === 0 || (year % 4 === 0 && year % 100 !== 0);
+}
+
 /** FreeRADIUS `%t` in the C locale. The parking host clock is UTC. */
 export function parseDetailHeader(header: string): Date | null {
   const match = HEADER_RE.exec(header.trim());
@@ -45,8 +49,22 @@ export function parseDetailHeader(header: string): Date | null {
   const minute = Number(match[4]);
   const second = Number(match[5]);
   const year = Number(match[6]);
-  if (day < 1 || day > 31) return null;
-  return new Date(Date.UTC(year, month, day, hour, minute, second));
+  if (hour > 23 || minute > 59 || second > 59) return null;
+  const days = [31, isLeapYear(year) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  const maxDay = days[month] ?? 0;
+  if (day < 1 || day > maxDay) return null;
+  const instant = new Date(Date.UTC(year, month, day, hour, minute, second));
+  if (
+    instant.getUTCFullYear() !== year ||
+    instant.getUTCMonth() !== month ||
+    instant.getUTCDate() !== day ||
+    instant.getUTCHours() !== hour ||
+    instant.getUTCMinutes() !== minute ||
+    instant.getUTCSeconds() !== second
+  ) {
+    return null;
+  }
+  return instant;
 }
 
 function unquote(value: string): string {

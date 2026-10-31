@@ -765,7 +765,7 @@ export async function processCdrPurgeMonth(
     const month = target?.key ?? null;
     const release = resumeCalls ? succeeded : succeeded || !purgeDeleteCommitted();
     let holdRelease = release;
-    if (holdRelease && succeeded && resumeCalls && month) {
+    if (holdRelease && succeeded && month) {
       try {
         await clearPurgeContinuationFlags(month);
       } catch (error) {

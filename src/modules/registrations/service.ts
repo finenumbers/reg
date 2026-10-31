@@ -5,8 +5,6 @@
 
 import type { RegStatus } from "@/generated/prisma/client";
 import {
-  aggregateFacetItems,
-  EMPTY_FILTER_TOKEN,
   type ColumnFilters,
   type FacetResponse,
 } from "@/components/column-filters/types";
@@ -35,8 +33,7 @@ import type {
   RegistrationListItem,
 } from "@/modules/registrations/types";
 import {
-  formatRegStatus,
-  formatTimestamp,
+  pageRegistrationFacets,
   REG_COLUMN_HEADERS,
 } from "@/modules/registrations/ui-format";
 
@@ -247,31 +244,12 @@ export async function listRegistrationFacets(opts: {
     if (token != null) values.push(token);
   }
 
-  const response = aggregateFacetItems(values, {
-    q: undefined,
-    limit: opts.limit,
-  });
-
-  const q = opts.q?.trim().toLowerCase() ?? "";
-  if (!q) return response;
-
   const timeZone = await getDisplayTimezone();
-  const items = response.items.filter((item) => {
-    const raw = (() => {
-      if (item.value === EMPTY_FILTER_TOKEN || item.value === "") return "(пусто)";
-      if (column === "status") return formatRegStatus(item.value);
-      if (column === "lastChangedAt" || column === "lastSeenAt") {
-        return formatTimestamp(item.value, timeZone);
-      }
-      return item.value;
-    })().toLowerCase();
-    return raw.includes(q);
+  return pageRegistrationFacets(values, column, {
+    q: opts.q,
+    limit: opts.limit,
+    timeZone,
   });
-  const limit = Math.min(500, Math.max(1, opts.limit ?? 200));
-  return {
-    items: items.slice(0, limit),
-    truncated: items.length > limit || response.truncated,
-  };
 }
 
 export async function getRegistrationDetail(

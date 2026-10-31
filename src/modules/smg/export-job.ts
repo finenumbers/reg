@@ -27,11 +27,17 @@ type Job = SmgExportJobView & {
   filePath: string | null;
   filename: string;
   createdAt: number;
+  readyAt: number | null;
 };
 
 /** True while this build must keep the single slot, including a fresh file of another user. */
 export function smgExportSlotHeld(
-  job: { status: Job["status"]; actorUserId: string; createdAt: number } | null,
+  job: {
+    status: Job["status"];
+    actorUserId: string;
+    createdAt: number;
+    readyAt?: number | null;
+  } | null,
   actorUserId: string,
   now: number,
 ): boolean {
@@ -39,7 +45,8 @@ export function smgExportSlotHeld(
   if (job.status === "running") return true;
   if (job.status !== "ready") return false;
   if (job.actorUserId === actorUserId) return false;
-  return now - job.createdAt < KEEP_MS;
+  if (typeof job.readyAt !== "number") return false;
+  return now - job.readyAt < KEEP_MS;
 }
 
 type Store = { job: Job | null };
@@ -78,6 +85,7 @@ export function beginSmgExportJob(input: {
     filePath: null,
     filename: smgExportFilename(input.layout, input.month.key, input.device),
     createdAt: Date.now(),
+    readyAt: null,
   };
   store().job = job;
   void runSmgExportJob(job, input);
@@ -139,6 +147,7 @@ async function runSmgExportJob(
       return;
     }
     job.status = "ready";
+    job.readyAt = Date.now();
     const timer = setTimeout(() => {
       if (store().job !== job) return;
       store().job = null;

@@ -118,6 +118,7 @@ describe("processCdrPurgeMonth historyOnly", () => {
     resetPurgeTargetForTests();
     jobRunCreate.mockResolvedValue({ id: "resume-1" });
     jobRunUpdate.mockResolvedValue({});
+    jobRunFindMany.mockResolvedValue([]);
     auditAppend.mockResolvedValue(undefined);
     executeRaw.mockResolvedValue(0);
     queryMonthCallCounts.mockImplementation(() => {
@@ -233,6 +234,48 @@ describe("processCdrPurgeMonth historyOnly", () => {
     expect(phases.indexOf("cards")).toBeLessThan(phases.indexOf("smg"));
     expect(phases.indexOf("smg")).toBeLessThan(phases.indexOf("syslog"));
     expect(phases.indexOf("syslog")).toBeLessThan(phases.indexOf("jobs"));
+  });
+
+  it("clears an older continueDelete before releasing the hold", async () => {
+    jobRunFindMany.mockResolvedValue([
+      {
+        id: "old-1",
+        errorMessage: "disk",
+        phonesParsed: 4,
+        meta: { month: "2026-08", continueDelete: true },
+      },
+    ]);
+    const result = await processCdrPurgeMonth({
+      trigger: "manual",
+      month: "2026-08",
+      historyOnly: true,
+      deletedCalls: 10,
+    });
+    expect(result.status).toBe("success");
+    expect(jobRunUpdate).toHaveBeenCalledWith({
+      where: { id: "old-1" },
+      data: { meta: { month: "2026-08" } },
+    });
+    const foundAt = jobRunFindMany.mock.invocationCallOrder.at(-1) ?? 0;
+    const importedAt = (requestCdrImportDrain as unknown as Mock).mock.invocationCallOrder[0] ?? 0;
+    expect(foundAt).toBeGreaterThan(0);
+    expect(importedAt).toBeGreaterThan(foundAt);
+    expect(clearPurgeHolds).toHaveBeenCalledWith("2026-08");
+    expect(getPurgeTargetMonth()).toBeNull();
+  });
+
+  it("keeps the hold when continuation flags cannot be cleared", async () => {
+    jobRunFindMany.mockRejectedValue(new Error("db"));
+    const result = await processCdrPurgeMonth({
+      trigger: "manual",
+      month: "2026-08",
+      historyOnly: true,
+      deletedCalls: 10,
+    });
+    expect(result.status).toBe("success");
+    expect(clearPurgeHolds).not.toHaveBeenCalled();
+    expect(requestCdrImportDrain).not.toHaveBeenCalled();
+    expect(getPurgeTargetMonth()).toBe("2026-08");
   });
 
   it("releases the hold when history finishes without deleting a batch", async () => {

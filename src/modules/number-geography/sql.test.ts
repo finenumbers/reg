@@ -209,5 +209,7 @@ describe("pstn labels by id", () => {
     expect(flat.values.filter((value) => value === MISSING_PSTN_LABEL).length).toBe(
       page.values.filter((value) => value === MISSING_PSTN_LABEL).length,
     );
+    expect(flat.text).toContain("btrim(pstn_geography) = '' THEN ''");
+    expect(page.text).toContain("btrim(pstn_geography) = '' THEN ''");
   });
 });

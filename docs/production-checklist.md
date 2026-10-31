@@ -53,6 +53,8 @@ Optional publish ports: `APP_PUBLISH_PORT`, `POSTGRES_PUBLISH_PORT`.
 
 ## 3. Database
 
+v1.189.0 does not migrate and does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `app`. Do not stop `smg-syslog`. A successful month delete clears its continuation flag before imports of that month resume. A CDR line with an impossible clock is kept and its `cdrAt` stays empty. «Сбросить фильтры» on the phone-traffic pages sits after the six search checkboxes. The month select stays on the right.
+
 v1.188.0 does not migrate and does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `app`. Do not stop `smg-syslog`. «Телефонные номера» lists endpoints by terminal number, then id. «География номеров» searches «Номер» from «Телефонный номер» and paints hits yellow. The catalog download stays the full file. «Сбросить фильтры» sits immediately right of every «Телефонный номер» field. «Данные SMG» paints hits in the four searched number columns. The SMG journal section is «Ошибки АнтиФрод».
 
 v1.187.0 does not migrate and does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `app`. Do not stop `smg-syslog`. «Категория» is stored on the phone endpoint like «Поставщик» and is shown after it. «География номеров» leads with «Категория», «Поставщик», «Город», «Номер». Red is a number PSTN did not determine, yellow is the former tariff red row, and blue is an empty supplier or category. Red wins, then yellow. The supplier upload requires those four headers in that order. «Город» is not stored. An old two-column file is rejected.

@@ -5,6 +5,7 @@ import {
   describeHistoryEvent,
   formatEndpoint,
   formatTimestamp,
+  pageRegistrationFacets,
   parseUnregisteredOnlyParam,
   REG_COLUMN_HEADERS,
   REG_COLUMN_ORDER,
@@ -106,6 +107,24 @@ describe("registrations UI format helpers", () => {
     expect(parseUnregisteredOnlyParam("0")).toBe(false);
     expect(parseUnregisteredOnlyParam("false")).toBe(false);
     expect(parseUnregisteredOnlyParam(null)).toBe(false);
+  });
+
+  it("finds a status outside the top slice and keeps the raw token", () => {
+    const values = ["Registered", "Registered", "Unregistered"];
+    const page = pageRegistrationFacets(values, "status", {
+      q: "не зарег",
+      limit: 1,
+      timeZone: "UTC",
+    });
+    expect(page.items).toEqual([{ value: "Unregistered", count: 1 }]);
+    expect(page.truncated).toBe(false);
+    const crowded = pageRegistrationFacets(
+      ["Registered", "Registered", "Unregistered"],
+      "status",
+      { limit: 1, timeZone: "UTC" },
+    );
+    expect(crowded.items.map((item) => item.value)).toEqual(["Registered"]);
+    expect(crowded.truncated).toBe(true);
   });
 
   it("includes unregisteredOnly on facet URLs only when set", () => {

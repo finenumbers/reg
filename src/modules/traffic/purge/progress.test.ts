@@ -194,7 +194,9 @@ describe("purgeProgressFromJob", () => {
 
   it("states that a restart continues the later stages after CDR calls are gone", () => {
     expect(PURGE_INTERRUPT_NOTE).toContain("обрывается");
-    expect(PURGE_INTERRUPT_NOTE).toContain("продолжаются");
+    expect(PURGE_INTERRUPT_NOTE).toContain("продолжается");
+    expect(PURGE_INTERRUPT_NOTE).toContain("задачи или аудит");
+    expect(PURGE_INTERRUPT_NOTE).toContain("кнопкой");
     expect(PURGE_INTERRUPT_NOTE).toContain("SMG");
     expect(PURGE_INTERRUPT_NOTE).toContain("Syslog");
   });

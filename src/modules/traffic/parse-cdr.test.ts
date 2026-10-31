@@ -308,4 +308,16 @@ describe("parseCdrDate", () => {
       "2026-07-01T00:30:00.000Z",
     );
   });
+
+  it("stores no instant for a clock the calendar cannot have", () => {
+    expect(parseCdrDate("2026-02-31 12:00:00")).toBeNull();
+    expect(parseCdrDate("2026-02-28 25:00:00")).toBeNull();
+    expect(parseCdrDate("0099-01-15 00:00:00")).toBeNull();
+    const row = parseCdrDataLine(
+      quotedRow({ cdr_id: "id-feb31", cdr_date: "2026-02-31 12:00:00" }),
+    );
+    expect(row).not.toBeNull();
+    expect(row!.cdrAt).toBeNull();
+    expect(row!.prisma.cdrDay).toBe("2026-02-31");
+  });
 });

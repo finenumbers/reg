@@ -236,7 +236,13 @@ export function NumberGeographyView({ initial, canRequest }: Props) {
         const result = await fetchNumberGeographyPstnFill(chunk);
         if (generation !== fillGeneration.current) return;
         for (const id of chunk) fillQueued.current.delete(id);
-        if (!result.ok || !result.data.configured) {
+        if (!result.ok) {
+          rememberLookupFailed(chunk);
+          for (const id of fillQueue.current) fillQueued.current.delete(id);
+          fillQueue.current = [];
+          return;
+        }
+        if (!result.data.configured) {
           const failedIds = [...chunk, ...fillQueue.current];
           fillQueue.current = [];
           fillQueued.current = new Set();

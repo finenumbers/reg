@@ -33,6 +33,15 @@ describe("parseDetailHeader", () => {
   it("rejects a header that is not %t", () => {
     expect(parseDetailHeader("2026-10-21 06:36:27")).toBeNull();
   });
+
+  it("rejects a clock the calendar cannot have", () => {
+    expect(parseDetailHeader("Tue Feb 31 00:00:00 2026")).toBeNull();
+    expect(parseDetailHeader("Wed Oct 21 25:00:00 2026")).toBeNull();
+    expect(parseDetailHeader("Thu Feb 29 00:00:00 2026")).toBeNull();
+    expect(parseDetailHeader("Thu Feb 29 00:00:00 2024")?.toISOString()).toBe(
+      "2024-02-29T00:00:00.000Z",
+    );
+  });
 });
 
 describe("parseDetailBlock", () => {

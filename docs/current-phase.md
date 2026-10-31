@@ -1,7 +1,21 @@
-# Current Phase — production (v1.188.0)
+# Current Phase — production (v1.189.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, number geography, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal.  
 **Date:** 2026-10-31
+
+## v1.189.0 — Purge continuation, impossible clocks, traffic reset
+
+There is no migration. Do not stop `app`. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. A `cdrAt` or Parking `loggedAt` that was already stored stays where it is.
+
+A successful month delete clears `continueDelete` on every purge row of that month before the import hold is released. A failed delete still keeps the flag. If the flag cannot be cleared, the hold stays and the inbox does not refill that month. A quiet restart with no committed batch still deletes nothing.
+
+A new CDR line whose `cdr_date` is not a real clock (`2026-02-31`, hour `25`, year `0099`) is still imported. Its `cdrAt` is left empty. The shared date parser used by VoIPmonitor is unchanged. A Parking detail header that is not a real clock is stored with `loggedAt` null and stays off «Таймаут АнтиФрода». A valid header, including a padded day, is unchanged.
+
+«География номеров» leaves «География» empty when the operator is known and the territory is empty. «Нет в реестре МинЦифры» stays the label only when the operator was not determined. Row color is unchanged. A blank «ТЕРМ. емкость» filter also matches a missing key. `" 10 "` and `"0"` stay as stored. The registration facet search looks through every value, then applies the limit, and the chosen filter stays the raw token. A failed PSTN fill request paints only the ids that were sent and stops. Unconfigured PSTN still paints the open blanks.
+
+«Сбросить фильтры» on «Телефонный трафик», «Операторы связи», «География звонков», and «Сырые данные» sits after «Фантомный», «Ошибки звонков», «Паркинг», «Проверка», «Неуспешный», and «Успешные». The month stays on the right. The button still clears the same fields. SMG toolbars are unchanged.
+
+An SMG workbook stays with the user who built it for 15 minutes after it becomes ready, including when the build itself took longer than 15 minutes. After login, `next` must stay on this app. A path with a backslash or whitespace opens `/`.
 
 ## v1.188.0 — Geography phone search, endpoint order, Ошибки АнтиФрод
 

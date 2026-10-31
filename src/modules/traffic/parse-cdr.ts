@@ -6,6 +6,7 @@
 import { splitQuotedSemicolon } from "@/modules/enrich/parse-csv";
 import { parseNaiveDateTime } from "@/modules/enrich/dates";
 import { splitCdrDateParts } from "@/modules/traffic/cdr-date-parts";
+import { isAcceptableCivilClock } from "@/modules/traffic/civil-timestamptz";
 import {
   CDR_COLUMNS,
   CDR_COLUMN_COUNT,
@@ -38,7 +39,27 @@ export type ParsedCdrRow = {
 };
 
 export function parseCdrDate(raw: string): Date | null {
-  return parseNaiveDateTime(raw);
+  if (!isAcceptableCivilClock(raw)) return null;
+  const parsed = parseNaiveDateTime(raw);
+  if (!parsed) return null;
+  const trimmed = raw.trim();
+  const year = Number(trimmed.slice(0, 4));
+  const month = Number(trimmed.slice(5, 7));
+  const day = Number(trimmed.slice(8, 10));
+  const hour = Number(trimmed.slice(11, 13));
+  const minute = Number(trimmed.slice(14, 16));
+  const second = Number(trimmed.slice(17, 19));
+  if (
+    parsed.getUTCFullYear() !== year ||
+    parsed.getUTCMonth() + 1 !== month ||
+    parsed.getUTCDate() !== day ||
+    parsed.getUTCHours() !== hour ||
+    parsed.getUTCMinutes() !== minute ||
+    parsed.getUTCSeconds() !== second
+  ) {
+    return null;
+  }
+  return parsed;
 }
 
 export type CdrParseReject = "width" | "cdr_id" | "date";

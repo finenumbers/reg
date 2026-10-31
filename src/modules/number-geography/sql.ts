@@ -266,7 +266,7 @@ function geographyLabelSql(): Prisma.Sql {
       WHEN pstn_found IS NOT TRUE
         OR pstn_operator IS NULL
         OR btrim(pstn_operator) = '' THEN ${MISSING_PSTN_LABEL}
-      WHEN pstn_geography IS NULL OR btrim(pstn_geography) = '' THEN ${MISSING_PSTN_LABEL}
+      WHEN pstn_geography IS NULL OR btrim(pstn_geography) = '' THEN ''
       ELSE btrim(pstn_geography)
     END
   )`;

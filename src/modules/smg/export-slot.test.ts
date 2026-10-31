@@ -26,7 +26,12 @@ describe("smgExportSlotHeld", () => {
   it("holds a fresh file that belongs to someone else", () => {
     expect(
       smgExportSlotHeld(
-        { status: "ready", actorUserId: "owner", createdAt: now - 1000 },
+        {
+          status: "ready",
+          actorUserId: "owner",
+          createdAt: now - KEEP_MS - 1000,
+          readyAt: now - 1000,
+        },
         "other",
         now,
       ),
@@ -36,7 +41,7 @@ describe("smgExportSlotHeld", () => {
   it("lets the owner replace their own file and anyone replace an error or a stale file", () => {
     expect(
       smgExportSlotHeld(
-        { status: "ready", actorUserId: "owner", createdAt: now - 1000 },
+        { status: "ready", actorUserId: "owner", createdAt: now - 1000, readyAt: now - 1000 },
         "owner",
         now,
       ),
@@ -50,7 +55,12 @@ describe("smgExportSlotHeld", () => {
     ).toBe(false);
     expect(
       smgExportSlotHeld(
-        { status: "ready", actorUserId: "owner", createdAt: now - KEEP_MS },
+        {
+          status: "ready",
+          actorUserId: "owner",
+          createdAt: now - 1000,
+          readyAt: now - KEEP_MS,
+        },
         "other",
         now,
       ),

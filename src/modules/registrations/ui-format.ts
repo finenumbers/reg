@@ -2,7 +2,13 @@
  * Presentation helpers for registrations UI — pure, testable, no React.
  */
 
-import { encodeFilters, type ColumnFilters } from "@/components/column-filters/types";
+import {
+  cellToFilterToken,
+  displayFacetValue,
+  encodeFilters,
+  type ColumnFilters,
+  type FacetResponse,
+} from "@/components/column-filters/types";
 import { formatDisplayTimestamp } from "@/lib/format-display-time";
 import type { RegistrationHistoryItem, RegistrationListItem } from "@/modules/registrations/types";
 
@@ -29,6 +35,37 @@ export function formatRegStatus(status: string): string {
   if (status === "Registered") return "Зарегистрирован";
   if (status === "Unregistered") return "Не зарегистрирован";
   return status;
+}
+
+/** Facet menu for registrations. Search uses the painted label, then the limit. */
+export function pageRegistrationFacets(
+  values: readonly (string | null | undefined)[],
+  column: string,
+  opts: { q?: string; limit?: number; timeZone: string },
+): FacetResponse {
+  const limit = Math.min(500, Math.max(1, opts.limit ?? 200));
+  const q = opts.q?.trim().toLowerCase() ?? "";
+  const counts = new Map<string, number>();
+  for (const raw of values) {
+    const token = cellToFilterToken(raw);
+    counts.set(token, (counts.get(token) ?? 0) + 1);
+  }
+  let items = [...counts.entries()]
+    .map(([value, count]) => ({ value, count }))
+    .sort((a, b) => {
+      if (b.count !== a.count) return b.count - a.count;
+      return displayFacetValue(a.value).localeCompare(displayFacetValue(b.value), "ru");
+    });
+  if (q) {
+    items = items.filter((item) =>
+      displayFacetForColumn(column, item.value, opts.timeZone).toLowerCase().includes(q),
+    );
+  }
+  const truncated = items.length > limit;
+  return {
+    items: truncated ? items.slice(0, limit) : items,
+    truncated,
+  };
 }
 
 export function displayFacetForColumn(
