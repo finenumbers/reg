@@ -95,7 +95,7 @@ export function PhoneMaskInput({ value, onChange }: Props) {
         onKeyDown={(event) => handleKeyDown(index, event)}
         onFocus={(event) => event.currentTarget.select()}
         className={cn(
-          "border-input placeholder:text-muted-foreground/40 focus-visible:ring-ring h-8 w-[calc(2ch+4px)] shrink-0 rounded border px-0 text-center text-xs shadow-sm focus-visible:ring-1 focus-visible:outline-none",
+          "border-input placeholder:text-muted-foreground/40 focus-visible:ring-ring h-8 w-[calc(2ch+4px)] shrink-0 rounded border px-0 text-center text-xs focus-visible:ring-1 focus-visible:outline-none",
           filled ? "bg-yellow-200/80 text-black" : "bg-background",
         )}
       />
