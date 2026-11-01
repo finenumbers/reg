@@ -286,7 +286,7 @@ export function NumberingResourceView({
   const phoneChip = phoneMaskHasDigit(phoneQ) ? formatPhoneMaskHint(phoneQ) : "";
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-4">
+    <div className="@container flex h-full min-h-0 min-w-0 flex-col gap-4">
       <div className="flex shrink-0 flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold tracking-tight [text-box:trim-start_cap_alphabetic]">
@@ -307,71 +307,72 @@ export function NumberingResourceView({
         </Button>
       </div>
 
-      <div className="min-w-0 shrink-0 overflow-x-auto py-px">
-        <div className="grid w-max min-w-full grid-cols-[repeat(4,minmax(10rem,1fr))_minmax(17.5rem,1.4fr)] gap-3">
-          <KpiCard title="Найденные диапазоны" loading={summaryLoading}>
-            {summary ? (
-              <KpiValue
-                active={filtersActive}
-                filtered={summary.filtered.rangeCount}
-                global={summary.global.rangeCount}
-              />
-            ) : (
-              <p className="text-base leading-tight font-semibold">—</p>
-            )}
-          </KpiCard>
-          <KpiCard title="Операторы связи" loading={summaryLoading}>
-            {summary ? (
-              <KpiValue
-                active={filtersActive}
-                filtered={summary.filtered.uniqueOperators}
-                global={summary.global.uniqueOperators}
-              />
-            ) : (
-              <p className="text-base leading-tight font-semibold">—</p>
-            )}
-          </KpiCard>
-          <KpiCard title="Территории ГАР" loading={summaryLoading}>
-            {summary ? (
-              <KpiValue
-                active={filtersActive}
-                filtered={summary.filtered.uniqueGarTerritories}
-                global={summary.global.uniqueGarTerritories}
-              />
-            ) : (
-              <p className="text-base leading-tight font-semibold">—</p>
-            )}
-          </KpiCard>
-          <KpiCard title="Суммарная ёмкость" loading={summaryLoading}>
-            {summary ? (
-              <KpiValue
-                active={filtersActive}
-                filtered={summary.filtered.totalCapacity}
-                global={summary.global.totalCapacity}
-                pending={filtersActive && summary.filtered.totalCapacityPending}
-              />
-            ) : (
-              <p className="text-base leading-tight font-semibold">—</p>
-            )}
-          </KpiCard>
-          <Card size="sm" className="gap-0! overflow-visible">
-            <CardHeader className="pb-1">
-              <CardTitle
-                id="numbering-phone-mask-label"
-                className="text-muted-foreground text-xs font-medium"
-              >
-                Найти номер
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <PhoneMaskInput
-                labelledBy="numbering-phone-mask-label"
-                value={phoneInput}
-                onChange={onPhoneInputChange}
-              />
-            </CardContent>
-          </Card>
-        </div>
+      <div className="grid w-full min-w-0 shrink-0 grid-cols-1 gap-3 @min-[40rem]:grid-cols-2 @min-[56rem]:grid-cols-5">
+        <KpiCard title="Найденные диапазоны" loading={summaryLoading}>
+          {summary ? (
+            <KpiValue
+              active={filtersActive}
+              filtered={summary.filtered.rangeCount}
+              global={summary.global.rangeCount}
+            />
+          ) : (
+            <p className="text-base leading-tight font-semibold">—</p>
+          )}
+        </KpiCard>
+        <KpiCard title="Операторы связи" loading={summaryLoading}>
+          {summary ? (
+            <KpiValue
+              active={filtersActive}
+              filtered={summary.filtered.uniqueOperators}
+              global={summary.global.uniqueOperators}
+            />
+          ) : (
+            <p className="text-base leading-tight font-semibold">—</p>
+          )}
+        </KpiCard>
+        <KpiCard title="Территории ГАР" loading={summaryLoading}>
+          {summary ? (
+            <KpiValue
+              active={filtersActive}
+              filtered={summary.filtered.uniqueGarTerritories}
+              global={summary.global.uniqueGarTerritories}
+            />
+          ) : (
+            <p className="text-base leading-tight font-semibold">—</p>
+          )}
+        </KpiCard>
+        <KpiCard title="Суммарная ёмкость" loading={summaryLoading}>
+          {summary ? (
+            <KpiValue
+              active={filtersActive}
+              filtered={summary.filtered.totalCapacity}
+              global={summary.global.totalCapacity}
+              pending={filtersActive && summary.filtered.totalCapacityPending}
+            />
+          ) : (
+            <p className="text-base leading-tight font-semibold">—</p>
+          )}
+        </KpiCard>
+        <Card
+          size="sm"
+          className="min-w-0 gap-0! overflow-visible @min-[40rem]:col-span-2 @min-[56rem]:col-span-1"
+        >
+          <CardHeader className="pb-1">
+            <CardTitle
+              id="numbering-phone-mask-label"
+              className="text-muted-foreground text-xs font-medium"
+            >
+              Найти номер
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <PhoneMaskInput
+              labelledBy="numbering-phone-mask-label"
+              value={phoneInput}
+              onChange={onPhoneInputChange}
+            />
+          </CardContent>
+        </Card>
       </div>
 
       {summaryError ? (
@@ -447,7 +448,7 @@ function KpiCard({
   children: ReactNode;
 }) {
   return (
-    <Card size="sm" className="gap-0!">
+    <Card size="sm" className="min-w-0 gap-0!">
       <CardHeader className="pb-1">
         <CardTitle className="text-muted-foreground text-xs font-medium">
           {title}
