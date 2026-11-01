@@ -13,6 +13,7 @@ type Props = {
   totalRows: number | null;
   errorMessage?: string | null;
   onCancel?: () => void;
+  onDownload?: () => void;
   onDismiss?: () => void;
 };
 
@@ -26,6 +27,7 @@ export function ExportProgressBanner({
   totalRows,
   errorMessage,
   onCancel,
+  onDownload,
   onDismiss,
 }: Props) {
   const isActive = status === "running";
@@ -58,6 +60,11 @@ export function ExportProgressBanner({
           {isActive && onCancel ? (
             <Button type="button" variant="outline" size="sm" onClick={onCancel}>
               Отменить
+            </Button>
+          ) : null}
+          {isDone && onDownload ? (
+            <Button type="button" variant="outline" size="sm" onClick={onDownload}>
+              Скачать
             </Button>
           ) : null}
           {(isDone || isFailed) && onDismiss ? (

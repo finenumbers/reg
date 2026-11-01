@@ -1,7 +1,13 @@
-# Current Phase — production (v1.202.0)
+# Current Phase — production (v1.203.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, number geography, free numbers, purchased numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal.  
 **Date:** 2026-11-01
+
+## v1.203.0 — Catalog XLSX does not save again on return
+
+There is no migration. Do not stop `app`. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. REG does not keep a copy of the ranges. Keep a single `app` replica. An XLSX build in progress is not continued when that process is replaced.
+
+«Свободные номера», «Купленные номера», and «Ресурс нумерации» still save the filtered set once, when the file becomes ready during that visit. Opening the section again does not ask to save the same file. The green banner stays for 15 minutes and offers «Скачать». Closing the banner removes the file. A build that is still running when the section is opened saves once when it finishes. The browser still streams the file. The other exports are unchanged.
 
 ## v1.202.0 — Catalog XLSX survives an old page cap
 

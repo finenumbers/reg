@@ -7,6 +7,10 @@ import {
   ExportProgressBanner,
   type ExportBannerStatus,
 } from "@/components/export-progress-banner";
+import {
+  noteRestoredExportJob,
+  takeAutoDownload,
+} from "@/components/filtered-export-download";
 import { Button } from "@/components/ui/button";
 import { formatCount } from "@/lib/format-count";
 import type { ColumnFilters } from "@/components/column-filters/types";
@@ -46,6 +50,7 @@ export function useFilteredExport({
   const downloadedFor = useRef<string | null>(null);
   const toastedFor = useRef<string | null>(null);
   const skipToast = useRef<string | null>(null);
+  const resumeToken = useRef(0);
 
   const poll = useCallback(
     async (id: string) => {
@@ -56,21 +61,36 @@ export function useFilteredExport({
       }
       if (!res.ok) return;
       const data = (await res.json()) as { job?: Job };
-      if (data.job) setJob(data.job);
+      const next = data.job;
+      if (!next) return;
+      setJob((current) => (current && current.id !== next.id ? current : next));
+    },
+    [endpoint],
+  );
+
+  const openExportDownload = useCallback(
+    (current: Job) => {
+      const link = document.createElement("a");
+      link.href = `${endpoint}/${encodeURIComponent(current.id)}/download`;
+      link.download = current.filename ?? "export.xlsx";
+      link.rel = "noopener";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
     },
     [endpoint],
   );
 
   useEffect(() => {
+    const token = ++resumeToken.current;
     let cancelled = false;
     void (async () => {
       const res = await fetch(`${endpoint}/active`, { cache: "no-store" });
-      if (!res.ok || cancelled) return;
+      if (!res.ok || cancelled || token !== resumeToken.current) return;
       const data = (await res.json()) as { job: Job | null };
-      if (!data.job) return;
-      if (data.job.status !== "running") {
-        skipToast.current = `${data.job.id}:${data.job.status}`;
-      }
+      if (cancelled || token !== resumeToken.current || !data.job) return;
+      noteRestoredExportJob(data.job, downloadedFor, skipToast);
+      if (cancelled || token !== resumeToken.current) return;
       setJob(data.job);
     })();
     return () => {
@@ -87,17 +107,9 @@ export function useFilteredExport({
   }, [job, poll]);
 
   useEffect(() => {
-    if (!job || job.status !== "completed") return;
-    if (downloadedFor.current === job.id) return;
-    downloadedFor.current = job.id;
-    const link = document.createElement("a");
-    link.href = `${endpoint}/${job.id}/download`;
-    link.download = job.filename ?? "export.xlsx";
-    link.rel = "noopener";
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-  }, [endpoint, job]);
+    if (!job || !takeAutoDownload(job, downloadedFor)) return;
+    openExportDownload(job);
+  }, [job, openExportDownload]);
 
   useEffect(() => {
     if (!job || job.status === "running") return;
@@ -143,6 +155,8 @@ export function useFilteredExport({
       );
       if (!proceed) return;
     }
+    // A slow /active must not mark a job this visit already started.
+    resumeToken.current += 1;
     setStarting(true);
     try {
       const res = await fetch(endpoint, {
@@ -186,6 +200,7 @@ export function useFilteredExport({
       totalRows={job.totalRows}
       errorMessage={job.errorMessage}
       onCancel={job.status === "running" ? () => void dismiss() : undefined}
+      onDownload={job.status === "completed" ? () => openExportDownload(job) : undefined}
       onDismiss={job.status === "running" ? undefined : () => void dismiss()}
     />
   ) : null;
