@@ -1,7 +1,13 @@
-# Current Phase — production (v1.197.0)
+# Current Phase — production (v1.198.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, number geography, free numbers, purchased numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal.  
 **Date:** 2026-11-01
+
+## v1.198.0 — Numbering columns align right
+
+There is no migration. Do not stop `app`. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. REG does not keep a copy of the ranges.
+
+«Ресурс нумерации» aligns the cell text of «Емкость», «ИНН», and «УВр Антифрод» to the right. Headers stay on the left, including the filter buttons, so those menus still open from the left edge of the label. The other columns, the gap line, and the search are unchanged.
 
 ## v1.197.0 — Numbering dataset date
 

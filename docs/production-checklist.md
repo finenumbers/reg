@@ -53,6 +53,8 @@ Optional publish ports: `APP_PUBLISH_PORT`, `POSTGRES_PUBLISH_PORT`.
 
 ## 3. Database
 
+v1.198.0 does not migrate and does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `app`. Do not stop `smg-syslog`. «Емкость», «ИНН», and «УВр Антифрод» cell text is right-aligned. The column headers and their filter menus stay on the left.
+
 v1.197.0 does not migrate and does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `app`. Do not stop `smg-syslog`. «Дата датасета» replaces «Найти номер». The mask sits immediately left of «Сбросить фильтры». Each digit cell is the button height and twice as wide. A bad dataset time does not drop the four counts.
 
 v1.196.0 does not migrate and does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `app`. Do not stop `smg-syslog`. The five numbering cards stay on one row from 896px of page width. Below that the counts pair up and «Найти номер» spans the row. The row does not scroll sideways. Each mask cell is one digit wide.

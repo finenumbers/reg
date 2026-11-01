@@ -15,6 +15,7 @@ import { buildNumberingFacetsUrl } from "@/modules/numbering-resource/api-client
 import {
   isBoldNumberingColumn,
   isNumberingFacetColumn,
+  isRightAlignedNumberingColumn,
   NUMBERING_COLUMNS,
   NUMBERING_HEADERS,
   type NumberingColumn,
@@ -155,6 +156,7 @@ export function NumberingResourceTable({
                     className={cn(
                       isBoldNumberingColumn(column) &&
                         "font-bold text-black dark:text-white",
+                      isRightAlignedNumberingColumn(column) && "text-right",
                       gapClass,
                     )}
                   >

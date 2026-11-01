@@ -47,3 +47,9 @@ export function isNumberingFacetColumn(value: string): value is NumberingFacetCo
 export function isBoldNumberingColumn(column: NumberingColumn): boolean {
   return column === "rangeStart" || column === "rangeEnd";
 }
+
+const RIGHT_ALIGNED = new Set<NumberingColumn>(["capacity", "inn", "uvrAntifraud"]);
+
+export function isRightAlignedNumberingColumn(column: NumberingColumn): boolean {
+  return RIGHT_ALIGNED.has(column);
+}
