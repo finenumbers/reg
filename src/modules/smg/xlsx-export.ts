@@ -1,5 +1,5 @@
-import ExcelJS from "exceljs";
 import { guardExcelText } from "@/modules/enrich/formula-guard";
+import { openStreamingWorkbook } from "@/modules/table-export/xlsx-stream";
 import { EXCEL_MAX_ROWS } from "@/modules/enrich/types";
 import {
   SMG_COLUMNS,
@@ -89,48 +89,32 @@ export function assertSmgExportRowCount(total: number): void {
   if (total > EXCEL_MAX_ROWS) throw new SmgExportTooLargeError(total);
 }
 
-/** Header style only. Body cells stay plain text. */
+/** Same borders, header filter, and fitted widths as the other XLSX exports. */
 export async function writeSmgExportFile(opts: {
   layout: SmgExportLayout;
   filePath: string;
   eachRow: (visit: (row: Record<SmgField, string>) => Promise<void>) => Promise<void>;
 }): Promise<number> {
   const columns = smgExportColumns(opts.layout);
-  const workbook = new ExcelJS.stream.xlsx.WorkbookWriter({
-    filename: opts.filePath,
-    useStyles: true,
-    useSharedStrings: false,
+  const book = openStreamingWorkbook({
+    filePath: opts.filePath,
+    sheetName: smgExportSheetName(opts.layout),
+    columns: columns.map((column) => ({ header: column.header, text: true })),
   });
-  const sheet = workbook.addWorksheet(smgExportSheetName(opts.layout));
-  columns.forEach((column, index) => {
-    const width = Math.min(36, Math.max(12, [...column.header].length + 2));
-    sheet.getColumn(index + 1).width = width;
-  });
-  const header = sheet.addRow(columns.map((column) => column.header));
-  header.eachCell((cell) => {
-    cell.font = { name: "Calibri", size: 11, bold: true };
-    cell.alignment = { horizontal: "center", vertical: "middle" };
-  });
-  header.commit();
-
-  let written = 0;
-  await opts.eachRow(async (row) => {
-    const excelRow = sheet.addRow(
-      columns.map((column) => smgExportCell(column, row)),
-    );
-    excelRow.commit();
-    written += 1;
-    if (written % 40 === 0) {
-      await new Promise((resolve) => {
-        setImmediate(resolve);
-      });
-    }
-  });
-  sheet.autoFilter = {
-    from: { row: 1, column: 1 },
-    to: { row: Math.max(1, written + 1), column: columns.length },
-  };
-  await sheet.commit();
-  await workbook.commit();
-  return written;
+  let seen = 0;
+  try {
+    await opts.eachRow(async (row) => {
+      await book.writeRow(columns.map((column) => smgExportCell(column, row)));
+      seen += 1;
+      if (seen % 40 === 0) {
+        await new Promise((resolve) => {
+          setImmediate(resolve);
+        });
+      }
+    });
+    return await book.finish();
+  } catch (error) {
+    book.abort();
+    throw error;
+  }
 }

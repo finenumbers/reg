@@ -1,7 +1,13 @@
-# Current Phase — production (v1.203.0)
+# Current Phase — production (v1.204.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, number geography, free numbers, purchased numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal.  
-**Date:** 2026-11-01
+**Date:** 2026-11-02
+
+## v1.204.0 — XLSX columns fit their longest value
+
+There is no migration. Do not stop `app`. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. Keep a single `app` replica. An XLSX build in progress is not continued when that process is replaced.
+
+Every XLSX export except «Телефонный трафик» draws a thin border on each cell of the table, turns on the header filter, and sets each column width from the longest value in that column. The width is the character count plus 2, at least 8, and never more than 255. «Данные SMG» and «Трафик SMG» gain the border and the fitted widths; the filter was already there. «Свободные номера», «Купленные номера», and «Ресурс нумерации» keep the border and the filter, and the width is now stored in the file. Registrations, phone numbers, UFW rules, and number geography already had this chrome; a value longer than 253 characters is capped at Excel's maximum. The month file for «Телефонный трафик» keeps its fixed column widths. The export reads its source once. Row text sits in a temporary file beside the xlsx until the widths are known, then that file is removed.
 
 ## v1.203.0 — Catalog XLSX does not save again on return
 

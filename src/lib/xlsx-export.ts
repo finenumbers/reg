@@ -56,18 +56,50 @@ export async function workbookToBuffer(
   return Buffer.from(buf);
 }
 
+/** Excel refuses a column wider than this. */
+export const EXCEL_COLUMN_WIDTH_MAX = 255;
+export const EXCEL_COLUMN_WIDTH_MIN = 8;
+export const EXCEL_COLUMN_WIDTH_PAD = 2;
+/** Past this length the width stays at the Excel maximum. */
+export const EXCEL_COLUMN_MEASURE_CAP = EXCEL_COLUMN_WIDTH_MAX - EXCEL_COLUMN_WIDTH_PAD;
+
+/** Code points, stopping at `cap`, so a long cell does not allocate a character array. */
+export function cappedCodePointLength(
+  value: string,
+  cap: number = EXCEL_COLUMN_MEASURE_CAP,
+): number {
+  let count = 0;
+  for (let i = 0; i < value.length; ) {
+    const code = value.charCodeAt(i);
+    if (code >= 0xd800 && code <= 0xdbff && i + 1 < value.length) i += 2;
+    else i += 1;
+    count += 1;
+    if (count >= cap) return cap;
+  }
+  return count;
+}
+
+/** Width from the longest code-point count. Pad 2, floor 8, ceiling 255. */
+export function excelColumnWidth(maxCodePoints: number): number {
+  return Math.min(
+    EXCEL_COLUMN_WIDTH_MAX,
+    Math.max(EXCEL_COLUMN_WIDTH_MIN, maxCodePoints + EXCEL_COLUMN_WIDTH_PAD),
+  );
+}
+
 /** Excel column width from max string length (header + cells). */
 export function columnWidthForValues(
   header: string,
   columnValues: readonly string[],
 ): number {
-  let maxLen = [...header].length;
+  let maxLen = cappedCodePointLength(header);
+  if (maxLen >= EXCEL_COLUMN_MEASURE_CAP) return excelColumnWidth(maxLen);
   for (const value of columnValues) {
-    const len = [...String(value ?? "")].length;
+    const len = cappedCodePointLength(String(value ?? ""));
     if (len > maxLen) maxLen = len;
+    if (maxLen >= EXCEL_COLUMN_MEASURE_CAP) break;
   }
-  // Excel width ≈ character count; pad slightly; min 8; no tight upper clamp
-  return Math.max(8, maxLen + 2);
+  return excelColumnWidth(maxLen);
 }
 
 function autofitSheetColumns(

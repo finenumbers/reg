@@ -1,8 +1,9 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { access, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import ExcelJS from "exceljs";
 import { afterEach, describe, expect, it } from "vitest";
+import { excelColumnWidth, cappedCodePointLength } from "@/lib/xlsx-export";
 import { openStreamingWorkbook } from "@/modules/table-export/xlsx-stream";
 
 const dirs: string[] = [];
@@ -31,8 +32,8 @@ describe("streaming catalog workbook", () => {
         { header: "Начало", bold: true },
       ],
     });
-    book.writeRow(["Москва, ул. Ленина", "7700000000", 4950000000]);
-    book.writeRow(["=1+1", "+7700", null]);
+    await book.writeRow(["Москва, ул. Ленина", "7700000000", 4950000000]);
+    await book.writeRow(["=1+1", "+7700", null]);
     await book.finish();
 
     const workbook = new ExcelJS.Workbook();
@@ -57,6 +58,53 @@ describe("streaming catalog workbook", () => {
     expect(sheet!.getRow(3).getCell(1).value).toBe("'=1+1");
     expect(sheet!.getRow(3).getCell(2).value).toBe("'+7700");
     expect(sheet!.getRow(3).getCell(3).value).toBeNull();
+    expect(sheet!.getColumn(1).width).toBe(
+      excelColumnWidth(cappedCodePointLength("Москва, ул. Ленина")),
+    );
+    expect(sheet!.getColumn(2).width).toBe(excelColumnWidth("7700000000".length));
+    expect(sheet!.getColumn(3).width).toBe(excelColumnWidth(String(4950000000).length));
+    await expect(access(`${file}.rows`)).rejects.toThrow();
+  });
+
+  it("stores a width from the longest cell and caps it at 255", async () => {
+    const { file } = await writtenFile();
+    const book = openStreamingWorkbook({
+      filePath: file,
+      sheetName: "Свободные номера",
+      columns: [{ header: "Номер", text: true }],
+    });
+    await book.writeRow(["я".repeat(100)]);
+    await book.finish();
+
+    const fitted = new ExcelJS.Workbook();
+    await fitted.xlsx.readFile(file);
+    expect(fitted.getWorksheet("Свободные номера")!.getColumn(1).width).toBe(102);
+
+    const cappedFile = path.join(path.dirname(file), "capped.xlsx");
+    const capped = openStreamingWorkbook({
+      filePath: cappedFile,
+      sheetName: "Свободные номера",
+      columns: [{ header: "Номер", text: true }],
+    });
+    await capped.writeRow(["я".repeat(300)]);
+    await capped.finish();
+    const wide = new ExcelJS.Workbook();
+    await wide.xlsx.readFile(cappedFile);
+    expect(wide.getWorksheet("Свободные номера")!.getColumn(1).width).toBe(255);
+  });
+
+  it("drops the spool and does not write a workbook after abort", async () => {
+    const { file } = await writtenFile();
+    const book = openStreamingWorkbook({
+      filePath: file,
+      sheetName: "Свободные номера",
+      columns: [{ header: "Номер", text: true }],
+    });
+    await book.writeRow(["100"]);
+    book.abort();
+    await expect(book.finish()).resolves.toBe(1);
+    await expect(access(file)).rejects.toThrow();
+    await expect(access(`${file}.rows`)).rejects.toThrow();
   });
 
   it("keeps a filter on the header when nothing matched", async () => {

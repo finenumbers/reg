@@ -146,11 +146,13 @@ async function writeCatalog(
           pageSize: loaded.pageSize,
         };
       },
-      onPage: (items) => {
+      onPage: async (items) => {
         for (const raw of items) {
           const row = mapRow(raw);
           if (!row) continue;
-          book.writeRow(catalogCells(columns, row as FreeNumberRow & PurchasedNumberRow));
+          await book.writeRow(
+            catalogCells(columns, row as FreeNumberRow & PurchasedNumberRow),
+          );
         }
       },
     });
@@ -208,8 +210,8 @@ async function writeNumbering(
           nextCursor: loaded.value.nextCursor,
         };
       },
-      onPage: (items) => {
-        for (const row of items) book.writeRow(numberingCells(row));
+      onPage: async (items) => {
+        for (const row of items) await book.writeRow(numberingCells(row));
       },
     });
     await book.finish();

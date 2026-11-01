@@ -1,8 +1,9 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { access, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import ExcelJS from "exceljs";
 import { afterEach, describe, expect, it } from "vitest";
+import { excelColumnWidth } from "@/lib/xlsx-export";
 import { emptySmgFields, SMG_COLUMNS, SMG_HEADER_LABELS } from "@/modules/smg/columns";
 import {
   smgExportCell,
@@ -94,6 +95,7 @@ describe("SMG xlsx file", () => {
     const row = emptySmgFields();
     row.incomingCgpn = "9277751863";
     row.uniqueTag = "=1+1";
+    row.callRecordPath = "p".repeat(80);
     await writeSmgExportFile({
       layout: "calls",
       filePath,
@@ -120,6 +122,43 @@ describe("SMG xlsx file", () => {
     const tag = sheet?.getRow(2).getCell(tagIndex).value;
     expect(phone).toBe("9277751863");
     expect(typeof phone).toBe("string");
+    expect(sheet?.getRow(2).getCell(phoneIndex).numFmt).toBe("@");
     expect(tag).toBe("'=1+1");
+    expect(sheet?.getRow(1).getCell(1).border?.top?.style).toBe("thin");
+    expect(sheet?.getRow(2).getCell(1).border?.left?.style).toBe("thin");
+    const pathIndex = SMG_COLUMNS.findIndex((column) => column.field === "callRecordPath") + 1;
+    expect(sheet?.getColumn(pathIndex).width).toBe(excelColumnWidth(80));
+    const columnCount = smgExportColumns("calls").length;
+    expect(sheet?.autoFilter).toBe(`A1:${columnLetters(columnCount)}2`);
+    await expect(access(`${filePath}.rows`)).rejects.toThrow();
+  });
+
+  it("writes a header-only sheet when the month is empty", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "smg-xlsx-test-"));
+    dirs.push(dir);
+    const filePath = path.join(dir, "empty.xlsx");
+    await writeSmgExportFile({
+      layout: "calls",
+      filePath,
+      eachRow: async () => {},
+    });
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.readFile(filePath);
+    const sheet = workbook.getWorksheet("Звонки на SMG");
+    const columnCount = smgExportColumns("calls").length;
+    expect(sheet?.getRow(2).getCell(1).value).toBeNull();
+    expect(sheet?.getRow(1).getCell(1).border?.bottom?.style).toBe("thin");
+    expect(sheet?.autoFilter).toBe(`A1:${columnLetters(columnCount)}1`);
   });
 });
+
+function columnLetters(count: number): string {
+  let n = count;
+  let out = "";
+  while (n > 0) {
+    const mod = (n - 1) % 26;
+    out = String.fromCharCode(65 + mod) + out;
+    n = Math.floor((n - 1) / 26);
+  }
+  return out;
+}

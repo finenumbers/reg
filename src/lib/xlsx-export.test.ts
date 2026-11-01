@@ -45,13 +45,14 @@ describe("xlsx-export helpers", () => {
     });
   });
 
-  it("columnWidthForValues uses max length without tight upper clamp", () => {
+  it("columnWidthForValues uses max length and stops at Excel's maximum", () => {
     expect(columnWidthForValues("ID", ["1", "22"])).toBe(Math.max(8, 2 + 2));
     expect(columnWidthForValues("Название", ["abc"])).toBe(
       Math.max(8, [..."Название"].length + 2),
     );
-    const long = "x".repeat(80);
-    expect(columnWidthForValues("H", [long])).toBe(82);
+    expect(columnWidthForValues("H", ["x".repeat(80)])).toBe(82);
+    expect(columnWidthForValues("H", ["x".repeat(300)])).toBe(255);
+    expect(columnWidthForValues("a", ["😀".repeat(10)])).toBe(12);
   });
 
   it("replaceSheetData applies borders, highlight, autofit, and autoFilter", async () => {
