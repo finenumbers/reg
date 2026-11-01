@@ -11,8 +11,10 @@ import { Badge } from "@/components/ui/badge";
 import { useDisplayTimezone } from "@/components/display-timezone-provider";
 import { DISPLAY_TIMEZONES } from "@/lib/display-timezone";
 import {
+  DEFAULT_DID_BASE_URL,
   DEFAULT_GEOIP_BASE_URL,
   DEFAULT_PSTN_BASE_URL,
+  SAME_HOST_DID_BASE_URL,
   SAME_HOST_PSTN_BASE_URL,
   type SettingsView,
 } from "@/modules/settings/schemas";
@@ -85,6 +87,13 @@ export function SettingsForm({ initial, parkingKey }: Props) {
   );
   const [pstnApiKey, setPstnApiKey] = useState("");
   const [pstnTestResult, setPstnTestResult] = useState<TestResultView | null>(
+    null,
+  );
+  const [didBaseUrl, setDidBaseUrl] = useState(
+    initial.didBaseUrl ?? DEFAULT_DID_BASE_URL,
+  );
+  const [didApiToken, setDidApiToken] = useState("");
+  const [didTestResult, setDidTestResult] = useState<TestResultView | null>(
     null,
   );
   const [voipmonitorEnabled, setVoipmonitorEnabled] = useState(
@@ -173,6 +182,7 @@ export function SettingsForm({ initial, parkingKey }: Props) {
     setArtifactKeepLastRuns(String(next.artifactKeepLastRuns));
     setGeoipBaseUrl(next.geoipBaseUrl ?? DEFAULT_GEOIP_BASE_URL);
     setPstnBaseUrl(next.pstnBaseUrl ?? DEFAULT_PSTN_BASE_URL);
+    setDidBaseUrl(next.didBaseUrl ?? DEFAULT_DID_BASE_URL);
     setVoipmonitorEnabled(next.voipmonitorEnabled);
     setVoipmonitorApiUrl(next.voipmonitorApiUrl ?? "");
     setVoipmonitorUser(next.voipmonitorUser ?? "");
@@ -539,6 +549,100 @@ export function SettingsForm({ initial, parkingKey }: Props) {
         });
       } catch {
         toast.error("Тест PSTN не удался");
+      }
+    });
+  }
+
+  async function saveDidUrl(): Promise<SettingsView | null> {
+    const res = await fetch("/api/settings", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        didBaseUrl: didBaseUrl.trim(),
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      toast.error(data.error ?? "Не удалось сохранить URL DID");
+      return null;
+    }
+    return data.settings as SettingsView;
+  }
+
+  async function replaceDidTokenIfPresent(
+    current: SettingsView,
+  ): Promise<SettingsView | null> {
+    const key = didApiToken.trim();
+    if (!key) return current;
+    const res = await fetch("/api/settings/did/key", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ apiKey: key }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      toast.error(data.error ?? "Не удалось сохранить API-токен DID");
+      applySettings(current);
+      return null;
+    }
+    setDidApiToken("");
+    return data.settings as SettingsView;
+  }
+
+  function onSaveDid() {
+    startTransition(async () => {
+      try {
+        const hadKey = Boolean(didApiToken.trim());
+        const saved = await saveDidUrl();
+        if (!saved) return;
+        const withKey = await replaceDidTokenIfPresent(saved);
+        if (!withKey) return;
+        applySettings(withKey);
+        if (hadKey) {
+          toast.success("URL и API-токен DID сохранены");
+        } else if (withKey.hasDidApiToken) {
+          toast.success("Настройки DID сохранены");
+        } else {
+          toast.success(
+            "URL сохранён — ещё нужен API-токен перед «Проверить соединение»",
+          );
+        }
+      } catch {
+        toast.error("Не удалось сохранить DID");
+      }
+    });
+  }
+
+  function onTestDid() {
+    if (!settings.hasDidApiToken) {
+      toast.error(
+        "Сначала сохраните API-токен DID, затем проверьте соединение",
+      );
+      return;
+    }
+    startTransition(async () => {
+      setDidTestResult(null);
+      try {
+        const res = await fetch("/api/settings/did/test", { method: "POST" });
+        const data = await res.json();
+        if (data.test) {
+          setDidTestResult(data.test);
+          if (data.test.result === "success") {
+            toast.success("Тест DID успешен");
+          } else {
+            toast.error(data.test.detail ?? "Тест DID не удался");
+          }
+          return;
+        }
+        const message = data.detail ?? data.error ?? "Тест DID не удался";
+        toast.error(message);
+        setDidTestResult({
+          result: "error",
+          detail: message,
+          durationMs: null,
+        });
+      } catch {
+        toast.error("Тест DID не удался");
       }
     });
   }
@@ -1287,6 +1391,90 @@ export function SettingsForm({ initial, parkingKey }: Props) {
                 <p className="mt-2 text-muted-foreground">
                   {pstnTestResult.detail}
                 </p>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      </section>
+
+      <section className="space-y-4">
+        <h2 className="text-base font-semibold">DID</h2>
+        <p className="text-sm text-muted-foreground">
+          Каталог свободных номеров. Токен — ADMIN_API_TOKEN DID. Он хранится
+          в зашифрованном виде и в UI не показывается — только замена. Это
+          полный доступ к API DID.
+        </p>
+        <div className="grid gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="did-url">URL сервиса</Label>
+            <Input
+              id="did-url"
+              value={didBaseUrl}
+              onChange={(e) => setDidBaseUrl(e.target.value)}
+              placeholder={DEFAULT_DID_BASE_URL}
+              autoComplete="off"
+            />
+            <p className="text-xs text-muted-foreground">
+              Если DID на этом же Docker-хосте, укажите{" "}
+              <span className="font-mono">{SAME_HOST_DID_BASE_URL}</span>, не
+              публичный HTTPS — иначе «fetch failed» из‑за hairpin NAT. Пустое
+              поле снова сохраняет{" "}
+              <span className="font-mono">{DEFAULT_DID_BASE_URL}</span>.
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="did-key">API-токен</Label>
+            <Input
+              id="did-key"
+              type="password"
+              value={didApiToken}
+              onChange={(e) => setDidApiToken(e.target.value)}
+              placeholder={
+                settings.hasDidApiToken
+                  ? "Токен сохранён — вставьте новый, чтобы заменить"
+                  : "Вставьте ADMIN_API_TOKEN DID"
+              }
+              autoComplete="new-password"
+            />
+            <p className="text-xs text-muted-foreground">
+              {settings.hasDidApiToken ? (
+                <Badge variant="secondary">токен сохранён</Badge>
+              ) : (
+                "Токен ещё не задан"
+              )}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" disabled={pending} onClick={onSaveDid}>
+              Сохранить DID
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={pending || !settings.hasDidApiToken}
+              onClick={onTestDid}
+            >
+              Проверить соединение
+            </Button>
+          </div>
+          {didTestResult ? (
+            <div className="rounded-md border p-3 text-sm">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge
+                  variant={
+                    didTestResult.result === "success" ? "default" : "destructive"
+                  }
+                >
+                  {formatTestResultLabel(didTestResult.result)}
+                </Badge>
+                {didTestResult.durationMs != null ? (
+                  <span className="text-xs text-muted-foreground">
+                    {didTestResult.durationMs} мс
+                  </span>
+                ) : null}
+              </div>
+              {didTestResult.detail ? (
+                <p className="mt-2 text-muted-foreground">{didTestResult.detail}</p>
               ) : null}
             </div>
           ) : null}

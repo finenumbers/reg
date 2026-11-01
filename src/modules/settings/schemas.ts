@@ -9,6 +9,10 @@ import {
   DEFAULT_PSTN_BASE_URL,
   SAME_HOST_PSTN_BASE_URL,
 } from "@/modules/pstn/types";
+import {
+  DEFAULT_DID_BASE_URL,
+  SAME_HOST_DID_BASE_URL,
+} from "@/modules/did/types";
 
 function httpOriginSchema(label: string) {
   return z
@@ -28,6 +32,16 @@ function httpOriginSchema(label: string) {
 
 const geoipBaseUrlSchema = httpOriginSchema("GeoIP");
 const pstnBaseUrlSchema = httpOriginSchema("PSTN");
+const didBaseUrlSchema = httpOriginSchema("DID").refine((value) => {
+  const trimmed = value.trim();
+  if (trimmed.length === 0) return true;
+  try {
+    const url = new URL(trimmed);
+    return url.username.length === 0 && url.password.length === 0;
+  } catch {
+    return false;
+  }
+}, "DID URL must not include credentials");
 
 const IPV4_RE =
   /^(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)$/;
@@ -63,6 +77,7 @@ export const settingsUpdateSchema = z.object({
   artifactMaxBytes: z.number().int().min(1024).max(50_000_000).optional(),
   geoipBaseUrl: geoipBaseUrlSchema.optional(),
   pstnBaseUrl: pstnBaseUrlSchema.optional(),
+  didBaseUrl: didBaseUrlSchema.optional(),
   displayTimezone: z
     .string()
     .refine(isAcceptedDisplayTimezone, "Unsupported display timezone")
@@ -99,6 +114,12 @@ export const pstnKeyReplaceSchema = z.object({
 });
 
 export type PstnKeyReplaceInput = z.infer<typeof pstnKeyReplaceSchema>;
+
+export const didKeyReplaceSchema = z.object({
+  apiKey: z.string().min(1).max(4096),
+});
+
+export type DidKeyReplaceInput = z.infer<typeof didKeyReplaceSchema>;
 
 export const ftpPasswordReplaceSchema = z.object({
   password: z.string().min(1).max(1024),
@@ -142,6 +163,9 @@ export type SettingsView = {
   pstnBaseUrl: string | null;
   /** Never expose the PSTN API key — only whether it is stored */
   hasPstnApiKey: boolean;
+  didBaseUrl: string | null;
+  /** Never expose the DID token — only whether it is stored */
+  hasDidApiToken: boolean;
   displayTimezone: string;
   ftpEnabled: boolean;
   ftpUsername: string | null;
@@ -168,4 +192,6 @@ export {
   DEFAULT_GEOIP_BASE_URL,
   DEFAULT_PSTN_BASE_URL,
   SAME_HOST_PSTN_BASE_URL,
+  DEFAULT_DID_BASE_URL,
+  SAME_HOST_DID_BASE_URL,
 };

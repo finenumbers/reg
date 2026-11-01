@@ -27,6 +27,8 @@ const ACTION_LABELS: Record<string, string> = {
   "geoip.test": "Тест GeoIP",
   "pstn.key_replace": "Замена ключа PSTN",
   "pstn.test": "Тест PSTN",
+  "did.key_replace": "Замена токена DID",
+  "did.test": "Тест DID",
   "ftp.password_replace": "Замена пароля FTP",
   "ftp.test": "Тест FTP-слушателя",
   "smg.ftp.password_replace": "Замена пароля FTP SMG",

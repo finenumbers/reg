@@ -1,7 +1,15 @@
-# Current Phase — production (v1.189.0)
+# Current Phase — production (v1.190.0)
 
-**Status:** in production. Modules beyond Phase 7: phones, groups, number geography, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal.  
-**Date:** 2026-10-31
+**Status:** in production. Modules beyond Phase 7: phones, groups, number geography, free numbers, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal.  
+**Date:** 2026-11-01
+
+## v1.190.0 — Free numbers inside REG
+
+The migration adds `didBaseUrl` and `didApiTokenCiphertext` on `app_settings` only. It does not rewrite phone, tariff, CDR, or PSTN rows. Migrate before the new `app` process. Do not stop `smg-syslog`.
+
+«Свободные номера» is an internal page at `/free-numbers`, in the same nav slot, with `phones:read`. «Ресурс нумерации» stays an external link. The table reads DID `GET /api/backend/api/v1/numbers/free` and its facets. The browser never sees `ADMIN_API_TOKEN`. Settings → DID stores the UI origin and the token the same way PSTN stores its key. On this Docker host the URL is `http://did-frontend:3000`. An empty URL save stores `https://did.finenumbers.com` again, and that public origin fails from the `app` container. Until the token is saved, the page opens and says so.
+
+The toolbar is «Телефонный номер» and «Сбросить фильтры». A phone hit in «Номер» is yellow, and «Номер» is bold black. Column menus search and filter together, including the phone query. «Телефонные номера» shows «Без регистрации» between that search field and «Сбросить фильтры» on registered trunks. The checkbox still clears with the button.
 
 ## v1.189.0 — Purge continuation, impossible clocks, traffic reset
 

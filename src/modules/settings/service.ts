@@ -30,6 +30,7 @@ import {
   ftpPasswordReplaceSchema,
   geoipKeyReplaceSchema,
   keyReplaceSchema,
+  didKeyReplaceSchema,
   pstnKeyReplaceSchema,
   settingsUpdateSchema,
   voipmonitorPasswordReplaceSchema,
@@ -37,6 +38,7 @@ import {
   type VoipmonitorPasswordReplaceInput,
   type GeoipKeyReplaceInput,
   type KeyReplaceInput,
+  type DidKeyReplaceInput,
   type PstnKeyReplaceInput,
   type SettingsUpdateInput,
   type SettingsUpdateResult,
@@ -51,6 +53,10 @@ import {
   DEFAULT_PSTN_BASE_URL,
   resolvePstnBaseUrl,
 } from "@/modules/pstn/types";
+import {
+  DEFAULT_DID_BASE_URL,
+  resolveDidBaseUrl,
+} from "@/modules/did/types";
 
 async function ensureAppSettings() {
   return prisma.appSetting.upsert({
@@ -89,6 +95,8 @@ function toSettingsView(
     hasGeoipApiKey: Boolean(settings.geoipApiKeyCiphertext),
     pstnBaseUrl: resolvePstnBaseUrl(settings.pstnBaseUrl),
     hasPstnApiKey: Boolean(settings.pstnApiKeyCiphertext),
+    didBaseUrl: resolveDidBaseUrl(settings.didBaseUrl),
+    hasDidApiToken: Boolean(settings.didApiTokenCiphertext),
     displayTimezone: resolveDisplayTimezone(settings.displayTimezone),
     ftpEnabled: settings.ftpEnabled,
     ftpUsername: settings.ftpUsername ?? null,
@@ -205,6 +213,7 @@ export async function updateSettings(
     artifactMaxBytes?: number;
     geoipBaseUrl?: string | null;
     pstnBaseUrl?: string | null;
+    didBaseUrl?: string | null;
     displayTimezone?: string;
     ftpEnabled?: boolean;
     ftpUsername?: string | null;
@@ -264,6 +273,12 @@ export async function updateSettings(
     settingsData.pstnBaseUrl = trimmed
       ? resolvePstnBaseUrl(trimmed)
       : DEFAULT_PSTN_BASE_URL;
+  }
+  if (parsed.didBaseUrl !== undefined) {
+    const trimmed = parsed.didBaseUrl.trim();
+    settingsData.didBaseUrl = trimmed
+      ? resolveDidBaseUrl(trimmed)
+      : DEFAULT_DID_BASE_URL;
   }
   if (parsed.displayTimezone !== undefined) {
     settingsData.displayTimezone = resolveDisplayTimezone(
@@ -364,6 +379,8 @@ export async function updateSettings(
       hasGeoipApiKey: view.hasGeoipApiKey,
       pstnBaseUrl: view.pstnBaseUrl,
       hasPstnApiKey: view.hasPstnApiKey,
+      didBaseUrl: view.didBaseUrl,
+      hasDidApiToken: view.hasDidApiToken,
       displayTimezone: view.displayTimezone,
       ftpEnabled: view.ftpEnabled,
       ftpUsername: view.ftpUsername,
@@ -555,6 +572,43 @@ export async function replacePstnApiKey(
       replacedExisting: true,
       hasPstnApiKey: true,
       pstnBaseUrl: view.pstnBaseUrl,
+    },
+  });
+
+  return view;
+}
+
+/**
+ * Replace DID ADMIN_API_TOKEN. Never returns plaintext.
+ */
+export async function replaceDidApiToken(
+  input: DidKeyReplaceInput,
+  actor: { userId: string; ip?: string | null },
+): Promise<SettingsView> {
+  const parsed = didKeyReplaceSchema.parse(input);
+  const encryption = getSecretEncryptionService();
+  const ciphertext = serializeEncryptedSecret(
+    encryption.encrypt(parsed.apiKey.trim()),
+  );
+
+  await prisma.appSetting.upsert({
+    where: { id: 1 },
+    create: { id: 1, didApiTokenCiphertext: ciphertext },
+    update: { didApiTokenCiphertext: ciphertext },
+  });
+
+  const view = await getSettingsView();
+
+  await auditService.append({
+    actorUserId: actor.userId,
+    action: AUDIT_ACTIONS.DID_KEY_REPLACE,
+    entityType: "app_settings",
+    entityId: "1",
+    ip: actor.ip,
+    meta: {
+      replacedExisting: true,
+      hasDidApiToken: true,
+      didBaseUrl: view.didBaseUrl,
     },
   });
 

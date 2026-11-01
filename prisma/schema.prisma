@@ -123,6 +123,10 @@ model AppSetting {
   pstnBaseUrl           String?     @default("https://pstn.finenumbers.com")
   /// AES-256-GCM ciphertext of PSTN External Lookup API key. Never plaintext.
   pstnApiKeyCiphertext  String?
+  /// Origin of the DID UI (no path). Empty → DEFAULT_DID_BASE_URL.
+  didBaseUrl            String?     @default("https://did.finenumbers.com")
+  /// AES-256-GCM ciphertext of DID ADMIN_API_TOKEN. Never plaintext.
+  didApiTokenCiphertext String?
   /// In-process FTP listener for softswitch CDR uploads.
   ftpEnabled            Boolean     @default(false)
   ftpUsername           String?

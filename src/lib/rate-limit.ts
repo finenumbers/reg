@@ -66,6 +66,9 @@ export const geoipTestRateLimiter = new SlidingWindowRateLimiter(10, 60 * 1000);
 /** PSTN connection test per user: 10 / minute */
 export const pstnTestRateLimiter = new SlidingWindowRateLimiter(10, 60 * 1000);
 
+/** DID connection test per user: 10 / minute */
+export const didTestRateLimiter = new SlidingWindowRateLimiter(10, 60 * 1000);
+
 /** Month traffic XLSX export starts per user: 6 / minute */
 export const trafficExportStartRateLimiter = new SlidingWindowRateLimiter(6, 60 * 1000);
 

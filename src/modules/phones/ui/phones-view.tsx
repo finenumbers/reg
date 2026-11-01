@@ -550,15 +550,6 @@ export function PhonesView({ canRequest, initial, initialRegsUnregisteredCount }
             value={phoneInput}
             onChange={onPhoneInputChange}
           />
-          <Button
-            type="button"
-            variant="outline"
-            className={FILTER_TOOLBAR_TEXT}
-            disabled={!filtersActive}
-            onClick={onResetFilters}
-          >
-            Сбросить фильтры
-          </Button>
           {kind === "endpoints_registered" ? (
             <div className="flex items-center gap-2">
               <input
@@ -575,6 +566,15 @@ export function PhonesView({ canRequest, initial, initialRegsUnregisteredCount }
               </Label>
             </div>
           ) : null}
+          <Button
+            type="button"
+            variant="outline"
+            className={FILTER_TOOLBAR_TEXT}
+            disabled={!filtersActive}
+            onClick={onResetFilters}
+          >
+            Сбросить фильтры
+          </Button>
         </div>
         <FitSelect
           id="phones-kind"

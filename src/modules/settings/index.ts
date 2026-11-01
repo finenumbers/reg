@@ -6,6 +6,7 @@ export {
   replaceSshPrivateKey,
   replaceGeoipApiKey,
   replacePstnApiKey,
+  replaceDidApiToken,
   replaceFtpPassword,
   replaceVoipmonitorPassword,
 } from "@/modules/settings/service";

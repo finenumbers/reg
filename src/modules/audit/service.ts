@@ -24,6 +24,8 @@ export const AUDIT_ACTIONS = {
   GEOIP_TEST: "geoip.test",
   PSTN_KEY_REPLACE: "pstn.key_replace",
   PSTN_TEST: "pstn.test",
+  DID_KEY_REPLACE: "did.key_replace",
+  DID_TEST: "did.test",
   FTP_PASSWORD_REPLACE: "ftp.password_replace",
   FTP_TEST: "ftp.test",
   SMG_IMPORT_MANUAL: "smg.import_manual",

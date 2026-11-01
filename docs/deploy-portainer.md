@@ -168,7 +168,21 @@ Probe from `reg-app-1` (no curl in the image). `401` without a key means the pat
 node -e 'fetch("http://pstn_app:5555/api/v1/lookup?phone=4996660000").then(async r=>console.log("status",r.status,await r.text())).catch(e=>console.error(e.cause||e))'
 ```
 
-## 8. Upgrades / redeploy
+## 8. DID on the same Docker host
+
+The `app` container must not call the **public** DID HTTPS origin (`https://did.finenumbers.com`). That resolves to the host’s public IP. Docker hairpin NAT typically fails: Node `fetch` waits, then `UND_ERR_CONNECT_TIMEOUT` / UI «fetch failed». The same URL works from a laptop.
+
+The catalog is read through the DID UI proxy, **`did-frontend`** port **3000**, which is already on `proxy`. Settings → DID → URL: **`http://did-frontend:3000`**. Save the `ADMIN_API_TOKEN`, then **Check connection**. The check counts free numbers, so it can take longer than a PSTN lookup.
+
+Do **not** clear the URL field. An empty save stores the default `https://did.finenumbers.com` and the timeout comes back.
+
+Probe from `reg-app-1` (no curl in the image). `401` without a token means the path works:
+
+```bash
+node -e 'fetch("http://did-frontend:3000/api/backend/api/v1/numbers/free?page=1&page_size=1").then(async r=>console.log("status",r.status,await r.text())).catch(e=>console.error(e.cause||e))'
+```
+
+## 9. Upgrades / redeploy
 
 1. In Portainer: **Pull and redeploy** the stack (or `docker compose -f docker-compose.portainer.yml pull && docker compose -f docker-compose.portainer.yml up -d`).
 2. Images stay `latest` / `latest-migrator` — no tag changes in compose.
@@ -177,7 +191,7 @@ node -e 'fetch("http://pstn_app:5555/api/v1/lookup?phone=4996660000").then(async
 
 Large CDR enrich uploads (tens of MiB) were silently truncated to **10 MiB** by Next.js middleware body clone, not by NPM (`client_max_body_size` default is 2000m). v1.5.3 excludes `/api/enrich` from the matcher and rejects an incomplete multipart. After redeploy, re-upload the full CSV.
 
-## 9. Must not
+## 10. Must not
 
 - Publish `app:3000` or Postgres to the public internet (this compose does not map host ports).
 - Run multiple `app` replicas.

@@ -13,6 +13,7 @@ export type FeatureModuleId =
   | "phones"
   | "groups"
   | "number-geography"
+  | "free-numbers"
   | "raw"
   | "traffic"
   | "geography"
@@ -25,7 +26,13 @@ export type FeatureModuleId =
   | "smg-syslog"
   | "antifraud";
 
-export type FeatureNavGroup = "primary" | "cdr" | "smg" | "analytics" | "admin";
+export type FeatureNavGroup =
+  | "primary"
+  | "cdr"
+  | "smg"
+  | "analytics"
+  | "links"
+  | "admin";
 
 type FeatureModuleDefinition = {
   id: FeatureModuleId;
@@ -37,11 +44,6 @@ type FeatureModuleDefinition = {
 };
 
 export const EXTERNAL_NAV_LINKS = [
-  {
-    id: "did-free-numbers",
-    title: "Свободные номера",
-    href: "https://did.finenumbers.com/",
-  },
   {
     id: "pstn-numbering",
     title: "Ресурс нумерации",
@@ -77,6 +79,14 @@ export const FEATURE_MODULES: FeatureModuleDefinition[] = [
     description: "Город, оператор и территория оконечных номеров",
     href: "/number-geography",
     navPermission: "phones:read",
+  },
+  {
+    id: "free-numbers",
+    title: "Свободные номера",
+    description: "Каталог свободных номеров DID",
+    href: "/free-numbers",
+    navPermission: "phones:read",
+    navGroup: "links",
   },
   {
     id: "traffic",
