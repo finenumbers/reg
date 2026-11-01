@@ -10,6 +10,10 @@ export {
   resolvePstnBaseUrl,
   type PstnFields,
 } from "@/modules/pstn/types";
-export { loadPstnCredentials, getEnrichReadyFlags } from "@/modules/pstn/credentials";
+export {
+  loadPstnBaseUrl,
+  loadPstnCredentials,
+  getEnrichReadyFlags,
+} from "@/modules/pstn/credentials";
 export { lookupPstnPhone, PstnLookupError } from "@/modules/pstn/client";
 export { runPstnConnectionTest } from "@/modules/pstn/test-connection";

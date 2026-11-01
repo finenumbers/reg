@@ -15,6 +15,7 @@ export type FeatureModuleId =
   | "number-geography"
   | "free-numbers"
   | "purchased-numbers"
+  | "numbering-resource"
   | "raw"
   | "traffic"
   | "geography"
@@ -27,13 +28,7 @@ export type FeatureModuleId =
   | "smg-syslog"
   | "antifraud";
 
-export type FeatureNavGroup =
-  | "primary"
-  | "cdr"
-  | "smg"
-  | "analytics"
-  | "links"
-  | "admin";
+export type FeatureNavGroup = "primary" | "cdr" | "smg" | "analytics" | "links" | "admin";
 
 type FeatureModuleDefinition = {
   id: FeatureModuleId;
@@ -43,14 +38,6 @@ type FeatureModuleDefinition = {
   navPermission?: PermissionCode;
   navGroup?: FeatureNavGroup;
 };
-
-export const EXTERNAL_NAV_LINKS = [
-  {
-    id: "pstn-numbering",
-    title: "Ресурс нумерации",
-    href: "https://pstn.finenumbers.com/",
-  },
-] as const;
 
 export const FEATURE_MODULES: FeatureModuleDefinition[] = [
   {
@@ -94,6 +81,14 @@ export const FEATURE_MODULES: FeatureModuleDefinition[] = [
     title: "Купленные номера",
     description: "Каталог купленных номеров DID",
     href: "/purchased-numbers",
+    navPermission: "phones:read",
+    navGroup: "links",
+  },
+  {
+    id: "numbering-resource",
+    title: "Ресурс нумерации",
+    description: "Текущий ресурс нумерации PSTN",
+    href: "/numbering-resource",
     navPermission: "phones:read",
     navGroup: "links",
   },

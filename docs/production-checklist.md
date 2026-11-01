@@ -53,6 +53,8 @@ Optional publish ports: `APP_PUBLISH_PORT`, `POSTGRES_PUBLISH_PORT`.
 
 ## 3. Database
 
+v1.192.0 does not migrate and does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `app`. Do not stop `smg-syslog`. «Ресурс нумерации» is `/numbering-resource`, after «Купленные номера». It reads the current PSTN dataset with GET only. The PSTN URL must stay `http://pstn_app:5555`. No lookup key is sent. Diff, import, and export are not on this page.
+
 v1.191.0 does not migrate and does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `app`. Do not stop `smg-syslog`. DID is read with GET only. «Купленные номера» is `/purchased-numbers`, after «Свободные номера». It uses the DID URL and token already saved for v1.190.0. «Нет в реестре» is blue, «Не подключено» is red, «Внешняя нумерация» is yellow.
 
 v1.190.0 migrates `app_settings` only: `didBaseUrl` and `didApiTokenCiphertext`. It does not rewrite phone, tariff, CDR, or PSTN rows. Migrate before the new `app` process. Do not stop `smg-syslog`. «Свободные номера» is `/free-numbers`. Settings → DID must use `http://did-frontend:3000` and `ADMIN_API_TOKEN`. Do not leave the public HTTPS URL. «Без регистрации» on registered trunks sits between the phone search and «Сбросить фильтры».

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { EXTERNAL_NAV_LINKS, FEATURE_MODULES } from "@/lib/modules";
+import { FEATURE_MODULES } from "@/lib/modules";
 import { LiveClocks } from "@/components/live-clocks";
 import { NavClockProvider } from "@/components/nav-clock-provider";
 import { Separator } from "@/components/ui/separator";
@@ -40,19 +40,6 @@ function NavLink({
     <Link href={href} prefetch={prefetch} className={navItemClassName(active)}>
       {label}
     </Link>
-  );
-}
-
-function ExternalNavLink({ href, label }: { href: string; label: string }) {
-  return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      className={navItemClassName(false)}
-    >
-      {label}
-    </a>
   );
 }
 
@@ -156,9 +143,6 @@ export function AppShell({
                   active={isNavActive(pathname, item.href!)}
                   prefetch={false}
                 />
-              ))}
-              {EXTERNAL_NAV_LINKS.map((item) => (
-                <ExternalNavLink key={item.id} href={item.href} label={item.title} />
               ))}
             </>
             {adminNav.length > 0 ? (

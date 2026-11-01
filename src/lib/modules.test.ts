@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { EXTERNAL_NAV_LINKS, FEATURE_MODULES } from "@/lib/modules";
+import { FEATURE_MODULES } from "@/lib/modules";
 
 const KNOWN_NAV_GROUPS = new Set([
   "primary",
@@ -55,19 +55,16 @@ describe("FEATURE_MODULES nav groups", () => {
     }
   });
 
-  it("keeps sister-product links out of feature modules", () => {
-    expect(EXTERNAL_NAV_LINKS.map((item) => item.id)).toEqual(["pstn-numbering"]);
-    expect(EXTERNAL_NAV_LINKS.map((item) => item.href)).toEqual([
-      "https://pstn.finenumbers.com/",
-    ]);
+  it("keeps catalog links internal, with numbering resource after purchased numbers", () => {
     const featureIds = FEATURE_MODULES.map((module) => module.id as string);
     expect(featureIds).toContain("free-numbers");
     expect(featureIds).toContain("purchased-numbers");
+    expect(featureIds).toContain("numbering-resource");
     expect(featureIds).not.toContain("did-free-numbers");
     expect(featureIds).not.toContain("pstn-numbering");
   });
 
-  it("keeps Свободные номера as an internal link before the PSTN site", () => {
+  it("keeps Свободные номера as an internal link before numbering resource", () => {
     const free = FEATURE_MODULES.find((module) => module.id === "free-numbers");
     expect(free).toMatchObject({
       title: "Свободные номера",
@@ -82,10 +79,23 @@ describe("FEATURE_MODULES nav groups", () => {
       navPermission: "phones:read",
       navGroup: "links",
     });
+    const numbering = FEATURE_MODULES.find(
+      (module) => module.id === "numbering-resource",
+    );
+    expect(numbering).toMatchObject({
+      title: "Ресурс нумерации",
+      href: "/numbering-resource",
+      navPermission: "phones:read",
+      navGroup: "links",
+    });
     const freeIndex = FEATURE_MODULES.findIndex((module) => module.id === "free-numbers");
     const purchasedIndex = FEATURE_MODULES.findIndex(
       (module) => module.id === "purchased-numbers",
     );
+    const numberingIndex = FEATURE_MODULES.findIndex(
+      (module) => module.id === "numbering-resource",
+    );
     expect(purchasedIndex).toBe(freeIndex + 1);
+    expect(numberingIndex).toBe(purchasedIndex + 1);
   });
 });

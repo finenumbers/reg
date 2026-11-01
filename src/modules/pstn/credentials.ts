@@ -9,6 +9,15 @@ import {
 } from "@/modules/ssh/secrets";
 import { resolvePstnBaseUrl, type PstnCredentials } from "@/modules/pstn/types";
 
+/** Origin only. The numbering resource does not need the lookup key. */
+export async function loadPstnBaseUrl(): Promise<string> {
+  const settings = await prisma.appSetting.findUnique({
+    where: { id: 1 },
+    select: { pstnBaseUrl: true },
+  });
+  return resolvePstnBaseUrl(settings?.pstnBaseUrl);
+}
+
 export async function loadPstnCredentials(): Promise<PstnCredentials | null> {
   const settings = await prisma.appSetting.findUnique({ where: { id: 1 } });
   const cipher = settings?.pstnApiKeyCiphertext?.trim();

@@ -1,7 +1,15 @@
-# Current Phase — production (v1.191.0)
+# Current Phase — production (v1.192.0)
 
-**Status:** in production. Modules beyond Phase 7: phones, groups, number geography, free numbers, purchased numbers, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal.  
+**Status:** in production. Modules beyond Phase 7: phones, groups, number geography, free numbers, purchased numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal.  
 **Date:** 2026-11-01
+
+## v1.192.0 — Numbering resource inside REG
+
+There is no migration. Do not stop `app`. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. REG does not keep a copy of the ranges.
+
+«Ресурс нумерации» is an internal page at `/numbering-resource`, immediately after «Купленные номера», with `phones:read`. The external link is gone. The page reads only the current PSTN dataset through `GET /api/ranges`, `GET /api/ranges/facets`, and `GET /api/summary`. The browser never calls PSTN. No lookup key is sent. `dataset`, diff columns, import, and export are not available. On this Docker host the PSTN URL must stay `http://pstn_app:5555`. A public HTTPS URL can fail from the `app` container.
+
+The four cards are «Найденные диапазоны», «Операторы связи», «Территории ГАР», and «Суммарная ёмкость». With a filter they show the filtered count over the full count. A phone mask that matches more than 10 000 ranges shows «…» for capacity. «Начало» and «Конец» are bold black, formatted `000-00-00`. «Найти номер» is a 10-digit mask. Column menus filter ABC, operator, GAR territory, INN, and UVR together.
 
 ## v1.191.0 — Purchased numbers inside REG
 
