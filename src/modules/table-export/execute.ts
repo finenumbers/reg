@@ -47,7 +47,7 @@ import {
   type StreamColumn,
 } from "@/modules/table-export/xlsx-stream";
 
-const CATALOG_PAGE_SIZE = 200;
+const CATALOG_PAGE_SIZE = 500;
 
 const NUMBERING_STREAM: Record<NumberingColumn, StreamColumn> = {
   abc: { header: NUMBERING_HEADERS.abc, text: true },

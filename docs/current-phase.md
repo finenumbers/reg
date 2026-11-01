@@ -1,7 +1,13 @@
-# Current Phase — production (v1.200.0)
+# Current Phase — production (v1.201.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, number geography, free numbers, purchased numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal.  
 **Date:** 2026-11-01
+
+## v1.201.0 — Larger catalog XLSX pages
+
+There is no migration. Do not stop `app`. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. REG does not keep a copy of the ranges. Keep a single `app` replica. An XLSX build in progress is not continued when that process is replaced.
+
+Deploy DID v0.1.137 and PSTN v0.3.46 before this image. «Свободные номера» and «Купленные номера» then read 500 numbers per DID page. «Ресурс нумерации» reads 500 ranges per PSTN page. The screens stay at 100 rows. Each page still times out after 30 seconds, with one immediate retry. A page that already misses that limit still fails the file.
 
 ## v1.200.0 — Filtered catalog XLSX
 

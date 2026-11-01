@@ -53,6 +53,8 @@ Optional publish ports: `APP_PUBLISH_PORT`, `POSTGRES_PUBLISH_PORT`.
 
 ## 3. Database
 
+v1.201.0 does not migrate and does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `app`. Do not stop `smg-syslog`. Keep a single `app` replica. Deploy DID v0.1.137 and PSTN v0.3.46 first. Catalog XLSX then walks 500 rows per page. The screens stay at 100. A build in progress is dropped when the app process is replaced.
+
 v1.200.0 does not migrate and does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `app`. Do not stop `smg-syslog`. Keep a single `app` replica. «Свободные номера», «Купленные номера», and «Ресурс нумерации» export the filtered set as XLSX. A build in progress is dropped when the app process is replaced. Every «Сохранить данные» button is now the amber «Экспорт XLSX». «Сохранить расширенные данные» stays white. Numbering mask parentheses are bold 14px, and each mask cell is 1.8rem tall.
 
 v1.199.0 does not migrate and does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `app`. Do not stop `smg-syslog`. The numbering mask cells have no drop shadow, so their edges line up with «Сбросить фильтры».

@@ -13,8 +13,8 @@ import {
 import { NumberingQueryError } from "@/modules/numbering-resource/errors";
 
 export const NUMBERING_PAGE_SIZE = 100;
-/** PSTN rejects a larger page. The export uses this; the screen stays at 100. */
-export const NUMBERING_EXPORT_PAGE_SIZE = 200;
+/** Export page size. PSTN rejects anything larger. The screen stays at 100. */
+export const NUMBERING_EXPORT_PAGE_SIZE = 500;
 export const NUMBERING_SORT = "abc:asc,rangeStart:asc";
 export const NUMBERING_CURSOR_MAX = 512;
 export const NUMBERING_FILTERS_MAX_CHARS = 16_000;

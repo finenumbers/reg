@@ -112,13 +112,13 @@ describe("numbering resource query allowlist", () => {
     expect(params.get("dataset")).toBeNull();
   });
 
-  it("keeps the screen at 100 rows and lets the export walk ask for 200", () => {
+  it("keeps the screen at 100 rows and lets the export walk ask for 500", () => {
     const screen = parseNumberingListQuery(new URLSearchParams());
     expect(pstnListParams(screen).get("pageSize")).toBe("100");
     expect(
       pstnListParams({ ...screen, pageSize: NUMBERING_EXPORT_PAGE_SIZE }).get("pageSize"),
-    ).toBe("200");
-    expect(pstnListParams({ ...screen, pageSize: 500 }).get("pageSize")).toBe("200");
+    ).toBe("500");
+    expect(pstnListParams({ ...screen, pageSize: 1000 }).get("pageSize")).toBe("500");
   });
 
   it("rejects a diff facet column", () => {
