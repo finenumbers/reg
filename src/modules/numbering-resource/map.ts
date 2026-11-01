@@ -39,6 +39,13 @@ function asSafeInt(value: unknown): number | null {
   return value;
 }
 
+/** Display-only. A bad instant must not fail the counts. */
+function asLoadedAt(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
 function badResponse(): never {
   throw new NumberingClientError(
     "BAD_RESPONSE",
@@ -131,6 +138,7 @@ export function mapSummaryBody(body: unknown): NumberingSummary {
   const filtered = mapCounts(root.filtered, true);
   const global = mapCounts(root.global, false);
   return {
+    loadedAt: asLoadedAt(root.loadedAt),
     filtered: {
       rangeCount: filtered.rangeCount,
       totalCapacity: filtered.totalCapacity,

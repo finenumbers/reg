@@ -21,6 +21,7 @@ import {
 import { NUMBERING_HEADERS } from "@/modules/numbering-resource/columns";
 import {
   emptyPhoneMask,
+  formatDatasetDate,
   formatPhoneMaskHint,
   phoneMaskHasDigit,
 } from "@/modules/numbering-resource/format";
@@ -86,6 +87,9 @@ export function NumberingResourceView({
   const [loadingMore, setLoadingMore] = useState(false);
   const [listError, setListError] = useState<string | null>(initialError);
   const [summary, setSummary] = useState(initialSummary);
+  const [datasetLoadedAt, setDatasetLoadedAt] = useState<string | null>(
+    initialSummary?.loadedAt ?? null,
+  );
   const [summaryError, setSummaryError] = useState<string | null>(initialSummaryError);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [scrollRoot, setScrollRoot] = useState<Element | null>(null);
@@ -200,6 +204,7 @@ export function NumberingResourceView({
           return;
         }
         setSummary(result.data);
+        setDatasetLoadedAt(result.data.loadedAt);
         setSummaryError(null);
       } finally {
         if (seq === summarySeq.current) setSummaryLoading(false);
@@ -287,7 +292,7 @@ export function NumberingResourceView({
 
   return (
     <div className="@container flex h-full min-h-0 min-w-0 flex-col gap-4">
-      <div className="flex shrink-0 flex-wrap items-start justify-between gap-3">
+      <div className="flex w-full min-w-0 shrink-0 flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold tracking-tight [text-box:trim-start_cap_alphabetic]">
             Ресурс нумерации
@@ -296,15 +301,18 @@ export function NumberingResourceView({
             Текущая нумерация. Фильтры столбцов и поиск номера применяются вместе.
           </p>
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          className={FILTER_TOOLBAR_TEXT}
-          disabled={!canReset}
-          onClick={onResetFilters}
-        >
-          Сбросить фильтры
-        </Button>
+        <div className="flex shrink-0 items-center gap-3">
+          <PhoneMaskInput value={phoneInput} onChange={onPhoneInputChange} />
+          <Button
+            type="button"
+            variant="outline"
+            className={FILTER_TOOLBAR_TEXT}
+            disabled={!canReset}
+            onClick={onResetFilters}
+          >
+            Сбросить фильтры
+          </Button>
+        </div>
       </div>
 
       <div className="grid w-full min-w-0 shrink-0 grid-cols-1 gap-3 @min-[40rem]:grid-cols-2 @min-[56rem]:grid-cols-5">
@@ -353,26 +361,11 @@ export function NumberingResourceView({
             <p className="text-base leading-tight font-semibold">—</p>
           )}
         </KpiCard>
-        <Card
-          size="sm"
-          className="min-w-0 gap-0! overflow-visible @min-[40rem]:col-span-2 @min-[56rem]:col-span-1"
-        >
-          <CardHeader className="pb-1">
-            <CardTitle
-              id="numbering-phone-mask-label"
-              className="text-muted-foreground text-xs font-medium"
-            >
-              Найти номер
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <PhoneMaskInput
-              labelledBy="numbering-phone-mask-label"
-              value={phoneInput}
-              onChange={onPhoneInputChange}
-            />
-          </CardContent>
-        </Card>
+        <KpiCard title="Дата датасета" loading={false}>
+          <p className="text-base leading-tight font-semibold tabular-nums">
+            {formatDatasetDate(datasetLoadedAt)}
+          </p>
+        </KpiCard>
       </div>
 
       {summaryError ? (

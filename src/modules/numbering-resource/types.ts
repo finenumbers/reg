@@ -28,6 +28,7 @@ export type NumberingSummaryCounts = {
 };
 
 export type NumberingSummary = {
+  loadedAt: string | null;
   filtered: NumberingSummaryCounts & { totalCapacityPending: boolean };
   global: NumberingSummaryCounts;
 };

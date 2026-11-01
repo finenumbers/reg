@@ -131,5 +131,51 @@ describe("numbering PSTN response mapping", () => {
     });
     expect(summary.filtered.totalCapacityPending).toBe(true);
     expect(summary.global.rangeCount).toBe(446_000);
+    expect(summary.loadedAt).toBeNull();
+  });
+
+  it("keeps the current dataset instant", () => {
+    const summary = mapSummaryBody({
+      loadedAt: "2026-10-31T21:00:00.000Z",
+      filtered: {
+        rangeCount: 1,
+        totalCapacity: 1,
+        uniqueGarTerritories: 1,
+        uniqueOperators: 1,
+      },
+      global: {
+        rangeCount: 2,
+        totalCapacity: 2,
+        uniqueGarTerritories: 2,
+        uniqueOperators: 2,
+      },
+    });
+    expect(summary.loadedAt).toBe("2026-10-31T21:00:00.000Z");
+    expect(summary.global.rangeCount).toBe(2);
+  });
+
+  it("drops an unusable dataset instant without dropping the counts", () => {
+    const counts = {
+      filtered: {
+        rangeCount: 3,
+        totalCapacity: 4,
+        uniqueGarTerritories: 5,
+        uniqueOperators: 6,
+      },
+      global: {
+        rangeCount: 7,
+        totalCapacity: 8,
+        uniqueGarTerritories: 9,
+        uniqueOperators: 10,
+      },
+    };
+    for (const loadedAt of [null, "", 1, { at: "2026-11-01" }]) {
+      const summary = mapSummaryBody({ ...counts, loadedAt });
+      expect(summary.loadedAt).toBeNull();
+      expect(summary.global.rangeCount).toBe(7);
+    }
+    const missing = mapSummaryBody(counts);
+    expect(missing.loadedAt).toBeNull();
+    expect(missing.filtered.rangeCount).toBe(3);
   });
 });

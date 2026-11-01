@@ -28,3 +28,20 @@ export function emptyPhoneMask(): string {
 export function phoneMaskHasDigit(value: string): boolean {
   return /\d/.test(value);
 }
+
+const DATASET_DATE_KEY = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/**
+ * Moscow calendar day of the current PSTN dataset, `DD.MM.YYYY`.
+ * Same key as PSTN `mskLoadDateKey`. The display timezone is not used.
+ */
+export function formatDatasetDate(value: string | null | undefined): string {
+  if (value == null || value.trim() === "") return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  const key = date.toLocaleDateString("sv-SE", { timeZone: "Europe/Moscow" });
+  const match = DATASET_DATE_KEY.exec(key);
+  if (!match) return "—";
+  const [, year, month, day] = match;
+  return `${day}.${month}.${year}`;
+}

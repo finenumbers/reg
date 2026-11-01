@@ -8,7 +8,6 @@ const SLOT_COUNT = 10;
 const EMPTY = "_";
 
 type Props = {
-  labelledBy: string;
   value: string;
   onChange: (value: string) => void;
 };
@@ -18,7 +17,7 @@ function slotsOf(value: string): string[] {
   return source.split("").map((char) => (/\d/.test(char) ? char : EMPTY));
 }
 
-export function PhoneMaskInput({ labelledBy, value, onChange }: Props) {
+export function PhoneMaskInput({ value, onChange }: Props) {
   const slots = slotsOf(value);
   const inputRefs = useRef<Array<HTMLInputElement | null>>([]);
 
@@ -96,7 +95,7 @@ export function PhoneMaskInput({ labelledBy, value, onChange }: Props) {
         onKeyDown={(event) => handleKeyDown(index, event)}
         onFocus={(event) => event.currentTarget.select()}
         className={cn(
-          "border-input placeholder:text-muted-foreground/40 focus-visible:ring-ring h-7 w-[calc(1ch+2px)] shrink-0 rounded border px-0 text-center text-xs shadow-sm focus-visible:ring-1 focus-visible:outline-none",
+          "border-input placeholder:text-muted-foreground/40 focus-visible:ring-ring h-8 w-[calc(2ch+4px)] shrink-0 rounded border px-0 text-center text-xs shadow-sm focus-visible:ring-1 focus-visible:outline-none",
           filled ? "bg-yellow-200/80 text-black" : "bg-background",
         )}
       />
@@ -107,7 +106,7 @@ export function PhoneMaskInput({ labelledBy, value, onChange }: Props) {
     <div
       className="w-max max-w-full"
       role="group"
-      aria-labelledby={labelledBy}
+      aria-label="Найти номер"
       onPaste={handlePaste}
     >
       <div className="flex w-max items-center gap-px text-sm leading-none tabular-nums">

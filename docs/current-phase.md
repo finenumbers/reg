@@ -1,7 +1,13 @@
-# Current Phase — production (v1.196.0)
+# Current Phase — production (v1.197.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, number geography, free numbers, purchased numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal.  
 **Date:** 2026-11-01
+
+## v1.197.0 — Numbering dataset date
+
+There is no migration. Do not stop `app`. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. REG does not keep a copy of the ranges.
+
+«Ресурс нумерации» replaces the «Найти номер» card with «Дата датасета». The date is the Moscow calendar day of the current PSTN load time, already returned as `loadedAt` by `GET /api/summary`. An empty or unreadable time shows «—». A filter refresh does not clear that date and does not mark the card as loading. A date that is not text does not fail the four counts. The ten-digit mask sits on the title row, immediately left of «Сбросить фильтры». Each digit cell is the height of that button and twice as wide as before. Below 896px of the page column the counts stay in pairs and the date card takes the left half of the next row. The 500 ms search is unchanged.
 
 ## v1.196.0 — Numbering cards fit the window
 
