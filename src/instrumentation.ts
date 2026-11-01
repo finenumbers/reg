@@ -81,7 +81,10 @@ export async function register() {
       const { clearSmgPurgeHoldsExcept } = await import("@/modules/smg/poison");
       const smgReleased = clearSmgPurgeHoldsExcept(continueMonth);
       if (smgReleased > 0) {
-        logger.info("smg.purge.holds_released", { released: smgReleased, kept: continueMonth });
+        logger.info("smg.purge.holds_released", {
+          released: smgReleased,
+          kept: continueMonth,
+        });
       }
     } catch (error) {
       logger.error("jobs.reclaim_orphans.failed", {
@@ -134,6 +137,16 @@ export async function register() {
       logger.info("traffic.export.artifacts_pruned", pruned);
     } catch (error) {
       logger.error("traffic.export.reclaim_failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    try {
+      const { pruneTableExportTemps } = await import("@/modules/table-export/job");
+      const removed = await pruneTableExportTemps();
+      if (removed > 0) logger.info("table.export.temps_pruned", { removed });
+    } catch (error) {
+      logger.error("table.export.reclaim_failed", {
         error: error instanceof Error ? error.message : String(error),
       });
     }

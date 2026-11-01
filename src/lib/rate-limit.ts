@@ -72,6 +72,9 @@ export const didTestRateLimiter = new SlidingWindowRateLimiter(10, 60 * 1000);
 /** Month traffic XLSX export starts per user: 6 / minute */
 export const trafficExportStartRateLimiter = new SlidingWindowRateLimiter(6, 60 * 1000);
 
+/** Catalog XLSX export starts per user: 6 / minute. One process, like the traffic limiter. */
+export const tableExportStartRateLimiter = new SlidingWindowRateLimiter(6, 60 * 1000);
+
 /** VoIPmonitor connection test per user: 10 / minute */
 export const voipmonitorTestRateLimiter = new SlidingWindowRateLimiter(10, 60 * 1000);
 

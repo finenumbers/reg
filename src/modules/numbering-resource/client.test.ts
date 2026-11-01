@@ -104,4 +104,20 @@ describe("PSTN numbering reader", () => {
       message: "Слишком много запросов. Повторите через 3 сек.",
     });
   });
+
+  it("keeps Retry-After for one capped wait", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        return new Response(JSON.stringify({ error: { message: "Подождите" } }), {
+          status: 429,
+          headers: { "content-type": "application/json", "retry-after": "2" },
+        });
+      }),
+    );
+
+    await expect(
+      readPstnJson("/api/ranges", new URLSearchParams(), "http://pstn_app:5555"),
+    ).rejects.toMatchObject({ code: "RATE_LIMITED", retryAfterSec: 2 });
+  });
 });

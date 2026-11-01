@@ -53,6 +53,8 @@ Optional publish ports: `APP_PUBLISH_PORT`, `POSTGRES_PUBLISH_PORT`.
 
 ## 3. Database
 
+v1.200.0 does not migrate and does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `app`. Do not stop `smg-syslog`. Keep a single `app` replica. «Свободные номера», «Купленные номера», and «Ресурс нумерации» export the filtered set as XLSX. A build in progress is dropped when the app process is replaced. Every «Сохранить данные» button is now the amber «Экспорт XLSX». «Сохранить расширенные данные» stays white. Numbering mask parentheses are bold 14px, and each mask cell is 1.8rem tall.
+
 v1.199.0 does not migrate and does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `app`. Do not stop `smg-syslog`. The numbering mask cells have no drop shadow, so their edges line up with «Сбросить фильтры».
 
 v1.198.0 does not migrate and does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `app`. Do not stop `smg-syslog`. «Емкость», «ИНН», and «УВр Антифрод» cell text is right-aligned. The column headers and their filter menus stay on the left.

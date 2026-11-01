@@ -26,6 +26,7 @@ export function FreeNumbersView({ initial, initialError }: Props) {
       initialError={initialError}
       fetchList={fetchFreeNumbersList}
       Table={FreeNumbersTable}
+      exportEndpoint="/api/free-numbers/export"
     />
   );
 }

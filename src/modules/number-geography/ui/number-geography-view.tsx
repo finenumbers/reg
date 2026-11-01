@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { downloadXlsxFromUrl } from "@/lib/download-xlsx";
 import { FILTER_TOOLBAR_TEXT } from "@/components/filter-toolbar";
 import { PhoneSearchInput } from "@/components/phone-search-input";
+import { EXPORT_XLSX_BUTTON_CLASS } from "@/components/export-xlsx-button-class";
 import { Button } from "@/components/ui/button";
 import {
   ActiveFiltersBar,
@@ -486,10 +487,11 @@ export function NumberGeographyView({ initial, canRequest }: Props) {
           ) : null}
           <Button
             type="button"
+            className={EXPORT_XLSX_BUTTON_CLASS}
             disabled={exporting || uploading}
             onClick={() => void onExport()}
           >
-            {exporting ? "Сохранение…" : "Сохранить данные"}
+            {exporting ? "Экспорт…" : "Экспорт XLSX"}
           </Button>
         </div>
       </div>

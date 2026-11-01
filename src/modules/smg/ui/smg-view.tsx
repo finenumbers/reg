@@ -18,6 +18,7 @@ import { HighlightText } from "@/components/highlight-text";
 import { usePublishNavClock } from "@/components/nav-clock-provider";
 import { PhoneSearchInput } from "@/components/phone-search-input";
 import { TableCountFooter, TableInfiniteBody } from "@/components/table-infinite-body";
+import { EXPORT_XLSX_BUTTON_CLASS } from "@/components/export-xlsx-button-class";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -579,8 +580,13 @@ export function SmgView({
               {pending ? "Импорт…" : "Повторить импорт"}
             </Button>
           ) : null}
-          <Button type="button" onClick={() => void onExport()} disabled={exporting}>
-            {exporting ? "Сохранение…" : "Сохранить данные"}
+          <Button
+            type="button"
+            className={EXPORT_XLSX_BUTTON_CLASS}
+            onClick={() => void onExport()}
+            disabled={exporting}
+          >
+            {exporting ? "Экспорт…" : "Экспорт XLSX"}
           </Button>
         </div>
       </div>

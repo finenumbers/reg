@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   EMPTY_NUMBERING_FILTERS,
+  NUMBERING_EXPORT_PAGE_SIZE,
   parseNumberingFacetQuery,
   parseNumberingListQuery,
   pstnFacetParams,
@@ -109,6 +110,15 @@ describe("numbering resource query allowlist", () => {
     expect(params.get("search.operator")).toBe("рост");
     expect(params.get("filters.abc")).toBe("499");
     expect(params.get("dataset")).toBeNull();
+  });
+
+  it("keeps the screen at 100 rows and lets the export walk ask for 200", () => {
+    const screen = parseNumberingListQuery(new URLSearchParams());
+    expect(pstnListParams(screen).get("pageSize")).toBe("100");
+    expect(
+      pstnListParams({ ...screen, pageSize: NUMBERING_EXPORT_PAGE_SIZE }).get("pageSize"),
+    ).toBe("200");
+    expect(pstnListParams({ ...screen, pageSize: 500 }).get("pageSize")).toBe("200");
   });
 
   it("rejects a diff facet column", () => {

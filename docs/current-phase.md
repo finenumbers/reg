@@ -1,7 +1,13 @@
-# Current Phase — production (v1.199.0)
+# Current Phase — production (v1.200.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, number geography, free numbers, purchased numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal.  
 **Date:** 2026-11-01
+
+## v1.200.0 — Filtered catalog XLSX
+
+There is no migration. Do not stop `app`. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. REG does not keep a copy of the ranges. Keep a single `app` replica. An XLSX build in progress is not continued when that process is replaced.
+
+«Свободные номера», «Купленные номера», and «Ресурс нумерации» save the full filtered set, not only the rows already scrolled into view. The file has borders and a filter on the filled table. Address and INN in the numbering file stay text, without links. While a file is forming, those three sections show «Формируем XLSX…». One build per section at a time. The file stays for 15 minutes and can be downloaded again. Every «Сохранить данные» button is now the amber «Экспорт XLSX». «Сохранить расширенные данные» stays the white outline button. The numbering mask parentheses are bold and 14px. Each mask cell is 1.8rem tall. The 500 ms search is unchanged.
 
 ## v1.199.0 — Numbering mask cells match the button
 

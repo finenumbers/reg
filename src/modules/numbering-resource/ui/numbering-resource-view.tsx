@@ -11,6 +11,7 @@ import {
 import { FILTER_TOOLBAR_TEXT } from "@/components/filter-toolbar";
 import { TableCountFooter, TableInfiniteBody } from "@/components/table-infinite-body";
 import { Button } from "@/components/ui/button";
+import { useFilteredExport } from "@/components/filtered-export";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
 import { formatCount } from "@/lib/format-count";
@@ -289,6 +290,19 @@ export function NumberingResourceView({
       : "Нет данных.";
 
   const phoneChip = phoneMaskHasDigit(phoneQ) ? formatPhoneMaskHint(phoneQ) : "";
+  const exportTotalKnown = !summaryLoading && summary != null;
+  const exportTotal = summary
+    ? filtersActive
+      ? summary.filtered.rangeCount
+      : summary.global.rangeCount
+    : null;
+  const exportUi = useFilteredExport({
+    endpoint: "/api/numbering-resource/export",
+    filters,
+    phoneQ,
+    totalRows: exportTotal,
+    totalKnown: exportTotalKnown,
+  });
 
   return (
     <div className="@container flex h-full min-h-0 min-w-0 flex-col gap-4">
@@ -312,8 +326,10 @@ export function NumberingResourceView({
           >
             Сбросить фильтры
           </Button>
+          {exportUi.button}
         </div>
       </div>
+      {exportUi.banner}
 
       <div className="grid w-full min-w-0 shrink-0 grid-cols-1 gap-3 @min-[40rem]:grid-cols-2 @min-[56rem]:grid-cols-5">
         <KpiCard title="Найденные диапазоны" loading={summaryLoading}>

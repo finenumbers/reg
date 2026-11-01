@@ -109,10 +109,12 @@ export async function readPstnJson(
     }
 
     if (res.status === 429) {
+      const retryAfter = Number(res.headers.get("retry-after"));
       throw new NumberingClientError(
         "RATE_LIMITED",
         messageFromBody(body) ?? "Слишком много запросов. Повторите позже.",
         429,
+        Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : undefined,
       );
     }
     if (res.status === 400) {

@@ -95,7 +95,7 @@ export function PhoneMaskInput({ value, onChange }: Props) {
         onKeyDown={(event) => handleKeyDown(index, event)}
         onFocus={(event) => event.currentTarget.select()}
         className={cn(
-          "border-input placeholder:text-muted-foreground/40 focus-visible:ring-ring h-8 w-[calc(2ch+4px)] shrink-0 rounded border px-0 text-center text-xs focus-visible:ring-1 focus-visible:outline-none",
+          "border-input placeholder:text-muted-foreground/40 focus-visible:ring-ring h-[1.8rem] w-[calc(2ch+4px)] shrink-0 rounded border px-0 text-center text-xs focus-visible:ring-1 focus-visible:outline-none",
           filled ? "bg-yellow-200/80 text-black" : "bg-background",
         )}
       />
@@ -110,14 +110,17 @@ export function PhoneMaskInput({ value, onChange }: Props) {
       onPaste={handlePaste}
     >
       <div className="flex w-max items-center gap-px text-sm leading-none tabular-nums">
-        <span className="text-muted-foreground shrink-0 px-0.5 text-sm" aria-hidden>
+        <span
+          className="text-muted-foreground shrink-0 px-0.5 text-[14px] font-bold"
+          aria-hidden
+        >
           (
         </span>
         {renderSlot(0)}
         {renderSlot(1)}
         {renderSlot(2)}
         <span
-          className="text-muted-foreground mr-0.5 shrink-0 px-0.5 text-sm"
+          className="text-muted-foreground mr-0.5 shrink-0 px-0.5 text-[14px] font-bold"
           aria-hidden
         >
           )

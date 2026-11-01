@@ -22,7 +22,8 @@ export type DidClientErrorCode =
   | "NETWORK"
   | "UNAUTHORIZED"
   | "NOT_CONFIGURED"
-  | "BAD_RESPONSE";
+  | "BAD_RESPONSE"
+  | "ABORTED";
 
 export class DidClientError extends Error {
   constructor(
@@ -115,9 +116,11 @@ async function didGet(
   params: URLSearchParams,
   creds: DidCredentials,
   timeoutMs: number,
+  signal?: AbortSignal,
 ): Promise<unknown> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const timeout = new AbortController();
+  const timer = setTimeout(() => timeout.abort(), timeoutMs);
+  const combined = signal ? AbortSignal.any([signal, timeout.signal]) : timeout.signal;
   const started = Date.now();
   const url = didApiUrl(creds.baseUrl, path, params);
   try {
@@ -127,7 +130,7 @@ async function didGet(
         Accept: "application/json",
         Authorization: `Bearer ${creds.apiToken}`,
       },
-      signal: controller.signal,
+      signal: combined,
       cache: "no-store",
     });
     const durationMs = Date.now() - started;
@@ -158,6 +161,7 @@ async function didGet(
   } catch (error) {
     if (error instanceof DidClientError) throw error;
     if (error instanceof Error && error.name === "AbortError") {
+      if (signal?.aborted) throw new DidClientError("ABORTED", "Запрос отменён");
       throw new DidClientError("TIMEOUT", DID_TIMEOUT_MESSAGE);
     }
     throw new DidClientError("NETWORK", DID_UNREACHABLE_HINT);
@@ -235,6 +239,7 @@ export async function listDidNumbers(
   query: DidListQuery,
   creds: DidCredentials,
   timeoutMs: number,
+  signal?: AbortSignal,
 ): Promise<DidFreePage> {
   const params = new URLSearchParams({
     page: String(query.page),
@@ -243,7 +248,7 @@ export async function listDidNumbers(
     sort_dir: "asc",
   });
   appendCommon(params, query.filters, query.phoneQ);
-  const page = parsePage(await didGet(LIST_PATH[kind], params, creds, timeoutMs));
+  const page = parsePage(await didGet(LIST_PATH[kind], params, creds, timeoutMs, signal));
   assertCatalogKind(page.items, kind);
   return page;
 }

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ComponentType } from "react";
 import { FILTER_TOOLBAR_TEXT } from "@/components/filter-toolbar";
+import { useFilteredExport } from "@/components/filtered-export";
 import { PhoneSearchInput } from "@/components/phone-search-input";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,9 +25,7 @@ type ListPage<T> = {
   page: number;
 };
 
-type FetchResult<T> =
-  | { ok: true; data: ListPage<T> }
-  | { ok: false; message: string };
+type FetchResult<T> = { ok: true; data: ListPage<T> } | { ok: false; message: string };
 
 type TableProps<T> = {
   data: T[];
@@ -54,6 +53,7 @@ type Props<T> = {
     pageSize?: number;
   }) => Promise<FetchResult<T>>;
   Table: ComponentType<TableProps<T>>;
+  exportEndpoint: string;
 };
 
 export function CatalogNumbersView<T>({
@@ -66,6 +66,7 @@ export function CatalogNumbersView<T>({
   initialError,
   fetchList,
   Table,
+  exportEndpoint,
 }: Props<T>) {
   const [filters, setFilters] = useState<ColumnFilters>({});
   const [phoneInput, setPhoneInput] = useState("");
@@ -234,14 +235,26 @@ export function CatalogNumbersView<T>({
     void loadList({ filters: {}, phoneQ: "", page: 1, replace: true });
   }
 
+  const exportUi = useFilteredExport({
+    endpoint: exportEndpoint,
+    filters,
+    phoneQ,
+    totalRows: total,
+    totalKnown: !loading,
+  });
+
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
-      <div className="shrink-0">
-        <h1 className="text-xl font-semibold tracking-tight [text-box:trim-start_cap_alphabetic]">
-          {title}
-        </h1>
-        <p className="text-muted-foreground text-sm">{description}</p>
+      <div className="flex shrink-0 flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight [text-box:trim-start_cap_alphabetic]">
+            {title}
+          </h1>
+          <p className="text-muted-foreground text-sm">{description}</p>
+        </div>
+        {exportUi.button}
       </div>
+      {exportUi.banner}
 
       <div className="flex shrink-0 flex-wrap items-center gap-3">
         <PhoneSearchInput

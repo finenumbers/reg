@@ -24,6 +24,7 @@ export function PurchasedNumbersView({ initial, initialError }: Props) {
       initialError={initialError}
       fetchList={fetchPurchasedNumbersList}
       Table={PurchasedNumbersTable}
+      exportEndpoint="/api/purchased-numbers/export"
     />
   );
 }

@@ -609,7 +609,7 @@ export async function listSmgCalls(input: {
 }
 
 /**
- * The rows behind «Сохранить данные». Same where-clause and order as the table.
+ * The rows behind «Экспорт XLSX». Same where-clause and order as the table.
  * An empty gateway writes headers only.
  */
 export async function writeSmgExport(input: {

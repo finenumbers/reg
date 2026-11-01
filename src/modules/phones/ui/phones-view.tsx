@@ -6,6 +6,7 @@ import { FitSelect } from "@/components/fit-select";
 import { FILTER_TOOLBAR_TEXT } from "@/components/filter-toolbar";
 import { PhoneSearchInput } from "@/components/phone-search-input";
 import { RowColorMark } from "@/components/row-color-legend";
+import { EXPORT_XLSX_BUTTON_CLASS } from "@/components/export-xlsx-button-class";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
@@ -476,7 +477,7 @@ export function PhonesView({ canRequest, initial, initialRegsUnregisteredCount }
         <div className="flex flex-wrap items-center gap-2">
           <Button
             type="button"
-            className="border-transparent bg-amber-400 text-amber-950 hover:bg-amber-500 hover:text-amber-950 focus-visible:border-amber-500 focus-visible:ring-amber-400/40"
+            className={EXPORT_XLSX_BUTTON_CLASS}
             onClick={() => void onExportXlsx()}
             disabled={exporting || rtuConverting || ufwExporting}
           >

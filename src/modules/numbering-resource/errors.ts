@@ -13,6 +13,7 @@ export class NumberingClientError extends Error {
     public readonly code: NumberingClientCode,
     message: string,
     public readonly httpStatus?: number,
+    public readonly retryAfterSec?: number,
   ) {
     super(message);
     this.name = "NumberingClientError";

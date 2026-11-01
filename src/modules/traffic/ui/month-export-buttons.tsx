@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { EXPORT_XLSX_BUTTON_CLASS } from "@/components/export-xlsx-button-class";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatCount } from "@/lib/format-count";
@@ -123,44 +124,44 @@ export function MonthExportButtons({ month }: { month: string }) {
         >
           {starting ? "Запуск…" : "Сохранить расширенные данные"}
         </Button>
-        <Button type="button" disabled={busy} onClick={() => void start(false)}>
-          {starting ? "Запуск…" : "Сохранить данные"}
+        <Button
+          type="button"
+          className={EXPORT_XLSX_BUTTON_CLASS}
+          disabled={busy}
+          onClick={() => void start(false)}
+        >
+          {busy ? "Экспорт…" : "Экспорт XLSX"}
         </Button>
       </div>
 
       {job ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-lg border bg-popover shadow-lg">
+          <div className="bg-popover flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-lg border shadow-lg">
             <div className="border-b px-4 py-3">
               <h2 className="text-base font-semibold">
                 {job.title || "Выгрузка трафика"}
               </h2>
               {job.filename ? (
-                <p className="text-xs text-muted-foreground">{job.filename}</p>
+                <p className="text-muted-foreground text-xs">{job.filename}</p>
               ) : null}
             </div>
             <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3">
               {job.stages.map((stage) => (
-                <div
-                  key={stage.id}
-                  className="flex items-start justify-between gap-3"
-                >
+                <div key={stage.id} className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-sm font-medium">{stage.label}</p>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-muted-foreground text-xs">
                       {stage.total != null
                         ? `${formatCount(stage.current ?? 0)} / ${formatCount(stage.total)}`
                         : (stage.detail ?? "")}
-                      {stage.detail && stage.total != null
-                        ? ` · ${stage.detail}`
-                        : ""}
+                      {stage.detail && stage.total != null ? ` · ${stage.detail}` : ""}
                     </p>
                   </div>
                   {stageBadge(stage.status)}
                 </div>
               ))}
               {job.status === "failed" && job.errorMessage ? (
-                <p className="text-sm text-destructive">{job.errorMessage}</p>
+                <p className="text-destructive text-sm">{job.errorMessage}</p>
               ) : null}
             </div>
             <div className="flex flex-wrap justify-end gap-2 border-t px-4 py-3">
@@ -169,11 +170,7 @@ export function MonthExportButtons({ month }: { month: string }) {
                   <a href={job.downloadUrl}>Скачать ещё раз</a>
                 </Button>
               ) : null}
-              <Button
-                size="sm"
-                disabled={isActiveMonthExport(job)}
-                onClick={closeResult}
-              >
+              <Button size="sm" disabled={isActiveMonthExport(job)} onClick={closeResult}>
                 Закрыть
               </Button>
             </div>

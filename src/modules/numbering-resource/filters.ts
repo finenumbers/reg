@@ -13,6 +13,8 @@ import {
 import { NumberingQueryError } from "@/modules/numbering-resource/errors";
 
 export const NUMBERING_PAGE_SIZE = 100;
+/** PSTN rejects a larger page. The export uses this; the screen stays at 100. */
+export const NUMBERING_EXPORT_PAGE_SIZE = 200;
 export const NUMBERING_SORT = "abc:asc,rangeStart:asc";
 export const NUMBERING_CURSOR_MAX = 512;
 export const NUMBERING_FILTERS_MAX_CHARS = 16_000;
@@ -43,6 +45,8 @@ export const EMPTY_NUMBERING_FILTERS: NumberingFilters = {
 export type NumberingListQuery = {
   cursor: string | null;
   filters: NumberingFilters;
+  /** Omitted on the screen path, which always asks for NUMBERING_PAGE_SIZE. */
+  pageSize?: number;
 };
 
 export type NumberingFacetQuery = {
@@ -170,9 +174,16 @@ function appendFilters(params: URLSearchParams, filters: NumberingFilters): void
   if (filters.phoneNumber) params.set("filters.phoneNumber", filters.phoneNumber);
 }
 
+function listPageSize(requested: number | undefined): number {
+  if (requested == null || !Number.isFinite(requested)) return NUMBERING_PAGE_SIZE;
+  const size = Math.floor(requested);
+  if (size < 1) return NUMBERING_PAGE_SIZE;
+  return Math.min(NUMBERING_EXPORT_PAGE_SIZE, size);
+}
+
 export function pstnListParams(query: NumberingListQuery): URLSearchParams {
   const params = new URLSearchParams();
-  params.set("pageSize", String(NUMBERING_PAGE_SIZE));
+  params.set("pageSize", String(listPageSize(query.pageSize)));
   params.set("sort", NUMBERING_SORT);
   if (query.cursor) params.set("cursor", query.cursor);
   else params.set("page", "1");
