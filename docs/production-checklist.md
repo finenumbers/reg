@@ -53,6 +53,8 @@ Optional publish ports: `APP_PUBLISH_PORT`, `POSTGRES_PUBLISH_PORT`.
 
 ## 3. Database
 
+v1.195.0 does not migrate and does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `app`. Do not stop `smg-syslog`. The five numbering cards stay on one row. «Найти номер» is at least 280px. Each count is at least 160px. A narrower window scrolls that row only. The title sits 4px above the figure.
+
 v1.194.0 does not migrate and does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `app`. Do not stop `smg-syslog`. «Найти номер» is the fifth card on «Ресурс нумерации». «Сбросить фильтры» is on the title row. Below 1536px of content the search card spans the full width.
 
 v1.193.0 does not migrate and does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `app`. Do not stop `smg-syslog`. «Ресурс нумерации» shows the current PSTN columns, including «Юридический адрес» before «ИНН». An address opens Yandex Maps. A 10-digit or 12-digit INN opens DaData. A red line marks an ABC numbering gap. Diff columns stay off this page.
