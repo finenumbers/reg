@@ -6,8 +6,11 @@ export type NumberingRow = {
   capacity: number;
   operator: string;
   garTerritory: string;
+  legalAddress: string | null;
   inn: string;
   uvrAntifraud: number | null;
+  abcRangeGapBefore: boolean;
+  abcRangeGapAfter: boolean;
 };
 
 export type ListNumberingResult = {

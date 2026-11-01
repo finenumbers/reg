@@ -53,6 +53,8 @@ Optional publish ports: `APP_PUBLISH_PORT`, `POSTGRES_PUBLISH_PORT`.
 
 ## 3. Database
 
+v1.193.0 does not migrate and does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `app`. Do not stop `smg-syslog`. «Ресурс нумерации» shows the current PSTN columns, including «Юридический адрес» before «ИНН». An address opens Yandex Maps. A 10-digit or 12-digit INN opens DaData. A red line marks an ABC numbering gap. Diff columns stay off this page.
+
 v1.192.0 does not migrate and does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `app`. Do not stop `smg-syslog`. «Ресурс нумерации» is `/numbering-resource`, after «Купленные номера». It reads the current PSTN dataset with GET only. The PSTN URL must stay `http://pstn_app:5555`. No lookup key is sent. Diff, import, and export are not on this page.
 
 v1.191.0 does not migrate and does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `app`. Do not stop `smg-syslog`. DID is read with GET only. «Купленные номера» is `/purchased-numbers`, after «Свободные номера». It uses the DID URL and token already saved for v1.190.0. «Нет в реестре» is blue, «Не подключено» is red, «Внешняя нумерация» is yellow.

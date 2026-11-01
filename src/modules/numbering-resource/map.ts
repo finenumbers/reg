@@ -22,6 +22,18 @@ function asString(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
 
+function asLegalAddress(value: unknown): string | null {
+  if (value == null) return null;
+  if (typeof value === "string") return value;
+  badResponse();
+}
+
+function asGapFlag(value: unknown): boolean {
+  if (value == null) return false;
+  if (typeof value === "boolean") return value;
+  badResponse();
+}
+
 function asSafeInt(value: unknown): number | null {
   if (typeof value !== "number" || !Number.isSafeInteger(value)) return null;
   return value;
@@ -64,8 +76,11 @@ export function mapRangeRow(value: unknown): NumberingRow {
     capacity,
     operator: asString(row?.operator),
     garTerritory: asString(row?.garTerritory),
+    legalAddress: asLegalAddress(row?.legalAddress),
     inn: asString(row?.inn),
     uvrAntifraud,
+    abcRangeGapBefore: asGapFlag(row?.abcRangeGapBefore),
+    abcRangeGapAfter: asGapFlag(row?.abcRangeGapAfter),
   };
 }
 

@@ -9,8 +9,9 @@ export const NUMBERING_COLUMNS = [
   "capacity",
   "operator",
   "garTerritory",
-  "uvrAntifraud",
+  "legalAddress",
   "inn",
+  "uvrAntifraud",
 ] as const;
 
 export type NumberingColumn = (typeof NUMBERING_COLUMNS)[number];
@@ -32,8 +33,9 @@ export const NUMBERING_HEADERS: Record<NumberingColumn, string> = {
   capacity: "Емкость",
   operator: "Оператор связи",
   garTerritory: "Территория ГАР",
-  uvrAntifraud: "УВр Антифрод",
+  legalAddress: "Юридический адрес",
   inn: "ИНН",
+  uvrAntifraud: "УВр Антифрод",
 };
 
 const FACET_SET = new Set<string>(NUMBERING_FACET_COLUMNS);

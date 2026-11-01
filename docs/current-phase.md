@@ -1,7 +1,13 @@
-# Current Phase — production (v1.192.0)
+# Current Phase — production (v1.193.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, number geography, free numbers, purchased numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal.  
 **Date:** 2026-11-01
+
+## v1.193.0 — Numbering resource matches the current PSTN columns
+
+There is no migration. Do not stop `app`. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. REG does not keep a copy of the ranges.
+
+«Ресурс нумерации» columns, left to right, are ABC, «Начало», «Конец», «Емкость», «Оператор связи», «Территория ГАР», «Юридический адрес», «ИНН», «УВр Антифрод». «Юридический адрес» has no filter. A non-empty address opens Yandex Maps. An INN of 10 or 12 digits opens the DaData party card. Any other value stays text. An empty cell stays empty. «Начало» and «Конец» stay bold. A red line marks an ABC numbering gap stored on the current PSTN dataset. One gap is one line, including across a loaded page. Filters do not recompute the gaps. Diff columns stay off this page.
 
 ## v1.192.0 — Numbering resource inside REG
 

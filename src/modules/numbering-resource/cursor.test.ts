@@ -10,8 +10,11 @@ const row: NumberingRow = {
   capacity: 10000,
   operator: "ООО «Ростелеком»",
   garTerritory: "г. Москва",
+  legalAddress: "109316, г Москва",
   inn: "7707049388",
   uvrAntifraud: 7,
+  abcRangeGapBefore: true,
+  abcRangeGapAfter: false,
 };
 
 function pstnDecode(encoded: string): Record<string, unknown> {
@@ -40,6 +43,9 @@ describe("numbering cursor", () => {
     });
     expect(typeof decoded.rangeStart).toBe("number");
     expect(decoded).not.toHaveProperty("uvrAntifraud");
+    expect(decoded).not.toHaveProperty("legalAddress");
+    expect(decoded).not.toHaveProperty("abcRangeGapBefore");
+    expect(decoded).not.toHaveProperty("abcRangeGapAfter");
   });
 
   it("does not encode id 0", () => {

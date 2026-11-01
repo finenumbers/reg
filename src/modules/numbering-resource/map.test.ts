@@ -37,11 +37,49 @@ describe("numbering PSTN response mapping", () => {
       capacity: 100,
       operator: "Оператор",
       garTerritory: "Москва",
+      legalAddress: null,
       inn: "7700000000",
       uvrAntifraud: null,
+      abcRangeGapBefore: true,
+      abcRangeGapAfter: false,
     });
     expect(mapped.items[0]).not.toHaveProperty("changeType");
     expect(mapped.items[0]).not.toHaveProperty("prevOperator");
+  });
+
+  it("keeps a legal address and a real gap flag", () => {
+    const mapped = mapRangesBody({
+      data: [
+        {
+          ...range,
+          legalAddress: "Москва, д 1",
+          abcRangeGapBefore: false,
+          abcRangeGapAfter: true,
+        },
+      ],
+      meta: { totalRows: 1, hasMore: false },
+    });
+    expect(mapped.items[0]?.legalAddress).toBe("Москва, д 1");
+    expect(mapped.items[0]?.abcRangeGapBefore).toBe(false);
+    expect(mapped.items[0]?.abcRangeGapAfter).toBe(true);
+  });
+
+  it("rejects a gap flag that is not a boolean", () => {
+    expect(() =>
+      mapRangesBody({
+        data: [{ ...range, abcRangeGapBefore: "true" }],
+        meta: { totalRows: 1, hasMore: false },
+      }),
+    ).toThrow(NumberingClientError);
+  });
+
+  it("rejects a legal address that is not text", () => {
+    expect(() =>
+      mapRangesBody({
+        data: [{ ...range, legalAddress: 12 }],
+        meta: { totalRows: 1, hasMore: false },
+      }),
+    ).toThrow(NumberingClientError);
   });
 
   it("rejects a row that cannot keyset", () => {
