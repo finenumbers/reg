@@ -282,22 +282,16 @@ export function NumberingResourceView({
   const phoneChip = phoneMaskHasDigit(phoneQ) ? formatPhoneMaskHint(phoneQ) : "";
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-4">
-      <div className="shrink-0">
-        <h1 className="text-xl font-semibold tracking-tight [text-box:trim-start_cap_alphabetic]">
-          Ресурс нумерации
-        </h1>
-        <p className="text-muted-foreground text-sm">
-          Текущая нумерация. Фильтры столбцов и поиск номера применяются вместе.
-        </p>
-      </div>
-
-      <div className="flex shrink-0 flex-wrap items-center gap-3">
-        <PhoneMaskInput
-          id="numbering-phone-mask"
-          value={phoneInput}
-          onChange={onPhoneInputChange}
-        />
+    <div className="@container flex h-full min-h-0 flex-col gap-4">
+      <div className="flex shrink-0 flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight [text-box:trim-start_cap_alphabetic]">
+            Ресурс нумерации
+          </h1>
+          <p className="text-muted-foreground text-sm">
+            Текущая нумерация. Фильтры столбцов и поиск номера применяются вместе.
+          </p>
+        </div>
         <Button
           type="button"
           variant="outline"
@@ -309,7 +303,7 @@ export function NumberingResourceView({
         </Button>
       </div>
 
-      <div className="grid shrink-0 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid shrink-0 grid-cols-1 gap-4 @min-[40rem]:grid-cols-2 @min-[96rem]:grid-cols-5">
         <KpiCard title="Найденные диапазоны" loading={summaryLoading}>
           {summary ? (
             <KpiValue
@@ -355,6 +349,26 @@ export function NumberingResourceView({
             <p className="text-base font-semibold">—</p>
           )}
         </KpiCard>
+        <Card
+          size="sm"
+          className="min-w-0 overflow-visible @min-[40rem]:col-span-2 @min-[96rem]:col-span-1"
+        >
+          <CardHeader className="pb-2">
+            <CardTitle
+              id="numbering-phone-mask-label"
+              className="text-muted-foreground text-xs font-medium"
+            >
+              Найти номер
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <PhoneMaskInput
+              labelledBy="numbering-phone-mask-label"
+              value={phoneInput}
+              onChange={onPhoneInputChange}
+            />
+          </CardContent>
+        </Card>
       </div>
 
       {summaryError ? (
@@ -430,7 +444,7 @@ function KpiCard({
   children: ReactNode;
 }) {
   return (
-    <Card size="sm">
+    <Card size="sm" className="min-w-0">
       <CardHeader className="pb-2">
         <CardTitle className="text-muted-foreground text-xs font-medium">
           {title}

@@ -1,7 +1,13 @@
-# Current Phase — production (v1.193.0)
+# Current Phase — production (v1.194.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, number geography, free numbers, purchased numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal.  
 **Date:** 2026-11-01
+
+## v1.194.0 — Numbering resource search is the fifth card
+
+There is no migration. Do not stop `app`. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. REG does not keep a copy of the ranges.
+
+«Ресурс нумерации» keeps the four counts and adds «Найти номер» as the fifth card. «Сбросить фильтры» sits on the title row, at the right. Below a content width of 1536px the counts are two by two and the search card spans that row. At 1536px and wider the five cards are one row. The mask is still ten digits, `(XXX) XXX-XX-XX`. A filled digit is yellow with black text. Digits are 12px. The same 500 ms search still filters the table, the counts, and the column menus together.
 
 ## v1.193.0 — Numbering resource matches the current PSTN columns
 

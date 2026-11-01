@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useRef, type ClipboardEvent, type KeyboardEvent } from "react";
-import { FILTER_TOOLBAR_INPUT, FILTER_TOOLBAR_TEXT } from "@/components/filter-toolbar";
 import { emptyPhoneMask } from "@/modules/numbering-resource/format";
 import { cn } from "@/lib/utils";
 
@@ -9,7 +8,7 @@ const SLOT_COUNT = 10;
 const EMPTY = "_";
 
 type Props = {
-  id: string;
+  labelledBy: string;
   value: string;
   onChange: (value: string) => void;
 };
@@ -19,7 +18,7 @@ function slotsOf(value: string): string[] {
   return source.split("").map((char) => (/\d/.test(char) ? char : EMPTY));
 }
 
-export function PhoneMaskInput({ id, value, onChange }: Props) {
+export function PhoneMaskInput({ labelledBy, value, onChange }: Props) {
   const slots = slotsOf(value);
   const inputRefs = useRef<Array<HTMLInputElement | null>>([]);
 
@@ -65,7 +64,7 @@ export function PhoneMaskInput({ id, value, onChange }: Props) {
     }
   };
 
-  const handlePaste = (event: ClipboardEvent<HTMLInputElement>) => {
+  const handlePaste = (event: ClipboardEvent<HTMLDivElement>) => {
     event.preventDefault();
     const pasted = event.clipboardData
       .getData("text")
@@ -78,52 +77,65 @@ export function PhoneMaskInput({ id, value, onChange }: Props) {
     focusSlot(Math.min(pasted.length, SLOT_COUNT - 1));
   };
 
-  const groups = [
-    [0, 1, 2],
-    [3, 4, 5],
-    [6, 7],
-    [8, 9],
-  ];
+  const renderSlot = (index: number) => {
+    const filled = slots[index] !== EMPTY;
+    return (
+      <input
+        key={index}
+        ref={(el) => {
+          inputRefs.current[index] = el;
+        }}
+        type="text"
+        inputMode="numeric"
+        autoComplete="off"
+        maxLength={1}
+        aria-label={`Цифра ${index + 1}`}
+        value={filled ? slots[index] : ""}
+        placeholder="X"
+        onChange={(event) => handleSlotChange(index, event.target.value)}
+        onKeyDown={(event) => handleKeyDown(index, event)}
+        onFocus={(event) => event.currentTarget.select()}
+        className={cn(
+          "border-input placeholder:text-muted-foreground/40 focus-visible:ring-ring h-7 min-w-0 flex-1 rounded border text-center text-xs shadow-sm focus-visible:ring-1 focus-visible:outline-none",
+          filled ? "bg-yellow-200/80 text-black" : "bg-background",
+        )}
+      />
+    );
+  };
 
   return (
-    <div className={cn("flex items-center gap-2", FILTER_TOOLBAR_TEXT)}>
-      <label htmlFor={id} className="shrink-0">
-        Найти номер
-      </label>
-      <div className="flex items-center gap-1">
-        {groups.map((group, groupIndex) => (
-          <div key={group.join("-")} className="flex items-center gap-0.5">
-            {groupIndex > 0 ? (
-              <span className="text-muted-foreground px-0.5" aria-hidden>
-                {groupIndex === 1 ? "" : "-"}
-              </span>
-            ) : null}
-            {group.map((index) => (
-              <input
-                key={index}
-                id={index === 0 ? id : undefined}
-                ref={(el) => {
-                  inputRefs.current[index] = el;
-                }}
-                type="text"
-                inputMode="numeric"
-                autoComplete="off"
-                maxLength={1}
-                aria-label={`Цифра ${index + 1}`}
-                value={slots[index] === EMPTY ? "" : slots[index]}
-                placeholder="X"
-                onChange={(event) => handleSlotChange(index, event.target.value)}
-                onKeyDown={(event) => handleKeyDown(index, event)}
-                onPaste={handlePaste}
-                onFocus={(event) => event.currentTarget.select()}
-                className={cn(
-                  FILTER_TOOLBAR_INPUT,
-                  "border-input bg-background placeholder:text-muted-foreground/40 focus-visible:ring-ring h-7 w-6 rounded border text-center shadow-sm focus-visible:ring-1 focus-visible:outline-none",
-                )}
-              />
-            ))}
-          </div>
-        ))}
+    <div
+      className="w-full min-w-0"
+      role="group"
+      aria-labelledby={labelledBy}
+      onPaste={handlePaste}
+    >
+      <div className="flex w-full items-center gap-px text-sm leading-none tabular-nums">
+        <span className="text-muted-foreground shrink-0 px-0.5 text-sm" aria-hidden>
+          (
+        </span>
+        {renderSlot(0)}
+        {renderSlot(1)}
+        {renderSlot(2)}
+        <span
+          className="text-muted-foreground mr-0.5 shrink-0 px-0.5 text-sm"
+          aria-hidden
+        >
+          )
+        </span>
+        {renderSlot(3)}
+        {renderSlot(4)}
+        {renderSlot(5)}
+        <span className="text-muted-foreground shrink-0 px-0.5 text-sm" aria-hidden>
+          -
+        </span>
+        {renderSlot(6)}
+        {renderSlot(7)}
+        <span className="text-muted-foreground shrink-0 px-0.5 text-sm" aria-hidden>
+          -
+        </span>
+        {renderSlot(8)}
+        {renderSlot(9)}
       </div>
     </div>
   );
