@@ -53,6 +53,8 @@ Optional publish ports: `APP_PUBLISH_PORT`, `POSTGRES_PUBLISH_PORT`.
 
 ## 3. Database
 
+v1.202.0 does not migrate and does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `app`. Do not stop `smg-syslog`. Keep a single `app` replica. Catalog XLSX still asks for 500 rows. An older DID cap no longer fails the free and purchased files: the walk continues at that cap, or at 200 and then 100, and stays there. Numbering tries 200 once when the first PSTN page is rejected. The red banner shows the task error. A page that misses the 30 second limit still fails the file. A build in progress is dropped when the app process is replaced.
+
 v1.201.0 does not migrate and does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `app`. Do not stop `smg-syslog`. Keep a single `app` replica. Deploy DID v0.1.137 and PSTN v0.3.46 first. Catalog XLSX then walks 500 rows per page. The screens stay at 100. A build in progress is dropped when the app process is replaced.
 
 v1.200.0 does not migrate and does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `app`. Do not stop `smg-syslog`. Keep a single `app` replica. «Свободные номера», «Купленные номера», and «Ресурс нумерации» export the filtered set as XLSX. A build in progress is dropped when the app process is replaced. Every «Сохранить данные» button is now the amber «Экспорт XLSX». «Сохранить расширенные данные» stays white. Numbering mask parentheses are bold 14px, and each mask cell is 1.8rem tall.

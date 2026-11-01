@@ -184,6 +184,7 @@ export function useFilteredExport({
       status={bannerStatus(job.status)}
       rowsWritten={job.rowsWritten}
       totalRows={job.totalRows}
+      errorMessage={job.errorMessage}
       onCancel={job.status === "running" ? () => void dismiss() : undefined}
       onDismiss={job.status === "running" ? undefined : () => void dismiss()}
     />

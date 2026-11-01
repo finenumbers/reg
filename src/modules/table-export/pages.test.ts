@@ -48,6 +48,41 @@ describe("catalog page walks", () => {
     expect(calls).toBe(3);
   });
 
+  it("keeps walking a 200-row page when that size was accepted and 400 remain", async () => {
+    const seen: number[] = [];
+    await drainOffsetPages({
+      pageSize: 500,
+      retryDelayMs: () => null,
+      load: async (page) => {
+        seen.push(page);
+        if (page === 1) {
+          return { items: Array.from({ length: 200 }, (_, i) => i), total: 400, pageSize: 200 };
+        }
+        return {
+          items: Array.from({ length: 200 }, (_, i) => i + 200),
+          total: 400,
+          pageSize: 200,
+        };
+      },
+      onPage: () => {},
+    });
+    expect(seen).toEqual([1, 2]);
+  });
+
+  it("stops a 200-row page when the walk still expects 500", async () => {
+    const seen: number[] = [];
+    await drainOffsetPages({
+      pageSize: 500,
+      retryDelayMs: () => null,
+      load: async (page) => {
+        seen.push(page);
+        return { items: Array.from({ length: 200 }, (_, i) => i), total: 400 };
+      },
+      onPage: () => {},
+    });
+    expect(seen).toEqual([1]);
+  });
+
   it("stops an offset walk once the reported total is covered", async () => {
     const pages: number[] = [];
     await drainOffsetPages({

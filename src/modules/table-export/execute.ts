@@ -35,6 +35,11 @@ import type {
   TableExportRunContext,
 } from "@/modules/table-export/job";
 import {
+  CATALOG_EXPORT_PAGE_SIZE,
+  loadCatalogPage,
+  loadNumberingExportPage,
+} from "@/modules/table-export/page-size";
+import {
   didRetryDelayMs,
   drainCursorPages,
   drainOffsetPages,
@@ -46,8 +51,6 @@ import {
   type StreamCell,
   type StreamColumn,
 } from "@/modules/table-export/xlsx-stream";
-
-const CATALOG_PAGE_SIZE = 500;
 
 const NUMBERING_STREAM: Record<NumberingColumn, StreamColumn> = {
   abc: { header: NUMBERING_HEADERS.abc, text: true },
@@ -111,25 +114,38 @@ async function writeCatalog(
     signal: ctx.signal,
     onRows: ctx.setWritten,
   });
+  let pageSize = CATALOG_EXPORT_PAGE_SIZE;
   try {
     await drainOffsetPages({
       signal: ctx.signal,
-      pageSize: CATALOG_PAGE_SIZE,
+      pageSize: CATALOG_EXPORT_PAGE_SIZE,
       retryDelayMs: didRetryDelayMs,
       onTotal: (total) => ctx.setTotal(total >= 0 ? total : null),
-      load: (page) =>
-        listDidNumbers(
-          kind,
-          {
-            page,
-            pageSize: CATALOG_PAGE_SIZE,
-            filters: request.filters,
-            phoneQ: request.phoneQ,
-          },
-          creds,
-          DID_LIST_TIMEOUT_MS,
-          ctx.signal,
-        ),
+      load: async (page) => {
+        const loaded = await loadCatalogPage({
+          page,
+          pageSize,
+          load: (size) =>
+            listDidNumbers(
+              kind,
+              {
+                page,
+                pageSize: size,
+                filters: request.filters,
+                phoneQ: request.phoneQ,
+              },
+              creds,
+              DID_LIST_TIMEOUT_MS,
+              ctx.signal,
+            ),
+        });
+        pageSize = loaded.pageSize;
+        return {
+          items: loaded.value.items,
+          total: loaded.value.total,
+          pageSize: loaded.pageSize,
+        };
+      },
       onPage: (items) => {
         for (const raw of items) {
           const row = mapRow(raw);
@@ -171,18 +187,25 @@ async function writeNumbering(
     onRows: ctx.setWritten,
   });
   try {
+    let pageSize = NUMBERING_EXPORT_PAGE_SIZE;
     await drainCursorPages({
       signal: ctx.signal,
       retryDelayMs: pstnRetryDelayMs,
       load: async (cursor) => {
-        const page = await listNumberingResource(
-          { cursor, filters, pageSize: NUMBERING_EXPORT_PAGE_SIZE },
-          { signal: ctx.signal, clientIp: ctx.clientIp },
-        );
+        const loaded = await loadNumberingExportPage({
+          cursor,
+          pageSize,
+          load: (size) =>
+            listNumberingResource(
+              { cursor, filters, pageSize: size },
+              { signal: ctx.signal, clientIp: ctx.clientIp },
+            ),
+        });
+        pageSize = loaded.pageSize;
         return {
-          items: page.items,
-          hasMore: page.hasMore,
-          nextCursor: page.nextCursor,
+          items: loaded.value.items,
+          hasMore: loaded.value.hasMore,
+          nextCursor: loaded.value.nextCursor,
         };
       },
       onPage: (items) => {

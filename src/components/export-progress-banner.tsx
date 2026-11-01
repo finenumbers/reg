@@ -11,6 +11,7 @@ type Props = {
   status: ExportBannerStatus;
   rowsWritten: number;
   totalRows: number | null;
+  errorMessage?: string | null;
   onCancel?: () => void;
   onDismiss?: () => void;
 };
@@ -23,6 +24,7 @@ export function ExportProgressBanner({
   status,
   rowsWritten,
   totalRows,
+  errorMessage,
   onCancel,
   onDismiss,
 }: Props) {
@@ -76,6 +78,9 @@ export function ExportProgressBanner({
         </p>
       ) : isActive ? (
         <p className="mt-1 tabular-nums">Записано {formatCount(rowsWritten)} строк</p>
+      ) : null}
+      {status === "failed" && errorMessage?.trim() ? (
+        <p className="mt-1">{errorMessage.trim()}</p>
       ) : null}
       {isActive && knownTotal ? (
         <div className="mt-2 h-2 overflow-hidden rounded-full bg-blue-100">

@@ -26,13 +26,21 @@ export type DidClientErrorCode =
   | "ABORTED";
 
 export class DidClientError extends Error {
+  /**
+   * Set only when DID rejected `page_size`. `null` means the 422 named that
+   * parameter and did not include a usable maximum.
+   */
+  readonly pageSizeLimit: number | null | undefined;
+
   constructor(
     public readonly code: DidClientErrorCode,
     message: string,
     public readonly httpStatus?: number,
+    pageSizeLimit?: number | null,
   ) {
     super(message);
     this.name = "DidClientError";
+    this.pageSizeLimit = pageSizeLimit;
   }
 }
 
@@ -151,6 +159,19 @@ async function didGet(
         400,
       );
     }
+    if (res.status === 422) {
+      const rejection = readPageSizeRejection(body);
+      if (rejection) {
+        throw new DidClientError(
+          "HTTP_ERROR",
+          rejection.limit != null
+            ? `DID принимает не больше ${rejection.limit} строк на страницу`
+            : "DID не принял размер страницы",
+          422,
+          rejection.limit,
+        );
+      }
+    }
     if (!res.ok) {
       throw new DidClientError("HTTP_ERROR", DID_UNAVAILABLE_MESSAGE, res.status);
     }
@@ -168,6 +189,25 @@ async function didGet(
   } finally {
     clearTimeout(timer);
   }
+}
+
+/** FastAPI query validation. Other 422 bodies stay a normal HTTP error. */
+export function readPageSizeRejection(body: unknown): { limit: number | null } | null {
+  if (!body || typeof body !== "object") return null;
+  const detail = (body as { detail?: unknown }).detail;
+  if (!Array.isArray(detail)) return null;
+  for (const item of detail) {
+    if (!item || typeof item !== "object") continue;
+    const loc = (item as { loc?: unknown }).loc;
+    if (!Array.isArray(loc) || !loc.includes("page_size")) continue;
+    const ctx = (item as { ctx?: unknown }).ctx;
+    const raw =
+      ctx && typeof ctx === "object" ? (ctx as { le?: unknown }).le : undefined;
+    const le = typeof raw === "number" ? raw : typeof raw === "string" ? Number(raw) : NaN;
+    if (Number.isFinite(le) && le >= 1) return { limit: Math.floor(le) };
+    return { limit: null };
+  }
+  return null;
 }
 
 function appendCommon(

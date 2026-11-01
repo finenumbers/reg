@@ -109,10 +109,17 @@ export async function drainCursorPages<T>(opts: {
   }
 }
 
+function acceptedPageSize(reported: number | undefined, requested: number): number {
+  if (typeof reported === "number" && Number.isFinite(reported) && reported >= 1) {
+    return Math.floor(reported);
+  }
+  return requested;
+}
+
 export async function drainOffsetPages<T>(opts: {
   signal?: AbortSignal;
   pageSize: number;
-  load: (page: number) => Promise<{ items: readonly T[]; total: number }>;
+  load: (page: number) => Promise<{ items: readonly T[]; total: number; pageSize?: number }>;
   retryDelayMs: (error: unknown) => number | null;
   onTotal?: (total: number) => void;
   onPage: (items: readonly T[]) => void | Promise<void>;
@@ -129,8 +136,9 @@ export async function drainOffsetPages<T>(opts: {
     if (page === 1) opts.onTotal?.(result.total);
     if (result.items.length === 0) return;
     await opts.onPage(result.items);
-    if (result.items.length < opts.pageSize) return;
-    if (result.total >= 0 && page * opts.pageSize >= result.total) return;
+    const size = acceptedPageSize(result.pageSize, opts.pageSize);
+    if (result.items.length < size) return;
+    if (result.total >= 0 && page * size >= result.total) return;
     page += 1;
     await yieldEventLoop();
   }

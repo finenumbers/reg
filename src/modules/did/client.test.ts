@@ -85,6 +85,68 @@ describe("DID free-number client", () => {
     ).rejects.toMatchObject({ code: "NETWORK", message: DID_UNREACHABLE_HINT });
   });
 
+  it("marks a page_size 422 with the announced cap", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        jsonResponse(422, {
+          detail: [
+            {
+              type: "less_than_equal",
+              loc: ["query", "page_size"],
+              msg: "Input should be less than or equal to 200",
+              input: "500",
+              ctx: { le: 200 },
+            },
+          ],
+        }),
+      ),
+    );
+    await expect(
+      listDidFreeNumbers({ page: 1, pageSize: 500, filters: {}, phoneQ: "" }, creds, 1000),
+    ).rejects.toMatchObject({
+      code: "HTTP_ERROR",
+      httpStatus: 422,
+      pageSizeLimit: 200,
+      message: "DID принимает не больше 200 строк на страницу",
+    });
+  });
+
+  it("keeps a page_size 422 without a maximum distinct from other 422s", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        jsonResponse(422, {
+          detail: [{ loc: ["query", "page_size"], msg: "invalid" }],
+        }),
+      ),
+    );
+    await expect(
+      listDidFreeNumbers({ page: 1, pageSize: 500, filters: {}, phoneQ: "" }, creds, 1000),
+    ).rejects.toMatchObject({
+      httpStatus: 422,
+      pageSizeLimit: null,
+      message: "DID не принял размер страницы",
+    });
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        jsonResponse(422, {
+          detail: [{ loc: ["query", "sort_dir"], msg: "bad" }],
+        }),
+      ),
+    );
+    try {
+      await listDidFreeNumbers({ page: 1, pageSize: 500, filters: {}, phoneQ: "" }, creds, 1000);
+      expect.fail("expected a 422");
+    } catch (error) {
+      expect(error).toBeInstanceOf(DidClientError);
+      expect((error as DidClientError).httpStatus).toBe(422);
+      expect((error as DidClientError).pageSizeLimit).toBeUndefined();
+    }
+  });
+
   it("reads purchased numbers on their own path and rejects the other catalog", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       jsonResponse(200, {

@@ -1,7 +1,13 @@
-# Current Phase — production (v1.201.0)
+# Current Phase — production (v1.202.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, number geography, free numbers, purchased numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal.  
 **Date:** 2026-11-01
+
+## v1.202.0 — Catalog XLSX survives an old page cap
+
+There is no migration. Do not stop `app`. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. REG does not keep a copy of the ranges. Keep a single `app` replica. An XLSX build in progress is not continued when that process is replaced.
+
+«Свободные номера» and «Купленные номера» still ask DID for 500 rows. If that image rejects the page, the file continues at the announced cap, or at 200 and then 100. Later pages stay on the size that worked. A timeout, a network failure, or an HTTP 5xx does not shrink the page. «Ресурс нумерации» asks PSTN for 500 and, on a 400 from the first page, tries 200 once. The red banner shows the task error. The screens stay at 100. A page that already misses the 30 second limit still fails the file.
 
 ## v1.201.0 — Larger catalog XLSX pages
 
