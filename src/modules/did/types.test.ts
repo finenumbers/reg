@@ -23,7 +23,7 @@ describe("DID origin", () => {
     );
   });
 
-  it("builds only the two catalog paths and leaves the token out of the URL", () => {
+  it("builds only the four catalog paths and leaves the token out of the URL", () => {
     const params = new URLSearchParams({ page: "1", page_size: "1" });
     const url = didApiUrl("https://did.finenumbers.com/ignored", "/numbers/free", params);
     expect(url).toBe(
@@ -33,6 +33,19 @@ describe("DID origin", () => {
     expect(didApiUrl(SAME_HOST_DID_BASE_URL, "/numbers/free/facets", new URLSearchParams())).toBe(
       "http://did-frontend:3000/api/backend/api/v1/numbers/free/facets",
     );
+    expect(
+      didApiUrl(SAME_HOST_DID_BASE_URL, "/numbers/purchased", new URLSearchParams()),
+    ).toBe("http://did-frontend:3000/api/backend/api/v1/numbers/purchased");
+    expect(
+      didApiUrl(SAME_HOST_DID_BASE_URL, "/numbers/purchased/facets", new URLSearchParams()),
+    ).toBe("http://did-frontend:3000/api/backend/api/v1/numbers/purchased/facets");
+    expect(() =>
+      didApiUrl(
+        SAME_HOST_DID_BASE_URL,
+        "/numbers/purchased/export-jobs" as "/numbers/purchased",
+        new URLSearchParams(),
+      ),
+    ).toThrow(/not allowed/);
   });
 
   it("escapes ILIKE wildcards", () => {

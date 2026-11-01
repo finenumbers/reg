@@ -1400,7 +1400,7 @@ export function SettingsForm({ initial, parkingKey }: Props) {
       <section className="space-y-4">
         <h2 className="text-base font-semibold">DID</h2>
         <p className="text-sm text-muted-foreground">
-          Каталог свободных номеров. Токен — ADMIN_API_TOKEN DID. Он хранится
+          Каталог свободных и купленных номеров. Токен — ADMIN_API_TOKEN DID. Он хранится
           в зашифрованном виде и в UI не показывается — только замена. Это
           полный доступ к API DID.
         </p>

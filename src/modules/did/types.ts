@@ -17,10 +17,20 @@ export const DID_UNAVAILABLE_MESSAGE = "DID временно недоступе�
 export const DID_NOT_CONFIGURED_MESSAGE =
   "Сначала сохраните API-токен DID в Настройках";
 
-export const DID_LIST_PATH = "/numbers/free" as const;
-export const DID_FACETS_PATH = "/numbers/free/facets" as const;
+export const DID_API_PATHS = [
+  "/numbers/free",
+  "/numbers/free/facets",
+  "/numbers/purchased",
+  "/numbers/purchased/facets",
+] as const;
 
-export type DidApiPath = typeof DID_LIST_PATH | typeof DID_FACETS_PATH;
+export type DidApiPath = (typeof DID_API_PATHS)[number];
+
+const DID_API_PATH_SET = new Set<string>(DID_API_PATHS);
+
+export function isDidApiPath(path: string): path is DidApiPath {
+  return DID_API_PATH_SET.has(path);
+}
 
 export type DidCredentials = {
   baseUrl: string;
@@ -48,12 +58,15 @@ export function resolveDidBaseUrl(raw: string | null | undefined): string {
   }
 }
 
-/** Fixed paths only. A caller cannot point this at sync, wipe, or settings. */
+/** Fixed paths only. A caller cannot point this at sync, wipe, export, or settings. */
 export function didApiUrl(
   baseUrl: string,
   path: DidApiPath,
   params: URLSearchParams,
 ): string {
+  if (!isDidApiPath(path)) {
+    throw new Error("DID path is not allowed");
+  }
   const origin = normalizeDidBaseUrl(baseUrl);
   const query = params.toString();
   const root = `${origin}${DID_API_PREFIX}${path}`;

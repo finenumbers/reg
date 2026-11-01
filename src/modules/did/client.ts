@@ -5,8 +5,6 @@
 import { logger } from "@/lib/logger";
 import { encodeFilters, type ColumnFilters } from "@/components/column-filters/types";
 import {
-  DID_FACETS_PATH,
-  DID_LIST_PATH,
   DID_NOT_CONFIGURED_MESSAGE,
   DID_TIMEOUT_MESSAGE,
   DID_UNAUTHORIZED_MESSAGE,
@@ -14,6 +12,7 @@ import {
   DID_UNREACHABLE_HINT,
   didApiUrl,
   escapeIlike,
+  type DidApiPath,
   type DidCredentials,
 } from "@/modules/did/types";
 
@@ -67,6 +66,18 @@ export type DidFacetQuery = {
   limit: number;
 };
 
+export type DidCatalogKind = "free" | "purchased";
+
+const LIST_PATH: Record<DidCatalogKind, DidApiPath> = {
+  free: "/numbers/free",
+  purchased: "/numbers/purchased",
+};
+
+const FACETS_PATH: Record<DidCatalogKind, DidApiPath> = {
+  free: "/numbers/free/facets",
+  purchased: "/numbers/purchased/facets",
+};
+
 function hostOf(baseUrl: string): string {
   try {
     return new URL(baseUrl).host;
@@ -100,7 +111,7 @@ async function readBody(res: Response): Promise<unknown> {
 }
 
 async function didGet(
-  path: typeof DID_LIST_PATH | typeof DID_FACETS_PATH,
+  path: DidApiPath,
   params: URLSearchParams,
   creds: DidCredentials,
   timeoutMs: number,
@@ -208,7 +219,19 @@ function parseFacets(body: unknown): DidFacetPage {
   return { items, truncated: record.truncated === true };
 }
 
-export async function listDidFreeNumbers(
+function assertCatalogKind(items: unknown[], kind: DidCatalogKind): void {
+  for (const raw of items) {
+    if (!raw || typeof raw !== "object") {
+      throw new DidClientError("BAD_RESPONSE", DID_UNAVAILABLE_MESSAGE);
+    }
+    if ((raw as Record<string, unknown>).inventory_kind !== kind) {
+      throw new DidClientError("BAD_RESPONSE", DID_UNAVAILABLE_MESSAGE);
+    }
+  }
+}
+
+export async function listDidNumbers(
+  kind: DidCatalogKind,
   query: DidListQuery,
   creds: DidCredentials,
   timeoutMs: number,
@@ -220,10 +243,13 @@ export async function listDidFreeNumbers(
     sort_dir: "asc",
   });
   appendCommon(params, query.filters, query.phoneQ);
-  return parsePage(await didGet(DID_LIST_PATH, params, creds, timeoutMs));
+  const page = parsePage(await didGet(LIST_PATH[kind], params, creds, timeoutMs));
+  assertCatalogKind(page.items, kind);
+  return page;
 }
 
-export async function listDidFreeFacets(
+export async function listDidFacets(
+  kind: DidCatalogKind,
   query: DidFacetQuery,
   creds: DidCredentials,
   timeoutMs: number,
@@ -235,5 +261,21 @@ export async function listDidFreeFacets(
   });
   appendCommon(params, query.filters, query.phoneQ);
   if (query.q) params.set("q", query.q);
-  return parseFacets(await didGet(DID_FACETS_PATH, params, creds, timeoutMs));
+  return parseFacets(await didGet(FACETS_PATH[kind], params, creds, timeoutMs));
+}
+
+export function listDidFreeNumbers(
+  query: DidListQuery,
+  creds: DidCredentials,
+  timeoutMs: number,
+): Promise<DidFreePage> {
+  return listDidNumbers("free", query, creds, timeoutMs);
+}
+
+export function listDidFreeFacets(
+  query: DidFacetQuery,
+  creds: DidCredentials,
+  timeoutMs: number,
+): Promise<DidFacetPage> {
+  return listDidFacets("free", query, creds, timeoutMs);
 }

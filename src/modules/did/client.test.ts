@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { DidClientError, listDidFreeNumbers } from "@/modules/did/client";
+import { DidClientError, listDidFreeNumbers, listDidNumbers } from "@/modules/did/client";
 import {
   DID_TIMEOUT_MESSAGE,
   DID_UNAUTHORIZED_MESSAGE,
@@ -83,5 +83,47 @@ describe("DID free-number client", () => {
     await expect(
       listDidFreeNumbers({ page: 1, pageSize: 1, filters: {}, phoneQ: "" }, creds, 1000),
     ).rejects.toMatchObject({ code: "NETWORK", message: DID_UNREACHABLE_HINT });
+  });
+
+  it("reads purchased numbers on their own path and rejects the other catalog", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse(200, {
+        items: [{ id: "1", inventory_kind: "purchased" }],
+        total: 1,
+        page: 1,
+        page_size: 1,
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    await listDidNumbers(
+      "purchased",
+      { page: 1, pageSize: 1, filters: {}, phoneQ: "" },
+      creds,
+      1000,
+    );
+    const [url] = fetchMock.mock.calls[0] as [string];
+    expect(url).toContain("/api/backend/api/v1/numbers/purchased?");
+    expect(url).not.toContain("/numbers/free");
+    expect(url).not.toContain("export-jobs");
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        jsonResponse(200, {
+          items: [{ id: "1", inventory_kind: "free" }],
+          total: 1,
+          page: 1,
+          page_size: 1,
+        }),
+      ),
+    );
+    await expect(
+      listDidNumbers(
+        "purchased",
+        { page: 1, pageSize: 1, filters: {}, phoneQ: "" },
+        creds,
+        1000,
+      ),
+    ).rejects.toMatchObject({ code: "BAD_RESPONSE" });
   });
 });

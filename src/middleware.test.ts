@@ -73,6 +73,13 @@ describe("middleware protected routes", () => {
     expect(res.headers.get("location")).toContain("next=%2Ffree-numbers");
   });
 
+  it("redirects anonymous users from /purchased-numbers to /login", () => {
+    const res = middleware(makeRequest("/purchased-numbers"));
+    expect(res.status).toBe(307);
+    expect(res.headers.get("location")).toContain("/login");
+    expect(res.headers.get("location")).toContain("next=%2Fpurchased-numbers");
+  });
+
   it("redirects anonymous users from /number-geography to /login", () => {
     const res = middleware(makeRequest("/number-geography"));
     expect(res.status).toBe(307);

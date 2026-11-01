@@ -18,14 +18,16 @@ describe("free-number display", () => {
     expect(formatDidPrice("1 500")).toBe("1 500");
   });
 
-  it("turns a digit price search into the spaced facet text", () => {
-    expect(priceFacetQuery("1500")).toBe("1 500");
-    expect(priceFacetQuery("1 500")).toBe("1 500");
+  it("turns a digit price search into the unspaced integer DID compares", () => {
+    expect(priceFacetQuery("1500")).toBe("1500");
+    expect(priceFacetQuery("1 500")).toBe("1500");
     expect(priceFacetQuery("500")).toBe("500");
     expect(priceFacetQuery("Москва")).toBe("Москва");
-    expect(facetSearchQuery("buy_price", "1500")).toBe("1 500");
+    expect(facetSearchQuery("buy_price", "1500")).toBe("1500");
+    expect(facetSearchQuery("buy_price", "1 500")).toBe("1500");
     expect(facetSearchQuery("provider_code", "Telecom")).toBeNull();
     expect(facetSearchQuery("city_name", "50%")).toBe("50\\%");
+    expect(facetSearchQuery("client", "Иванов_1")).toBe("Иванов\\_1");
   });
 
   it("labels providers and empty cells", () => {

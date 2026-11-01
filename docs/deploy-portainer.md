@@ -172,7 +172,7 @@ node -e 'fetch("http://pstn_app:5555/api/v1/lookup?phone=4996660000").then(async
 
 The `app` container must not call the **public** DID HTTPS origin (`https://did.finenumbers.com`). That resolves to the host’s public IP. Docker hairpin NAT typically fails: Node `fetch` waits, then `UND_ERR_CONNECT_TIMEOUT` / UI «fetch failed». The same URL works from a laptop.
 
-The catalog is read through the DID UI proxy, **`did-frontend`** port **3000**, which is already on `proxy`. Settings → DID → URL: **`http://did-frontend:3000`**. Save the `ADMIN_API_TOKEN`, then **Check connection**. The check counts free numbers, so it can take longer than a PSTN lookup.
+The catalog is read through the DID UI proxy, **`did-frontend`** port **3000**, which is already on `proxy`. Settings → DID → URL: **`http://did-frontend:3000`**. Save the `ADMIN_API_TOKEN`, then **Check connection**. The check counts free numbers, so it can take longer than a PSTN lookup. «Свободные номера» and «Купленные номера» both use that origin. REG only sends GET for `/numbers/free`, `/numbers/free/facets`, `/numbers/purchased`, and `/numbers/purchased/facets`.
 
 Do **not** clear the URL field. An empty save stores the default `https://did.finenumbers.com` and the timeout comes back.
 

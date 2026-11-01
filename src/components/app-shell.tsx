@@ -29,13 +29,15 @@ function NavLink({
   href,
   label,
   active,
+  prefetch,
 }: {
   href: string;
   label: string;
   active: boolean;
+  prefetch?: boolean;
 }) {
   return (
-    <Link href={href} className={navItemClassName(active)}>
+    <Link href={href} prefetch={prefetch} className={navItemClassName(active)}>
       {label}
     </Link>
   );
@@ -152,6 +154,7 @@ export function AppShell({
                   href={item.href!}
                   label={item.title}
                   active={isNavActive(pathname, item.href!)}
+                  prefetch={false}
                 />
               ))}
               {EXTERNAL_NAV_LINKS.map((item) => (

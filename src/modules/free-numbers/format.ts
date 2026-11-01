@@ -56,13 +56,16 @@ function groupDigits(value: number): string {
   return sign + parts.join(" ");
 }
 
-/** A digit query becomes the spaced facet text DID stores (`1500` → `1 500`). */
+/**
+ * DID compares facet `q` with the rounded number before it inserts spaces
+ * (`1500`, not `1 500`). Both typed forms become that compact integer.
+ */
 export function priceFacetQuery(query: string): string {
   const compact = query.trim().replace(/\s/g, "");
   if (!/^-?\d+$/.test(compact)) return query.trim();
   const value = Number(compact);
   if (!Number.isSafeInteger(value)) return query.trim();
-  return groupDigits(value);
+  return compact;
 }
 
 export function facetSearchQuery(column: string, query: string): string | null {

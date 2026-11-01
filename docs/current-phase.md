@@ -1,7 +1,17 @@
-# Current Phase — production (v1.190.0)
+# Current Phase — production (v1.191.0)
 
-**Status:** in production. Modules beyond Phase 7: phones, groups, number geography, free numbers, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal.  
+**Status:** in production. Modules beyond Phase 7: phones, groups, number geography, free numbers, purchased numbers, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal.  
 **Date:** 2026-11-01
+
+## v1.191.0 — Purchased numbers inside REG
+
+There is no migration. Do not stop `app`. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. DID rows are not written. REG does not keep a copy of either catalog.
+
+«Купленные номера» is an internal page at `/purchased-numbers`, immediately after «Свободные номера», with `phones:read`. It reads DID `GET /api/backend/api/v1/numbers/purchased` and its facets. The same Settings → DID URL and `ADMIN_API_TOKEN` are used. The browser never sees the token. Responses drop `msisdn` and the provider key. «Клиент» and «Подключено в РТУ» stay. «Нет в РТУ» is a client value, not an empty cell.
+
+The toolbar is «Телефонный номер» and «Сбросить фильтры». A phone hit in «Номер» is yellow, and «Номер» is bold black. Column menus search and filter together, including the phone query. A price search of `1500` or `1 500` is sent as `1500` on both catalog pages. The selected price filter stays `1 500`.
+
+«Нет в реестре» paints the row with the geography blue. «Не подключено» paints the geography red, and «Внешняя нумерация» paints the geography yellow. A registry miss wins. «Своя нумерация» has no fill. The two catalog nav links do not prefetch.
 
 ## v1.190.0 — Free numbers inside REG
 
