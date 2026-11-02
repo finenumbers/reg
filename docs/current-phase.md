@@ -1,7 +1,13 @@
-# Current Phase — production (v1.205.0)
+# Current Phase — production (v1.206.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, number geography, free numbers, purchased numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal.  
 **Date:** 2026-11-02
+
+## v1.206.0 — Unregistered checkbox sits beside the phone search
+
+There is no migration. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. Keep a single `app` replica. Replace the `app` container so the toolbar order changes.
+
+On «Регистрации», «Без регистрации» sits between «Телефонный номер» and «Сбросить фильтры». The checkbox still limits the list to numbers without a registration. The count in the label is unchanged.
 
 ## v1.205.0 — RTU manuals stay off the image
 

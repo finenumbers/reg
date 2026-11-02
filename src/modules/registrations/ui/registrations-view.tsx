@@ -452,15 +452,6 @@ export function RegistrationsView({ canPoll, initial }: Props) {
           value={phoneInput}
           onChange={onPhoneInputChange}
         />
-        <Button
-          type="button"
-          variant="outline"
-          className={FILTER_TOOLBAR_TEXT}
-          disabled={!filtersActive}
-          onClick={onResetFilters}
-        >
-          Сбросить фильтры
-        </Button>
         <div className="flex items-center gap-2">
           <input
             id="regs-unregistered-only"
@@ -475,6 +466,15 @@ export function RegistrationsView({ canPoll, initial }: Props) {
             </RowColorMark>
           </Label>
         </div>
+        <Button
+          type="button"
+          variant="outline"
+          className={FILTER_TOOLBAR_TEXT}
+          disabled={!filtersActive}
+          onClick={onResetFilters}
+        >
+          Сбросить фильтры
+        </Button>
       </div>
 
       <ActiveFiltersBar
