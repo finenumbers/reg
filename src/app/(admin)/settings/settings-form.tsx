@@ -46,6 +46,8 @@ type RtuTestView = TestResultView & {
   procedureCount?: number;
   procedures?: RtuProcedurePreview[];
   proceduresOmitted?: number;
+  peerFingerprint?: string | null;
+  peerSubject?: string | null;
 };
 
 function formatRtuResultLabel(result: string): string {
@@ -138,6 +140,7 @@ export function SettingsForm({ initial, parkingKey }: Props) {
   const [rtuSoapBaseUrl, setRtuSoapBaseUrl] = useState(initial.rtuSoapBaseUrl ?? "");
   const [rtuSoapLogin, setRtuSoapLogin] = useState(initial.rtuSoapLogin ?? "");
   const [rtuSoapPassword, setRtuSoapPassword] = useState("");
+  const [rtuSoapCaPem, setRtuSoapCaPem] = useState("");
   const [rtuSoapTestResult, setRtuSoapTestResult] = useState<RtuTestView | null>(
     null,
   );
@@ -760,17 +763,24 @@ export function SettingsForm({ initial, parkingKey }: Props) {
   function onSaveRtuSoap() {
     startTransition(async () => {
       try {
+        const body: {
+          rtuSoapBaseUrl: string;
+          rtuSoapLogin: string;
+          rtuSoapCaPem?: string;
+        } = {
+          rtuSoapBaseUrl: rtuSoapBaseUrl.trim(),
+          rtuSoapLogin: rtuSoapLogin.trim(),
+        };
+        if (rtuSoapCaPem.trim().length > 0) body.rtuSoapCaPem = rtuSoapCaPem;
         const res = await fetch("/api/settings", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            rtuSoapBaseUrl: rtuSoapBaseUrl.trim(),
-            rtuSoapLogin: rtuSoapLogin.trim(),
-          }),
+          body: JSON.stringify(body),
         });
         const data = await res.json();
         if (!res.ok) {
-          toast.error(data.error ?? "Не удалось сохранить API РТУ");
+          const issue = data.issues?.[0]?.message;
+          toast.error(issue ?? data.error ?? "Не удалось сохранить API РТУ");
           return;
         }
         let next = data.settings as SettingsView;
@@ -783,16 +793,40 @@ export function SettingsForm({ initial, parkingKey }: Props) {
           const keyData = await keyRes.json();
           if (!keyRes.ok) {
             toast.error(keyData.error ?? "Не удалось сохранить пароль API РТУ");
+            setRtuSoapCaPem("");
             applySettings(next);
             return;
           }
           setRtuSoapPassword("");
           next = keyData.settings as SettingsView;
         }
+        setRtuSoapCaPem("");
         applySettings(next);
         toast.success("Учётная запись API РТУ сохранена");
       } catch {
         toast.error("Не удалось сохранить API РТУ");
+      }
+    });
+  }
+
+  function onClearRtuCa() {
+    startTransition(async () => {
+      try {
+        const res = await fetch("/api/settings", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ rtuSoapCaPem: "" }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          toast.error(data.error ?? "Не удалось убрать сертификат API РТУ");
+          return;
+        }
+        setRtuSoapCaPem("");
+        applySettings(data.settings as SettingsView);
+        toast.success("Сертификат API РТУ убран");
+      } catch {
+        toast.error("Не удалось убрать сертификат API РТУ");
       }
     });
   }
@@ -1183,8 +1217,11 @@ export function SettingsForm({ initial, parkingKey }: Props) {
         <p className="text-sm text-muted-foreground">
           Нужен отдельный пользователь с уже скомпилированной ролью, без смены
           пароля при следующем входе. Если в записи указан IP, это адрес, с
-          которого выходит контейнер приложения. Частный сертификат задаётся
-          через NODE_EXTRA_CA_CERTS.
+          которого выходит контейнер приложения. Если браузер предупреждает о
+          сертификате, сохраните сертификат сайта как Base-64 PEM и вставьте
+          его. Для адреса по IP нужен сам лист: корня организации недостаточно,
+          пока этот IP не указан в сертификате. Проверка подписи и срока не
+          отключается.
         </p>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
@@ -1221,10 +1258,48 @@ export function SettingsForm({ initial, parkingKey }: Props) {
               autoComplete="new-password"
             />
           </div>
+          <div className="space-y-2 sm:col-span-2">
+            <Label htmlFor="rtu-soap-ca">Сертификат</Label>
+            <Textarea
+              id="rtu-soap-ca"
+              value={rtuSoapCaPem}
+              onChange={(event) => setRtuSoapCaPem(event.target.value)}
+              placeholder={
+                settings.hasRtuSoapCa
+                  ? "Сертификат сохранён — вставьте новый, чтобы заменить"
+                  : "-----BEGIN CERTIFICATE-----"
+              }
+              autoComplete="off"
+              spellCheck={false}
+              rows={6}
+              className="font-mono text-xs"
+            />
+          </div>
         </div>
+        {settings.rtuSoapCaCerts.length > 0 ? (
+          <ul className="space-y-1 text-xs text-muted-foreground">
+            {settings.rtuSoapCaCerts.map((cert) => (
+              <li key={cert.fingerprint256}>
+                {cert.subject || "сертификат"} — {cert.fingerprint256}
+              </li>
+            ))}
+          </ul>
+        ) : settings.hasRtuSoapCa ? (
+          <p className="text-sm text-muted-foreground">
+            Сохранённый сертификат не разбирается.
+          </p>
+        ) : null}
         <div className="flex flex-wrap gap-2">
           <Button type="button" disabled={pending} onClick={onSaveRtuSoap}>
             Сохранить API РТУ
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={pending || !settings.hasRtuSoapCa}
+            onClick={onClearRtuCa}
+          >
+            Убрать сертификат
           </Button>
           <Button
             type="button"
@@ -1258,6 +1333,15 @@ export function SettingsForm({ initial, parkingKey }: Props) {
             </div>
             {rtuSoapTestResult.detail ? (
               <p className="mt-2 text-muted-foreground">{rtuSoapTestResult.detail}</p>
+            ) : null}
+            {rtuSoapTestResult.peerFingerprint ? (
+              <p className="mt-2 text-xs text-muted-foreground">
+                Сертификат на проводе
+                {rtuSoapTestResult.peerSubject
+                  ? `: ${rtuSoapTestResult.peerSubject}`
+                  : ""}
+                . {rtuSoapTestResult.peerFingerprint}
+              </p>
             ) : null}
             {(rtuSoapTestResult.procedureCount ?? 0) > 0 ? (
               <p className="mt-2 text-amber-700 dark:text-amber-400">

@@ -2,7 +2,7 @@
 
 Internal telecom ops platform for monitoring SIP registrations on an operator softswitch via allowlisted SSH scripts under `/opt/scripts/`.
 
-**Repository:** [github.com/finenumbers/reg](https://github.com/finenumbers/reg) · **Release:** [v1.207.0](https://github.com/finenumbers/reg/releases/tag/v1.207.0)
+**Repository:** [github.com/finenumbers/reg](https://github.com/finenumbers/reg) · **Release:** [v1.208.0](https://github.com/finenumbers/reg/releases/tag/v1.208.0)
 
 ## Stack (approved)
 
@@ -93,7 +93,7 @@ Do not hand-author conflicting auth table definitions. App RBAC (`roles` / `perm
 - Private keys encrypted at rest with AES-256-GCM (`APP_ENCRYPTION_KEY`, 64 hex chars)
 - Settings UI/API mask keys (`hasPrivateKey` / fingerprint) — replace only, never export
 - SSH connection test is auth/session only; it does **not** run `check_regs.sh`
-- RTU SOAP access check (Settings) is one read of `getObjects`. The password is AES-256-GCM ciphertext. The client cannot build a write. API keys cannot call it.
+- RTU SOAP access check (Settings) is one read of `getObjects`. The password is AES-256-GCM ciphertext. A pasted PEM certificate is trusted only by that check. The client cannot build a write. API keys cannot call it.
 - `regs.poll` runs only through the jobs allowlist path (`/opt/scripts/check_regs.sh`)
 - Auto-poll is Settings-only (`regsPollEnabled` + interval); in-process loop starts at boot; single `app` replica required
 - Admin/settings/audit routes require RBAC permissions; anonymous users are redirected or rejected

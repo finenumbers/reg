@@ -158,6 +158,8 @@ model AppSetting {
   rtuSoapLogin                    String?
   /// AES-256-GCM ciphertext of the RTU web password. Never plaintext.
   rtuSoapPasswordCiphertext       String?
+  /// PEM certificates for the RTU HTTPS check. Public. Not a private key.
+  rtuSoapCaPem                    String?
   /// UDP syslog receiver for registered SMG nodes. Off until an operator enables it.
   syslogEnabled                   Boolean  @default(false) @map("syslog_enabled")
   updatedAt             DateTime    @updatedAt

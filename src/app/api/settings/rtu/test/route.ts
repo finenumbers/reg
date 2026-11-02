@@ -86,6 +86,7 @@ export async function POST(request: Request) {
       origin: account.origin,
       login: account.login,
       password: account.password,
+      caPem: account.caPem,
     });
     await auditService.append({
       actorUserId: userId,
@@ -113,6 +114,8 @@ export async function POST(request: Request) {
           procedureCount: report.procedureCount,
           procedures: report.procedures,
           proceduresOmitted: report.proceduresOmitted,
+          peerFingerprint: report.peerFingerprint,
+          peerSubject: report.peerSubject,
         },
       },
       { status: httpStatus },

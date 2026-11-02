@@ -59,6 +59,7 @@ import {
   DEFAULT_DID_BASE_URL,
   resolveDidBaseUrl,
 } from "@/modules/did/types";
+import { describeRtuCa, rtuCaPemForStore } from "@/modules/rtu-soap/ca";
 import { parseRtuSoapOrigin } from "@/modules/rtu-soap/origin";
 
 async function ensureAppSettings() {
@@ -117,6 +118,7 @@ function toSettingsView(
     rtuSoapBaseUrl: settings.rtuSoapBaseUrl ?? null,
     rtuSoapLogin: settings.rtuSoapLogin ?? null,
     hasRtuSoapPassword: Boolean(settings.rtuSoapPasswordCiphertext),
+    ...describeRtuCa(settings.rtuSoapCaPem),
   };
 }
 
@@ -233,6 +235,7 @@ export async function updateSettings(
     voipmonitorGuiUrl?: string | null;
     rtuSoapBaseUrl?: string | null;
     rtuSoapLogin?: string | null;
+    rtuSoapCaPem?: string | null;
   } = {};
 
   if (parsed.regsPollEnabled !== undefined) {
@@ -334,6 +337,9 @@ export async function updateSettings(
     const trimmed = parsed.rtuSoapLogin.trim();
     settingsData.rtuSoapLogin = trimmed || null;
   }
+  if (parsed.rtuSoapCaPem !== undefined) {
+    settingsData.rtuSoapCaPem = rtuCaPemForStore(parsed.rtuSoapCaPem);
+  }
 
   const ftpChanged =
     parsed.ftpEnabled !== undefined ||
@@ -408,6 +414,7 @@ export async function updateSettings(
       rtuSoapBaseUrl: view.rtuSoapBaseUrl,
       rtuSoapLogin: view.rtuSoapLogin,
       hasRtuSoapPassword: view.hasRtuSoapPassword,
+      hasRtuSoapCa: view.hasRtuSoapCa,
     },
   });
 

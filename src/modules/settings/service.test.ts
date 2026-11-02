@@ -26,6 +26,9 @@ function assertMaskedSettings(view: SettingsView) {
   expect(json).not.toMatch(/rtuSoapPasswordCiphertext/i);
   expect(typeof view.hasVoipmonitorPassword).toBe("boolean");
   expect(typeof view.hasRtuSoapPassword).toBe("boolean");
+  expect(typeof view.hasRtuSoapCa).toBe("boolean");
+  expect(json).not.toMatch(/rtuSoapCaPem/i);
+  expect(json).not.toMatch(/BEGIN CERTIFICATE/i);
   expect(typeof view.hasPrivateKey).toBe("boolean");
   expect(typeof view.hasGeoipApiKey).toBe("boolean");
   expect(typeof view.hasPstnApiKey).toBe("boolean");
@@ -167,6 +170,18 @@ describe("settings schemas and masked view contract", () => {
     expect(() =>
       settingsUpdateSchema.parse({ rtuSoapBaseUrl: "https://rtu.example/service" }),
     ).toThrow();
+    expect(settingsUpdateSchema.parse({ rtuSoapLogin: "ops" })).not.toHaveProperty(
+      "rtuSoapCaPem",
+    );
+    expect(settingsUpdateSchema.parse({ rtuSoapCaPem: "" })).toMatchObject({
+      rtuSoapCaPem: "",
+    });
+    expect(() => settingsUpdateSchema.parse({ rtuSoapCaPem: "   " })).toThrow();
+    expect(() =>
+      settingsUpdateSchema.parse({
+        rtuSoapCaPem: "-----BEGIN PRIVATE KEY-----\nA\n-----END PRIVATE KEY-----",
+      }),
+    ).toThrow();
   });
 
   it("requires a non-empty GeoIP API key for replace", () => {
@@ -220,6 +235,8 @@ describe("settings schemas and masked view contract", () => {
       rtuSoapBaseUrl: null,
       rtuSoapLogin: null,
       hasRtuSoapPassword: false,
+      hasRtuSoapCa: false,
+      rtuSoapCaCerts: [],
     };
     assertMaskedSettings(view);
   });

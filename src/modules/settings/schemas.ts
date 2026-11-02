@@ -13,6 +13,7 @@ import {
   DEFAULT_DID_BASE_URL,
   SAME_HOST_DID_BASE_URL,
 } from "@/modules/did/types";
+import { parseRtuCaPem, rtuCaPemMessage } from "@/modules/rtu-soap/ca";
 import { parseRtuSoapOrigin } from "@/modules/rtu-soap/origin";
 
 function httpOriginSchema(label: string) {
@@ -40,6 +41,17 @@ const rtuSoapBaseUrlSchema = z
     const trimmed = value.trim();
     return trimmed.length === 0 || parseRtuSoapOrigin(trimmed) !== null;
   }, "URL API РТУ должен быть https-origin без пути и учётных данных");
+
+/** Empty string clears the saved PEM. Omitted field leaves it unchanged. */
+const rtuSoapCaPemSchema = z
+  .string()
+  .max(32_768)
+  .superRefine((value, ctx) => {
+    if (value.length === 0) return;
+    const parsed = parseRtuCaPem(value);
+    if (parsed.ok) return;
+    ctx.addIssue({ code: "custom", message: rtuCaPemMessage(parsed.reason) });
+  });
 
 const didBaseUrlSchema = httpOriginSchema("DID").refine((value) => {
   const trimmed = value.trim();
@@ -103,6 +115,7 @@ export const settingsUpdateSchema = z.object({
   voipmonitorGuiUrl: httpOriginSchema("VoIPmonitor GUI").optional(),
   rtuSoapBaseUrl: rtuSoapBaseUrlSchema.optional(),
   rtuSoapLogin: z.string().max(255).optional(),
+  rtuSoapCaPem: rtuSoapCaPemSchema.optional(),
 });
 
 export type SettingsUpdateInput = z.infer<typeof settingsUpdateSchema>;
@@ -203,6 +216,9 @@ export type SettingsView = {
   rtuSoapLogin: string | null;
   /** Never expose the RTU password — only whether it is stored */
   hasRtuSoapPassword: boolean;
+  /** Public certificates. The PEM itself is not returned. */
+  hasRtuSoapCa: boolean;
+  rtuSoapCaCerts: { fingerprint256: string; subject: string }[];
 };
 
 export type SettingsUpdateResult = {

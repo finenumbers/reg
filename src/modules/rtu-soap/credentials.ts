@@ -7,7 +7,7 @@ import { parseRtuSoapOrigin } from "@/modules/rtu-soap/origin";
 import { openRtuSoapPassword } from "@/modules/rtu-soap/password";
 
 export async function loadRtuSoapAccount(): Promise<
-  | { ok: true; origin: string; login: string; password: string }
+  | { ok: true; origin: string; login: string; password: string; caPem: string | null }
   | { ok: false; code: "INCOMPLETE" | "DECRYPT_FAILED" }
 > {
   const settings = await prisma.appSetting.findUnique({ where: { id: 1 } });
@@ -24,5 +24,11 @@ export async function loadRtuSoapAccount(): Promise<
     },
   );
   if (!opened.ok) return opened;
-  return { ok: true, origin, login, password: opened.password };
+  return {
+    ok: true,
+    origin,
+    login,
+    password: opened.password,
+    caPem: settings?.rtuSoapCaPem ?? null,
+  };
 }

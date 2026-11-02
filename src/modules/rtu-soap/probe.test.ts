@@ -206,6 +206,68 @@ describe("getObjects envelope", () => {
 });
 
 describe("RTU SOAP access probe", () => {
+  it("names a hostname mismatch instead of an unknown issuer", async () => {
+    const result = await probeRtuSoapAccess({
+      origin: ORIGIN,
+      login: "admin",
+      password: PASSWORD,
+      fetchImpl: async () => {
+        const error = new TypeError("fetch failed");
+        (error as { cause?: unknown }).cause = {
+          cause: { code: "ERR_TLS_CERT_ALTNAME_INVALID" },
+        };
+        throw error;
+      },
+    });
+    expect(result.code).toBe("tls");
+    expect(result.detail).toContain("Имя в сертификате");
+    expect(result.detail).not.toContain("NODE_EXTRA_CA_CERTS");
+  });
+
+  it("keeps an unknown issuer distinct from a broken handshake", async () => {
+    const issuer = await probeRtuSoapAccess({
+      origin: ORIGIN,
+      login: "admin",
+      password: PASSWORD,
+      fetchImpl: async () => {
+        throw Object.assign(new TypeError("fetch failed"), {
+          cause: { code: "DEPTH_ZERO_SELF_SIGNED_CERT" },
+        });
+      },
+    });
+    expect(issuer.detail).toContain("Издатель");
+
+    const other = await probeRtuSoapAccess({
+      origin: ORIGIN,
+      login: "admin",
+      password: PASSWORD,
+      fetchImpl: async () => {
+        throw Object.assign(new TypeError("fetch failed"), {
+          cause: { code: "ERR_TLS_HANDSHAKE_TIMEOUT" },
+        });
+      },
+    });
+    expect(other.code).toBe("tls");
+    expect(other.detail).toBe("Соединение TLS оборвалось.");
+  });
+
+  it("does not fetch when the stored certificate is not PEM", async () => {
+    let called = false;
+    const result = await probeRtuSoapAccess({
+      origin: ORIGIN,
+      login: "admin",
+      password: PASSWORD,
+      caPem: "not a certificate",
+      fetchImpl: async () => {
+        called = true;
+        return new Response("");
+      },
+    });
+    expect(called).toBe(false);
+    expect(result.code).toBe("tls");
+    expect(result.detail).toContain("не разбирается");
+  });
+
   it("does not call the network when the password is empty", async () => {
     let called = false;
     const fetchImpl: typeof fetch = async () => {

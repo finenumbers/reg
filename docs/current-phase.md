@@ -1,7 +1,13 @@
-# Current Phase — production (v1.207.0)
+# Current Phase — production (v1.208.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, number geography, free numbers, purchased numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal.  
 **Date:** 2026-11-02
+
+## v1.208.0 — RTU access check can trust a pasted certificate
+
+Stop `app` before this update. Start one new process only after `migrate` exits. The migration adds nullable `rtuSoapCaPem` on `app_settings`. It does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `smg-syslog`. Keep a single `app` replica.
+
+The image alone does not make «Проверить доступ» succeed. Paste the switch certificate as Base-64 PEM, save, and run the check again. For an IP address, paste the leaf. A company root is not enough unless that IP is in the certificate. Signature and expiry stay on. The pasted certificates are trusted only by the WSDL download and the one `getObjects` read. The password is still ciphertext and is not written to the socket before the handshake succeeds.
 
 ## v1.207.0 — RTU API access check reads getObjects once
 
