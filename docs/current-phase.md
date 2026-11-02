@@ -1,7 +1,13 @@
-# Current Phase — production (v1.206.0)
+# Current Phase — production (v1.207.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, number geography, free numbers, purchased numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal.  
 **Date:** 2026-11-02
+
+## v1.207.0 — RTU API access check reads getObjects once
+
+Stop `app` before this update. Start one new process only after `migrate` exits. The migration adds nullable `rtuSoapBaseUrl`, `rtuSoapLogin`, and `rtuSoapPasswordCiphertext` on `app_settings`. It does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `smg-syslog`. Keep a single `app` replica.
+
+Settings stores an HTTPS origin, a login, and a password for the RTU web account. The password is ciphertext and is not returned to the browser. «Проверить доступ» downloads WSDL v2 and calls `getObjects` once. That call lists the tables and procedures the role can see. It does not read context procedures or write masks, and it does not change the switch. The SOAP client can build only that one read. Registrations, phone numbers, and CDR files still use SSH and file intake. A private certificate is trusted through `NODE_EXTRA_CA_CERTS`. The `app` container needs a path to the switch HTTPS port.
 
 ## v1.206.0 — Unregistered checkbox sits beside the phone search
 

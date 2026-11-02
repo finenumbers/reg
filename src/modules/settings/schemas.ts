@@ -13,6 +13,7 @@ import {
   DEFAULT_DID_BASE_URL,
   SAME_HOST_DID_BASE_URL,
 } from "@/modules/did/types";
+import { parseRtuSoapOrigin } from "@/modules/rtu-soap/origin";
 
 function httpOriginSchema(label: string) {
   return z
@@ -32,6 +33,14 @@ function httpOriginSchema(label: string) {
 
 const geoipBaseUrlSchema = httpOriginSchema("GeoIP");
 const pstnBaseUrlSchema = httpOriginSchema("PSTN");
+const rtuSoapBaseUrlSchema = z
+  .string()
+  .max(2048)
+  .refine((value) => {
+    const trimmed = value.trim();
+    return trimmed.length === 0 || parseRtuSoapOrigin(trimmed) !== null;
+  }, "URL API РТУ должен быть https-origin без пути и учётных данных");
+
 const didBaseUrlSchema = httpOriginSchema("DID").refine((value) => {
   const trimmed = value.trim();
   if (trimmed.length === 0) return true;
@@ -92,6 +101,8 @@ export const settingsUpdateSchema = z.object({
   voipmonitorApiUrl: httpOriginSchema("VoIPmonitor API").optional(),
   voipmonitorUser: z.string().max(255).optional(),
   voipmonitorGuiUrl: httpOriginSchema("VoIPmonitor GUI").optional(),
+  rtuSoapBaseUrl: rtuSoapBaseUrlSchema.optional(),
+  rtuSoapLogin: z.string().max(255).optional(),
 });
 
 export type SettingsUpdateInput = z.infer<typeof settingsUpdateSchema>;
@@ -128,6 +139,14 @@ export const ftpPasswordReplaceSchema = z.object({
 export const voipmonitorPasswordReplaceSchema = z.object({
   password: z.string().min(1).max(1024),
 });
+
+export const rtuSoapPasswordReplaceSchema = z.object({
+  password: z.string().min(1).max(1024),
+});
+
+export type RtuSoapPasswordReplaceInput = z.infer<
+  typeof rtuSoapPasswordReplaceSchema
+>;
 
 export type VoipmonitorPasswordReplaceInput = z.infer<
   typeof voipmonitorPasswordReplaceSchema
@@ -180,6 +199,10 @@ export type SettingsView = {
   voipmonitorUser: string | null;
   hasVoipmonitorPassword: boolean;
   voipmonitorGuiUrl: string | null;
+  rtuSoapBaseUrl: string | null;
+  rtuSoapLogin: string | null;
+  /** Never expose the RTU password — only whether it is stored */
+  hasRtuSoapPassword: boolean;
 };
 
 export type SettingsUpdateResult = {

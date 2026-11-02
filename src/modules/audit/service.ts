@@ -63,6 +63,8 @@ export const AUDIT_ACTIONS = {
   DB_VACUUM_FINISH: "db.vacuum_finish",
   VOIPMONITOR_KEY_REPLACE: "voipmonitor.key_replace",
   VOIPMONITOR_TEST: "voipmonitor.test",
+  RTU_SOAP_PASSWORD_REPLACE: "rtu.soap.password_replace",
+  RTU_SOAP_TEST: "rtu.soap.test",
   API_KEY_CREATE: "api_key.create",
   API_KEY_REVOKE: "api_key.revoke",
   TARIFFS_IMPORT: "tariffs.import",

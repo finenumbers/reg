@@ -23,7 +23,9 @@ function assertMaskedSettings(view: SettingsView) {
   expect(json).not.toMatch(/ftpPasswordCiphertext/i);
   expect(json).not.toMatch(/smgFtp/i);
   expect(json).not.toMatch(/voipmonitorPasswordCiphertext/i);
+  expect(json).not.toMatch(/rtuSoapPasswordCiphertext/i);
   expect(typeof view.hasVoipmonitorPassword).toBe("boolean");
+  expect(typeof view.hasRtuSoapPassword).toBe("boolean");
   expect(typeof view.hasPrivateKey).toBe("boolean");
   expect(typeof view.hasGeoipApiKey).toBe("boolean");
   expect(typeof view.hasPstnApiKey).toBe("boolean");
@@ -150,6 +152,21 @@ describe("settings schemas and masked view contract", () => {
     expect(() =>
       settingsUpdateSchema.parse({ didBaseUrl: "http://user:secret@did-frontend:3000" }),
     ).toThrow();
+    expect(settingsUpdateSchema.parse({ rtuSoapBaseUrl: "https://rtu.example" })).toMatchObject({
+      rtuSoapBaseUrl: "https://rtu.example",
+    });
+    expect(settingsUpdateSchema.parse({ rtuSoapBaseUrl: "" })).toMatchObject({
+      rtuSoapBaseUrl: "",
+    });
+    expect(() =>
+      settingsUpdateSchema.parse({ rtuSoapBaseUrl: "http://rtu.example" }),
+    ).toThrow();
+    expect(() =>
+      settingsUpdateSchema.parse({ rtuSoapBaseUrl: "https://user:pw@rtu.example" }),
+    ).toThrow();
+    expect(() =>
+      settingsUpdateSchema.parse({ rtuSoapBaseUrl: "https://rtu.example/service" }),
+    ).toThrow();
   });
 
   it("requires a non-empty GeoIP API key for replace", () => {
@@ -200,6 +217,9 @@ describe("settings schemas and masked view contract", () => {
       voipmonitorUser: null,
       hasVoipmonitorPassword: false,
       voipmonitorGuiUrl: null,
+      rtuSoapBaseUrl: null,
+      rtuSoapLogin: null,
+      hasRtuSoapPassword: false,
     };
     assertMaskedSettings(view);
   });

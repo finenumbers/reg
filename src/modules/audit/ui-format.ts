@@ -29,6 +29,8 @@ const ACTION_LABELS: Record<string, string> = {
   "pstn.test": "Тест PSTN",
   "did.key_replace": "Замена токена DID",
   "did.test": "Тест DID",
+  "rtu.soap.password_replace": "Замена пароля API РТУ",
+  "rtu.soap.test": "Проверка доступа API РТУ",
   "ftp.password_replace": "Замена пароля FTP",
   "ftp.test": "Тест FTP-слушателя",
   "smg.ftp.password_replace": "Замена пароля FTP SMG",

@@ -1,0 +1,289 @@
+import { XMLParser } from "fast-xml-parser";
+import { pinSoapEndpoint } from "@/modules/rtu-soap/origin";
+import { hasDoctype, isXmlName } from "@/modules/rtu-soap/xml";
+
+export type RpcEncodedBinding = {
+  kind: "rpc-encoded";
+  operationNamespace: string;
+  soapAction: string;
+  partName: string;
+};
+
+export type DocumentLiteralBinding = {
+  kind: "document-literal";
+  targetNamespace: string;
+  soapAction: string;
+  parameterName: string;
+  parameterStyle: "repeat" | "items";
+};
+
+export type GetObjectsBinding = RpcEncodedBinding | DocumentLiteralBinding;
+
+export type WsdlPlan =
+  | { ok: true; binding: GetObjectsBinding; endpoint: string }
+  | { ok: false; reason: "doctype" | "parse" | "unsupported" | "host" };
+
+const parser = new XMLParser({
+  ignoreAttributes: false,
+  attributeNamePrefix: "@_",
+  processEntities: false,
+  htmlEntities: false,
+  parseTagValue: false,
+  parseAttributeValue: false,
+  trimValues: true,
+  removeNSPrefix: false,
+});
+
+export function readWsdl(xml: string, origin: string): WsdlPlan {
+  if (hasDoctype(xml)) return { ok: false, reason: "doctype" };
+  let parsed: unknown;
+  try {
+    parsed = parser.parse(xml);
+  } catch {
+    return { ok: false, reason: "parse" };
+  }
+  const definitions = findChildRecord(parsed, "definitions");
+  if (!definitions) return { ok: false, reason: "parse" };
+
+  let hostMismatch = false;
+  for (const binding of childRecords(definitions, "binding")) {
+    const understood = understandBinding(definitions, binding);
+    if (!understood) continue;
+    const endpoint = endpointFor(definitions, attr(binding, "name") ?? "", origin);
+    if (!understood) continue;
+    if (endpoint === "missing") continue;
+    if (endpoint === "mismatch") {
+      hostMismatch = true;
+      continue;
+    }
+    return { ok: true, binding: understood, endpoint };
+  }
+  return { ok: false, reason: hostMismatch ? "host" : "unsupported" };
+}
+
+function understandBinding(
+  definitions: Record<string, unknown>,
+  binding: Record<string, unknown>,
+): GetObjectsBinding | null {
+  const soapBinding = childRecords(binding, "binding")[0];
+  const style = soapBinding ? attr(soapBinding, "style") : undefined;
+  for (const operation of childRecords(binding, "operation")) {
+    if (attr(operation, "name") !== "getObjects") continue;
+    const soapOperation = childRecords(operation, "operation")[0];
+    const soapAction = soapOperation ? (attr(soapOperation, "soapAction") ?? "") : "";
+    const input = childRecords(operation, "input")[0];
+    const body = input ? childRecords(input, "body")[0] : undefined;
+    const use = body ? attr(body, "use") : undefined;
+    if (style === "rpc" && use === "encoded") {
+      return rpcBinding(definitions, body, soapAction);
+    }
+    if (style === "document" && use === "literal") {
+      return documentBinding(definitions, soapAction);
+    }
+    return null;
+  }
+  return null;
+}
+
+function getObjectsMessageName(
+  definitions: Record<string, unknown>,
+): string | null {
+  for (const portType of childRecords(definitions, "portType")) {
+    for (const operation of childRecords(portType, "operation")) {
+      if (attr(operation, "name") !== "getObjects") continue;
+      const input = childRecords(operation, "input")[0];
+      const name = localName(attr(input, "message") ?? "");
+      if (name) return name;
+    }
+  }
+  return null;
+}
+
+function rpcBinding(
+  definitions: Record<string, unknown>,
+  body: Record<string, unknown> | undefined,
+  soapAction: string,
+): RpcEncodedBinding | null {
+  const operationNamespace = body ? (attr(body, "namespace") ?? "") : "";
+  if (!operationNamespace) return null;
+  const messageName = getObjectsMessageName(definitions);
+  if (!messageName) return null;
+  const message = childRecords(definitions, "message").find(
+    (item) => attr(item, "name") === messageName,
+  );
+  if (!message) return null;
+  const parts = childRecords(message, "part");
+  const part =
+    parts.find((item) => attr(item, "name") === "p_types") ??
+    (parts.length === 1 ? parts[0] : undefined);
+  const partName = part ? attr(part, "name") : undefined;
+  if (!partName || !isXmlName(partName)) return null;
+  return {
+    kind: "rpc-encoded",
+    operationNamespace,
+    soapAction,
+    partName,
+  };
+}
+
+function documentBinding(
+  definitions: Record<string, unknown>,
+  soapAction: string,
+): DocumentLiteralBinding | null {
+  const element = findNamedElement(definitions, "getObjects");
+  if (!element) return null;
+  const parameter = sequenceElements(element).find(
+    (item) => attr(item, "name") === "p_types",
+  );
+  if (!parameter || !isXmlName("p_types")) return null;
+  const style = parameterStyle(definitions, parameter);
+  if (!style) return null;
+  return {
+    kind: "document-literal",
+    targetNamespace: attr(definitions, "targetNamespace") ?? "",
+    soapAction,
+    parameterName: "p_types",
+    parameterStyle: style,
+  };
+}
+
+function parameterStyle(
+  definitions: Record<string, unknown>,
+  parameter: Record<string, unknown>,
+): "repeat" | "items" | null {
+  const nested = sequenceElements(parameter);
+  if (nested.some((item) => attr(item, "name") === "item")) return "items";
+  const typeName = localName(attr(parameter, "type") ?? "");
+  if (typeName === "string" && repeats(parameter)) return "repeat";
+  if (!typeName) return null;
+  const complex = findNamedComplexType(definitions, typeName);
+  if (!complex) return null;
+  const fields = sequenceElements(complex);
+  if (fields.some((item) => attr(item, "name") === "item")) return "items";
+  return null;
+}
+
+function repeats(element: Record<string, unknown>): boolean {
+  const max = attr(element, "maxOccurs");
+  if (max === "unbounded") return true;
+  const parsed = max ? Number(max) : 1;
+  return Number.isFinite(parsed) && parsed >= 2;
+}
+
+function endpointFor(
+  definitions: Record<string, unknown>,
+  bindingName: string,
+  origin: string,
+): string | "missing" | "mismatch" {
+  if (!bindingName) return "missing";
+  let sawAddress = false;
+  for (const service of childRecords(definitions, "service")) {
+    for (const port of childRecords(service, "port")) {
+      if (localName(attr(port, "binding") ?? "") !== bindingName) continue;
+      const address = childRecords(port, "address")[0];
+      const location = address ? attr(address, "location") : undefined;
+      if (!location) continue;
+      sawAddress = true;
+      const pinned = pinSoapEndpoint(origin, location);
+      if (pinned) return pinned;
+    }
+  }
+  return sawAddress ? "mismatch" : "missing";
+}
+
+function findNamedElement(
+  root: unknown,
+  name: string,
+): Record<string, unknown> | null {
+  let found: Record<string, unknown> | null = null;
+  walk(root, (key, value) => {
+    if (found || localName(key) !== "element") return;
+    const list = asRecords(value);
+    for (const element of list) {
+      if (attr(element, "name") === name) found = element;
+    }
+  });
+  return found;
+}
+
+function findNamedComplexType(
+  root: unknown,
+  name: string,
+): Record<string, unknown> | null {
+  let found: Record<string, unknown> | null = null;
+  walk(root, (key, value) => {
+    if (found || localName(key) !== "complexType") return;
+    const list = asRecords(value);
+    for (const type of list) {
+      if (attr(type, "name") === name) found = type;
+    }
+  });
+  return found;
+}
+
+function sequenceElements(node: Record<string, unknown>): Record<string, unknown>[] {
+  const direct = childRecords(node, "element");
+  if (direct.length > 0) return direct;
+  const complex = childRecords(node, "complexType")[0];
+  if (!complex) return [];
+  const sequence = childRecords(complex, "sequence")[0];
+  if (!sequence) return childRecords(complex, "element");
+  return childRecords(sequence, "element");
+}
+
+function findChildRecord(node: unknown, name: string): Record<string, unknown> | null {
+  if (!node || typeof node !== "object" || Array.isArray(node)) return null;
+  return childRecords(node as Record<string, unknown>, name)[0] ?? null;
+}
+
+function childRecords(
+  node: Record<string, unknown>,
+  name: string,
+): Record<string, unknown>[] {
+  const out: Record<string, unknown>[] = [];
+  for (const [key, value] of Object.entries(node)) {
+    if (key.startsWith("@_")) continue;
+    if (localName(key) !== name) continue;
+    out.push(...asRecords(value));
+  }
+  return out;
+}
+
+function asRecords(value: unknown): Record<string, unknown>[] {
+  const list = Array.isArray(value) ? value : [value];
+  return list.filter(
+    (item): item is Record<string, unknown> =>
+      Boolean(item) && typeof item === "object" && !Array.isArray(item),
+  );
+}
+
+function walk(
+  node: unknown,
+  visit: (key: string, value: unknown) => void,
+): void {
+  if (!node || typeof node !== "object") return;
+  if (Array.isArray(node)) {
+    for (const item of node) walk(item, visit);
+    return;
+  }
+  for (const [key, value] of Object.entries(node)) {
+    if (key.startsWith("@_")) continue;
+    visit(key, value);
+    walk(value, visit);
+  }
+}
+
+function attr(node: Record<string, unknown> | undefined, name: string): string | undefined {
+  if (!node) return undefined;
+  for (const [key, value] of Object.entries(node)) {
+    if (!key.startsWith("@_")) continue;
+    if (localName(key.slice(2)) !== name) continue;
+    if (typeof value === "string" && value.length > 0) return value;
+  }
+  return undefined;
+}
+
+function localName(value: string): string {
+  const index = value.lastIndexOf(":");
+  return index === -1 ? value : value.slice(index + 1);
+}

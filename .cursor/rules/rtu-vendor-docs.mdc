@@ -11,4 +11,4 @@ Product documents in that folder are RTU MTT 2.2.0. The API handbook is RTU MTT 
 
 The handbook describes SOAP only. Prefer WSDL v2 at `https://<host>/service/?wsdl_v2`. WSDL v1 is obsolete there. Object names for a 2.2 switch come from that live WSDL, not from the 2.0 handbook alone.
 
-Reg still reaches the softswitch only through the SSH allowlist and CDR files. The SOAP API is not an SSH action and is not part of the running service.
+Registrations, phone numbers, and CDR files still use the SSH allowlist and file intake. SOAP is not an SSH action. The only SOAP call in the service is the Settings access check: one read of `getObjects`. Writes stay forbidden unless a separate task names the operation.

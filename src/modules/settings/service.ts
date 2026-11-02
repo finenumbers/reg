@@ -34,8 +34,10 @@ import {
   pstnKeyReplaceSchema,
   settingsUpdateSchema,
   voipmonitorPasswordReplaceSchema,
+  rtuSoapPasswordReplaceSchema,
   type FtpPasswordReplaceInput,
   type VoipmonitorPasswordReplaceInput,
+  type RtuSoapPasswordReplaceInput,
   type GeoipKeyReplaceInput,
   type KeyReplaceInput,
   type DidKeyReplaceInput,
@@ -57,6 +59,7 @@ import {
   DEFAULT_DID_BASE_URL,
   resolveDidBaseUrl,
 } from "@/modules/did/types";
+import { parseRtuSoapOrigin } from "@/modules/rtu-soap/origin";
 
 async function ensureAppSettings() {
   return prisma.appSetting.upsert({
@@ -111,6 +114,9 @@ function toSettingsView(
     voipmonitorUser: settings.voipmonitorUser ?? null,
     hasVoipmonitorPassword: Boolean(settings.voipmonitorPasswordCiphertext),
     voipmonitorGuiUrl: settings.voipmonitorGuiUrl ?? null,
+    rtuSoapBaseUrl: settings.rtuSoapBaseUrl ?? null,
+    rtuSoapLogin: settings.rtuSoapLogin ?? null,
+    hasRtuSoapPassword: Boolean(settings.rtuSoapPasswordCiphertext),
   };
 }
 
@@ -225,6 +231,8 @@ export async function updateSettings(
     voipmonitorApiUrl?: string | null;
     voipmonitorUser?: string | null;
     voipmonitorGuiUrl?: string | null;
+    rtuSoapBaseUrl?: string | null;
+    rtuSoapLogin?: string | null;
   } = {};
 
   if (parsed.regsPollEnabled !== undefined) {
@@ -318,6 +326,14 @@ export async function updateSettings(
     const trimmed = parsed.voipmonitorGuiUrl.trim();
     settingsData.voipmonitorGuiUrl = trimmed || null;
   }
+  if (parsed.rtuSoapBaseUrl !== undefined) {
+    const trimmed = parsed.rtuSoapBaseUrl.trim();
+    settingsData.rtuSoapBaseUrl = trimmed ? parseRtuSoapOrigin(trimmed) : null;
+  }
+  if (parsed.rtuSoapLogin !== undefined) {
+    const trimmed = parsed.rtuSoapLogin.trim();
+    settingsData.rtuSoapLogin = trimmed || null;
+  }
 
   const ftpChanged =
     parsed.ftpEnabled !== undefined ||
@@ -389,6 +405,9 @@ export async function updateSettings(
       voipmonitorEnabled: view.voipmonitorEnabled,
       voipmonitorApiUrl: view.voipmonitorApiUrl,
       voipmonitorGuiUrl: view.voipmonitorGuiUrl,
+      rtuSoapBaseUrl: view.rtuSoapBaseUrl,
+      rtuSoapLogin: view.rtuSoapLogin,
+      hasRtuSoapPassword: view.hasRtuSoapPassword,
     },
   });
 
@@ -680,6 +699,40 @@ export async function replaceVoipmonitorPassword(
       hasVoipmonitorPassword: true,
       voipmonitorEnabled: view.voipmonitorEnabled,
     },
+  });
+
+  return view;
+}
+
+/**
+ * Replace the RTU SOAP password. Never returns plaintext.
+ * This writes only the local settings row. It does not call the switch.
+ */
+export async function replaceRtuSoapPassword(
+  input: RtuSoapPasswordReplaceInput,
+  actor: { userId: string; ip?: string | null },
+): Promise<SettingsView> {
+  const parsed = rtuSoapPasswordReplaceSchema.parse(input);
+  const encryption = getSecretEncryptionService();
+  const ciphertext = serializeEncryptedSecret(
+    encryption.encrypt(parsed.password),
+  );
+
+  await prisma.appSetting.upsert({
+    where: { id: 1 },
+    create: { id: 1, rtuSoapPasswordCiphertext: ciphertext },
+    update: { rtuSoapPasswordCiphertext: ciphertext },
+  });
+
+  const view = await getSettingsView();
+
+  await auditService.append({
+    actorUserId: actor.userId,
+    action: AUDIT_ACTIONS.RTU_SOAP_PASSWORD_REPLACE,
+    entityType: "app_settings",
+    entityId: "1",
+    ip: actor.ip,
+    meta: { hasRtuSoapPassword: true },
   });
 
   return view;

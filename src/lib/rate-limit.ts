@@ -92,3 +92,6 @@ export const syslogPurgeRateLimiter = new SlidingWindowRateLimiter(3, 60 * 1000)
 
 /** Database vacuum starts per admin: 3 / minute */
 export const storageVacuumRateLimiter = new SlidingWindowRateLimiter(3, 60 * 1000);
+
+/** RTU SOAP access check per user: 5 / 10 minutes. One process, one in-flight check. */
+export const rtuSoapTestRateLimiter = new SlidingWindowRateLimiter(5, 10 * 60 * 1000);

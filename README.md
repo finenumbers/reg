@@ -2,7 +2,7 @@
 
 Internal telecom ops platform for monitoring SIP registrations on an operator softswitch via allowlisted SSH scripts under `/opt/scripts/`.
 
-**Repository:** [github.com/finenumbers/reg](https://github.com/finenumbers/reg) · **Release:** [v1.206.0](https://github.com/finenumbers/reg/releases/tag/v1.206.0)
+**Repository:** [github.com/finenumbers/reg](https://github.com/finenumbers/reg) · **Release:** [v1.207.0](https://github.com/finenumbers/reg/releases/tag/v1.207.0)
 
 ## Stack (approved)
 
@@ -93,6 +93,7 @@ Do not hand-author conflicting auth table definitions. App RBAC (`roles` / `perm
 - Private keys encrypted at rest with AES-256-GCM (`APP_ENCRYPTION_KEY`, 64 hex chars)
 - Settings UI/API mask keys (`hasPrivateKey` / fingerprint) — replace only, never export
 - SSH connection test is auth/session only; it does **not** run `check_regs.sh`
+- RTU SOAP access check (Settings) is one read of `getObjects`. The password is AES-256-GCM ciphertext. The client cannot build a write. API keys cannot call it.
 - `regs.poll` runs only through the jobs allowlist path (`/opt/scripts/check_regs.sh`)
 - Auto-poll is Settings-only (`regsPollEnabled` + interval); in-process loop starts at boot; single `app` replica required
 - Admin/settings/audit routes require RBAC permissions; anonymous users are redirected or rejected
@@ -106,6 +107,8 @@ Do not hand-author conflicting auth table definitions. App RBAC (`roles` / `perm
 - `PUT /api/settings` — SSH host/port/username + poll/artifact settings
 - `PUT /api/settings/ssh/key` — replace private key (`.ppk` / PEM/OpenSSH)
 - `POST /api/settings/ssh/test` — connection test (`ssh:test`)
+- `PUT /api/settings/rtu/key` — replace the RTU SOAP password (`settings:write`; ciphertext only)
+- `POST /api/settings/rtu/test` — one read of `getObjects` (`settings:write`; session only)
 - `GET|POST /api/settings/api-keys` — list / create machine keys (`settings:write`; secret shown once on create)
 - `DELETE /api/settings/api-keys/[id]` — revoke key
 

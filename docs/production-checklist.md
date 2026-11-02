@@ -13,6 +13,7 @@ Related: [backup-and-restore.md](./backup-and-restore.md), [smoke-tests.md](./sm
 - Do **not** expose PostgreSQL publicly if avoidable; prefer `docker compose exec` / Portainer for dumps.
 - Do **not** put arbitrary remote commands in Settings — allowlist only.
 - Do **not** treat SSH connection test as a registration poll.
+- Do **not** send a write to the RTU SOAP API. The Settings check reads `getObjects` once. TLS verification stays on; a private CA belongs in `NODE_EXTRA_CA_CERTS`. The `app` container must reach the switch HTTPS port.
 
 ## 1. Secrets and env
 

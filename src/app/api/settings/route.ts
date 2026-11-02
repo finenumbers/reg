@@ -73,6 +73,8 @@ export async function PUT(request: Request) {
       "smgFtpPasswordCiphertext",
       "voipmonitorPassword",
       "voipmonitorPasswordCiphertext",
+      "rtuSoapPassword",
+      "rtuSoapPasswordCiphertext",
     ] as const;
     for (const key of banned) {
       if (key in (body as Record<string, unknown>)) {

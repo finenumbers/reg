@@ -123,6 +123,14 @@ Ciphertext envelope в БД: `v1:<iv_b64>:<authTag_b64>:<ciphertext_b64>`.
 - **Не** выполняет `check_regs.sh` / `regs.poll` и **не** обновляет `reg_current` / history.
 - Пишет результат в `ssh_connection_tests` + audit `ssh.test`.
 
+### RTU SOAP
+
+- Настройки хранят HTTPS origin, логин и пароль веб-интерфейса РТУ. Пароль — AES-256-GCM ciphertext, в API только `hasRtuSoapPassword`.
+- `POST /api/settings/rtu/test` — одна читающая операция `getObjects` (таблицы и процедуры). Конверт с паролем уходит только на host из origin. Запись, `call` и `selectRowset` клиент собрать не может.
+- Сессия `settings:write`. API-ключи маршрут не открывают. 5 проверок на пользователя за 10 минут и один выполняющийся тест на процесс.
+- Аудит `rtu.soap.test`: origin, логин, код, два счётчика. Список объектов и SOAP-тело не пишутся.
+- Частный CA — `NODE_EXTRA_CA_CERTS`. Проверка сертификата не отключается. Исходящий HTTPS с контейнера `app` на веб-порт коммутатора. SSH allowlist не расширяется.
+
 ### Allowlisted business exec (Phase 4)
 
 - Только action code `regs.poll` → константный path `/opt/scripts/check_regs.sh`, argv `[]`.
@@ -175,6 +183,7 @@ Bootstrap первого admin: из env `ADMIN_USERNAME` / `ADMIN_PASSWORD` п�
 | Login rate limit | Better Auth `sign-in/username` — 10 attempts / 5 min per IP (in-memory) |
 | Poll rate limit | `POST /api/regs/poll` — 6 / min per user (in-memory; anti-overlap remains) |
 | SSH test rate limit | `POST /api/settings/ssh/test` — 10 / min per user |
+| RTU SOAP test rate limit | `POST /api/settings/rtu/test` — 5 / 10 min per session user; one in-flight check per process; API keys cannot call it |
 | Storage purge rate limit | `POST /api/storage/purge` — 3 / min per session user; session + `settings:write` only (API keys cannot purge) |
 | API key rate limit | Machine key reads — 10 000 / min per key (in-memory) |
 | Log redaction | JSON logger redacts password/key/token-like fields |

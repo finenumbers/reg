@@ -9,4 +9,5 @@ export {
   replaceDidApiToken,
   replaceFtpPassword,
   replaceVoipmonitorPassword,
+  replaceRtuSoapPassword,
 } from "@/modules/settings/service";

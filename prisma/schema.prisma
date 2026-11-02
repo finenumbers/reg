@@ -153,6 +153,11 @@ model AppSetting {
   voipmonitorUser                 String?
   voipmonitorPasswordCiphertext   String?
   voipmonitorGuiUrl               String?
+  /// HTTPS origin of the RTU web UI. The access check reads WSDL v2 on this host.
+  rtuSoapBaseUrl                  String?
+  rtuSoapLogin                    String?
+  /// AES-256-GCM ciphertext of the RTU web password. Never plaintext.
+  rtuSoapPasswordCiphertext       String?
   /// UDP syslog receiver for registered SMG nodes. Off until an operator enables it.
   syslogEnabled                   Boolean  @default(false) @map("syslog_enabled")
   updatedAt             DateTime    @updatedAt

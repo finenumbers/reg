@@ -19,7 +19,7 @@ export default async function SettingsPage() {
           Настройки
         </h1>
         <p className="text-muted-foreground text-sm">
-          SSH-профиль софтсвитча, ключ чтения Parking, параметры опроса и месяцы CDR.
+          SSH-профиль софтсвитча, учётная запись API РТУ только для чтения, ключ чтения Parking, параметры опроса и месяцы CDR.
           Ключи маскируются при хранении и в UI — только замена.
         </p>
       </div>

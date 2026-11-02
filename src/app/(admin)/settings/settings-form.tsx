@@ -35,6 +35,30 @@ type TestResultView = {
   mode?: string;
 };
 
+type RtuProcedurePreview = {
+  objectId: string;
+  title: string;
+  path: string;
+};
+
+type RtuTestView = TestResultView & {
+  tableCount?: number;
+  procedureCount?: number;
+  procedures?: RtuProcedurePreview[];
+  proceduresOmitted?: number;
+};
+
+function formatRtuResultLabel(result: string): string {
+  if (result === "success") return "успех";
+  if (result === "tls") return "сертификат";
+  if (result === "timeout") return "таймаут";
+  if (result === "wsdl") return "wsdl";
+  if (result === "fault") return "отказ";
+  if (result === "too_large") return "слишком большой ответ";
+  if (result === "network") return "нет соединения";
+  return "ошибка";
+}
+
 function formatTestResultLabel(result: string): string {
   if (result === "success") return "успех";
   if (result === "error" || result === "failed") return "ошибка";
@@ -111,6 +135,12 @@ export function SettingsForm({ initial, parkingKey }: Props) {
   );
   const [voipmonitorTestResult, setVoipmonitorTestResult] =
     useState<TestResultView | null>(null);
+  const [rtuSoapBaseUrl, setRtuSoapBaseUrl] = useState(initial.rtuSoapBaseUrl ?? "");
+  const [rtuSoapLogin, setRtuSoapLogin] = useState(initial.rtuSoapLogin ?? "");
+  const [rtuSoapPassword, setRtuSoapPassword] = useState("");
+  const [rtuSoapTestResult, setRtuSoapTestResult] = useState<RtuTestView | null>(
+    null,
+  );
   const [ftpEnabled, setFtpEnabled] = useState(initial.ftpEnabled);
   const [ftpUsername, setFtpUsername] = useState(initial.ftpUsername ?? "");
   const [ftpPassword, setFtpPassword] = useState("");
@@ -187,6 +217,8 @@ export function SettingsForm({ initial, parkingKey }: Props) {
     setVoipmonitorApiUrl(next.voipmonitorApiUrl ?? "");
     setVoipmonitorUser(next.voipmonitorUser ?? "");
     setVoipmonitorGuiUrl(next.voipmonitorGuiUrl ?? "");
+    setRtuSoapBaseUrl(next.rtuSoapBaseUrl ?? "");
+    setRtuSoapLogin(next.rtuSoapLogin ?? "");
     setDisplayTimezone(next.displayTimezone);
     setTimeZone(next.displayTimezone);
     setFtpEnabled(next.ftpEnabled);
@@ -725,6 +757,82 @@ export function SettingsForm({ initial, parkingKey }: Props) {
     });
   }
 
+  function onSaveRtuSoap() {
+    startTransition(async () => {
+      try {
+        const res = await fetch("/api/settings", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            rtuSoapBaseUrl: rtuSoapBaseUrl.trim(),
+            rtuSoapLogin: rtuSoapLogin.trim(),
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          toast.error(data.error ?? "Не удалось сохранить API РТУ");
+          return;
+        }
+        let next = data.settings as SettingsView;
+        if (rtuSoapPassword.length > 0) {
+          const keyRes = await fetch("/api/settings/rtu/key", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ password: rtuSoapPassword }),
+          });
+          const keyData = await keyRes.json();
+          if (!keyRes.ok) {
+            toast.error(keyData.error ?? "Не удалось сохранить пароль API РТУ");
+            applySettings(next);
+            return;
+          }
+          setRtuSoapPassword("");
+          next = keyData.settings as SettingsView;
+        }
+        applySettings(next);
+        toast.success("Учётная запись API РТУ сохранена");
+      } catch {
+        toast.error("Не удалось сохранить API РТУ");
+      }
+    });
+  }
+
+  function onTestRtuSoap() {
+    if (
+      !settings.hasRtuSoapPassword ||
+      !settings.rtuSoapBaseUrl ||
+      !settings.rtuSoapLogin
+    ) {
+      toast.error("Сначала сохраните URL, логин и пароль");
+      return;
+    }
+    startTransition(async () => {
+      setRtuSoapTestResult(null);
+      try {
+        const res = await fetch("/api/settings/rtu/test", { method: "POST" });
+        const data = await res.json();
+        if (data.test) {
+          setRtuSoapTestResult(data.test);
+          if (data.test.result === "success") {
+            toast.success("Доступ к API РТУ есть");
+          } else {
+            toast.error(data.test.detail ?? "Проверка доступа не удалась");
+          }
+          return;
+        }
+        const message = data.error ?? "Проверка доступа не удалась";
+        toast.error(message);
+        setRtuSoapTestResult({
+          result: "error",
+          detail: message,
+          durationMs: null,
+        });
+      } catch {
+        toast.error("Проверка доступа не удалась");
+      }
+    });
+  }
+
   async function onSaveFtp() {
     startTransition(async () => {
       try {
@@ -1061,6 +1169,118 @@ export function SettingsForm({ initial, parkingKey }: Props) {
             ) : null}
           </div>
         </div>
+      </section>
+
+      <section className="space-y-4">
+        <h2 className="text-base font-semibold">API РТУ</h2>
+        <p className="text-sm text-muted-foreground">
+          Учётная запись веб-интерфейса для чтения SOAP. Пароль хранится шифром
+          и уходит только по HTTPS. «Проверить доступ» скачивает WSDL v2 и один
+          раз вызывает getObjects: список таблиц и процедур, которые видит роль.
+          Контекстные процедуры и маски записи в проверку не входят. Запись на
+          коммутатор этот запрос не выполняет.
+        </p>
+        <p className="text-sm text-muted-foreground">
+          Нужен отдельный пользователь с уже скомпилированной ролью, без смены
+          пароля при следующем входе. Если в записи указан IP, это адрес, с
+          которого выходит контейнер приложения. Частный сертификат задаётся
+          через NODE_EXTRA_CA_CERTS.
+        </p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="rtu-soap-url">URL</Label>
+            <Input
+              id="rtu-soap-url"
+              value={rtuSoapBaseUrl}
+              onChange={(event) => setRtuSoapBaseUrl(event.target.value)}
+              placeholder="https://коммутатор"
+              autoComplete="off"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="rtu-soap-login">Логин</Label>
+            <Input
+              id="rtu-soap-login"
+              value={rtuSoapLogin}
+              onChange={(event) => setRtuSoapLogin(event.target.value)}
+              autoComplete="off"
+            />
+          </div>
+          <div className="space-y-2 sm:col-span-2">
+            <Label htmlFor="rtu-soap-password">Пароль</Label>
+            <Input
+              id="rtu-soap-password"
+              type="password"
+              value={rtuSoapPassword}
+              onChange={(event) => setRtuSoapPassword(event.target.value)}
+              placeholder={
+                settings.hasRtuSoapPassword
+                  ? "Пароль сохранён — введите новый, чтобы заменить"
+                  : "Пароль веб-интерфейса"
+              }
+              autoComplete="new-password"
+            />
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" disabled={pending} onClick={onSaveRtuSoap}>
+            Сохранить API РТУ
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={
+              pending ||
+              !settings.hasRtuSoapPassword ||
+              !settings.rtuSoapBaseUrl ||
+              !settings.rtuSoapLogin
+            }
+            onClick={onTestRtuSoap}
+          >
+            Проверить доступ
+          </Button>
+        </div>
+        {rtuSoapTestResult ? (
+          <div className="rounded-md border p-3 text-sm">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge
+                variant={
+                  rtuSoapTestResult.result === "success" ? "default" : "destructive"
+                }
+              >
+                {formatRtuResultLabel(rtuSoapTestResult.result)}
+              </Badge>
+              {rtuSoapTestResult.durationMs != null ? (
+                <span className="text-xs text-muted-foreground">
+                  {rtuSoapTestResult.durationMs} мс
+                </span>
+              ) : null}
+            </div>
+            {rtuSoapTestResult.detail ? (
+              <p className="mt-2 text-muted-foreground">{rtuSoapTestResult.detail}</p>
+            ) : null}
+            {(rtuSoapTestResult.procedureCount ?? 0) > 0 ? (
+              <p className="mt-2 text-amber-700 dark:text-amber-400">
+                У роли есть процедуры. Приложение их не вызывает.
+              </p>
+            ) : null}
+            {rtuSoapTestResult.procedures && rtuSoapTestResult.procedures.length > 0 ? (
+              <ul className="mt-2 max-h-48 space-y-1 overflow-auto text-xs text-muted-foreground">
+                {rtuSoapTestResult.procedures.map((item) => (
+                  <li key={item.objectId}>
+                    {item.title || item.objectId}
+                    {item.path ? ` — ${item.path}` : ""}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            {(rtuSoapTestResult.proceduresOmitted ?? 0) > 0 ? (
+              <p className="mt-2 text-xs text-muted-foreground">
+                Ещё {rtuSoapTestResult.proceduresOmitted}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
       </section>
 
       <ParkingKeyPanel initial={parkingKey} />
