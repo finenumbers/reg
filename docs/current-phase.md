@@ -1,7 +1,13 @@
-# Current Phase — production (v1.204.0)
+# Current Phase — production (v1.205.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, number geography, free numbers, purchased numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal.  
 **Date:** 2026-11-02
+
+## v1.205.0 — RTU manuals stay off the image
+
+There is no migration. Do not stop `app`. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. Keep a single `app` replica. Do not redeploy for this release.
+
+The SATEL RTU MTT manuals are a local reference for later API work. They live in `docs/vendor/rtu-mtt/` on the developer machine. Git and the Docker build context both exclude that directory. The image does not contain the PDFs or the extracted text, and the public repository does not either. Registrations, phone numbers, routing groups, and CDR files still use the existing SSH allowlist and file intake. SOAP is not connected.
 
 ## v1.204.0 — XLSX columns fit their longest value
 

@@ -16,3 +16,7 @@ backups
 tsconfig.tsbuildinfo
 npm-debug.log*
 .DS_Store
+
+# Vendor manuals are local-only. A laptop build must not send them into the context.
+docs/vendor
+*.pdf

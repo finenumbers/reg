@@ -1,0 +1,14 @@
+---
+description: RTU MTT vendor manuals are a local gitignored reference; never commit them or invent the SOAP API
+alwaysApply: true
+---
+
+# RTU MTT manuals
+
+The SATEL manuals live only in `docs/vendor/rtu-mtt/` on the developer machine. That directory is gitignored and dockerignored. Do not commit the PDFs, the extracted text, `INDEX.md`, or long quotations. The GitHub repository is public.
+
+Product documents in that folder are RTU MTT 2.2.0. The API handbook is RTU MTT 2.0 (2017). Read `docs/vendor/rtu-mtt/INDEX.md` and `api-2.0.txt` before any RTU API design. Do not invent methods, tables, or URLs.
+
+The handbook describes SOAP only. Prefer WSDL v2 at `https://<host>/service/?wsdl_v2`. WSDL v1 is obsolete there. Object names for a 2.2 switch come from that live WSDL, not from the 2.0 handbook alone.
+
+Reg still reaches the softswitch only through the SSH allowlist and CDR files. The SOAP API is not an SSH action and is not part of the running service.
