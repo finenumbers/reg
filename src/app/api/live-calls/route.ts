@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireApiSession } from "@/modules/auth/guards";
 import { loadRtuSoapAccount } from "@/modules/rtu-soap/credentials";
+import { loadDescriptionsForPhones } from "@/modules/enrich/lookups";
 import { readLiveCalls } from "@/modules/live-calls/snapshot";
 import { hasPermission } from "@/modules/rbac/permissions";
 
@@ -38,6 +39,7 @@ export async function GET() {
   const payload = await readLiveCalls({
     now: () => Date.now(),
     account,
+    descriptions: (phones) => loadDescriptionsForPhones(phones),
   });
   return NextResponse.json(payload);
 }

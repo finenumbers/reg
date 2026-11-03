@@ -14,11 +14,11 @@ const EMPTY: Record<LiveCallColumnKey, string> = {
   startedAt: "",
   connectedAt: "",
   outA: "",
+  sideA: "",
   outB: "",
+  sideB: "",
   sourceName: "",
-  sourceSignal: "",
   destName: "",
-  destSignal: "",
   dialpeer: "",
 };
 
@@ -72,11 +72,11 @@ function merge(left: CallSide | null, right: CallSide | null): JoinedCall {
     startedAt: left?.values.startedAt ?? EMPTY.startedAt,
     connectedAt: left?.values.connectedAt ?? EMPTY.connectedAt,
     outA: left?.values.outA ?? EMPTY.outA,
+    sideA: EMPTY.sideA,
     outB: left?.values.outB ?? EMPTY.outB,
+    sideB: EMPTY.sideB,
     sourceName: right?.values.sourceName ?? EMPTY.sourceName,
-    sourceSignal: left?.values.sourceSignal ?? EMPTY.sourceSignal,
     destName: right?.values.destName ?? EMPTY.destName,
-    destSignal: left?.values.destSignal ?? EMPTY.destSignal,
     dialpeer: right?.values.dialpeer ?? EMPTY.dialpeer,
   };
 }

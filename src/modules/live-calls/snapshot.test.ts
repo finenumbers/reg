@@ -213,6 +213,7 @@ function deps(now: number, fetchImpl: typeof fetch): LiveCallDeps {
     now: () => now,
     fetchImpl,
     account: { origin: ORIGIN, login: "admin", password: PASSWORD, caPem: null },
+    descriptions: async () => new Map(),
   };
 }
 
@@ -232,14 +233,17 @@ describe("readLiveCalls", () => {
       state: "talk",
       startedAt: "2026-11-03 23:32:00",
       outA: "100",
+      sideA: "-",
+      sideB: "-",
       sourceName: "gw-a",
-      sourceSignal: "1.1.1.1",
       destName: "term",
     });
+    expect(first.rows?.[0]).not.toHaveProperty("sourceSignal");
+    expect(first.rows?.[0]).not.toHaveProperty("destSignal");
     expect(first.rows?.[1]).toMatchObject({
       outA: "101",
       state: "",
-      sourceSignal: "9.9.9.9",
+      sideA: "-",
     });
     expect(first.rows?.[2]).toMatchObject({
       state: "extra",
@@ -249,6 +253,10 @@ describe("readLiveCalls", () => {
     expect(first.rows?.[3]).toMatchObject({ state: "blank", outA: "" });
     expect(bodies.some((body) => body.includes("08.2599.01"))).toBe(false);
     expect(bodies.some((body) => body.includes(">dur<"))).toBe(false);
+    for (const body of bodies.filter((item) => item.includes("selectRowset"))) {
+      expect(body).not.toContain("src_sig");
+      expect(body).not.toContain("dst_sig");
+    }
 
     const cached = await readLiveCalls(deps(now + 2_999, fetchImpl));
     expect(cached.rows?.[0]?.outA).toBe("100");
@@ -267,6 +275,52 @@ describe("readLiveCalls", () => {
     const cleared = await readLiveCalls(deps(now, fetchImpl));
     expect(cleared.error).toBeNull();
     expect(cleared.rows).toEqual([]);
+  });
+
+  it("fills sides from the catalog and keeps the calls when that read fails", async () => {
+    const { fetchImpl } = harness(() => "ok");
+    const now = 1_700_000_000_000;
+    let lookups = 0;
+    const input = deps(now, fetchImpl);
+    input.descriptions = async (phones) => {
+      lookups += 1;
+      expect(phones).toContain("100");
+      expect(phones).not.toContain("1.1.1.1");
+      return new Map([["100", "Офис"]]);
+    };
+    const filled = await readLiveCalls(input);
+    expect(filled.error).toBeNull();
+    expect(filled.rows?.[0]).toMatchObject({ outA: "100", sideA: "Офис", sideB: "-" });
+    expect(lookups).toBe(1);
+
+    const cached = await readLiveCalls({ ...input, now: () => now + 1_000 });
+    expect(cached.rows?.[0]?.sideA).toBe("Офис");
+    expect(lookups).toBe(1);
+
+    resetLiveCallMemory();
+    const failedCatalog = await readLiveCalls({
+      ...deps(now, fetchImpl),
+      descriptions: async () => {
+        throw new Error("db down 79001112233");
+      },
+    });
+    expect(failedCatalog.error).toBeNull();
+    expect(failedCatalog.rows?.[0]).toMatchObject({ outA: "100", sideA: "-", sideB: "-" });
+  });
+
+  it("does not ask the catalog when the snapshot has no numbers", async () => {
+    const { fetchImpl } = harness(() => "empty");
+    let lookups = 0;
+    const cleared = await readLiveCalls({
+      ...deps(1_700_000_000_000, fetchImpl),
+      descriptions: async () => {
+        lookups += 1;
+        return new Map();
+      },
+    });
+    expect(cleared.error).toBeNull();
+    expect(cleared.rows).toEqual([]);
+    expect(lookups).toBe(0);
   });
 
   it("does not turn the first fault into an empty table, and shares one in-flight read", async () => {
@@ -333,6 +387,10 @@ describe("readLiveCalls", () => {
       bodies.some((body) => /media-1|management-1|signaling-west|Signaling-1/.test(body)),
     ).toBe(false);
     expect(bodies.filter((body) => body.includes('xmlns="args"'))).toHaveLength(4);
+    for (const body of bodies.filter((item) => item.includes("selectRowset"))) {
+      expect(body).not.toContain("src_sig");
+      expect(body).not.toContain("dst_sig");
+    }
 
     now += 3_000;
     await readLiveCalls(deps(now, fetchImpl));

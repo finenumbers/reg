@@ -21,6 +21,7 @@ import {
 } from "@/modules/live-calls/columns";
 import { presentSwitchValue } from "@/modules/live-calls/format";
 import { joinLiveCalls, type CallSide } from "@/modules/live-calls/join";
+import { applyLiveCallSides, liveCallPhoneKeys } from "@/modules/live-calls/sides";
 import { selectCallModules } from "@/modules/live-calls/modules";
 import {
   conferenceIdSet,
@@ -75,10 +76,13 @@ export type LiveCallPayload = {
   error: string | null;
 };
 
+export type LiveCallDescriptions = (phones: string[]) => Promise<Map<string, string>>;
+
 export type LiveCallDeps = {
   now: () => number;
   account: LiveCallAccount;
   fetchImpl?: typeof fetch;
+  descriptions: LiveCallDescriptions;
 };
 
 type CatalogBase = {
@@ -245,7 +249,7 @@ async function readOnce(
     kind: "ok",
     catalog: ready,
     modules: null,
-    rows: joinedRows(ready, pcomm.rows, pupr.rows),
+    rows: await withSides(deps, joinedRows(ready, pcomm.rows, pupr.rows)),
     truncated: pcomm.truncated || pupr.truncated,
   };
 }
@@ -296,7 +300,7 @@ async function readModules(
     kind: "ok",
     catalog: ready,
     modules: named.modules,
-    rows: joinedRows(ready, pcommRows, puprRows),
+    rows: await withSides(deps, joinedRows(ready, pcommRows, puprRows)),
     truncated,
   };
 }
@@ -360,13 +364,25 @@ function joinedRows(
     startedAt: row.startedAt,
     connectedAt: row.connectedAt,
     outA: row.outA,
+    sideA: row.sideA,
     outB: row.outB,
+    sideB: row.sideB,
     sourceName: row.sourceName,
-    sourceSignal: row.sourceSignal,
     destName: row.destName,
-    destSignal: row.destSignal,
     dialpeer: row.dialpeer,
   }));
+}
+
+async function withSides(deps: LiveCallDeps, rows: LiveCallRow[]): Promise<LiveCallRow[]> {
+  const phones = liveCallPhoneKeys(rows);
+  if (phones.length === 0) return applyLiveCallSides(rows, new Map());
+  let descriptions = new Map<string, string>();
+  try {
+    descriptions = await deps.descriptions(phones);
+  } catch {
+    descriptions = new Map();
+  }
+  return applyLiveCallSides(rows, descriptions);
 }
 
 function view(state: Memory, now: number): LiveCallPayload {

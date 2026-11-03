@@ -13,11 +13,18 @@ import {
 } from "@/components/ui/table";
 import { formatCount } from "@/lib/format-count";
 import { formatDisplayTimestamp } from "@/lib/format-display-time";
-import { LIVE_CALL_HEADERS } from "@/modules/live-calls/columns";
+import { LIVE_CALL_HEADERS, type LiveCallColumnKey } from "@/modules/live-calls/columns";
 import type { LiveCallPayload, LiveCallRow } from "@/modules/live-calls/snapshot";
+import { trafficMissingLabelClass } from "@/modules/traffic/ui-format";
 import { cn } from "@/lib/utils";
 
 const REFRESH_FALLBACK_MS = 3000;
+
+function sideTrafficColumn(key: LiveCallColumnKey): string {
+  if (key === "sideA") return "side_a";
+  if (key === "sideB") return "side_b";
+  return key;
+}
 
 export function LiveCallsView() {
   const { timeZone } = useDisplayTimezone();
@@ -175,7 +182,10 @@ export function LiveCallsView() {
                     {LIVE_CALL_HEADERS.map((column) => (
                       <TableCell
                         key={column.key}
-                        className={cn(column.bold && "font-bold")}
+                        className={cn(
+                          column.bold && "font-bold",
+                          trafficMissingLabelClass(sideTrafficColumn(column.key), row[column.key]),
+                        )}
                       >
                         {row[column.key]}
                       </TableCell>

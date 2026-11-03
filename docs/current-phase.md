@@ -1,7 +1,13 @@
-# Current Phase — production (v1.214.0)
+# Current Phase — production (v1.215.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, number geography, free numbers, purchased numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls.  
 **Date:** 2026-11-04
+
+## v1.215.0 — Live call sides from the phone catalog
+
+There is no migration. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. Keep a single `app` replica. Replace the `app` container so «Текущие звонки» drops the signaling addresses and shows the two sides.
+
+«Инициатор» and «Терминатор» are gone. `selectRowset` no longer asks for those two columns. `describeTable` is unchanged. «Сторона A» follows «А-номер», and «Сторона B» follows «Б-номер». Each side is the catalog «Описание» of that number, the same exact match as CDR `bill_ani` and `bill_dnis`. A blank or unknown number is a blue «-». The lookup runs once per snapshot. A catalog failure keeps the calls and shows «-». Nothing is written to the switch, and PSTN is not called.
 
 ## v1.214.0 — Live call column names and the UTC clock
 
