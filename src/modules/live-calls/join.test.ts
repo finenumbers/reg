@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { joinLiveCalls, type CallSide } from "@/modules/live-calls/join";
-import { presentSwitchValue } from "@/modules/live-calls/format";
+import { liveCallSeconds, presentSwitchValue } from "@/modules/live-calls/format";
 
 function side(conferenceId: string, values: CallSide["values"] = {}): CallSide {
   return { conferenceId, values };
@@ -20,7 +20,12 @@ describe("joinLiveCalls", () => {
       ],
     );
     expect(rows.map((row) => row.conferenceId)).toEqual(["c1", "", "c1", ""]);
-    expect(rows[0]).toMatchObject({ state: "talk", startedAt: "10:00", outA: "100", sourceName: "gw-a" });
+    expect(rows[0]).toMatchObject({
+      state: "talk",
+      startedAt: "10:00",
+      outA: "100",
+      sourceName: "gw-a",
+    });
     expect(rows[1]).toMatchObject({ startedAt: "alone", state: "" });
     expect(rows[2]).toMatchObject({ state: "extra", startedAt: "", sourceName: "gw-b" });
     expect(rows[3]).toMatchObject({ state: "blank", startedAt: "" });
@@ -42,5 +47,16 @@ describe("presentSwitchValue", () => {
     expect(presentSwitchValue("20261103233200", "YMDhms")).toBe("2026-11-03 23:32:00");
     expect(presentSwitchValue("5", "YMDhms")).toBe("5");
     expect(presentSwitchValue("20261103233200", null)).toBe("20261103233200");
+  });
+});
+
+describe("liveCallSeconds", () => {
+  const takenAt = Date.parse("2026-11-03T23:32:45.000Z");
+
+  it("counts whole seconds from the connection stamp to the snapshot", () => {
+    expect(liveCallSeconds("2026-11-03 23:32:00", takenAt)).toBe("45");
+    expect(liveCallSeconds("", takenAt)).toBe("");
+    expect(liveCallSeconds("not-a-time", takenAt)).toBe("");
+    expect(liveCallSeconds("2026-11-03 23:33:00", takenAt)).toBe("0");
   });
 });

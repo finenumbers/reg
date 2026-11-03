@@ -1,3 +1,5 @@
+import { parseNaiveDateTime } from "@/modules/enrich/dates";
+
 /** Switch civil time. The mask digits are not shifted into another zone. */
 export function presentSwitchValue(value: string, mask: string | null): string {
   if (mask === "YMDhms" && /^\d{14}$/.test(value)) {
@@ -7,4 +9,17 @@ export function presentSwitchValue(value: string, mask: string | null): string {
     );
   }
   return value;
+}
+
+/**
+ * Whole seconds from a switch connection stamp to the snapshot instant.
+ * The digits are UTC, the same clock as the cells. Blank when the stamp
+ * does not parse. A connection ahead of the snapshot is 0.
+ */
+export function liveCallSeconds(connectedAt: string, takenAtMs: number): string {
+  const connected = parseNaiveDateTime(connectedAt);
+  if (!connected) return "";
+  const delta = takenAtMs - connected.getTime();
+  if (delta < 0) return "0";
+  return String(Math.floor(delta / 1000));
 }

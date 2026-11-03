@@ -5,8 +5,10 @@ export const PCOMM_FIELDS = {
   conferenceId: "Conference ID ПКомм",
   startedAt: "Время начала",
   connectedAt: "Время соединения",
+  sourceSignal: "Адрес инициатора (сигн.)",
   outA: "Исходящий А-номер",
   outB: "Исходящий Б-номер",
+  destSignal: "Адрес терм. устр-ва (сигн.)",
 } as const;
 
 export const PUPR_FIELDS = {
@@ -28,9 +30,12 @@ export const LIVE_CALL_HEADERS = [
   { key: "sideA", header: "Сторона A", bold: false },
   { key: "outB", header: "Б-номер", bold: true },
   { key: "sideB", header: "Сторона B", bold: false },
+  { key: "seconds", header: "Секунды", bold: false },
   { key: "sourceName", header: "Инициирующее устройство", bold: false },
   { key: "destName", header: "Терминирующее устройство", bold: false },
   { key: "dialpeer", header: "Объект набора", bold: false },
+  { key: "sourceSignal", header: "Инициатор", bold: false },
+  { key: "destSignal", header: "Терминатор", bold: false },
 ] as const;
 
 export type LiveCallColumnKey = (typeof LIVE_CALL_HEADERS)[number]["key"];

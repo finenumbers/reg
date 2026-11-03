@@ -19,9 +19,11 @@ import {
   type PcommField,
   type PuprField,
 } from "@/modules/live-calls/columns";
-import { presentSwitchValue } from "@/modules/live-calls/format";
+import { liveCallSeconds, presentSwitchValue } from "@/modules/live-calls/format";
 import { joinLiveCalls, type CallSide } from "@/modules/live-calls/join";
+import type { LiveCallTone } from "@/modules/live-calls/row-class";
 import { applyLiveCallSides, liveCallPhoneKeys } from "@/modules/live-calls/sides";
+import { liveCallTone } from "@/modules/live-calls/tone";
 import { selectCallModules } from "@/modules/live-calls/modules";
 import {
   conferenceIdSet,
@@ -50,6 +52,7 @@ import {
   type CallBinding,
   type GetObjectsBinding,
 } from "@/modules/rtu-soap/wsdl";
+import type { TariffAbcRate } from "@/modules/traffic/tariff-match";
 
 const REFRESH_MS = 3000;
 /** Re-read «Активные модули» on this interval. Call rows still refresh every poll. */
@@ -66,7 +69,10 @@ export type LiveCallAccount = {
   caPem: string | null;
 };
 
-export type LiveCallRow = Record<LiveCallColumnKey, string> & { key: string };
+export type LiveCallRow = Record<LiveCallColumnKey, string> & {
+  key: string;
+  tone: LiveCallTone | null;
+};
 
 export type LiveCallPayload = {
   rows: LiveCallRow[] | null;
@@ -83,6 +89,10 @@ export type LiveCallDeps = {
   account: LiveCallAccount;
   fetchImpl?: typeof fetch;
   descriptions: LiveCallDescriptions;
+  /** Live tariff ABC rows. The snapshot calls this at most once a minute. */
+  rates: () => Promise<readonly TariffAbcRate[]>;
+  /** Live dial-exception list. An empty list is empty, not the seed. */
+  exceptions: () => Promise<readonly string[]>;
 };
 
 type CatalogBase = {
@@ -122,12 +132,20 @@ type Memory = {
   error: string | null;
 };
 
+type ClassList = {
+  rates: readonly TariffAbcRate[];
+  exceptions: readonly string[];
+  atMs: number;
+};
+
 let memory: Memory | null = null;
 let pending: Promise<LiveCallPayload> | null = null;
+let classList: ClassList | null = null;
 
 export function resetLiveCallMemory(): void {
   memory = null;
   pending = null;
+  classList = null;
 }
 
 export function readLiveCalls(deps: LiveCallDeps): Promise<LiveCallPayload> {
@@ -166,7 +184,10 @@ async function execute(deps: LiveCallDeps): Promise<LiveCallPayload> {
       const snapshot: Snapshot = {
         takenAtMs: attemptedAtMs,
         takenAt: new Date(attemptedAtMs).toISOString(),
-        rows: outcome.rows,
+        rows: outcome.rows.map((row) => ({
+          ...row,
+          seconds: liveCallSeconds(row.connectedAt, attemptedAtMs),
+        })),
         truncated: outcome.truncated,
       };
       memory = {
@@ -249,7 +270,7 @@ async function readOnce(
     kind: "ok",
     catalog: ready,
     modules: null,
-    rows: await withSides(deps, joinedRows(ready, pcomm.rows, pupr.rows)),
+    rows: await finishRows(deps, joinedRows(ready, pcomm.rows, pupr.rows)),
     truncated: pcomm.truncated || pupr.truncated,
   };
 }
@@ -300,7 +321,7 @@ async function readModules(
     kind: "ok",
     catalog: ready,
     modules: named.modules,
-    rows: await withSides(deps, joinedRows(ready, pcommRows, puprRows)),
+    rows: await finishRows(deps, joinedRows(ready, pcommRows, puprRows)),
     truncated,
   };
 }
@@ -367,22 +388,61 @@ function joinedRows(
     sideA: row.sideA,
     outB: row.outB,
     sideB: row.sideB,
+    seconds: row.seconds,
     sourceName: row.sourceName,
     destName: row.destName,
     dialpeer: row.dialpeer,
+    sourceSignal: row.sourceSignal,
+    destSignal: row.destSignal,
+    tone: null,
   }));
 }
 
-async function withSides(deps: LiveCallDeps, rows: LiveCallRow[]): Promise<LiveCallRow[]> {
+async function withSides(
+  deps: LiveCallDeps,
+  rows: LiveCallRow[],
+): Promise<{ rows: LiveCallRow[]; sidesReady: boolean }> {
   const phones = liveCallPhoneKeys(rows);
-  if (phones.length === 0) return applyLiveCallSides(rows, new Map());
-  let descriptions = new Map<string, string>();
+  if (phones.length === 0)
+    return { rows: applyLiveCallSides(rows, new Map()), sidesReady: true };
   try {
-    descriptions = await deps.descriptions(phones);
+    const descriptions = await deps.descriptions(phones);
+    return { rows: applyLiveCallSides(rows, descriptions), sidesReady: true };
   } catch {
-    descriptions = new Map();
+    return { rows: applyLiveCallSides(rows, new Map()), sidesReady: false };
   }
-  return applyLiveCallSides(rows, descriptions);
+}
+
+/**
+ * Tariff and dial exceptions change rarely. A failed load keeps the previous
+ * list and does not drop the calls. The first failure leaves outgoing parking
+ * unpainted and is retried on the next snapshot.
+ */
+async function classificationLists(deps: LiveCallDeps, now: number): Promise<ClassList> {
+  if (classList && now - classList.atMs < MODULE_NAMES_MS) return classList;
+  try {
+    const [rates, exceptions] = await Promise.all([deps.rates(), deps.exceptions()]);
+    classList = { rates, exceptions, atMs: now };
+    return classList;
+  } catch {
+    if (classList) return classList;
+    return { rates: [], exceptions: [], atMs: now };
+  }
+}
+
+async function finishRows(
+  deps: LiveCallDeps,
+  rows: LiveCallRow[],
+): Promise<LiveCallRow[]> {
+  if (rows.length === 0) return [];
+  const [sided, lists] = await Promise.all([
+    withSides(deps, rows),
+    classificationLists(deps, deps.now()),
+  ]);
+  return sided.rows.map((row) => ({
+    ...row,
+    tone: liveCallTone(row, lists.rates, lists.exceptions, sided.sidesReady),
+  }));
 }
 
 function view(state: Memory, now: number): LiveCallPayload {

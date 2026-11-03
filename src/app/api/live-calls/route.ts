@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { requireApiSession } from "@/modules/auth/guards";
-import { loadRtuSoapAccount } from "@/modules/rtu-soap/credentials";
 import { loadDescriptionsForPhones } from "@/modules/enrich/lookups";
+import { loadDialExceptions } from "@/modules/exceptions/service";
 import { readLiveCalls } from "@/modules/live-calls/snapshot";
 import { hasPermission } from "@/modules/rbac/permissions";
+import { loadRtuSoapAccount } from "@/modules/rtu-soap/credentials";
+import { loadTariffRateLookup } from "@/modules/tariffs/service";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -16,10 +18,7 @@ export async function GET() {
   const gate = await requireApiSession();
   if (!gate.ok) return gate.response;
   if (!hasPermission(gate.ctx.authz.permissions, "phones:read")) {
-    return NextResponse.json(
-      { error: "Forbidden", code: "FORBIDDEN" },
-      { status: 403 },
-    );
+    return NextResponse.json({ error: "Forbidden", code: "FORBIDDEN" }, { status: 403 });
   }
 
   const account = await loadRtuSoapAccount();
@@ -40,6 +39,8 @@ export async function GET() {
     now: () => Date.now(),
     account,
     descriptions: (phones) => loadDescriptionsForPhones(phones),
+    rates: () => loadTariffRateLookup(),
+    exceptions: () => loadDialExceptions(),
   });
   return NextResponse.json(payload);
 }

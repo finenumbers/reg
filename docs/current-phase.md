@@ -1,7 +1,17 @@
-# Current Phase — production (v1.215.0)
+# Current Phase — production (v1.216.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, number geography, free numbers, purchased numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls.  
 **Date:** 2026-11-04
+
+## v1.216.0 — Live call seconds, signaling addresses, and row color
+
+There is no migration. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. Keep a single `app` replica. Replace the `app` container so «Текущие звонки» shows the duration, the signaling addresses, and the row colors.
+
+«Секунды» follows «Сторона B». The cell is the whole seconds from «Время соединения» to the snapshot stamp. The connection digits stay the switch clock and are read as UTC, the same clock the page already shows. An empty or unparsed connection stays blank. A stamp earlier than the connection shows 0. A failed refresh keeps the previous seconds with the previous stamp. «Время разговора» is still not requested.
+
+«Инициатор» and «Терминатор» follow «Объект набора». `selectRowset` again asks for «Адрес инициатора (сигн.)» and «Адрес терм. устр-ва (сигн.)». The technical names still come from `describeTable`. `describeTable` itself is unchanged. A missing title fails the round and keeps the previous snapshot.
+
+A phantom row is green, the same fill as «Телефонный трафик». An incoming or outgoing parking row is blue, the same fill as the parking status there. The category uses the live tariff and the live dial-exception list, at most once a minute. The B-number is the outgoing B-number on this table. A connected redirect to exact `Service_Parking` is blue. A check call stays unpainted. A catalog failure keeps the calls, shows «-», and does not paint the rows. A tariff failure keeps the calls and does not paint outgoing parking until a list has loaded. Nothing is written to the switch, and PSTN is not called.
 
 ## v1.215.0 — Live call sides from the phone catalog
 

@@ -14,6 +14,7 @@ import {
 import { formatCount } from "@/lib/format-count";
 import { formatDisplayTimestamp } from "@/lib/format-display-time";
 import { LIVE_CALL_HEADERS, type LiveCallColumnKey } from "@/modules/live-calls/columns";
+import { LIVE_CALL_ROW_CLASS } from "@/modules/live-calls/row-class";
 import type { LiveCallPayload, LiveCallRow } from "@/modules/live-calls/snapshot";
 import { trafficMissingLabelClass } from "@/modules/traffic/ui-format";
 import { cn } from "@/lib/utils";
@@ -87,7 +88,8 @@ export function LiveCallsView() {
         setLoading(false);
         schedule(body.refreshInMs ?? REFRESH_FALLBACK_MS);
       } catch (caught) {
-        if (stopped || (caught instanceof DOMException && caught.name === "AbortError")) return;
+        if (stopped || (caught instanceof DOMException && caught.name === "AbortError"))
+          return;
         setError("Нет соединения с сервером.");
         setLoading(false);
         schedule(REFRESH_FALLBACK_MS);
@@ -131,7 +133,9 @@ export function LiveCallsView() {
         </p>
         {stamp ? (
           <p className="text-muted-foreground text-sm">
-            {error ? `Показан снимок ${stamp}. Новое чтение не удалось.` : `Снимок ${stamp}`}
+            {error
+              ? `Показан снимок ${stamp}. Новое чтение не удалось.`
+              : `Снимок ${stamp}`}
           </p>
         ) : null}
       </div>
@@ -149,7 +153,8 @@ export function LiveCallsView() {
           role="alert"
           className="shrink-0 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-950 dark:text-amber-100"
         >
-          Показаны не все вызовы: таблица РТУ вернула 2000 строк, это потолок одного чтения.
+          Показаны не все вызовы: таблица РТУ вернула 2000 строк, это потолок одного
+          чтения.
         </div>
       ) : null}
 
@@ -166,25 +171,37 @@ export function LiveCallsView() {
             <TableBody>
               {showLoading ? (
                 <TableRow>
-                  <TableCell colSpan={LIVE_CALL_HEADERS.length} className="text-muted-foreground h-24">
+                  <TableCell
+                    colSpan={LIVE_CALL_HEADERS.length}
+                    className="text-muted-foreground h-24"
+                  >
                     Загрузка…
                   </TableCell>
                 </TableRow>
               ) : showEmpty ? (
                 <TableRow>
-                  <TableCell colSpan={LIVE_CALL_HEADERS.length} className="text-muted-foreground h-24">
+                  <TableCell
+                    colSpan={LIVE_CALL_HEADERS.length}
+                    className="text-muted-foreground h-24"
+                  >
                     Нет текущих звонков.
                   </TableCell>
                 </TableRow>
               ) : (
                 data.map((row) => (
-                  <TableRow key={row.key}>
+                  <TableRow
+                    key={row.key}
+                    className={row.tone ? LIVE_CALL_ROW_CLASS[row.tone] : undefined}
+                  >
                     {LIVE_CALL_HEADERS.map((column) => (
                       <TableCell
                         key={column.key}
                         className={cn(
                           column.bold && "font-bold",
-                          trafficMissingLabelClass(sideTrafficColumn(column.key), row[column.key]),
+                          trafficMissingLabelClass(
+                            sideTrafficColumn(column.key),
+                            row[column.key],
+                          ),
                         )}
                       >
                         {row[column.key]}

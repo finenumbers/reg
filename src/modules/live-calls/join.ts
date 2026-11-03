@@ -17,9 +17,12 @@ const EMPTY: Record<LiveCallColumnKey, string> = {
   sideA: "",
   outB: "",
   sideB: "",
+  seconds: "",
   sourceName: "",
   destName: "",
   dialpeer: "",
+  sourceSignal: "",
+  destSignal: "",
 };
 
 /**
@@ -27,7 +30,10 @@ const EMPTY: Record<LiveCallColumnKey, string> = {
  * Extra rows on one side stay, with the other side blank.
  * Order is the switching-subsystem order, then leftover routing rows.
  */
-export function joinLiveCalls(pcomm: readonly CallSide[], pupr: readonly CallSide[]): JoinedCall[] {
+export function joinLiveCalls(
+  pcomm: readonly CallSide[],
+  pupr: readonly CallSide[],
+): JoinedCall[] {
   const puprByKey = new Map<string, CallSide[]>();
   const puprAlone: CallSide[] = [];
   for (const row of pupr) {
@@ -75,8 +81,11 @@ function merge(left: CallSide | null, right: CallSide | null): JoinedCall {
     sideA: EMPTY.sideA,
     outB: left?.values.outB ?? EMPTY.outB,
     sideB: EMPTY.sideB,
+    seconds: EMPTY.seconds,
     sourceName: right?.values.sourceName ?? EMPTY.sourceName,
     destName: right?.values.destName ?? EMPTY.destName,
     dialpeer: right?.values.dialpeer ?? EMPTY.dialpeer,
+    sourceSignal: left?.values.sourceSignal ?? EMPTY.sourceSignal,
+    destSignal: left?.values.destSignal ?? EMPTY.destSignal,
   };
 }

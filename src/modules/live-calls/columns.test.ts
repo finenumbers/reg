@@ -17,9 +17,12 @@ describe("LIVE_CALL_HEADERS", () => {
       ["sideA", "Сторона A", false],
       ["outB", "Б-номер", true],
       ["sideB", "Сторона B", false],
+      ["seconds", "Секунды", false],
       ["sourceName", "Инициирующее устройство", false],
       ["destName", "Терминирующее устройство", false],
       ["dialpeer", "Объект набора", false],
+      ["sourceSignal", "Инициатор", false],
+      ["destSignal", "Терминатор", false],
     ]);
   });
 
@@ -28,11 +31,11 @@ describe("LIVE_CALL_HEADERS", () => {
       conferenceId: "Conference ID ПКомм",
       startedAt: "Время начала",
       connectedAt: "Время соединения",
+      sourceSignal: "Адрес инициатора (сигн.)",
       outA: "Исходящий А-номер",
       outB: "Исходящий Б-номер",
+      destSignal: "Адрес терм. устр-ва (сигн.)",
     });
-    expect(PCOMM_FIELDS).not.toHaveProperty("sourceSignal");
-    expect(PCOMM_FIELDS).not.toHaveProperty("destSignal");
     expect(PUPR_FIELDS).toEqual({
       conferenceId: "Conference ID ПКомм",
       state: "Состояние вызова",

@@ -114,7 +114,7 @@ const PCOMM_ROWS = `<?xml version="1.0"?><Envelope><Body><selectRowsetResponse>
   ${row([
     ["conf_id", "c1"],
     ["t_start", "20261103233200"],
-    ["t_conn", ""],
+    ["t_conn", "20231114221235"],
     ["src_sig", "1.1.1.1"],
     ["out_a", "100"],
     ["out_b", "200"],
@@ -214,6 +214,8 @@ function deps(now: number, fetchImpl: typeof fetch): LiveCallDeps {
     fetchImpl,
     account: { origin: ORIGIN, login: "admin", password: PASSWORD, caPem: null },
     descriptions: async () => new Map(),
+    rates: async () => [],
+    exceptions: async () => [],
   };
 }
 
@@ -232,14 +234,17 @@ describe("readLiveCalls", () => {
     expect(first.rows?.[0]).toMatchObject({
       state: "talk",
       startedAt: "2026-11-03 23:32:00",
+      connectedAt: "2023-11-14 22:12:35",
+      seconds: "45",
       outA: "100",
       sideA: "-",
       sideB: "-",
       sourceName: "gw-a",
       destName: "term",
+      sourceSignal: "1.1.1.1",
+      destSignal: "2.2.2.2",
+      tone: null,
     });
-    expect(first.rows?.[0]).not.toHaveProperty("sourceSignal");
-    expect(first.rows?.[0]).not.toHaveProperty("destSignal");
     expect(first.rows?.[1]).toMatchObject({
       outA: "101",
       state: "",
@@ -254,8 +259,13 @@ describe("readLiveCalls", () => {
     expect(bodies.some((body) => body.includes("08.2599.01"))).toBe(false);
     expect(bodies.some((body) => body.includes(">dur<"))).toBe(false);
     for (const body of bodies.filter((item) => item.includes("selectRowset"))) {
-      expect(body).not.toContain("src_sig");
-      expect(body).not.toContain("dst_sig");
+      if (body.includes("08.2504.01")) {
+        expect(body).toContain("src_sig");
+        expect(body).toContain("dst_sig");
+      } else {
+        expect(body).not.toContain("src_sig");
+        expect(body).not.toContain("dst_sig");
+      }
     }
 
     const cached = await readLiveCalls(deps(now + 2_999, fetchImpl));
@@ -268,6 +278,7 @@ describe("readLiveCalls", () => {
     expect(failed.error).toBe("Access denied");
     expect(failed.error).not.toContain(PASSWORD);
     expect(failed.rows?.[0]?.outA).toBe("100");
+    expect(failed.rows?.[0]?.seconds).toBe("45");
     expect(failed.takenAt).toBe(first.takenAt);
 
     mode = "empty";
@@ -305,7 +316,45 @@ describe("readLiveCalls", () => {
       },
     });
     expect(failedCatalog.error).toBeNull();
-    expect(failedCatalog.rows?.[0]).toMatchObject({ outA: "100", sideA: "-", sideB: "-" });
+    expect(failedCatalog.rows?.[0]).toMatchObject({
+      outA: "100",
+      sideA: "-",
+      sideB: "-",
+      tone: null,
+    });
+  });
+
+  it("retries a failed tariff load, then keeps the list for a minute", async () => {
+    const { fetchImpl } = harness(() => "ok");
+    let now = 1_700_000_000_000;
+    let loads = 0;
+    let fail = true;
+    const input: LiveCallDeps = {
+      ...deps(now, fetchImpl),
+      now: () => now,
+      rates: async () => {
+        loads += 1;
+        if (fail) throw new Error("tariff down");
+        return [];
+      },
+    };
+    const first = await readLiveCalls(input);
+    expect(first.error).toBeNull();
+    expect(first.rows?.[0]?.outA).toBe("100");
+    expect(loads).toBe(1);
+
+    fail = false;
+    now += 3_000;
+    await readLiveCalls(input);
+    expect(loads).toBe(2);
+
+    now += 3_000;
+    await readLiveCalls(input);
+    expect(loads).toBe(2);
+
+    now += MODULE_NAMES_MS;
+    await readLiveCalls(input);
+    expect(loads).toBe(3);
   });
 
   it("does not ask the catalog when the snapshot has no numbers", async () => {
@@ -360,8 +409,20 @@ describe("readLiveCalls", () => {
     const first = await readLiveCalls(deps(now, fetchImpl));
     expect(first.error).toBeNull();
     expect(first.rows).toEqual([
-      expect.objectContaining({ state: "talk", outA: "100", sourceName: "gw-a" }),
-      expect.objectContaining({ state: "", outA: "200", sourceName: "" }),
+      expect.objectContaining({
+        state: "talk",
+        outA: "100",
+        sourceName: "gw-a",
+        sourceSignal: "1.1.1.1",
+        destSignal: "",
+        seconds: "",
+      }),
+      expect.objectContaining({
+        state: "",
+        outA: "200",
+        sourceName: "",
+        sourceSignal: "",
+      }),
     ]);
     const calls = bodies.filter(
       (body) =>
@@ -388,8 +449,13 @@ describe("readLiveCalls", () => {
     ).toBe(false);
     expect(bodies.filter((body) => body.includes('xmlns="args"'))).toHaveLength(4);
     for (const body of bodies.filter((item) => item.includes("selectRowset"))) {
-      expect(body).not.toContain("src_sig");
-      expect(body).not.toContain("dst_sig");
+      if (body.includes("08.2701.01")) {
+        expect(body).toContain("src_sig");
+        expect(body).toContain("dst_sig");
+      } else {
+        expect(body).not.toContain("src_sig");
+        expect(body).not.toContain("dst_sig");
+      }
     }
 
     now += 3_000;
