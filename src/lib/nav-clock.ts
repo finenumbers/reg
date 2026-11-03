@@ -13,6 +13,7 @@ const UTC_ROOTS = [
   "/geography",
   "/raw",
   "/antifraud",
+  "/live-calls",
   "/smg/syslog",
 ];
 const SETTINGS_ROOTS = ["/regs", "/audit", "/jobs"];
@@ -25,6 +26,7 @@ function matches(path: string, root: string): boolean {
  * Which nav clock the open page paints.
  * `smg` is resolved from the selected node's CDR zone, not from the path.
  * `/smg/syslog` is UTC arrival time and is matched before `/smg`.
+ * `/live-calls` paints UTC. The call cells stay the switch digits.
  */
 export function navClockSource(pathname: string): NavClockRow | "smg" | null {
   const path =

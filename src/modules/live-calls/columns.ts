@@ -23,15 +23,15 @@ export type PcommField = keyof typeof PCOMM_FIELDS;
 export type PuprField = keyof typeof PUPR_FIELDS;
 
 export const LIVE_CALL_HEADERS = [
-  { key: "state", header: "Состояние вызова", bold: false },
+  { key: "state", header: "Состояние", bold: false },
   { key: "startedAt", header: "Время начала", bold: false },
   { key: "connectedAt", header: "Время соединения", bold: false },
-  { key: "outA", header: "Исходящий А-номер", bold: true },
-  { key: "outB", header: "Исходящий Б-номер", bold: true },
-  { key: "sourceName", header: "Имя инициатора", bold: false },
-  { key: "sourceSignal", header: "Адрес инициатора (сигнальный)", bold: false },
-  { key: "destName", header: "Имя терминирующего устройства", bold: false },
-  { key: "destSignal", header: "Адрес терминирующего устройства (сигнальный)", bold: false },
+  { key: "outA", header: "А-номер", bold: true },
+  { key: "outB", header: "Б-номер", bold: true },
+  { key: "sourceName", header: "Инициирующее устройство", bold: false },
+  { key: "destName", header: "Терминирующее устройство", bold: false },
+  { key: "sourceSignal", header: "Инициатор", bold: false },
+  { key: "destSignal", header: "Терминатор", bold: false },
   { key: "dialpeer", header: "Объект набора", bold: false },
 ] as const;
 

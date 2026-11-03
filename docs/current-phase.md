@@ -1,7 +1,15 @@
-# Current Phase — production (v1.213.0)
+# Current Phase — production (v1.214.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, number geography, free numbers, purchased numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls.  
 **Date:** 2026-11-04
+
+## v1.214.0 — Live call column names and the UTC clock
+
+There is no migration. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. Keep a single `app` replica. Replace the `app` container so «Текущие звонки» shows the new column order and paints UTC.
+
+The columns are «Состояние», «Время начала», «Время соединения», «А-номер», «Б-номер», «Инициирующее устройство», «Терминирующее устройство», «Инициатор», «Терминатор», and «Объект набора». The two number columns stay bold. A column stays as wide as its longest cell, including the header. The SOAP titles stay the switch names, so the read is unchanged. Call times stay the switch digits. The snapshot line stays in the Settings zone. Nothing is written to the switch.
+
+While «Текущие звонки» is open, the left nav paints the top UTC clock red, the same row as the CDR tables. When Settings is also UTC, the lower UTC row stays black.
 
 ## v1.213.0 — Live calls read the next page
 

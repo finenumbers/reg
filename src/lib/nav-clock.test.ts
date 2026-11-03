@@ -2,12 +2,13 @@ import { describe, expect, it } from "vitest";
 import { navClockRowForZone, navClockSource } from "@/lib/nav-clock";
 
 describe("navClockSource", () => {
-  it("paints UTC on the civil-UTC tables, Ошибки АнтиФрод, and syslog", () => {
+  it("paints UTC on the civil-UTC tables, live calls, Ошибки АнтиФрод, and syslog", () => {
     expect(navClockSource("/traffic")).toBe("utc");
     expect(navClockSource("/operators")).toBe("utc");
     expect(navClockSource("/geography")).toBe("utc");
     expect(navClockSource("/raw")).toBe("utc");
     expect(navClockSource("/antifraud")).toBe("utc");
+    expect(navClockSource("/live-calls")).toBe("utc");
     expect(navClockSource("/smg/syslog")).toBe("utc");
     expect(navClockSource("/smg/syslog/node")).toBe("utc");
   });

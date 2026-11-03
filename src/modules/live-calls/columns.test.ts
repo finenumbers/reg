@@ -1,0 +1,44 @@
+import { describe, expect, it } from "vitest";
+import {
+  LIVE_CALL_HEADERS,
+  PCOMM_FIELDS,
+  PUPR_FIELDS,
+} from "@/modules/live-calls/columns";
+
+describe("LIVE_CALL_HEADERS", () => {
+  it("shows the screen names in screen order", () => {
+    expect(
+      LIVE_CALL_HEADERS.map((column) => [column.key, column.header, column.bold]),
+    ).toEqual([
+      ["state", "Состояние", false],
+      ["startedAt", "Время начала", false],
+      ["connectedAt", "Время соединения", false],
+      ["outA", "А-номер", true],
+      ["outB", "Б-номер", true],
+      ["sourceName", "Инициирующее устройство", false],
+      ["destName", "Терминирующее устройство", false],
+      ["sourceSignal", "Инициатор", false],
+      ["destSignal", "Терминатор", false],
+      ["dialpeer", "Объект набора", false],
+    ]);
+  });
+
+  it("keeps the switch titles that describeTable matches", () => {
+    expect(PCOMM_FIELDS).toEqual({
+      conferenceId: "Conference ID ПКомм",
+      startedAt: "Время начала",
+      connectedAt: "Время соединения",
+      sourceSignal: "Адрес инициатора (сигн.)",
+      outA: "Исходящий А-номер",
+      outB: "Исходящий Б-номер",
+      destSignal: "Адрес терм. устр-ва (сигн.)",
+    });
+    expect(PUPR_FIELDS).toEqual({
+      conferenceId: "Conference ID ПКомм",
+      state: "Состояние вызова",
+      sourceName: "Имя инициатора",
+      dialpeer: "Объект набора",
+      destName: "Имя терм. устройства",
+    });
+  });
+});
