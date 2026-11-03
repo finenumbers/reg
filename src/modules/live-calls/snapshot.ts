@@ -261,11 +261,7 @@ async function loadCatalog(
   const pcomm = findTransitTable(objects.objects, PCOMM_TABLE);
   const pupr = findTransitTable(objects.objects, PUPR_TABLE);
   if (!pcomm.ok || !pupr.ok) {
-    return {
-      detail:
-        "В каталоге РТУ нет сводных таблиц транзитных вызовов. Проверьте язык и права учётной записи.",
-      unknown: false,
-    };
+    return { detail: catalogMiss(objects.objects, pcomm, pupr), unknown: false };
   }
   if (!isRtuObjectId(pcomm.objectId) || !isRtuObjectId(pupr.objectId)) {
     return { detail: "Идентификатор таблицы РТУ не подходит для чтения.", unknown: false };
@@ -404,6 +400,23 @@ async function postRead(
     return { ok: false, detail: "Коммутатор ответил ошибкой HTTP.", unknown: false };
   }
   return { ok: true, text: posted.text };
+}
+
+function catalogMiss(
+  objects: readonly { type: string }[],
+  pcomm: { ok: boolean; reason?: "none" | "many" },
+  pupr: { ok: boolean; reason?: "none" | "many" },
+): string {
+  const tables = objects.filter((item) => item.type === "table").length;
+  if (tables === 0) return "Каталог РТУ не содержит таблиц.";
+  const many: string[] = [];
+  const none: string[] = [];
+  if (!pcomm.ok) (pcomm.reason === "many" ? many : none).push(PCOMM_TABLE);
+  if (!pupr.ok) (pupr.reason === "many" ? many : none).push(PUPR_TABLE);
+  const parts: string[] = [];
+  if (many.length > 0) parts.push(`несколько страниц «${many.join("», «")}»`);
+  if (none.length > 0) parts.push(`нет страницы «${none.join("», «")}»`);
+  return `Каталог РТУ: ${parts.join("; ")}. Сводные таблицы не выбраны.`;
 }
 
 function faultResult(detail: string): { detail: string; unknown: boolean } {

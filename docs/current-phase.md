@@ -1,7 +1,13 @@
-# Current Phase — production (v1.210.0)
+# Current Phase — production (v1.211.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, number geography, free numbers, purchased numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls.  
-**Date:** 2026-11-03
+**Date:** 2026-11-04
+
+## v1.211.0 — Transit-call catalog match
+
+There is no migration. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. Keep a single `app` replica. Replace the `app` container so «Текущие звонки» can find the two summary tables.
+
+The live WSDL lists `p_parent_id` on `getObjects` and allows the menu path to be empty. The access check and the call page now send that parent as nil, which asks for the whole catalog. A summary page whose path is empty is used when it is the only table with that title. A page outside «Мониторинг ПКомм» is still skipped, and a copy under «Данные по модулям» is still skipped. The read is still `describeTable` and `selectRowset` on those two tables only. Nothing is written to the switch.
 
 ## v1.210.0 — Current transit calls
 

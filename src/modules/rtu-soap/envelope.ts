@@ -47,6 +47,7 @@ export function quoteSoapAction(action: string): string {
 function rpcBody(binding: Extract<GetObjectsBinding, { kind: "rpc-encoded" }>): string {
   const ns = escapeXml(binding.operationNamespace);
   const part = binding.partName;
+  const parent = binding.nilParent ? `<p_parent_id xsi:nil="true"/>` : "";
   return (
     `<ns1:${GET_OBJECTS} xmlns:ns1="${ns}" ` +
     `SOAP-ENV:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">` +
@@ -54,6 +55,7 @@ function rpcBody(binding: Extract<GetObjectsBinding, { kind: "rpc-encoded" }>): 
     `<item xsi:type="xsd:string">table</item>` +
     `<item xsi:type="xsd:string">procedure</item>` +
     `</${part}>` +
+    parent +
     `</ns1:${GET_OBJECTS}>`
   );
 }

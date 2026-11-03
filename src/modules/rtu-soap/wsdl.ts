@@ -7,6 +7,8 @@ export type RpcEncodedBinding = {
   operationNamespace: string;
   soapAction: string;
   partName: string;
+  /** Live WSDL lists p_parent_id. Nil means the whole catalog, not one table. */
+  nilParent: boolean;
 };
 
 export type DocumentLiteralBinding = {
@@ -123,6 +125,7 @@ function rpcBinding(
     operationNamespace,
     soapAction,
     partName,
+    nilParent: parts.some((item) => attr(item, "name") === "p_parent_id"),
   };
 }
 

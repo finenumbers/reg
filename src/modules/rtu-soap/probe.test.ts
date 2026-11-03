@@ -4,7 +4,7 @@ import { parseRtuSoapOrigin, pinSoapEndpoint } from "@/modules/rtu-soap/origin";
 import { openRtuSoapPassword } from "@/modules/rtu-soap/password";
 import { probeRtuSoapAccess } from "@/modules/rtu-soap/probe";
 import { acquireRtuSoapTest, releaseRtuSoapTest } from "@/modules/rtu-soap/flight";
-import type { GetObjectsBinding } from "@/modules/rtu-soap/wsdl";
+import { readWsdl, type GetObjectsBinding } from "@/modules/rtu-soap/wsdl";
 
 const ORIGIN = "https://rtu.example";
 const PASSWORD = "s3cret";
@@ -179,6 +179,7 @@ describe("getObjects envelope", () => {
     operationNamespace: "urn:rtu-api",
     soapAction: "urn:rtu-api#getObjects",
     partName: "p_types",
+    nilParent: false,
   };
 
   it("builds only getObjects and escapes the password", () => {
@@ -202,6 +203,27 @@ describe("getObjects envelope", () => {
     }
     expect(body).not.toMatch(/\bcall\b/);
     expect(body).not.toContain("http://mfisoft.ru/auth");
+    expect(body).not.toContain("p_parent_id");
+  });
+
+  it("sends a nil parent when the WSDL lists that part", () => {
+    const body = buildGetObjectsEnvelope({ ...rpc, nilParent: true }, "admin", PASSWORD);
+    expect(body.indexOf("<p_types ")).toBeLessThan(body.indexOf("<p_parent_id "));
+    expect(body).toContain('<p_parent_id xsi:nil="true"/>');
+    expect(body).not.toContain("deleteRowset");
+  });
+
+  it("reads p_parent_id from the live message shape", () => {
+    const withParent = RPC_WSDL.replace(
+      `<part name="p_types" type="soapenc:Array"/>`,
+      `<part name="p_types" type="soapenc:Array"/><part name="p_parent_id" type="xsd:string"/>`,
+    );
+    const listed = readWsdl(withParent, ORIGIN);
+    const plain = readWsdl(RPC_WSDL, ORIGIN);
+    if (!listed.ok || listed.binding.kind !== "rpc-encoded") throw new Error("parent wsdl");
+    if (!plain.ok || plain.binding.kind !== "rpc-encoded") throw new Error("plain wsdl");
+    expect(listed.binding.nilParent).toBe(true);
+    expect(plain.binding.nilParent).toBe(false);
   });
 });
 
