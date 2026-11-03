@@ -1,7 +1,13 @@
-# Current Phase — production (v1.208.0)
+# Current Phase — production (v1.209.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, number geography, free numbers, purchased numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal.  
-**Date:** 2026-11-02
+**Date:** 2026-11-03
+
+## v1.209.0 — RTU access check uses the public certificate
+
+There is no migration. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. Keep a single `app` replica. Replace the `app` container so the Settings text changes.
+
+«API РТУ» no longer asks to paste the site certificate. For a hostname, the public certificate is enough and the certificate field stays empty. «Убрать сертификат» clears a PEM saved earlier. «Проверить доступ» still downloads WSDL v2 and calls `getObjects` once. That call does not write to the switch. Signature and expiry stay on.
 
 ## v1.208.0 — RTU access check can trust a pasted certificate
 
