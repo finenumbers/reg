@@ -1,12 +1,20 @@
 import type { LiveCallColumnKey } from "@/modules/live-calls/columns";
 
+export type CallTalk = {
+  text: string;
+  explicitSeconds: boolean;
+};
+
 export type CallSide = {
   conferenceId: string;
   values: Partial<Record<LiveCallColumnKey, string>>;
+  talk?: CallTalk | null;
 };
 
 export type JoinedCall = Record<LiveCallColumnKey, string> & {
   conferenceId: string;
+  /** Null when the duration column was not read. Empty when it was read and blank. */
+  switchSeconds: string | null;
 };
 
 const EMPTY: Record<LiveCallColumnKey, string> = {
@@ -71,6 +79,19 @@ export function joinLiveCalls(
   return out;
 }
 
+function pickSwitchSeconds(left: CallSide | null, right: CallSide | null): string | null {
+  const talks = [left?.talk, right?.talk].filter(
+    (item): item is CallTalk => item != null,
+  );
+  for (const talk of talks) {
+    if (talk.explicitSeconds && talk.text !== "") return talk.text;
+  }
+  for (const talk of talks) {
+    if (talk.text !== "") return talk.text;
+  }
+  return talks.length > 0 ? "" : null;
+}
+
 function merge(left: CallSide | null, right: CallSide | null): JoinedCall {
   return {
     conferenceId: left?.conferenceId.trim() || right?.conferenceId.trim() || "",
@@ -82,6 +103,7 @@ function merge(left: CallSide | null, right: CallSide | null): JoinedCall {
     outB: left?.values.outB ?? EMPTY.outB,
     sideB: EMPTY.sideB,
     seconds: EMPTY.seconds,
+    switchSeconds: pickSwitchSeconds(left, right),
     sourceName: right?.values.sourceName ?? EMPTY.sourceName,
     destName: right?.values.destName ?? EMPTY.destName,
     dialpeer: right?.values.dialpeer ?? EMPTY.dialpeer,

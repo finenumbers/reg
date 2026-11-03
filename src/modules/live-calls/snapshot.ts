@@ -1,6 +1,7 @@
 import {
   ACTIVE_MODULES_TITLE,
   findActiveModules,
+  findTalkColumn,
   findTransitTable,
   findTransitTemplate,
   mapColumns,
@@ -9,17 +10,24 @@ import {
   type MappedColumn,
   type PcommMap,
   type PuprMap,
+  type TalkColumn,
 } from "@/modules/live-calls/catalog";
 import {
   PCOMM_FIELDS,
   PCOMM_TABLE,
+  PCOMM_TALK_TITLES,
   PUPR_FIELDS,
   PUPR_TABLE,
+  PUPR_TALK_TITLES,
   type LiveCallColumnKey,
   type PcommField,
   type PuprField,
 } from "@/modules/live-calls/columns";
-import { liveCallSeconds, presentSwitchValue } from "@/modules/live-calls/format";
+import {
+  liveCallSeconds,
+  presentSwitchValue,
+  presentTalkSeconds,
+} from "@/modules/live-calls/format";
 import { joinLiveCalls, type CallSide } from "@/modules/live-calls/join";
 import type { LiveCallTone } from "@/modules/live-calls/row-class";
 import { applyLiveCallSides, liveCallPhoneKeys } from "@/modules/live-calls/sides";
@@ -74,6 +82,8 @@ export type LiveCallRow = Record<LiveCallColumnKey, string> & {
   tone: LiveCallTone | null;
 };
 
+type PreparedRow = LiveCallRow & { switchSeconds: string | null };
+
 export type LiveCallPayload = {
   rows: LiveCallRow[] | null;
   takenAt: string | null;
@@ -104,6 +114,8 @@ type CatalogBase = {
   puprId: string;
   pcomm: PcommMap;
   pupr: PuprMap;
+  pcommTalk: TalkColumn | null;
+  puprTalk: TalkColumn | null;
 };
 
 type Catalog =
@@ -141,11 +153,14 @@ type ClassList = {
 let memory: Memory | null = null;
 let pending: Promise<LiveCallPayload> | null = null;
 let classList: ClassList | null = null;
+/** A duration column that faulted once stays out of later selects until restart. */
+let omitTalk = false;
 
 export function resetLiveCallMemory(): void {
   memory = null;
   pending = null;
   classList = null;
+  omitTalk = false;
 }
 
 export function readLiveCalls(deps: LiveCallDeps): Promise<LiveCallPayload> {
@@ -158,7 +173,10 @@ export function readLiveCalls(deps: LiveCallDeps): Promise<LiveCallPayload> {
 
 async function execute(deps: LiveCallDeps): Promise<LiveCallPayload> {
   const key = `${deps.account.origin}\n${deps.account.login}`;
-  if (memory && memory.key !== key) memory = null;
+  if (memory && memory.key !== key) {
+    memory = null;
+    omitTalk = false;
+  }
   const now = deps.now();
   if (memory && now - memory.attemptedAtMs < REFRESH_MS) {
     return view(memory, now);
@@ -184,10 +202,16 @@ async function execute(deps: LiveCallDeps): Promise<LiveCallPayload> {
       const snapshot: Snapshot = {
         takenAtMs: attemptedAtMs,
         takenAt: new Date(attemptedAtMs).toISOString(),
-        rows: outcome.rows.map((row) => ({
-          ...row,
-          seconds: liveCallSeconds(row.connectedAt, attemptedAtMs),
-        })),
+        rows: outcome.rows.map((row) => {
+          const { switchSeconds, ...rest } = row;
+          return {
+            ...rest,
+            seconds:
+              switchSeconds !== null
+                ? switchSeconds
+                : liveCallSeconds(row.connectedAt, attemptedAtMs),
+          };
+        }),
         truncated: outcome.truncated,
       };
       memory = {
@@ -222,7 +246,7 @@ type ReadOnce =
       kind: "ok";
       catalog: Catalog;
       modules: ModuleNames | null;
-      rows: LiveCallRow[];
+      rows: PreparedRow[];
       truncated: boolean;
     }
   | { kind: "retry" }
@@ -238,20 +262,25 @@ async function readOnce(
     return ready.unknown ? { kind: "retry" } : { kind: "error", detail: ready.detail };
   }
   if (ready.source === "modules") return readModules(deps, ready, modules);
+  const gate: TalkGate = { omit: omitTalk };
   const selected = await Promise.all([
     selectAllPages(
       deps,
       ready,
       ready.pcommId,
       namesOf(ready.pcomm),
+      ready.pcommTalk,
       ready.pcomm.conferenceId.name,
+      gate,
     ),
     selectAllPages(
       deps,
       ready,
       ready.puprId,
       namesOf(ready.pupr),
+      ready.puprTalk,
       ready.pupr.conferenceId.name,
+      gate,
     ),
   ]);
   const pcomm = selected[0];
@@ -270,7 +299,10 @@ async function readOnce(
     kind: "ok",
     catalog: ready,
     modules: null,
-    rows: await finishRows(deps, joinedRows(ready, pcomm.rows, pupr.rows)),
+    rows: await finishRows(
+      deps,
+      joinedRows(ready, pcomm.rows, pupr.rows, pcomm.talkFlags, pupr.talkFlags),
+    ),
     truncated: pcomm.truncated || pupr.truncated,
   };
 }
@@ -282,8 +314,11 @@ async function readModules(
 ): Promise<ReadOnce> {
   const named = await resolveModules(deps, ready, cached);
   if (named.kind !== "ok") return named;
+  const gate: TalkGate = { omit: omitTalk };
   const pcommRows: Array<Record<string, string>> = [];
   const puprRows: Array<Record<string, string>> = [];
+  const pcommFlags: boolean[] = [];
+  const puprFlags: boolean[] = [];
   let truncated = false;
   for (const name of named.modules.signaling) {
     const selected = await selectAllPages(
@@ -291,7 +326,9 @@ async function readModules(
       ready,
       ready.pcommId,
       namesOf(ready.pcomm),
+      ready.pcommTalk,
       ready.pcomm.conferenceId.name,
+      gate,
       name,
     );
     if (!selected.ok)
@@ -299,6 +336,7 @@ async function readModules(
         ? { kind: "retry" }
         : { kind: "error", detail: selected.detail };
     pcommRows.push(...selected.rows);
+    pcommFlags.push(...selected.talkFlags);
     truncated = truncated || selected.truncated;
   }
   for (const name of named.modules.scripting) {
@@ -307,7 +345,9 @@ async function readModules(
       ready,
       ready.puprId,
       namesOf(ready.pupr),
+      ready.puprTalk,
       ready.pupr.conferenceId.name,
+      gate,
       name,
     );
     if (!selected.ok)
@@ -315,13 +355,17 @@ async function readModules(
         ? { kind: "retry" }
         : { kind: "error", detail: selected.detail };
     puprRows.push(...selected.rows);
+    puprFlags.push(...selected.talkFlags);
     truncated = truncated || selected.truncated;
   }
   return {
     kind: "ok",
     catalog: ready,
     modules: named.modules,
-    rows: await finishRows(deps, joinedRows(ready, pcommRows, puprRows)),
+    rows: await finishRows(
+      deps,
+      joinedRows(ready, pcommRows, puprRows, pcommFlags, puprFlags),
+    ),
     truncated,
   };
 }
@@ -375,10 +419,16 @@ function joinedRows(
   ready: CatalogBase,
   pcommRows: Array<Record<string, string>>,
   puprRows: Array<Record<string, string>>,
-): LiveCallRow[] {
+  pcommTalk: readonly boolean[],
+  puprTalk: readonly boolean[],
+): PreparedRow[] {
   return joinLiveCalls(
-    pcommRows.map((row) => sideFrom(row, ready.pcomm)),
-    puprRows.map((row) => sideFrom(row, ready.pupr)),
+    pcommRows.map((row, index) =>
+      sideFrom(row, ready.pcomm, pcommTalk[index] ? ready.pcommTalk : null),
+    ),
+    puprRows.map((row, index) =>
+      sideFrom(row, ready.pupr, puprTalk[index] ? ready.puprTalk : null),
+    ),
   ).map((row, index) => ({
     key: `${row.conferenceId || "none"}:${index}`,
     state: row.state,
@@ -395,6 +445,7 @@ function joinedRows(
     sourceSignal: row.sourceSignal,
     destSignal: row.destSignal,
     tone: null,
+    switchSeconds: row.switchSeconds,
   }));
 }
 
@@ -432,8 +483,8 @@ async function classificationLists(deps: LiveCallDeps, now: number): Promise<Cla
 
 async function finishRows(
   deps: LiveCallDeps,
-  rows: LiveCallRow[],
-): Promise<LiveCallRow[]> {
+  rows: PreparedRow[],
+): Promise<PreparedRow[]> {
   if (rows.length === 0) return [];
   const [sided, lists] = await Promise.all([
     withSides(deps, rows),
@@ -531,6 +582,8 @@ async function loadCatalog(
       puprId: pupr.objectId,
       pcomm: mapped.pcomm,
       pupr: mapped.pupr,
+      pcommTalk: mapped.pcommTalk,
+      puprTalk: mapped.puprTalk,
     };
   }
   if (pcomm.ok || pupr.ok || pcomm.reason === "many" || pupr.reason === "many") {
@@ -620,6 +673,8 @@ async function loadModuleCatalog(
     puprId: pupr.objectId,
     pcomm: mapped.pcomm,
     pupr: mapped.pupr,
+    pcommTalk: mapped.pcommTalk,
+    puprTalk: mapped.puprTalk,
     modulesId: modules.objectId,
     moduleColumn: moduleMap.columns.module,
   };
@@ -635,7 +690,13 @@ function mapCallColumns(
     | { ok: false; detail: string; unknown: boolean }
     | undefined,
 ):
-  | { ok: true; pcomm: PcommMap; pupr: PuprMap }
+  | {
+      ok: true;
+      pcomm: PcommMap;
+      pupr: PuprMap;
+      pcommTalk: TalkColumn | null;
+      puprTalk: TalkColumn | null;
+    }
   | { ok: false; detail: string; unknown: boolean } {
   if (!pcommColumns?.ok || !puprColumns?.ok) {
     const failed = pcommColumns && !pcommColumns.ok ? pcommColumns : puprColumns;
@@ -663,7 +724,13 @@ function mapCallColumns(
       unknown: false,
     };
   }
-  return { ok: true, pcomm: pcommMap.columns, pupr: puprMap.columns };
+  return {
+    ok: true,
+    pcomm: pcommMap.columns,
+    pupr: puprMap.columns,
+    pcommTalk: findTalkColumn(pcommColumns.columns, PCOMM_TALK_TITLES),
+    puprTalk: findTalkColumn(puprColumns.columns, PUPR_TALK_TITLES),
+  };
 }
 
 async function describe(
@@ -701,27 +768,70 @@ async function describe(
 
 type Selected =
   | { ok: true; rows: Array<Record<string, string>>; truncated: boolean }
-  | { ok: false; detail: string; unknown: boolean };
+  | { ok: false; detail: string; unknown: boolean; fault: boolean };
+
+type Paged =
+  | {
+      ok: true;
+      rows: Array<Record<string, string>>;
+      truncated: boolean;
+      talkFlags: boolean[];
+    }
+  | { ok: false; detail: string; unknown: boolean; fault: boolean };
+
+type TalkGate = { omit: boolean };
+
+function pageColumns(
+  base: readonly string[],
+  talk: TalkColumn | null,
+  gate: TalkGate,
+): string[] {
+  if (gate.omit || !talk || base.includes(talk.name)) return [...base];
+  return [...base, talk.name];
+}
 
 async function selectAllPages(
   deps: LiveCallDeps,
   catalog: Catalog,
   objectId: string,
   columns: string[],
+  talk: TalkColumn | null,
   conferenceColumn: string,
+  gate: TalkGate,
   moduleName?: string,
-): Promise<Selected> {
+): Promise<Paged> {
   const rows: Array<Record<string, string>> = [];
+  const talkFlags: boolean[] = [];
   let previousIds: Set<string> | null = null;
   for (let page = 0; page < MAX_CALL_PAGES; page += 1) {
-    const selected = await selectTable(
+    const requested = pageColumns(columns, talk, gate);
+    const addedTalk = Boolean(
+      talk && requested.includes(talk.name) && !columns.includes(talk.name),
+    );
+    let selected = await selectTable(
       deps,
       catalog,
       objectId,
-      columns,
+      requested,
       moduleName,
       page * SELECT_ROW_LIMIT,
     );
+    let pageWithTalk = addedTalk;
+    if (!selected.ok && selected.fault && addedTalk) {
+      const again = await selectTable(
+        deps,
+        catalog,
+        objectId,
+        columns,
+        moduleName,
+        page * SELECT_ROW_LIMIT,
+      );
+      if (!again.ok) return selected;
+      gate.omit = true;
+      omitTalk = true;
+      selected = again;
+      pageWithTalk = false;
+    }
     if (!selected.ok) return selected;
     const pageIds = conferenceIdSet(selected.rows, conferenceColumn);
     const decision = decideNextPage({
@@ -732,13 +842,17 @@ async function selectAllPages(
       pageSize: SELECT_ROW_LIMIT,
       maxPages: MAX_CALL_PAGES,
     });
-    if (decision.append) rows.push(...selected.rows);
+    if (decision.append) {
+      rows.push(...selected.rows);
+      for (let index = 0; index < selected.rows.length; index += 1)
+        talkFlags.push(pageWithTalk);
+    }
     if (decision.action !== "continue") {
-      return { ok: true, rows, truncated: decision.truncated };
+      return { ok: true, rows, truncated: decision.truncated, talkFlags };
     }
     previousIds = pageIds;
   }
-  return { ok: true, rows, truncated: true };
+  return { ok: true, rows, truncated: true, talkFlags };
 }
 
 async function selectTable(
@@ -766,6 +880,7 @@ async function selectTable(
       ok: false,
       detail: "Колонка РТУ имеет неподдерживаемое имя.",
       unknown: false,
+      fault: false,
     };
   }
   const posted = await postRead(
@@ -774,11 +889,20 @@ async function selectTable(
     catalog.selectRowset.soapAction,
     envelope,
   );
-  if (!posted.ok) return { ok: false, detail: posted.detail, unknown: posted.unknown };
+  if (!posted.ok) {
+    return { ok: false, detail: posted.detail, unknown: posted.unknown, fault: false };
+  }
   const parsed = interpretSelectRowset(posted.text, deps.account.password);
-  if (parsed.kind === "fault") return { ok: false, ...faultResult(parsed.detail) };
+  if (parsed.kind === "fault") {
+    return { ok: false, ...faultResult(parsed.detail), fault: true };
+  }
   if (parsed.kind !== "rows") {
-    return { ok: false, detail: "Ответ selectRowset не разобран.", unknown: false };
+    return {
+      ok: false,
+      detail: "Ответ selectRowset не разобран.",
+      unknown: false,
+      fault: false,
+    };
   }
   return {
     ok: true,
@@ -787,7 +911,11 @@ async function selectTable(
   };
 }
 
-function sideFrom(row: Record<string, string>, columns: PcommMap | PuprMap): CallSide {
+function sideFrom(
+  row: Record<string, string>,
+  columns: PcommMap | PuprMap,
+  talk: TalkColumn | null,
+): CallSide {
   const conference = columns.conferenceId;
   const conferenceId = (row[conference.name] ?? "").trim();
   const values: CallSide["values"] = {};
@@ -798,7 +926,16 @@ function sideFrom(row: Record<string, string>, columns: PcommMap | PuprMap): Cal
     const raw = row[column.name] ?? "";
     values[key as LiveCallColumnKey] = presentSwitchValue(raw, column.dataMask);
   }
-  return { conferenceId, values };
+  return {
+    conferenceId,
+    values,
+    talk: talk
+      ? {
+          text: presentTalkSeconds(row[talk.name] ?? ""),
+          explicitSeconds: talk.explicitSeconds,
+        }
+      : null,
+  };
 }
 
 async function postRead(

@@ -22,6 +22,14 @@ export const PUPR_FIELDS = {
 export type PcommField = keyof typeof PCOMM_FIELDS;
 export type PuprField = keyof typeof PUPR_FIELDS;
 
+/** Live duration on the switching-subsystem page. Not a required column. */
+export const TALK_DURATION_TITLE = "Время разговора";
+/** Live duration on the routing page. The handbook names the unit. */
+export const TALK_SECONDS_TITLE = "Время разговора, сек";
+
+export const PCOMM_TALK_TITLES = [TALK_DURATION_TITLE, TALK_SECONDS_TITLE] as const;
+export const PUPR_TALK_TITLES = [TALK_SECONDS_TITLE, TALK_DURATION_TITLE] as const;
+
 export const LIVE_CALL_HEADERS = [
   { key: "state", header: "Состояние", bold: false },
   { key: "startedAt", header: "Время начала", bold: false },

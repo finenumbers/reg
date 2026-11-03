@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   LIVE_CALL_HEADERS,
   PCOMM_FIELDS,
+  PCOMM_TALK_TITLES,
   PUPR_FIELDS,
+  PUPR_TALK_TITLES,
 } from "@/modules/live-calls/columns";
 
 describe("LIVE_CALL_HEADERS", () => {
@@ -43,5 +45,7 @@ describe("LIVE_CALL_HEADERS", () => {
       dialpeer: "Объект набора",
       destName: "Имя терм. устройства",
     });
+    expect(PCOMM_TALK_TITLES).toEqual(["Время разговора", "Время разговора, сек"]);
+    expect(PUPR_TALK_TITLES).toEqual(["Время разговора, сек", "Время разговора"]);
   });
 });

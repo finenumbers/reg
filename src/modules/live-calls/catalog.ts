@@ -1,8 +1,10 @@
 import {
+  TALK_SECONDS_TITLE,
   normalizeRtuLabel,
   type PcommField,
   type PuprField,
 } from "@/modules/live-calls/columns";
+import { isRtuColumnName } from "@/modules/rtu-soap/envelope";
 import type { SoapColumn } from "@/modules/rtu-soap/response";
 
 const MONITOR = "Мониторинг ПКомм";
@@ -158,3 +160,29 @@ export function mapColumns<Key extends string>(
 
 export type PcommMap = Record<PcommField, MappedColumn>;
 export type PuprMap = Record<PuprField, MappedColumn>;
+
+export type TalkColumn = MappedColumn & { explicitSeconds: boolean };
+
+/**
+ * The first listed title that occurs once. No match, two matches, or a name
+ * that cannot be sent: skip the column. The call round still succeeds.
+ */
+export function findTalkColumn(
+  columns: readonly SoapColumn[],
+  titles: readonly string[],
+): TalkColumn | null {
+  for (const title of titles) {
+    const want = normalizeRtuLabel(title);
+    const hits = columns.filter((column) => normalizeRtuLabel(column.title) === want);
+    if (hits.length > 1) return null;
+    const hit = hits[0];
+    if (!hit) continue;
+    if (!isRtuColumnName(hit.name)) return null;
+    return {
+      name: hit.name,
+      dataMask: hit.dataMask,
+      explicitSeconds: want === normalizeRtuLabel(TALK_SECONDS_TITLE),
+    };
+  }
+  return null;
+}

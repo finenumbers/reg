@@ -548,7 +548,138 @@ describe("readLiveCalls", () => {
       false,
     );
   });
+
+  it("shows the switch duration instead of a UTC difference of zero", async () => {
+    const { fetchImpl } = durationHarness("value");
+    const read = await readLiveCalls(deps(1_700_000_000_000, fetchImpl));
+    expect(read.error).toBeNull();
+    expect(read.rows?.[0]?.seconds).toBe("37");
+    expect(read.rows?.[0]?.connectedAt).toBe("2026-11-04 03:48:00");
+  });
+
+  it("keeps a blank or zero duration from the switch", async () => {
+    const blank = await readLiveCalls(
+      deps(1_700_000_000_000, durationHarness("blank").fetchImpl),
+    );
+    expect(blank.error).toBeNull();
+    expect(blank.rows?.[0]?.seconds).toBe("");
+
+    resetLiveCallMemory();
+    const zero = await readLiveCalls(
+      deps(1_700_000_000_000, durationHarness("zero").fetchImpl),
+    );
+    expect(zero.error).toBeNull();
+    expect(zero.rows?.[0]?.seconds).toBe("0");
+  });
+
+  it("ignores a duplicated duration title and still reads the calls", async () => {
+    const { fetchImpl, bodies } = durationHarness("duplicate");
+    const read = await readLiveCalls(deps(1_700_000_000_000, fetchImpl));
+    expect(read.error).toBeNull();
+    expect(read.rows?.[0]?.seconds).toBe("45");
+    expect(bodies.some((body) => body.includes("dur_a") || body.includes("dur_b"))).toBe(
+      false,
+    );
+  });
+
+  it("drops a duration column after one SOAP fault and does not ask again", async () => {
+    const { fetchImpl, bodies } = durationHarness("fault");
+    let now = 1_700_000_000_000;
+    const read = await readLiveCalls({
+      ...deps(now, fetchImpl),
+      now: () => now,
+    });
+    expect(read.error).toBeNull();
+    expect(read.rows?.[0]?.seconds).toBe("45");
+    expect(bodies.filter((body) => body.includes("talk_sec"))).toHaveLength(1);
+    expect(bodies.filter((body) => body.includes("<ns1:getObjects"))).toHaveLength(1);
+
+    now += 3_000;
+    const again = await readLiveCalls({
+      ...deps(now, fetchImpl),
+      now: () => now,
+    });
+    expect(again.error).toBeNull();
+    expect(bodies.filter((body) => body.includes("talk_sec"))).toHaveLength(1);
+    expect(bodies.filter((body) => body.includes("<ns1:getObjects"))).toHaveLength(1);
+  });
+
+  it("does not repeat a duration select after an HTTP error", async () => {
+    const { fetchImpl, bodies } = durationHarness("http");
+    const read = await readLiveCalls(deps(1_700_000_000_000, fetchImpl));
+    expect(read.rows).toBeNull();
+    expect(read.error).toBe("Коммутатор ответил ошибкой HTTP.");
+    expect(bodies.filter((body) => body.includes("talk_sec"))).toHaveLength(1);
+  });
 });
+
+function durationHarness(
+  kind: "value" | "blank" | "zero" | "duplicate" | "fault" | "http",
+) {
+  const bodies: string[] = [];
+  const timed = kind === "value" || kind === "blank" || kind === "zero";
+  const onPcomm = kind === "fault" || kind === "http";
+  const pcommDescribe =
+    kind === "duplicate"
+      ? PCOMM_DESCRIBE.replace(
+          "</columns>",
+          `${column("dur_a", "Время разговора")}${column("dur_b", "Время разговора")}</columns>`,
+        )
+      : onPcomm
+        ? PCOMM_DESCRIBE.replace(
+            "</columns>",
+            `${column("talk_sec", "Время разговора, сек")}</columns>`,
+          )
+        : PCOMM_DESCRIBE;
+  const puprDescribe = timed
+    ? PUPR_DESCRIBE.replace(
+        "</columns>",
+        `${column("talk_sec", "Время разговора, сек")}</columns>`,
+      )
+    : PUPR_DESCRIBE;
+  const talkValue = kind === "value" ? "37" : kind === "zero" ? "0" : "";
+  const pcommRows = timed
+    ? `<?xml version="1.0"?><Envelope><Body><selectRowsetResponse>${row([
+        ["conf_id", "c1"],
+        ["t_conn", "20261104034800"],
+      ])}</selectRowsetResponse></Body></Envelope>`
+    : PCOMM_ROWS;
+  const puprRows = timed
+    ? `<?xml version="1.0"?><Envelope><Body><selectRowsetResponse>${row([
+        ["conf_id", "c1"],
+        ["call_state", "talk"],
+        ["talk_sec", talkValue],
+      ])}</selectRowsetResponse></Body></Envelope>`
+    : PUPR_ROWS;
+  const fetchImpl: typeof fetch = async (url, init) => {
+    const body = typeof init?.body === "string" ? init.body : "";
+    bodies.push(body);
+    expect(body).not.toContain("insertRowset");
+    expect(body).not.toContain("deleteRowset");
+    const target = String(url);
+    if (target.includes("wsdl")) return new Response(WSDL, { status: 200 });
+    if (body.includes("<ns1:getObjects")) return new Response(OBJECTS, { status: 200 });
+    if (body.includes("describeTable") && body.includes("08.2504.01"))
+      return new Response(pcommDescribe, { status: 200 });
+    if (body.includes("describeTable") && body.includes("08.2505.01"))
+      return new Response(puprDescribe, { status: 200 });
+    if (body.includes("selectRowset") && body.includes("08.2504.01")) {
+      if (kind === "http" && body.includes("talk_sec"))
+        return new Response("no", { status: 500 });
+      if (kind === "fault" && body.includes("talk_sec")) {
+        return new Response(
+          `<?xml version="1.0"?><Envelope><Body><Fault><faultstring>Неизвестная колонка talk_sec</faultstring></Fault></Body></Envelope>`,
+          { status: 200 },
+        );
+      }
+      return new Response(pcommRows, { status: 200 });
+    }
+    if (body.includes("selectRowset") && body.includes("08.2505.01"))
+      return new Response(puprRows, { status: 200 });
+    throw new Error(`unexpected ${body.slice(0, 160)}`);
+  };
+  return { fetchImpl, bodies };
+}
 
 const MODULE_OBJECTS = `<?xml version="1.0"?>
 <Envelope><Body><getObjectsResponse>

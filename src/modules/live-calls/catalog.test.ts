@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
   findActiveModules,
+  findTalkColumn,
   findTransitTable,
   findTransitTemplate,
   PCOMM_TEMPLATE_LEAF,
   PUPR_TEMPLATE_LEAF,
   type CatalogObject,
 } from "@/modules/live-calls/catalog";
+import { PCOMM_TALK_TITLES, PUPR_TALK_TITLES } from "@/modules/live-calls/columns";
 
 const TITLE = "Транзитные вызовы (ПКомм)";
 
@@ -178,5 +180,34 @@ describe("findActiveModules", () => {
       ok: false,
       reason: "none",
     });
+  });
+});
+
+describe("findTalkColumn", () => {
+  const duration = { name: "dur", title: "Время разговора", dataMask: null };
+  const seconds = { name: "talk_sec", title: "Время разговора, сек", dataMask: null };
+
+  it("prefers the first unique handbook title", () => {
+    expect(findTalkColumn([duration, seconds], PUPR_TALK_TITLES)).toEqual({
+      name: "talk_sec",
+      dataMask: null,
+      explicitSeconds: true,
+    });
+    expect(findTalkColumn([duration, seconds], PCOMM_TALK_TITLES)).toEqual({
+      name: "dur",
+      dataMask: null,
+      explicitSeconds: false,
+    });
+    expect(findTalkColumn([], PCOMM_TALK_TITLES)).toBeNull();
+  });
+
+  it("skips a duplicated title and a name that cannot be sent", () => {
+    expect(
+      findTalkColumn(
+        [duration, { ...duration, name: "dur_b" }, seconds],
+        PCOMM_TALK_TITLES,
+      ),
+    ).toBeNull();
+    expect(findTalkColumn([{ ...seconds, name: "1bad" }], PUPR_TALK_TITLES)).toBeNull();
   });
 });

@@ -1,7 +1,15 @@
-# Current Phase — production (v1.216.0)
+# Current Phase — production (v1.217.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, number geography, free numbers, purchased numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls.  
 **Date:** 2026-11-04
+
+## v1.217.0 — Live call seconds from the switch duration
+
+There is no migration. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. Keep a single `app` replica. Replace the `app` container so «Текущие звонки» fills «Секунды» from the switch.
+
+«Секунды» is the whole seconds from «Время разговора, сек» when that column is present, and otherwise from «Время разговора». The technical name still comes from `describeTable`. `selectRowset` asks for it on the same two tables, the summary pages or the per-module templates. A missing title, two copies of one title, or a name that cannot be sent leaves the column out and the round still succeeds. A SOAP fault on that request reads the same page once more without the column and then stops asking until the process restarts. A timeout or an HTTP error is not a second request. An empty duration stays blank. `0` stays `0`. `H:MM:SS` becomes whole seconds. A fractional number drops the fraction.
+
+When the switch has no duration column, the cell is still the whole seconds from «Время соединения» to the snapshot. Those digits stay the switch clock and are read as UTC. A 14-digit `YMDhms` value and a fractional second count. An empty or unparsed connection stays blank. A stamp earlier than the connection shows 0. A failed refresh keeps the previous seconds with the previous stamp. Nothing is written to the switch.
 
 ## v1.216.0 — Live call seconds, signaling addresses, and row color
 
