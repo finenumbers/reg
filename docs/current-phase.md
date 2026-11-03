@@ -1,9 +1,11 @@
-# Current Phase — production (v1.217.0)
+# Current Phase — production (v1.217.1)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, number geography, free numbers, purchased numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls.  
 **Date:** 2026-11-04
 
-## v1.217.0 — Live call seconds from the switch duration
+## v1.217.1 — Live call seconds from the switch duration
+
+v1.217.0 did not publish an image: the production type check rejected the row after the side lookup. Deploy this release.
 
 There is no migration. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. Keep a single `app` replica. Replace the `app` container so «Текущие звонки» fills «Секунды» from the switch.
 

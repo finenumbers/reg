@@ -449,10 +449,10 @@ function joinedRows(
   }));
 }
 
-async function withSides(
+async function withSides<T extends LiveCallRow>(
   deps: LiveCallDeps,
-  rows: LiveCallRow[],
-): Promise<{ rows: LiveCallRow[]; sidesReady: boolean }> {
+  rows: T[],
+): Promise<{ rows: T[]; sidesReady: boolean }> {
   const phones = liveCallPhoneKeys(rows);
   if (phones.length === 0)
     return { rows: applyLiveCallSides(rows, new Map()), sidesReady: true };
