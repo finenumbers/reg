@@ -101,7 +101,8 @@ export function buildDescribeTableEnvelope(
 }
 
 /**
- * One page of the current rowset. Limit and offset are literals.
+ * One page of the current rowset. Limit is a literal.
+ * Offset is a later page of that same page size, or zero.
  * Filter and sort are nil: an empty filter is not the handbook default.
  */
 export function buildSelectRowsetEnvelope(
@@ -111,11 +112,13 @@ export function buildSelectRowsetEnvelope(
   objectId: string,
   columns: readonly string[],
   moduleName?: string,
+  offset = ROW_OFFSET,
 ): string {
   if (binding.operation !== SELECT_ROWSET) {
     throw new Error("selectRowset binding required");
   }
   assertObjectId(objectId);
+  assertPageOffset(offset);
   if (columns.length === 0 || columns.length > 16) {
     throw new Error("column list rejected");
   }
@@ -127,7 +130,7 @@ export function buildSelectRowsetEnvelope(
     p_filter: nilElement("p_filter"),
     p_sort: nilElement("p_sort"),
     p_limit: taggedInt("p_limit", SELECT_ROW_LIMIT, binding.kind),
-    p_offset: taggedInt("p_offset", ROW_OFFSET, binding.kind),
+    p_offset: taggedInt("p_offset", offset, binding.kind),
     p_columns: columnList(binding, columns),
   };
   return wrap(login, password, callBody(binding, fields), moduleName);
@@ -135,6 +138,18 @@ export function buildSelectRowsetEnvelope(
 
 function assertObjectId(objectId: string): void {
   if (!isRtuObjectId(objectId)) throw new Error("object id rejected");
+}
+
+function assertPageOffset(offset: number): void {
+  const lastPage = SELECT_ROW_LIMIT * 4;
+  if (
+    !Number.isInteger(offset) ||
+    offset < 0 ||
+    offset > lastPage ||
+    offset % SELECT_ROW_LIMIT !== 0
+  ) {
+    throw new Error("row offset rejected");
+  }
 }
 
 function moduleHeader(moduleName: string | undefined): string {

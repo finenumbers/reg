@@ -24,20 +24,24 @@ describe("selectCallModules", () => {
     });
   });
 
-  it("drops a repeated name and a name that is not a numbered call module", () => {
+  it("drops a repeated numbered name and a module outside the call family", () => {
     expect(
-      selectCallModules([
-        " signaling-1 ",
-        "signaling-1",
-        "signaling-west",
-        "Signaling-1",
-        "media-1",
-        "scripting-1",
-      ]),
+      selectCallModules([" signaling-1 ", "signaling-1", "media-1", "scripting-1"]),
     ).toEqual({
       ok: true,
       signaling: ["signaling-1"],
       scripting: ["scripting-1"],
+    });
+  });
+
+  it("stops when a signaling or scripting name is not numbered", () => {
+    expect(selectCallModules(["signaling-1", "signaling-west", "scripting-1"])).toEqual({
+      ok: false,
+      reason: "unexpected",
+    });
+    expect(selectCallModules(["Signaling-1", "scripting-1"])).toEqual({
+      ok: false,
+      reason: "unexpected",
     });
   });
 

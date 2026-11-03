@@ -22,6 +22,11 @@ import {
 import { presentSwitchValue } from "@/modules/live-calls/format";
 import { joinLiveCalls, type CallSide } from "@/modules/live-calls/join";
 import { selectCallModules } from "@/modules/live-calls/modules";
+import {
+  conferenceIdSet,
+  decideNextPage,
+  MAX_CALL_PAGES,
+} from "@/modules/live-calls/pages";
 import { rtuExchange } from "@/modules/rtu-soap/exchange";
 import {
   SELECT_ROW_LIMIT,
@@ -209,8 +214,20 @@ async function readOnce(
   }
   if (ready.source === "modules") return readModules(deps, ready, modules);
   const selected = await Promise.all([
-    selectTable(deps, ready, ready.pcommId, namesOf(ready.pcomm)),
-    selectTable(deps, ready, ready.puprId, namesOf(ready.pupr)),
+    selectAllPages(
+      deps,
+      ready,
+      ready.pcommId,
+      namesOf(ready.pcomm),
+      ready.pcomm.conferenceId.name,
+    ),
+    selectAllPages(
+      deps,
+      ready,
+      ready.puprId,
+      namesOf(ready.pupr),
+      ready.pupr.conferenceId.name,
+    ),
   ]);
   const pcomm = selected[0];
   const pupr = selected[1];
@@ -244,11 +261,12 @@ async function readModules(
   const puprRows: Array<Record<string, string>> = [];
   let truncated = false;
   for (const name of named.modules.signaling) {
-    const selected = await selectTable(
+    const selected = await selectAllPages(
       deps,
       ready,
       ready.pcommId,
       namesOf(ready.pcomm),
+      ready.pcomm.conferenceId.name,
       name,
     );
     if (!selected.ok)
@@ -259,11 +277,12 @@ async function readModules(
     truncated = truncated || selected.truncated;
   }
   for (const name of named.modules.scripting) {
-    const selected = await selectTable(
+    const selected = await selectAllPages(
       deps,
       ready,
       ready.puprId,
       namesOf(ready.pupr),
+      ready.pupr.conferenceId.name,
       name,
     );
     if (!selected.ok)
@@ -312,7 +331,9 @@ async function resolveModules(
       detail:
         chosen.reason === "many"
           ? "Активных модулей signaling или scripting больше четырёх."
-          : "Среди активных модулей нет пары signaling и scripting.",
+          : chosen.reason === "unexpected"
+            ? "Модуль signaling или scripting назван не по шаблону."
+            : "Среди активных модулей нет пары signaling и scripting.",
     };
   }
   return {
@@ -602,16 +623,56 @@ async function describe(
   return { ok: true, columns: parsed.columns };
 }
 
+type Selected =
+  | { ok: true; rows: Array<Record<string, string>>; truncated: boolean }
+  | { ok: false; detail: string; unknown: boolean };
+
+async function selectAllPages(
+  deps: LiveCallDeps,
+  catalog: Catalog,
+  objectId: string,
+  columns: string[],
+  conferenceColumn: string,
+  moduleName?: string,
+): Promise<Selected> {
+  const rows: Array<Record<string, string>> = [];
+  let previousIds: Set<string> | null = null;
+  for (let page = 0; page < MAX_CALL_PAGES; page += 1) {
+    const selected = await selectTable(
+      deps,
+      catalog,
+      objectId,
+      columns,
+      moduleName,
+      page * SELECT_ROW_LIMIT,
+    );
+    if (!selected.ok) return selected;
+    const pageIds = conferenceIdSet(selected.rows, conferenceColumn);
+    const decision = decideNextPage({
+      pageIndex: page,
+      rowCount: selected.rows.length,
+      pageIds,
+      previousIds,
+      pageSize: SELECT_ROW_LIMIT,
+      maxPages: MAX_CALL_PAGES,
+    });
+    if (decision.append) rows.push(...selected.rows);
+    if (decision.action !== "continue") {
+      return { ok: true, rows, truncated: decision.truncated };
+    }
+    previousIds = pageIds;
+  }
+  return { ok: true, rows, truncated: true };
+}
+
 async function selectTable(
   deps: LiveCallDeps,
   catalog: Catalog,
   objectId: string,
   columns: string[],
   moduleName?: string,
-): Promise<
-  | { ok: true; rows: Array<Record<string, string>>; truncated: boolean }
-  | { ok: false; detail: string; unknown: boolean }
-> {
+  offset = 0,
+): Promise<Selected> {
   const unique = [...new Set(columns)];
   let envelope: string;
   try {
@@ -622,6 +683,7 @@ async function selectTable(
       objectId,
       unique,
       moduleName,
+      offset,
     );
   } catch {
     return {

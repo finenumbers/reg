@@ -1,7 +1,13 @@
-# Current Phase — production (v1.212.0)
+# Current Phase — production (v1.213.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, number geography, free numbers, purchased numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls.  
 **Date:** 2026-11-04
+
+## v1.213.0 — Live calls read the next page
+
+There is no migration. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. Keep a single `app` replica. Replace the `app` container so «Текущие звонки» follows a full page.
+
+A module read stays one `selectRowset` with offset 0 while it returns fewer than 2000 rows. A full page asks for the next 2000, then the next, up to five pages. Those pages are sequential. A fault on any page drops the round and keeps the previous snapshot. If the next page repeats the Conference ID set, it is not appended and the snapshot is marked truncated. A signaling or scripting name that is not `name-<digits>` fails the round instead of being skipped. The node header, the column set, and the 3 second pause are unchanged. Nothing is written to the switch.
 
 ## v1.212.0 — Live calls from signaling and scripting modules
 

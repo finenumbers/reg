@@ -220,6 +220,30 @@ describe("live-call envelopes", () => {
     expect(named).not.toContain("deleteRowset");
     expect(named).not.toContain("insertRowset");
     expect(named).not.toContain("updateRowset");
+    const later = buildSelectRowsetEnvelope(
+      selectRowset,
+      "admin",
+      "s3cret",
+      "08.2504.01",
+      ["conf_id"],
+      undefined,
+      SELECT_ROW_LIMIT,
+    );
+    expect(later).toContain(
+      `<p_offset xsi:type="xsd:int">${SELECT_ROW_LIMIT}</p_offset>`,
+    );
+    expect(later).not.toContain('xmlns="args"');
+    expect(() =>
+      buildSelectRowsetEnvelope(
+        selectRowset,
+        "admin",
+        "s3cret",
+        "08.2504.01",
+        ["conf_id"],
+        undefined,
+        1,
+      ),
+    ).toThrow(/row offset/);
     expect(escaped).toContain('<node xmlns="args">sig &amp; &quot;1&quot;</node>');
     for (const name of ["", " ", "a\nb", "a\0b"]) {
       expect(() =>

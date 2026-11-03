@@ -8,7 +8,16 @@ export const CALL_MODULE_CAP = 4;
 
 export type CallModules =
   | { ok: true; signaling: string[]; scripting: string[] }
-  | { ok: false; reason: "none" | "many" };
+  | { ok: false; reason: "none" | "many" | "unexpected" };
+
+function isNumberedCallModule(name: string): boolean {
+  return SIGNALING_MODULE.test(name) || SCRIPTING_MODULE.test(name);
+}
+
+/** A signaling or scripting name that is not `name-<digits>` would hide calls. */
+function isOddCallName(name: string): boolean {
+  return /^(signaling|scripting)/i.test(name) && !isNumberedCallModule(name);
+}
 
 /**
  * Keep the numbered signaling and scripting modules.
@@ -23,6 +32,9 @@ export function selectCallModules(names: readonly string[]): CallModules {
     if (!text || seen.has(text)) continue;
     seen.add(text);
     unique.push(text);
+  }
+  if (unique.some((name) => isOddCallName(name))) {
+    return { ok: false, reason: "unexpected" };
   }
   const signaling = unique.filter((name) => SIGNALING_MODULE.test(name)).sort();
   const scripting = unique.filter((name) => SCRIPTING_MODULE.test(name)).sort();

@@ -5,6 +5,7 @@ import {
   resetLiveCallMemory,
   type LiveCallDeps,
 } from "@/modules/live-calls/snapshot";
+import { SELECT_ROW_LIMIT } from "@/modules/rtu-soap/envelope";
 
 const ORIGIN = "https://rtu.example";
 const PASSWORD = "s3cret";
@@ -379,6 +380,49 @@ describe("readLiveCalls", () => {
     expect(missing.rows).toBeNull();
     expect(missing.error).toBe("Среди активных модулей нет пары signaling и scripting.");
     expect(none.bodies.some((body) => body.includes('xmlns="args"'))).toBe(false);
+
+    resetLiveCallMemory();
+    const odd = moduleHarness(() => "ok", "odd");
+    const named = await readLiveCalls(deps(1_700_000_000_000, odd.fetchImpl));
+    expect(named.rows).toBeNull();
+    expect(named.error).toBe("Модуль signaling или scripting назван не по шаблону.");
+    expect(odd.bodies.some((body) => body.includes('xmlns="args"'))).toBe(false);
+  });
+
+  it("reads the next page and does not append a repeated page", async () => {
+    const next = pageHarness("next");
+    const added = await readLiveCalls(deps(1_700_000_000_000, next.fetchImpl));
+    expect(added.error).toBeNull();
+    expect(added.truncated).toBe(false);
+    expect(added.rows).toHaveLength(SELECT_ROW_LIMIT + 1);
+    expect(
+      next.bodies.filter((body) => pageOffset(body) === SELECT_ROW_LIMIT),
+    ).toHaveLength(1);
+    expect(next.bodies.some((body) => pageOffset(body) === SELECT_ROW_LIMIT * 2)).toBe(
+      false,
+    );
+
+    resetLiveCallMemory();
+    const same = pageHarness("same");
+    const repeated = await readLiveCalls(deps(1_700_000_000_000, same.fetchImpl));
+    expect(repeated.error).toBeNull();
+    expect(repeated.truncated).toBe(true);
+    expect(repeated.rows).toHaveLength(SELECT_ROW_LIMIT);
+    expect(
+      same.bodies.filter((body) => pageOffset(body) === SELECT_ROW_LIMIT),
+    ).toHaveLength(1);
+    expect(same.bodies.some((body) => pageOffset(body) === SELECT_ROW_LIMIT * 2)).toBe(
+      false,
+    );
+
+    resetLiveCallMemory();
+    const fault = pageHarness("fault");
+    const failed = await readLiveCalls(deps(1_700_000_000_000, fault.fetchImpl));
+    expect(failed.rows).toBeNull();
+    expect(failed.error).toBe("Access denied");
+    expect(fault.bodies.some((body) => pageOffset(body) === SELECT_ROW_LIMIT * 2)).toBe(
+      false,
+    );
   });
 });
 
@@ -414,30 +458,30 @@ const MODULE_DESCRIBE = `<?xml version="1.0"?><Envelope><Body><describeTableResp
   ${column("module_name", "Модуль")}
 </columns></describeTableResponse></Body></Envelope>`;
 
-function moduleNames(kind: "ok" | "many" | "none"): string {
+function moduleNames(kind: "ok" | "many" | "none" | "odd"): string {
   const names =
-    kind === "many"
-      ? [
-          "signaling-1",
-          "signaling-2",
-          "signaling-3",
-          "signaling-4",
-          "signaling-5",
-          "scripting-1",
-        ]
-      : kind === "none"
-        ? ["media-1", "management-1"]
-        : [
-            "media-1",
+    kind === "odd"
+      ? ["signaling-1", "signaling-west", "scripting-1"]
+      : kind === "many"
+        ? [
+            "signaling-1",
             "signaling-2",
-            "signaling-1",
-            "signaling-1",
-            "Signaling-1",
-            "signaling-west",
-            "scripting-2",
+            "signaling-3",
+            "signaling-4",
+            "signaling-5",
             "scripting-1",
-            "management-1",
-          ];
+          ]
+        : kind === "none"
+          ? ["media-1", "management-1"]
+          : [
+              "media-1",
+              "signaling-2",
+              "signaling-1",
+              "signaling-1",
+              "scripting-2",
+              "scripting-1",
+              "management-1",
+            ];
   return `<?xml version="1.0"?><Envelope><Body><selectRowsetResponse>${names
     .map((name) => row([["module_name", name]]))
     .join("")}</selectRowsetResponse></Body></Envelope>`;
@@ -484,9 +528,72 @@ function kindOf(body: string): string {
   return "";
 }
 
+function pageOffset(body: string): number {
+  const match = body.match(/<p_offset\b[^>]*>(\d+)<\/p_offset>/);
+  return match ? Number(match[1]) : -1;
+}
+
+function callPage(ids: readonly string[]): string {
+  return `<?xml version="1.0"?><Envelope><Body><selectRowsetResponse>${ids
+    .map((id) =>
+      row([
+        ["conf_id", id],
+        ["out_a", "1"],
+      ]),
+    )
+    .join("")}</selectRowsetResponse></Body></Envelope>`;
+}
+
+const FULL_IDS = Array.from({ length: SELECT_ROW_LIMIT }, (_, index) => `p${index}`);
+const FULL_PAGE = callPage(FULL_IDS);
+const TAIL_PAGE = callPage(["tail"]);
+
+function pageHarness(kind: "next" | "same" | "fault") {
+  const bodies: string[] = [];
+  const fetchImpl: typeof fetch = async (url, init) => {
+    const body = typeof init?.body === "string" ? init.body : "";
+    bodies.push(body);
+    expect(body).not.toContain("deleteRowset");
+    expect(body).not.toContain("insertRowset");
+    expect(body).not.toContain("|node=");
+    const target = String(url);
+    if (target.includes("wsdl")) return new Response(WSDL, { status: 200 });
+    if (body.includes("<ns1:getObjects"))
+      return new Response(MODULE_OBJECTS, { status: 200 });
+    if (body.includes("describeTable") && body.includes("08.2701.01")) {
+      return new Response(PCOMM_DESCRIBE, { status: 200 });
+    }
+    if (body.includes("describeTable") && body.includes("08.2702.01")) {
+      return new Response(PUPR_DESCRIBE, { status: 200 });
+    }
+    if (body.includes("describeTable") && body.includes("08.2703.01")) {
+      return new Response(MODULE_DESCRIBE, { status: 200 });
+    }
+    if (body.includes("selectRowset") && body.includes("08.2703.01")) {
+      expect(moduleNode(body)).toBe("");
+      return new Response(moduleNames("ok"), { status: 200 });
+    }
+    const node = moduleNode(body);
+    const offset = pageOffset(body);
+    if (node === "signaling-1" && offset === 0)
+      return new Response(FULL_PAGE, { status: 200 });
+    if (node === "signaling-1" && offset === SELECT_ROW_LIMIT) {
+      if (kind === "fault") return new Response(FAULT, { status: 200 });
+      if (kind === "same") return new Response(FULL_PAGE, { status: 200 });
+      return new Response(TAIL_PAGE, { status: 200 });
+    }
+    if (offset > SELECT_ROW_LIMIT) throw new Error(`offset ${offset}`);
+    if (node === "signaling-2" || node === "scripting-1" || node === "scripting-2") {
+      return new Response(EMPTY_SELECT, { status: 200 });
+    }
+    throw new Error(`unexpected page ${node} ${offset}`);
+  };
+  return { fetchImpl, bodies };
+}
+
 function moduleHarness(
   mode: () => "ok" | "fault" | "unknown",
-  names: "ok" | "many" | "none" = "ok",
+  names: "ok" | "many" | "none" | "odd" = "ok",
 ) {
   const bodies: string[] = [];
   const fetchImpl: typeof fetch = async (url, init) => {
