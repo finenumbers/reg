@@ -1,7 +1,13 @@
-# Current Phase — production (v1.209.0)
+# Current Phase — production (v1.210.0)
 
-**Status:** in production. Modules beyond Phase 7: phones, groups, number geography, free numbers, purchased numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal.  
+**Status:** in production. Modules beyond Phase 7: phones, groups, number geography, free numbers, purchased numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls.  
 **Date:** 2026-11-03
+
+## v1.210.0 — Current transit calls
+
+There is no migration. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. Keep a single `app` replica. Replace the `app` container so «Текущие звонки» appears above «Телефонный трафик».
+
+The new section shows one row per current transit call. While the section is open, the browser asks the app for a snapshot. The app reads the two RTU summary tables «Транзитные вызовы (ПКомм)» and «Транзитные вызовы (ПУпр)» with `describeTable` and `selectRowset`. It does not write to the switch and it does not hang up a call. A snapshot is taken at most once every 3 seconds per process. A failed read keeps the last successful rows and says they are no longer current. An empty successful read clears the table. The Settings access check still calls `getObjects` once.
 
 ## v1.209.0 — RTU access check uses the public certificate
 

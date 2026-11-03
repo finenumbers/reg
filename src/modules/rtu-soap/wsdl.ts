@@ -287,3 +287,191 @@ function localName(value: string): string {
   const index = value.lastIndexOf(":");
   return index === -1 ? value : value.slice(index + 1);
 }
+
+const DESCRIBE_TABLE = "describeTable";
+const SELECT_ROWSET = "selectRowset";
+const DESCRIBE_PARTS = ["p_object_id"] as const;
+const SELECT_PARTS = [
+  "p_table_hi",
+  "p_filter",
+  "p_sort",
+  "p_limit",
+  "p_offset",
+  "p_columns",
+] as const;
+
+export type CallParamStyle = "scalar" | "repeat" | "items";
+
+export type CallBinding =
+  | {
+      kind: "rpc-encoded";
+      operation: typeof DESCRIBE_TABLE | typeof SELECT_ROWSET;
+      operationNamespace: string;
+      soapAction: string;
+      parts: readonly string[];
+    }
+  | {
+      kind: "document-literal";
+      operation: typeof DESCRIBE_TABLE | typeof SELECT_ROWSET;
+      targetNamespace: string;
+      soapAction: string;
+      parameters: readonly { name: string; style: CallParamStyle }[];
+    };
+
+export type CallReadPlan =
+  | {
+      ok: true;
+      endpoint: string;
+      describeTable: CallBinding;
+      selectRowset: CallBinding;
+    }
+  | { ok: false; reason: "doctype" | "parse" | "unsupported" | "host" };
+
+/** Bindings for the two named live-call reads. Write operations stay ignored. */
+export function readCallReads(xml: string, origin: string): CallReadPlan {
+  if (hasDoctype(xml)) return { ok: false, reason: "doctype" };
+  let parsed: unknown;
+  try {
+    parsed = parser.parse(xml);
+  } catch {
+    return { ok: false, reason: "parse" };
+  }
+  const definitions = findChildRecord(parsed, "definitions");
+  if (!definitions) return { ok: false, reason: "parse" };
+
+  let hostMismatch = false;
+  for (const binding of childRecords(definitions, "binding")) {
+    const describeTable = understandCall(definitions, binding, DESCRIBE_TABLE);
+    const selectRowset = understandCall(definitions, binding, SELECT_ROWSET);
+    if (!describeTable || !selectRowset) continue;
+    const endpoint = endpointFor(definitions, attr(binding, "name") ?? "", origin);
+    if (endpoint === "missing") continue;
+    if (endpoint === "mismatch") {
+      hostMismatch = true;
+      continue;
+    }
+    return { ok: true, endpoint, describeTable, selectRowset };
+  }
+  return { ok: false, reason: hostMismatch ? "host" : "unsupported" };
+}
+
+function understandCall(
+  definitions: Record<string, unknown>,
+  binding: Record<string, unknown>,
+  operationName: typeof DESCRIBE_TABLE | typeof SELECT_ROWSET,
+): CallBinding | null {
+  const soapBinding = childRecords(binding, "binding")[0];
+  const style = soapBinding ? attr(soapBinding, "style") : undefined;
+  for (const operation of childRecords(binding, "operation")) {
+    if (attr(operation, "name") !== operationName) continue;
+    const soapOperation = childRecords(operation, "operation")[0];
+    const soapAction = soapOperation ? (attr(soapOperation, "soapAction") ?? "") : "";
+    const input = childRecords(operation, "input")[0];
+    const body = input ? childRecords(input, "body")[0] : undefined;
+    const use = body ? attr(body, "use") : undefined;
+    if (style === "rpc" && use === "encoded") {
+      return rpcCallBinding(definitions, operationName, body, soapAction);
+    }
+    if (style === "document" && use === "literal") {
+      return documentCallBinding(definitions, operationName, soapAction);
+    }
+    return null;
+  }
+  return null;
+}
+
+function rpcCallBinding(
+  definitions: Record<string, unknown>,
+  operationName: typeof DESCRIBE_TABLE | typeof SELECT_ROWSET,
+  body: Record<string, unknown> | undefined,
+  soapAction: string,
+): CallBinding | null {
+  const operationNamespace = body ? (attr(body, "namespace") ?? "") : "";
+  if (!operationNamespace) return null;
+  const parts = inputPartNames(definitions, operationName);
+  if (!parts || !exactParts(parts, operationName)) return null;
+  return {
+    kind: "rpc-encoded",
+    operation: operationName,
+    operationNamespace,
+    soapAction,
+    parts,
+  };
+}
+
+function documentCallBinding(
+  definitions: Record<string, unknown>,
+  operationName: typeof DESCRIBE_TABLE | typeof SELECT_ROWSET,
+  soapAction: string,
+): CallBinding | null {
+  const element = findNamedElement(definitions, operationName);
+  if (!element) return null;
+  const sequence = sequenceElements(element);
+  if (sequence.length === 0) return null;
+  const parameters: { name: string; style: CallParamStyle }[] = [];
+  for (const parameter of sequence) {
+    const name = attr(parameter, "name");
+    if (!name || !isXmlName(name)) return null;
+    const style = callParamStyle(definitions, parameter, name);
+    if (!style) return null;
+    parameters.push({ name, style });
+  }
+  if (!exactParts(parameters.map((item) => item.name), operationName)) return null;
+  if (operationName === SELECT_ROWSET) {
+    const columns = parameters.find((item) => item.name === "p_columns");
+    if (!columns || columns.style === "scalar") return null;
+  }
+  return {
+    kind: "document-literal",
+    operation: operationName,
+    targetNamespace: attr(definitions, "targetNamespace") ?? "",
+    soapAction,
+    parameters,
+  };
+}
+
+function exactParts(
+  names: readonly string[],
+  operationName: typeof DESCRIBE_TABLE | typeof SELECT_ROWSET,
+): boolean {
+  const required = operationName === DESCRIBE_TABLE ? DESCRIBE_PARTS : SELECT_PARTS;
+  if (names.length !== required.length) return false;
+  const seen = new Set(names);
+  return required.every((name) => seen.has(name));
+}
+
+function inputPartNames(
+  definitions: Record<string, unknown>,
+  operationName: string,
+): string[] | null {
+  for (const portType of childRecords(definitions, "portType")) {
+    for (const operation of childRecords(portType, "operation")) {
+      if (attr(operation, "name") !== operationName) continue;
+      const input = childRecords(operation, "input")[0];
+      const messageName = localName(attr(input, "message") ?? "");
+      if (!messageName) return null;
+      const message = childRecords(definitions, "message").find(
+        (item) => attr(item, "name") === messageName,
+      );
+      if (!message) return null;
+      const names = childRecords(message, "part")
+        .map((part) => attr(part, "name"))
+        .filter((name): name is string => Boolean(name));
+      if (names.length === 0 || names.some((name) => !isXmlName(name))) return null;
+      return names;
+    }
+  }
+  return null;
+}
+
+function callParamStyle(
+  definitions: Record<string, unknown>,
+  parameter: Record<string, unknown>,
+  name: string,
+): CallParamStyle | null {
+  if (name !== "p_columns") return "scalar";
+  const listed = parameterStyle(definitions, parameter);
+  if (listed) return listed;
+  if (localName(attr(parameter, "type") ?? "") === "Array") return "items";
+  return null;
+}

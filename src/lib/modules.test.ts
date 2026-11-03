@@ -20,7 +20,13 @@ describe("FEATURE_MODULES nav groups", () => {
   });
 
   it("keeps CDR without Детализация", () => {
-    expect(idsInGroup("cdr")).toEqual(["traffic", "operators", "geography", "raw"]);
+    expect(idsInGroup("cdr")).toEqual([
+      "live-calls",
+      "traffic",
+      "operators",
+      "geography",
+      "raw",
+    ]);
   });
 
   it("keeps SMG traffic before the full dump and syslog", () => {

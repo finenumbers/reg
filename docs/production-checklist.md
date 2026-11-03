@@ -13,7 +13,7 @@ Related: [backup-and-restore.md](./backup-and-restore.md), [smoke-tests.md](./sm
 - Do **not** expose PostgreSQL publicly if avoidable; prefer `docker compose exec` / Portainer for dumps.
 - Do **not** put arbitrary remote commands in Settings — allowlist only.
 - Do **not** treat SSH connection test as a registration poll.
-- Do **not** send a write to the RTU SOAP API. The Settings check reads `getObjects` once. TLS verification stays on. A hostname with a publicly trusted certificate needs an empty certificate field. A pasted PEM is trusted only by that check. `NODE_EXTRA_CA_CERTS` still adds a root for the whole process. The `app` container must reach the switch HTTPS port.
+- Do **not** send a write to the RTU SOAP API. The Settings check reads `getObjects` once. «Текущие звонки» reads `describeTable` and `selectRowset` for the two summary transit-call tables only, at most once every 3 seconds per process. TLS verification stays on. A hostname with a publicly trusted certificate needs an empty certificate field. A pasted PEM is trusted only by those reads. `NODE_EXTRA_CA_CERTS` still adds a root for the whole process. The `app` container must reach the switch HTTPS port.
 
 ## 1. Secrets and env
 

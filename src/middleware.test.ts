@@ -25,6 +25,13 @@ describe("middleware protected routes", () => {
     expect(res.headers.get("location")).toContain("next=%2Fregs");
   });
 
+  it("redirects anonymous users from /live-calls to /login", () => {
+    const res = middleware(makeRequest("/live-calls"));
+    expect(res.status).toBe(307);
+    expect(res.headers.get("location")).toContain("/login");
+    expect(res.headers.get("location")).toContain("next=%2Flive-calls");
+  });
+
   it("redirects anonymous users from /traffic to /login", () => {
     const res = middleware(makeRequest("/traffic"));
     expect(res.status).toBe(307);
