@@ -1,6 +1,11 @@
 import {
+  ACTIVE_MODULES_TITLE,
+  findActiveModules,
   findTransitTable,
+  findTransitTemplate,
   mapColumns,
+  PCOMM_TEMPLATE_LEAF,
+  PUPR_TEMPLATE_LEAF,
   type MappedColumn,
   type PcommMap,
   type PuprMap,
@@ -16,6 +21,7 @@ import {
 } from "@/modules/live-calls/columns";
 import { presentSwitchValue } from "@/modules/live-calls/format";
 import { joinLiveCalls, type CallSide } from "@/modules/live-calls/join";
+import { selectCallModules } from "@/modules/live-calls/modules";
 import { rtuExchange } from "@/modules/rtu-soap/exchange";
 import {
   SELECT_ROW_LIMIT,
@@ -32,11 +38,19 @@ import {
   interpretSelectRowset,
   type SoapColumn,
 } from "@/modules/rtu-soap/response";
-import { readCallReads, readWsdl, type CallBinding, type GetObjectsBinding } from "@/modules/rtu-soap/wsdl";
+import {
+  readCallReads,
+  readWsdl,
+  type CallBinding,
+  type GetObjectsBinding,
+} from "@/modules/rtu-soap/wsdl";
 
 const REFRESH_MS = 3000;
+/** Re-read «Активные модули» on this interval. Call rows still refresh every poll. */
+export const MODULE_NAMES_MS = 60_000;
 const WSDL_TIMEOUT_MS = 10_000;
 const CALL_TIMEOUT_MS = 12_000;
+const MODULE_COLUMN = "Модуль";
 const UNKNOWN_OBJECT = /unknown object|неизвестн|does not exist|не найден/i;
 
 export type LiveCallAccount = {
@@ -62,7 +76,7 @@ export type LiveCallDeps = {
   fetchImpl?: typeof fetch;
 };
 
-type Catalog = {
+type CatalogBase = {
   endpoint: string;
   getObjects: GetObjectsBinding;
   describeTable: CallBinding;
@@ -71,6 +85,16 @@ type Catalog = {
   puprId: string;
   pcomm: PcommMap;
   pupr: PuprMap;
+};
+
+type Catalog =
+  | (CatalogBase & { source: "summary" })
+  | (CatalogBase & { source: "modules"; modulesId: string; moduleColumn: MappedColumn });
+
+type ModuleNames = {
+  signaling: string[];
+  scripting: string[];
+  atMs: number;
 };
 
 type Snapshot = {
@@ -83,6 +107,7 @@ type Snapshot = {
 type Memory = {
   key: string;
   catalog: Catalog | null;
+  modules: ModuleNames | null;
   snapshot: Snapshot | null;
   attemptedAtMs: number;
   error: string | null;
@@ -114,11 +139,15 @@ async function execute(deps: LiveCallDeps): Promise<LiveCallPayload> {
 
   let unknownRetried = false;
   for (;;) {
-    const outcome = await readOnce(deps, memory?.catalog ?? null);
+    const outcome = await readOnce(
+      deps,
+      memory?.catalog ?? null,
+      memory?.modules ?? null,
+    );
     if (outcome.kind === "retry") {
       if (!unknownRetried) {
         unknownRetried = true;
-        if (memory) memory = { ...memory, catalog: null };
+        if (memory) memory = { ...memory, catalog: null, modules: null };
         continue;
       }
       return rememberError(deps, key, "Объект таблицы РТУ не найден.");
@@ -134,6 +163,7 @@ async function execute(deps: LiveCallDeps): Promise<LiveCallPayload> {
       memory = {
         key,
         catalog: outcome.catalog,
+        modules: outcome.modules,
         snapshot,
         attemptedAtMs,
         error: null,
@@ -149,6 +179,7 @@ function rememberError(deps: LiveCallDeps, key: string, detail: string): LiveCal
   memory = {
     key,
     catalog: memory?.key === key ? (memory.catalog ?? null) : null,
+    modules: memory?.key === key ? (memory.modules ?? null) : null,
     snapshot: memory?.key === key ? (memory.snapshot ?? null) : null,
     attemptedAtMs,
     error: detail,
@@ -157,22 +188,34 @@ function rememberError(deps: LiveCallDeps, key: string, detail: string): LiveCal
 }
 
 type ReadOnce =
-  | { kind: "ok"; catalog: Catalog; rows: LiveCallRow[]; truncated: boolean }
+  | {
+      kind: "ok";
+      catalog: Catalog;
+      modules: ModuleNames | null;
+      rows: LiveCallRow[];
+      truncated: boolean;
+    }
   | { kind: "retry" }
   | { kind: "error"; detail: string };
 
-async function readOnce(deps: LiveCallDeps, catalog: Catalog | null): Promise<ReadOnce> {
+async function readOnce(
+  deps: LiveCallDeps,
+  catalog: Catalog | null,
+  modules: ModuleNames | null,
+): Promise<ReadOnce> {
   const ready = catalog ?? (await loadCatalog(deps));
   if ("detail" in ready) {
     return ready.unknown ? { kind: "retry" } : { kind: "error", detail: ready.detail };
   }
+  if (ready.source === "modules") return readModules(deps, ready, modules);
   const selected = await Promise.all([
-    selectTable(deps, ready, ready.pcommId, Object.values(ready.pcomm).map((column) => column.name)),
-    selectTable(deps, ready, ready.puprId, Object.values(ready.pupr).map((column) => column.name)),
+    selectTable(deps, ready, ready.pcommId, namesOf(ready.pcomm)),
+    selectTable(deps, ready, ready.puprId, namesOf(ready.pupr)),
   ]);
   const pcomm = selected[0];
   const pupr = selected[1];
-  if (!pcomm || !pupr) return { kind: "error", detail: "Не удалось прочитать текущие вызовы." };
+  if (!pcomm || !pupr)
+    return { kind: "error", detail: "Не удалось прочитать текущие вызовы." };
   if (!pcomm.ok || !pupr.ok) {
     const failed = !pcomm.ok ? pcomm : pupr;
     if (!failed.ok && failed.unknown) return { kind: "retry" };
@@ -181,15 +224,120 @@ async function readOnce(deps: LiveCallDeps, catalog: Catalog | null): Promise<Re
       detail: failed.ok ? "Не удалось прочитать текущие вызовы." : failed.detail,
     };
   }
-  const rows = joinLiveCalls(
-    pcomm.rows.map((row) => sideFrom(row, ready.pcomm)),
-    pupr.rows.map((row) => sideFrom(row, ready.pupr)),
+  return {
+    kind: "ok",
+    catalog: ready,
+    modules: null,
+    rows: joinedRows(ready, pcomm.rows, pupr.rows),
+    truncated: pcomm.truncated || pupr.truncated,
+  };
+}
+
+async function readModules(
+  deps: LiveCallDeps,
+  ready: Extract<Catalog, { source: "modules" }>,
+  cached: ModuleNames | null,
+): Promise<ReadOnce> {
+  const named = await resolveModules(deps, ready, cached);
+  if (named.kind !== "ok") return named;
+  const pcommRows: Array<Record<string, string>> = [];
+  const puprRows: Array<Record<string, string>> = [];
+  let truncated = false;
+  for (const name of named.modules.signaling) {
+    const selected = await selectTable(
+      deps,
+      ready,
+      ready.pcommId,
+      namesOf(ready.pcomm),
+      name,
+    );
+    if (!selected.ok)
+      return selected.unknown
+        ? { kind: "retry" }
+        : { kind: "error", detail: selected.detail };
+    pcommRows.push(...selected.rows);
+    truncated = truncated || selected.truncated;
+  }
+  for (const name of named.modules.scripting) {
+    const selected = await selectTable(
+      deps,
+      ready,
+      ready.puprId,
+      namesOf(ready.pupr),
+      name,
+    );
+    if (!selected.ok)
+      return selected.unknown
+        ? { kind: "retry" }
+        : { kind: "error", detail: selected.detail };
+    puprRows.push(...selected.rows);
+    truncated = truncated || selected.truncated;
+  }
+  return {
+    kind: "ok",
+    catalog: ready,
+    modules: named.modules,
+    rows: joinedRows(ready, pcommRows, puprRows),
+    truncated,
+  };
+}
+
+async function resolveModules(
+  deps: LiveCallDeps,
+  ready: Extract<Catalog, { source: "modules" }>,
+  cached: ModuleNames | null,
+): Promise<
+  | { kind: "ok"; modules: ModuleNames }
+  | { kind: "retry" }
+  | { kind: "error"; detail: string }
+> {
+  const now = deps.now();
+  if (cached && now - cached.atMs < MODULE_NAMES_MS)
+    return { kind: "ok", modules: cached };
+  const selected = await selectTable(deps, ready, ready.modulesId, [
+    ready.moduleColumn.name,
+  ]);
+  if (!selected.ok)
+    return selected.unknown
+      ? { kind: "retry" }
+      : { kind: "error", detail: selected.detail };
+  if (selected.truncated)
+    return { kind: "error", detail: "Список активных модулей обрезан." };
+  const chosen = selectCallModules(
+    selected.rows.map((row) => row[ready.moduleColumn.name] ?? ""),
+  );
+  if (!chosen.ok) {
+    return {
+      kind: "error",
+      detail:
+        chosen.reason === "many"
+          ? "Активных модулей signaling или scripting больше четырёх."
+          : "Среди активных модулей нет пары signaling и scripting.",
+    };
+  }
+  return {
+    kind: "ok",
+    modules: { signaling: chosen.signaling, scripting: chosen.scripting, atMs: now },
+  };
+}
+
+function namesOf(columns: PcommMap | PuprMap): string[] {
+  return Object.values(columns).map((column) => column.name);
+}
+
+function joinedRows(
+  ready: CatalogBase,
+  pcommRows: Array<Record<string, string>>,
+  puprRows: Array<Record<string, string>>,
+): LiveCallRow[] {
+  return joinLiveCalls(
+    pcommRows.map((row) => sideFrom(row, ready.pcomm)),
+    puprRows.map((row) => sideFrom(row, ready.pupr)),
   ).map((row, index) => ({
     key: `${row.conferenceId || "none"}:${index}`,
     state: row.state,
     startedAt: row.startedAt,
     connectedAt: row.connectedAt,
-    duration: row.duration,
     outA: row.outA,
     outB: row.outB,
     sourceName: row.sourceName,
@@ -198,12 +346,6 @@ async function readOnce(deps: LiveCallDeps, catalog: Catalog | null): Promise<Re
     destSignal: row.destSignal,
     dialpeer: row.dialpeer,
   }));
-  return {
-    kind: "ok",
-    catalog: ready,
-    rows,
-    truncated: pcomm.truncated || pupr.truncated,
-  };
 }
 
 function view(state: Memory, now: number): LiveCallPayload {
@@ -238,7 +380,11 @@ async function loadCatalog(
   const objectsPlan = readWsdl(wsdl.text, deps.account.origin);
   const readsPlan = readCallReads(wsdl.text, deps.account.origin);
   if (!objectsPlan.ok || !readsPlan.ok || objectsPlan.endpoint !== readsPlan.endpoint) {
-    const reason = !objectsPlan.ok ? objectsPlan.reason : !readsPlan.ok ? readsPlan.reason : "host";
+    const reason = !objectsPlan.ok
+      ? objectsPlan.reason
+      : !readsPlan.ok
+        ? readsPlan.reason
+        : "host";
     return {
       detail:
         reason === "host"
@@ -252,56 +398,175 @@ async function loadCatalog(
     deps,
     objectsPlan.endpoint,
     objectsPlan.binding.soapAction,
-    buildGetObjectsEnvelope(objectsPlan.binding, deps.account.login, deps.account.password),
+    buildGetObjectsEnvelope(
+      objectsPlan.binding,
+      deps.account.login,
+      deps.account.password,
+    ),
   );
   if (!listed.ok) return { detail: listed.detail, unknown: listed.unknown };
   const objects = interpretGetObjects(listed.text, deps.account.password);
   if (objects.kind === "fault") return faultResult(objects.detail);
-  if (objects.kind !== "objects") return { detail: "Ответ getObjects не разобран.", unknown: false };
+  if (objects.kind !== "objects")
+    return { detail: "Ответ getObjects не разобран.", unknown: false };
   const pcomm = findTransitTable(objects.objects, PCOMM_TABLE);
   const pupr = findTransitTable(objects.objects, PUPR_TABLE);
-  if (!pcomm.ok || !pupr.ok) {
+  if (pcomm.ok && pupr.ok) {
+    if (!isRtuObjectId(pcomm.objectId) || !isRtuObjectId(pupr.objectId)) {
+      return {
+        detail: "Идентификатор таблицы РТУ не подходит для чтения.",
+        unknown: false,
+      };
+    }
+    const described = await Promise.all([
+      describe(deps, readsPlan.endpoint, readsPlan.describeTable, pcomm.objectId),
+      describe(deps, readsPlan.endpoint, readsPlan.describeTable, pupr.objectId),
+    ]);
+    const mapped = mapCallColumns(described[0], described[1]);
+    if (!mapped.ok) return { detail: mapped.detail, unknown: mapped.unknown };
+    return {
+      source: "summary",
+      endpoint: readsPlan.endpoint,
+      getObjects: objectsPlan.binding,
+      describeTable: readsPlan.describeTable,
+      selectRowset: readsPlan.selectRowset,
+      pcommId: pcomm.objectId,
+      puprId: pupr.objectId,
+      pcomm: mapped.pcomm,
+      pupr: mapped.pupr,
+    };
+  }
+  if (pcomm.ok || pupr.ok || pcomm.reason === "many" || pupr.reason === "many") {
     return { detail: catalogMiss(objects.objects, pcomm, pupr), unknown: false };
   }
-  if (!isRtuObjectId(pcomm.objectId) || !isRtuObjectId(pupr.objectId)) {
-    return { detail: "Идентификатор таблицы РТУ не подходит для чтения.", unknown: false };
-  }
+  return loadModuleCatalog(deps, objects.objects, objectsPlan.binding, readsPlan);
+}
 
-  const described = await Promise.all([
-    describe(deps, readsPlan.endpoint, readsPlan.describeTable, pcomm.objectId),
-    describe(deps, readsPlan.endpoint, readsPlan.describeTable, pupr.objectId),
-  ]);
-  const pcommColumns = described[0];
-  const puprColumns = described[1];
-  if (!pcommColumns?.ok || !puprColumns?.ok) {
-    const failed = pcommColumns && !pcommColumns.ok ? pcommColumns : puprColumns;
-    if (failed && !failed.ok && failed.unknown) return { detail: failed.detail, unknown: true };
+async function loadModuleCatalog(
+  deps: LiveCallDeps,
+  objects: readonly { objectId: string; title: string; path: string; type: string }[],
+  getObjects: GetObjectsBinding,
+  readsPlan: { endpoint: string; describeTable: CallBinding; selectRowset: CallBinding },
+): Promise<Catalog | { detail: string; unknown: boolean }> {
+  const pcomm = findTransitTemplate(objects, PCOMM_TABLE, PCOMM_TEMPLATE_LEAF);
+  const pupr = findTransitTemplate(objects, PUPR_TABLE, PUPR_TEMPLATE_LEAF);
+  if (!pcomm.ok || !pupr.ok) {
+    return { detail: catalogMiss(objects, pcomm, pupr), unknown: false };
+  }
+  const modules = findActiveModules(objects);
+  if (!modules.ok) {
     return {
-      detail: failed && !failed.ok ? failed.detail : "Не удалось прочитать описание таблиц.",
+      detail:
+        modules.reason === "many"
+          ? `Каталог РТУ: несколько страниц «${ACTIVE_MODULES_TITLE}».`
+          : `Каталог РТУ: нет страницы «${ACTIVE_MODULES_TITLE}».`,
       unknown: false,
     };
   }
-  const pcommMap = mapColumns(pcommColumns.columns, PCOMM_FIELDS, PCOMM_TABLE);
-  const puprMap = mapColumns(puprColumns.columns, PUPR_FIELDS, PUPR_TABLE);
-  if (!pcommMap.ok) return { detail: pcommMap.detail, unknown: false };
-  if (!puprMap.ok) return { detail: puprMap.detail, unknown: false };
+  if (
+    !isRtuObjectId(pcomm.objectId) ||
+    !isRtuObjectId(pupr.objectId) ||
+    !isRtuObjectId(modules.objectId)
+  ) {
+    return {
+      detail: "Идентификатор таблицы РТУ не подходит для чтения.",
+      unknown: false,
+    };
+  }
+  const pcommColumns = await describe(
+    deps,
+    readsPlan.endpoint,
+    readsPlan.describeTable,
+    pcomm.objectId,
+  );
+  if (!pcommColumns.ok)
+    return { detail: pcommColumns.detail, unknown: pcommColumns.unknown };
+  const puprColumns = await describe(
+    deps,
+    readsPlan.endpoint,
+    readsPlan.describeTable,
+    pupr.objectId,
+  );
+  if (!puprColumns.ok)
+    return { detail: puprColumns.detail, unknown: puprColumns.unknown };
+  const moduleColumns = await describe(
+    deps,
+    readsPlan.endpoint,
+    readsPlan.describeTable,
+    modules.objectId,
+  );
+  if (!moduleColumns.ok)
+    return { detail: moduleColumns.detail, unknown: moduleColumns.unknown };
+  const mapped = mapCallColumns(pcommColumns, puprColumns);
+  if (!mapped.ok) return { detail: mapped.detail, unknown: mapped.unknown };
+  const moduleMap = mapColumns(
+    moduleColumns.columns,
+    { module: MODULE_COLUMN },
+    ACTIVE_MODULES_TITLE,
+  );
+  if (!moduleMap.ok) return { detail: moduleMap.detail, unknown: false };
   const names = [
-    ...Object.values(pcommMap.columns),
-    ...Object.values(puprMap.columns),
+    ...Object.values(mapped.pcomm),
+    ...Object.values(mapped.pupr),
+    moduleMap.columns.module,
   ].map((column) => column.name);
   if (names.some((name) => !isRtuColumnName(name))) {
     return { detail: "Колонка РТУ имеет неподдерживаемое имя.", unknown: false };
   }
   return {
+    source: "modules",
     endpoint: readsPlan.endpoint,
-    getObjects: objectsPlan.binding,
+    getObjects,
     describeTable: readsPlan.describeTable,
     selectRowset: readsPlan.selectRowset,
     pcommId: pcomm.objectId,
     puprId: pupr.objectId,
-    pcomm: pcommMap.columns,
-    pupr: puprMap.columns,
+    pcomm: mapped.pcomm,
+    pupr: mapped.pupr,
+    modulesId: modules.objectId,
+    moduleColumn: moduleMap.columns.module,
   };
+}
+
+function mapCallColumns(
+  pcommColumns:
+    | { ok: true; columns: SoapColumn[] }
+    | { ok: false; detail: string; unknown: boolean }
+    | undefined,
+  puprColumns:
+    | { ok: true; columns: SoapColumn[] }
+    | { ok: false; detail: string; unknown: boolean }
+    | undefined,
+):
+  | { ok: true; pcomm: PcommMap; pupr: PuprMap }
+  | { ok: false; detail: string; unknown: boolean } {
+  if (!pcommColumns?.ok || !puprColumns?.ok) {
+    const failed = pcommColumns && !pcommColumns.ok ? pcommColumns : puprColumns;
+    if (failed && !failed.ok && failed.unknown)
+      return { ok: false, detail: failed.detail, unknown: true };
+    return {
+      ok: false,
+      detail:
+        failed && !failed.ok ? failed.detail : "Не удалось прочитать описание таблиц.",
+      unknown: false,
+    };
+  }
+  const pcommMap = mapColumns(pcommColumns.columns, PCOMM_FIELDS, PCOMM_TABLE);
+  const puprMap = mapColumns(puprColumns.columns, PUPR_FIELDS, PUPR_TABLE);
+  if (!pcommMap.ok) return { ok: false, detail: pcommMap.detail, unknown: false };
+  if (!puprMap.ok) return { ok: false, detail: puprMap.detail, unknown: false };
+  const names = [
+    ...Object.values(pcommMap.columns),
+    ...Object.values(puprMap.columns),
+  ].map((column) => column.name);
+  if (names.some((name) => !isRtuColumnName(name))) {
+    return {
+      ok: false,
+      detail: "Колонка РТУ имеет неподдерживаемое имя.",
+      unknown: false,
+    };
+  }
+  return { ok: true, pcomm: pcommMap.columns, pupr: puprMap.columns };
 }
 
 async function describe(
@@ -309,12 +574,23 @@ async function describe(
   endpoint: string,
   binding: CallBinding,
   objectId: string,
-): Promise<{ ok: true; columns: SoapColumn[] } | { ok: false; detail: string; unknown: boolean }> {
+): Promise<
+  { ok: true; columns: SoapColumn[] } | { ok: false; detail: string; unknown: boolean }
+> {
   let envelope: string;
   try {
-    envelope = buildDescribeTableEnvelope(binding, deps.account.login, deps.account.password, objectId);
+    envelope = buildDescribeTableEnvelope(
+      binding,
+      deps.account.login,
+      deps.account.password,
+      objectId,
+    );
   } catch {
-    return { ok: false, detail: "Идентификатор таблицы РТУ не подходит для чтения.", unknown: false };
+    return {
+      ok: false,
+      detail: "Идентификатор таблицы РТУ не подходит для чтения.",
+      unknown: false,
+    };
   }
   const posted = await postRead(deps, endpoint, binding.soapAction, envelope);
   if (!posted.ok) return { ok: false, detail: posted.detail, unknown: posted.unknown };
@@ -331,8 +607,10 @@ async function selectTable(
   catalog: Catalog,
   objectId: string,
   columns: string[],
+  moduleName?: string,
 ): Promise<
-  { ok: true; rows: Array<Record<string, string>>; truncated: boolean } | { ok: false; detail: string; unknown: boolean }
+  | { ok: true; rows: Array<Record<string, string>>; truncated: boolean }
+  | { ok: false; detail: string; unknown: boolean }
 > {
   const unique = [...new Set(columns)];
   let envelope: string;
@@ -343,24 +621,35 @@ async function selectTable(
       deps.account.password,
       objectId,
       unique,
+      moduleName,
     );
   } catch {
-    return { ok: false, detail: "Колонка РТУ имеет неподдерживаемое имя.", unknown: false };
+    return {
+      ok: false,
+      detail: "Колонка РТУ имеет неподдерживаемое имя.",
+      unknown: false,
+    };
   }
-  const posted = await postRead(deps, catalog.endpoint, catalog.selectRowset.soapAction, envelope);
+  const posted = await postRead(
+    deps,
+    catalog.endpoint,
+    catalog.selectRowset.soapAction,
+    envelope,
+  );
   if (!posted.ok) return { ok: false, detail: posted.detail, unknown: posted.unknown };
   const parsed = interpretSelectRowset(posted.text, deps.account.password);
   if (parsed.kind === "fault") return { ok: false, ...faultResult(parsed.detail) };
   if (parsed.kind !== "rows") {
     return { ok: false, detail: "Ответ selectRowset не разобран.", unknown: false };
   }
-  return { ok: true, rows: parsed.rows, truncated: parsed.rows.length >= SELECT_ROW_LIMIT };
+  return {
+    ok: true,
+    rows: parsed.rows,
+    truncated: parsed.rows.length >= SELECT_ROW_LIMIT,
+  };
 }
 
-function sideFrom(
-  row: Record<string, string>,
-  columns: PcommMap | PuprMap,
-): CallSide {
+function sideFrom(row: Record<string, string>, columns: PcommMap | PuprMap): CallSide {
   const conference = columns.conferenceId;
   const conferenceId = (row[conference.name] ?? "").trim();
   const values: CallSide["values"] = {};

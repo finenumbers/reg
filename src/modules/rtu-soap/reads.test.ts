@@ -4,7 +4,10 @@ import {
   buildSelectRowsetEnvelope,
   SELECT_ROW_LIMIT,
 } from "@/modules/rtu-soap/envelope";
-import { interpretDescribeTable, interpretSelectRowset } from "@/modules/rtu-soap/response";
+import {
+  interpretDescribeTable,
+  interpretSelectRowset,
+} from "@/modules/rtu-soap/response";
 import { readCallReads, type CallBinding } from "@/modules/rtu-soap/wsdl";
 
 const ORIGIN = "https://rtu.example";
@@ -122,7 +125,10 @@ describe("readCallReads", () => {
 
   it("rejects a WSDL that only offers a write", () => {
     const plan = readCallReads(
-      RPC_WSDL.replaceAll("describeTable", "deleteRowset").replaceAll("selectRowset", "updateRowset"),
+      RPC_WSDL.replaceAll("describeTable", "deleteRowset").replaceAll(
+        "selectRowset",
+        "updateRowset",
+      ),
       ORIGIN,
     );
     expect(plan.ok).toBe(false);
@@ -132,20 +138,30 @@ describe("readCallReads", () => {
 describe("live-call envelopes", () => {
   it("builds describeTable and selectRowset with nil filter and a fixed page", () => {
     const { describeTable, selectRowset } = rpcReads();
-    const described = buildDescribeTableEnvelope(describeTable, "admin", "s3cret", "08.2504.01");
-    const selected = buildSelectRowsetEnvelope(selectRowset, "admin", "s3cret", "08.2504.01", [
-      "conf_id",
-      "t_start",
-    ]);
+    const described = buildDescribeTableEnvelope(
+      describeTable,
+      "admin",
+      "s3cret",
+      "08.2504.01",
+    );
+    const selected = buildSelectRowsetEnvelope(
+      selectRowset,
+      "admin",
+      "s3cret",
+      "08.2504.01",
+      ["conf_id", "t_start"],
+    );
     expect(described).toContain("<ns1:describeTable ");
     expect(described).not.toContain("selectRowset");
     expect(selected).toContain("<ns1:selectRowset ");
     expect(selected.indexOf("<p_sort ")).toBeLessThan(selected.indexOf("<p_table_hi "));
     expect(selected).toContain('<p_filter xsi:nil="true"/>');
     expect(selected).toContain('<p_sort xsi:nil="true"/>');
-    expect(selected).toContain(`<p_limit xsi:type="xsd:int">${SELECT_ROW_LIMIT}</p_limit>`);
+    expect(selected).toContain(
+      `<p_limit xsi:type="xsd:int">${SELECT_ROW_LIMIT}</p_limit>`,
+    );
     expect(selected).toContain('<p_offset xsi:type="xsd:int">0</p_offset>');
-    expect(selected).toContain("<item xsi:type=\"xsd:string\">conf_id</item>");
+    expect(selected).toContain('<item xsi:type="xsd:string">conf_id</item>');
     expect(selected).not.toContain("args:node");
     expect(selected).not.toContain("deleteRowset");
     expect(selected).not.toContain("insertRowset");
@@ -157,16 +173,78 @@ describe("live-call envelopes", () => {
   it("rejects an object id that is not a dotted numeric id", () => {
     const { selectRowset } = rpcReads();
     expect(() =>
-      buildSelectRowsetEnvelope(selectRowset, "admin", "s3cret", "08.2504.01|node=ss7", ["conf_id"]),
+      buildSelectRowsetEnvelope(selectRowset, "admin", "s3cret", "08.2504.01|node=ss7", [
+        "conf_id",
+      ]),
     ).toThrow(/object id/);
+  });
+
+  it("adds one node header only when a module name is passed", () => {
+    const { describeTable, selectRowset } = rpcReads();
+    const plain = buildSelectRowsetEnvelope(
+      selectRowset,
+      "admin",
+      "s3cret",
+      "08.2504.01",
+      ["conf_id"],
+    );
+    const described = buildDescribeTableEnvelope(
+      describeTable,
+      "admin",
+      "s3cret",
+      "08.2504.01",
+    );
+    const named = buildSelectRowsetEnvelope(
+      selectRowset,
+      "admin",
+      "s3cret",
+      "08.2504.01",
+      ["conf_id"],
+      "scripting-2",
+    );
+    const escaped = buildSelectRowsetEnvelope(
+      selectRowset,
+      "admin",
+      "s3cret",
+      "08.2504.01",
+      ["conf_id"],
+      `sig & "1"`,
+    );
+    expect(plain).not.toContain('xmlns="args"');
+    expect(plain).not.toContain("<node");
+    expect(described).not.toContain('xmlns="args"');
+    expect(named).toContain('<node xmlns="args">scripting-2</node>');
+    expect(named.match(/<node /g)).toHaveLength(1);
+    expect(named).not.toContain("args:node");
+    expect(named).not.toContain("|node=");
+    expect(named).not.toContain("deleteRowset");
+    expect(named).not.toContain("insertRowset");
+    expect(named).not.toContain("updateRowset");
+    expect(escaped).toContain('<node xmlns="args">sig &amp; &quot;1&quot;</node>');
+    for (const name of ["", " ", "a\nb", "a\0b"]) {
+      expect(() =>
+        buildSelectRowsetEnvelope(
+          selectRowset,
+          "admin",
+          "s3cret",
+          "08.2504.01",
+          ["conf_id"],
+          name,
+        ),
+      ).toThrow(/module name/);
+    }
   });
 
   it("encodes a document column list as items", () => {
     const plan = readCallReads(DOC_WSDL, ORIGIN);
     if (!plan.ok) throw new Error(plan.reason);
-    const selected = buildSelectRowsetEnvelope(plan.selectRowset, "admin", "s3cret", "08.2504.01", [
-      "conf_id",
-    ]);
+    const selected = buildSelectRowsetEnvelope(
+      plan.selectRowset,
+      "admin",
+      "s3cret",
+      "08.2504.01",
+      ["conf_id"],
+    );
     expect(selected).toContain("<selectRowset ");
     expect(selected).toContain("<p_columns><item>conf_id</item></p_columns>");
     expect(selected).toContain('<p_filter xsi:nil="true"/>');
@@ -189,7 +267,10 @@ describe("live-call responses", () => {
     );
     expect(empty).toEqual({ kind: "rows", rows: [] });
 
-    const html = interpretSelectRowset(`<?xml version="1.0"?><html><body>ok</body></html>`, "");
+    const html = interpretSelectRowset(
+      `<?xml version="1.0"?><html><body>ok</body></html>`,
+      "",
+    );
     expect(html.kind).toBe("bad");
   });
 

@@ -5,7 +5,9 @@ import { escapeXml, isXmlName } from "@/modules/rtu-soap/xml";
  * SOAP bodies this service can build. Each operation name is a literal.
  * Callers cannot substitute another one.
  * `getObjects` is the Settings access check.
- * `describeTable` and `selectRowset` read the two transit-call tables only.
+ * `describeTable` and `selectRowset` read the two transit-call summary tables.
+ * An optional module name adds one `node` header on `selectRowset`.
+ * The live-call snapshot passes that name only for a signaling or scripting call table.
  */
 const GET_OBJECTS = "getObjects";
 const DESCRIBE_TABLE = "describeTable";
@@ -26,8 +28,7 @@ export function buildGetObjectsEnvelope(
     `<Login xmlns="auth">${escapeXml(login)}</Login>` +
     `<Password xmlns="auth">${escapeXml(password)}</Password>` +
     `</SOAP-ENV:Header>`;
-  const body =
-    binding.kind === "rpc-encoded" ? rpcBody(binding) : documentBody(binding);
+  const body = binding.kind === "rpc-encoded" ? rpcBody(binding) : documentBody(binding);
   return (
     `<?xml version="1.0" encoding="UTF-8"?>` +
     `<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/" ` +
@@ -109,6 +110,7 @@ export function buildSelectRowsetEnvelope(
   password: string,
   objectId: string,
   columns: readonly string[],
+  moduleName?: string,
 ): string {
   if (binding.operation !== SELECT_ROWSET) {
     throw new Error("selectRowset binding required");
@@ -128,18 +130,38 @@ export function buildSelectRowsetEnvelope(
     p_offset: taggedInt("p_offset", ROW_OFFSET, binding.kind),
     p_columns: columnList(binding, columns),
   };
-  return wrap(login, password, callBody(binding, fields));
+  return wrap(login, password, callBody(binding, fields), moduleName);
 }
 
 function assertObjectId(objectId: string): void {
   if (!isRtuObjectId(objectId)) throw new Error("object id rejected");
 }
 
-function wrap(login: string, password: string, body: string): string {
+function moduleHeader(moduleName: string | undefined): string {
+  if (moduleName === undefined) return "";
+  if (
+    moduleName.length === 0 ||
+    moduleName.trim().length === 0 ||
+    moduleName.includes("\0") ||
+    moduleName.includes("\n") ||
+    moduleName.includes("\r")
+  ) {
+    throw new Error("module name rejected");
+  }
+  return `<node xmlns="args">${escapeXml(moduleName)}</node>`;
+}
+
+function wrap(
+  login: string,
+  password: string,
+  body: string,
+  moduleName?: string,
+): string {
   const header =
     `<SOAP-ENV:Header>` +
     `<Login xmlns="auth">${escapeXml(login)}</Login>` +
     `<Password xmlns="auth">${escapeXml(password)}</Password>` +
+    moduleHeader(moduleName) +
     `</SOAP-ENV:Header>`;
   return (
     `<?xml version="1.0" encoding="UTF-8"?>` +
@@ -184,11 +206,7 @@ function nilElement(name: string): string {
   return `<${name} xsi:nil="true"/>`;
 }
 
-function taggedString(
-  name: string,
-  value: string,
-  kind: CallBinding["kind"],
-): string {
+function taggedString(name: string, value: string, kind: CallBinding["kind"]): string {
   if (kind === "rpc-encoded") {
     return `<${name} xsi:type="xsd:string">${escapeXml(value)}</${name}>`;
   }

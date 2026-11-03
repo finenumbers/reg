@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { readLiveCalls, resetLiveCallMemory, type LiveCallDeps } from "@/modules/live-calls/snapshot";
+import {
+  MODULE_NAMES_MS,
+  readLiveCalls,
+  resetLiveCallMemory,
+  type LiveCallDeps,
+} from "@/modules/live-calls/snapshot";
 
 const ORIGIN = "https://rtu.example";
 const PASSWORD = "s3cret";
@@ -84,7 +89,6 @@ const PCOMM_DESCRIBE = `<?xml version="1.0"?><Envelope><Body><describeTableRespo
   ${column("conf_id", "Conference ID ПКомм")}
   ${column("t_start", "Время начала", "YMDhms")}
   ${column("t_conn", "Время соединения", "YMDhms")}
-  ${column("dur", "Время разговора")}
   ${column("src_sig", "Адрес инициатора (сигн.)")}
   ${column("out_a", "Исходящий А-номер")}
   ${column("out_b", "Исходящий Б-номер")}
@@ -110,7 +114,6 @@ const PCOMM_ROWS = `<?xml version="1.0"?><Envelope><Body><selectRowsetResponse>
     ["conf_id", "c1"],
     ["t_start", "20261103233200"],
     ["t_conn", ""],
-    ["dur", "5"],
     ["src_sig", "1.1.1.1"],
     ["out_a", "100"],
     ["out_b", "200"],
@@ -119,7 +122,6 @@ const PCOMM_ROWS = `<?xml version="1.0"?><Envelope><Body><selectRowsetResponse>
   ${row([
     ["conf_id", ""],
     ["t_start", "1"],
-    ["dur", ""],
     ["src_sig", "9.9.9.9"],
     ["out_a", "101"],
     ["out_b", "201"],
@@ -166,16 +168,24 @@ function harness(mode: () => Mode) {
     bodies.push(body);
     expect(body).not.toContain("deleteRowset");
     expect(body).not.toContain("args:node");
+    expect(body).not.toContain('xmlns="args"');
     expect(body).not.toContain("insertRowset");
     const target = String(url);
     let text = WSDL;
     if (!target.includes("wsdl")) {
       if (body.includes("<ns1:getObjects")) text = OBJECTS;
-      else if (body.includes("describeTable") && body.includes("08.2504.01")) text = PCOMM_DESCRIBE;
-      else if (body.includes("describeTable") && body.includes("08.2505.01")) text = PUPR_DESCRIBE;
+      else if (body.includes("describeTable") && body.includes("08.2504.01"))
+        text = PCOMM_DESCRIBE;
+      else if (body.includes("describeTable") && body.includes("08.2505.01"))
+        text = PUPR_DESCRIBE;
       else if (body.includes("selectRowset") && body.includes("08.2504.01")) {
         const current = mode();
-        text = current === "empty" ? EMPTY_SELECT : current === "partial" ? PCOMM_CHANGED : PCOMM_ROWS;
+        text =
+          current === "empty"
+            ? EMPTY_SELECT
+            : current === "partial"
+              ? PCOMM_CHANGED
+              : PCOMM_ROWS;
       } else if (body.includes("selectRowset") && body.includes("08.2505.01")) {
         const current = mode();
         text =
@@ -225,10 +235,19 @@ describe("readLiveCalls", () => {
       sourceSignal: "1.1.1.1",
       destName: "term",
     });
-    expect(first.rows?.[1]).toMatchObject({ outA: "101", state: "", sourceSignal: "9.9.9.9" });
-    expect(first.rows?.[2]).toMatchObject({ state: "extra", outA: "", sourceName: "gw-b" });
+    expect(first.rows?.[1]).toMatchObject({
+      outA: "101",
+      state: "",
+      sourceSignal: "9.9.9.9",
+    });
+    expect(first.rows?.[2]).toMatchObject({
+      state: "extra",
+      outA: "",
+      sourceName: "gw-b",
+    });
     expect(first.rows?.[3]).toMatchObject({ state: "blank", outA: "" });
     expect(bodies.some((body) => body.includes("08.2599.01"))).toBe(false);
+    expect(bodies.some((body) => body.includes(">dur<"))).toBe(false);
 
     const cached = await readLiveCalls(deps(now + 2_999, fetchImpl));
     expect(cached.rows?.[0]?.outA).toBe("100");
@@ -253,7 +272,10 @@ describe("readLiveCalls", () => {
     const { fetchImpl, bodies } = harness(() => "fault");
     const now = 1_700_000_000_000;
     const input = deps(now, fetchImpl);
-    const [first, second] = await Promise.all([readLiveCalls(input), readLiveCalls(input)]);
+    const [first, second] = await Promise.all([
+      readLiveCalls(input),
+      readLiveCalls(input),
+    ]);
     expect(second).toBe(first);
     expect(first.rows).toBeNull();
     expect(first.error).toBeTruthy();
@@ -275,4 +297,260 @@ describe("readLiveCalls", () => {
     await readLiveCalls(deps(now + 1_000, fetchImpl));
     expect(bodies.filter((body) => body.includes("getObjects"))).toHaveLength(2);
   });
+
+  it("reads signaling and scripting templates when the summary pages are absent", async () => {
+    let mode: "ok" | "fault" | "unknown" = "ok";
+    const { fetchImpl, bodies } = moduleHarness(() => mode);
+    let now = 1_700_000_000_000;
+    const first = await readLiveCalls(deps(now, fetchImpl));
+    expect(first.error).toBeNull();
+    expect(first.rows).toEqual([
+      expect.objectContaining({ state: "talk", outA: "100", sourceName: "gw-a" }),
+      expect.objectContaining({ state: "", outA: "200", sourceName: "" }),
+    ]);
+    const calls = bodies.filter(
+      (body) =>
+        body.includes("selectRowset") ||
+        body.includes("describeTable") ||
+        body.includes("getObjects"),
+    );
+    expect(calls.map(kindOf)).toEqual([
+      "objects",
+      "describe-pcomm",
+      "describe-pupr",
+      "describe-modules",
+      "names",
+      "signaling-1",
+      "signaling-2",
+      "scripting-1",
+      "scripting-2",
+    ]);
+    expect(
+      bodies.some((body) => body.includes(">dur<") || body.includes("Время разговора")),
+    ).toBe(false);
+    expect(
+      bodies.some((body) => /media-1|management-1|signaling-west|Signaling-1/.test(body)),
+    ).toBe(false);
+    expect(bodies.filter((body) => body.includes('xmlns="args"'))).toHaveLength(4);
+
+    now += 3_000;
+    await readLiveCalls(deps(now, fetchImpl));
+    expect(bodies.filter((body) => body.includes("08.2703.01"))).toHaveLength(2);
+
+    now += MODULE_NAMES_MS;
+    await readLiveCalls(deps(now, fetchImpl));
+    expect(bodies.filter((body) => body.includes("<ns1:getObjects"))).toHaveLength(1);
+    expect(bodies.filter((body) => kindOf(body) === "names")).toHaveLength(2);
+
+    mode = "unknown";
+    now += 3_000;
+    const rejected = await readLiveCalls(deps(now, fetchImpl));
+    expect(rejected.error).toBe("Объект таблицы РТУ не найден.");
+    expect(rejected.rows?.[0]?.outA).toBe("100");
+    expect(bodies.filter((body) => body.includes("<ns1:getObjects"))).toHaveLength(2);
+    expect(bodies.filter((body) => kindOf(body) === "scripting-1")).toHaveLength(3);
+  });
+
+  it("stops the module round on the first fault and refuses a fifth module", async () => {
+    const faulted = moduleHarness(() => "fault");
+    const failed = await readLiveCalls(deps(1_700_000_000_000, faulted.fetchImpl));
+    expect(failed.rows).toBeNull();
+    expect(failed.error).toBe("Access denied");
+    expect(faulted.bodies.map(kindOf).filter(Boolean)).toEqual([
+      "objects",
+      "describe-pcomm",
+      "describe-pupr",
+      "describe-modules",
+      "names",
+      "signaling-1",
+      "signaling-2",
+    ]);
+
+    resetLiveCallMemory();
+    const many = moduleHarness(() => "ok", "many");
+    const capped = await readLiveCalls(deps(1_700_000_000_000, many.fetchImpl));
+    expect(capped.rows).toBeNull();
+    expect(capped.error).toBe("Активных модулей signaling или scripting больше четырёх.");
+    expect(many.bodies.some((body) => body.includes('xmlns="args"'))).toBe(false);
+
+    resetLiveCallMemory();
+    const none = moduleHarness(() => "ok", "none");
+    const missing = await readLiveCalls(deps(1_700_000_000_000, none.fetchImpl));
+    expect(missing.rows).toBeNull();
+    expect(missing.error).toBe("Среди активных модулей нет пары signaling и scripting.");
+    expect(none.bodies.some((body) => body.includes('xmlns="args"'))).toBe(false);
+  });
 });
+
+const MODULE_OBJECTS = `<?xml version="1.0"?>
+<Envelope><Body><getObjectsResponse>
+  <item>
+    <object_id>08.2799.01</object_id>
+    <title>Транзитные вызовы (ПКомм)</title>
+    <path>Подсистема коммутации;Мониторинг ПКомм;Данные по модулям;signaling-1;Конференции Class 4</path>
+    <type>table</type>
+  </item>
+  <item>
+    <object_id>08.2701.01</object_id>
+    <title>Транзитные вызовы (ПКомм)</title>
+    <path>Подсистема коммутации;Мониторинг ПКомм;Данные по модулям;;Конференции Class 4</path>
+    <type>table</type>
+  </item>
+  <item>
+    <object_id>08.2702.01</object_id>
+    <title>Транзитные вызовы (ПУпр)</title>
+    <path>Подсистема коммутации;Мониторинг ПКомм;Данные по модулям;;Вызовы</path>
+    <type>table</type>
+  </item>
+  <item>
+    <object_id>08.2703.01</object_id>
+    <title>Активные модули</title>
+    <path>Подсистема коммутации;Мониторинг ПКомм;Активные модули</path>
+    <type>table</type>
+  </item>
+</getObjectsResponse></Body></Envelope>`;
+
+const MODULE_DESCRIBE = `<?xml version="1.0"?><Envelope><Body><describeTableResponse><columns>
+  ${column("module_name", "Модуль")}
+</columns></describeTableResponse></Body></Envelope>`;
+
+function moduleNames(kind: "ok" | "many" | "none"): string {
+  const names =
+    kind === "many"
+      ? [
+          "signaling-1",
+          "signaling-2",
+          "signaling-3",
+          "signaling-4",
+          "signaling-5",
+          "scripting-1",
+        ]
+      : kind === "none"
+        ? ["media-1", "management-1"]
+        : [
+            "media-1",
+            "signaling-2",
+            "signaling-1",
+            "signaling-1",
+            "Signaling-1",
+            "signaling-west",
+            "scripting-2",
+            "scripting-1",
+            "management-1",
+          ];
+  return `<?xml version="1.0"?><Envelope><Body><selectRowsetResponse>${names
+    .map((name) => row([["module_name", name]]))
+    .join("")}</selectRowsetResponse></Body></Envelope>`;
+}
+
+const SIGNALING_ONE = `<?xml version="1.0"?><Envelope><Body><selectRowsetResponse>
+  ${row([
+    ["conf_id", "c1"],
+    ["t_start", "20261103233200"],
+    ["out_a", "100"],
+    ["src_sig", "1.1.1.1"],
+  ])}
+</selectRowsetResponse></Body></Envelope>`;
+
+const SIGNALING_TWO = `<?xml version="1.0"?><Envelope><Body><selectRowsetResponse>
+  ${row([
+    ["conf_id", "c2"],
+    ["out_a", "200"],
+  ])}
+</selectRowsetResponse></Body></Envelope>`;
+
+const SCRIPTING_ONE = `<?xml version="1.0"?><Envelope><Body><selectRowsetResponse>
+  ${row([
+    ["conf_id", "c1"],
+    ["call_state", "talk"],
+    ["src_name", "gw-a"],
+  ])}
+</selectRowsetResponse></Body></Envelope>`;
+
+function moduleNode(body: string): string {
+  return body.match(/<node xmlns="args">([^<]*)<\/node>/)?.[1] ?? "";
+}
+
+function kindOf(body: string): string {
+  if (body.includes("<ns1:getObjects")) return "objects";
+  if (body.includes("describeTable") && body.includes("08.2701.01"))
+    return "describe-pcomm";
+  if (body.includes("describeTable") && body.includes("08.2702.01"))
+    return "describe-pupr";
+  if (body.includes("describeTable") && body.includes("08.2703.01"))
+    return "describe-modules";
+  if (body.includes("selectRowset") && body.includes("08.2703.01")) return "names";
+  if (body.includes("selectRowset") && moduleNode(body)) return moduleNode(body);
+  return "";
+}
+
+function moduleHarness(
+  mode: () => "ok" | "fault" | "unknown",
+  names: "ok" | "many" | "none" = "ok",
+) {
+  const bodies: string[] = [];
+  const fetchImpl: typeof fetch = async (url, init) => {
+    const body = typeof init?.body === "string" ? init.body : "";
+    bodies.push(body);
+    expect(body).not.toContain("deleteRowset");
+    expect(body).not.toContain("insertRowset");
+    expect(body).not.toContain("updateRowset");
+    expect(body).not.toContain("checkRowset");
+    expect(body).not.toContain("args:node");
+    expect(body).not.toContain("|node=");
+    expect(body).not.toContain("getObjectId");
+    const nodes = body.match(/<node xmlns="args">/g) ?? [];
+    expect(nodes.length).toBeLessThanOrEqual(1);
+    if (body.includes("getObjects") || body.includes("describeTable")) {
+      expect(body).not.toContain('xmlns="args"');
+    }
+    const target = String(url);
+    if (target.includes("wsdl")) return new Response(WSDL, { status: 200 });
+    if (body.includes("<ns1:getObjects"))
+      return new Response(MODULE_OBJECTS, { status: 200 });
+    if (body.includes("describeTable") && body.includes("08.2701.01")) {
+      return new Response(PCOMM_DESCRIBE, { status: 200 });
+    }
+    if (body.includes("describeTable") && body.includes("08.2702.01")) {
+      return new Response(PUPR_DESCRIBE, { status: 200 });
+    }
+    if (body.includes("describeTable") && body.includes("08.2703.01")) {
+      return new Response(MODULE_DESCRIBE, { status: 200 });
+    }
+    if (body.includes("selectRowset") && body.includes("08.2703.01")) {
+      expect(moduleNode(body)).toBe("");
+      return new Response(moduleNames(names), { status: 200 });
+    }
+    const node = moduleNode(body);
+    if (body.includes("08.2799.01") || node === "media-1" || node === "management-1") {
+      throw new Error(`unexpected module ${node || "decoy"}`);
+    }
+    if (
+      (node === "signaling-1" || node === "signaling-2") &&
+      !body.includes("08.2701.01")
+    ) {
+      throw new Error("signaling select on the wrong table");
+    }
+    if (
+      (node === "scripting-1" || node === "scripting-2") &&
+      !body.includes("08.2702.01")
+    ) {
+      throw new Error("scripting select on the wrong table");
+    }
+    const current = mode();
+    if (node === "signaling-2" && current === "fault")
+      return new Response(FAULT, { status: 200 });
+    if (node === "signaling-2" && current === "unknown")
+      return new Response(UNKNOWN, { status: 200 });
+    if (node === "signaling-1" && body.includes("08.2701.01"))
+      return new Response(SIGNALING_ONE, { status: 200 });
+    if (node === "signaling-2" && body.includes("08.2701.01"))
+      return new Response(SIGNALING_TWO, { status: 200 });
+    if (node === "scripting-1" && body.includes("08.2702.01"))
+      return new Response(SCRIPTING_ONE, { status: 200 });
+    if (node === "scripting-2" && body.includes("08.2702.01"))
+      return new Response(EMPTY_SELECT, { status: 200 });
+    throw new Error(`unexpected call ${kindOf(body)} ${body.slice(0, 180)}`);
+  };
+  return { fetchImpl, bodies };
+}

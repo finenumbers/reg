@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { findTransitTable, type CatalogObject } from "@/modules/live-calls/catalog";
+import {
+  findActiveModules,
+  findTransitTable,
+  findTransitTemplate,
+  PCOMM_TEMPLATE_LEAF,
+  PUPR_TEMPLATE_LEAF,
+  type CatalogObject,
+} from "@/modules/live-calls/catalog";
 
 const TITLE = "Транзитные вызовы (ПКомм)";
 
@@ -15,7 +22,10 @@ describe("findTransitTable", () => {
           "08.2599.01",
           "Подсистема коммутации;Мониторинг ПКомм;Данные по модулям;signaling-1;Конференции Class 4",
         ),
-        table("08.2504.01", "Подсистема коммутации;Мониторинг ПКомм;Транзитные вызовы (ПКомм)"),
+        table(
+          "08.2504.01",
+          "Подсистема коммутации;Мониторинг ПКомм;Транзитные вызовы (ПКомм)",
+        ),
       ],
       TITLE,
     );
@@ -29,7 +39,12 @@ describe("findTransitTable", () => {
 
   it("does not take a page that sits outside the monitoring folder", () => {
     const found = findTransitTable(
-      [table("08.2504.01", "Подсистема коммутации;Другая папка;Транзитные вызовы (ПКомм)")],
+      [
+        table(
+          "08.2504.01",
+          "Подсистема коммутации;Другая папка;Транзитные вызовы (ПКомм)",
+        ),
+      ],
       TITLE,
     );
     expect(found).toEqual({ ok: false, reason: "none" });
@@ -38,8 +53,14 @@ describe("findTransitTable", () => {
   it("prefers the shallower monitoring path and refuses a tie", () => {
     const deeper = findTransitTable(
       [
-        table("08.2504.02", "Подсистема коммутации;Мониторинг ПКомм;узел;Транзитные вызовы (ПКомм)"),
-        table("08.2504.01", "Подсистема коммутации;Мониторинг ПКомм;Транзитные вызовы (ПКомм)"),
+        table(
+          "08.2504.02",
+          "Подсистема коммутации;Мониторинг ПКомм;узел;Транзитные вызовы (ПКомм)",
+        ),
+        table(
+          "08.2504.01",
+          "Подсистема коммутации;Мониторинг ПКомм;Транзитные вызовы (ПКомм)",
+        ),
       ],
       TITLE,
     );
@@ -47,11 +68,115 @@ describe("findTransitTable", () => {
 
     const tie = findTransitTable(
       [
-        table("08.2504.01", "Подсистема коммутации;Мониторинг ПКомм;Транзитные вызовы (ПКомм)"),
+        table(
+          "08.2504.01",
+          "Подсистема коммутации;Мониторинг ПКомм;Транзитные вызовы (ПКомм)",
+        ),
         table("08.2504.02", "Коммутация;Мониторинг ПКомм;Транзитные вызовы (ПКомм)"),
       ],
       TITLE,
     );
     expect(tie).toEqual({ ok: false, reason: "many" });
+  });
+
+  it("does not take the live per-module template as the summary", () => {
+    const found = findTransitTable(
+      [
+        table(
+          "08.2599.01",
+          "Подсистема коммутации;Мониторинг ПКомм;Данные по модулям;;Конференции Class 4",
+        ),
+      ],
+      TITLE,
+    );
+    expect(found).toEqual({ ok: false, reason: "none" });
+  });
+});
+
+const PCOMM_TEMPLATE =
+  "Подсистема коммутации;Мониторинг ПКомм;Данные по модулям;;Конференции Class 4";
+const PUPR_TEMPLATE = "Подсистема коммутации;Мониторинг ПКомм;Данные по модулям;;Вызовы";
+
+describe("findTransitTemplate", () => {
+  it("selects the one empty-module template and ignores a named module", () => {
+    const found = findTransitTemplate(
+      [
+        table(
+          "08.2599.02",
+          "Подсистема коммутации;Мониторинг ПКомм;Данные по модулям;signaling-1;Конференции Class 4",
+        ),
+        table("08.2599.01", PCOMM_TEMPLATE),
+        table(
+          "08.2504.01",
+          "Подсистема коммутации;Мониторинг ПКомм;Транзитные вызовы (ПКомм)",
+        ),
+      ],
+      TITLE,
+      PCOMM_TEMPLATE_LEAF,
+    );
+    expect(found).toEqual({ ok: true, objectId: "08.2599.01" });
+  });
+
+  it("rejects a different leaf, a filled module, and a second template", () => {
+    expect(
+      findTransitTemplate(
+        [table("08.2599.01", PUPR_TEMPLATE, "Транзитные вызовы (ПУпр)")],
+        "Транзитные вызовы (ПУпр)",
+        PUPR_TEMPLATE_LEAF,
+      ),
+    ).toEqual({ ok: true, objectId: "08.2599.01" });
+    expect(
+      findTransitTemplate(
+        [table("08.2599.01", PUPR_TEMPLATE)],
+        TITLE,
+        PCOMM_TEMPLATE_LEAF,
+      ),
+    ).toEqual({
+      ok: false,
+      reason: "none",
+    });
+    expect(
+      findTransitTemplate(
+        [
+          table("08.2599.01", PCOMM_TEMPLATE),
+          table("08.2599.02", `${PCOMM_TEMPLATE};ещё`),
+        ],
+        TITLE,
+        PCOMM_TEMPLATE_LEAF,
+      ),
+    ).toEqual({ ok: true, objectId: "08.2599.01" });
+    expect(
+      findTransitTemplate(
+        [table("08.2599.01", PCOMM_TEMPLATE), table("08.2599.02", PCOMM_TEMPLATE)],
+        TITLE,
+        PCOMM_TEMPLATE_LEAF,
+      ),
+    ).toEqual({ ok: false, reason: "many" });
+  });
+});
+
+describe("findActiveModules", () => {
+  const path = "Подсистема коммутации;Мониторинг ПКомм;Активные модули";
+
+  it("selects the summary page and ignores a module copy", () => {
+    expect(
+      findActiveModules([
+        table("08.2600.02", `${path};signaling-1`, "Активные модули"),
+        table("08.2600.01", path, "Активные модули"),
+      ]),
+    ).toEqual({ ok: true, objectId: "08.2600.01" });
+    expect(
+      findActiveModules([
+        table("08.2600.01", path, "Активные модули"),
+        table("08.2600.02", path, "Активные модули"),
+      ]),
+    ).toEqual({
+      ok: false,
+      reason: "many",
+    });
+    expect(findActiveModules([table("08.2600.01", path)])).toEqual({
+      ok: false,
+      reason: "none",
+    });
   });
 });

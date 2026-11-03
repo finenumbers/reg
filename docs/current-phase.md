@@ -1,7 +1,13 @@
-# Current Phase — production (v1.211.0)
+# Current Phase — production (v1.212.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, number geography, free numbers, purchased numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls.  
 **Date:** 2026-11-04
+
+## v1.212.0 — Live calls from signaling and scripting modules
+
+There is no migration. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. Keep a single `app` replica. Replace the `app` container so «Текущие звонки» reads the per-module call tables.
+
+The two summary pages are still preferred when they sit outside «Данные по модулям». On this switch they are absent. The page then uses the shared templates «Конференции Class 4» and «Вызовы», and the summary page «Активные модули». It keeps only `signaling-<digits>` and `scripting-<digits>`, at most four of each. A fifth such module fails the round. Other module names are not queried. Each call `selectRowset` sends one `node` header with that module's exact name. `getObjects`, `describeTable`, the module list, and the Settings access check do not send that header. «Время разговора» is not requested and is not shown. Nothing is written to the switch, and a call is not hung up. While the section is open, call rows refresh at most once every 3 seconds; the module list refreshes once a minute. A failed round keeps the last successful rows.
 
 ## v1.211.0 — Transit-call catalog match
 
