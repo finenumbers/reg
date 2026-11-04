@@ -54,6 +54,8 @@ Optional publish ports: `APP_PUBLISH_PORT`, `POSTGRES_PUBLISH_PORT`.
 
 ## 3. Database
 
+v1.222.0 does not migrate and does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `app`. Do not stop `smg-syslog`. Keep a single `app` replica. The home cards count the current UTC month. A failed or compressed read stays «…» unless that month already has a successful count. The antifraud total does not block the page, and a count older than one minute or for a different disabled-node set is not shown. The home page paints the UTC clock. A missing phone import row shows a gap.
+
 v1.221.0 does not migrate and does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `app`. Do not stop `smg-syslog`. Keep a single `app` replica. «Текущие звонки» lists the latest «Время начала» first, including `DD.MM.YYYY HH:MM:SS`. A blank or unparsed start time stays below. The snapshot line is UTC. The switch sort stays nil. Cell digits are not shifted.
 
 v1.220.0 does not migrate and does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `app`. Do not stop `smg-syslog`. Keep a single `app` replica. «Текущие звонки» lists the earliest «Время начала» first. A blank or unparsed start time stays below. The switch sort stays nil.

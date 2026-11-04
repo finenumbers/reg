@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -27,9 +27,12 @@ import type {
   DashboardCard,
   DashboardSnapshot,
 } from "@/modules/dashboard/types";
-import { CallsChart } from "@/modules/dashboard/ui/calls-chart";
+import { CallsChart, requestDashboardCalls } from "@/modules/dashboard/ui/calls-chart";
 
 const POLL_MS = 30_000;
+const ANTIFRAUD_GAP = "…";
+const ANTIFRAUD_FAST_MS = 2_000;
+const ANTIFRAUD_FAST_LIMIT = 6;
 
 const SERIES_OPTIONS = DASHBOARD_SERIES.map((item) => ({
   value: item.id,
@@ -49,6 +52,10 @@ export function DashboardView() {
   const [error, setError] = useState<string | null>(null);
   const [series, setSeries] = useState<DashboardSeriesId>("phone");
   const [node, setNode] = useState("");
+  const [phoneChart] = useState(() => requestDashboardCalls("phone", null));
+  const loadRef = useRef<(() => void) | null>(null);
+  const antifraudSettled = useRef(false);
+  const antifraudTries = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -98,15 +105,37 @@ export function DashboardView() {
       start();
     };
 
+    loadRef.current = () => {
+      void load();
+    };
     void load();
     start();
     document.addEventListener("visibilitychange", onVisibility);
     return () => {
       cancelled = true;
+      loadRef.current = null;
       stop();
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, []);
+
+  useEffect(() => {
+    if (antifraudSettled.current) return;
+    const value = data?.cards
+      .find((card) => card.id === "syslog")
+      ?.stats.find((stat) => stat.label === "События Антифрод")?.value;
+    if (value == null) return;
+    if (value !== ANTIFRAUD_GAP) {
+      antifraudSettled.current = true;
+      return;
+    }
+    if (antifraudTries.current >= ANTIFRAUD_FAST_LIMIT) return;
+    const timer = window.setTimeout(() => {
+      antifraudTries.current += 1;
+      loadRef.current?.();
+    }, ANTIFRAUD_FAST_MS);
+    return () => window.clearTimeout(timer);
+  }, [data]);
 
   const antifraud = isAntifraudChartSeries(series);
   const listedNodes = data?.antifraudNodes ?? null;
@@ -198,7 +227,9 @@ export function DashboardView() {
               </div>
             </div>
           ) : null}
-          {data?.calls ? <CallsChart series={series} node={chartNode} /> : null}
+          {data?.calls ? (
+            <CallsChart series={series} node={chartNode} initialPhone={phoneChart} />
+          ) : null}
         </div>
       </div>
     </div>

@@ -1,7 +1,7 @@
 /**
  * One dashboard snapshot for every open tab.
- * Session callers share a short cache. A CDR month scan, when it runs,
- * is the same single-flight cache the traffic page already uses.
+ * Session callers share a short cache. The current-month call counts
+ * and the antifraud total are read again on the way out and are not this cache.
  */
 
 import { Prisma } from "@/generated/prisma/client";
@@ -13,10 +13,12 @@ import { hasPermission } from "@/modules/rbac/permissions";
 import { listSmgInboxFiles } from "@/modules/smg/inbox";
 import { listSmgPoisonEntries } from "@/modules/smg/poison";
 import { listAntifraudChartNodes } from "@/modules/dashboard/antifraud-node-query";
+import { peekDashboardAntifraudEvents } from "@/modules/dashboard/card-figures";
 import {
-  dashboardAntifraudEvents,
-  dashboardSmgMonth,
-} from "@/modules/dashboard/card-figures";
+  readDashboardCdrCalls,
+  readDashboardSmgMonth,
+} from "@/modules/dashboard/month-figures";
+import { overlayDashboardFigures } from "@/modules/dashboard/overlay";
 import {
   listStoredByteDevices,
   peekSyslogStoredBytes,
@@ -24,21 +26,13 @@ import {
 } from "@/modules/smg-syslog/browse";
 import { readStatus } from "@/modules/smg-syslog/status";
 import { syslogRoot } from "@/modules/smg-syslog/paths";
-import {
-  isDatabaseVacuumActive,
-  CDR_VACUUM_BUSY_MESSAGE,
-} from "@/modules/storage/vacuum/gate";
+import { isDatabaseVacuumActive } from "@/modules/storage/vacuum/gate";
 import { countInboxFiles } from "@/modules/traffic/inbox";
 import { currentUtcMonth } from "@/modules/traffic/cdr-month";
-import {
-  listCachedMonthCounts,
-  peekCachedMonthCounts,
-  readCachedMonthMinutes,
-} from "@/modules/traffic/cdr-month-stats";
+import { readCachedMonthMinutes } from "@/modules/traffic/cdr-month-stats";
 import { isPurgeHoldError, listPoisonEntries } from "@/modules/traffic/poison";
 import {
   buildDashboard,
-  cachedMonthCalls,
   clipError,
   isDashboardPoison,
   toDashboardSnapshot,
@@ -108,7 +102,7 @@ export async function getDashboardSnapshot(
   const store = cacheStore();
   const now = Date.now();
   const hit = store.entries.get(key);
-  if (hit && now - hit.at < CACHE_TTL_MS) return hit.value;
+  if (hit && now - hit.at < CACHE_TTL_MS) return withLiveFigures(hit.value, now);
 
   const pending = store.inflight.get(key);
   if (pending) return pending;
@@ -116,7 +110,7 @@ export async function getDashboardSnapshot(
   const promise = buildFresh(permissions, now)
     .then((value) => {
       cacheStore().entries.set(key, { at: Date.now(), value });
-      return value;
+      return withLiveFigures(value, Date.now());
     })
     .finally(() => {
       cacheStore().inflight.delete(key);
@@ -125,16 +119,39 @@ export async function getDashboardSnapshot(
   return promise;
 }
 
+async function withLiveFigures(
+  snapshot: DashboardSnapshot,
+  now: number,
+): Promise<DashboardSnapshot> {
+  // Those three figures are on the phone cards only.
+  if (!snapshot.calls) return snapshot;
+  const [traffic, smg, antifraudEvents] = await Promise.all([
+    readDashboardCdrCalls(now),
+    readDashboardSmgMonth(now),
+    peekDashboardAntifraudEvents(now),
+  ]);
+  return overlayDashboardFigures(snapshot, {
+    trafficCalls: traffic.calls,
+    trafficNote: traffic.note,
+    smgCalls: smg.calls,
+    smgMinutes: smg.minutes,
+    antifraudEvents,
+  });
+}
+
 async function buildFresh(
   permissions: readonly string[],
   now: number,
 ): Promise<DashboardSnapshot> {
-  const facts = await gatherFacts(permissions, now);
   const calls = hasPermission(permissions, "phones:read");
+  const [facts, antifraudNodes] = await Promise.all([
+    gatherFacts(permissions, now),
+    calls ? readAntifraudNodes() : Promise.resolve(null),
+  ]);
   return {
     ...toDashboardSnapshot(buildDashboard(facts)),
     calls,
-    antifraudNodes: calls ? await readAntifraudNodes() : null,
+    antifraudNodes,
   };
 }
 
@@ -196,14 +213,11 @@ async function gatherFacts(
   let smg: DashboardFacts["smg"] = null;
   let syslog: SyslogPulse | null = null;
   if (includePhones) {
-    const [trafficExtra, smgExtra, syslogPulse, smgMonth, antifraudEvents] =
-      await Promise.all([
-        loadTrafficExtra(now, vacuumActive),
-        loadSmgExtra(),
-        soft(() => Promise.resolve(readSyslog(syslogEnabled))),
-        soft(() => dashboardSmgMonth(now)),
-        soft(() => dashboardAntifraudEvents()),
-      ]);
+    const [trafficExtra, smgExtra, syslogPulse] = await Promise.all([
+      loadTrafficExtra(now),
+      loadSmgExtra(),
+      soft(() => Promise.resolve(readSyslog(syslogEnabled))),
+    ]);
     traffic = {
       ...importPulse("cdr.import", latest),
       ...trafficExtra,
@@ -211,14 +225,14 @@ async function gatherFacts(
     smg = {
       ...importPulse("smg.import", latest),
       ...smgExtra,
-      monthCalls: smgMonth?.calls ?? null,
-      monthMinutes: smgMonth?.minutes ?? null,
+      monthCalls: null,
+      monthMinutes: null,
     };
     syslog = syslogPulse
       ? {
           ...syslogPulse,
           storedBytes: syslogStoredTotal(syslogRoot()),
-          antifraudEvents,
+          antifraudEvents: null,
         }
       : null;
   }
@@ -336,14 +350,15 @@ async function loadRegCounts(): Promise<{
 async function loadPhoneState(): Promise<{
   endpointCount: number;
   gatewayCount: number;
-}> {
+} | null> {
   const row = await prisma.phoneImportState.findUnique({
     where: { id: 1 },
     select: { endpointCount: true, gatewayCount: true },
   });
+  if (!row) return null;
   return {
-    endpointCount: row?.endpointCount ?? 0,
-    gatewayCount: row?.gatewayCount ?? 0,
+    endpointCount: row.endpointCount,
+    gatewayCount: row.gatewayCount,
   };
 }
 
@@ -388,7 +403,6 @@ function importPulse(
 
 async function loadTrafficExtra(
   now: number,
-  vacuum: boolean,
 ): Promise<
   Pick<
     DashboardFacts["traffic"] & object,
@@ -404,11 +418,11 @@ async function loadTrafficExtra(
     | "monthNote"
   >
 > {
-  const [inbox, poison, pass, month] = await Promise.all([
+  const month = currentUtcMonth(new Date(now));
+  const [inbox, poison, pass] = await Promise.all([
     soft(countInboxFiles),
     soft(() => Promise.resolve(listPoisonEntries())),
     soft(() => findLastFileImport("cdr.import")),
-    readMonthCalls(now, vacuum),
   ]);
   const actionable = (poison ?? []).filter((item) =>
     isDashboardPoison(item.error, item.heldForPurge),
@@ -422,9 +436,9 @@ async function loadTrafficExtra(
     lastPassAt: asTime(pass?.lastPassAt ?? null),
     hadCalls: pass?.hadCalls ?? false,
     lastCheckedAt: lastRtuEmptyScanAt(),
-    monthCalls: month.calls,
-    monthMinutes: month.minutes,
-    monthNote: month.note,
+    monthCalls: null,
+    monthMinutes: readCachedMonthMinutes(month, now),
+    monthNote: null,
   };
 }
 
@@ -491,27 +505,6 @@ function readSyslog(
     unknownTotal: status?.unknownTotal ?? 0,
     lastPacketAt: status ? latestPacket(status.lastPacket) : null,
   };
-}
-
-async function readMonthCalls(
-  now: number,
-  vacuum: boolean,
-): Promise<{ calls: number | null; minutes: number | null; note: string | null }> {
-  const month = currentUtcMonth(new Date(now));
-  const minutes = readCachedMonthMinutes(month, now);
-  if (vacuum) {
-    const calls = cachedMonthCalls(peekCachedMonthCounts(), month.key);
-    return calls == null
-      ? { calls: null, minutes, note: CDR_VACUUM_BUSY_MESSAGE }
-      : { calls, minutes, note: null };
-  }
-  try {
-    const months = await listCachedMonthCounts(now);
-    const row = months.find((item) => item.key === month.key);
-    return { calls: row?.count ?? 0, minutes, note: null };
-  } catch {
-    return { calls: null, minutes, note: "Счётчик звонков недоступен." };
-  }
 }
 
 function latestPacket(packets: Record<string, string>): number | null {

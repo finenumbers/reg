@@ -27,10 +27,12 @@ function matches(path: string, root: string): boolean {
  * `smg` is resolved from the selected node's CDR zone, not from the path.
  * `/smg/syslog` is UTC arrival time and is matched before `/smg`.
  * `/live-calls` paints UTC. The call cells stay the switch digits.
+ * The home dashboard is UTC. `/` is an exact match so it does not paint every page.
  */
 export function navClockSource(pathname: string): NavClockRow | "smg" | null {
   const path =
     pathname.length > 1 && pathname.endsWith("/") ? pathname.slice(0, -1) : pathname;
+  if (path === "/") return "utc";
   if (UTC_ROOTS.some((root) => matches(path, root))) return "utc";
   if (SETTINGS_ROOTS.some((root) => matches(path, root))) return "settings";
   if (path === "/smg" || matches(path, "/smg/traffic")) return "smg";

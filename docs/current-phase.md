@@ -1,7 +1,17 @@
-# Current Phase — production (v1.221.0)
+# Current Phase — production (v1.222.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, number geography, free numbers, purchased numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls.  
 **Date:** 2026-11-04
+
+## v1.222.0 — Home cards count this UTC month
+
+There is no migration. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. Keep a single `app` replica. Replace the `app` container so the home page counts the current UTC month and paints the UTC clock.
+
+«Звонки, этот месяц» on «Телефонный трафик» and on «Звонки на SMG», and «Минуты, этот месяц» on «Звонки на SMG», count the UTC month. A day belongs to the month when its first seven characters are that month, the same set as `left(day, 7)`. The read uses the day index and stays on that month. A failed read, a timeout, and a count that is not a whole number stay «…». Zero stays 0. During compression the last successful count for that same month stays. Without one, the card shows «…» and the compression sentence. «Минуты, этот месяц» on «Телефонный трафик» is unchanged.
+
+«События Антифрод» no longer holds the rest of the home page. The number is shown when the same disabled-node set was counted less than a minute ago. An older number, a changed set, a failed read, and compression stay «…». A failed read waits a minute before the search runs again. Compression does not start that wait.
+
+The left nav paints the UTC clock red on the home page. A missing phone import row shows «…» for the endpoint and gateway counts. A stored zero stays 0.
 
 ## v1.221.0 — Newest live calls first, snapshot in UTC
 

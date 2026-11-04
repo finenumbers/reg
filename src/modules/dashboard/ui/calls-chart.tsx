@@ -39,12 +39,44 @@ type XLabel = {
   style: CSSProperties;
 };
 
+export function requestDashboardCalls(
+  series: DashboardSeriesId,
+  node: string | null,
+): Promise<DashboardCalls> {
+  const params = new URLSearchParams({ series });
+  if (node) params.set("node", node);
+  return fetch(`/api/dashboard/calls?${params}`, { cache: "no-store" })
+    .then(async (response) => {
+      if (!response.ok) {
+        let message = UNAVAILABLE;
+        try {
+          const failed = (await response.json()) as { message?: unknown };
+          if (typeof failed.message === "string" && failed.message.trim() !== "") {
+            message = failed.message;
+          }
+        } catch {
+          message = UNAVAILABLE;
+        }
+        return { status: "unavailable" as const, series, node, message };
+      }
+      return (await response.json()) as DashboardCalls;
+    })
+    .catch(() => ({
+      status: "unavailable" as const,
+      series,
+      node,
+      message: UNAVAILABLE,
+    }));
+}
+
 export function CallsChart({
   series,
   node,
+  initialPhone = null,
 }: {
   series: DashboardSeriesId;
   node: string | null;
+  initialPhone?: Promise<DashboardCalls> | null;
 }) {
   const [body, setBody] = useState<DashboardCalls | null>(null);
 
@@ -53,44 +85,30 @@ export function CallsChart({
     let timer: number | null = null;
     let loading = false;
 
+    const accept = (next: DashboardCalls) => {
+      if (cancelled || next.status === "hidden") return;
+      if (next.series !== series || (next.node ?? "") !== (node ?? "")) return;
+      setBody(next);
+    };
+
     const load = async () => {
       if (loading || document.visibilityState === "hidden") return;
       loading = true;
       try {
-        const params = new URLSearchParams({ series });
-        if (node) params.set("node", node);
-        const response = await fetch(`/api/dashboard/calls?${params}`, {
-          cache: "no-store",
-        });
-        if (!response.ok) {
-          let message = UNAVAILABLE;
-          try {
-            const failed = (await response.json()) as { message?: unknown };
-            if (typeof failed.message === "string" && failed.message.trim() !== "") {
-              message = failed.message;
-            }
-          } catch {
-            message = UNAVAILABLE;
-          }
-          if (!cancelled) setBody({ status: "unavailable", series, node, message });
-          return;
-        }
-        const next = (await response.json()) as DashboardCalls;
-        if (cancelled) return;
-        if (
-          next.status !== "hidden" &&
-          (next.series !== series || (next.node ?? "") !== (node ?? ""))
-        ) {
-          return;
-        }
-        setBody(next);
-      } catch {
-        if (!cancelled)
-          setBody({ status: "unavailable", series, node, message: UNAVAILABLE });
+        accept(await requestDashboardCalls(series, node));
       } finally {
         loading = false;
       }
     };
+
+    const useShared = series === "phone" && node == null && initialPhone != null;
+    if (useShared) {
+      void initialPhone.then((next) => {
+        accept(next);
+      });
+    } else {
+      void load();
+    }
 
     const stop = () => {
       if (timer == null) return;
@@ -112,7 +130,6 @@ export function CallsChart({
       start();
     };
 
-    void load();
     start();
     document.addEventListener("visibilitychange", onVisibility);
     return () => {
@@ -120,7 +137,7 @@ export function CallsChart({
       stop();
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [series, node]);
+  }, [series, node, initialPhone]);
 
   const shown =
     body &&

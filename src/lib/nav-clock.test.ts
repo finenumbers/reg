@@ -11,6 +11,7 @@ describe("navClockSource", () => {
     expect(navClockSource("/live-calls")).toBe("utc");
     expect(navClockSource("/smg/syslog")).toBe("utc");
     expect(navClockSource("/smg/syslog/node")).toBe("utc");
+    expect(navClockSource("/")).toBe("utc");
   });
 
   it("paints the Settings row on registrations, audit, and jobs", () => {
@@ -25,7 +26,6 @@ describe("navClockSource", () => {
   });
 
   it("paints nothing where the page has no single clock", () => {
-    expect(navClockSource("/")).toBeNull();
     expect(navClockSource("/settings")).toBeNull();
     expect(navClockSource("/phones")).toBeNull();
     expect(navClockSource("/groups")).toBeNull();

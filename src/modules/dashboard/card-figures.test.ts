@@ -14,6 +14,7 @@ const transaction = vi.fn(
   ) => fn({ $executeRaw: executeRaw, $queryRaw: queryRaw }),
 );
 const vacuum = vi.fn(() => false);
+const vacuumJob = vi.fn(() => false);
 
 vi.mock("@/lib/db", () => ({
   prisma: {
@@ -38,14 +39,17 @@ vi.mock("@/modules/storage/vacuum/gate", () => ({
   isDatabaseVacuumActive: () => vacuum(),
 }));
 
-vi.mock("@/modules/smg/month-stats", () => ({
-  querySmgMonthStats: vi.fn(),
+vi.mock("@/modules/jobs/runtime", () => ({
+  jobRuntime: {
+    isInFlight: (code: string) => code === "db.vacuum" && vacuumJob(),
+  },
 }));
 
 import {
   ANTIFRAUD_SENT_PATTERN,
   antifraudEventsSql,
   dashboardAntifraudEvents,
+  peekDashboardAntifraudEvents,
   resetDashboardCardFiguresForTests,
 } from "@/modules/dashboard/card-figures";
 
@@ -88,6 +92,7 @@ describe("dashboardAntifraudEvents", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vacuum.mockReturnValue(false);
+    vacuumJob.mockReturnValue(false);
     queryRaw.mockResolvedValue([{ n: 4 }]);
     executeRaw.mockResolvedValue(0);
     nodeFindMany.mockReset();
@@ -115,14 +120,32 @@ describe("dashboardAntifraudEvents", () => {
     expect(queryRaw).toHaveBeenCalledTimes(1);
   });
 
-  it("does not cache a failed read", async () => {
+  it("waits a minute before repeating a failed read", async () => {
+    const start = 1_700_000_000_000;
     queryRaw.mockRejectedValueOnce(
       new Error("canceling statement due to statement timeout"),
     );
-    await expect(dashboardAntifraudEvents()).resolves.toBeNull();
+    await expect(dashboardAntifraudEvents(start)).resolves.toBeNull();
     queryRaw.mockResolvedValue([{ n: 3 }]);
-    await expect(dashboardAntifraudEvents()).resolves.toBe(3);
+    await expect(dashboardAntifraudEvents(start + 1_000)).resolves.toBeNull();
+    expect(queryRaw).toHaveBeenCalledTimes(1);
+    await expect(dashboardAntifraudEvents(start + 60_000)).resolves.toBe(3);
     expect(queryRaw).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not turn a missing count into zero", async () => {
+    const start = 1_700_000_000_000;
+    queryRaw.mockResolvedValue([{}]);
+    await expect(dashboardAntifraudEvents(start)).resolves.toBeNull();
+    await expect(dashboardAntifraudEvents(start + 1_000)).resolves.toBeNull();
+    expect(queryRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not read while vacuum is in flight in this process", async () => {
+    vacuumJob.mockReturnValue(true);
+    await expect(dashboardAntifraudEvents()).resolves.toBeNull();
+    expect(transaction).not.toHaveBeenCalled();
+    expect(nodeFindMany).not.toHaveBeenCalled();
   });
 
   it("does not cache a count that finished after vacuum started", async () => {
@@ -169,5 +192,52 @@ describe("dashboardAntifraudEvents", () => {
     release([{ n: 9 }]);
     await expect(first).resolves.toBe(9);
     await expect(second).resolves.toBe(9);
+  });
+});
+
+describe("peekDashboardAntifraudEvents", () => {
+  const start = 1_700_000_000_000;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vacuum.mockReturnValue(false);
+    vacuumJob.mockReturnValue(false);
+    queryRaw.mockResolvedValue([{ n: 4 }]);
+    executeRaw.mockResolvedValue(0);
+    nodeFindMany.mockReset();
+    nodeFindMany.mockResolvedValue([]);
+    resetDashboardCardFiguresForTests();
+  });
+
+  it("returns a fresh count without reading the regexp again", async () => {
+    await expect(dashboardAntifraudEvents(start)).resolves.toBe(4);
+    queryRaw.mockClear();
+    transaction.mockClear();
+    await expect(peekDashboardAntifraudEvents(start + 59_000)).resolves.toBe(4);
+    expect(queryRaw).not.toHaveBeenCalled();
+    expect(transaction).not.toHaveBeenCalled();
+  });
+
+  it("hides an expired count until the refresh lands", async () => {
+    await expect(dashboardAntifraudEvents(start)).resolves.toBe(4);
+    let release: (rows: { n: number }[]) => void = () => {};
+    queryRaw.mockReturnValue(
+      new Promise((resolve) => {
+        release = resolve;
+      }),
+    );
+    await expect(peekDashboardAntifraudEvents(start + 60_000)).resolves.toBeNull();
+    expect(queryRaw).toHaveBeenCalledTimes(2);
+    release([{ n: 8 }]);
+    await expect(dashboardAntifraudEvents(start + 60_000)).resolves.toBe(8);
+  });
+
+  it("does not return a count for a different disabled-node set", async () => {
+    await expect(dashboardAntifraudEvents(start)).resolves.toBe(4);
+    nodeFindMany.mockResolvedValue([{ ip: "10.0.0.8" }]);
+    queryRaw.mockResolvedValue([{ n: 1 }]);
+    await expect(peekDashboardAntifraudEvents(start + 1_000)).resolves.toBeNull();
+    await expect(dashboardAntifraudEvents(start + 1_000)).resolves.toBe(1);
+    expect(queryRaw).toHaveBeenCalledTimes(2);
   });
 });
