@@ -290,6 +290,62 @@ describe("readLiveCalls", () => {
     expect(cleared.rows).toEqual([]);
   });
 
+  it("shows newer start times first and leaves the switch sort nil", async () => {
+    const pcomm = `<?xml version="1.0"?><Envelope><Body><selectRowsetResponse>
+      ${row([
+        ["conf_id", "old"],
+        ["t_start", "20261104090000"],
+        ["out_a", "111"],
+        ["out_b", "200"],
+      ])}
+      ${row([
+        ["conf_id", "new"],
+        ["t_start", "20261104100000"],
+        ["out_a", "222"],
+        ["out_b", "200"],
+      ])}
+      ${row([
+        ["conf_id", "junk"],
+        ["t_start", "1"],
+        ["out_a", "333"],
+        ["out_b", "200"],
+      ])}
+    </selectRowsetResponse></Body></Envelope>`;
+    const bodies: string[] = [];
+    const fetchImpl: typeof fetch = async (url, init) => {
+      const body = typeof init?.body === "string" ? init.body : "";
+      bodies.push(body);
+      const target = String(url);
+      let text = WSDL;
+      if (!target.includes("wsdl")) {
+        if (body.includes("<ns1:getObjects")) text = OBJECTS;
+        else if (body.includes("describeTable") && body.includes("08.2504.01"))
+          text = PCOMM_DESCRIBE;
+        else if (body.includes("describeTable") && body.includes("08.2505.01"))
+          text = PUPR_DESCRIBE;
+        else if (body.includes("selectRowset") && body.includes("08.2504.01")) text = pcomm;
+        else if (body.includes("selectRowset") && body.includes("08.2505.01"))
+          text = EMPTY_SELECT;
+        else throw new Error(`unexpected call ${target} ${body.slice(0, 180)}`);
+      }
+      return new Response(text, { status: 200 });
+    };
+    const snapshot = await readLiveCalls(deps(1_700_000_000_000, fetchImpl));
+    expect(snapshot.error).toBeNull();
+    expect(snapshot.rows?.map((item) => item.startedAt)).toEqual([
+      "2026-11-04 10:00:00",
+      "2026-11-04 09:00:00",
+      "1",
+    ]);
+    expect(snapshot.rows?.map((item) => item.outA)).toEqual(["222", "111", "333"]);
+    const selected = bodies.filter((body) => body.includes("selectRowset"));
+    expect(selected.length).toBeGreaterThan(0);
+    for (const body of selected) {
+      expect(body).toContain('<p_sort xsi:nil="true"/>');
+      expect(body).not.toContain("<p_sort>");
+    }
+  });
+
   it("fills sides from the catalog and keeps the calls when that read fails", async () => {
     const { fetchImpl } = harness(() => "ok");
     const now = 1_700_000_000_000;

@@ -54,6 +54,8 @@ Optional publish ports: `APP_PUBLISH_PORT`, `POSTGRES_PUBLISH_PORT`.
 
 ## 3. Database
 
+v1.219.0 does not migrate and does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `app`. Do not stop `smg-syslog`. Keep a single `app` replica. «Текущие звонки» lists the newest «Время начала» first. A blank or unparsed start time stays below. The switch sort stays nil.
+
 v1.218.0 does not migrate and does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `app`. Do not stop `smg-syslog`. Keep a single `app` replica. «Текущие звонки» leads with «Категория». «Состояние» shows the RTU interface string when that column has a lookup. A lookup failure leaves the key and keeps the calls.
 
 v1.202.0 does not migrate and does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `app`. Do not stop `smg-syslog`. Keep a single `app` replica. Catalog XLSX still asks for 500 rows. An older DID cap no longer fails the free and purchased files: the walk continues at that cap, or at 200 and then 100, and stays there. Numbering tries 200 once when the first PSTN page is rejected. The red banner shows the task error. A page that misses the 30 second limit still fails the file. A build in progress is dropped when the app process is replaced.

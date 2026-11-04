@@ -29,6 +29,7 @@ import {
   presentTalkSeconds,
 } from "@/modules/live-calls/format";
 import { joinLiveCalls, type CallSide } from "@/modules/live-calls/join";
+import { orderLiveCallsByStart } from "@/modules/live-calls/order";
 import type { LiveCallTone } from "@/modules/live-calls/row-class";
 import { applyLiveCallSides, liveCallPhoneKeys } from "@/modules/live-calls/sides";
 import { presentCallState, stateLabelMap } from "@/modules/live-calls/state-label";
@@ -452,12 +453,14 @@ function joinedRows(
   pcommTalk: readonly boolean[],
   puprTalk: readonly boolean[],
 ): PreparedRow[] {
-  return joinLiveCalls(
-    pcommRows.map((row, index) =>
-      sideFrom(row, ready.pcomm, pcommTalk[index] ? ready.pcommTalk : null),
-    ),
-    puprRows.map((row, index) =>
-      sideFrom(row, ready.pupr, puprTalk[index] ? ready.puprTalk : null),
+  return orderLiveCallsByStart(
+    joinLiveCalls(
+      pcommRows.map((row, index) =>
+        sideFrom(row, ready.pcomm, pcommTalk[index] ? ready.pcommTalk : null),
+      ),
+      puprRows.map((row, index) =>
+        sideFrom(row, ready.pupr, puprTalk[index] ? ready.puprTalk : null),
+      ),
     ),
   ).map((row, index) => ({
     key: `${row.conferenceId || "none"}:${index}`,
