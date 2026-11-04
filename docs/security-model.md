@@ -25,7 +25,7 @@
 
 | action code | remote path | argv | exec command |
 |-------------|-------------|------|--------------|
-| `regs.poll` | `/opt/scripts/check_regs.sh` | `[]` | `/bin/bash -c 'cd /opt/scripts && exec /usr/bin/sudo -n -- ./check_regs.sh'` (PTY) |
+| `regs.poll` | local (API РТУ) | `[]` | не SSH — чтение «Регистрации (ПКомм)» и «Регистрации (ПУпр)» |
 | `phones.sync` | `/opt/scripts/export.py` | `[]` | `/bin/bash -c 'cd /opt/scripts && exec /usr/bin/sudo -n -- ./export.py'` (no PTY) |
 | `groups.sync` | local (API РТУ) | `[]` | не SSH — чтение страницы «Входящие группы» |
 | `cdr.import` | local (FTP inbox) | `[]` | не SSH — drain локальной папки |
@@ -39,7 +39,7 @@
 1. Клиент передаёт только `actionId` / `actionCode`.
 2. Путь **не** приходит из UI, query, body, headers, БД-редактируемых админкой полей.
 3. Изменение remote path для production-action — только через релиз кода + миграцию/seed, не через «форму настроек».
-4. Executor использует `ssh2` exec с **константной** командой `bash -c 'cd /opt/scripts && exec sudo -n -- ./<script>'` (не из UI). Interactive shell недоступен. PTY выделяется **только** для `regs.poll` (`check_regs.sh` иначе отдаёт другой результат).
+4. Executor использует `ssh2` exec с **константной** командой `bash -c 'cd /opt/scripts && exec sudo -n -- ./<script>'` (не из UI). Interactive shell недоступен. Текущее приложение PTY не запрашивает. `regs.poll` читает API РТУ.
 5. Defense in depth: даже константный path проходит валидатор `/opt/scripts/[A-Za-z0-9._-]+`.
 
 ### Слой B — SSH forced command / remote wrapper (обязательный на softswitch)
@@ -58,7 +58,7 @@ Wrapper:
 - делает `cd /opt/scripts` и `exec /usr/bin/sudo -n -- ./<basename>`;
 - иначе exit non-zero.
 
-PTY для platform key **разрешён** (не ставить `no-pty`): `check_regs.sh` в non-TTY режиме отдаёт другой результат, чем в интерактивном терминале. App запрашивает PTY только для allowlisted exec; interactive shell по-прежнему недоступен из‑за forced command.
+Обёртка по-прежнему принимает `check_regs.sh`, чтобы откат образа мог вернуть прежний опрос. Текущее приложение эту команду не шлёт и PTY не запрашивает. Interactive shell по-прежнему недоступен из‑за forced command.
 
 ### Слой C — OS least privilege / sudo risk
 
@@ -129,17 +129,18 @@ Ciphertext envelope в БД: `v1:<iv_b64>:<authTag_b64>:<ciphertext_b64>`.
 - `POST /api/settings/rtu/test` — одна читающая операция `getObjects` (таблицы и процедуры). Конверт с паролем уходит только на host из origin. Запись и `call` клиент собрать не может.
 - `GET /api/live-calls` — сессия с `phones:read`. API-ключ маршрут не открывает. Сервер читает `describeTable` и `selectRowset` только у «Транзитные вызовы (ПКомм)» и «Транзитные вызовы (ПУпр)». Имена таблиц с клиента не принимаются. Удаление вызова не отправляется. Пока раздел открыт, снимок обновляется не чаще одного раза в 3 секунды на процесс.
 - `groups.sync` читает `describeTable` и `selectRowset` только у страницы «Входящие группы» в папке «Оборудование». Заголовок `node` и `getLookup` не отправляются. Успешный список целиком заменяет `routing_groups`. Конверт и тело ответа в артефакты задания не пишутся.
+- `regs.poll` читает `describeTable` и `selectRowset` у сводных страниц «Регистрации (ПКомм)» и «Регистрации (ПУпр)». `getLookup` уходит только для «Состояние» на ПКомм, когда `describeTable` ставит `have_lookup`. Заголовок `node` не отправляется. Успешный непустой список заменяет `reg_current`. Пустая страница непустую таблицу не стирает. Конверт и тело ответа в артефакты не пишутся.
 - Сессия `settings:write`. API-ключи маршрут не открывают. 5 проверок на пользователя за 10 минут и один выполняющийся тест на процесс.
 - Аудит `rtu.soap.test`: origin, логин, код, два счётчика. Список объектов и SOAP-тело не пишутся.
 - Сертификат коммутатора можно вставить в Настройках как PEM. Он доверяется проверке доступа и чтению текущих вызовов и не становится корнем процесса. Совпадение отпечатка листа разрешает адрес по IP; чужой лист того же CA — нет. Проверка подписи и срока не отключается. `NODE_EXTRA_CA_CERTS` по-прежнему добавляет корень всему процессу. SSH allowlist не расширяется.
 
 ### Allowlisted business exec (Phase 4)
 
-- Только action code `regs.poll` → константный path `/opt/scripts/check_regs.sh`, argv `[]`.
+- `phones.sync` → константный path `/opt/scripts/export.py`, argv `[]`.
 - Реализация: `sshClient.execAllowlisted` + `SshAllowlistedRemoteExecutionService` + jobs processor.
 - Клиент/API **не** передаёт `command` / `scriptPath` / `remoteArgs`.
-- Manual poll: `POST /api/regs/poll` (permission `regs:poll`) ставит задачу в `p-queue`; anti-overlap обязателен.
-- Auto-scheduler: in-process loop always starts at boot; ticks enqueue only when Settings `regsPollEnabled=true` (interval from `regsPollIntervalSec`, min 30s). Single `app` replica required.
+- `regs.poll` — локальное чтение API РТУ. Ручного `POST /api/regs/poll` нет. Право `regs:poll` в сиде остаётся и в интерфейсе не создаёт кнопку.
+- Auto-scheduler: in-process loop always starts at boot; ticks enqueue only when Settings `regsPollEnabled=true` (interval from `regsPollIntervalSec`, min 30s). Первый тик после старта процесса — около пяти секунд. Single `app` replica required.
 
 ## 4. AuthN / AuthZ
 
@@ -151,7 +152,7 @@ Ciphertext envelope в БД: `v1:<iv_b64>:<authTag_b64>:<ciphertext_b64>`.
 - Кастомный JWT access/refresh стек и отдельная таблица `refresh_tokens` **не** используются.
 - RBAC поверх Better Auth (роли/permissions в собственных таблицах, привязка к user id):
   - `admin` — settings, ключи, users, audit
-  - `operator` — просмотр регистраций, manual poll (без смены SSH-ключей)
+  - `operator` — просмотр регистраций (без смены SSH-ключей и без ручного опроса)
 - Permissions (примеры): `settings:write`, `ssh:test`, `regs:read`, `regs:poll`, `audit:read`, `users:admin`
 
 Разделение «configuration privilege» и «execute/read privilege» обязательно с первого релиза.
@@ -181,9 +182,9 @@ Bootstrap первого admin: из env `ADMIN_USERNAME` / `ADMIN_PASSWORD` п�
 
 | Control | Scope |
 |---------|--------|
-| Same-origin (Origin/Referer) | Mutating app APIs: settings update/key replace, SSH test, manual poll, CDR month purge |
+| Same-origin (Origin/Referer) | Mutating app APIs: settings update/key replace, SSH test, CDR month purge |
 | Login rate limit | Better Auth `sign-in/username` — 10 attempts / 5 min per IP (in-memory) |
-| Poll rate limit | `POST /api/regs/poll` — 6 / min per user (in-memory; anti-overlap remains) |
+| Registrations poll | scheduled `regs.poll` only; anti-overlap is per action code |
 | SSH test rate limit | `POST /api/settings/ssh/test` — 10 / min per user |
 | RTU SOAP test rate limit | `POST /api/settings/rtu/test` — 5 / 10 min per session user; one in-flight check per process; API keys cannot call it |
 | Storage purge rate limit | `POST /api/storage/purge` — 3 / min per session user; session + `settings:write` only (API keys cannot purge) |
@@ -214,7 +215,7 @@ Go-live: [production-checklist.md](./production-checklist.md). Smoke: [smoke-tes
 - Редактируемый remote command в Settings
 - Хранение plaintext ключей
 - Возврат расшифрованного ключа в API («показать ключ»)
-- `invoke_shell` / PTY кроме allowlisted `regs.poll`
+- `invoke_shell` / PTY для allowlisted exec
 - Универсальный «run any script from /opt/scripts» picker без code review/release allowlist
 - Произвольный `ssh.exec` строки от клиента
 - Горизонтальный запуск poll на нескольких репликах без single-runner (v1: одна реплика `app`)

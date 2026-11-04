@@ -83,7 +83,7 @@ Permissions seed: `settings:write`, `ssh:test`, `regs:read`, `regs:poll`, `audit
 | Column | Notes |
 |--------|-------|
 | code | PK, e.g. `regs.poll` |
-| remote_path | `/opt/scripts/check_regs.sh` |
+| remote_path | `regs.poll` хранит `/opt/scripts/regs_poll` и выполняется локально; `phones.sync` — `/opt/scripts/export.py` |
 | description | |
 | enabled | boolean |
 | module | `registrations` |
@@ -158,6 +158,7 @@ Permissions seed: `settings:write`, `ssh:test`, `regs:read`, `regs:poll`, `audit
 | status | `Registered` \| `Unregistered` |
 | ip | nullable |
 | port | nullable int |
+| userAgent | nullable text, колонка `"userAgent"`; «Агент пользователя» живой регистрации |
 | last_seen_at | последний успешный apply |
 | last_changed_at | последнее изменение status/ip/port |
 | last_job_run_id | FK job_runs |
@@ -199,14 +200,14 @@ Full snapshot всех номеров на каждый run **не хранит�
 
 На одном **успешном** poll — **full replace** комплекта `reg_current`:
 
-1. Распарсить валидные строки (дубликаты phone → last wins + counter warning).
-2. Для каждого phone из dump:
+1. Собрать строки страниц РТУ «Регистрации (ПКомм)» и «Регистрации (ПУпр)». Одинаковые живые строки одного номера схлопываются. Разные живые строки одного номера валят прогон.
+2. Для каждого phone из списка:
    - если нет в `reg_current` → insert + change_event (old=null);
-   - если есть и поля равны → обновить только `last_seen_at`;
-   - если есть и поля отличаются → update current + insert change_event.
-3. Удалить из `reg_current` любые phone, которых **нет** в dump (история `reg_change_events` сохраняется; событие на delete не пишем).
-4. Пустой dump при **непустой** `reg_current` → отказ от wipe, run = `failed`. Пустая таблица + пустой dump допустимы.
-5. При failed SSH / empty stdout / exit≠0 / timeout / `linesBad > 0` → **не** менять `reg_current` и **не** писать change events; run = `failed`; UI показывает проблему.
+   - если status, ip и port равны → обновить `last_seen_at` и `userAgent`, событие не писать и `last_changed_at` не двигать;
+   - если status, ip или port отличаются → update current + insert change_event.
+3. Удалить из `reg_current` любые phone, которых **нет** в списке (история `reg_change_events` сохраняется; событие на delete не пишем).
+4. Пустая страница ПКомм при **непустой** `reg_current` → отказ от wipe, run = `failed`. Пустая таблица и пустая страница допустимы. Синтез «Не зарегистрирован» для каталога «Регистрация» = «Да» идёт только после непустой страницы.
+5. При ошибке чтения, таймауте, неполной странице или несопоставленном имени → **не** менять `reg_current` и **не** писать change events; run = `failed`; `exitCode` пустой; UI показывает проблему.
 
 ### Phones / groups
 

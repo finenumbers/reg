@@ -313,6 +313,8 @@ model RegistrationCurrent {
   status        RegStatus
   ip            String?
   port          Int?
+  /// RTU «Агент пользователя» for a live registration. Empty when unregistered.
+  userAgent     String?
   lastSeenAt    DateTime
   lastChangedAt DateTime
   lastJobRunId  String?

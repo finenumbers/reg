@@ -39,6 +39,8 @@ export function columnCellValue(
       return row.status;
     case "endpoint":
       return formatEndpoint(row.ip, row.port);
+    case "equipment":
+      return row.userAgent ?? "";
     case "country":
       return row.country ?? "";
     case "city":

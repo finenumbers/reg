@@ -28,17 +28,7 @@ import {
   downloadRegsExport,
   fetchRegsDetail,
   fetchRegsList,
-  fetchRegsStatus,
-  postRegsPoll,
-  toPollStatusSnapshot,
 } from "@/modules/registrations/api-client";
-import {
-  IDLE_POLL_STATE,
-  isPollInFlight,
-  reducePollUiState,
-  waitForRegsPollOutcome,
-  type PollUiState,
-} from "@/modules/registrations/poll-action";
 import type { RegistrationListItem } from "@/modules/registrations/types";
 import type {
   ListRegistrationsResult,
@@ -55,11 +45,10 @@ const PAGE_SIZE = TABLE_PAGE_SIZE;
 const PHONE_SEARCH_DEBOUNCE_MS = 300;
 
 type Props = {
-  canPoll: boolean;
   initial: ListRegistrationsResult;
 };
 
-export function RegistrationsView({ canPoll, initial }: Props) {
+export function RegistrationsView({ initial }: Props) {
   const { timeZone } = useDisplayTimezone();
   const [filters, setFilters] = useState<ColumnFilters>({});
   const [phoneInput, setPhoneInput] = useState("");
@@ -78,9 +67,7 @@ export function RegistrationsView({ canPoll, initial }: Props) {
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
   const [detail, setDetail] = useState<RegistrationDetailResult | null>(null);
-  const [pollState, setPollState] = useState<PollUiState>(IDLE_POLL_STATE);
   const [exporting, setExporting] = useState(false);
-  const pollInFlightRef = useRef(false);
   const detailAbortRef = useRef<AbortController | null>(null);
   const refreshSeq = useRef(0);
   const loadingMoreRef = useRef(false);
@@ -174,7 +161,6 @@ export function RegistrationsView({ canPoll, initial }: Props) {
 
   useRegsUnregisteredCount({
     intervalMs: REGS_UNREGISTERED_POLL_MS,
-    pollInFlight: () => pollInFlightRef.current,
     onCount: setUnregisteredCount,
     onSnapshot: () => {
       void loadListRef.current({ page: 1, replace: true, soft: true });
@@ -258,73 +244,6 @@ export function RegistrationsView({ canPoll, initial }: Props) {
     });
   }
 
-  async function onManualPoll() {
-    if (!canPoll || pollInFlightRef.current) return;
-    pollInFlightRef.current = true;
-    setPollState((s) => reducePollUiState(s, { type: "START" }));
-
-    try {
-      let beforeStatus = await fetchRegsStatus();
-      if (!beforeStatus.ok) beforeStatus = await fetchRegsStatus();
-      let beforeFinishedAt: string | null = null;
-      if (beforeStatus.ok) {
-        beforeFinishedAt = beforeStatus.data.lastFinishedAt;
-        setUnregisteredCount(beforeStatus.data.unregisteredCount);
-      }
-
-      const result = await postRegsPoll();
-      if (!result.ok) {
-        setPollState(
-          reducePollUiState(IDLE_POLL_STATE, {
-            type: "ERROR",
-            message: result.message,
-            conflict: result.conflict,
-          }),
-        );
-        toast.error(result.message);
-        return;
-      }
-
-      const outcome = await waitForRegsPollOutcome({
-        beforeFinishedAt,
-        baselineKnown: beforeStatus.ok,
-        fetchStatus: async () => {
-          const status = await fetchRegsStatus();
-          if (!status.ok) {
-            throw new Error(status.message);
-          }
-          setUnregisteredCount(status.data.unregisteredCount);
-          return toPollStatusSnapshot(status.data);
-        },
-      });
-
-      if (outcome.ok) {
-        setPollState(
-          reducePollUiState(IDLE_POLL_STATE, {
-            type: "SUCCESS",
-            message: outcome.message,
-          }),
-        );
-        toast.success(outcome.message);
-        await loadList({ page: 1, replace: true, soft: true });
-      } else {
-        setPollState(
-          reducePollUiState(IDLE_POLL_STATE, {
-            type: "ERROR",
-            message: outcome.message,
-          }),
-        );
-        toast.error(outcome.message);
-      }
-    } catch {
-      const message = "Не удалось выполнить опрос";
-      setPollState(reducePollUiState(IDLE_POLL_STATE, { type: "ERROR", message }));
-      toast.error(message);
-    } finally {
-      pollInFlightRef.current = false;
-    }
-  }
-
   async function onRowClick(row: RegistrationListItem) {
     detailAbortRef.current?.abort();
     const controller = new AbortController();
@@ -369,9 +288,7 @@ export function RegistrationsView({ canPoll, initial }: Props) {
 
   const emptyMessage = filtersActive
     ? "Нет регистраций по текущим фильтрам."
-    : "Регистраций пока нет. Запустите ручной опрос, когда SSH и check_regs.sh будут готовы.";
-
-  const pollBusy = isPollInFlight(pollState);
+    : "Регистраций пока нет. Включите регулярный опрос регистраций в Настройках.";
 
   async function onExportXlsx() {
     if (exporting) return;
@@ -405,11 +322,6 @@ export function RegistrationsView({ canPoll, initial }: Props) {
           >
             {exporting ? "Экспорт…" : "Экспорт XLSX"}
           </Button>
-          {canPoll ? (
-            <Button type="button" onClick={onManualPoll} disabled={pollBusy}>
-              {pollBusy ? "Загрузка…" : "Загрузить данные"}
-            </Button>
-          ) : null}
         </div>
       </div>
 
@@ -428,21 +340,6 @@ export function RegistrationsView({ canPoll, initial }: Props) {
           >
             Повторить
           </Button>
-        </div>
-      ) : null}
-
-      {pollState.status === "success" ||
-      pollState.status === "error" ||
-      pollState.status === "conflict" ? (
-        <div
-          role="status"
-          className={
-            pollState.status === "success"
-              ? "shrink-0 rounded-md border border-emerald-600/30 bg-emerald-600/10 px-3 py-2 text-sm text-emerald-800 dark:text-emerald-200"
-              : "border-destructive/30 bg-destructive/10 text-destructive shrink-0 rounded-md border px-3 py-2 text-sm"
-          }
-        >
-          {pollState.message}
         </div>
       ) : null}
 

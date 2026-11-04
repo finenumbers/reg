@@ -18,6 +18,7 @@ function projectDetailPanel(detail: RegistrationDetailResult) {
     description: detail.current.description ?? "—",
     status: detail.current.status,
     endpoint: formatEndpoint(detail.current.ip, detail.current.port),
+    equipment: detail.current.userAgent ?? "—",
     lastChangedAt: formatTimestamp(detail.current.lastChangedAt, "Europe/Moscow"),
     lastSeenAt: formatTimestamp(detail.current.lastSeenAt, "Europe/Moscow"),
     history: detail.events.map((event) => ({
@@ -39,6 +40,7 @@ describe("registration detail panel projection", () => {
         status: "Unregistered",
         ip: null,
         port: null,
+        userAgent: null,
         country: null,
         city: null,
         isp: null,
@@ -96,6 +98,7 @@ describe("registration detail panel projection", () => {
         status: "Registered",
         ip: "185.175.158.149",
         port: 5060,
+        userAgent: "Grandstream",
         country: null,
         city: null,
         isp: null,
@@ -108,6 +111,7 @@ describe("registration detail panel projection", () => {
     expect(view.channelality).toBe("10");
     expect(view.description).toBe("Fine Numbers");
     expect(view.endpoint).toBe("185.175.158.149:5060");
+    expect(view.equipment).toBe("Grandstream");
     expect(view.history).toEqual([]);
   });
 });

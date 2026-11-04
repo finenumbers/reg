@@ -48,7 +48,7 @@ export type AllowedActionDefinition = {
    * (code constant). Requires NOPASSWD sudoers on softswitch for that script path.
    */
   elevateWithSudo: boolean;
-  /** When true, ssh2 allocates a PTY (required for check_regs.sh TTY behavior). */
+  /** When true, ssh2 allocates a PTY. No current action needs one. */
   needsPty: boolean;
 };
 
@@ -58,14 +58,14 @@ export type AllowedActionDefinition = {
 export const ACTION_REGISTRY: Record<AllowedActionCode, AllowedActionDefinition> = {
   "regs.poll": {
     code: "regs.poll",
-    kind: "ssh",
-    remotePath: "/opt/scripts/check_regs.sh",
+    kind: "local",
+    remotePath: "/opt/scripts/regs_poll",
     argv: [],
     module: "registrations",
-    description: "Poll SIP registrations from softswitch",
+    description: "Read SIP registrations from the RTU API",
     usesPlatformExecWrapper: true,
-    elevateWithSudo: true,
-    needsPty: true,
+    elevateWithSudo: false,
+    needsPty: false,
   },
   "phones.sync": {
     code: "phones.sync",

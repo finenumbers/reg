@@ -7,13 +7,13 @@ Related: [backup-and-restore.md](./backup-and-restore.md), [smoke-tests.md](./sm
 ## Must not do (production)
 
 - Do **not** run more than **one** `app` replica (no leader election; in-memory rate limits; in-process scheduler).
-- Do **not** enable Settings `regsPollEnabled` until SSH + softswitch wrapper/sudoers are verified and you intentionally want auto-poll.
+- Do **not** enable Settings `regsPollEnabled` until the RTU API account is saved and you intentionally want auto-poll. The read does not use SSH.
 - Do **not** use example/placeholder `BETTER_AUTH_SECRET` or `APP_ENCRYPTION_KEY` (production startup rejects them).
 - Do **not** lose `APP_ENCRYPTION_KEY` — stored SSH private keys become undecryptable.
 - Do **not** expose PostgreSQL publicly if avoidable; prefer `docker compose exec` / Portainer for dumps.
 - Do **not** put arbitrary remote commands in Settings — allowlist only.
 - Do **not** treat SSH connection test as a registration poll.
-- Do **not** send a write to the RTU SOAP API. The Settings check reads `getObjects` once. «Текущие звонки» reads `describeTable` and `selectRowset` for the two transit-call tables (summary pages, or the shared module templates plus «Активные модули»). When «Состояние вызова» has `have_lookup`, it also reads `getLookup` for that column on the ПУпр table already selected. Call rows refresh at most once every 3 seconds per process. A failed lookup does not fail the snapshot. TLS verification stays on. A hostname with a publicly trusted certificate needs an empty certificate field. A pasted PEM is trusted only by those reads. `NODE_EXTRA_CA_CERTS` still adds a root for the whole process. The `app` container must reach the switch HTTPS port.
+- Do **not** send a write to the RTU SOAP API. The Settings check reads `getObjects` once. «Текущие звонки» reads `describeTable` and `selectRowset` for the two transit-call tables (summary pages, or the shared module templates plus «Активные модули»). When «Состояние вызова» has `have_lookup`, it also reads `getLookup` for that column on the ПУпр table already selected. Call rows refresh at most once every 3 seconds per process. A failed lookup does not fail the call snapshot. `regs.poll` reads the two registration summary pages and, when «Состояние» has `have_lookup`, `getLookup` for that column. A failed registration lookup fails that job and leaves `reg_current` in place. An empty registration page does not wipe a non-empty table. TLS verification stays on. A hostname with a publicly trusted certificate needs an empty certificate field. A pasted PEM is trusted only by those reads. `NODE_EXTRA_CA_CERTS` still adds a root for the whole process. The `app` container must reach the switch HTTPS port.
 
 ## 1. Secrets and env
 
@@ -199,9 +199,9 @@ Follow [remote-server-setup.md](./remote-server-setup.md): dedicated user, force
 
 1. Login at `/login` with bootstrap admin.
 2. **Settings:** SSH host/port/user; import key (PPK/PEM); **Test connection** (auth/session only).
-3. **Registrations:** manual **Run poll** once; confirm `/jobs` and data on `/regs`.
-4. **API РТУ** saved, then enable phones+groups load. Incoming groups follow on the next groups turn and replace `routing_groups` with the current RTU list, including an empty list. A fault or a truncated read leaves the previous rows. Spot-check `/groups` against the RTU page before the next RTU CSV import.
-5. Only then enable Settings regular registrations poll (separate interval; still one replica). Phones keep their **Загрузить данные** button.
+3. **API РТУ** saved. Registrations have no manual button. Enable «Включить регулярный опрос регистраций» only when that account can read the two registration pages. The first read is about five seconds after the process starts. Until it succeeds, the previous rows stay. Spot-check `/regs` against «Регистрации (ПКомм)» and «Регистрации (ПУпр)» before trusting «Без регистрации».
+4. Then enable phones+groups load. Incoming groups follow on the next groups turn and replace `routing_groups` with the current RTU list, including an empty list. A fault or a truncated read leaves the previous rows. Spot-check `/groups` against the RTU page before the next RTU CSV import.
+5. Phones keep their **Загрузить данные** button. Registrations do not. Keep one `app` replica.
 
 **Sync data-loss note:** regs and phones apply is full-replace. An empty phones or regs dump is rejected when the table is non-empty, but a **truncated non-empty** softswitch dump (exit 0) can still wipe missing phone rows. A successful groups read replaces the catalog with the current RTU list. A truncated or failed groups read does not. After an anomalous sync, check `/jobs` before trusting the snapshot.
 
@@ -226,9 +226,8 @@ Migration `20260831180000_cdr_day_index` builds `cdr_records_cdr_day_idx`. Migra
 Only when all are true:
 
 1. Single `app` replica
-2. Softswitch forced command verified
-3. SSH test OK
-4. Manual poll OK
-5. Settings `regsPollEnabled=true` + Save (interval ≥30s)
+2. RTU API account saved and the access check succeeds
+3. Settings `regsPollEnabled=true` + Save (interval ≥30s)
+4. After the next start, the first read is about five seconds later; compare `/regs` with the RTU pages
 
 To disable auto-poll quickly: turn off `regsPollEnabled` in Settings and Save — ticks skip enqueue (no container restart).

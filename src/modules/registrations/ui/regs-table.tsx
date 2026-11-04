@@ -149,6 +149,13 @@ export function RegsTable({
                   </span>
                 </TableCell>
                 <TableCell>
+                  {row.userAgent ? (
+                    row.userAgent
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
+                </TableCell>
+                <TableCell>
                   {row.country ? (
                     row.country
                   ) : (

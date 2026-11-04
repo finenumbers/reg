@@ -84,6 +84,8 @@ export function RegsDetailSheet({
                 <dd className="text-sm">
                   {formatEndpoint(current.ip, current.port)}
                 </dd>
+                <dt className="text-muted-foreground">Оборудование</dt>
+                <dd>{current.userAgent ?? "—"}</dd>
                 <dt className="text-muted-foreground">Страна</dt>
                 <dd>{current.country ?? "—"}</dd>
                 <dt className="text-muted-foreground">Город</dt>

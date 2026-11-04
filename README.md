@@ -94,7 +94,7 @@ Do not hand-author conflicting auth table definitions. App RBAC (`roles` / `perm
 - Settings UI/API mask keys (`hasPrivateKey` / fingerprint) — replace only, never export
 - SSH connection test is auth/session only; it does **not** run `check_regs.sh`
 - RTU SOAP access check (Settings) is one read of `getObjects`. The password is AES-256-GCM ciphertext. A pasted PEM certificate is trusted only by that check. The client cannot build a write. API keys cannot call it.
-- `regs.poll` runs only through the jobs allowlist path (`/opt/scripts/check_regs.sh`)
+- `regs.poll` reads the RTU registration pages when Settings regular registration polling is on. It does not run `check_regs.sh`.
 - Auto-poll is Settings-only (`regsPollEnabled` + interval); in-process loop starts at boot; single `app` replica required
 - Admin/settings/audit routes require RBAC permissions; anonymous users are redirected or rejected
 - Mutating APIs require same-origin Origin/Referer; login/poll/SSH-test are rate-limited (in-memory; single replica)
@@ -126,8 +126,7 @@ APIs:
 - `GET /api/regs/[phone]` — current state + change history (`regs:read`)
 - `GET /api/regs/facets` — column facet values (`regs:read`)
 - `GET /api/regs/export` — XLSX export (`regs:read`)
-- `GET /api/regs/status` — last poll + counts for ops widgets (`regs:read`)
-- `POST /api/regs/poll` — enqueue manual poll (`regs:poll`)
+- `GET /api/regs/status` — last scheduled poll + counts for ops widgets (`regs:read`)
 
 UI (`/regs`):
 

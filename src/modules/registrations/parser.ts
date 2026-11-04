@@ -21,6 +21,8 @@ export type ParsedRegistrationRow = {
   status: RegStatusValue;
   ip: string | null;
   port: number | null;
+  /** RTU «Агент пользователя». The check_regs.sh parser leaves this empty. */
+  userAgent: string | null;
   /** Original non-empty line after ANSI strip (trimmed) for debug */
   rawLine: string;
 };
@@ -125,6 +127,7 @@ export function parseRegsLine(
       status,
       ip: endpointParsed.ip,
       port: endpointParsed.port,
+      userAgent: null,
       rawLine: trimmed,
     },
   };

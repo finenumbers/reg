@@ -67,6 +67,7 @@ function toListItem(
     status: RegStatus;
     ip: string | null;
     port: number | null;
+    userAgent: string | null;
     lastSeenAt: Date;
     lastChangedAt: Date;
   },
@@ -80,6 +81,7 @@ function toListItem(
     status: row.status,
     ip: row.ip,
     port: row.port,
+    userAgent: row.userAgent,
     country: geo?.country ?? null,
     city: geo?.city ?? null,
     isp: geo?.isp ?? null,

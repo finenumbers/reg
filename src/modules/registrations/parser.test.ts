@@ -14,6 +14,7 @@ describe("parseRegsLine", () => {
         status: "Registered",
         ip: "46.20.69.189",
         port: 5060,
+        userAgent: null,
         rawLine: "73852222205;Registered;46.20.69.189:5060",
       },
     });
@@ -28,6 +29,7 @@ describe("parseRegsLine", () => {
         status: "Unregistered",
         ip: null,
         port: null,
+        userAgent: null,
         rawLine: "73912193303;Unregistered;",
       },
     });
@@ -44,6 +46,7 @@ describe("parseRegsLine", () => {
         status: "Registered",
         ip: "5.227.161.172",
         port: 5060,
+        userAgent: null,
         rawLine: "78622606009;Registered;5.227.161.172:5060",
       },
     });

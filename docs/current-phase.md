@@ -1,7 +1,13 @@
-# Current Phase — production (v1.224.0)
+# Current Phase — production (v1.225.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, number geography, free numbers, purchased numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls.  
 **Date:** 2026-11-05
+
+## v1.225.0 — Registrations load from the RTU API
+
+Stop `app` before this update. Start one new process only after `migrate` exits. The migration adds nullable `userAgent` on `reg_current`. It does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `smg-syslog`. Keep a single `app` replica. The switch is only read.
+
+«Регистрации» no longer has «Загрузить данные». When the existing registrations checkbox is on, `regs.poll` reads «Регистрации (ПКомм)» and «Регистрации (ПУпр)». The first read is about five seconds after start. Until it succeeds, the previous snapshot stays and «Оборудование» is empty. A non-empty read replaces `reg_current`. Catalog numbers with «Регистрация» = «Да» that are missing from that read stay «Не зарегистрирован». An empty page does not wipe a non-empty table. A fault, a timeout, or a truncated page leaves the previous rows. Compare `/regs` with the two RTU pages before trusting «Без регистрации». Nothing is written to the switch. Phone numbers still use `export.py`.
 
 ## v1.224.0 — Incoming groups load from the RTU API
 

@@ -21,6 +21,7 @@ export type RegistrationStateSnapshot = {
   status: RegStatus;
   ip: string | null;
   port: number | null;
+  userAgent: string | null;
 };
 
 export type PlannedRegistrationChange = {
@@ -97,6 +98,7 @@ async function applyPlannedRegistrationUpdates(
       await db.registrationCurrent.update({
         where: { phone: next.phone },
         data: {
+          userAgent: next.userAgent,
           lastSeenAt: seenAt,
           lastJobRunId: jobRunId,
         },
@@ -112,6 +114,7 @@ async function applyPlannedRegistrationUpdates(
         status,
         ip: next.ip,
         port: next.port,
+        userAgent: next.userAgent,
         lastSeenAt: seenAt,
         lastChangedAt: seenAt,
         lastJobRunId: jobRunId,
@@ -120,6 +123,7 @@ async function applyPlannedRegistrationUpdates(
         status,
         ip: next.ip,
         port: next.port,
+        userAgent: next.userAgent,
         lastSeenAt: seenAt,
         lastChangedAt: seenAt,
         lastJobRunId: jobRunId,
@@ -158,7 +162,7 @@ export async function applyRegistrationPoll(
 ): Promise<ApplyRegistrationsResult> {
   return prisma.$transaction(async (tx) => {
     const existing = await tx.registrationCurrent.findMany({
-      select: { phone: true, status: true, ip: true, port: true },
+      select: { phone: true, status: true, ip: true, port: true, userAgent: true },
     });
 
     const previousByPhone = new Map<string, RegistrationStateSnapshot>(
@@ -169,6 +173,7 @@ export async function applyRegistrationPoll(
           status: row.status,
           ip: row.ip,
           port: row.port,
+          userAgent: row.userAgent,
         },
       ]),
     );

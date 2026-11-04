@@ -79,13 +79,14 @@ export async function ensurePlatformBaseline(): Promise<{ ok: true }> {
     where: { code: "regs.poll" },
     create: {
       code: "regs.poll",
-      remotePath: "/opt/scripts/check_regs.sh",
-      description: "Poll SIP registrations",
+      remotePath: "/opt/scripts/regs_poll",
+      description: "Read SIP registrations from the RTU API",
       enabled: true,
       module: "registrations",
     },
     update: {
-      remotePath: "/opt/scripts/check_regs.sh",
+      remotePath: "/opt/scripts/regs_poll",
+      description: "Read SIP registrations from the RTU API",
       enabled: true,
       module: "registrations",
     },

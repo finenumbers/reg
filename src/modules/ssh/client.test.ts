@@ -24,10 +24,10 @@ describe("SSH UTF-8 chunk reassembly", () => {
 });
 
 describe("buildAllowlistedExecCommand", () => {
-  it("returns cd+/sudo ./script for regs.poll (elevateWithSudo)", () => {
-    expect(buildAllowlistedExecCommand(ACTION_REGISTRY["regs.poll"])).toBe(
-      "/bin/bash -c 'cd /opt/scripts && exec /usr/bin/sudo -n -- ./check_regs.sh'",
-    );
+  it("does not build an SSH command for regs.poll", () => {
+    expect(ACTION_REGISTRY["regs.poll"].kind).toBe("local");
+    expect(ACTION_REGISTRY["regs.poll"].remotePath).not.toContain("check_regs.sh");
+    expect(() => resolveActionForExecution("regs.poll")).toThrow(/local-only/);
   });
 
   it("returns cd+/sudo ./export.py for phones.sync", () => {
@@ -45,23 +45,23 @@ describe("buildAllowlistedExecCommand", () => {
   it("returns bare path when elevateWithSudo is false", () => {
     expect(
       buildAllowlistedExecCommand({
-        ...ACTION_REGISTRY["regs.poll"],
+        ...ACTION_REGISTRY["phones.sync"],
         elevateWithSudo: false,
       }),
-    ).toBe("/opt/scripts/check_regs.sh");
+    ).toBe("/opt/scripts/export.py");
   });
 
   it("rejects non-empty argv", () => {
     expect(() =>
       buildAllowlistedExecCommand({
-        ...ACTION_REGISTRY["regs.poll"],
+        ...ACTION_REGISTRY["phones.sync"],
         argv: ["--oops"],
       }),
     ).toThrow(/argv/);
   });
 
-  it("marks needsPty only for regs.poll", () => {
-    expect(ACTION_REGISTRY["regs.poll"].needsPty).toBe(true);
+  it("does not request a PTY", () => {
+    expect(ACTION_REGISTRY["regs.poll"].needsPty).toBe(false);
     expect(ACTION_REGISTRY["phones.sync"].needsPty).toBe(false);
     expect(ACTION_REGISTRY["groups.sync"].needsPty).toBe(false);
   });

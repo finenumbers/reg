@@ -5,12 +5,13 @@ import { escapeXml, isXmlName } from "@/modules/rtu-soap/xml";
  * SOAP bodies this service can build. Each operation name is a literal.
  * Callers cannot substitute another one.
  * `getObjects` is the Settings access check.
- * `describeTable` and `selectRowset` read the transit-call tables and
- * the incoming-groups page. An optional module name adds one `node` header
- * on `selectRowset`. The live-call snapshot passes that name only for a
- * signaling or scripting call table. The incoming-groups read passes none.
- * `getLookup` reads the interface strings of «Состояние вызова» on the ПУпр table.
- * It sends no `node` header.
+ * `describeTable` and `selectRowset` read the transit-call tables,
+ * the incoming-groups page, and the two registration summary pages.
+ * An optional module name adds one `node` header on `selectRowset`.
+ * The live-call snapshot passes that name only for a signaling or scripting
+ * call table. Groups and registrations pass none.
+ * `getLookup` reads «Состояние вызова» on the ПУпр call table and
+ * «Состояние» on «Регистрации (ПКомм)». It sends no `node` header.
  */
 const GET_OBJECTS = "getObjects";
 const DESCRIBE_TABLE = "describeTable";

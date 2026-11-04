@@ -11,11 +11,6 @@ import {
   buildRegsListUrl,
   type RegsListQuery,
 } from "@/modules/registrations/ui-format";
-import {
-  interpretPollResponse,
-  type PollApiResult,
-  type RegsPollStatusSnapshot,
-} from "@/modules/registrations/poll-action";
 import type { RegistrationsOperationalStatus } from "@/modules/registrations/status";
 import {
   downloadXlsxFromUrl,
@@ -101,20 +96,6 @@ export async function fetchRegsDetail(
   return { ok: true, data: body as RegistrationDetailResult };
 }
 
-export async function postRegsPoll(init?: RequestInit): Promise<PollApiResult> {
-  const res = await fetch("/api/regs/poll", {
-    ...init,
-    method: "POST",
-  });
-  const body = (await readJson(res)) as {
-    accepted?: boolean;
-    message?: string;
-    reason?: string;
-    error?: string;
-  } | null;
-  return interpretPollResponse(res.status, body);
-}
-
 export type FetchRegsStatusResult =
   | { ok: true; data: RegistrationsOperationalStatus }
   | { ok: false; status: number; message: string };
@@ -138,19 +119,6 @@ export async function fetchRegsStatus(
   }
 
   return { ok: true, data: body as RegistrationsOperationalStatus };
-}
-
-/** Narrow status payload for waitForRegsPollOutcome. */
-export function toPollStatusSnapshot(
-  data: RegistrationsOperationalStatus,
-): RegsPollStatusSnapshot {
-  return {
-    lastJobStatus: data.lastJobStatus,
-    lastError: data.lastError,
-    lastFinishedAt: data.lastFinishedAt,
-    runningCount: data.runningCount,
-    lastFailedError: data.lastFailedError,
-  };
 }
 
 export async function downloadRegsExport(): Promise<DownloadXlsxResult> {

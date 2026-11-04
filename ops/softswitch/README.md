@@ -1,14 +1,8 @@
 # Softswitch scripts for Reg platform
 
-## Registrations (`check_regs.sh`)
+## Registrations
 
-App command (PTY + sudo -n + cwd):
-
-```text
-/bin/bash -c 'cd /opt/scripts && exec /usr/bin/sudo -n -- ./check_regs.sh'
-```
-
-Requires NOPASSWD on `/opt/scripts/check_regs.sh`. Softswitch script is cwd-sensitive.
+The app reads «Регистрации (ПКомм)» and «Регистрации (ПУпр)» from the RTU API. It does not run `check_regs.sh` and does not request a PTY. Leave the script and its sudoers entry in place so an image rollback can restore the old poll.
 
 ## Phones (`export.py`)
 
@@ -51,7 +45,7 @@ sudo visudo -cf /etc/sudoers.d/platform-reg
 command="/opt/scripts/platform_exec.sh",no-port-forwarding,no-X11-forwarding,no-agent-forwarding <key-type> <base64> platform-reg
 ```
 
-Do **not** set `no-pty` — Reg requests a PTY for `check_regs.sh`.
+The current app does not request a PTY. Leave `no-pty` unset so an image rollback can still run `check_regs.sh`.
 
 ## Smoke
 

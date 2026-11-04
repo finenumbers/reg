@@ -18,6 +18,7 @@ function row(
   return {
     ip: null,
     port: null,
+    userAgent: null,
     rawLine: "",
     ...partial,
   };
@@ -79,6 +80,7 @@ describe("planRegistrationUpdates", () => {
           status: "Registered",
           ip: "1.1.1.1",
           port: 5060,
+          userAgent: null,
         },
       ],
       [
@@ -88,6 +90,7 @@ describe("planRegistrationUpdates", () => {
           status: "Unregistered",
           ip: null,
           port: null,
+          userAgent: null,
         },
       ],
     ]);
@@ -116,11 +119,18 @@ describe("planRegistrationUpdates", () => {
           status: "Registered",
           ip: "1.1.1.1",
           port: 5060,
+          userAgent: "OldPhone",
         },
       ],
     ]);
     const plans = planRegistrationUpdates(previousByPhone, [
-      row({ phone: "100", status: "Registered", ip: "1.1.1.1", port: 5060 }),
+      row({
+        phone: "100",
+        status: "Registered",
+        ip: "1.1.1.1",
+        port: 5060,
+        userAgent: "NewPhone",
+      }),
     ]);
     expect(plans.every((p) => !p.changed)).toBe(true);
     expect(plans.filter((p) => p.kind !== "unchanged")).toHaveLength(0);

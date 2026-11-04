@@ -11,6 +11,8 @@ export type RegistrationListItem = {
   status: "Registered" | "Unregistered";
   ip: string | null;
   port: number | null;
+  /** RTU «Агент пользователя». Empty when the number is not registered. */
+  userAgent: string | null;
   country: string | null;
   city: string | null;
   isp: string | null;
