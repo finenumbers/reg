@@ -3,6 +3,7 @@
  * A summary page is one selectRowset without a node header.
  * The shared template is one selectRowset per signaling or scripting module.
  * getLookup is only for «Состояние» and never carries a node header.
+ * When the WSDL omits both lookup operations, one handbook getLookup is sent.
  * A missing or unread list leaves the cell as it arrived.
  * An unrecognized state still fails the job after the rows are read.
  */
@@ -36,6 +37,7 @@ import {
   buildGetLookupEnvelope,
   buildGetObjectsEnvelope,
   buildSelectRowsetEnvelope,
+  registrationStateLookup,
   isRtuColumnName,
   quoteSoapAction,
 } from "@/modules/rtu-soap/envelope";
@@ -311,14 +313,16 @@ async function stateLabels(
   objectId: string,
   column: { name: string; haveLookup: boolean },
 ): Promise<{ ok: true; labels: ReadonlyMap<string, string> | null } | { ok: false; detail: string }> {
-  if (!column.haveLookup || !reads.getLookup) return { ok: true, labels: null };
+  if (!column.haveLookup) return { ok: true, labels: null };
+  const binding = reads.getLookup ?? registrationStateLookup(reads.describeTable);
+  if (!binding) return { ok: true, labels: null };
   if (!isRtuColumnName(column.name)) {
     return { ok: false, detail: "Колонка РТУ имеет неподдерживаемое имя." };
   }
   let envelope: string;
   try {
     envelope = buildGetLookupEnvelope(
-      reads.getLookup,
+      binding,
       deps.account.login,
       deps.account.password,
       objectId,
@@ -331,7 +335,7 @@ async function stateLabels(
     deps,
     exchange,
     reads.endpoint,
-    reads.getLookup.soapAction,
+    binding.soapAction,
     envelope,
   );
   if (!posted.ok) return { ok: true, labels: null };

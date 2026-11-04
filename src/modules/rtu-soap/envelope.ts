@@ -13,11 +13,13 @@ import { escapeXml, isXmlName } from "@/modules/rtu-soap/xml";
  * passes it only for signaling on ПКомм and scripting on ПУпр. Groups pass none.
  * `getLookup` reads «Состояние вызова» on the ПУпр call table and
  * «Состояние» on «Регистрации (ПКомм)». It sends no `node` header.
+ * `getColumnLookup` is sent only when that operation is in the same WSDL.
  */
 const GET_OBJECTS = "getObjects";
 const DESCRIBE_TABLE = "describeTable";
 const SELECT_ROWSET = "selectRowset";
 const GET_LOOKUP = "getLookup";
+const GET_COLUMN_LOOKUP = "getColumnLookup";
 
 /** Handbook requires limit and offset together. This is the one page we read. */
 export const SELECT_ROW_LIMIT = 2000;
@@ -142,6 +144,41 @@ export function buildSelectRowsetEnvelope(
   return wrap(login, password, callBody(binding, fields), moduleName);
 }
 
+/**
+ * One `getLookup` in the style of a describeTable binding already accepted
+ * from the same WSDL. No call when that binding's SOAPAction cannot be reused.
+ */
+export function registrationStateLookup(describeTable: CallBinding): LookupBinding | null {
+  const soapAction = lookupSoapAction(describeTable.soapAction);
+  if (soapAction === null) return null;
+  if (describeTable.kind === "rpc-encoded") {
+    return {
+      kind: "rpc-encoded",
+      operation: GET_LOOKUP,
+      operationNamespace: describeTable.operationNamespace,
+      soapAction,
+      parts: ["p_object_id", "p_column_nm"],
+    };
+  }
+  return {
+    kind: "document-literal",
+    operation: GET_LOOKUP,
+    targetNamespace: describeTable.targetNamespace,
+    soapAction,
+    parameters: [
+      { name: "p_object_id", style: "scalar" },
+      { name: "p_column_nm", style: "scalar" },
+    ],
+  };
+}
+
+function lookupSoapAction(action: string): string | null {
+  if (action === "") return "";
+  const suffix = DESCRIBE_TABLE;
+  if (!action.endsWith(suffix)) return null;
+  return `${action.slice(0, -suffix.length)}${GET_LOOKUP}`;
+}
+
 /** Interface strings for one column. The column name is the technical name. */
 export function buildGetLookupEnvelope(
   binding: LookupBinding,
@@ -150,14 +187,19 @@ export function buildGetLookupEnvelope(
   objectId: string,
   columnName: string,
 ): string {
-  if (binding.operation !== GET_LOOKUP) {
+  if (binding.operation !== GET_LOOKUP && binding.operation !== GET_COLUMN_LOOKUP) {
     throw new Error("getLookup binding required");
   }
   assertObjectId(objectId);
   if (!isRtuColumnName(columnName)) throw new Error("column name rejected");
+  const names =
+    binding.kind === "rpc-encoded" ? binding.parts : binding.parameters.map((item) => item.name);
+  const idName = names.find((name) => name === "p_object_id" || name === "p_table_hi");
+  const columnPart = names.find((name) => name === "p_column_nm" || name === "p_column_name");
+  if (!idName || !columnPart) throw new Error("getLookup binding required");
   const fields = {
-    p_object_id: taggedString("p_object_id", objectId, binding.kind),
-    p_column_nm: taggedString("p_column_nm", columnName, binding.kind),
+    [idName]: taggedString(idName, objectId, binding.kind),
+    [columnPart]: taggedString(columnPart, columnName, binding.kind),
   };
   return wrap(login, password, callBody(binding, fields));
 }

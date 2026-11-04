@@ -148,7 +148,12 @@ export type SoapLookup =
 export function interpretGetLookup(xml: string, password: string): SoapLookup {
   const parsed = parseSoap(xml, password);
   if (parsed.kind !== "tree") return parsed;
-  if (!hasLocalName(parsed.tree, "getLookupResponse")) return { kind: "bad" };
+  if (
+    !hasLocalName(parsed.tree, "getLookupResponse") &&
+    !hasLocalName(parsed.tree, "getColumnLookupResponse")
+  ) {
+    return { kind: "bad" };
+  }
   const pairs: Array<{ key: string; value: string }> = [];
   collectLookupPairs(parsed.tree, pairs);
   return { kind: "lookup", pairs };

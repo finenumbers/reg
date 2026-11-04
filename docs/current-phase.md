@@ -1,7 +1,13 @@
-# Current Phase — production (v1.225.2)
+# Current Phase — production (v1.225.3)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, number geography, free numbers, purchased numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls.  
 **Date:** 2026-11-05
+
+## v1.225.3 — Registration state asks for its lookup list
+
+There is no migration. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. Keep a single `app` replica. Replace the `app` container. The switch is only read. Until this poll succeeds, the previous registration rows stay.
+
+`regs.poll` was reading the state cell `Passed` and stopping, because that key is not one of the four interface labels. It now asks for the lookup list once. `getColumnLookup` is used only when the fetched WSDL v2 contains it. Otherwise one `getLookup` follows the accepted `describeTable` style. A key becomes the interface string. «Зарегистрирован», «Перерегистрация», «Не зарегистрирован», and «Инициализация» are accepted. An empty list, a failed list, or any other value, including an untranslated `Passed`, fails the job and does not change `reg_current`. Nothing is written to the switch.
 
 ## v1.225.2 — Registration state is read without a lookup list
 

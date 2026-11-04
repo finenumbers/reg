@@ -403,6 +403,15 @@ describe("live-call responses", () => {
     expect(fault.kind).toBe("fault");
     if (fault.kind === "fault") expect(fault.detail).not.toContain("secret-pass");
 
+    const column = interpretGetLookup(
+      `<?xml version="1.0"?><Envelope><Body><getColumnLookupResponse><item><key>Passed</key><value>Зарегистрирован</value></item></getColumnLookupResponse></Body></Envelope>`,
+      "",
+    );
+    expect(column).toEqual({
+      kind: "lookup",
+      pairs: [{ key: "Passed", value: "Зарегистрирован" }],
+    });
+
     const html = interpretGetLookup(`<?xml version="1.0"?><html/>`, "");
     expect(html.kind).toBe("bad");
   });
@@ -449,13 +458,73 @@ describe("getLookup", () => {
     expect(envelope).not.toContain('xmlns="args"');
     expect(envelope).not.toContain("http://mfisoft.ru/auth");
 
-    const wrong = readCallReads(
+    const named = readCallReads(
       withLookup.replaceAll("p_column_nm", "p_column_name"),
       ORIGIN,
     );
+    expect(named.ok).toBe(true);
+    if (!named.ok || !named.getLookup) throw new Error("column name part missing");
+    const namedEnvelope = buildGetLookupEnvelope(
+      named.getLookup,
+      "admin",
+      "s3cret",
+      "08.2505.01",
+      "call_state",
+    );
+    expect(namedEnvelope).toContain("<p_column_name ");
+    expect(namedEnvelope).not.toContain("<p_column_nm ");
+
+    const wrong = readCallReads(withLookup.replaceAll("p_column_nm", "p_column"), ORIGIN);
     expect(wrong.ok).toBe(true);
     if (!wrong.ok) return;
     expect(wrong.getLookup).toBeNull();
     expect(wrong.describeTable.operation).toBe("describeTable");
+  });
+
+  it("uses getColumnLookup only when getLookup is absent", () => {
+    const columnLookup = withLookup
+      .replaceAll("getLookup", "getColumnLookup")
+      .replace(
+        `<message name="getColumnLookupRequest"><part name="p_object_id" type="xsd:string"/>`,
+        `<message name="getColumnLookupRequest"><part name="p_table_hi" type="xsd:string"/>`,
+      );
+    const plan = readCallReads(columnLookup, ORIGIN);
+    expect(plan.ok).toBe(true);
+    if (!plan.ok || !plan.getLookup) throw new Error("column lookup missing");
+    expect(plan.getLookup.operation).toBe("getColumnLookup");
+    const envelope = buildGetLookupEnvelope(
+      plan.getLookup,
+      "admin",
+      "s3cret",
+      "08.2505.01",
+      "reg_state",
+    );
+    expect(envelope).toContain("<ns1:getColumnLookup ");
+    expect(envelope).toContain("<p_table_hi ");
+    expect(envelope).not.toContain("<ns1:getLookup ");
+
+    const bothXml = withLookup
+      .replace(
+        `<message name="getLookupRequest">`,
+        `<message name="getColumnLookupRequest"><part name="p_table_hi" type="xsd:string"/><part name="p_column_nm" type="xsd:string"/></message><message name="getLookupRequest">`,
+      )
+      .replace(
+        `<operation name="getLookup"><input message="tns:getLookupRequest"/></operation>`,
+        `<operation name="getColumnLookup"><input message="tns:getColumnLookupRequest"/></operation><operation name="getLookup"><input message="tns:getLookupRequest"/></operation>`,
+      )
+      .replace(
+        `<operation name="getLookup">
+      <soap:operation soapAction="urn:rtu-api#getLookup"/>`,
+        `<operation name="getColumnLookup">
+      <soap:operation soapAction="urn:rtu-api#getColumnLookup"/>
+      <input><soap:body use="encoded" namespace="urn:rtu-api" encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"/></input>
+    </operation>
+    <operation name="getLookup">
+      <soap:operation soapAction="urn:rtu-api#getLookup"/>`,
+      );
+    const both = readCallReads(bothXml, ORIGIN);
+    expect(both.ok).toBe(true);
+    if (!both.ok || !both.getLookup) throw new Error("lookup missing");
+    expect(both.getLookup.operation).toBe("getLookup");
   });
 });

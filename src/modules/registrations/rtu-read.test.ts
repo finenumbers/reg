@@ -85,6 +85,17 @@ const WSDL_NO_LOOKUP = WSDL.replace(
     "",
   );
 
+const WSDL_COLUMN_LOOKUP = WSDL.replace(
+  `  <message name="getLookupRequest">
+    <part name="p_object_id" type="xsd:string"/>
+    <part name="p_column_nm" type="xsd:string"/>
+  </message>`,
+  `  <message name="getColumnLookupRequest">
+    <part name="p_table_hi" type="xsd:string"/>
+    <part name="p_column_nm" type="xsd:string"/>
+  </message>`,
+).replaceAll("getLookup", "getColumnLookup");
+
 function objectItem(objectId: string, title: string, path: string): string {
   return `<item><object_id>${objectId}</object_id><title>${title}</title><path>${path}</path><type>table</type></item>`;
 }
@@ -177,7 +188,10 @@ function harness(input?: {
     const body = call.body ?? "";
     bodies.push(body);
     for (const token of FORBIDDEN) expect(body).not.toContain(token);
-    if (!input?.allowLookup) expect(body).not.toContain("getLookup");
+    if (!input?.allowLookup) {
+      expect(body).not.toContain("getLookup");
+      expect(body).not.toContain("getColumnLookup");
+    }
     expect(body).not.toContain(DECOY_ID);
     if (body.includes("getObjects")) return { ok: true, status: 200, text: OBJECTS };
     if (body.includes("describeTable")) {
@@ -187,7 +201,7 @@ function harness(input?: {
         text: body.includes(PUPR_ID) ? PUPR_DESCRIBE : (input?.pcommDescribe ?? PCOMM_DESCRIBE),
       };
     }
-    if (body.includes("getLookup")) {
+    if (body.includes("getColumnLookup") || body.includes("getLookup")) {
       expect(body).toContain(PCOMM_ID);
       expect(body).toContain("reg_state");
       return { ok: true, status: 200, text: input?.lookupText ?? LOOKUP };
@@ -343,37 +357,77 @@ describe("readRegistrations", () => {
     expect(result.pcomm[0]?.state).toBe("Зарегистрирован");
   });
 
-  it("reads a known state label when the WSDL has no getLookup", async () => {
+  it("translates Passed through getColumnLookup from the WSDL", async () => {
     const { exchange, bodies } = harness({
-      wsdl: WSDL_NO_LOOKUP,
+      allowLookup: true,
+      wsdl: WSDL_COLUMN_LOOKUP,
       pcommDescribe: STATE_LOOKUP_DESCRIBE,
+      pcommRows: PCOMM_ROWS.replace("Зарегистрирован", "Passed"),
+      lookupText: `<?xml version="1.0"?><Envelope><Body><getColumnLookupResponse>
+        <item><key>Passed</key><value>Зарегистрирован</value></item>
+      </getColumnLookupResponse></Body></Envelope>`,
     });
     const result = await readRegistrations({ account, exchange });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.pcomm[0]?.state).toBe("Зарегистрирован");
-    expect(bodies.some((body) => body.includes("getLookup"))).toBe(false);
-    expect(bodies.some((body) => body.includes("selectRowset"))).toBe(true);
+    const lookups = bodies.filter((body) => body.includes("Lookup"));
+    expect(lookups).toHaveLength(1);
+    expect(lookups[0]).toContain("<ns1:getColumnLookup ");
+    expect(lookups[0]).toContain("<p_table_hi ");
+    expect(lookups[0]).not.toContain("<node ");
   });
 
-  it("leaves an unknown state token for assembly to reject", async () => {
-    const { exchange } = harness({
+  it("sends one handbook getLookup when the WSDL has neither lookup", async () => {
+    const { exchange, bodies } = harness({
+      allowLookup: true,
       wsdl: WSDL_NO_LOOKUP,
       pcommDescribe: STATE_LOOKUP_DESCRIBE,
-      pcommRows: PCOMM_ROWS.replace("Зарегистрирован", "1"),
+      pcommRows: PCOMM_ROWS.replace("Зарегистрирован", "Passed"),
+      lookupText: `<?xml version="1.0"?><Envelope><Body><getLookupResponse>
+        <item><key>Passed</key><value>Зарегистрирован</value></item>
+      </getLookupResponse></Body></Envelope>`,
     });
     const result = await readRegistrations({ account, exchange });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.pcomm[0]?.state).toBe("1");
-    const assembled = assembleRegistrations({
-      pcomm: result.pcomm,
-      pupr: result.pupr,
-      catalog: [],
-    });
-    expect(assembled.ok).toBe(false);
-    if (assembled.ok) return;
-    expect(assembled.detail).toContain("не разобрано");
+    expect(result.pcomm[0]?.state).toBe("Зарегистрирован");
+    const lookups = bodies.filter((body) => body.includes("Lookup"));
+    expect(lookups).toHaveLength(1);
+    expect(lookups[0]).toContain("<ns1:getLookup ");
+    expect(lookups[0]).toContain("<p_object_id ");
+    expect(lookups[0]).toContain("<p_column_nm ");
+    expect(lookups[0]).not.toContain("getColumnLookup");
+    expect(lookups[0]).not.toContain("<node ");
+  });
+
+  it("does not send a second lookup when Passed stays untranslated", async () => {
+    for (const lookupText of [
+      `<?xml version="1.0"?><Envelope><Body><getLookupResponse></getLookupResponse></Body></Envelope>`,
+      LOOKUP,
+    ]) {
+      const { exchange, bodies } = harness({
+        allowLookup: true,
+        wsdl: WSDL_NO_LOOKUP,
+        pcommDescribe: STATE_LOOKUP_DESCRIBE,
+        pcommRows: PCOMM_ROWS.replace("Зарегистрирован", "Passed"),
+        lookupText,
+      });
+      const result = await readRegistrations({ account, exchange });
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.pcomm[0]?.state).toBe("Passed");
+      const assembled = assembleRegistrations({
+        pcomm: result.pcomm,
+        pupr: result.pupr,
+        catalog: [],
+      });
+      expect(assembled.ok).toBe(false);
+      if (assembled.ok) return;
+      expect(assembled.detail).toContain("не разобрано");
+      expect(bodies.filter((body) => body.includes("Lookup"))).toHaveLength(1);
+      expect(bodies.some((body) => body.includes("getColumnLookup"))).toBe(false);
+    }
   });
 
   it("keeps an interface string that is not a lookup key", async () => {
@@ -398,6 +452,8 @@ describe("readRegistrations", () => {
     if (!result.ok) return;
     expect(result.pcomm[0]?.state).toBe("Зарегистрирован");
     expect(bodies.some((body) => body.includes("selectRowset"))).toBe(true);
+    expect(bodies.filter((body) => body.includes("Lookup"))).toHaveLength(1);
+    expect(bodies.some((body) => body.includes("getColumnLookup"))).toBe(false);
   });
 
   it("reads the shared template once per signaling and scripting module", async () => {

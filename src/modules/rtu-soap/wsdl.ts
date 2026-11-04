@@ -294,6 +294,7 @@ function localName(value: string): string {
 const DESCRIBE_TABLE = "describeTable";
 const SELECT_ROWSET = "selectRowset";
 const GET_LOOKUP = "getLookup";
+const GET_COLUMN_LOOKUP = "getColumnLookup";
 const DESCRIBE_PARTS = ["p_object_id"] as const;
 const SELECT_PARTS = [
   "p_table_hi",
@@ -303,11 +304,13 @@ const SELECT_PARTS = [
   "p_offset",
   "p_columns",
 ] as const;
-const LOOKUP_PARTS = ["p_object_id", "p_column_nm"] as const;
+const LOOKUP_ID_PARTS = new Set(["p_object_id", "p_table_hi"]);
+const LOOKUP_COLUMN_PARTS = new Set(["p_column_nm", "p_column_name"]);
 
 export type CallParamStyle = "scalar" | "repeat" | "items";
 
-type ReadOperation = typeof DESCRIBE_TABLE | typeof SELECT_ROWSET | typeof GET_LOOKUP;
+type LookupOperation = typeof GET_LOOKUP | typeof GET_COLUMN_LOOKUP;
+type ReadOperation = typeof DESCRIBE_TABLE | typeof SELECT_ROWSET | LookupOperation;
 
 export type CallBinding =
   | {
@@ -328,14 +331,14 @@ export type CallBinding =
 export type LookupBinding =
   | {
       kind: "rpc-encoded";
-      operation: typeof GET_LOOKUP;
+      operation: LookupOperation;
       operationNamespace: string;
       soapAction: string;
       parts: readonly string[];
     }
   | {
       kind: "document-literal";
-      operation: typeof GET_LOOKUP;
+      operation: LookupOperation;
       targetNamespace: string;
       soapAction: string;
       parameters: readonly { name: string; style: CallParamStyle }[];
@@ -363,7 +366,7 @@ export type CallReadPlan =
       endpoint: string;
       describeTable: CallBinding;
       selectRowset: CallBinding;
-      /** Absent when this binding has no `getLookup` with the handbook parts. */
+      /** Absent when this binding has neither handbook lookup operation. */
       getLookup: LookupBinding | null;
     }
   | { ok: false; reason: "doctype" | "parse" | "unsupported" | "host" };
@@ -391,14 +394,16 @@ export function readCallReads(xml: string, origin: string): CallReadPlan {
       hostMismatch = true;
       continue;
     }
-    const getLookup = asLookup(understandCall(definitions, binding, GET_LOOKUP));
+    const getLookup =
+      asLookup(understandCall(definitions, binding, GET_LOOKUP)) ??
+      asLookup(understandCall(definitions, binding, GET_COLUMN_LOOKUP));
     return { ok: true, endpoint, describeTable, selectRowset, getLookup };
   }
   return { ok: false, reason: hostMismatch ? "host" : "unsupported" };
 }
 
 function asCallRead(binding: BoundCall | null): CallBinding | null {
-  if (!binding || binding.operation === GET_LOOKUP) return null;
+  if (!binding || isLookupOperation(binding.operation)) return null;
   if (binding.kind === "rpc-encoded") {
     return {
       kind: "rpc-encoded",
@@ -418,11 +423,11 @@ function asCallRead(binding: BoundCall | null): CallBinding | null {
 }
 
 function asLookup(binding: BoundCall | null): LookupBinding | null {
-  if (!binding || binding.operation !== GET_LOOKUP) return null;
+  if (!binding || !isLookupOperation(binding.operation)) return null;
   if (binding.kind === "rpc-encoded") {
     return {
       kind: "rpc-encoded",
-      operation: GET_LOOKUP,
+      operation: binding.operation,
       operationNamespace: binding.operationNamespace,
       soapAction: binding.soapAction,
       parts: binding.parts,
@@ -430,11 +435,15 @@ function asLookup(binding: BoundCall | null): LookupBinding | null {
   }
   return {
     kind: "document-literal",
-    operation: GET_LOOKUP,
+    operation: binding.operation,
     targetNamespace: binding.targetNamespace,
     soapAction: binding.soapAction,
     parameters: binding.parameters,
   };
+}
+
+function isLookupOperation(operation: ReadOperation): operation is LookupOperation {
+  return operation === GET_LOOKUP || operation === GET_COLUMN_LOOKUP;
 }
 
 function understandCall(
@@ -513,15 +522,18 @@ function documentCallBinding(
 }
 
 function exactParts(names: readonly string[], operationName: ReadOperation): boolean {
-  const required =
-    operationName === DESCRIBE_TABLE
-      ? DESCRIBE_PARTS
-      : operationName === SELECT_ROWSET
-        ? SELECT_PARTS
-        : LOOKUP_PARTS;
+  if (isLookupOperation(operationName)) return exactLookupParts(names);
+  const required = operationName === DESCRIBE_TABLE ? DESCRIBE_PARTS : SELECT_PARTS;
   if (names.length !== required.length) return false;
   const seen = new Set(names);
   return required.every((name) => seen.has(name));
+}
+
+function exactLookupParts(names: readonly string[]): boolean {
+  if (names.length !== 2) return false;
+  const ids = names.filter((name) => LOOKUP_ID_PARTS.has(name));
+  const columns = names.filter((name) => LOOKUP_COLUMN_PARTS.has(name));
+  return ids.length === 1 && columns.length === 1;
 }
 
 function inputPartNames(
