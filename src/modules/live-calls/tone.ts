@@ -6,7 +6,7 @@ import {
   callCategoryReadsTariffLength,
   classifyCallCategory,
 } from "@/modules/traffic/call-class";
-import type { TariffAbcRate } from "@/modules/traffic/tariff-match";
+import { matchTariffAbc, type TariffAbcRate } from "@/modules/traffic/tariff-match";
 import type { LiveCallTone } from "@/modules/live-calls/row-class";
 
 export type LiveCallToneInput = {
@@ -61,6 +61,21 @@ export function liveCallCategory(
     rates,
     exceptions,
   );
+}
+
+/**
+ * Tariff direction for the category already shown on this row.
+ * Only «Исходящий» is filled, from the outgoing B-number, same ABC rule as
+ * «Телефонный трафик». Any other label, including «-», stays blank.
+ * Spaces around the number are ignored. The cell text is not rewritten.
+ */
+export function liveCallDirection(
+  category: string,
+  outB: string,
+  rates: readonly TariffAbcRate[],
+): string {
+  if (category !== CALL_CATEGORY.outgoing) return "";
+  return matchTariffAbc(outB.trim(), rates)?.direction ?? "";
 }
 
 /**

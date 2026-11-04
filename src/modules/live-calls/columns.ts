@@ -39,6 +39,7 @@ export const LIVE_CALL_HEADERS = [
   { key: "sideA", header: "Сторона A", bold: false },
   { key: "outB", header: "Б-номер", bold: true },
   { key: "sideB", header: "Сторона B", bold: false },
+  { key: "direction", header: "Направление", bold: false },
   { key: "seconds", header: "Секунды", bold: false },
   { key: "sourceName", header: "Инициирующее устройство", bold: false },
   { key: "destName", header: "Терминирующее устройство", bold: false },

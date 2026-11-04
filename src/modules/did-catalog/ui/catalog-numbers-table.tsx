@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/table";
 import { ColumnFilterDropdown, type ColumnFilters } from "@/components/column-filters";
 import { HighlightText } from "@/components/highlight-text";
+import { cn } from "@/lib/utils";
 
 type Props<T extends { id: string }, C extends string> = {
   columns: readonly C[];
@@ -59,7 +60,10 @@ export function CatalogNumbersTable<T extends { id: string }, C extends string>(
       <TableHeader>
         <TableRow>
           {columns.map((column) => (
-            <TableHead key={column} className="font-medium">
+            <TableHead
+              key={column}
+              className={cn("font-medium", column === numberColumn && "text-right")}
+            >
               <ColumnFilterDropdown
                 column={column}
                 header={headers[column]}
@@ -102,11 +106,10 @@ export function CatalogNumbersTable<T extends { id: string }, C extends string>(
               {columns.map((column) => (
                 <TableCell
                   key={`${row.id}-${column}`}
-                  className={
-                    column === numberColumn
-                      ? "font-bold text-black dark:text-white"
-                      : undefined
-                  }
+                  className={cn(
+                    column === numberColumn &&
+                      "text-right font-bold text-black dark:text-white",
+                  )}
                 >
                   {column === numberColumn ? (
                     <HighlightText text={cellText(row, column)} query={phoneQ} />

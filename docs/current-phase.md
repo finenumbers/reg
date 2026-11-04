@@ -1,7 +1,15 @@
-# Current Phase — production (v1.222.0)
+# Current Phase — production (v1.223.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, number geography, free numbers, purchased numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls.  
 **Date:** 2026-11-04
+
+## v1.223.0 — Live-call direction and right-aligned catalog numbers
+
+There is no migration. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. Keep a single `app` replica. Replace the `app` container so «Текущие звонки» shows «Направление» and the catalog number column sits on the right.
+
+«Направление» stands between «Сторона B» and «Секунды». The text is the same tariff direction as «Телефонный трафик»: only a row whose category is already «Исходящий» is filled, from the outgoing B-number and the longest fitting ABC. Any other category, including «-», stays blank. A dial-exception miss that makes the category «Ошибка» stays blank even when a shorter ABC would match. Spaces around the number are ignored. The «Б-номер» cell is not rewritten. `selectRowset` does not ask for a new column. Nothing is written to the switch.
+
+«Номер» on «Свободные номера» and «Купленные номера» is right-aligned, header and values. The number stays bold. The XLSX export is unchanged.
 
 ## v1.222.0 — Home cards count this UTC month
 

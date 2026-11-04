@@ -33,7 +33,7 @@ import { orderLiveCallsByStart } from "@/modules/live-calls/order";
 import type { LiveCallTone } from "@/modules/live-calls/row-class";
 import { applyLiveCallSides, liveCallPhoneKeys } from "@/modules/live-calls/sides";
 import { presentCallState, stateLabelMap } from "@/modules/live-calls/state-label";
-import { liveCallCategory, liveCallTone } from "@/modules/live-calls/tone";
+import { liveCallCategory, liveCallDirection, liveCallTone } from "@/modules/live-calls/tone";
 import { selectCallModules } from "@/modules/live-calls/modules";
 import {
   conferenceIdSet,
@@ -472,6 +472,7 @@ function joinedRows(
     sideA: row.sideA,
     outB: row.outB,
     sideB: row.sideB,
+    direction: "",
     seconds: row.seconds,
     sourceName: row.sourceName,
     destName: row.destName,
@@ -528,18 +529,22 @@ async function finishRows(
     withSides(deps, rows),
     classificationLists(deps, deps.now()),
   ]);
-  return sided.rows.map((row) => ({
-    ...row,
-    category: liveCallCategory(
+  return sided.rows.map((row) => {
+    const category = liveCallCategory(
       row,
       lists.rates,
       lists.exceptions,
       sided.sidesReady,
       lists.loaded,
-    ),
-    state: presentCallState(row.state, labels),
-    tone: liveCallTone(row, lists.rates, lists.exceptions, sided.sidesReady),
-  }));
+    );
+    return {
+      ...row,
+      category,
+      direction: liveCallDirection(category, row.outB, lists.rates),
+      state: presentCallState(row.state, labels),
+      tone: liveCallTone(row, lists.rates, lists.exceptions, sided.sidesReady),
+    };
+  });
 }
 
 function view(state: Memory, now: number): LiveCallPayload {

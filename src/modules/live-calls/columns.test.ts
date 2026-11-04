@@ -20,6 +20,7 @@ describe("LIVE_CALL_HEADERS", () => {
       ["sideA", "Сторона A", false],
       ["outB", "Б-номер", true],
       ["sideB", "Сторона B", false],
+      ["direction", "Направление", false],
       ["seconds", "Секунды", false],
       ["sourceName", "Инициирующее устройство", false],
       ["destName", "Терминирующее устройство", false],
