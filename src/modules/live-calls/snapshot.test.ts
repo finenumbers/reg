@@ -290,7 +290,7 @@ describe("readLiveCalls", () => {
     expect(cleared.rows).toEqual([]);
   });
 
-  it("shows earlier start times first and leaves the switch sort nil", async () => {
+  it("shows later start times first and leaves the switch sort nil", async () => {
     const pcomm = `<?xml version="1.0"?><Envelope><Body><selectRowsetResponse>
       ${row([
         ["conf_id", "old"],
@@ -333,11 +333,11 @@ describe("readLiveCalls", () => {
     const snapshot = await readLiveCalls(deps(1_700_000_000_000, fetchImpl));
     expect(snapshot.error).toBeNull();
     expect(snapshot.rows?.map((item) => item.startedAt)).toEqual([
-      "2026-11-04 09:00:00",
       "2026-11-04 10:00:00",
+      "2026-11-04 09:00:00",
       "1",
     ]);
-    expect(snapshot.rows?.map((item) => item.outA)).toEqual(["111", "222", "333"]);
+    expect(snapshot.rows?.map((item) => item.outA)).toEqual(["222", "111", "333"]);
     const selected = bodies.filter((body) => body.includes("selectRowset"));
     expect(selected.length).toBeGreaterThan(0);
     for (const body of selected) {

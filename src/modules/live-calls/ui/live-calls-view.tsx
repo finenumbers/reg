@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useDisplayTimezone } from "@/components/display-timezone-provider";
 import { TableCountFooter } from "@/components/table-infinite-body";
 import {
   Table,
@@ -28,7 +27,6 @@ function sideTrafficColumn(key: LiveCallColumnKey): string {
 }
 
 export function LiveCallsView() {
-  const { timeZone } = useDisplayTimezone();
   const [rows, setRows] = useState<LiveCallRow[] | null>(null);
   const [takenAt, setTakenAt] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -120,7 +118,7 @@ export function LiveCallsView() {
   const data = rows ?? [];
   const showLoading = loading && rows === null;
   const showEmpty = !showLoading && rows !== null && data.length === 0;
-  const stamp = takenAt ? formatDisplayTimestamp(takenAt, timeZone) : null;
+  const stamp = takenAt ? `${formatDisplayTimestamp(takenAt, "UTC")} UTC` : null;
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">

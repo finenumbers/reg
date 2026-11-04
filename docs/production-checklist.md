@@ -54,6 +54,8 @@ Optional publish ports: `APP_PUBLISH_PORT`, `POSTGRES_PUBLISH_PORT`.
 
 ## 3. Database
 
+v1.221.0 does not migrate and does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `app`. Do not stop `smg-syslog`. Keep a single `app` replica. «Текущие звонки» lists the latest «Время начала» first, including `DD.MM.YYYY HH:MM:SS`. A blank or unparsed start time stays below. The snapshot line is UTC. The switch sort stays nil. Cell digits are not shifted.
+
 v1.220.0 does not migrate and does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `app`. Do not stop `smg-syslog`. Keep a single `app` replica. «Текущие звонки» lists the earliest «Время начала» first. A blank or unparsed start time stays below. The switch sort stays nil.
 
 v1.219.0 does not migrate and does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `app`. Do not stop `smg-syslog`. Keep a single `app` replica. «Текущие звонки» lists the newest «Время начала» first. A blank or unparsed start time stays below. The switch sort stays nil.
