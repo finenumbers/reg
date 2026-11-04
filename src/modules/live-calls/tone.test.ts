@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { PARKING_DST } from "@/modules/stats/classify";
 import type { TariffAbcRate } from "@/modules/traffic/tariff-match";
-import { liveCallTone, type LiveCallToneInput } from "@/modules/live-calls/tone";
+import { liveCallCategory, liveCallTone, type LiveCallToneInput } from "@/modules/live-calls/tone";
+import { CALL_CATEGORY } from "@/modules/traffic/call-class";
 
 const MOBILE: TariffAbcRate[] = [
   { direction: "Мобильный", abc: "79", sortIndex: 0, digitLengths: null },
@@ -87,6 +88,41 @@ describe("liveCallTone", () => {
         true,
       ),
     ).toBe("parking");
+  });
+
+  it("labels the row with the traffic category", () => {
+    const outgoing = row({
+      sideA: "Офис",
+      sideB: "-",
+      destName: "term",
+      outB: "79001112233",
+    });
+    expect(liveCallCategory(outgoing, MOBILE, [], true, true)).toBe(CALL_CATEGORY.outgoing);
+    expect(liveCallCategory(outgoing, [], [], true, false)).toBe("-");
+    expect(liveCallCategory(outgoing, [], [], true, true)).toBe(CALL_CATEGORY.errors);
+    expect(liveCallCategory(row(), [], [], false, true)).toBe("-");
+    expect(
+      liveCallCategory(
+        row({ sideA: "Офис", outB: "*123", destName: "term" }),
+        [],
+        [],
+        true,
+        false,
+      ),
+    ).toBe(CALL_CATEGORY.errors);
+    expect(
+      liveCallCategory(row({ sourceName: "Redirect_1" }), [], [], true, false),
+    ).toBe(CALL_CATEGORY.outgoing);
+    expect(liveCallCategory(row(), [], [], true, false)).toBe(CALL_CATEGORY.phantom);
+    expect(
+      liveCallCategory(
+        row({ sideA: "Офис", dialpeer: "Service_Check", destName: "term", outB: "79001112233" }),
+        [],
+        [],
+        true,
+        false,
+      ),
+    ).toBe(CALL_CATEGORY.check);
   });
 
   it("does not paint when the catalog read failed", () => {

@@ -184,18 +184,30 @@ describe("findActiveModules", () => {
 });
 
 describe("findTalkColumn", () => {
-  const duration = { name: "dur", title: "Время разговора", dataMask: null };
-  const seconds = { name: "talk_sec", title: "Время разговора, сек", dataMask: null };
+  const duration = {
+    name: "dur",
+    title: "Время разговора",
+    dataMask: null,
+    haveLookup: false,
+  };
+  const seconds = {
+    name: "talk_sec",
+    title: "Время разговора, сек",
+    dataMask: null,
+    haveLookup: false,
+  };
 
   it("prefers the first unique handbook title", () => {
     expect(findTalkColumn([duration, seconds], PUPR_TALK_TITLES)).toEqual({
       name: "talk_sec",
       dataMask: null,
+      haveLookup: false,
       explicitSeconds: true,
     });
     expect(findTalkColumn([duration, seconds], PCOMM_TALK_TITLES)).toEqual({
       name: "dur",
       dataMask: null,
+      haveLookup: false,
       explicitSeconds: false,
     });
     expect(findTalkColumn([], PCOMM_TALK_TITLES)).toBeNull();

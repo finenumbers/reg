@@ -116,6 +116,8 @@ export type SoapColumn = {
   name: string;
   title: string;
   dataMask: string | null;
+  /** Handbook `have_lookup`: only `1` and `true` open `getLookup`. */
+  haveLookup: boolean;
 };
 
 export type SoapColumns =
@@ -136,6 +138,20 @@ export function interpretDescribeTable(xml: string, password: string): SoapColum
   const seen = new Set<string>();
   collectColumns(parsed.tree, columns, seen);
   return { kind: "columns", columns };
+}
+
+export type SoapLookup =
+  | { kind: "fault"; detail: string }
+  | { kind: "bad" }
+  | { kind: "lookup"; pairs: Array<{ key: string; value: string }> };
+
+export function interpretGetLookup(xml: string, password: string): SoapLookup {
+  const parsed = parseSoap(xml, password);
+  if (parsed.kind !== "tree") return parsed;
+  if (!hasLocalName(parsed.tree, "getLookupResponse")) return { kind: "bad" };
+  const pairs: Array<{ key: string; value: string }> = [];
+  collectLookupPairs(parsed.tree, pairs);
+  return { kind: "lookup", pairs };
 }
 
 export function interpretSelectRowset(xml: string, password: string): SoapRows {
@@ -208,7 +224,57 @@ function asColumn(record: Record<string, unknown>): SoapColumn | null {
     hasKey(record, "represent");
   if (!looks) return null;
   const mask = ownText(record, "data_mask");
-  return { name, title, dataMask: mask ? mask : null };
+  return {
+    name,
+    title,
+    dataMask: mask ? mask : null,
+    haveLookup: columnHasLookup(ownText(record, "have_lookup")),
+  };
+}
+
+function columnHasLookup(value: string | null): boolean {
+  if (!value) return false;
+  const text = value.trim().toLowerCase();
+  return text === "1" || text === "true";
+}
+
+function collectLookupPairs(
+  node: unknown,
+  out: Array<{ key: string; value: string }>,
+): void {
+  if (!node || typeof node !== "object") return;
+  if (Array.isArray(node)) {
+    for (const item of node) collectLookupPairs(item, out);
+    return;
+  }
+  const record = node as Record<string, unknown>;
+  const pair = asLookupPair(record);
+  if (pair) {
+    out.push(pair);
+    return;
+  }
+  for (const [key, value] of Object.entries(record)) {
+    if (key.startsWith("@_")) continue;
+    collectLookupPairs(value, out);
+  }
+}
+
+function asLookupPair(
+  record: Record<string, unknown>,
+): { key: string; value: string } | null {
+  if (
+    hasKey(record, "name") ||
+    hasKey(record, "title") ||
+    hasKey(record, "object_id") ||
+    hasKey(record, "direction")
+  ) {
+    return null;
+  }
+  if (!hasKey(record, "key") || !hasKey(record, "value")) return null;
+  const key = ownText(record, "key");
+  const value = ownText(record, "value");
+  if (key === null || value === null) return null;
+  return { key, value };
 }
 
 function collectRows(node: unknown, out: Array<Record<string, string>>): void {

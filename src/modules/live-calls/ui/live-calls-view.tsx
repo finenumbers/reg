@@ -22,7 +22,7 @@ import { cn } from "@/lib/utils";
 const REFRESH_FALLBACK_MS = 3000;
 
 function sideTrafficColumn(key: LiveCallColumnKey): string {
-  if (key === "sideA") return "side_a";
+  if (key === "sideA" || key === "category") return "side_a";
   if (key === "sideB") return "side_b";
   return key;
 }

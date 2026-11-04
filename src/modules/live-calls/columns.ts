@@ -31,6 +31,7 @@ export const PCOMM_TALK_TITLES = [TALK_DURATION_TITLE, TALK_SECONDS_TITLE] as co
 export const PUPR_TALK_TITLES = [TALK_SECONDS_TITLE, TALK_DURATION_TITLE] as const;
 
 export const LIVE_CALL_HEADERS = [
+  { key: "category", header: "Категория", bold: false },
   { key: "state", header: "Состояние", bold: false },
   { key: "startedAt", header: "Время начала", bold: false },
   { key: "connectedAt", header: "Время соединения", bold: false },

@@ -1,17 +1,20 @@
-import type { CallBinding, GetObjectsBinding } from "@/modules/rtu-soap/wsdl";
+import type { CallBinding, GetObjectsBinding, LookupBinding } from "@/modules/rtu-soap/wsdl";
 import { escapeXml, isXmlName } from "@/modules/rtu-soap/xml";
 
 /**
  * SOAP bodies this service can build. Each operation name is a literal.
  * Callers cannot substitute another one.
  * `getObjects` is the Settings access check.
- * `describeTable` and `selectRowset` read the two transit-call summary tables.
+ * `describeTable` and `selectRowset` read the transit-call tables.
  * An optional module name adds one `node` header on `selectRowset`.
  * The live-call snapshot passes that name only for a signaling or scripting call table.
+ * `getLookup` reads the interface strings of «Состояние вызова» on the ПУпр table.
+ * It sends no `node` header.
  */
 const GET_OBJECTS = "getObjects";
 const DESCRIBE_TABLE = "describeTable";
 const SELECT_ROWSET = "selectRowset";
+const GET_LOOKUP = "getLookup";
 
 /** Handbook requires limit and offset together. This is the one page we read. */
 export const SELECT_ROW_LIMIT = 2000;
@@ -136,6 +139,26 @@ export function buildSelectRowsetEnvelope(
   return wrap(login, password, callBody(binding, fields), moduleName);
 }
 
+/** Interface strings for one column. The column name is the technical name. */
+export function buildGetLookupEnvelope(
+  binding: LookupBinding,
+  login: string,
+  password: string,
+  objectId: string,
+  columnName: string,
+): string {
+  if (binding.operation !== GET_LOOKUP) {
+    throw new Error("getLookup binding required");
+  }
+  assertObjectId(objectId);
+  if (!isRtuColumnName(columnName)) throw new Error("column name rejected");
+  const fields = {
+    p_object_id: taggedString("p_object_id", objectId, binding.kind),
+    p_column_nm: taggedString("p_column_nm", columnName, binding.kind),
+  };
+  return wrap(login, password, callBody(binding, fields));
+}
+
 function assertObjectId(objectId: string): void {
   if (!isRtuObjectId(objectId)) throw new Error("object id rejected");
 }
@@ -190,7 +213,10 @@ function wrap(
   );
 }
 
-function callBody(binding: CallBinding, fields: Record<string, string>): string {
+function callBody(
+  binding: CallBinding | LookupBinding,
+  fields: Record<string, string>,
+): string {
   if (binding.kind === "rpc-encoded") {
     const ns = escapeXml(binding.operationNamespace);
     const inner = binding.parts.map((part) => requiredField(part, fields)).join("");

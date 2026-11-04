@@ -231,6 +231,37 @@ export function renderCallStatusCaseSql(): string {
   END`;
 }
 
+/**
+ * True when `classifyCallCategory` reaches the tariff-length line.
+ * Redirect, check, phantom, a malformed B-number, `*` / `#`, and a call
+ * with an unknown A-side return earlier. A live row with an empty
+ * disconnect code uses this to avoid labeling every Russian number an
+ * error before the tariff list has loaded.
+ */
+export function callCategoryReadsTariffLength(
+  sideA: string,
+  sideB: string,
+  dstName: string,
+  srcName: string,
+  disconnectCode: string,
+  dpName: string,
+  billDnis: string,
+): boolean {
+  if (disconnectCode === UNREGISTERED_DISCONNECT) return false;
+  if (disconnectCode === ROUTE_ERROR_DISCONNECT) return false;
+  if (isCapacityDisconnect(disconnectCode)) return false;
+  if (isRedirect(srcName)) return false;
+  if (isCheckCall(sideA, sideB, dpName)) return false;
+  const a = isSideKnown(sideA);
+  const b = isSideKnown(sideB);
+  if (dstName === PARKING_DST && !a && !b) return false;
+  if (!a) return false;
+  if (isMalformedOutgoingB(billDnis)) return false;
+  const number = billDnis.trim();
+  if (number.includes("*") || number.includes("#")) return false;
+  return true;
+}
+
 export function classifyCallCategory(
   sideA: string,
   sideB: string,

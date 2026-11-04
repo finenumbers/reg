@@ -13,7 +13,7 @@ Related: [backup-and-restore.md](./backup-and-restore.md), [smoke-tests.md](./sm
 - Do **not** expose PostgreSQL publicly if avoidable; prefer `docker compose exec` / Portainer for dumps.
 - Do **not** put arbitrary remote commands in Settings — allowlist only.
 - Do **not** treat SSH connection test as a registration poll.
-- Do **not** send a write to the RTU SOAP API. The Settings check reads `getObjects` once. «Текущие звонки» reads `describeTable` and `selectRowset` for the two summary transit-call tables only, at most once every 3 seconds per process. TLS verification stays on. A hostname with a publicly trusted certificate needs an empty certificate field. A pasted PEM is trusted only by those reads. `NODE_EXTRA_CA_CERTS` still adds a root for the whole process. The `app` container must reach the switch HTTPS port.
+- Do **not** send a write to the RTU SOAP API. The Settings check reads `getObjects` once. «Текущие звонки» reads `describeTable` and `selectRowset` for the two transit-call tables (summary pages, or the shared module templates plus «Активные модули»). When «Состояние вызова» has `have_lookup`, it also reads `getLookup` for that column on the ПУпр table already selected. Call rows refresh at most once every 3 seconds per process. A failed lookup does not fail the snapshot. TLS verification stays on. A hostname with a publicly trusted certificate needs an empty certificate field. A pasted PEM is trusted only by those reads. `NODE_EXTRA_CA_CERTS` still adds a root for the whole process. The `app` container must reach the switch HTTPS port.
 
 ## 1. Secrets and env
 
@@ -53,6 +53,8 @@ Optional publish ports: `APP_PUBLISH_PORT`, `POSTGRES_PUBLISH_PORT`.
 5. Forward real client IP (`X-Forwarded-For` / `X-Real-IP`) — NPM usually does this; needed for login rate limits / audit IP.
 
 ## 3. Database
+
+v1.218.0 does not migrate and does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `app`. Do not stop `smg-syslog`. Keep a single `app` replica. «Текущие звонки» leads with «Категория». «Состояние» shows the RTU interface string when that column has a lookup. A lookup failure leaves the key and keeps the calls.
 
 v1.202.0 does not migrate and does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `app`. Do not stop `smg-syslog`. Keep a single `app` replica. Catalog XLSX still asks for 500 rows. An older DID cap no longer fails the free and purchased files: the walk continues at that cap, or at 200 and then 100, and stays there. Numbering tries 200 once when the first PSTN page is rejected. The red banner shows the task error. A page that misses the 30 second limit still fails the file. A build in progress is dropped when the app process is replaced.
 

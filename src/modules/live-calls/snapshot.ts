@@ -31,7 +31,8 @@ import {
 import { joinLiveCalls, type CallSide } from "@/modules/live-calls/join";
 import type { LiveCallTone } from "@/modules/live-calls/row-class";
 import { applyLiveCallSides, liveCallPhoneKeys } from "@/modules/live-calls/sides";
-import { liveCallTone } from "@/modules/live-calls/tone";
+import { presentCallState, stateLabelMap } from "@/modules/live-calls/state-label";
+import { liveCallCategory, liveCallTone } from "@/modules/live-calls/tone";
 import { selectCallModules } from "@/modules/live-calls/modules";
 import {
   conferenceIdSet,
@@ -42,6 +43,7 @@ import { rtuExchange } from "@/modules/rtu-soap/exchange";
 import {
   SELECT_ROW_LIMIT,
   buildDescribeTableEnvelope,
+  buildGetLookupEnvelope,
   buildGetObjectsEnvelope,
   buildSelectRowsetEnvelope,
   isRtuColumnName,
@@ -50,6 +52,7 @@ import {
 } from "@/modules/rtu-soap/envelope";
 import {
   interpretDescribeTable,
+  interpretGetLookup,
   interpretGetObjects,
   interpretSelectRowset,
   type SoapColumn,
@@ -59,6 +62,7 @@ import {
   readWsdl,
   type CallBinding,
   type GetObjectsBinding,
+  type LookupBinding,
 } from "@/modules/rtu-soap/wsdl";
 import type { TariffAbcRate } from "@/modules/traffic/tariff-match";
 
@@ -110,6 +114,7 @@ type CatalogBase = {
   getObjects: GetObjectsBinding;
   describeTable: CallBinding;
   selectRowset: CallBinding;
+  getLookup: LookupBinding | null;
   pcommId: string;
   puprId: string;
   pcomm: PcommMap;
@@ -148,11 +153,20 @@ type ClassList = {
   rates: readonly TariffAbcRate[];
   exceptions: readonly string[];
   atMs: number;
+  loaded: true;
+};
+
+type StateLabelCache = {
+  key: string;
+  map: ReadonlyMap<string, string>;
+  failed: boolean;
+  atMs: number;
 };
 
 let memory: Memory | null = null;
 let pending: Promise<LiveCallPayload> | null = null;
 let classList: ClassList | null = null;
+let stateLabels: StateLabelCache | null = null;
 /** A duration column that faulted once stays out of later selects until restart. */
 let omitTalk = false;
 
@@ -160,6 +174,7 @@ export function resetLiveCallMemory(): void {
   memory = null;
   pending = null;
   classList = null;
+  stateLabels = null;
   omitTalk = false;
 }
 
@@ -175,6 +190,7 @@ async function execute(deps: LiveCallDeps): Promise<LiveCallPayload> {
   const key = `${deps.account.origin}\n${deps.account.login}`;
   if (memory && memory.key !== key) {
     memory = null;
+    stateLabels = null;
     omitTalk = false;
   }
   const now = deps.now();
@@ -262,49 +278,56 @@ async function readOnce(
     return ready.unknown ? { kind: "retry" } : { kind: "error", detail: ready.detail };
   }
   if (ready.source === "modules") return readModules(deps, ready, modules);
-  const gate: TalkGate = { omit: omitTalk };
-  const selected = await Promise.all([
-    selectAllPages(
-      deps,
-      ready,
-      ready.pcommId,
-      namesOf(ready.pcomm),
-      ready.pcommTalk,
-      ready.pcomm.conferenceId.name,
-      gate,
-    ),
-    selectAllPages(
-      deps,
-      ready,
-      ready.puprId,
-      namesOf(ready.pupr),
-      ready.puprTalk,
-      ready.pupr.conferenceId.name,
-      gate,
-    ),
-  ]);
-  const pcomm = selected[0];
-  const pupr = selected[1];
-  if (!pcomm || !pupr)
-    return { kind: "error", detail: "Не удалось прочитать текущие вызовы." };
-  if (!pcomm.ok || !pupr.ok) {
-    const failed = !pcomm.ok ? pcomm : pupr;
-    if (!failed.ok && failed.unknown) return { kind: "retry" };
+  const labelsPromise = loadStateLabels(deps, ready, deps.now());
+  try {
+    const gate: TalkGate = { omit: omitTalk };
+    const selected = await Promise.all([
+      selectAllPages(
+        deps,
+        ready,
+        ready.pcommId,
+        namesOf(ready.pcomm),
+        ready.pcommTalk,
+        ready.pcomm.conferenceId.name,
+        gate,
+      ),
+      selectAllPages(
+        deps,
+        ready,
+        ready.puprId,
+        namesOf(ready.pupr),
+        ready.puprTalk,
+        ready.pupr.conferenceId.name,
+        gate,
+      ),
+    ]);
+    const pcomm = selected[0];
+    const pupr = selected[1];
+    if (!pcomm || !pupr)
+      return { kind: "error", detail: "Не удалось прочитать текущие вызовы." };
+    if (!pcomm.ok || !pupr.ok) {
+      const failed = !pcomm.ok ? pcomm : pupr;
+      if (!failed.ok && failed.unknown) return { kind: "retry" };
+      return {
+        kind: "error",
+        detail: failed.ok ? "Не удалось прочитать текущие вызовы." : failed.detail,
+      };
+    }
+    const labels = await labelsPromise;
     return {
-      kind: "error",
-      detail: failed.ok ? "Не удалось прочитать текущие вызовы." : failed.detail,
+      kind: "ok",
+      catalog: ready,
+      modules: null,
+      rows: await finishRows(
+        deps,
+        joinedRows(ready, pcomm.rows, pupr.rows, pcomm.talkFlags, pupr.talkFlags),
+        labels,
+      ),
+      truncated: pcomm.truncated || pupr.truncated,
     };
+  } finally {
+    await labelsPromise;
   }
-  return {
-    kind: "ok",
-    catalog: ready,
-    modules: null,
-    rows: await finishRows(
-      deps,
-      joinedRows(ready, pcomm.rows, pupr.rows, pcomm.talkFlags, pupr.talkFlags),
-    ),
-    truncated: pcomm.truncated || pupr.truncated,
-  };
 }
 
 async function readModules(
@@ -314,60 +337,67 @@ async function readModules(
 ): Promise<ReadOnce> {
   const named = await resolveModules(deps, ready, cached);
   if (named.kind !== "ok") return named;
-  const gate: TalkGate = { omit: omitTalk };
-  const pcommRows: Array<Record<string, string>> = [];
-  const puprRows: Array<Record<string, string>> = [];
-  const pcommFlags: boolean[] = [];
-  const puprFlags: boolean[] = [];
-  let truncated = false;
-  for (const name of named.modules.signaling) {
-    const selected = await selectAllPages(
-      deps,
-      ready,
-      ready.pcommId,
-      namesOf(ready.pcomm),
-      ready.pcommTalk,
-      ready.pcomm.conferenceId.name,
-      gate,
-      name,
-    );
-    if (!selected.ok)
-      return selected.unknown
-        ? { kind: "retry" }
-        : { kind: "error", detail: selected.detail };
-    pcommRows.push(...selected.rows);
-    pcommFlags.push(...selected.talkFlags);
-    truncated = truncated || selected.truncated;
+  const labelsPromise = loadStateLabels(deps, ready, deps.now());
+  try {
+    const gate: TalkGate = { omit: omitTalk };
+    const pcommRows: Array<Record<string, string>> = [];
+    const puprRows: Array<Record<string, string>> = [];
+    const pcommFlags: boolean[] = [];
+    const puprFlags: boolean[] = [];
+    let truncated = false;
+    for (const name of named.modules.signaling) {
+      const selected = await selectAllPages(
+        deps,
+        ready,
+        ready.pcommId,
+        namesOf(ready.pcomm),
+        ready.pcommTalk,
+        ready.pcomm.conferenceId.name,
+        gate,
+        name,
+      );
+      if (!selected.ok)
+        return selected.unknown
+          ? { kind: "retry" }
+          : { kind: "error", detail: selected.detail };
+      pcommRows.push(...selected.rows);
+      pcommFlags.push(...selected.talkFlags);
+      truncated = truncated || selected.truncated;
+    }
+    for (const name of named.modules.scripting) {
+      const selected = await selectAllPages(
+        deps,
+        ready,
+        ready.puprId,
+        namesOf(ready.pupr),
+        ready.puprTalk,
+        ready.pupr.conferenceId.name,
+        gate,
+        name,
+      );
+      if (!selected.ok)
+        return selected.unknown
+          ? { kind: "retry" }
+          : { kind: "error", detail: selected.detail };
+      puprRows.push(...selected.rows);
+      puprFlags.push(...selected.talkFlags);
+      truncated = truncated || selected.truncated;
+    }
+    const labels = await labelsPromise;
+    return {
+      kind: "ok",
+      catalog: ready,
+      modules: named.modules,
+      rows: await finishRows(
+        deps,
+        joinedRows(ready, pcommRows, puprRows, pcommFlags, puprFlags),
+        labels,
+      ),
+      truncated,
+    };
+  } finally {
+    await labelsPromise;
   }
-  for (const name of named.modules.scripting) {
-    const selected = await selectAllPages(
-      deps,
-      ready,
-      ready.puprId,
-      namesOf(ready.pupr),
-      ready.puprTalk,
-      ready.pupr.conferenceId.name,
-      gate,
-      name,
-    );
-    if (!selected.ok)
-      return selected.unknown
-        ? { kind: "retry" }
-        : { kind: "error", detail: selected.detail };
-    puprRows.push(...selected.rows);
-    puprFlags.push(...selected.talkFlags);
-    truncated = truncated || selected.truncated;
-  }
-  return {
-    kind: "ok",
-    catalog: ready,
-    modules: named.modules,
-    rows: await finishRows(
-      deps,
-      joinedRows(ready, pcommRows, puprRows, pcommFlags, puprFlags),
-    ),
-    truncated,
-  };
 }
 
 async function resolveModules(
@@ -431,6 +461,7 @@ function joinedRows(
     ),
   ).map((row, index) => ({
     key: `${row.conferenceId || "none"}:${index}`,
+    category: "",
     state: row.state,
     startedAt: row.startedAt,
     connectedAt: row.connectedAt,
@@ -469,21 +500,25 @@ async function withSides<T extends LiveCallRow>(
  * list and does not drop the calls. The first failure leaves outgoing parking
  * unpainted and is retried on the next snapshot.
  */
-async function classificationLists(deps: LiveCallDeps, now: number): Promise<ClassList> {
+async function classificationLists(
+  deps: LiveCallDeps,
+  now: number,
+): Promise<ClassList | { rates: readonly TariffAbcRate[]; exceptions: readonly string[]; loaded: false }> {
   if (classList && now - classList.atMs < MODULE_NAMES_MS) return classList;
   try {
     const [rates, exceptions] = await Promise.all([deps.rates(), deps.exceptions()]);
-    classList = { rates, exceptions, atMs: now };
+    classList = { rates, exceptions, atMs: now, loaded: true };
     return classList;
   } catch {
     if (classList) return classList;
-    return { rates: [], exceptions: [], atMs: now };
+    return { rates: [], exceptions: [], loaded: false };
   }
 }
 
 async function finishRows(
   deps: LiveCallDeps,
   rows: PreparedRow[],
+  labels: ReadonlyMap<string, string> | null,
 ): Promise<PreparedRow[]> {
   if (rows.length === 0) return [];
   const [sided, lists] = await Promise.all([
@@ -492,6 +527,14 @@ async function finishRows(
   ]);
   return sided.rows.map((row) => ({
     ...row,
+    category: liveCallCategory(
+      row,
+      lists.rates,
+      lists.exceptions,
+      sided.sidesReady,
+      lists.loaded,
+    ),
+    state: presentCallState(row.state, labels),
     tone: liveCallTone(row, lists.rates, lists.exceptions, sided.sidesReady),
   }));
 }
@@ -578,6 +621,7 @@ async function loadCatalog(
       getObjects: objectsPlan.binding,
       describeTable: readsPlan.describeTable,
       selectRowset: readsPlan.selectRowset,
+      getLookup: readsPlan.getLookup,
       pcommId: pcomm.objectId,
       puprId: pupr.objectId,
       pcomm: mapped.pcomm,
@@ -596,7 +640,12 @@ async function loadModuleCatalog(
   deps: LiveCallDeps,
   objects: readonly { objectId: string; title: string; path: string; type: string }[],
   getObjects: GetObjectsBinding,
-  readsPlan: { endpoint: string; describeTable: CallBinding; selectRowset: CallBinding },
+  readsPlan: {
+    endpoint: string;
+    describeTable: CallBinding;
+    selectRowset: CallBinding;
+    getLookup: LookupBinding | null;
+  },
 ): Promise<Catalog | { detail: string; unknown: boolean }> {
   const pcomm = findTransitTemplate(objects, PCOMM_TABLE, PCOMM_TEMPLATE_LEAF);
   const pupr = findTransitTemplate(objects, PUPR_TABLE, PUPR_TEMPLATE_LEAF);
@@ -669,6 +718,7 @@ async function loadModuleCatalog(
     getObjects,
     describeTable: readsPlan.describeTable,
     selectRowset: readsPlan.selectRowset,
+    getLookup: readsPlan.getLookup,
     pcommId: pcomm.objectId,
     puprId: pupr.objectId,
     pcomm: mapped.pcomm,
@@ -938,11 +988,87 @@ function sideFrom(
   };
 }
 
+/**
+ * Interface strings for «Состояние вызова». A missing flag, a missing
+ * binding, or a failed read leaves the raw key. A success, including an
+ * empty list, stays until the catalog account changes. A failure retries
+ * once a minute and does not fail the call snapshot.
+ */
+async function loadStateLabels(
+  deps: LiveCallDeps,
+  catalog: CatalogBase,
+  now: number,
+): Promise<ReadonlyMap<string, string> | null> {
+  try {
+    const column = catalog.pupr.state;
+    if (!column.haveLookup || !catalog.getLookup) return null;
+    if (!isRtuColumnName(column.name)) return null;
+    const key = `${deps.account.origin}\n${deps.account.login}\n${catalog.puprId}\n${column.name}`;
+    if (stateLabels && stateLabels.key === key && !stateLabels.failed) return stateLabels.map;
+    if (
+      stateLabels &&
+      stateLabels.key === key &&
+      stateLabels.failed &&
+      now - stateLabels.atMs < MODULE_NAMES_MS
+    ) {
+      return null;
+    }
+    let map: Map<string, string> | null = null;
+    try {
+      map = await fetchStateLabels(deps, catalog, column.name);
+    } catch {
+      map = null;
+    }
+    stateLabels = {
+      key,
+      map: map ?? new Map(),
+      failed: map === null,
+      atMs: deps.now(),
+    };
+    return map;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchStateLabels(
+  deps: LiveCallDeps,
+  catalog: CatalogBase,
+  columnName: string,
+): Promise<Map<string, string> | null> {
+  const binding = catalog.getLookup;
+  if (!binding) return null;
+  let envelope: string;
+  try {
+    envelope = buildGetLookupEnvelope(
+      binding,
+      deps.account.login,
+      deps.account.password,
+      catalog.puprId,
+      columnName,
+    );
+  } catch {
+    return null;
+  }
+  const posted = await postRead(
+    deps,
+    catalog.endpoint,
+    binding.soapAction,
+    envelope,
+    WSDL_TIMEOUT_MS,
+  );
+  if (!posted.ok) return null;
+  const parsed = interpretGetLookup(posted.text, deps.account.password);
+  if (parsed.kind !== "lookup") return null;
+  return stateLabelMap(parsed.pairs);
+}
+
 async function postRead(
   deps: LiveCallDeps,
   endpoint: string,
   soapAction: string,
   envelope: string,
+  timeoutMs = CALL_TIMEOUT_MS,
 ): Promise<{ ok: true; text: string } | { ok: false; detail: string; unknown: boolean }> {
   const posted = await rtuExchange({
     url: endpoint,
@@ -952,7 +1078,7 @@ async function postRead(
       SOAPAction: quoteSoapAction(soapAction),
     },
     body: envelope,
-    timeoutMs: CALL_TIMEOUT_MS,
+    timeoutMs,
     caPem: deps.account.caPem,
     fetchImpl: deps.fetchImpl,
   });

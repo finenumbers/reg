@@ -244,6 +244,7 @@ describe("readLiveCalls", () => {
       sourceSignal: "1.1.1.1",
       destSignal: "2.2.2.2",
       tone: null,
+      category: "Ошибка",
     });
     expect(first.rows?.[1]).toMatchObject({
       outA: "101",
@@ -257,6 +258,7 @@ describe("readLiveCalls", () => {
     });
     expect(first.rows?.[3]).toMatchObject({ state: "blank", outA: "" });
     expect(bodies.some((body) => body.includes("08.2599.01"))).toBe(false);
+    expect(bodies.some((body) => body.includes("getLookup"))).toBe(false);
     expect(bodies.some((body) => body.includes(">dur<"))).toBe(false);
     for (const body of bodies.filter((item) => item.includes("selectRowset"))) {
       if (body.includes("08.2504.01")) {
@@ -321,6 +323,7 @@ describe("readLiveCalls", () => {
       sideA: "-",
       sideB: "-",
       tone: null,
+      category: "-",
     });
   });
 
@@ -341,6 +344,7 @@ describe("readLiveCalls", () => {
     const first = await readLiveCalls(input);
     expect(first.error).toBeNull();
     expect(first.rows?.[0]?.outA).toBe("100");
+    expect(first.rows?.[0]?.category).toBe("Ошибка");
     expect(loads).toBe(1);
 
     fail = false;
@@ -610,6 +614,88 @@ describe("readLiveCalls", () => {
     expect(read.rows).toBeNull();
     expect(read.error).toBe("Коммутатор ответил ошибкой HTTP.");
     expect(bodies.filter((body) => body.includes("talk_sec"))).toHaveLength(1);
+  });
+
+  it("shows the interface string for call state and keeps rows when lookup fails", async () => {
+    const lookupWsdl = WSDL.replace(
+      `<message name="insertRowsetRequest">`,
+      `<message name="getLookupRequest"><part name="p_object_id" type="xsd:string"/><part name="p_column_nm" type="xsd:string"/></message><message name="insertRowsetRequest">`,
+    )
+      .replace(
+        `<operation name="insertRowset"><input message="tns:insertRowsetRequest"/></operation>`,
+        `<operation name="getLookup"><input message="tns:getLookupRequest"/></operation><operation name="insertRowset"><input message="tns:insertRowsetRequest"/></operation>`,
+      )
+      .replace(
+        `<operation name="insertRowset">
+      <soap:operation soapAction="urn:insertRowset"/>`,
+        `<operation name="getLookup">
+      <soap:operation soapAction="urn:rtu-api#getLookup"/>
+      <input><soap:body use="encoded" namespace="urn:rtu-api" encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"/></input>
+    </operation>
+    <operation name="insertRowset">
+      <soap:operation soapAction="urn:insertRowset"/>`,
+      );
+    const described = PUPR_DESCRIBE.replace(
+      column("call_state", "Состояние вызова"),
+      `<item><name>call_state</name><title>Состояние вызова</title><type>column</type><data_type>string</data_type><data_mask></data_mask><have_lookup>1</have_lookup></item>`,
+    );
+    const lookupOk = `<?xml version="1.0"?><Envelope><Body><getLookupResponse><item><key>talk</key><value>Разговор</value></item></getLookupResponse></Body></Envelope>`;
+    let lookupMode: "ok" | "fault" = "ok";
+    const bodies: string[] = [];
+    const fetchImpl: typeof fetch = async (url, init) => {
+      const body = typeof init?.body === "string" ? init.body : "";
+      bodies.push(body);
+      expect(body).not.toContain("insertRowset");
+      expect(body).not.toContain("<node");
+      expect(body).not.toContain('xmlns="args"');
+      if (String(url).includes("wsdl")) return new Response(lookupWsdl, { status: 200 });
+      if (body.includes("<ns1:getLookup")) {
+        expect(body).toContain("call_state");
+        expect(body).toContain("08.2505.01");
+        return new Response(lookupMode === "fault" ? FAULT : lookupOk, { status: 200 });
+      }
+      if (body.includes("<ns1:getObjects")) return new Response(OBJECTS, { status: 200 });
+      if (body.includes("describeTable") && body.includes("08.2504.01"))
+        return new Response(PCOMM_DESCRIBE, { status: 200 });
+      if (body.includes("describeTable") && body.includes("08.2505.01"))
+        return new Response(described, { status: 200 });
+      if (body.includes("selectRowset") && body.includes("08.2504.01")) {
+        expect(body).not.toContain("category");
+        return new Response(PCOMM_ROWS, { status: 200 });
+      }
+      if (body.includes("selectRowset") && body.includes("08.2505.01"))
+        return new Response(PUPR_ROWS, { status: 200 });
+      throw new Error(`unexpected call ${body.slice(0, 160)}`);
+    };
+    const lookups = () => bodies.filter((body) => body.includes("<ns1:getLookup")).length;
+    let now = 1_700_000_000_000;
+    const input = { ...deps(now, fetchImpl), now: () => now };
+    const translated = await readLiveCalls(input);
+    expect(translated.error).toBeNull();
+    expect(translated.rows?.[0]?.state).toBe("Разговор");
+    expect(translated.rows?.[2]?.state).toBe("extra");
+    expect(lookups()).toBe(1);
+
+    now += 3_000;
+    const cached = await readLiveCalls(input);
+    expect(cached.rows?.[0]?.state).toBe("Разговор");
+    expect(lookups()).toBe(1);
+
+    resetLiveCallMemory();
+    lookupMode = "fault";
+    now += 3_000;
+    const failed = await readLiveCalls(input);
+    expect(failed.error).toBeNull();
+    expect(failed.rows?.[0]?.state).toBe("talk");
+    expect(lookups()).toBe(2);
+
+    now += 3_000;
+    await readLiveCalls(input);
+    expect(lookups()).toBe(2);
+
+    now += MODULE_NAMES_MS;
+    await readLiveCalls(input);
+    expect(lookups()).toBe(3);
   });
 });
 

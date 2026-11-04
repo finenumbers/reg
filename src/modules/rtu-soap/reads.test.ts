@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   buildDescribeTableEnvelope,
+  buildGetLookupEnvelope,
   buildSelectRowsetEnvelope,
   SELECT_ROW_LIMIT,
 } from "@/modules/rtu-soap/envelope";
 import {
   interpretDescribeTable,
+  interpretGetLookup,
   interpretSelectRowset,
 } from "@/modules/rtu-soap/response";
 import { readCallReads, type CallBinding } from "@/modules/rtu-soap/wsdl";
@@ -119,6 +121,7 @@ describe("readCallReads", () => {
     expect(plan.endpoint).toBe("https://rtu.example/service/");
     expect(plan.describeTable.operation).toBe("describeTable");
     expect(plan.selectRowset.operation).toBe("selectRowset");
+    expect(plan.getLookup).toBeNull();
     if (plan.selectRowset.kind !== "rpc-encoded") throw new Error("expected rpc");
     expect(plan.selectRowset.parts[0]).toBe("p_sort");
   });
@@ -329,7 +332,130 @@ describe("live-call responses", () => {
     );
     expect(columns).toEqual({
       kind: "columns",
-      columns: [{ name: "t_start", title: "Время начала", dataMask: "YMDhms" }],
+      columns: [
+        { name: "t_start", title: "Время начала", dataMask: "YMDhms", haveLookup: false },
+      ],
     });
+
+    const lookupColumn = interpretDescribeTable(
+      `<?xml version="1.0"?><Envelope><Body><describeTableResponse>
+        <item>
+          <name>call_state</name>
+          <title>Состояние вызова</title>
+          <type>column</type>
+          <data_type>string</data_type>
+          <have_lookup>1</have_lookup>
+        </item>
+        <item>
+          <name>src_name</name>
+          <title>Имя инициатора</title>
+          <type>column</type>
+          <have_lookup>false</have_lookup>
+        </item>
+      </describeTableResponse></Body></Envelope>`,
+      "",
+    );
+    expect(lookupColumn).toEqual({
+      kind: "columns",
+      columns: [
+        {
+          name: "call_state",
+          title: "Состояние вызова",
+          dataMask: null,
+          haveLookup: true,
+        },
+        {
+          name: "src_name",
+          title: "Имя инициатора",
+          dataMask: null,
+          haveLookup: false,
+        },
+      ],
+    });
+  });
+
+  it("reads getLookup pairs and redacts a fault", () => {
+    const parsed = interpretGetLookup(
+      `<?xml version="1.0"?><Envelope><Body><getLookupResponse>
+        <item><key>talk</key><value>Разговор</value></item>
+        <item><key></key><value>Пусто</value></item>
+        <item><key>ring</key><value></value></item>
+        <item><key>talk</key><value>Другое</value></item>
+        <item><key>hold</key><value>Удержание</value></item>
+      </getLookupResponse></Body></Envelope>`,
+      "secret-pass",
+    );
+    expect(parsed).toEqual({
+      kind: "lookup",
+      pairs: [
+        { key: "talk", value: "Разговор" },
+        { key: "", value: "Пусто" },
+        { key: "ring", value: "" },
+        { key: "talk", value: "Другое" },
+        { key: "hold", value: "Удержание" },
+      ],
+    });
+
+    const fault = interpretGetLookup(
+      `<?xml version="1.0"?><Envelope><Body><Fault><faultstring>secret-pass denied</faultstring></Fault></Body></Envelope>`,
+      "secret-pass",
+    );
+    expect(fault.kind).toBe("fault");
+    if (fault.kind === "fault") expect(fault.detail).not.toContain("secret-pass");
+
+    const html = interpretGetLookup(`<?xml version="1.0"?><html/>`, "");
+    expect(html.kind).toBe("bad");
+  });
+});
+
+describe("getLookup", () => {
+  const withLookup = RPC_WSDL.replace(
+    `<message name="insertRowsetRequest">`,
+    `<message name="getLookupRequest"><part name="p_object_id" type="xsd:string"/><part name="p_column_nm" type="xsd:string"/></message><message name="insertRowsetRequest">`,
+  )
+    .replace(
+      `<operation name="insertRowset"><input message="tns:insertRowsetRequest"/></operation>`,
+      `<operation name="getLookup"><input message="tns:getLookupRequest"/></operation><operation name="insertRowset"><input message="tns:insertRowsetRequest"/></operation>`,
+    )
+    .replace(
+      `<operation name="insertRowset">
+      <soap:operation soapAction="urn:insertRowset"/>`,
+      `<operation name="getLookup">
+      <soap:operation soapAction="urn:rtu-api#getLookup"/>
+      <input><soap:body use="encoded" namespace="urn:rtu-api" encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"/></input>
+    </operation>
+    <operation name="insertRowset">
+      <soap:operation soapAction="urn:insertRowset"/>`,
+    );
+
+  it("builds one literal read and ignores a different part name", () => {
+    const plan = readCallReads(withLookup, ORIGIN);
+    expect(plan.ok).toBe(true);
+    if (!plan.ok || !plan.getLookup) throw new Error("lookup missing");
+    const envelope = buildGetLookupEnvelope(
+      plan.getLookup,
+      "admin",
+      "s3cret",
+      "08.2505.01",
+      "call_state",
+    );
+    expect(envelope).toContain("<ns1:getLookup ");
+    expect(envelope).toContain("<p_object_id ");
+    expect(envelope).toContain("<p_column_nm ");
+    expect(envelope).toContain("call_state");
+    expect(envelope).not.toContain("selectRowset");
+    expect(envelope).not.toContain("insertRowset");
+    expect(envelope).not.toContain("<node");
+    expect(envelope).not.toContain('xmlns="args"');
+    expect(envelope).not.toContain("http://mfisoft.ru/auth");
+
+    const wrong = readCallReads(
+      withLookup.replaceAll("p_column_nm", "p_column_name"),
+      ORIGIN,
+    );
+    expect(wrong.ok).toBe(true);
+    if (!wrong.ok) return;
+    expect(wrong.getLookup).toBeNull();
+    expect(wrong.describeTable.operation).toBe("describeTable");
   });
 });

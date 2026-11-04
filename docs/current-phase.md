@@ -1,7 +1,15 @@
-# Current Phase — production (v1.217.1)
+# Current Phase — production (v1.218.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, number geography, free numbers, purchased numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls.  
 **Date:** 2026-11-04
+
+## v1.218.0 — Live call category and the interface call state
+
+There is no migration. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. Keep a single `app` replica. Replace the `app` container so «Текущие звонки» leads with «Категория» and can show the interface string for «Состояние».
+
+«Категория» uses the same five labels as «Телефонный трафик». The value is computed after the snapshot is joined. `selectRowset` does not ask for a new column. A catalog failure shows «-» and does not paint the row. Until the tariff and dial-exception lists have loaded, a row that still needs the length check shows «-». A list that loaded empty still marks a fitting Russian B-number «Ошибка». Redirect, check, phantom, a malformed B-number, `*` and `#`, and an unknown A-side do not wait for the tariff. The four disconnect-code errors are not on a live call; they still appear later in «Телефонный трафик». The B-number is the outgoing B-number. Row color is unchanged.
+
+«Состояние» stays the key returned by `selectRowset` unless `describeTable` sets `have_lookup` on «Состояние вызова». Then one `getLookup` reads the interface string for that column on the ПУпр table already selected, the summary page or the shared «Вызовы» template. There is no `node` header. A success, including an empty list, stays until that catalog is dropped. A failure retries at most once a minute, leaves the key in the cell, and does not fail the snapshot or show a page error. The Settings access check does not call `getLookup`. Nothing is written to the switch.
 
 ## v1.217.1 — Live call seconds from the switch duration
 

@@ -18,6 +18,7 @@ export type JoinedCall = Record<LiveCallColumnKey, string> & {
 };
 
 const EMPTY: Record<LiveCallColumnKey, string> = {
+  category: "",
   state: "",
   startedAt: "",
   connectedAt: "",
@@ -95,6 +96,7 @@ function pickSwitchSeconds(left: CallSide | null, right: CallSide | null): strin
 function merge(left: CallSide | null, right: CallSide | null): JoinedCall {
   return {
     conferenceId: left?.conferenceId.trim() || right?.conferenceId.trim() || "",
+    category: EMPTY.category,
     state: right?.values.state ?? EMPTY.state,
     startedAt: left?.values.startedAt ?? EMPTY.startedAt,
     connectedAt: left?.values.connectedAt ?? EMPTY.connectedAt,

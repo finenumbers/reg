@@ -132,6 +132,7 @@ function pathDepth(path: string): number {
 export type MappedColumn = {
   name: string;
   dataMask: string | null;
+  haveLookup: boolean;
 };
 
 export function mapColumns<Key extends string>(
@@ -153,7 +154,11 @@ export function mapColumns<Key extends string>(
         detail: `В таблице «${tableTitle}» нет колонки «${title}».`,
       };
     }
-    mapped[key] = { name: column.name, dataMask: column.dataMask };
+    mapped[key] = {
+      name: column.name,
+      dataMask: column.dataMask,
+      haveLookup: column.haveLookup,
+    };
   }
   return { ok: true, columns: mapped };
 }
@@ -181,6 +186,7 @@ export function findTalkColumn(
     return {
       name: hit.name,
       dataMask: hit.dataMask,
+      haveLookup: hit.haveLookup,
       explicitSeconds: want === normalizeRtuLabel(TALK_SECONDS_TITLE),
     };
   }

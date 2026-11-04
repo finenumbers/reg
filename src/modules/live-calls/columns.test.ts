@@ -12,6 +12,7 @@ describe("LIVE_CALL_HEADERS", () => {
     expect(
       LIVE_CALL_HEADERS.map((column) => [column.key, column.header, column.bold]),
     ).toEqual([
+      ["category", "Категория", false],
       ["state", "Состояние", false],
       ["startedAt", "Время начала", false],
       ["connectedAt", "Время соединения", false],
