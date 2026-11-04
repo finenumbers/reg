@@ -2,7 +2,7 @@
 const START_TIME = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
 
 /**
- * Newer parsed start time first.
+ * Earlier parsed start time first.
  * A blank or any other text sorts after every parsed stamp.
  * Two parsed equals, or two unparsed values, compare as zero.
  */
@@ -11,7 +11,7 @@ export function compareLiveCallStart(left: string, right: string): number {
   const parsedRight = START_TIME.test(right);
   if (parsedLeft && parsedRight) {
     if (left === right) return 0;
-    return left < right ? 1 : -1;
+    return left < right ? -1 : 1;
   }
   if (parsedLeft) return -1;
   if (parsedRight) return 1;
@@ -19,7 +19,7 @@ export function compareLiveCallStart(left: string, right: string): number {
 }
 
 /**
- * Descending «Время начала». Equal stamps and unparsed rows keep join order.
+ * Ascending «Время начала». Equal stamps and unparsed rows keep join order.
  */
 export function orderLiveCallsByStart<T extends { startedAt: string }>(
   rows: readonly T[],

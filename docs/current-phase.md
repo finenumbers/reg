@@ -1,7 +1,13 @@
-# Current Phase — production (v1.219.0)
+# Current Phase — production (v1.220.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, number geography, free numbers, purchased numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls.  
 **Date:** 2026-11-04
+
+## v1.220.0 — Live calls show the earliest start time first
+
+There is no migration. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. Keep a single `app` replica. Replace the `app` container so «Текущие звонки» lists the earliest start time first.
+
+The comparison is the same cell text `YYYY-MM-DD HH:MM:SS`. An earlier stamp is higher. The same second keeps the join order. A blank value and any other text stay below every parsed stamp. `selectRowset` still sends a nil sort. A truncated snapshot orders only the rows that were read. Nothing is written to the switch.
 
 ## v1.219.0 — Live calls sorted by start time
 

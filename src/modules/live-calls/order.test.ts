@@ -6,7 +6,7 @@ function row(startedAt: string, mark: string) {
 }
 
 describe("orderLiveCallsByStart", () => {
-  it("puts the newer start time first and keeps equals and unparsed rows in join order", () => {
+  it("puts the earlier start time first and keeps equals and unparsed rows in join order", () => {
     const ordered = orderLiveCallsByStart([
       row("2026-11-04 09:00:00", "older"),
       row("2026-11-04 10:00:00", "newer"),
@@ -19,11 +19,11 @@ describe("orderLiveCallsByStart", () => {
       row("9", "digit"),
     ]);
     expect(ordered.map((item) => item.mark)).toEqual([
+      "impossible",
+      "march",
+      "older",
       "newer",
       "same",
-      "older",
-      "march",
-      "impossible",
       "junk",
       "blank",
       "spaces",
