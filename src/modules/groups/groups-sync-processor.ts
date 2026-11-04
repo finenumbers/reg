@@ -1,21 +1,19 @@
 /**
- * groups.sync — remote export.py → parse groups[] → replace routing_groups.
- * Does not touch phone_endpoints / phone_gateways.
+ * groups.sync — read the RTU page «Входящие группы» and replace routing_groups.
+ * Does not call SSH and does not touch phone_endpoints / phone_gateways.
  */
 
 import type { JobTrigger } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
 import { logger } from "@/lib/logger";
-import { stripAnsi } from "@/lib/strip-ansi";
-import { truncateUtf8 } from "@/lib/utf8-truncate";
-import {
-  remoteExecutionService,
-  type RemoteExecutionService,
-} from "@/modules/actions/execution";
 import { AUDIT_ACTIONS, auditService } from "@/modules/audit";
 import { applyGroupsSnapshot } from "@/modules/groups/apply";
-import { parseGroupsStdout } from "@/modules/groups/parse";
-import { sanitizeStderrSnippet } from "@/modules/jobs/regs-poll-processor";
+import type { ParsedGroupsPayload } from "@/modules/groups/parse";
+import { acceptIncomingGroups } from "@/modules/groups/rtu-catalog";
+import {
+  readStoredIncomingGroups,
+  type IncomingGroupsRead,
+} from "@/modules/groups/rtu-read";
 import { failJobRunIfStillRunning } from "@/modules/jobs/finalize";
 
 export type GroupsSyncProcessorInput = {
@@ -32,79 +30,18 @@ export type GroupsSyncProcessorResult = {
 };
 
 export type GroupsSyncProcessorDeps = {
-  execute: RemoteExecutionService["execute"];
-  apply: typeof applyGroupsSnapshot;
+  read: () => Promise<IncomingGroupsRead>;
+  apply: (
+    payload: ParsedGroupsPayload,
+    jobRunId: string,
+    syncedAt?: Date,
+  ) => Promise<{ groupCount: number }>;
 };
 
 const DEFAULT_DEPS: GroupsSyncProcessorDeps = {
-  execute: (req) => remoteExecutionService.execute(req),
+  read: () => readStoredIncomingGroups(),
   apply: applyGroupsSnapshot,
 };
-
-const DEFAULT_ARTIFACT_MAX_BYTES = 50_000_000;
-
-function emptyStdoutErrorMessage(stderr: string): string {
-  const snippet = sanitizeStderrSnippet(stderr);
-  const base =
-    "Удалённый export.py вернул пустой stdout — справочник групп не обновлён";
-  if (snippet) return `${base}. stderr: ${snippet}`;
-  return `${base}. Проверьте NOPASSWD sudoers на /opt/scripts/export.py.`;
-}
-
-function remoteExitErrorMessage(
-  exitCode: number | null | undefined,
-  stderr: string,
-): string {
-  const code = exitCode ?? "unknown";
-  const snippet = sanitizeStderrSnippet(stderr);
-  const base = `Remote script exited with code ${code}`;
-  if (snippet) return `${base}. stderr: ${snippet}`;
-  return base;
-}
-
-async function loadArtifactLimits(): Promise<{
-  maxBytes: number;
-  retentionDays: number;
-  keepLastRuns: number;
-}> {
-  const settings = await prisma.appSetting.findUnique({ where: { id: 1 } });
-  return {
-    maxBytes: settings?.artifactMaxBytes ?? DEFAULT_ARTIFACT_MAX_BYTES,
-    retentionDays: settings?.artifactRetentionDays ?? 14,
-    keepLastRuns: settings?.artifactKeepLastRuns ?? 50,
-  };
-}
-
-async function pruneArtifacts(limits: {
-  retentionDays: number;
-  keepLastRuns: number;
-}): Promise<void> {
-  try {
-    const cutoff = new Date(
-      Date.now() - limits.retentionDays * 24 * 60 * 60 * 1000,
-    );
-    const keep = await prisma.jobRun.findMany({
-      where: { actionCode: "groups.sync" },
-      orderBy: { startedAt: "desc" },
-      take: limits.keepLastRuns,
-      select: { id: true },
-    });
-    const keepIds = keep.map((r) => r.id);
-    await prisma.jobRunArtifact.deleteMany({
-      where: {
-        jobRun: {
-          actionCode: "groups.sync",
-          startedAt: { lt: cutoff },
-          ...(keepIds.length > 0 ? { id: { notIn: keepIds } } : {}),
-        },
-      },
-    });
-  } catch (error) {
-    logger.warn("groups.sync.artifact_prune_failed", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-  }
-}
 
 export async function processGroupsSync(
   input: GroupsSyncProcessorInput,
@@ -123,228 +60,87 @@ export async function processGroupsSync(
   });
 
   try {
-  await auditService.append({
-    actorUserId: input.actorUserId,
-    action:
-      input.trigger === "manual"
-        ? AUDIT_ACTIONS.GROUPS_SYNC_MANUAL
-        : AUDIT_ACTIONS.GROUPS_SYNC_START,
-    entityType: "job_run",
-    entityId: jobRun.id,
-    meta: {
+    await auditService.append({
+      actorUserId: input.actorUserId,
+      action:
+        input.trigger === "manual"
+          ? AUDIT_ACTIONS.GROUPS_SYNC_MANUAL
+          : AUDIT_ACTIONS.GROUPS_SYNC_START,
+      entityType: "job_run",
+      entityId: jobRun.id,
+      meta: {
+        trigger: input.trigger,
+        actionCode: "groups.sync",
+        phase: "started",
+      },
+    });
+
+    logger.info("groups.sync.started", {
+      jobRunId: jobRun.id,
       trigger: input.trigger,
-      actionCode: "groups.sync",
-      phase: "started",
-    },
-  });
+    });
 
-  logger.info("groups.sync.started", {
-    jobRunId: jobRun.id,
-    trigger: input.trigger,
-  });
-
-  const fail = async (
-    errorMessage: string,
-    extras: {
-      exitCode?: number | null;
-      stdout?: string;
-      stderr?: string;
-      groupCount?: number;
-    } = {},
-  ): Promise<GroupsSyncProcessorResult> => {
-    const finishedAt = new Date();
-    const limits = await loadArtifactLimits();
-
-    if (extras.stdout !== undefined || extras.stderr !== undefined) {
-      await prisma.jobRunArtifact.upsert({
-        where: { jobRunId: jobRun.id },
-        create: {
-          jobRunId: jobRun.id,
-          stdout: truncateUtf8(extras.stdout ?? "", limits.maxBytes),
-          stderr: truncateUtf8(extras.stderr ?? "", limits.maxBytes),
-        },
-        update: {
-          stdout: truncateUtf8(extras.stdout ?? "", limits.maxBytes),
-          stderr: truncateUtf8(extras.stderr ?? "", limits.maxBytes),
+    const fail = async (errorMessage: string): Promise<GroupsSyncProcessorResult> => {
+      const finishedAt = new Date();
+      await prisma.jobRun.update({
+        where: { id: jobRun.id },
+        data: {
+          status: "failed",
+          finishedAt,
+          durationMs: finishedAt.getTime() - startedAt.getTime(),
+          errorMessage,
+          exitCode: null,
+          phonesParsed: 0,
+          linesBad: 0,
+          changesCount: 0,
         },
       });
-    }
 
-    await prisma.jobRun.update({
-      where: { id: jobRun.id },
-      data: {
-        status: "failed",
-        finishedAt,
-        durationMs: finishedAt.getTime() - startedAt.getTime(),
-        errorMessage,
-        exitCode: extras.exitCode ?? null,
-        phonesParsed: extras.groupCount ?? 0,
-        linesBad: 0,
-        changesCount: 0,
-      },
-    });
-
-    await auditService.append({
-      actorUserId: input.actorUserId,
-      action: AUDIT_ACTIONS.GROUPS_SYNC_FINISH,
-      entityType: "job_run",
-      entityId: jobRun.id,
-      meta: {
-        trigger: input.trigger,
-        status: "failed",
-        errorMessage,
-        exitCode: extras.exitCode ?? null,
-      },
-    });
-
-    logger.warn("groups.sync.failed", {
-      jobRunId: jobRun.id,
-      errorMessage,
-    });
-
-    return {
-      jobRunId: jobRun.id,
-      status: "failed",
-      errorMessage,
-      groupCount: extras.groupCount ?? 0,
-      exitCode: extras.exitCode ?? null,
-    };
-  };
-
-  let execResult;
-  try {
-    execResult = await deps.execute({
-      actionCode: "groups.sync",
-      timeoutMs: 120_000,
-    });
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Remote execution failed";
-    return fail(message);
-  }
-
-  if (execResult.timedOut) {
-    return fail("SSH exec timed out", {
-      exitCode: execResult.exitCode,
-      stdout: execResult.stdout,
-      stderr: execResult.stderr,
-    });
-  }
-
-  if (execResult.exitCode !== 0) {
-    return fail(remoteExitErrorMessage(execResult.exitCode, execResult.stderr), {
-      exitCode: execResult.exitCode,
-      stdout: execResult.stdout,
-      stderr: execResult.stderr,
-    });
-  }
-
-  if (!execResult.stdout.trim() || !stripAnsi(execResult.stdout).trim()) {
-    return fail(emptyStdoutErrorMessage(execResult.stderr), {
-      exitCode: execResult.exitCode,
-      stdout: execResult.stdout,
-      stderr: execResult.stderr,
-    });
-  }
-
-  let parsed;
-  try {
-    parsed = parseGroupsStdout(execResult.stdout);
-  } catch (error) {
-    return fail(
-      error instanceof Error ? error.message : "Failed to parse groups JSON",
-      {
-        exitCode: execResult.exitCode,
-        stdout: execResult.stdout,
-        stderr: execResult.stderr,
-      },
-    );
-  }
-
-  if (parsed.groups.length === 0) {
-    const liveCount = await prisma.routingGroup.count();
-    if (liveCount > 0) {
-      return fail(
-        "Пустой справочник групп отклонён — отказ от wipe непустой таблицы",
-        {
-          exitCode: execResult.exitCode,
-          stdout: execResult.stdout,
-          stderr: execResult.stderr,
-          groupCount: 0,
+      await auditService.append({
+        actorUserId: input.actorUserId,
+        action: AUDIT_ACTIONS.GROUPS_SYNC_FINISH,
+        entityType: "job_run",
+        entityId: jobRun.id,
+        meta: {
+          trigger: input.trigger,
+          status: "failed",
+          errorMessage,
         },
+      });
+
+      logger.warn("groups.sync.failed", {
+        jobRunId: jobRun.id,
+        errorMessage,
+      });
+
+      return {
+        jobRunId: jobRun.id,
+        status: "failed",
+        errorMessage,
+        groupCount: 0,
+        exitCode: null,
+      };
+    };
+
+    const read = await deps.read();
+    if (!read.ok) return fail(read.detail);
+    const accepted = acceptIncomingGroups(read.groups);
+    if (!accepted.ok) return fail(accepted.detail);
+
+    let applyResult;
+    try {
+      applyResult = await deps.apply(
+        { version: 0, groups: accepted.groups },
+        jobRun.id,
+        new Date(),
+      );
+    } catch (error) {
+      return fail(
+        error instanceof Error ? error.message : "Failed to apply groups snapshot",
       );
     }
-  }
 
-  let applyResult;
-  try {
-    applyResult = await deps.apply(parsed, jobRun.id, new Date());
-  } catch (error) {
-    return fail(
-      error instanceof Error ? error.message : "Failed to apply groups snapshot",
-      {
-        exitCode: execResult.exitCode,
-        stdout: execResult.stdout,
-        stderr: execResult.stderr,
-        groupCount: parsed.groups.length,
-      },
-    );
-  }
-
-  const finishedAt = new Date();
-  try {
-    const limits = await loadArtifactLimits();
-    await prisma.jobRunArtifact.upsert({
-      where: { jobRunId: jobRun.id },
-      create: {
-        jobRunId: jobRun.id,
-        stdout: truncateUtf8(execResult.stdout, limits.maxBytes),
-        stderr: truncateUtf8(execResult.stderr, limits.maxBytes),
-      },
-      update: {
-        stdout: truncateUtf8(execResult.stdout, limits.maxBytes),
-        stderr: truncateUtf8(execResult.stderr, limits.maxBytes),
-      },
-    });
-
-    await prisma.jobRun.update({
-      where: { id: jobRun.id },
-      data: {
-        status: "success",
-        finishedAt,
-        durationMs: finishedAt.getTime() - startedAt.getTime(),
-        errorMessage: null,
-        exitCode: execResult.exitCode,
-        phonesParsed: applyResult.groupCount,
-        linesBad: 0,
-        changesCount: applyResult.groupCount,
-        meta: {
-          groupCount: applyResult.groupCount,
-          version: parsed.version,
-          durationMsRemote: execResult.durationMs,
-        },
-      },
-    });
-
-    await pruneArtifacts(limits);
-
-    await auditService.append({
-      actorUserId: input.actorUserId,
-      action: AUDIT_ACTIONS.GROUPS_SYNC_FINISH,
-      entityType: "job_run",
-      entityId: jobRun.id,
-      meta: {
-        trigger: input.trigger,
-        status: "success",
-        groupCount: applyResult.groupCount,
-        exitCode: execResult.exitCode,
-      },
-    });
-  } catch (error) {
-    logger.warn("groups.sync.post_apply_finalize_failed", {
-      jobRunId: jobRun.id,
-      error: error instanceof Error ? error.message : String(error),
-    });
+    const finishedAt = new Date();
     try {
       await prisma.jobRun.update({
         where: { id: jobRun.id },
@@ -353,32 +149,67 @@ export async function processGroupsSync(
           finishedAt,
           durationMs: finishedAt.getTime() - startedAt.getTime(),
           errorMessage: null,
-          exitCode: execResult.exitCode,
+          exitCode: null,
           phonesParsed: applyResult.groupCount,
           linesBad: 0,
           changesCount: applyResult.groupCount,
+          meta: {
+            groupCount: applyResult.groupCount,
+            source: "rtu",
+          },
         },
       });
-    } catch (markError) {
-      logger.error("groups.sync.success_mark_failed", {
-        jobRunId: jobRun.id,
-        error: markError instanceof Error ? markError.message : String(markError),
+
+      await auditService.append({
+        actorUserId: input.actorUserId,
+        action: AUDIT_ACTIONS.GROUPS_SYNC_FINISH,
+        entityType: "job_run",
+        entityId: jobRun.id,
+        meta: {
+          trigger: input.trigger,
+          status: "success",
+          groupCount: applyResult.groupCount,
+        },
       });
+    } catch (error) {
+      logger.warn("groups.sync.post_apply_finalize_failed", {
+        jobRunId: jobRun.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      try {
+        await prisma.jobRun.update({
+          where: { id: jobRun.id },
+          data: {
+            status: "success",
+            finishedAt,
+            durationMs: finishedAt.getTime() - startedAt.getTime(),
+            errorMessage: null,
+            exitCode: null,
+            phonesParsed: applyResult.groupCount,
+            linesBad: 0,
+            changesCount: applyResult.groupCount,
+          },
+        });
+      } catch (markError) {
+        logger.error("groups.sync.success_mark_failed", {
+          jobRunId: jobRun.id,
+          error: markError instanceof Error ? markError.message : String(markError),
+        });
+      }
     }
-  }
 
-  logger.info("groups.sync.finished", {
-    jobRunId: jobRun.id,
-    groupCount: applyResult.groupCount,
-  });
+    logger.info("groups.sync.finished", {
+      jobRunId: jobRun.id,
+      groupCount: applyResult.groupCount,
+    });
 
-  return {
-    jobRunId: jobRun.id,
-    status: "success",
-    errorMessage: null,
-    groupCount: applyResult.groupCount,
-    exitCode: execResult.exitCode,
-  };
+    return {
+      jobRunId: jobRun.id,
+      status: "success",
+      errorMessage: null,
+      groupCount: applyResult.groupCount,
+      exitCode: null,
+    };
   } finally {
     await failJobRunIfStillRunning(
       jobRun.id,

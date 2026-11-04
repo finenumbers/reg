@@ -200,10 +200,10 @@ Follow [remote-server-setup.md](./remote-server-setup.md): dedicated user, force
 1. Login at `/login` with bootstrap admin.
 2. **Settings:** SSH host/port/user; import key (PPK/PEM); **Test connection** (auth/session only).
 3. **Registrations:** manual **Run poll** once; confirm `/jobs` and data on `/regs`.
-4. **Incoming groups / phones:** load groups once, then phones sync; spot-check XLSX «Группы» has no duplicate IDs.
-5. Only then enable Settings regular registrations poll and/or phones+groups load (separate intervals; still one replica).
+4. **API РТУ** saved, then enable phones+groups load. Incoming groups follow on the next groups turn and replace `routing_groups` with the current RTU list, including an empty list. A fault or a truncated read leaves the previous rows. Spot-check `/groups` against the RTU page before the next RTU CSV import.
+5. Only then enable Settings regular registrations poll (separate interval; still one replica). Phones keep their **Загрузить данные** button.
 
-**Sync data-loss note:** regs/phones/groups apply is full-replace. An empty dump is rejected when the table is non-empty, but a **truncated non-empty** softswitch dump (exit 0) can still wipe missing rows. After an anomalous sync, check `/jobs` (stderr/artifact) before trusting the snapshot.
+**Sync data-loss note:** regs and phones apply is full-replace. An empty phones or regs dump is rejected when the table is non-empty, but a **truncated non-empty** softswitch dump (exit 0) can still wipe missing phone rows. A successful groups read replaces the catalog with the current RTU list. A truncated or failed groups read does not. After an anomalous sync, check `/jobs` before trusting the snapshot.
 
 ## 6. Verify
 

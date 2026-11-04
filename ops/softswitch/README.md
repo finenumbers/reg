@@ -10,9 +10,9 @@ App command (PTY + sudo -n + cwd):
 
 Requires NOPASSWD on `/opt/scripts/check_regs.sh`. Softswitch script is cwd-sensitive.
 
-## Phones / groups (`export.py`)
+## Phones (`export.py`)
 
-App command (no PTY required; sudo -n + cwd) — used by both `phones.sync` and `groups.sync`:
+App command (no PTY required; sudo -n + cwd) — used by `phones.sync`. Incoming groups are read from the RTU API and do not run this script:
 
 ```text
 /bin/bash -c 'cd /opt/scripts && exec /usr/bin/sudo -n -- ./export.py'

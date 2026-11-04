@@ -80,13 +80,13 @@ export const ACTION_REGISTRY: Record<AllowedActionCode, AllowedActionDefinition>
   },
   "groups.sync": {
     code: "groups.sync",
-    kind: "ssh",
-    remotePath: "/opt/scripts/export.py",
+    kind: "local",
+    remotePath: "/opt/scripts/groups_sync",
     argv: [],
     module: "groups",
-    description: "Sync routing groups catalog from softswitch (read-only JSON)",
+    description: "Read incoming groups from the RTU API",
     usesPlatformExecWrapper: true,
-    elevateWithSudo: true,
+    elevateWithSudo: false,
     needsPty: false,
   },
   "cdr.import": {

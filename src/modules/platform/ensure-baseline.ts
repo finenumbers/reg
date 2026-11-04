@@ -111,13 +111,14 @@ export async function ensurePlatformBaseline(): Promise<{ ok: true }> {
     where: { code: "groups.sync" },
     create: {
       code: "groups.sync",
-      remotePath: "/opt/scripts/export.py",
-      description: "Sync routing groups catalog (read-only JSON)",
+      remotePath: "/opt/scripts/groups_sync",
+      description: "Read incoming groups from the RTU API",
       enabled: true,
       module: "groups",
     },
     update: {
-      remotePath: "/opt/scripts/export.py",
+      remotePath: "/opt/scripts/groups_sync",
+      description: "Read incoming groups from the RTU API",
       enabled: true,
       module: "groups",
     },

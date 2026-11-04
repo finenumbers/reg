@@ -428,12 +428,12 @@ model PhoneImportState {
   @@map("phone_import_state")
 }
 
-/// Softswitch routing groups catalog (snapshot from export.py groups[]).
+/// RTU incoming groups (ID and name from the page «Входящие группы»).
 model RoutingGroup {
   id           String   @id @default(cuid())
-  /// routing_group_id from softswitch
+  /// ID column of the RTU page
   externalId   String   @unique
-  /// routing_group_name
+  /// Название of the RTU page
   name         String   @unique
   sortOrder    Int      @default(0)
   lastSyncedAt DateTime

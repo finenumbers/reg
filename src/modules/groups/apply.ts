@@ -1,5 +1,6 @@
 /**
- * Replace routing_groups with export.py groups[] snapshot.
+ * Replace routing_groups with the current RTU incoming-group list.
+ * An empty list is a complete current list and clears the table.
  */
 
 import { prisma } from "@/lib/db";

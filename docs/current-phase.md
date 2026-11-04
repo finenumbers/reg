@@ -1,7 +1,13 @@
-# Current Phase — production (v1.223.0)
+# Current Phase — production (v1.224.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, number geography, free numbers, purchased numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls.  
-**Date:** 2026-11-04
+**Date:** 2026-11-05
+
+## v1.224.0 — Incoming groups load from the RTU API
+
+There is no migration. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. Keep a single `app` replica. Replace the `app` container. The switch is only read.
+
+«Входящие группы» no longer has «Загрузить данные». The stored ID and name are replaced by the current RTU page «Входящие группы» when Settings regular phone-and-group load is on. Phones still use `export.py` and still take turns with groups. A complete read, including an empty list, replaces `routing_groups`. A fault, a timeout, or a truncated page leaves the previous rows. Nothing is written to the switch.
 
 ## v1.223.0 — Live-call direction and right-aligned catalog numbers
 

@@ -118,7 +118,7 @@ Do not hand-author conflicting auth table definitions. App RBAC (`roles` / `perm
 Authorization: Bearer reg_<secret>
 ```
 
-Allowed with `regs:read` / `phones:read`: `GET /api/regs*`, `GET /api/phones*` (except RTU POST), `GET /api/groups*`, `GET /api/jobs`. Tariff routes (`/api/tariffs`, `/api/tariffs/import`) and SMG xlsx export (`/api/smg/export`) are session-only and are not open to API keys.
+Allowed with `regs:read` / `phones:read`: `GET /api/regs*`, `GET /api/phones*` (except RTU POST), `GET /api/groups`, `GET /api/jobs`. Tariff routes (`/api/tariffs`, `/api/tariffs/import`) and SMG xlsx export (`/api/smg/export`) are session-only and are not open to API keys.
 
 APIs:
 
@@ -158,13 +158,11 @@ UI (`/phones`):
 APIs:
 
 - `GET /api/groups` — routing groups catalog (`phones:read`)
-- `GET /api/groups/status` — last `groups.sync` status (`phones:read`)
-- `POST /api/groups/request` — enqueue `groups.sync` (`phones:request`)
 
 UI (`/groups`):
 
 - Read-only ID / Name table (sorted by ID ascending)
-- **Загрузить данные** runs the same read-only `export.py`, applies only `groups[]`
+- The snapshot is replaced by the RTU page «Входящие группы» when Settings regular phone-and-group load is on. There is no manual load button.
 
 ## Tariffs
 

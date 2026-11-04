@@ -5,7 +5,7 @@
  * - regs: regsPollEnabled / regsPollIntervalSec → regs.poll
  *   (same loop always drains CDR inbox, SMG inbox, SMG syslog traces, and VoIPmonitor)
  * - export: exportSyncEnabled / exportSyncIntervalSec → phones.sync
- *   or groups.sync (one export.py at a time, alternating)
+ *   then groups.sync (phones use export.py; groups read the RTU API)
  * - sides: cdrSidesRefreshEnabled / interval → cdr.sides.refresh
  *   (also chained after phones.sync / cdr.import)
  * - parking: always, every 60s, reads calls.log only
@@ -545,7 +545,7 @@ function startSchedulerLoop(runtime: SchedulerJobRuntime): void {
     note:
       "In-process scheduler loop active (single-replica only). " +
       "Duplicate app instances will duplicate polls. " +
-      "regs.poll uses regsPollEnabled; phones/groups use exportSyncEnabled; " +
+      "regs.poll uses regsPollEnabled; phones.sync and groups.sync use exportSyncEnabled; " +
       "cdr.sides.refresh uses cdrSidesRefreshEnabled.",
   });
   // First regs/housekeeping tick after a short delay so boot is not blocked.
@@ -648,7 +648,7 @@ export function evaluateSchedulerBootstrap(runtime: SchedulerJobRuntime): {
     detail:
       "Auto-scheduler loop started (single-replica only). " +
       "regs.poll when regsPollEnabled=true; phones.sync/groups.sync when " +
-      "exportSyncEnabled=true (one export.py at a time); " +
+      "exportSyncEnabled=true (phones.sync and groups.sync take turns); " +
       "cdr.sides.refresh when cdrSidesRefreshEnabled=true; " +
       "intervals from Settings; anti-overlap per action.",
   };

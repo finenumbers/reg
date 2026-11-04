@@ -1,9 +1,8 @@
 /**
- * Routing groups catalog — list + operational status.
+ * Routing groups catalog — the latest RTU snapshot.
  */
 
 import { prisma } from "@/lib/db";
-import { getJobRunSummary } from "@/modules/jobs/query";
 import { sortRoutingGroupsById } from "@/modules/groups/sort";
 
 export type RoutingGroupListItem = {
@@ -16,17 +15,6 @@ export type RoutingGroupListItem = {
 export type ListRoutingGroupsResult = {
   items: RoutingGroupListItem[];
   total: number;
-  lastSyncedAt: string | null;
-};
-
-export type GroupsOperationalStatus = {
-  lastJobStatus: "never" | "running" | "success" | "failed";
-  lastError: string | null;
-  lastFailedError: string | null;
-  runningCount: number;
-  groupCount: number;
-  /** Last groups.sync job finishedAt (or startedAt) — UI wait uses this, not catalog sync time. */
-  lastFinishedAt: string | null;
   lastSyncedAt: string | null;
 };
 
@@ -52,36 +40,7 @@ export async function listRoutingGroups(): Promise<ListRoutingGroupsResult> {
   };
 }
 
-export async function getGroupsOperationalStatus(): Promise<GroupsOperationalStatus> {
-  const [summary, state, groupCount] = await Promise.all([
-    getJobRunSummary("groups.sync"),
-    prisma.routingGroupImportState.findUnique({ where: { id: 1 } }),
-    prisma.routingGroup.count(),
-  ]);
-
-  const lastAny = summary.lastAny;
-  let lastJobStatus: GroupsOperationalStatus["lastJobStatus"] = "never";
-  if (lastAny) {
-    lastJobStatus = lastAny.status;
-  }
-
-  return {
-    lastJobStatus,
-    lastError:
-      lastAny?.status === "failed"
-        ? (lastAny.errorMessage ?? "Sync failed")
-        : lastAny?.status === "success"
-          ? null
-          : (summary.lastFailed?.errorMessage ?? null),
-    lastFailedError: summary.lastFailed?.errorMessage ?? null,
-    runningCount: summary.runningCount,
-    groupCount: state?.groupCount ?? groupCount,
-    lastFinishedAt: lastAny?.finishedAt ?? lastAny?.startedAt ?? null,
-    lastSyncedAt: state?.lastSyncedAt?.toISOString() ?? null,
-  };
-}
-
-/** Name → softswitch ID map for RTU import. */
+/** Name → RTU incoming-group ID for the RTU import CSV. */
 export async function loadGroupIdByNameMap(): Promise<Map<string, string>> {
   const rows = await prisma.routingGroup.findMany({
     select: { externalId: true, name: true },

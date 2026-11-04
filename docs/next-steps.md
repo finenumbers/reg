@@ -12,7 +12,7 @@ Phase 7 (production readiness) is complete. Recommended follow-ups are **ops ena
 ## 2. Enable auto-poll (only when ready)
 
 1. Single `app` replica confirmed
-2. SSH test + manual regs poll, phones sync, and groups sync OK
+2. SSH test + manual regs poll and phones sync OK. Incoming groups load from the RTU API on the phones+groups schedule.
 3. Settings → enable regular registrations poll and/or phones+groups load (separate checkboxes and intervals, ≥30s) → Save
 4. Watch `/jobs` for `trigger=schedule`; `phones.sync` / `groups.sync` alternate on the export interval. Disable the matching checkbox to stop that loop.
 

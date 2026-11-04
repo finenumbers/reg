@@ -27,12 +27,12 @@
 |-------------|-------------|------|--------------|
 | `regs.poll` | `/opt/scripts/check_regs.sh` | `[]` | `/bin/bash -c 'cd /opt/scripts && exec /usr/bin/sudo -n -- ./check_regs.sh'` (PTY) |
 | `phones.sync` | `/opt/scripts/export.py` | `[]` | `/bin/bash -c 'cd /opt/scripts && exec /usr/bin/sudo -n -- ./export.py'` (no PTY) |
-| `groups.sync` | `/opt/scripts/export.py` | `[]` | `/bin/bash -c 'cd /opt/scripts && exec /usr/bin/sudo -n -- ./export.py'` (no PTY) |
+| `groups.sync` | local (API РТУ) | `[]` | не SSH — чтение страницы «Входящие группы» |
 | `cdr.import` | local (FTP inbox) | `[]` | не SSH — drain локальной папки |
 | `cdr.sides.refresh` | local | `[]` | не SSH — сверка Описаний каталога с `cdr_records.side_*` |
 | `cdr.purge.month` | local | `[]` | не SSH — пакетное удаление самого старого полного месяца CDR |
 
-`phones.sync` / `groups.sync` — read-only `SELECT` в MySQL softswitch; JSON в stdout (`version` 2 включает `groups[]`); **без** записи `export.xlsx` и без SFTP. `groups.sync` применяет только каталог routing groups, таблицы телефонов не трогает.
+`phones.sync` — read-only `SELECT` в MySQL softswitch; JSON в stdout (`version` 2 включает `groups[]`, этот массив номера не применяют); **без** записи `export.xlsx` и без SFTP. `groups.sync` SSH не вызывает: читает страницу РТУ «Входящие группы» и заменяет только `routing_groups`.
 
 Правила:
 
@@ -128,6 +128,7 @@ Ciphertext envelope в БД: `v1:<iv_b64>:<authTag_b64>:<ciphertext_b64>`.
 - Настройки хранят HTTPS origin, логин и пароль веб-интерфейса РТУ. Пароль — AES-256-GCM ciphertext, в API только `hasRtuSoapPassword`.
 - `POST /api/settings/rtu/test` — одна читающая операция `getObjects` (таблицы и процедуры). Конверт с паролем уходит только на host из origin. Запись и `call` клиент собрать не может.
 - `GET /api/live-calls` — сессия с `phones:read`. API-ключ маршрут не открывает. Сервер читает `describeTable` и `selectRowset` только у «Транзитные вызовы (ПКомм)» и «Транзитные вызовы (ПУпр)». Имена таблиц с клиента не принимаются. Удаление вызова не отправляется. Пока раздел открыт, снимок обновляется не чаще одного раза в 3 секунды на процесс.
+- `groups.sync` читает `describeTable` и `selectRowset` только у страницы «Входящие группы» в папке «Оборудование». Заголовок `node` и `getLookup` не отправляются. Успешный список целиком заменяет `routing_groups`. Конверт и тело ответа в артефакты задания не пишутся.
 - Сессия `settings:write`. API-ключи маршрут не открывают. 5 проверок на пользователя за 10 минут и один выполняющийся тест на процесс.
 - Аудит `rtu.soap.test`: origin, логин, код, два счётчика. Список объектов и SOAP-тело не пишутся.
 - Сертификат коммутатора можно вставить в Настройках как PEM. Он доверяется проверке доступа и чтению текущих вызовов и не становится корнем процесса. Совпадение отпечатка листа разрешает адрес по IP; чужой лист того же CA — нет. Проверка подписи и срока не отключается. `NODE_EXTRA_CA_CERTS` по-прежнему добавляет корень всему процессу. SSH allowlist не расширяется.

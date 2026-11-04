@@ -1405,8 +1405,8 @@ export function SettingsForm({ initial, parkingKey }: Props) {
             </Label>
           </div>
           <p className="text-sm text-muted-foreground">
-            Отдельное расписание: export.py по очереди (сначала номера, затем
-            входящие группы). Не совмещается с опросом регистраций.
+            Отдельное расписание: номера через export.py, входящие группы через
+            API РТУ, по очереди. Не совмещается с опросом регистраций.
           </p>
           <div className="space-y-2">
             <Label htmlFor="export-interval">

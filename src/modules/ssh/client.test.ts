@@ -4,7 +4,7 @@ import {
   buildAllowlistedExecCommand,
   Ssh2Client,
 } from "@/modules/ssh/client";
-import { ACTION_REGISTRY } from "@/modules/actions/registry";
+import { ACTION_REGISTRY, resolveActionForExecution } from "@/modules/actions/registry";
 
 describe("SSH UTF-8 chunk reassembly", () => {
   it("keeps Регистрация intact when «с» is split across buffers", () => {
@@ -36,10 +36,10 @@ describe("buildAllowlistedExecCommand", () => {
     );
   });
 
-  it("returns cd+/sudo ./export.py for groups.sync", () => {
-    expect(buildAllowlistedExecCommand(ACTION_REGISTRY["groups.sync"])).toBe(
-      "/bin/bash -c 'cd /opt/scripts && exec /usr/bin/sudo -n -- ./export.py'",
-    );
+  it("does not build an SSH command for groups.sync", () => {
+    expect(ACTION_REGISTRY["groups.sync"].kind).toBe("local");
+    expect(ACTION_REGISTRY["groups.sync"].remotePath).not.toContain("export.py");
+    expect(() => resolveActionForExecution("groups.sync")).toThrow(/local-only/);
   });
 
   it("returns bare path when elevateWithSudo is false", () => {

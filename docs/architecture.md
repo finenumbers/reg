@@ -19,7 +19,7 @@
 - primary login identifier = **username** (Better Auth username plugin);
 - UI kit = **shadcn/ui + Tailwind CSS**; таблицы данных = custom tables + column filters;
 - Prisma-модели Better Auth = **adapter/CLI-generated source of truth** (не изобретать кастомную auth-схему до генерации);
-- in-process scheduler bootstrap: `instrumentation.ts` (always starts timer loops); `regs.poll` when `regsPollEnabled`; `phones.sync`/`groups.sync` when `exportSyncEnabled` (one `export.py` at a time); `cdr.sides.refresh` when `cdrSidesRefreshEnabled`; single `app` replica assumed (no leader election in v1).
+- in-process scheduler bootstrap: `instrumentation.ts` (always starts timer loops); `regs.poll` when `regsPollEnabled`; `phones.sync`/`groups.sync` when `exportSyncEnabled` (phones run `export.py`, groups read the RTU API, one turn at a time); `cdr.sides.refresh` when `cdrSidesRefreshEnabled`; single `app` replica assumed (no leader election in v1).
 
 ## 1. Цель системы
 
@@ -32,7 +32,7 @@
 
 Первый продуктовый модуль — **мониторинг SIP-регистраций** (`check_regs.sh`). Второй — **телефонные номера / шлюзы** (`export.py`). Архитектура рассчитана на дополнительные модули вокруг других скриптов.
 
-Руководства SATEL по РТУ МТТ лежат только на машине разработчика в `docs/vendor/rtu-mtt/`. Каталог исключён из git и из Docker-контекста, поэтому в публичный репозиторий и в образ они не входят. Справочник API в комплекте описывает продукт 2.0, остальные файлы — 2.2.0. Регистрации, номера и CDR по-прежнему идут по SSH allowlist и файлам. SOAP не входит в SSH. Проверка доступа в Настройках читает `getObjects` один раз. «Текущие звонки» дополнительно читает `describeTable` и `selectRowset` у двух таблиц транзитных вызовов (сводные страницы или общие шаблоны модулей). Если у «Состояние вызова» стоит `have_lookup`, та же страница читает `getLookup` для этой колонки. Собранные строки показываются по «Времени начала», поздние сверху; пустая и неразобранная метка остаётся внизу. Подпись снимка в UTC. Сортировка запроса остаётся пустой. PEM сертификата коммутатора из настроек доверяется этим чтениям. Запись на коммутатор возможна только если отдельная задача называет операцию.
+Руководства SATEL по РТУ МТТ лежат только на машине разработчика в `docs/vendor/rtu-mtt/`. Каталог исключён из git и из Docker-контекста, поэтому в публичный репозиторий и в образ они не входят. Справочник API в комплекте описывает продукт 2.0, остальные файлы — 2.2.0. Регистрации, номера и CDR по-прежнему идут по SSH allowlist и файлам. SOAP не входит в SSH. Проверка доступа в Настройках читает `getObjects` один раз. «Текущие звонки» дополнительно читает `describeTable` и `selectRowset` у двух таблиц транзитных вызовов (сводные страницы или общие шаблоны модулей). Если у «Состояние вызова» стоит `have_lookup`, та же страница читает `getLookup` для этой колонки. Собранные строки показываются по «Времени начала», поздние сверху; пустая и неразобранная метка остаётся внизу. Подпись снимка в UTC. Сортировка запроса остаётся пустой. PEM сертификата коммутатора из настроек доверяется этим чтениям. «Входящие группы» читает `describeTable` и `selectRowset` у страницы «Входящие группы» в папке «Оборудование», без заголовка `node` и без `getLookup`. Запись на коммутатор возможна только если отдельная задача называет операцию.
 
 ## 2. Разделение Platform Core и Module
 
@@ -70,6 +70,15 @@ Core **не знает** бизнес-семантику регистраций 
 | Storage | `phone_endpoints`, `phone_gateways` (полный replace snapshot) |
 | API | list/facets/status/request; XLSX export; RTU CSV convert; UFW XLSX export |
 | UI | `/phones` — фильтры, экспорт, импорт в РТУ/UFW |
+
+### Module: Incoming groups
+
+| Область | Ответственность |
+|---------|-----------------|
+| Action | `groups.sync` — локальное чтение API РТУ, без SSH |
+| Storage | `routing_groups` (полный replace текущего списка ID и «Название») |
+| API | `GET /api/groups` |
+| UI | `/groups` — таблица без ручной загрузки |
 
 Будущий модуль = новый `action` + parser + таблицы/API/UI + processor. Ядро не переписывается.
 
