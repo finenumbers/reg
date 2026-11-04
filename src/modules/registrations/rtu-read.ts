@@ -1,13 +1,21 @@
 /**
  * Read the current registration pages from the RTU SOAP API.
- * getObjects, describeTable, selectRowset, and getLookup for «Состояние» only.
- * No node header.
+ * A summary page is one selectRowset without a node header.
+ * The shared template is one selectRowset per signaling or scripting module.
+ * getLookup is only for «Состояние» and never carries a node header.
  */
 
-import { mapColumns } from "@/modules/live-calls/catalog";
+import {
+  ACTIVE_MODULES_TITLE,
+  findActiveModules,
+  mapColumns,
+} from "@/modules/live-calls/catalog";
+import { selectRegistrationModules } from "@/modules/live-calls/modules";
 import { MAX_CALL_PAGES, conferenceIdSet, decideNextPage } from "@/modules/live-calls/pages";
 import {
   findRegistrationTable,
+  type RegistrationObject,
+  type RegistrationTableHit,
   PCOMM_REGISTRATIONS_TITLE,
   PUPR_REGISTRATIONS_TITLE,
   REGISTRATION_ADDRESS_TITLE,
@@ -39,6 +47,8 @@ import { readCallReads, readWsdl, type CallReadPlan } from "@/modules/rtu-soap/w
 
 const WSDL_TIMEOUT_MS = 10_000;
 const READ_TIMEOUT_MS = 12_000;
+const MODULE_COLUMN = "Модуль";
+const MODULES_TRUNCATED = "Список активных модулей прочитан не целиком.";
 
 export type RegistrationsAccount = {
   origin: string;
@@ -200,22 +210,36 @@ export async function readRegistrations(deps: {
     return { ok: false, detail: "Колонка РТУ имеет неподдерживаемое имя." };
   }
 
-  const pcommPages = await readPages(
+  const named = await loadRegistrationModules(
     deps,
     exchange,
     reads,
-    pcommTable.objectId,
+    objects.objects,
+    {
+      signaling: pcommTable.source === "template",
+      scripting: puprTable.source === "template",
+    },
+  );
+  if (!named.ok) return named;
+
+  const pcommPages = await readSide(
+    deps,
+    exchange,
+    reads,
+    pcommTable,
     pcommNames,
     pcommColumns.columns.id.name,
+    named.signaling,
   );
   if (!pcommPages.ok) return pcommPages;
-  const puprPages = await readPages(
+  const puprPages = await readSide(
     deps,
     exchange,
     reads,
-    puprTable.objectId,
+    puprTable,
     puprNames,
     puprColumns.columns.id.name,
+    named.scripting,
   );
   if (!puprPages.ok) return puprPages;
 
@@ -335,6 +359,89 @@ function presentState(
   return { ok: true, label: labels.get(key) ?? "" };
 }
 
+async function loadRegistrationModules(
+  deps: { account: RegistrationsAccount; fetchImpl?: typeof fetch },
+  exchange: RegistrationsExchange,
+  reads: Extract<CallReadPlan, { ok: true }>,
+  objects: readonly RegistrationObject[],
+  need: { signaling: boolean; scripting: boolean },
+): Promise<
+  { ok: true; signaling: string[]; scripting: string[] } | { ok: false; detail: string }
+> {
+  if (!need.signaling && !need.scripting) {
+    return { ok: true, signaling: [], scripting: [] };
+  }
+  const found = findActiveModules(objects);
+  if (!found.ok) {
+    return {
+      ok: false,
+      detail:
+        found.reason === "many"
+          ? `Каталог РТУ: несколько страниц «${ACTIVE_MODULES_TITLE}».`
+          : `Каталог РТУ: нет страницы «${ACTIVE_MODULES_TITLE}».`,
+    };
+  }
+  const described = await describeColumns(
+    deps,
+    exchange,
+    reads,
+    found.objectId,
+    ACTIVE_MODULES_TITLE,
+    { module: MODULE_COLUMN },
+  );
+  if (!described.ok) return described;
+  if (described.columns.module.haveLookup) {
+    return { ok: false, detail: `Колонка «${MODULE_COLUMN}» имеет список подстановки.` };
+  }
+  if (!isRtuColumnName(described.columns.module.name)) {
+    return { ok: false, detail: "Колонка РТУ имеет неподдерживаемое имя." };
+  }
+  const pages = await readPages(
+    deps,
+    exchange,
+    reads,
+    found.objectId,
+    [described.columns.module.name],
+    described.columns.module.name,
+    undefined,
+    MODULES_TRUNCATED,
+  );
+  if (!pages.ok) return pages;
+  return selectRegistrationModules(
+    pages.rows.map((row) => row[described.columns.module.name] ?? ""),
+    need,
+  );
+}
+
+async function readSide(
+  deps: { account: RegistrationsAccount; fetchImpl?: typeof fetch },
+  exchange: RegistrationsExchange,
+  reads: Extract<CallReadPlan, { ok: true }>,
+  table: RegistrationTableHit,
+  columns: string[],
+  idColumn: string,
+  moduleNames: readonly string[],
+): Promise<{ ok: true; rows: Array<Record<string, string>> } | { ok: false; detail: string }> {
+  if (table.source === "summary") {
+    return readPages(deps, exchange, reads, table.objectId, columns, idColumn);
+  }
+  const rows: Array<Record<string, string>> = [];
+  for (const moduleName of moduleNames) {
+    const page = await readPages(
+      deps,
+      exchange,
+      reads,
+      table.objectId,
+      columns,
+      idColumn,
+      moduleName,
+    );
+    if (!page.ok) return page;
+    rows.push(...page.rows);
+  }
+  return { ok: true, rows };
+}
+
 async function readPages(
   deps: { account: RegistrationsAccount; fetchImpl?: typeof fetch },
   exchange: RegistrationsExchange,
@@ -342,6 +449,8 @@ async function readPages(
   objectId: string,
   columns: string[],
   idColumn: string,
+  moduleName?: string,
+  truncatedDetail?: string,
 ): Promise<{ ok: true; rows: Array<Record<string, string>> } | { ok: false; detail: string }> {
   return collectRegistrationPages(async (offset) => {
     let envelope: string;
@@ -352,7 +461,7 @@ async function readPages(
         deps.account.password,
         objectId,
         columns,
-        undefined,
+        moduleName,
         offset,
       );
     } catch {
@@ -372,7 +481,7 @@ async function readPages(
       return { ok: false, detail: "Ответ selectRowset не разобран." };
     }
     return { ok: true, rows: parsed.rows };
-  }, idColumn);
+  }, idColumn, truncatedDetail);
 }
 
 export async function collectRegistrationPages(
@@ -382,6 +491,7 @@ export async function collectRegistrationPages(
     { ok: true; rows: Array<Record<string, string>> } | { ok: false; detail: string }
   >,
   idColumn: string,
+  truncatedDetail = "Список регистраций прочитан не целиком.",
 ): Promise<
   { ok: true; rows: Array<Record<string, string>> } | { ok: false; detail: string }
 > {
@@ -401,7 +511,7 @@ export async function collectRegistrationPages(
     });
     if (decision.append) rows.push(...selected.rows);
     if (decision.truncated) {
-      return { ok: false, detail: "Список регистраций прочитан не целиком." };
+      return { ok: false, detail: truncatedDetail };
     }
     if (decision.action === "stop") break;
     previousIds = pageIds;

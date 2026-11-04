@@ -17,6 +17,8 @@ export const REGISTRATION_STATE_TITLE = "Состояние";
 export const REGISTRATION_AGENT_TITLE = "Агент пользователя";
 
 const PER_MODULE = "Данные по модулям";
+/** Per-module page leaf. The object title stays «Регистрации (ПКомм)» or «Регистрации (ПУпр)». */
+const TEMPLATE_LEAF = "Регистрации";
 
 export type RegistrationObject = {
   objectId: string;
@@ -25,30 +27,38 @@ export type RegistrationObject = {
   type: string;
 };
 
+export type RegistrationTableHit = {
+  ok: true;
+  objectId: string;
+  source: "summary" | "template";
+};
+
 export function findRegistrationTable(
   objects: readonly RegistrationObject[],
   title: string,
-): { ok: true; objectId: string } | { ok: false; detail: string } {
+): RegistrationTableHit | { ok: false; detail: string } {
   const want = normalizeRtuLabel(title);
   const monitor = normalizeRtuLabel(REGISTRATIONS_MONITOR);
   const titled = objects.filter(
     (item) => item.type === "table" && normalizeRtuLabel(item.title) === want,
   );
-  const hits = titled.filter((item) => {
+  const summary = titled.filter((item) => {
     if (normalizeRtuLabel(item.path).includes(PER_MODULE)) return false;
     const parts = pathSegments(item.path);
     return parts.includes(monitor) && parts[parts.length - 1] === want;
   });
-  if (hits.length > 1) {
+  if (summary.length > 1) {
     return { ok: false, detail: `Несколько таблиц «${title}».` };
   }
-  const hit = hits[0];
-  if (hit) {
-    if (!isRtuObjectId(hit.objectId)) {
-      return { ok: false, detail: "Идентификатор таблицы РТУ не подходит для чтения." };
-    }
-    return { ok: true, objectId: hit.objectId };
+  const summaryHit = summary[0];
+  if (summaryHit) return accept(summaryHit, "summary");
+
+  const templates = titled.filter((item) => isSharedRegistrationTemplate(item.path));
+  if (templates.length > 1) {
+    return { ok: false, detail: `Несколько таблиц «${title}».` };
   }
+  const templateHit = templates[0];
+  if (templateHit) return accept(templateHit, "template");
   if (titled.length === 0) {
     return { ok: false, detail: `Таблица «${title}» не найдена.` };
   }
@@ -58,6 +68,29 @@ export function findRegistrationTable(
     ok: false,
     detail: `Таблица «${title}» не найдена: заголовков ${titled.length}, пути ${paths.join("; ")}${more}.`,
   };
+}
+
+function accept(
+  hit: RegistrationObject,
+  source: "summary" | "template",
+): RegistrationTableHit | { ok: false; detail: string } {
+  if (!isRtuObjectId(hit.objectId)) {
+    return { ok: false, detail: "Идентификатор таблицы РТУ не подходит для чтения." };
+  }
+  return { ok: true, objectId: hit.objectId, source };
+}
+
+function isSharedRegistrationTemplate(path: string): boolean {
+  const parts = normalizeRtuLabel(path)
+    .split(";")
+    .map((part) => part.trim());
+  const index = parts.indexOf(PER_MODULE);
+  if (index < 0 || !parts.includes(normalizeRtuLabel(REGISTRATIONS_MONITOR))) return false;
+  return (
+    parts[index + 1] === "" &&
+    parts[index + 2] === TEMPLATE_LEAF &&
+    index + 2 === parts.length - 1
+  );
 }
 
 function pathSegments(path: string): string[] {

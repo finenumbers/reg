@@ -1,7 +1,13 @@
-# Current Phase — production (v1.225.0)
+# Current Phase — production (v1.225.1)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, number geography, free numbers, purchased numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls.  
 **Date:** 2026-11-05
+
+## v1.225.1 — Registration template is read per module
+
+There is no migration. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. Keep a single `app` replica. Replace the `app` container. The switch is only read.
+
+`regs.poll` was refusing the only «Регистрации (ПКомм)» object because its path is the shared template `Данные по модулям;;Регистрации`. A summary page is still preferred and is still one read without `node`. When the summary is absent, ПКомм is read once per `signaling-<digits>` module and ПУпр once per `scripting-<digits>` module, at most four of each, from «Активные модули». One failed or truncated module leaves the previous rows. An empty read still does not wipe a non-empty `reg_current`. Compare `/regs` with the RTU registration pages before trusting «Без регистрации». The H.323 balancer page is not read.
 
 ## v1.225.0 — Registrations load from the RTU API
 

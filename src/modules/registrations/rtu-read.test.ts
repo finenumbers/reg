@@ -11,6 +11,7 @@ const PASSWORD = "s3cret";
 const PCOMM_ID = "06.1501.01";
 const PUPR_ID = "06.1502.01";
 const DECOY_ID = "06.1599.01";
+const MODULES_ID = "08.2600.01";
 
 const WSDL = `<?xml version="1.0"?>
 <definitions xmlns="http://schemas.xmlsoap.org/wsdl/"
@@ -178,6 +179,79 @@ function harness(input?: {
   return { exchange, bodies };
 }
 
+const TEMPLATE_OBJECTS = `<?xml version="1.0"?>
+<Envelope><Body><getObjectsResponse>
+  ${objectItem(PCOMM_ID, "Регистрации (ПКомм)", "Подсистема коммутации;Мониторинг ПКомм;Данные по модулям;;Регистрации")}
+  ${objectItem(DECOY_ID, "Регистрации (ПКомм)", "Подсистема коммутации;Мониторинг ПКомм;Данные по модулям;signaling-1;Регистрации")}
+  ${objectItem(PUPR_ID, "Регистрации (ПУпр)", "Подсистема коммутации;Мониторинг ПКомм;Данные по модулям;;Регистрации")}
+  ${objectItem(MODULES_ID, "Активные модули", "Подсистема коммутации;Мониторинг ПКомм;Активные модули")}
+</getObjectsResponse></Body></Envelope>`;
+
+const MODULE_DESCRIBE = `<?xml version="1.0"?><Envelope><Body><describeTableResponse><columns>
+  ${column("mod_nm", "Модуль")}
+</columns></describeTableResponse></Body></Envelope>`;
+
+const MODULE_ROWS = `<?xml version="1.0"?><Envelope><Body><selectRowsetResponse>
+  ${row([["mod_nm", "media-1"]])}
+  ${row([["mod_nm", "signaling-1"]])}
+  ${row([["mod_nm", "scripting-1"]])}
+</selectRowsetResponse></Body></Envelope>`;
+
+const MODULE_FAULT = `<?xml version="1.0"?><Envelope><Body><Fault><faultstring>module down</faultstring></Fault></Body></Envelope>`;
+
+function templateHarness(input?: {
+  failSignaling?: boolean;
+  moduleRows?: string;
+}): { exchange: RegistrationsExchange; bodies: string[] } {
+  const bodies: string[] = [];
+  const exchange: RegistrationsExchange = async (call) => {
+    if (call.method === "GET") return { ok: true, status: 200, text: WSDL };
+    const body = call.body ?? "";
+    bodies.push(body);
+    for (const token of ["insertRowset", "deleteRowset", "updateRowset", "checkRowset", "http://mfisoft.ru/auth"]) {
+      expect(body).not.toContain(token);
+    }
+    expect(body).not.toContain(DECOY_ID);
+    if (body.includes("getObjects")) return { ok: true, status: 200, text: TEMPLATE_OBJECTS };
+    if (body.includes("describeTable")) {
+      expect(body).not.toContain("args:node");
+      if (body.includes(MODULES_ID)) return { ok: true, status: 200, text: MODULE_DESCRIBE };
+      return {
+        ok: true,
+        status: 200,
+        text: body.includes(PUPR_ID) ? PUPR_DESCRIBE : PCOMM_DESCRIBE,
+      };
+    }
+    if (body.includes("selectRowset") && body.includes(MODULES_ID)) {
+      expect(body).not.toContain("args:node");
+      const items = input?.moduleRows ?? MODULE_ROWS;
+      return {
+        ok: true,
+        status: 200,
+        text: items.startsWith("<?xml")
+          ? items
+          : `<?xml version="1.0"?><Envelope><Body><selectRowsetResponse>${items}</selectRowsetResponse></Body></Envelope>`,
+      };
+    }
+    if (body.includes(">signaling-1<")) {
+      expect(body).toContain(PCOMM_ID);
+      expect(body).not.toContain(PUPR_ID);
+      return {
+        ok: true,
+        status: 200,
+        text: input?.failSignaling ? MODULE_FAULT : PCOMM_ROWS,
+      };
+    }
+    if (body.includes(">scripting-1<")) {
+      expect(body).toContain(PUPR_ID);
+      expect(body).not.toContain("media-1");
+      return { ok: true, status: 200, text: PUPR_ROWS };
+    }
+    throw new Error("unexpected call");
+  };
+  return { exchange, bodies };
+}
+
 const account = {
   origin: ORIGIN,
   login: "reader",
@@ -238,6 +312,59 @@ describe("readRegistrations", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.pcomm[0]?.state).toBe("Зарегистрирован");
+  });
+
+  it("reads the shared template once per signaling and scripting module", async () => {
+    const { exchange, bodies } = templateHarness();
+    const result = await readRegistrations({ account, exchange });
+    expect(result).toEqual({
+      ok: true,
+      pcomm: [
+        {
+          id: "1",
+          name: "100",
+          aliases: "",
+          address: "1.2.3.4:5060",
+          state: "Зарегистрирован",
+        },
+      ],
+      pupr: [{ id: "1", userAgent: "Yealink" }],
+    });
+    const nodes = bodies.filter((body) => body.includes("<node "));
+    expect(nodes).toHaveLength(2);
+    expect(nodes.some((body) => body.includes(">signaling-1<") && body.includes(PCOMM_ID))).toBe(
+      true,
+    );
+    expect(nodes.some((body) => body.includes(">scripting-1<") && body.includes(PUPR_ID))).toBe(
+      true,
+    );
+    expect(bodies.some((body) => body.includes("media-1"))).toBe(false);
+    expect(bodies.some((body) => body.includes("getLookup") && body.includes("<node "))).toBe(
+      false,
+    );
+    expect(bodies.some((body) => body.includes("describeTable") && body.includes("<node "))).toBe(
+      false,
+    );
+  });
+
+  it("does not return rows when one module read fails", async () => {
+    const { exchange, bodies } = templateHarness({ failSignaling: true });
+    const result = await readRegistrations({ account, exchange });
+    expect(result.ok).toBe(false);
+    expect(bodies.some((body) => body.includes(">scripting-1<"))).toBe(false);
+  });
+
+  it("stops before select when a fifth signaling module is active", async () => {
+    const { exchange, bodies } = templateHarness({
+      moduleRows: ["signaling-1", "signaling-2", "signaling-3", "signaling-4", "signaling-5", "scripting-1"]
+        .map((name) => row([["mod_nm", name]]))
+        .join(""),
+    });
+    const result = await readRegistrations({ account, exchange });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.detail).toContain("четырёх");
+    expect(bodies.some((body) => body.includes("<node "))).toBe(false);
   });
 });
 

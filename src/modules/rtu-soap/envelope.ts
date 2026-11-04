@@ -9,7 +9,8 @@ import { escapeXml, isXmlName } from "@/modules/rtu-soap/xml";
  * the incoming-groups page, and the two registration summary pages.
  * An optional module name adds one `node` header on `selectRowset`.
  * The live-call snapshot passes that name only for a signaling or scripting
- * call table. Groups and registrations pass none.
+ * call table. A registration summary passes none. A registration template
+ * passes it only for signaling on ПКомм and scripting on ПУпр. Groups pass none.
  * `getLookup` reads «Состояние вызова» on the ПУпр call table and
  * «Состояние» on «Регистрации (ПКомм)». It sends no `node` header.
  */

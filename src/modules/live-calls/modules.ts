@@ -46,3 +46,58 @@ export function selectCallModules(names: readonly string[]): CallModules {
   }
   return { ok: true, signaling, scripting };
 }
+
+export type RegistrationModuleNeed = {
+  signaling: boolean;
+  scripting: boolean;
+};
+
+/**
+ * The same module names as the call snapshot, but only the sides whose
+ * registration page is the shared template. A summary page does not ask
+ * for its side. Other module names stay unread.
+ */
+export function selectRegistrationModules(
+  names: readonly string[],
+  need: RegistrationModuleNeed,
+): { ok: true; signaling: string[]; scripting: string[] } | { ok: false; detail: string } {
+  const seen = new Set<string>();
+  const unique: string[] = [];
+  for (const name of names) {
+    const text = name.trim();
+    if (!text || seen.has(text)) continue;
+    seen.add(text);
+    unique.push(text);
+  }
+  const signaling = unique.filter((name) => SIGNALING_MODULE.test(name)).sort();
+  const scripting = unique.filter((name) => SCRIPTING_MODULE.test(name)).sort();
+  if (need.signaling && unique.some((name) => isOddFamily(name, "signaling"))) {
+    return { ok: false, detail: "Модуль signaling или scripting назван не по шаблону." };
+  }
+  if (need.scripting && unique.some((name) => isOddFamily(name, "scripting"))) {
+    return { ok: false, detail: "Модуль signaling или scripting назван не по шаблону." };
+  }
+  if (
+    (need.signaling && signaling.length > CALL_MODULE_CAP) ||
+    (need.scripting && scripting.length > CALL_MODULE_CAP)
+  ) {
+    return { ok: false, detail: "Активных модулей signaling или scripting больше четырёх." };
+  }
+  if (need.signaling && signaling.length === 0) {
+    return { ok: false, detail: "Среди активных модулей нет signaling." };
+  }
+  if (need.scripting && scripting.length === 0) {
+    return { ok: false, detail: "Среди активных модулей нет scripting." };
+  }
+  return {
+    ok: true,
+    signaling: need.signaling ? signaling : [],
+    scripting: need.scripting ? scripting : [],
+  };
+}
+
+function isOddFamily(name: string, family: "signaling" | "scripting"): boolean {
+  const prefix = family === "signaling" ? /^signaling/i : /^scripting/i;
+  const exact = family === "signaling" ? SIGNALING_MODULE : SCRIPTING_MODULE;
+  return prefix.test(name) && !exact.test(name);
+}
