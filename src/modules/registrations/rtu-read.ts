@@ -3,6 +3,8 @@
  * A summary page is one selectRowset without a node header.
  * The shared template is one selectRowset per signaling or scripting module.
  * getLookup is only for «Состояние» and never carries a node header.
+ * A missing or unread list leaves the cell as it arrived.
+ * An unrecognized state still fails the job after the rows are read.
  */
 
 import {
@@ -245,14 +247,12 @@ export async function readRegistrations(deps: {
 
   const pcomm: PcommRegistration[] = [];
   for (const row of pcommPages.rows) {
-    const state = presentState(row[pcommColumns.columns.state.name] ?? "", labels.labels);
-    if (!state.ok) return state;
     pcomm.push({
       id: row[pcommColumns.columns.id.name] ?? "",
       name: row[pcommColumns.columns.name.name] ?? "",
       aliases: row[pcommColumns.columns.aliases.name] ?? "",
       address: row[pcommColumns.columns.address.name] ?? "",
-      state: state.label,
+      state: presentState(row[pcommColumns.columns.state.name] ?? "", labels.labels),
     });
   }
   const pupr = puprPages.rows.map((row) => ({
@@ -311,10 +311,7 @@ async function stateLabels(
   objectId: string,
   column: { name: string; haveLookup: boolean },
 ): Promise<{ ok: true; labels: ReadonlyMap<string, string> | null } | { ok: false; detail: string }> {
-  if (!column.haveLookup) return { ok: true, labels: null };
-  if (!reads.getLookup) {
-    return { ok: false, detail: "Список подстановки состояния недоступен." };
-  }
+  if (!column.haveLookup || !reads.getLookup) return { ok: true, labels: null };
   if (!isRtuColumnName(column.name)) {
     return { ok: false, detail: "Колонка РТУ имеет неподдерживаемое имя." };
   }
@@ -328,7 +325,7 @@ async function stateLabels(
       column.name,
     );
   } catch {
-    return { ok: false, detail: "Список подстановки состояния не собран." };
+    return { ok: true, labels: null };
   }
   const posted = await postRead(
     deps,
@@ -337,26 +334,20 @@ async function stateLabels(
     reads.getLookup.soapAction,
     envelope,
   );
-  if (!posted.ok) return { ok: false, detail: "Список подстановки состояния не прочитан." };
+  if (!posted.ok) return { ok: true, labels: null };
   const parsed = interpretGetLookup(posted.text, deps.account.password);
-  if (parsed.kind !== "lookup") {
-    return { ok: false, detail: "Список подстановки состояния не прочитан." };
-  }
+  if (parsed.kind !== "lookup") return { ok: true, labels: null };
   const labels = new Map<string, string>();
   for (const pair of parsed.pairs) labels.set(pair.key, pair.value);
   return { ok: true, labels };
 }
 
-function presentState(
-  raw: string,
-  labels: ReadonlyMap<string, string> | null,
-): { ok: true; label: string } | { ok: false; detail: string } {
-  if (!labels) return { ok: true, label: raw };
-  const key = raw.trim();
-  if (!labels.has(key)) {
-    return { ok: false, detail: `Состояние «${clip(key)}» не найдено в списке подстановки.` };
+function presentState(raw: string, labels: ReadonlyMap<string, string> | null): string {
+  if (labels) {
+    const mapped = labels.get(raw.trim());
+    if (mapped !== undefined) return mapped;
   }
-  return { ok: true, label: labels.get(key) ?? "" };
+  return raw;
 }
 
 async function loadRegistrationModules(
@@ -546,10 +537,4 @@ async function postRead(
     return { ok: false, detail: "Коммутатор ответил ошибкой HTTP." };
   }
   return { ok: true, text: posted.text };
-}
-
-function clip(value: string): string {
-  const text = value.trim();
-  if (text.length <= 80) return text;
-  return `${text.slice(0, 80)}…`;
 }

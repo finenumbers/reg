@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { SELECT_ROW_LIMIT } from "@/modules/rtu-soap/envelope";
+import { assembleRegistrations } from "@/modules/registrations/rtu-rows";
 import {
   collectRegistrationPages,
   readRegistrations,
@@ -65,6 +66,24 @@ const WSDL = `<?xml version="1.0"?>
     </port>
   </service>
 </definitions>`;
+
+const WSDL_NO_LOOKUP = WSDL.replace(
+  `  <message name="getLookupRequest">
+    <part name="p_object_id" type="xsd:string"/>
+    <part name="p_column_nm" type="xsd:string"/>
+  </message>
+`,
+  "",
+)
+  .replace(`    <operation name="getLookup"><input message="tns:getLookupRequest"/></operation>\n`, "")
+  .replace(
+    `    <operation name="getLookup">
+      <soap:operation soapAction="urn:rtu-api#getLookup"/>
+      <input><soap:body use="encoded" namespace="urn:rtu-api" encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"/></input>
+    </operation>
+`,
+    "",
+  );
 
 function objectItem(objectId: string, title: string, path: string): string {
   return `<item><object_id>${objectId}</object_id><title>${title}</title><path>${path}</path><type>table</type></item>`;
@@ -132,17 +151,27 @@ const FORBIDDEN = [
   "http://mfisoft.ru/auth",
 ];
 
+const STATE_LOOKUP_DESCRIBE = `<?xml version="1.0"?><Envelope><Body><describeTableResponse><columns>
+  ${column("reg_id", "ID регистрации")}
+  ${column("reg_name", "Имя")}
+  ${column("reg_alias", "Алиасы")}
+  ${column("reg_addr", "Адрес")}
+  ${column("reg_state", "Состояние", "1")}
+</columns></describeTableResponse></Body></Envelope>`;
+
 function harness(input?: {
   pcommDescribe?: string;
   pcommRows?: string;
   allowLookup?: boolean;
+  wsdl?: string;
+  lookupText?: string;
 }): { exchange: RegistrationsExchange; bodies: string[] } {
   const bodies: string[] = [];
   const exchange: RegistrationsExchange = async (call) => {
     if (call.method === "GET") {
       expect(call.timeoutMs).toBe(10_000);
       expect(call.url).toBe(`${ORIGIN}/service/?wsdl_v2`);
-      return { ok: true, status: 200, text: WSDL };
+      return { ok: true, status: 200, text: input?.wsdl ?? WSDL };
     }
     expect(call.timeoutMs).toBe(12_000);
     const body = call.body ?? "";
@@ -161,7 +190,7 @@ function harness(input?: {
     if (body.includes("getLookup")) {
       expect(body).toContain(PCOMM_ID);
       expect(body).toContain("reg_state");
-      return { ok: true, status: 200, text: LOOKUP };
+      return { ok: true, status: 200, text: input?.lookupText ?? LOOKUP };
     }
     if (body.includes("selectRowset")) {
       expect(body).toContain(String(SELECT_ROW_LIMIT));
@@ -312,6 +341,63 @@ describe("readRegistrations", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.pcomm[0]?.state).toBe("Зарегистрирован");
+  });
+
+  it("reads a known state label when the WSDL has no getLookup", async () => {
+    const { exchange, bodies } = harness({
+      wsdl: WSDL_NO_LOOKUP,
+      pcommDescribe: STATE_LOOKUP_DESCRIBE,
+    });
+    const result = await readRegistrations({ account, exchange });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.pcomm[0]?.state).toBe("Зарегистрирован");
+    expect(bodies.some((body) => body.includes("getLookup"))).toBe(false);
+    expect(bodies.some((body) => body.includes("selectRowset"))).toBe(true);
+  });
+
+  it("leaves an unknown state token for assembly to reject", async () => {
+    const { exchange } = harness({
+      wsdl: WSDL_NO_LOOKUP,
+      pcommDescribe: STATE_LOOKUP_DESCRIBE,
+      pcommRows: PCOMM_ROWS.replace("Зарегистрирован", "1"),
+    });
+    const result = await readRegistrations({ account, exchange });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.pcomm[0]?.state).toBe("1");
+    const assembled = assembleRegistrations({
+      pcomm: result.pcomm,
+      pupr: result.pupr,
+      catalog: [],
+    });
+    expect(assembled.ok).toBe(false);
+    if (assembled.ok) return;
+    expect(assembled.detail).toContain("не разобрано");
+  });
+
+  it("keeps an interface string that is not a lookup key", async () => {
+    const { exchange } = harness({
+      allowLookup: true,
+      pcommDescribe: STATE_LOOKUP_DESCRIBE,
+    });
+    const result = await readRegistrations({ account, exchange });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.pcomm[0]?.state).toBe("Зарегистрирован");
+  });
+
+  it("keeps reading when the state lookup cannot be parsed", async () => {
+    const { exchange, bodies } = harness({
+      allowLookup: true,
+      pcommDescribe: STATE_LOOKUP_DESCRIBE,
+      lookupText: `<?xml version="1.0"?><Envelope><Body><Fault><faultstring>lookup down</faultstring></Fault></Body></Envelope>`,
+    });
+    const result = await readRegistrations({ account, exchange });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.pcomm[0]?.state).toBe("Зарегистрирован");
+    expect(bodies.some((body) => body.includes("selectRowset"))).toBe(true);
   });
 
   it("reads the shared template once per signaling and scripting module", async () => {
