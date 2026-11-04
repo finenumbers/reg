@@ -14,6 +14,7 @@ export const REGISTRATION_NAME_TITLE = "Имя";
 export const REGISTRATION_ALIASES_TITLE = "Алиасы";
 export const REGISTRATION_ADDRESS_TITLE = "Адрес";
 export const REGISTRATION_STATE_TITLE = "Состояние";
+export const REGISTRATION_END_TITLE = "Время окончания регистрации";
 export const REGISTRATION_AGENT_TITLE = "Агент пользователя";
 
 const PER_MODULE = "Данные по модулям";

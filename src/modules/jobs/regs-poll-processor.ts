@@ -192,6 +192,7 @@ export async function processRegsPoll(
       pcomm: read.pcomm,
       pupr: read.pupr,
       catalog: catalog.rows,
+      endMask: read.endMask,
     });
     if (!assembled.ok) return fail(assembled.detail);
     if (assembled.value.pcommCount === 0) {

@@ -204,7 +204,129 @@ describe("assembleRegistrations", () => {
     });
   });
 
-  it("fails when one phone has two different live registrations", () => {
+  it("keeps the later registration and the smaller id when times tie", () => {
+    const later = assembleRegistrations({
+      pcomm: [
+        {
+          id: "2",
+          name: "100",
+          aliases: "",
+          state: "Зарегистрирован",
+          address: "5.6.7.8:5060",
+          endsAt: "2026-11-05 01:00:00",
+        },
+        {
+          id: "1",
+          name: "100",
+          aliases: "",
+          state: "Зарегистрирован",
+          address: "1.2.3.4:5060",
+          endsAt: "2026-11-05 03:00:00",
+        },
+      ],
+      pupr: [
+        { id: "1", userAgent: "Early" },
+        { id: "2", userAgent: "Late" },
+      ],
+      catalog: [],
+    });
+    expect(later.ok).toBe(true);
+    if (!later.ok) return;
+    expect(later.value.rows).toEqual([
+      {
+        phone: "100",
+        status: "Registered",
+        ip: "1.2.3.4",
+        port: 5060,
+        userAgent: "Early",
+        rawLine: "",
+      },
+    ]);
+
+    const tied = assembleRegistrations({
+      pcomm: [
+        {
+          id: "9",
+          name: "100",
+          aliases: "",
+          state: "Зарегистрирован",
+          address: "5.6.7.8:5060",
+          endsAt: "05.11.2026 03:00:00",
+        },
+        {
+          id: "2",
+          name: "100",
+          aliases: "",
+          state: "Зарегистрирован",
+          address: "1.2.3.4:5060",
+          endsAt: "2026-11-05 03:00:00",
+        },
+      ],
+      pupr: [
+        { id: "9", userAgent: "Late" },
+        { id: "2", userAgent: "Early" },
+      ],
+      catalog: [],
+    });
+    expect(tied.ok).toBe(true);
+    if (!tied.ok) return;
+    expect(tied.value.rows[0]).toMatchObject({ ip: "1.2.3.4", userAgent: "Early" });
+  });
+
+  it("prefers a parsed end time, then the smaller id when none is parsed", () => {
+    const parsed = assembleRegistrations({
+      pcomm: [
+        {
+          id: "1",
+          name: "100",
+          aliases: "",
+          state: "Зарегистрирован",
+          address: "1.2.3.4:5060",
+          endsAt: "",
+        },
+        {
+          id: "2",
+          name: "100",
+          aliases: "",
+          state: "Зарегистрирован",
+          address: "5.6.7.8:5060",
+          endsAt: "20261105030000",
+        },
+      ],
+      pupr: [],
+      catalog: [],
+      endMask: "YMDhms",
+    });
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.value.rows[0]).toMatchObject({ ip: "5.6.7.8", port: 5060 });
+
+    const byId = assembleRegistrations({
+      pcomm: [
+        {
+          id: "2",
+          name: "100",
+          aliases: "",
+          state: "Зарегистрирован",
+          address: "5.6.7.8:5060",
+        },
+        {
+          id: "1",
+          name: "100",
+          aliases: "",
+          state: "Зарегистрирован",
+          address: "1.2.3.4:5060",
+        },
+      ],
+      pupr: [],
+      catalog: [],
+    });
+    expect(byId.ok).toBe(true);
+    if (!byId.ok) return;
+    expect(byId.value.rows[0]).toMatchObject({ ip: "1.2.3.4" });
+  });
+
+  it("keeps the first copy when one id repeats with a different end time", () => {
     const result = assembleRegistrations({
       pcomm: [
         {
@@ -213,6 +335,15 @@ describe("assembleRegistrations", () => {
           aliases: "",
           state: "Зарегистрирован",
           address: "1.2.3.4:5060",
+          endsAt: "2026-11-05 01:00:00",
+        },
+        {
+          id: "1",
+          name: "100",
+          aliases: "",
+          state: "Зарегистрирован",
+          address: "1.2.3.4:5060",
+          endsAt: "2026-11-05 09:00:00",
         },
         {
           id: "2",
@@ -220,14 +351,15 @@ describe("assembleRegistrations", () => {
           aliases: "",
           state: "Зарегистрирован",
           address: "5.6.7.8:5060",
+          endsAt: "2026-11-05 05:00:00",
         },
       ],
       pupr: [],
       catalog: [],
     });
-    expect(result.ok).toBe(false);
-    if (result.ok) return;
-    expect(result.detail).toContain("100");
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.rows[0]).toMatchObject({ ip: "5.6.7.8" });
   });
 
   it("skips a blank endpoint number", () => {

@@ -107,8 +107,8 @@ const OBJECTS = `<?xml version="1.0"?>
   ${objectItem(PUPR_ID, "Регистрации (ПУпр)", "Мониторинг ПКомм;Регистрации (ПУпр)")}
 </getObjectsResponse></Body></Envelope>`;
 
-function column(name: string, title: string, lookup = ""): string {
-  return `<item><name>${name}</name><title>${title}</title><type>column</type><data_type>string</data_type><have_lookup>${lookup}</have_lookup></item>`;
+function column(name: string, title: string, lookup = "", mask = ""): string {
+  return `<item><name>${name}</name><title>${title}</title><type>column</type><data_type>string</data_type><data_mask>${mask}</data_mask><have_lookup>${lookup}</have_lookup></item>`;
 }
 
 const PCOMM_DESCRIBE = `<?xml version="1.0"?><Envelope><Body><describeTableResponse><columns>
@@ -320,6 +320,47 @@ describe("readRegistrations", () => {
       pupr: [{ id: "1", userAgent: "Yealink" }],
     });
     expect(JSON.stringify(result)).not.toContain(PASSWORD);
+  });
+
+  it("requests the registration end time once and ignores a repeated title", async () => {
+    const described = (extra: string) => `<?xml version="1.0"?><Envelope><Body><describeTableResponse><columns>
+      ${column("reg_id", "ID регистрации")}
+      ${column("reg_name", "Имя")}
+      ${column("reg_alias", "Алиасы")}
+      ${column("reg_addr", "Адрес")}
+      ${column("reg_state", "Состояние")}
+      ${extra}
+    </columns></describeTableResponse></Body></Envelope>`;
+    const rows = PCOMM_ROWS.replace(
+      `<item><name>reg_state</name><value>Зарегистрирован</value></item>`,
+      `<item><name>reg_state</name><value>Зарегистрирован</value></item><item><name>reg_end</name><value>20261105030000</value></item>`,
+    );
+    const once = harness({
+      pcommDescribe: described(column("reg_end", "Время окончания регистрации", "1", "YMDhms")),
+      pcommRows: rows,
+    });
+    const read = await readRegistrations({ account, exchange: once.exchange });
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    expect(read.pcomm[0]?.endsAt).toBe("20261105030000");
+    expect(read.endMask).toBe("YMDhms");
+    expect(once.bodies.some((body) => body.includes("selectRowset") && body.includes("reg_end"))).toBe(
+      true,
+    );
+    expect(once.bodies.some((body) => body.includes("getLookup"))).toBe(false);
+
+    const twice = harness({
+      pcommDescribe: described(
+        `${column("reg_end", "Время окончания регистрации")}${column("reg_end_2", "Время окончания регистрации")}`,
+      ),
+      pcommRows: rows,
+    });
+    const skipped = await readRegistrations({ account, exchange: twice.exchange });
+    expect(skipped.ok).toBe(true);
+    if (!skipped.ok) return;
+    expect(skipped.pcomm[0]?.endsAt).toBeUndefined();
+    expect(skipped.endMask).toBeUndefined();
+    expect(twice.bodies.some((body) => body.includes("reg_end"))).toBe(false);
   });
 
   it("fails before select when the registration id is a lookup", async () => {

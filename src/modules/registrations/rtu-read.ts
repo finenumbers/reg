@@ -13,6 +13,7 @@ import {
   findActiveModules,
   mapColumns,
 } from "@/modules/live-calls/catalog";
+import { normalizeRtuLabel } from "@/modules/live-calls/columns";
 import { selectRegistrationModules } from "@/modules/live-calls/modules";
 import { MAX_CALL_PAGES, conferenceIdSet, decideNextPage } from "@/modules/live-calls/pages";
 import {
@@ -24,6 +25,7 @@ import {
   REGISTRATION_ADDRESS_TITLE,
   REGISTRATION_AGENT_TITLE,
   REGISTRATION_ALIASES_TITLE,
+  REGISTRATION_END_TITLE,
   REGISTRATION_ID_TITLE,
   REGISTRATION_NAME_TITLE,
   REGISTRATION_STATE_TITLE,
@@ -46,6 +48,7 @@ import {
   interpretGetLookup,
   interpretGetObjects,
   interpretSelectRowset,
+  type SoapColumn,
 } from "@/modules/rtu-soap/response";
 import { readCallReads, readWsdl, type CallReadPlan } from "@/modules/rtu-soap/wsdl";
 
@@ -62,7 +65,13 @@ export type RegistrationsAccount = {
 };
 
 export type RegistrationsRead =
-  | { ok: true; pcomm: PcommRegistration[]; pupr: PuprRegistration[] }
+  | {
+      ok: true;
+      pcomm: PcommRegistration[];
+      pupr: PuprRegistration[];
+      /** Data mask of «Время окончания регистрации», when that column was read. */
+      endMask?: string | null;
+    }
   | { ok: false; detail: string };
 
 export type RegistrationsExchange = (input: {
@@ -163,6 +172,7 @@ export async function readRegistrations(deps: {
     },
   );
   if (!pcommColumns.ok) return pcommColumns;
+  const endColumn = optionalColumn(pcommColumns.listed, REGISTRATION_END_TITLE);
   const puprColumns = await describeColumns(
     deps,
     exchange,
@@ -209,6 +219,7 @@ export async function readRegistrations(deps: {
     pcommColumns.columns.address.name,
     pcommColumns.columns.state.name,
   ];
+  if (endColumn) pcommNames.push(endColumn.name);
   const puprNames = [puprColumns.columns.id.name, puprColumns.columns.agent.name];
   if ([...pcommNames, ...puprNames].some((name) => !isRtuColumnName(name))) {
     return { ok: false, detail: "Колонка РТУ имеет неподдерживаемое имя." };
@@ -255,18 +266,22 @@ export async function readRegistrations(deps: {
       aliases: row[pcommColumns.columns.aliases.name] ?? "",
       address: row[pcommColumns.columns.address.name] ?? "",
       state: presentState(row[pcommColumns.columns.state.name] ?? "", labels.labels),
+      ...(endColumn ? { endsAt: row[endColumn.name] ?? "" } : {}),
     });
   }
   const pupr = puprPages.rows.map((row) => ({
     id: row[puprColumns.columns.id.name] ?? "",
     userAgent: row[puprColumns.columns.agent.name] ?? "",
   }));
-  return { ok: true, pcomm, pupr };
+  return endColumn
+    ? { ok: true, pcomm, pupr, endMask: endColumn.dataMask }
+    : { ok: true, pcomm, pupr };
 }
 
 type Mapped<Key extends string> = {
   ok: true;
   columns: Record<Key, { name: string; dataMask: string | null; haveLookup: boolean }>;
+  listed: readonly SoapColumn[];
 };
 
 async function describeColumns<Key extends string>(
@@ -303,7 +318,19 @@ async function describeColumns<Key extends string>(
   }
   const mapped = mapColumns(columns.columns, titles, tableTitle);
   if (!mapped.ok) return mapped;
-  return { ok: true, columns: mapped.columns };
+  return { ok: true, columns: mapped.columns, listed: columns.columns };
+}
+
+function optionalColumn(
+  columns: readonly SoapColumn[],
+  title: string,
+): { name: string; dataMask: string | null } | null {
+  const want = normalizeRtuLabel(title);
+  const hits = columns.filter((column) => normalizeRtuLabel(column.title) === want);
+  if (hits.length !== 1) return null;
+  const hit = hits[0];
+  if (!hit || !isRtuColumnName(hit.name)) return null;
+  return { name: hit.name, dataMask: hit.dataMask };
 }
 
 async function stateLabels(

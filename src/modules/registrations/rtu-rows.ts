@@ -4,6 +4,8 @@
  */
 
 import { normalizeRtuLabel } from "@/modules/live-calls/columns";
+import { presentSwitchValue } from "@/modules/live-calls/format";
+import { startSortKey } from "@/modules/live-calls/order";
 import type { ParsedRegistrationRow } from "@/modules/registrations/parser";
 
 export const REGISTRATION_NAME_FIELD = "Регистрационное имя";
@@ -17,6 +19,8 @@ export type PcommRegistration = {
   aliases: string;
   state: string;
   address: string;
+  /** «Время окончания регистрации». Absent when that column was not read. */
+  endsAt?: string;
 };
 
 export type PuprRegistration = {
@@ -36,17 +40,20 @@ export type AssembledRegistrations = {
 };
 
 type LiveRow = {
+  id: string;
   phone: string;
   status: "Registered" | "Unregistered";
   ip: string | null;
   port: number | null;
   userAgent: string | null;
+  endsAt: string | null;
 };
 
 export function assembleRegistrations(input: {
   pcomm: readonly PcommRegistration[];
   pupr: readonly PuprRegistration[];
   catalog: readonly CatalogRegistrationEndpoint[];
+  endMask?: string | null;
 }): { ok: true; value: AssembledRegistrations } | { ok: false; detail: string } {
   if (input.pcomm.length === 0) {
     return { ok: true, value: { rows: [], pcommCount: 0 } };
@@ -69,11 +76,14 @@ export function assembleRegistrations(input: {
     if (!phone.ok) return phone;
     const lived = liveRow(phone.phone, row, agent);
     if (!lived.ok) return lived;
-    joined.push(lived.row);
+    joined.push({
+      ...lived.row,
+      id: row.id,
+      endsAt: registrationEndKey(row.endsAt ?? "", input.endMask ?? null),
+    });
   }
 
   const collapsed = collapsePhones(joined);
-  if (!collapsed.ok) return collapsed;
 
   const seen = new Set(collapsed.rows.map((row) => row.phone));
   for (const endpoint of input.catalog) {
@@ -236,26 +246,34 @@ function liveRow(
     return {
       ok: true,
       row: {
+        id: row.id,
         phone,
         status: "Registered",
         ip: address.ip,
         port: address.port,
         userAgent: agent,
+        endsAt: null,
       },
     };
   }
   if (state === "Не зарегистрирован" || state === "Инициализация") {
     return {
       ok: true,
-      row: { phone, status: "Unregistered", ip: null, port: null, userAgent: null },
+      row: {
+        id: row.id,
+        phone,
+        status: "Unregistered",
+        ip: null,
+        port: null,
+        userAgent: null,
+        endsAt: null,
+      },
     };
   }
   return { ok: false, detail: `Состояние «${clip(state || row.state)}» не разобрано.` };
 }
 
-function collapsePhones(
-  rows: readonly LiveRow[],
-): { ok: true; rows: ParsedRegistrationRow[] } | { ok: false; detail: string } {
+function collapsePhones(rows: readonly LiveRow[]): { ok: true; rows: ParsedRegistrationRow[] } {
   const byPhone = new Map<string, LiveRow[]>();
   for (const row of rows) {
     const list = byPhone.get(row.phone) ?? [];
@@ -265,7 +283,8 @@ function collapsePhones(
   const result: ParsedRegistrationRow[] = [];
   for (const [phone, list] of byPhone) {
     const live = list.filter((row) => row.status === "Registered");
-    if (live.length === 0) {
+    const chosen = live.length === 0 ? null : live.reduce((best, row) => (laterRegistration(row, best) ? row : best));
+    if (!chosen) {
       result.push({
         phone,
         status: "Unregistered",
@@ -276,18 +295,32 @@ function collapsePhones(
       });
       continue;
     }
-    const first = live[0]!;
-    const key = signature(first);
-    if (live.some((row) => signature(row) !== key)) {
-      return { ok: false, detail: `У номера «${clip(phone)}» несколько разных регистраций.` };
-    }
-    result.push({ ...first, rawLine: "" });
+    result.push({
+      phone,
+      status: chosen.status,
+      ip: chosen.ip,
+      port: chosen.port,
+      userAgent: chosen.userAgent,
+      rawLine: "",
+    });
   }
   return { ok: true, rows: result };
 }
 
-function signature(row: LiveRow): string {
-  return `${row.ip ?? ""}\n${row.port ?? ""}\n${row.userAgent ?? ""}`;
+function laterRegistration(candidate: LiveRow, current: LiveRow): boolean {
+  if (candidate.endsAt && current.endsAt && candidate.endsAt !== current.endsAt) {
+    return candidate.endsAt > current.endsAt;
+  }
+  if (candidate.endsAt && !current.endsAt) return true;
+  if (!candidate.endsAt && current.endsAt) return false;
+  return candidate.id < current.id;
+}
+
+function registrationEndKey(raw: string, mask: string | null): string | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const text = /^\d{14}$/.test(trimmed) ? presentSwitchValue(trimmed, "YMDhms") : presentSwitchValue(trimmed, mask);
+  return startSortKey(text);
 }
 
 function cleanAgent(
