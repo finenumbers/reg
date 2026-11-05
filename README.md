@@ -2,7 +2,7 @@
 
 Internal telecom ops platform. Phone numbers, groups, registrations, and live calls are read from the RTU API.
 
-**Repository:** [github.com/finenumbers/reg](https://github.com/finenumbers/reg) · **Release:** [v1.228.0](https://github.com/finenumbers/reg/releases/tag/v1.228.0)
+**Repository:** [github.com/finenumbers/reg](https://github.com/finenumbers/reg) · **Release:** [v1.229.0](https://github.com/finenumbers/reg/releases/tag/v1.229.0)
 
 ## Stack (approved)
 
@@ -115,7 +115,7 @@ Do not hand-author conflicting auth table definitions. App RBAC (`roles` / `perm
 Authorization: Bearer reg_<secret>
 ```
 
-Allowed with `regs:read` / `phones:read`: `GET /api/regs*`, `GET /api/phones*` (except RTU POST), `GET /api/groups`, `GET /api/jobs`. Tariff routes (`/api/tariffs`, `/api/tariffs/import`) and SMG xlsx export (`/api/smg/export`) are session-only and are not open to API keys.
+Allowed with `regs:read` / `phones:read`: `GET /api/regs*`, `GET /api/phones*` (except RTU POST), `GET /api/groups`, `GET /api/groups/status`, `GET /api/jobs`. Tariff routes (`/api/tariffs`, `/api/tariffs/import`) and SMG xlsx export (`/api/smg/export`) are session-only and are not open to API keys.
 
 APIs:
 
@@ -153,6 +153,7 @@ UI (`/phones`):
 APIs:
 
 - `GET /api/groups` — routing groups catalog (`phones:read`)
+- `GET /api/groups/status` — last groups load stamp and summary (`phones:read`)
 
 UI (`/groups`):
 

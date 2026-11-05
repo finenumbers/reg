@@ -18,6 +18,7 @@ import {
   SAME_HOST_PSTN_BASE_URL,
   type SettingsView,
 } from "@/modules/settings/schemas";
+import { describeExportPeriods } from "@/modules/jobs/export-cadence";
 import { inspectKeyMaterial } from "@/modules/ssh/key-material-hint";
 import { SyslogSettings } from "@/modules/smg-syslog/ui/syslog-settings";
 import type { ParkingKeyStatus } from "@/modules/antifraud/key-status";
@@ -1404,12 +1405,13 @@ export function SettingsForm({ initial, parkingKey }: Props) {
             </Label>
           </div>
           <p className="text-sm text-muted-foreground">
-            Отдельное расписание: номера и входящие группы через API РТУ, по
-            очереди. Не совмещается с опросом регистраций.
+            Номера читаются с этим интервалом. Входящие группы — в два раза реже.
+            Новая загрузка не стартует, пока идёт опрос регистраций или другая
+            загрузка каталога.
           </p>
           <div className="space-y-2">
             <Label htmlFor="export-interval">
-              Интервал загрузки номеров и групп (секунды)
+              Интервал загрузки телефонных номеров (секунды)
             </Label>
             <Input
               id="export-interval"
@@ -1514,8 +1516,11 @@ export function SettingsForm({ initial, parkingKey }: Props) {
             Регистрации: {regsPollEnabled ? "вкл" : "выкл"} / {regsPollIntervalSec}{" "}
             с
             {" · "}
-            Номера и группы: {exportSyncEnabled ? "вкл" : "выкл"} /{" "}
-            {exportSyncIntervalSec} с
+            Номера: {exportSyncEnabled ? "вкл" : "выкл"} /{" "}
+            {describeExportPeriods(Number(exportSyncIntervalSec)).phonesSec} с
+            {" · "}
+            Группы: {exportSyncEnabled ? "вкл" : "выкл"} /{" "}
+            {describeExportPeriods(Number(exportSyncIntervalSec)).groupsSec} с
             {" · "}
             Описания в журнале: {cdrSidesRefreshEnabled ? "вкл" : "выкл"} /{" "}
             {cdrSidesRefreshIntervalSec} с

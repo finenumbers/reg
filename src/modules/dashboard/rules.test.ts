@@ -10,7 +10,8 @@ import {
   buildDashboard,
   cachedMonthCalls,
   clipError,
-  exportStaleAfterMs,
+  groupsStaleAfterMs,
+  phonesStaleAfterMs,
   isDashboardPoison,
   regsStaleAfterMs,
   type DashboardFacts,
@@ -202,12 +203,14 @@ describe("dashboard attention", () => {
     expect(stale.cards[0]?.badge).toBe("failed");
   });
 
-  it("waits two missed export turns before calling phones or groups stale", () => {
-    expect(exportStaleAfterMs(300)).toBe(20 * 60 * 1000);
-    expect(exportStaleAfterMs(30)).toBe(10 * 60 * 1000);
+  it("waits two missed turns before calling phones or groups stale", () => {
+    expect(phonesStaleAfterMs(300)).toBe(10 * 60 * 1000);
+    expect(phonesStaleAfterMs(30)).toBe(10 * 60 * 1000);
+    expect(groupsStaleAfterMs(300)).toBe(20 * 60 * 1000);
+    expect(groupsStaleAfterMs(30)).toBe(10 * 60 * 1000);
 
     const phones = {
-      ...pulse({ lastSuccessAt: NOW - 19 * 60 * 1000 }),
+      ...pulse({ lastSuccessAt: NOW - 9 * 60 * 1000 }),
       endpointCount: 10,
       gatewayCount: 2,
     };
@@ -216,10 +219,24 @@ describe("dashboard attention", () => {
 
     const late = buildDashboard(
       facts({
-        phones: { ...phones, lastSuccessAt: NOW - 20 * 60 * 1000 - 1 },
+        phones: { ...phones, lastSuccessAt: NOW - 10 * 60 * 1000 - 1 },
       }),
     );
     expect(ids(late)).toEqual(["phones-stale"]);
+
+    const groupsAlmost = buildDashboard(
+      facts({
+        groups: pulse({ lastSuccessAt: NOW - 19 * 60 * 1000 }),
+      }),
+    );
+    expect(groupsAlmost.alerts).toEqual([]);
+
+    const groupsLate = buildDashboard(
+      facts({
+        groups: pulse({ lastSuccessAt: NOW - 20 * 60 * 1000 - 1 }),
+      }),
+    );
+    expect(ids(groupsLate)).toEqual(["groups-stale"]);
 
     const shortInterval = buildDashboard(
       facts({

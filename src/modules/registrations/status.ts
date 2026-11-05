@@ -5,6 +5,8 @@
 
 import { prisma } from "@/lib/db";
 import { getJobRunSummary } from "@/modules/jobs/query";
+import { syncSnapshotFromJob } from "@/modules/jobs/sync-snapshot";
+import type { SyncSnapshot } from "@/modules/jobs/sync-line";
 import type { RegsPollStatus } from "@/modules/registrations/types";
 
 export type RegistrationsOperationalStatus = RegsPollStatus & {
@@ -15,6 +17,7 @@ export type RegistrationsOperationalStatus = RegsPollStatus & {
   lastFailedAt: string | null;
   lastFailedError: string | null;
   runningCount: number;
+  sync: SyncSnapshot;
 };
 
 /** Live SIP Unregistered rows in reg_current. Local DB only. */
@@ -55,5 +58,6 @@ export async function getRegistrationsOperationalStatus(): Promise<Registrations
     lastFailedAt: summary.lastFailed?.finishedAt ?? summary.lastFailed?.startedAt ?? null,
     lastFailedError: summary.lastFailed?.errorMessage ?? null,
     runningCount: summary.runningCount,
+    sync: syncSnapshotFromJob(summary.lastSuccess),
   };
 }

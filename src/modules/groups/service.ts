@@ -4,6 +4,9 @@
 
 import { prisma } from "@/lib/db";
 import { sortRoutingGroupsById } from "@/modules/groups/sort";
+import { getJobRunSummary } from "@/modules/jobs/query";
+import type { SyncSnapshot } from "@/modules/jobs/sync-line";
+import { syncSnapshotFromJob } from "@/modules/jobs/sync-snapshot";
 
 export type RoutingGroupListItem = {
   id: string;
@@ -37,6 +40,26 @@ export async function listRoutingGroups(): Promise<ListRoutingGroupsResult> {
     items,
     total: items.length,
     lastSyncedAt: state?.lastSyncedAt?.toISOString() ?? null,
+  };
+}
+
+export type GroupsOperationalStatus = {
+  lastSyncedAt: string | null;
+  total: number;
+  sync: SyncSnapshot;
+};
+
+/** Stamp and summary only. The open page refetches rows when the stamp moves. */
+export async function getGroupsOperationalStatus(): Promise<GroupsOperationalStatus> {
+  const [summary, state, total] = await Promise.all([
+    getJobRunSummary("groups.sync"),
+    prisma.routingGroupImportState.findUnique({ where: { id: 1 } }),
+    prisma.routingGroup.count(),
+  ]);
+  return {
+    lastSyncedAt: state?.lastSyncedAt?.toISOString() ?? null,
+    total,
+    sync: syncSnapshotFromJob(summary.lastSuccess),
   };
 }
 

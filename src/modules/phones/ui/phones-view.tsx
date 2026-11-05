@@ -35,20 +35,28 @@ import type { ListPhonesResult } from "@/modules/phones/service";
 import type { PhoneKind } from "@/modules/phones/types";
 import { PhonesTable } from "@/modules/phones/ui/phones-table";
 import { useDisplayTimezone } from "@/components/display-timezone-provider";
-import { formatDisplayTimestamp } from "@/lib/format-display-time";
+import { useStampRefresh } from "@/hooks/stamp-watch";
+import { formatSyncLine, type SyncSnapshot } from "@/modules/jobs/sync-line";
 
 const PAGE_SIZE = TABLE_PAGE_SIZE;
 const PHONE_SEARCH_DEBOUNCE_MS = 300;
 
 type Props = {
   initial: ListPhonesResult;
+  initialSync: SyncSnapshot;
   /** Live SIP Unregistered from reg_current (Registrations), not catalog «Нет». */
   initialRegsUnregisteredCount: number;
 };
 
-function formatSyncedAt(iso: string | null, timeZone: string): string {
-  if (!iso) return "ещё не загружалось";
-  return formatDisplayTimestamp(iso, timeZone);
+function phonesSyncLine(
+  sync: SyncSnapshot,
+  timeZone: string,
+  registeredCount: number,
+  unregisteredCount: number,
+): string {
+  const line = formatSyncLine(sync, timeZone);
+  if (!sync.finishedAt) return line;
+  return `${line} · с рег. ${formatCount(registeredCount)}, без рег. ${formatCount(unregisteredCount)}`;
 }
 
 function selectKind(next: PhoneKind, current: PhoneKind, load: (k: PhoneKind) => void) {
@@ -56,7 +64,11 @@ function selectKind(next: PhoneKind, current: PhoneKind, load: (k: PhoneKind) =>
   load(next);
 }
 
-export function PhonesView({ initial, initialRegsUnregisteredCount }: Props) {
+export function PhonesView({
+  initial,
+  initialSync,
+  initialRegsUnregisteredCount,
+}: Props) {
   const { timeZone } = useDisplayTimezone();
   const [kind, setKind] = useState<PhoneKind>(initial.kind);
   const [filters, setFilters] = useState<ColumnFilters>({});
@@ -68,15 +80,13 @@ export function PhonesView({ initial, initialRegsUnregisteredCount }: Props) {
   const [items, setItems] = useState(initial.items);
   const [headers, setHeaders] = useState(initial.headers);
   const [total, setTotal] = useState(initial.total);
-  const [endpointCount, setEndpointCount] = useState(initial.endpointCount);
-  const [gatewayCount, setGatewayCount] = useState(initial.gatewayCount);
   const [registeredCount, setRegisteredCount] = useState(initial.registeredCount);
   const [unregisteredCount, setUnregisteredCount] = useState(initial.unregisteredCount);
   const [regsUnregisteredCount, setRegsUnregisteredCount] = useState(
     initialRegsUnregisteredCount,
   );
   const [errorCount, setErrorCount] = useState(initial.errorCount);
-  const [lastSyncedAt, setLastSyncedAt] = useState(initial.lastSyncedAt);
+  const [sync, setSync] = useState(initialSync);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [listError, setListError] = useState<string | null>(null);
@@ -94,6 +104,10 @@ export function PhonesView({ initial, initialRegsUnregisteredCount }: Props) {
   const phoneQRef = useRef(phoneQ);
   const sipUnregisteredOnlyRef = useRef(sipUnregisteredOnly);
   const kindRef = useRef(kind);
+  const pageRef = useRef(page);
+  const itemsLenRef = useRef(items.length);
+  const openColumnRef = useRef(openColumn);
+  const loadingRef = useRef(loading);
   const phoneSearchTimerRef = useRef<number | null>(null);
   const [scrollRoot, setScrollRoot] = useState<Element | null>(null);
 
@@ -101,6 +115,10 @@ export function PhonesView({ initial, initialRegsUnregisteredCount }: Props) {
   phoneQRef.current = phoneQ;
   sipUnregisteredOnlyRef.current = sipUnregisteredOnly;
   kindRef.current = kind;
+  pageRef.current = page;
+  itemsLenRef.current = items.length;
+  openColumnRef.current = openColumn;
+  loadingRef.current = loading;
 
   const hasMore = items.length < total;
   const filtersActive =
@@ -205,12 +223,9 @@ export function PhonesView({ initial, initialRegsUnregisteredCount }: Props) {
     setHeaders(result.data.headers);
     setTotal(result.data.total);
     setPage(result.data.page);
-    setEndpointCount(result.data.endpointCount);
-    setGatewayCount(result.data.gatewayCount);
     setRegisteredCount(result.data.registeredCount);
     setUnregisteredCount(result.data.unregisteredCount);
     setErrorCount(result.data.errorCount);
-    setLastSyncedAt(result.data.lastSyncedAt);
     setItems((prev) => (replace ? result.data.items : [...prev, ...result.data.items]));
     setLoading(false);
     setLoadingMore(false);
@@ -220,8 +235,16 @@ export function PhonesView({ initial, initialRegsUnregisteredCount }: Props) {
   const loadListRef = useRef(loadList);
   loadListRef.current = loadList;
 
+  const catalogPaused = () =>
+    openColumnRef.current != null ||
+    loadingRef.current ||
+    loadingMoreRef.current ||
+    pageRef.current > 1 ||
+    itemsLenRef.current > PAGE_SIZE;
+
   useRegsUnregisteredCount({
     intervalMs: PHONES_REGS_UNREGISTERED_POLL_MS,
+    paused: catalogPaused,
     onCount: setRegsUnregisteredCount,
     onSnapshot: () => {
       if (kindRef.current !== "endpoints_registered") return;
@@ -229,28 +252,20 @@ export function PhonesView({ initial, initialRegsUnregisteredCount }: Props) {
     },
   });
 
-  useEffect(() => {
-    let cancelled = false;
-    let timer: number | null = null;
-    let seen: string | null | undefined;
-    async function tick() {
+  useStampRefresh({
+    intervalMs: PHONES_REGS_UNREGISTERED_POLL_MS,
+    initialStamp: initial.lastSyncedAt,
+    paused: catalogPaused,
+    pull: async () => {
       const status = await fetchPhonesStatus();
-      if (cancelled) return;
-      if (status.ok) {
-        const next = status.data.lastSyncedAt;
-        if (seen !== undefined && seen !== next) {
-          void loadListRef.current({ page: 1, replace: true, soft: true });
-        }
-        seen = next;
-      }
-      timer = window.setTimeout(() => void tick(), PHONES_REGS_UNREGISTERED_POLL_MS);
-    }
-    timer = window.setTimeout(() => void tick(), PHONES_REGS_UNREGISTERED_POLL_MS);
-    return () => {
-      cancelled = true;
-      if (timer != null) window.clearTimeout(timer);
-    };
-  }, []);
+      if (!status.ok) return { ok: false };
+      setSync(status.data.sync);
+      return { ok: true, stamp: status.data.lastSyncedAt };
+    },
+    onReload: () => {
+      void loadListRef.current({ page: 1, replace: true, soft: true });
+    },
+  });
 
   const onLoadMore = useCallback(() => {
     if (!hasMore || loading || loadingMoreRef.current) return;
@@ -413,11 +428,7 @@ export function PhonesView({ initial, initialRegsUnregisteredCount }: Props) {
             Телефонные номера
           </h1>
           <p className="text-muted-foreground text-sm">
-            Последняя синхронизация: {formatSyncedAt(lastSyncedAt, timeZone)}. Шлюзы:{" "}
-            {formatCount(gatewayCount)}, с рег.: {formatCount(registeredCount)}, без рег.:{" "}
-            {formatCount(unregisteredCount)}
-            {errorCount > 0 ? `, ошибка: ${formatCount(errorCount)}` : ""}
-            {endpointCount > 0 ? ` (всего EP: ${formatCount(endpointCount)})` : ""}.
+            {phonesSyncLine(sync, timeZone, registeredCount, unregisteredCount)}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">

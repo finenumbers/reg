@@ -1,8 +1,12 @@
 "use client";
 
+import { useRef, useState } from "react";
 import { useDisplayTimezone } from "@/components/display-timezone-provider";
 import { formatCount } from "@/lib/format-count";
-import { formatDisplayTimestamp } from "@/lib/format-display-time";
+import { useStampRefresh } from "@/hooks/stamp-watch";
+import { formatSyncLine, type SyncSnapshot } from "@/modules/jobs/sync-line";
+import { fetchGroups, fetchGroupsStatus } from "@/modules/groups/api-client";
+import type { ListRoutingGroupsResult } from "@/modules/groups/service";
 import {
   Table,
   TableBody,
@@ -11,19 +15,45 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { ListRoutingGroupsResult } from "@/modules/groups/service";
+
+const GROUPS_STATUS_POLL_MS = 15_000;
 
 type Props = {
   initial: ListRoutingGroupsResult;
+  initialSync: SyncSnapshot;
 };
 
-function formatSyncedAt(iso: string | null, timeZone: string): string {
-  if (!iso) return "ещё не загружалось";
-  return formatDisplayTimestamp(iso, timeZone);
-}
-
-export function GroupsView({ initial }: Props) {
+export function GroupsView({ initial, initialSync }: Props) {
   const { timeZone } = useDisplayTimezone();
+  const [items, setItems] = useState(initial.items);
+  const [total, setTotal] = useState(initial.total);
+  const [sync, setSync] = useState(initialSync);
+  const loadingRef = useRef(false);
+
+  useStampRefresh({
+    intervalMs: GROUPS_STATUS_POLL_MS,
+    initialStamp: initial.lastSyncedAt,
+    paused: () => loadingRef.current,
+    pull: async () => {
+      const status = await fetchGroupsStatus();
+      if (!status.ok) return { ok: false };
+      setSync(status.data.sync);
+      return { ok: true, stamp: status.data.lastSyncedAt };
+    },
+    onReload: () => {
+      if (loadingRef.current) return;
+      loadingRef.current = true;
+      void fetchGroups()
+        .then((list) => {
+          if (!list.ok) return;
+          setItems(list.data.items);
+          setTotal(list.data.total);
+        })
+        .finally(() => {
+          loadingRef.current = false;
+        });
+    },
+  });
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
@@ -31,10 +61,7 @@ export function GroupsView({ initial }: Props) {
         <h1 className="text-xl font-semibold tracking-tight [text-box:trim-start_cap_alphabetic]">
           Входящие группы
         </h1>
-        <p className="text-muted-foreground text-sm">
-          Последняя загрузка: {formatSyncedAt(initial.lastSyncedAt, timeZone)}. Всего:{" "}
-          {formatCount(initial.total)}.
-        </p>
+        <p className="text-muted-foreground text-sm">{formatSyncLine(sync, timeZone)}</p>
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -47,7 +74,7 @@ export function GroupsView({ initial }: Props) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {initial.items.length === 0 ? (
+              {items.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={2} className="text-muted-foreground">
                     Нет данных. Включите регулярную загрузку телефонных номеров и входящих
@@ -55,11 +82,9 @@ export function GroupsView({ initial }: Props) {
                   </TableCell>
                 </TableRow>
               ) : (
-                initial.items.map((row) => (
+                items.map((row) => (
                   <TableRow key={row.id}>
-                    <TableCell className="font-mono tabular-nums">
-                      {row.externalId}
-                    </TableCell>
+                    <TableCell className="font-mono tabular-nums">{row.externalId}</TableCell>
                     <TableCell>{row.name}</TableCell>
                   </TableRow>
                 ))
@@ -67,6 +92,7 @@ export function GroupsView({ initial }: Props) {
             </TableBody>
           </Table>
         </div>
+        <p className="text-muted-foreground shrink-0 pt-2 text-sm">Всего: {formatCount(total)}</p>
       </div>
     </div>
   );

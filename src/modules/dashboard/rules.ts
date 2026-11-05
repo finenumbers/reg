@@ -4,6 +4,7 @@
  */
 
 import { formatCount } from "@/lib/format-count";
+import { groupsIntervalSec } from "@/modules/jobs/export-cadence";
 import { formatBytes } from "@/modules/storage/format-bytes";
 import { CDR_VACUUM_BUSY_MESSAGE } from "@/modules/storage/vacuum/gate";
 import { isPurgeHoldError, purgeHoldReleased } from "@/modules/traffic/poison";
@@ -117,9 +118,14 @@ export function regsStaleAfterMs(intervalSec: number): number {
   return Math.max(REGS_STALE_FLOOR_MS, 2 * clampedIntervalMs(intervalSec));
 }
 
-/** phones.sync and groups.sync alternate, so each leg is two intervals apart. */
-export function exportStaleAfterMs(intervalSec: number): number {
-  return Math.max(EXPORT_STALE_FLOOR_MS, 4 * clampedIntervalMs(intervalSec));
+/** phones.sync runs once per export interval. Two missed turns, with a ten-minute floor. */
+export function phonesStaleAfterMs(intervalSec: number): number {
+  return Math.max(EXPORT_STALE_FLOOR_MS, 2 * clampedIntervalMs(intervalSec));
+}
+
+/** groups.sync runs once per two export intervals. Two missed turns, with a ten-minute floor. */
+export function groupsStaleAfterMs(intervalSec: number): number {
+  return Math.max(EXPORT_STALE_FLOOR_MS, 2 * groupsIntervalSec(intervalSec) * 1000);
 }
 
 function clampedIntervalMs(intervalSec: number): number {
@@ -206,7 +212,7 @@ export function buildDashboard(facts: DashboardFacts): {
         failed: "Загрузка номеров не прошла",
         never: "Загрузка номеров включена, успешного прогона ещё не было.",
         stale: "Загрузка номеров устарела.",
-        thresholdMs: exportStaleAfterMs(facts.exportIntervalSec),
+        thresholdMs: phonesStaleAfterMs(facts.exportIntervalSec),
         now: facts.now,
       });
     }
@@ -215,7 +221,7 @@ export function buildDashboard(facts: DashboardFacts): {
         facts.phones,
         facts.jobsOk,
         facts.now,
-        exportStaleAfterMs(facts.exportIntervalSec),
+        phonesStaleAfterMs(facts.exportIntervalSec),
         {
           id: "phones",
           title: "Телефонные номера",
@@ -237,7 +243,7 @@ export function buildDashboard(facts: DashboardFacts): {
       failed: "Загрузка групп не прошла",
       never: "Загрузка групп включена, успешного прогона ещё не было.",
       stale: "Загрузка групп устарела.",
-      thresholdMs: exportStaleAfterMs(facts.exportIntervalSec),
+      thresholdMs: groupsStaleAfterMs(facts.exportIntervalSec),
       now: facts.now,
     });
   }

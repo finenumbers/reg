@@ -22,6 +22,7 @@ import {
   useRegsUnregisteredCount,
 } from "@/hooks/use-regs-unregistered-count";
 import { useDisplayTimezone } from "@/components/display-timezone-provider";
+import { formatSyncLine, type SyncSnapshot } from "@/modules/jobs/sync-line";
 import { formatUnregisteredOnlyLabel } from "@/lib/format-count";
 import { TABLE_PAGE_SIZE } from "@/lib/table-pagination";
 import {
@@ -46,15 +47,17 @@ const PHONE_SEARCH_DEBOUNCE_MS = 300;
 
 type Props = {
   initial: ListRegistrationsResult;
+  initialSync: SyncSnapshot;
 };
 
-export function RegistrationsView({ initial }: Props) {
+export function RegistrationsView({ initial, initialSync }: Props) {
   const { timeZone } = useDisplayTimezone();
   const [filters, setFilters] = useState<ColumnFilters>({});
   const [phoneInput, setPhoneInput] = useState("");
   const [phoneQ, setPhoneQ] = useState("");
   const [unregisteredOnly, setUnregisteredOnly] = useState(false);
   const [unregisteredCount, setUnregisteredCount] = useState(initial.unregisteredCount);
+  const [sync, setSync] = useState(initialSync);
   const [openColumn, setOpenColumn] = useState<string | null>(null);
   const [page, setPage] = useState(initial.page);
   const [items, setItems] = useState(initial.items);
@@ -75,7 +78,16 @@ export function RegistrationsView({ initial }: Props) {
   const phoneQRef = useRef(phoneQ);
   const unregisteredOnlyRef = useRef(unregisteredOnly);
   const phoneSearchTimerRef = useRef<number | null>(null);
+  const pageRef = useRef(page);
+  const itemsLenRef = useRef(items.length);
+  const openColumnRef = useRef(openColumn);
+  const loadingRef = useRef(loading);
   const [scrollRoot, setScrollRoot] = useState<Element | null>(null);
+
+  pageRef.current = page;
+  itemsLenRef.current = items.length;
+  openColumnRef.current = openColumn;
+  loadingRef.current = loading;
 
   filtersRef.current = filters;
   phoneQRef.current = phoneQ;
@@ -161,7 +173,15 @@ export function RegistrationsView({ initial }: Props) {
 
   useRegsUnregisteredCount({
     intervalMs: REGS_UNREGISTERED_POLL_MS,
+    initialLastSuccessAt: initialSync.finishedAt,
+    paused: () =>
+      openColumnRef.current != null ||
+      loadingRef.current ||
+      loadingMoreRef.current ||
+      pageRef.current > 1 ||
+      itemsLenRef.current > PAGE_SIZE,
     onCount: setUnregisteredCount,
+    onSync: setSync,
     onSnapshot: () => {
       void loadListRef.current({ page: 1, replace: true, soft: true });
     },
@@ -310,7 +330,7 @@ export function RegistrationsView({ initial }: Props) {
             Регистрации
           </h1>
           <p className="text-muted-foreground text-sm">
-            Текущее состояние SIP-регистраций из локальной базы после успешных опросов.
+            {formatSyncLine(sync, timeZone)}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">

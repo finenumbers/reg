@@ -10,6 +10,8 @@ import {
   type FacetResponse,
 } from "@/components/column-filters/types";
 import { prisma } from "@/lib/db";
+import type { SyncSnapshot } from "@/modules/jobs/sync-line";
+import { syncSnapshotFromJob } from "@/modules/jobs/sync-snapshot";
 import { getJobRunSummary } from "@/modules/jobs/query";
 import { displayTermCapacity, TERM_CAPACITY_FIELD } from "@/modules/phones/capacity";
 import { applyJsonColumnFilters } from "@/modules/phones/json-filters";
@@ -66,6 +68,7 @@ export type PhonesOperationalStatus = {
   endpointCount: number;
   gatewayCount: number;
   lastSyncedAt: string | null;
+  sync: SyncSnapshot;
 };
 
 function asStringRecord(data: unknown): PhoneRowData {
@@ -449,5 +452,6 @@ export async function getPhonesOperationalStatus(): Promise<PhonesOperationalSta
     endpointCount: state?.endpointCount ?? 0,
     gatewayCount: state?.gatewayCount ?? 0,
     lastSyncedAt: state?.lastSyncedAt?.toISOString() ?? null,
+    sync: syncSnapshotFromJob(summary.lastSuccess),
   };
 }

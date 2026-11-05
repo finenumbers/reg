@@ -18,7 +18,7 @@
 - primary login identifier = **username** (Better Auth username plugin);
 - UI kit = **shadcn/ui + Tailwind CSS**; таблицы данных = custom tables + column filters;
 - Prisma-модели Better Auth = **adapter/CLI-generated source of truth** (не изобретать кастомную auth-схему до генерации);
-- in-process scheduler bootstrap: `instrumentation.ts` (always starts timer loops); `regs.poll` when `regsPollEnabled`; `phones.sync`/`groups.sync` when `exportSyncEnabled` (both read the RTU API, one turn at a time); `cdr.sides.refresh` when `cdrSidesRefreshEnabled`; single `app` replica assumed (no leader election in v1).
+- in-process scheduler bootstrap: `instrumentation.ts` (always starts timer loops); `regs.poll` when `regsPollEnabled`; `phones.sync` every `exportSyncIntervalSec` and `groups.sync` every twice that when `exportSyncEnabled` (neither starts while the other or `regs.poll` is running; `regs.poll` does not wait); `cdr.sides.refresh` when `cdrSidesRefreshEnabled`; single `app` replica assumed (no leader election in v1).
 
 ## 1. Цель системы
 

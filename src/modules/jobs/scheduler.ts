@@ -5,7 +5,9 @@
  * - regs: regsPollEnabled / regsPollIntervalSec → regs.poll
  *   (same loop always drains CDR inbox, SMG inbox, SMG syslog traces, and VoIPmonitor)
  * - export: exportSyncEnabled / exportSyncIntervalSec → phones.sync
- *   then groups.sync (phones and groups both read the RTU API)
+ *   on that interval, groups.sync on twice the interval. Neither catalog
+ *   load starts while the other is running or while regs.poll is running.
+ *   regs.poll does not wait for either catalog load.
  * - sides: cdrSidesRefreshEnabled / interval → cdr.sides.refresh
  *   (also chained after phones.sync / cdr.import)
  * - parking: always, every 60s, reads calls.log only
@@ -37,6 +39,13 @@ import {
   canEnqueueVoipmonitorMatch,
   requestVoipmonitorMatch,
 } from "@/modules/voipmonitor";
+import {
+  clampScheduleInterval,
+  EXPORT_DEFER_SEC,
+  FIRST_GROUPS_DELAY_SEC,
+  FIRST_PHONES_DELAY_SEC,
+  groupsIntervalSec,
+} from "@/modules/jobs/export-cadence";
 
 /** Minimal runtime surface — avoids circular import with jobs/runtime.ts */
 export type SchedulerJobRuntime = {
@@ -49,6 +58,11 @@ export type SchedulerJobRuntime = {
 };
 
 export type ExportSyncAction = "phones.sync" | "groups.sync";
+
+export type CatalogTick = {
+  action: ExportSyncAction | null;
+  delaySec: number;
+};
 
 type ScheduleSettings = {
   regsEnabled: boolean;
@@ -69,7 +83,7 @@ type SchedulerGlobalState = {
   /** One waiter while an SMG file is still inside the settle window. */
   smgSettleTimer: ReturnType<typeof setTimeout> | null;
   runtimeRef: SchedulerJobRuntime | null;
-  lastExportSync: ExportSyncAction | null;
+  groupsTimer: ReturnType<typeof setTimeout> | null;
   sidesUsedInitialDelay: boolean;
   /** Set when an inbox scan finds neither a ready nor a young file. */
   lastRtuEmptyScanAt: number | null;
@@ -89,31 +103,33 @@ export function scheduledRegsAction(regsPollInFlight: boolean): "regs.poll" | nu
   return regsPollInFlight ? null : "regs.poll";
 }
 
-/** Next phone or group load. Pure — used by tests. */
-export function scheduledExportAction(input: {
+/**
+ * Next phones.sync or groups.sync. The two loads do not overlap each other
+ * and do not start while regs.poll is running. A blocked tick retries shortly.
+ * A rejected enqueue uses the same short delay. regs.poll is not delayed here.
+ */
+export function scheduledCatalogTick(input: {
+  kind: ExportSyncAction;
+  enabled: boolean;
   phonesSyncInFlight: boolean;
   groupsSyncInFlight: boolean;
-  lastExportSync: ExportSyncAction | null;
-}): { action: ExportSyncAction | null; nextLastExportSync: ExportSyncAction | null } {
-  if (input.phonesSyncInFlight || input.groupsSyncInFlight) {
-    return { action: null, nextLastExportSync: input.lastExportSync };
-  }
-  const nextExport: ExportSyncAction =
-    input.lastExportSync === "phones.sync" ? "groups.sync" : "phones.sync";
-  return { action: nextExport, nextLastExportSync: nextExport };
+  regsPollInFlight: boolean;
+  intervalSec: number;
+}): CatalogTick {
+  const period =
+    input.kind === "groups.sync"
+      ? groupsIntervalSec(input.intervalSec)
+      : clampScheduleInterval(input.intervalSec, DEFAULT_EXPORT_INTERVAL_SEC);
+  if (!input.enabled) return { action: null, delaySec: period };
+  const blocked =
+    input.phonesSyncInFlight || input.groupsSyncInFlight || input.regsPollInFlight;
+  if (blocked) return { action: null, delaySec: EXPORT_DEFER_SEC };
+  return { action: input.kind, delaySec: period };
 }
 
-/**
- * Advance the export alternation only after the queue accepts the job.
- * A rejected enqueue keeps the previous leg so the next tick retries it.
- */
-export function nextExportSyncAfterEnqueue(
-  lastExportSync: ExportSyncAction | null,
-  plannedNext: ExportSyncAction | null,
-  accepted: boolean,
-): ExportSyncAction | null {
-  if (!accepted || plannedNext == null) return lastExportSync;
-  return plannedNext;
+/** Short retry when the queue refuses a catalog load that the tick already chose. */
+export function catalogDelayAfterEnqueue(delaySec: number, accepted: boolean): number {
+  return accepted ? delaySec : EXPORT_DEFER_SEC;
 }
 
 export type SmgInboxDrainAction = "stamp-empty" | "enqueue" | "arm-timer" | "keep-timer";
@@ -173,7 +189,7 @@ function schedulerState(): SchedulerGlobalState {
       parkingTimer: null,
       smgSettleTimer: null,
       runtimeRef: null,
-      lastExportSync: null,
+      groupsTimer: null,
       sidesUsedInitialDelay: false,
       lastRtuEmptyScanAt: null,
       lastSmgEmptyScanAt: null,
@@ -189,7 +205,7 @@ export function isAutoSchedulerRunning(): boolean {
 }
 
 function clampInterval(raw: number | undefined, fallback: number): number {
-  return Math.max(30, raw ?? fallback);
+  return clampScheduleInterval(raw, fallback);
 }
 
 async function readScheduleSettings(): Promise<ScheduleSettings | null> {
@@ -392,47 +408,58 @@ async function tick(): Promise<void> {
   }
 }
 
+async function tickCatalog(kind: ExportSyncAction): Promise<number> {
+  const state = schedulerState();
+  const fallback =
+    kind === "groups.sync"
+      ? groupsIntervalSec(DEFAULT_EXPORT_INTERVAL_SEC)
+      : DEFAULT_EXPORT_INTERVAL_SEC;
+  if (!state.runtimeRef) return fallback;
+
+  let delaySec = fallback;
+  try {
+    const settings = await readScheduleSettings();
+    if (!settings) return delaySec;
+    const decision = scheduledCatalogTick({
+      kind,
+      enabled: settings.exportEnabled,
+      phonesSyncInFlight: state.runtimeRef.isInFlight("phones.sync"),
+      groupsSyncInFlight: state.runtimeRef.isInFlight("groups.sync"),
+      regsPollInFlight: state.runtimeRef.isInFlight("regs.poll"),
+      intervalSec: settings.exportIntervalSec,
+    });
+    delaySec = decision.delaySec;
+    const logName = kind === "phones.sync" ? "scheduler.phones.skipped" : "scheduler.groups.skipped";
+    if (!settings.exportEnabled) {
+      logger.debug(logName, { reason: "exportSyncEnabled=false" });
+      return delaySec;
+    }
+    if (!decision.action) {
+      logger.debug(logName, { reason: "anti-overlap" });
+      return delaySec;
+    }
+    const queued = await enqueueScheduled(decision.action);
+    delaySec = catalogDelayAfterEnqueue(decision.delaySec, queued.accepted);
+  } catch (error) {
+    logger.error(kind === "phones.sync" ? "scheduler.phones.failed" : "scheduler.groups.failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+  return delaySec;
+}
+
 async function tickExport(): Promise<void> {
   const state = schedulerState();
   if (!state.runtimeRef) return;
+  const delaySec = await tickCatalog("phones.sync");
+  if (schedulerState().started) scheduleNextExport(delaySec);
+}
 
-  let intervalSec = DEFAULT_EXPORT_INTERVAL_SEC;
-  try {
-    const settings = await readScheduleSettings();
-    if (!settings) {
-      return;
-    }
-    intervalSec = settings.exportIntervalSec;
-
-    if (!settings.exportEnabled) {
-      logger.debug("scheduler.export.skipped", {
-        reason: "exportSyncEnabled=false",
-      });
-      return;
-    }
-
-    const planned = scheduledExportAction({
-      phonesSyncInFlight: state.runtimeRef.isInFlight("phones.sync"),
-      groupsSyncInFlight: state.runtimeRef.isInFlight("groups.sync"),
-      lastExportSync: state.lastExportSync ?? null,
-    });
-    if (!planned.action) {
-      logger.debug("scheduler.export.skipped", { reason: "anti-overlap" });
-      return;
-    }
-    const queued = await enqueueScheduled(planned.action);
-    state.lastExportSync = nextExportSyncAfterEnqueue(
-      state.lastExportSync,
-      planned.nextLastExportSync,
-      queued.accepted,
-    );
-  } catch (error) {
-    logger.error("scheduler.export.failed", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-  } finally {
-    scheduleNextExport(intervalSec);
-  }
+async function tickGroups(): Promise<void> {
+  const state = schedulerState();
+  if (!state.runtimeRef) return;
+  const delaySec = await tickCatalog("groups.sync");
+  if (schedulerState().started) scheduleNextGroups(delaySec);
 }
 
 function armTimer(
@@ -461,6 +488,14 @@ function scheduleNextExport(intervalSec: number): void {
   if (!state.started) return;
   state.exportTimer = armTimer(state.exportTimer, intervalSec * 1000, () => {
     void tickExport();
+  });
+}
+
+function scheduleNextGroups(intervalSec: number): void {
+  const state = schedulerState();
+  if (!state.started) return;
+  state.groupsTimer = armTimer(state.groupsTimer, intervalSec * 1000, () => {
+    void tickGroups();
   });
 }
 
@@ -552,12 +587,12 @@ function startSchedulerLoop(runtime: SchedulerJobRuntime): void {
   state.timer = armTimer(null, 5_000, () => {
     void tick();
   });
-  // First export tick waits a full export interval so it does not share boot
-  // with regs.poll.
+  // Phones and groups start after regs.poll has had a chance to begin.
+  // A running registration poll defers them by EXPORT_DEFER_SEC.
+  scheduleNextExport(FIRST_PHONES_DELAY_SEC);
+  scheduleNextGroups(FIRST_GROUPS_DELAY_SEC);
   void (async () => {
     const settings = await readScheduleSettings();
-    const intervalSec = settings?.exportIntervalSec ?? DEFAULT_EXPORT_INTERVAL_SEC;
-    scheduleNextExport(intervalSec);
     const sidesDelay = settings
       ? sidesRefreshDelaySec({
           hasSnapshot: settings.sidesHasSnapshot,
@@ -582,6 +617,7 @@ export async function rescheduleAfterSettingsChange(): Promise<void> {
   const settings = await readScheduleSettings();
   const regsIntervalSec = settings?.regsIntervalSec ?? DEFAULT_REGS_INTERVAL_SEC;
   const exportIntervalSec = settings?.exportIntervalSec ?? DEFAULT_EXPORT_INTERVAL_SEC;
+  const groupsDelaySec = groupsIntervalSec(exportIntervalSec);
   const sidesDelay = settings
     ? sidesRefreshDelaySec({
         hasSnapshot: settings.sidesHasSnapshot,
@@ -594,11 +630,13 @@ export async function rescheduleAfterSettingsChange(): Promise<void> {
     regsIntervalSec,
     exportEnabled: settings?.exportEnabled ?? false,
     exportIntervalSec,
+    groupsDelaySec,
     sidesEnabled: settings?.sidesEnabled ?? false,
     sidesIntervalSec: sidesDelay,
   });
   scheduleNext(regsIntervalSec);
   scheduleNextExport(exportIntervalSec);
+  scheduleNextGroups(groupsDelaySec);
   scheduleNextSides(sidesDelay);
 }
 
@@ -609,7 +647,6 @@ export function stopAutoScheduler(): void {
   const state = schedulerState();
   state.started = false;
   state.runtimeRef = null;
-  state.lastExportSync = null;
   state.sidesUsedInitialDelay = false;
   state.lastRtuEmptyScanAt = null;
   state.lastSmgEmptyScanAt = null;
@@ -622,6 +659,10 @@ export function stopAutoScheduler(): void {
   if (state.exportTimer) {
     clearTimeout(state.exportTimer);
     state.exportTimer = null;
+  }
+  if (state.groupsTimer) {
+    clearTimeout(state.groupsTimer);
+    state.groupsTimer = null;
   }
   if (state.sidesTimer) {
     clearTimeout(state.sidesTimer);
@@ -647,8 +688,9 @@ export function evaluateSchedulerBootstrap(runtime: SchedulerJobRuntime): {
     started: true,
     detail:
       "Auto-scheduler loop started (single-replica only). " +
-      "regs.poll when regsPollEnabled=true; phones.sync/groups.sync when " +
-      "exportSyncEnabled=true (phones.sync and groups.sync take turns); " +
+      "regs.poll when regsPollEnabled=true; phones.sync on exportSyncIntervalSec " +
+      "and groups.sync on twice that interval when exportSyncEnabled=true " +
+      "(neither starts while regs.poll is running); " +
       "cdr.sides.refresh when cdrSidesRefreshEnabled=true; " +
       "intervals from Settings; anti-overlap per action.",
   };

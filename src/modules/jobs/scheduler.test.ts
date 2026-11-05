@@ -23,12 +23,12 @@ vi.mock("@/lib/logger", () => ({
 }));
 
 import {
+  catalogDelayAfterEnqueue,
   decideSmgInboxDrain,
   evaluateSchedulerBootstrap,
   isAutoSchedulerRunning,
-  nextExportSyncAfterEnqueue,
   rescheduleAfterSettingsChange,
-  scheduledExportAction,
+  scheduledCatalogTick,
   scheduledRegsAction,
   scheduledSidesRefreshAction,
   sidesRefreshDelaySec,
@@ -66,54 +66,54 @@ describe("scheduledRegsAction", () => {
   });
 });
 
-describe("scheduledExportAction", () => {
-  it("starts with phones.sync", () => {
-    expect(
-      scheduledExportAction({
-        phonesSyncInFlight: false,
-        groupsSyncInFlight: false,
-        lastExportSync: null,
-      }),
-    ).toEqual({
+describe("scheduledCatalogTick", () => {
+  const idle = {
+    enabled: true,
+    phonesSyncInFlight: false,
+    groupsSyncInFlight: false,
+    regsPollInFlight: false,
+    intervalSec: 300,
+  };
+
+  it("reads phones on the export interval and groups on twice that", () => {
+    expect(scheduledCatalogTick({ ...idle, kind: "phones.sync" })).toEqual({
       action: "phones.sync",
-      nextLastExportSync: "phones.sync",
+      delaySec: 300,
     });
-  });
-
-  it("does not start a second phone or group load while one is in flight", () => {
-    expect(
-      scheduledExportAction({
-        phonesSyncInFlight: true,
-        groupsSyncInFlight: false,
-        lastExportSync: "phones.sync",
-      }),
-    ).toEqual({
-      action: null,
-      nextLastExportSync: "phones.sync",
-    });
-  });
-
-  it("alternates phones.sync and groups.sync", () => {
-    expect(
-      scheduledExportAction({
-        phonesSyncInFlight: false,
-        groupsSyncInFlight: false,
-        lastExportSync: "phones.sync",
-      }),
-    ).toEqual({
+    expect(scheduledCatalogTick({ ...idle, kind: "groups.sync" })).toEqual({
       action: "groups.sync",
-      nextLastExportSync: "groups.sync",
+      delaySec: 600,
     });
+  });
+
+  it("defers either load while regs.poll or the other catalog load is running", () => {
     expect(
-      scheduledExportAction({
-        phonesSyncInFlight: false,
-        groupsSyncInFlight: false,
-        lastExportSync: "groups.sync",
-      }),
-    ).toEqual({
-      action: "phones.sync",
-      nextLastExportSync: "phones.sync",
+      scheduledCatalogTick({ ...idle, kind: "phones.sync", regsPollInFlight: true }),
+    ).toEqual({ action: null, delaySec: 20 });
+    expect(
+      scheduledCatalogTick({ ...idle, kind: "groups.sync", phonesSyncInFlight: true }),
+    ).toEqual({ action: null, delaySec: 20 });
+    expect(
+      scheduledCatalogTick({ ...idle, kind: "phones.sync", groupsSyncInFlight: true }),
+    ).toEqual({ action: null, delaySec: 20 });
+  });
+
+  it("keeps the full period while the export loop is off", () => {
+    expect(scheduledCatalogTick({ ...idle, kind: "phones.sync", enabled: false })).toEqual({
+      action: null,
+      delaySec: 300,
     });
+    expect(scheduledCatalogTick({ ...idle, kind: "groups.sync", enabled: false })).toEqual({
+      action: null,
+      delaySec: 600,
+    });
+  });
+});
+
+describe("catalogDelayAfterEnqueue", () => {
+  it("retries soon when the queue rejects the load", () => {
+    expect(catalogDelayAfterEnqueue(300, false)).toBe(20);
+    expect(catalogDelayAfterEnqueue(300, true)).toBe(300);
   });
 });
 
@@ -146,22 +146,6 @@ describe("scheduledSidesRefreshAction", () => {
         cdrImportInFlight: true,
       }),
     ).toBeNull();
-  });
-});
-
-describe("nextExportSyncAfterEnqueue", () => {
-  it("keeps the previous leg when the queue rejects the job", () => {
-    expect(nextExportSyncAfterEnqueue(null, "phones.sync", false)).toBeNull();
-    expect(nextExportSyncAfterEnqueue("phones.sync", "groups.sync", false)).toBe(
-      "phones.sync",
-    );
-  });
-
-  it("advances only after the queue accepts the job", () => {
-    expect(nextExportSyncAfterEnqueue(null, "phones.sync", true)).toBe("phones.sync");
-    expect(nextExportSyncAfterEnqueue("phones.sync", "groups.sync", true)).toBe(
-      "groups.sync",
-    );
   });
 });
 

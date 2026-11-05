@@ -64,6 +64,32 @@ describe("reduceRegsUnregisteredWatch", () => {
     expect(result.count).toBe(1);
     expect(result.snapshot).toBe(false);
     expect(result.next.lastSuccessAt).toBe("2026-09-15T00:02:00.000Z");
+    expect(result.next.pending).toBe(true);
+  });
+
+  it("reloads a paused stamp once the pause ends", () => {
+    const held = reduceRegsUnregisteredWatch(
+      primed,
+      {
+        ok: true,
+        unregisteredCount: 4,
+        lastSuccessAt: "2026-09-15T00:04:00.000Z",
+      },
+      { paused: true },
+    );
+    expect(held.snapshot).toBe(false);
+    expect(held.next.pending).toBe(true);
+
+    const released = reduceRegsUnregisteredWatch(
+      held.next,
+      {
+        ok: true,
+        unregisteredCount: 4,
+        lastSuccessAt: "2026-09-15T00:04:00.000Z",
+      },
+    );
+    expect(released.snapshot).toBe(true);
+    expect(released.next.pending).toBe(false);
   });
 
   it("snapshots the first success after never (null → timestamp)", () => {

@@ -1,7 +1,17 @@
-# Current Phase — production (v1.228.0)
+# Current Phase — production (v1.229.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, number geography, free numbers, purchased numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls.  
 **Date:** 2026-11-06
+
+## v1.229.0 — Phone numbers refresh on the export interval
+
+There is no migration. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. Keep a single `app` replica. Replace the `app` container. The switch is only read.
+
+When the phone-and-group checkbox is on, `phones.sync` runs every export interval (default 300 seconds). `groups.sync` runs every two intervals (default 10 minutes). Neither starts while the other is running or while `regs.poll` is running. `regs.poll` keeps its own interval and does not wait. The first phone load is 45 seconds after start, the first groups load is 90 seconds. A blocked start retries in 20 seconds. Saving Settings schedules the full periods.
+
+The home screen treats phone numbers as stale after two export intervals, and not sooner than 10 minutes. Incoming groups are stale after two of their own periods, with the same floor. At the default 300 seconds that is 10 minutes for numbers and 20 minutes for groups. A running job is not stale.
+
+«Регистрации», «Телефонные номера», and «Входящие группы» show the last successful load: finish time, duration in whole seconds, and the job summary. Phone numbers also show how many catalog rows have registration and how many do not. An open page refreshes from the local database when that load finishes. A hidden tab, an open filter, or a list past the first page waits and applies the refresh when the page is idle again. Geography keeps its own timer. Nothing is written to the switch.
 
 ## v1.228.0 — Unused poll helper is gone
 
