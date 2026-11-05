@@ -18,7 +18,11 @@ import {
   SAME_HOST_PSTN_BASE_URL,
   type SettingsView,
 } from "@/modules/settings/schemas";
-import { describeExportPeriods } from "@/modules/jobs/export-cadence";
+import {
+  GROUPS_SYNC_INTERVAL_SEC,
+  PHONES_SYNC_INTERVAL_SEC,
+  REGS_POLL_INTERVAL_SEC,
+} from "@/modules/jobs/export-cadence";
 import { inspectKeyMaterial } from "@/modules/ssh/key-material-hint";
 import { SyslogSettings } from "@/modules/smg-syslog/ui/syslog-settings";
 import type { ParkingKeyStatus } from "@/modules/antifraud/key-status";
@@ -77,14 +81,8 @@ export function SettingsForm({ initial, parkingKey }: Props) {
   const [username, setUsername] = useState(initial.username ?? "");
   const [displayTimezone, setDisplayTimezone] = useState(initial.displayTimezone);
   const [regsPollEnabled, setRegsPollEnabled] = useState(initial.regsPollEnabled);
-  const [regsPollIntervalSec, setRegsPollIntervalSec] = useState(
-    String(initial.regsPollIntervalSec),
-  );
   const [exportSyncEnabled, setExportSyncEnabled] = useState(
     initial.exportSyncEnabled,
-  );
-  const [exportSyncIntervalSec, setExportSyncIntervalSec] = useState(
-    String(initial.exportSyncIntervalSec),
   );
   const [cdrSidesRefreshEnabled, setCdrSidesRefreshEnabled] = useState(
     initial.cdrSidesRefreshEnabled,
@@ -203,9 +201,7 @@ export function SettingsForm({ initial, parkingKey }: Props) {
     setPort(String(next.port ?? 22));
     setUsername(next.username ?? "");
     setRegsPollEnabled(next.regsPollEnabled);
-    setRegsPollIntervalSec(String(next.regsPollIntervalSec));
     setExportSyncEnabled(next.exportSyncEnabled);
-    setExportSyncIntervalSec(String(next.exportSyncIntervalSec));
     setCdrSidesRefreshEnabled(next.cdrSidesRefreshEnabled);
     setCdrSidesRefreshIntervalSec(String(next.cdrSidesRefreshIntervalSec));
     setNumberGeographyRefreshEnabled(next.numberGeographyRefreshEnabled);
@@ -235,9 +231,7 @@ export function SettingsForm({ initial, parkingKey }: Props) {
   async function saveProfileFields(): Promise<SettingsView | null> {
     const body: Record<string, unknown> = {
       regsPollEnabled,
-      regsPollIntervalSec: Number(regsPollIntervalSec),
       exportSyncEnabled,
-      exportSyncIntervalSec: Number(exportSyncIntervalSec),
       cdrSidesRefreshEnabled,
       cdrSidesRefreshIntervalSec: Number(cdrSidesRefreshIntervalSec),
       numberGeographyRefreshEnabled,
@@ -1382,16 +1376,9 @@ export function SettingsForm({ initial, parkingKey }: Props) {
               Включить регулярный опрос регистраций
             </Label>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="interval">Интервал опроса регистраций (секунды)</Label>
-            <Input
-              id="interval"
-              type="number"
-              min={30}
-              value={regsPollIntervalSec}
-              onChange={(e) => setRegsPollIntervalSec(e.target.value)}
-            />
-          </div>
+          <p className="text-sm text-muted-foreground">
+            Каждые {REGS_POLL_INTERVAL_SEC} секунд.
+          </p>
           <div className="flex items-center gap-3">
             <input
               id="export-sync-enabled"
@@ -1405,22 +1392,10 @@ export function SettingsForm({ initial, parkingKey }: Props) {
             </Label>
           </div>
           <p className="text-sm text-muted-foreground">
-            Номера читаются с этим интервалом. Входящие группы — в два раза реже.
-            Новая загрузка не стартует, пока идёт опрос регистраций или другая
-            загрузка каталога.
+            Номера каждые {PHONES_SYNC_INTERVAL_SEC} секунд, входящие группы
+            каждые {GROUPS_SYNC_INTERVAL_SEC} секунд. Новая загрузка не стартует,
+            пока идёт опрос регистраций или другая загрузка каталога.
           </p>
-          <div className="space-y-2">
-            <Label htmlFor="export-interval">
-              Интервал загрузки телефонных номеров (секунды)
-            </Label>
-            <Input
-              id="export-interval"
-              type="number"
-              min={30}
-              value={exportSyncIntervalSec}
-              onChange={(e) => setExportSyncIntervalSec(e.target.value)}
-            />
-          </div>
           <div className="flex items-center gap-3">
             <input
               id="sides-refresh-enabled"
@@ -1513,14 +1488,12 @@ export function SettingsForm({ initial, parkingKey }: Props) {
               </span>
             )}
             {" · "}
-            Регистрации: {regsPollEnabled ? "вкл" : "выкл"} / {regsPollIntervalSec}{" "}
+            Регистрации: {regsPollEnabled ? "вкл" : "выкл"} / {REGS_POLL_INTERVAL_SEC}{" "}
             с
             {" · "}
-            Номера: {exportSyncEnabled ? "вкл" : "выкл"} /{" "}
-            {describeExportPeriods(Number(exportSyncIntervalSec)).phonesSec} с
+            Номера: {exportSyncEnabled ? "вкл" : "выкл"} / {PHONES_SYNC_INTERVAL_SEC} с
             {" · "}
-            Группы: {exportSyncEnabled ? "вкл" : "выкл"} /{" "}
-            {describeExportPeriods(Number(exportSyncIntervalSec)).groupsSec} с
+            Группы: {exportSyncEnabled ? "вкл" : "выкл"} / {GROUPS_SYNC_INTERVAL_SEC} с
             {" · "}
             Описания в журнале: {cdrSidesRefreshEnabled ? "вкл" : "выкл"} /{" "}
             {cdrSidesRefreshIntervalSec} с

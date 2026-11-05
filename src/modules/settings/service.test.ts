@@ -43,7 +43,7 @@ function assertMaskedSettings(view: SettingsView) {
 }
 
 describe("settings schemas and masked view contract", () => {
-  it("accepts valid settings updates and enforces poll interval floor", () => {
+  it("accepts valid settings updates and ignores fixed poll intervals", () => {
     expect(
       settingsUpdateSchema.parse({
         host: "softswitch.example",
@@ -58,17 +58,16 @@ describe("settings schemas and masked view contract", () => {
       }),
     ).toMatchObject({
       host: "softswitch.example",
-      regsPollIntervalSec: 60,
+      regsPollEnabled: true,
       geoipBaseUrl: "http://localhost:8080/",
       pstnBaseUrl: "http://localhost:5555/",
     });
-
-    expect(() =>
-      settingsUpdateSchema.parse({ regsPollIntervalSec: 10 }),
-    ).toThrow();
-    expect(() =>
-      settingsUpdateSchema.parse({ exportSyncIntervalSec: 10 }),
-    ).toThrow();
+    expect(
+      settingsUpdateSchema.parse({
+        regsPollIntervalSec: 10,
+        exportSyncIntervalSec: 10,
+      }),
+    ).toEqual({});
     expect(() =>
       settingsUpdateSchema.parse({ cdrSidesRefreshIntervalSec: 10 }),
     ).toThrow();
@@ -201,9 +200,9 @@ describe("settings schemas and masked view contract", () => {
       keyFingerprint: "SHA256:abc",
       keyAlgo: "ed25519",
       regsPollEnabled: false,
-      regsPollIntervalSec: 60,
+      regsPollIntervalSec: 30,
       exportSyncEnabled: false,
-      exportSyncIntervalSec: 300,
+      exportSyncIntervalSec: 60,
       cdrSidesRefreshEnabled: true,
       cdrSidesRefreshIntervalSec: 300,
       numberGeographyRefreshEnabled: true,

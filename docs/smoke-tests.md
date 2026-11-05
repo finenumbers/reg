@@ -53,6 +53,6 @@ The SSH connection test checks the session only. Registrations, phones, and grou
 Only after the checklist above:
 
 1. Confirm **one** `app` container.
-2. Settings → enable registrations and/or phones+groups on their own intervals (≥30s) → Save.
+2. Settings → enable registrations and/or phones+groups → Save. Periods are fixed: 30s, 60s, and 120s.
 3. Watch `/jobs` for `trigger=schedule`; confirm phones and groups do not overlap with each other.
 4. Rollback: disable `regsPollEnabled` in Settings → Save.

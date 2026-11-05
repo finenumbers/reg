@@ -100,7 +100,7 @@ Ciphertext envelope в БД: `v1:<iv_b64>:<authTag_b64>:<ciphertext_b64>`.
 - `phones.sync` — локальное чтение API РТУ. Ручного `POST /api/phones/request` нет. Право `phones:request` в сиде остаётся: им пользуются поставщики, география, повтор трафика и SMG.
 - Клиент/API **не** передаёт `command` / `scriptPath` / `remoteArgs`.
 - `regs.poll` — локальное чтение API РТУ. Ручного `POST /api/regs/poll` нет. Право `regs:poll` в сиде остаётся и в интерфейсе не создаёт кнопку.
-- Auto-scheduler: in-process loop always starts at boot; ticks enqueue only when Settings `regsPollEnabled=true` (interval from `regsPollIntervalSec`, min 30s). Первый тик после старта процесса — около пяти секунд. Single `app` replica required.
+- Auto-scheduler: in-process loop always starts at boot; ticks enqueue only when Settings `regsPollEnabled=true`. Регистрации каждые 30 с, номера каждые 60 с, группы каждые 120 с. Первый тик регистраций после старта процесса — около пяти секунд. Single `app` replica required.
 
 ## 4. AuthN / AuthZ
 

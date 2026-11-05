@@ -1,7 +1,15 @@
-# Current Phase — production (v1.229.0)
+# Current Phase — production (v1.230.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, number geography, free numbers, purchased numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls.  
 **Date:** 2026-11-06
+
+## v1.230.0 — Poll periods are fixed
+
+There is no migration. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. Keep a single `app` replica. Replace the `app` container. The switch is only read.
+
+Registrations poll every 30 seconds, phone numbers every 60 seconds, and incoming groups every 120 seconds. Settings no longer has those interval fields. The checkboxes still start and stop the loops. A settings save arms the next ticks 30, 45, and 75 seconds apart so the three reads do not start on the same second. The first phone load after process start is still 45 seconds, and the first groups load is still 90 seconds. A blocked start retries in 20 seconds.
+
+The home screen still waits two minutes before calling registrations stale, and ten minutes before calling numbers or groups stale. Nothing is written to the switch.
 
 ## v1.229.0 — Phone numbers refresh on the export interval
 

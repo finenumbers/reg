@@ -77,8 +77,6 @@ function syslog(over: Partial<SyslogPulse> = {}): SyslogPulse {
 function facts(over: Partial<DashboardFacts> = {}): DashboardFacts {
   return {
     now: NOW,
-    regsIntervalSec: 60,
-    exportIntervalSec: 300,
     jobsOk: true,
     regs: null,
     phones: null,
@@ -173,11 +171,10 @@ describe("dashboard attention", () => {
     expect(failedWhileRunning.cards[0]?.badge).toBe("running");
   });
 
-  it("uses a two-minute floor when the poll interval is short", () => {
-    expect(regsStaleAfterMs(30)).toBe(2 * 60 * 1000);
+  it("calls registrations stale after two minutes", () => {
+    expect(regsStaleAfterMs()).toBe(2 * 60 * 1000);
     const fresh = buildDashboard(
       facts({
-        regsIntervalSec: 30,
         regs: {
           ...pulse({ lastSuccessAt: NOW - 2 * 60 * 1000 }),
           registered: 1,
@@ -190,7 +187,6 @@ describe("dashboard attention", () => {
 
     const stale = buildDashboard(
       facts({
-        regsIntervalSec: 30,
         regs: {
           ...pulse({ lastSuccessAt: NOW - 2 * 60 * 1000 - 1 }),
           registered: 1,
@@ -204,10 +200,8 @@ describe("dashboard attention", () => {
   });
 
   it("waits two missed turns before calling phones or groups stale", () => {
-    expect(phonesStaleAfterMs(300)).toBe(10 * 60 * 1000);
-    expect(phonesStaleAfterMs(30)).toBe(10 * 60 * 1000);
-    expect(groupsStaleAfterMs(300)).toBe(20 * 60 * 1000);
-    expect(groupsStaleAfterMs(30)).toBe(10 * 60 * 1000);
+    expect(phonesStaleAfterMs()).toBe(10 * 60 * 1000);
+    expect(groupsStaleAfterMs()).toBe(10 * 60 * 1000);
 
     const phones = {
       ...pulse({ lastSuccessAt: NOW - 9 * 60 * 1000 }),
@@ -226,26 +220,18 @@ describe("dashboard attention", () => {
 
     const groupsAlmost = buildDashboard(
       facts({
-        groups: pulse({ lastSuccessAt: NOW - 19 * 60 * 1000 }),
-      }),
-    );
-    expect(groupsAlmost.alerts).toEqual([]);
-
-    const groupsLate = buildDashboard(
-      facts({
-        groups: pulse({ lastSuccessAt: NOW - 20 * 60 * 1000 - 1 }),
-      }),
-    );
-    expect(ids(groupsLate)).toEqual(["groups-stale"]);
-
-    const shortInterval = buildDashboard(
-      facts({
-        exportIntervalSec: 30,
         groups: pulse({ lastSuccessAt: NOW - 9 * 60 * 1000 }),
       }),
     );
-    expect(shortInterval.alerts).toEqual([]);
-    expect(shortInterval.cards).toEqual([]);
+    expect(groupsAlmost.alerts).toEqual([]);
+    expect(groupsAlmost.cards).toEqual([]);
+
+    const groupsLate = buildDashboard(
+      facts({
+        groups: pulse({ lastSuccessAt: NOW - 10 * 60 * 1000 - 1 }),
+      }),
+    );
+    expect(ids(groupsLate)).toEqual(["groups-stale"]);
   });
 
   it("keeps a groups failure on the strip and off the cards", () => {

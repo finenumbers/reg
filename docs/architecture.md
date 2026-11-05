@@ -7,7 +7,7 @@
 **Утверждённые продуктовые решения:**
 - номера, группы и регистрации читает API РТУ; SSH к коммутатору только проверяет вход и команду не шлёт;
 - local auth only (Better Auth); один SSH profile;
-- интервал опроса и retention артефактов — в Настройках UI;
+- периоды опроса регистраций, номеров и групп фиксированы; retention артефактов — в Настройках UI;
 - при ошибке опроса regs не обновлять, на сайте показать проблему;
 - admin bootstrap из env; деплой за внешним NPM (сеть `proxy`);
 - SSH-ключ: только replace, без просмотра/скачивания.
@@ -18,7 +18,7 @@
 - primary login identifier = **username** (Better Auth username plugin);
 - UI kit = **shadcn/ui + Tailwind CSS**; таблицы данных = custom tables + column filters;
 - Prisma-модели Better Auth = **adapter/CLI-generated source of truth** (не изобретать кастомную auth-схему до генерации);
-- in-process scheduler bootstrap: `instrumentation.ts` (always starts timer loops); `regs.poll` when `regsPollEnabled`; `phones.sync` every `exportSyncIntervalSec` and `groups.sync` every twice that when `exportSyncEnabled` (neither starts while the other or `regs.poll` is running; `regs.poll` does not wait); `cdr.sides.refresh` when `cdrSidesRefreshEnabled`; single `app` replica assumed (no leader election in v1).
+- in-process scheduler bootstrap: `instrumentation.ts` (always starts timer loops); `regs.poll` every 30s when `regsPollEnabled`; `phones.sync` every 60s and `groups.sync` every 120s when `exportSyncEnabled` (neither starts while the other or `regs.poll` is running; `regs.poll` does not wait); `cdr.sides.refresh` when `cdrSidesRefreshEnabled`; single `app` replica assumed (no leader election in v1).
 
 ## 1. Цель системы
 

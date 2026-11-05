@@ -182,9 +182,7 @@ async function gatherFacts(
         where: { id: 1 },
         select: {
           regsPollEnabled: true,
-          regsPollIntervalSec: true,
           exportSyncEnabled: true,
-          exportSyncIntervalSec: true,
           syslogEnabled: true,
         },
       }),
@@ -239,8 +237,6 @@ async function gatherFacts(
 
   return {
     now,
-    regsIntervalSec: settings?.regsPollIntervalSec ?? 60,
-    exportIntervalSec: settings?.exportSyncIntervalSec ?? 300,
     jobsOk,
     regs: includeRegs
       ? {
@@ -272,8 +268,6 @@ async function gatherFacts(
 function emptyFacts(now: number, showMaintenance: boolean): DashboardFacts {
   return {
     now,
-    regsIntervalSec: 60,
-    exportIntervalSec: 300,
     jobsOk: true,
     regs: null,
     phones: null,

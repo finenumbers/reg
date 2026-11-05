@@ -11,6 +11,10 @@
 import { prisma } from "@/lib/db";
 import { AUDIT_ACTIONS, auditService } from "@/modules/audit";
 import {
+  PHONES_SYNC_INTERVAL_SEC,
+  REGS_POLL_INTERVAL_SEC,
+} from "@/modules/jobs/export-cadence";
+import {
   isAutoSchedulerRunning,
   rescheduleAfterSettingsChange,
 } from "@/modules/jobs/scheduler";
@@ -84,9 +88,9 @@ function toSettingsView(
     keyFingerprint: profile?.keyFingerprint ?? null,
     keyAlgo: profile?.keyAlgo ?? null,
     regsPollEnabled: settings.regsPollEnabled,
-    regsPollIntervalSec: settings.regsPollIntervalSec,
+    regsPollIntervalSec: REGS_POLL_INTERVAL_SEC,
     exportSyncEnabled: settings.exportSyncEnabled,
-    exportSyncIntervalSec: settings.exportSyncIntervalSec,
+    exportSyncIntervalSec: PHONES_SYNC_INTERVAL_SEC,
     cdrSidesRefreshEnabled: settings.cdrSidesRefreshEnabled,
     cdrSidesRefreshIntervalSec: settings.cdrSidesRefreshIntervalSec,
     numberGeographyRefreshEnabled: settings.numberGeographyRefreshEnabled,
@@ -181,9 +185,7 @@ export async function updateSettings(
 
   const pollScheduleChanged =
     parsed.regsPollEnabled !== undefined ||
-    parsed.regsPollIntervalSec !== undefined ||
     parsed.exportSyncEnabled !== undefined ||
-    parsed.exportSyncIntervalSec !== undefined ||
     parsed.cdrSidesRefreshEnabled !== undefined ||
     parsed.cdrSidesRefreshIntervalSec !== undefined;
   // numberGeographyRefresh* only reloads an open table. It does not
@@ -209,9 +211,7 @@ export async function updateSettings(
 
   const settingsData: {
     regsPollEnabled?: boolean;
-    regsPollIntervalSec?: number;
     exportSyncEnabled?: boolean;
-    exportSyncIntervalSec?: number;
     cdrSidesRefreshEnabled?: boolean;
     cdrSidesRefreshIntervalSec?: number;
     numberGeographyRefreshEnabled?: boolean;
@@ -241,14 +241,8 @@ export async function updateSettings(
   if (parsed.regsPollEnabled !== undefined) {
     settingsData.regsPollEnabled = parsed.regsPollEnabled;
   }
-  if (parsed.regsPollIntervalSec !== undefined) {
-    settingsData.regsPollIntervalSec = parsed.regsPollIntervalSec;
-  }
   if (parsed.exportSyncEnabled !== undefined) {
     settingsData.exportSyncEnabled = parsed.exportSyncEnabled;
-  }
-  if (parsed.exportSyncIntervalSec !== undefined) {
-    settingsData.exportSyncIntervalSec = parsed.exportSyncIntervalSec;
   }
   if (parsed.cdrSidesRefreshEnabled !== undefined) {
     settingsData.cdrSidesRefreshEnabled = parsed.cdrSidesRefreshEnabled;

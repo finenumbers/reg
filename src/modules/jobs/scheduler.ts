@@ -2,11 +2,11 @@
  * In-process scheduler for regs.poll, phones.sync, and groups.sync.
  *
  * Three Settings-gated loops (single app replica assumed):
- * - regs: regsPollEnabled / regsPollIntervalSec → regs.poll
+ * - regs: regsPollEnabled → regs.poll every REGS_POLL_INTERVAL_SEC
  *   (same loop always drains CDR inbox, SMG inbox, SMG syslog traces, and VoIPmonitor)
- * - export: exportSyncEnabled / exportSyncIntervalSec → phones.sync
- *   on that interval, groups.sync on twice the interval. Neither catalog
- *   load starts while the other is running or while regs.poll is running.
+ * - export: exportSyncEnabled → phones.sync every PHONES_SYNC_INTERVAL_SEC,
+ *   groups.sync every GROUPS_SYNC_INTERVAL_SEC. Neither catalog load starts
+ *   while the other is running or while regs.poll is running.
  *   regs.poll does not wait for either catalog load.
  * - sides: cdrSidesRefreshEnabled / interval → cdr.sides.refresh
  *   (also chained after phones.sync / cdr.import)
@@ -40,11 +40,17 @@ import {
   requestVoipmonitorMatch,
 } from "@/modules/voipmonitor";
 import {
+  catalogPeriodSec,
   clampScheduleInterval,
   EXPORT_DEFER_SEC,
   FIRST_GROUPS_DELAY_SEC,
   FIRST_PHONES_DELAY_SEC,
-  groupsIntervalSec,
+  GROUPS_RESCHEDULE_DELAY_SEC,
+  GROUPS_SYNC_INTERVAL_SEC,
+  PHONES_RESCHEDULE_DELAY_SEC,
+  PHONES_SYNC_INTERVAL_SEC,
+  REGS_POLL_INTERVAL_SEC,
+  REGS_RESCHEDULE_DELAY_SEC,
 } from "@/modules/jobs/export-cadence";
 
 /** Minimal runtime surface — avoids circular import with jobs/runtime.ts */
@@ -66,9 +72,7 @@ export type CatalogTick = {
 
 type ScheduleSettings = {
   regsEnabled: boolean;
-  regsIntervalSec: number;
   exportEnabled: boolean;
-  exportIntervalSec: number;
   sidesEnabled: boolean;
   sidesIntervalSec: number;
   sidesHasSnapshot: boolean;
@@ -93,8 +97,6 @@ type SchedulerGlobalState = {
   smgEpisode: LoadEpisode | null;
 };
 
-const DEFAULT_REGS_INTERVAL_SEC = 60;
-const DEFAULT_EXPORT_INTERVAL_SEC = 300;
 const DEFAULT_SIDES_REFRESH_INTERVAL_SEC = 300;
 const FIRST_SIDES_REFRESH_DELAY_SEC = 15;
 
@@ -114,12 +116,8 @@ export function scheduledCatalogTick(input: {
   phonesSyncInFlight: boolean;
   groupsSyncInFlight: boolean;
   regsPollInFlight: boolean;
-  intervalSec: number;
 }): CatalogTick {
-  const period =
-    input.kind === "groups.sync"
-      ? groupsIntervalSec(input.intervalSec)
-      : clampScheduleInterval(input.intervalSec, DEFAULT_EXPORT_INTERVAL_SEC);
+  const period = catalogPeriodSec(input.kind);
   if (!input.enabled) return { action: null, delaySec: period };
   const blocked =
     input.phonesSyncInFlight || input.groupsSyncInFlight || input.regsPollInFlight;
@@ -214,9 +212,7 @@ async function readScheduleSettings(): Promise<ScheduleSettings | null> {
     if (!settings) {
       return {
         regsEnabled: false,
-        regsIntervalSec: DEFAULT_REGS_INTERVAL_SEC,
         exportEnabled: false,
-        exportIntervalSec: DEFAULT_EXPORT_INTERVAL_SEC,
         sidesEnabled: true,
         sidesIntervalSec: DEFAULT_SIDES_REFRESH_INTERVAL_SEC,
         sidesHasSnapshot: false,
@@ -224,15 +220,7 @@ async function readScheduleSettings(): Promise<ScheduleSettings | null> {
     }
     return {
       regsEnabled: settings.regsPollEnabled,
-      regsIntervalSec: clampInterval(
-        settings.regsPollIntervalSec,
-        DEFAULT_REGS_INTERVAL_SEC,
-      ),
       exportEnabled: settings.exportSyncEnabled,
-      exportIntervalSec: clampInterval(
-        settings.exportSyncIntervalSec,
-        DEFAULT_EXPORT_INTERVAL_SEC,
-      ),
       sidesEnabled: settings.cdrSidesRefreshEnabled,
       sidesIntervalSec: clampInterval(
         settings.cdrSidesRefreshIntervalSec,
@@ -375,7 +363,6 @@ async function tick(): Promise<void> {
   const state = schedulerState();
   if (!state.runtimeRef) return;
 
-  let intervalSec = DEFAULT_REGS_INTERVAL_SEC;
   try {
     await drainPendingInbox();
     await drainPendingSmgInbox();
@@ -386,7 +373,6 @@ async function tick(): Promise<void> {
     if (!settings) {
       return;
     }
-    intervalSec = settings.regsIntervalSec;
 
     if (!settings.regsEnabled) {
       logger.debug("scheduler.tick.skipped", { reason: "regsPollEnabled=false" });
@@ -404,16 +390,13 @@ async function tick(): Promise<void> {
       error: error instanceof Error ? error.message : String(error),
     });
   } finally {
-    scheduleNext(intervalSec);
+    scheduleNext(REGS_POLL_INTERVAL_SEC);
   }
 }
 
 async function tickCatalog(kind: ExportSyncAction): Promise<number> {
   const state = schedulerState();
-  const fallback =
-    kind === "groups.sync"
-      ? groupsIntervalSec(DEFAULT_EXPORT_INTERVAL_SEC)
-      : DEFAULT_EXPORT_INTERVAL_SEC;
+  const fallback = catalogPeriodSec(kind);
   if (!state.runtimeRef) return fallback;
 
   let delaySec = fallback;
@@ -426,7 +409,6 @@ async function tickCatalog(kind: ExportSyncAction): Promise<number> {
       phonesSyncInFlight: state.runtimeRef.isInFlight("phones.sync"),
       groupsSyncInFlight: state.runtimeRef.isInFlight("groups.sync"),
       regsPollInFlight: state.runtimeRef.isInFlight("regs.poll"),
-      intervalSec: settings.exportIntervalSec,
     });
     delaySec = decision.delaySec;
     const logName = kind === "phones.sync" ? "scheduler.phones.skipped" : "scheduler.groups.skipped";
@@ -615,9 +597,6 @@ export async function rescheduleAfterSettingsChange(): Promise<void> {
     return;
   }
   const settings = await readScheduleSettings();
-  const regsIntervalSec = settings?.regsIntervalSec ?? DEFAULT_REGS_INTERVAL_SEC;
-  const exportIntervalSec = settings?.exportIntervalSec ?? DEFAULT_EXPORT_INTERVAL_SEC;
-  const groupsDelaySec = groupsIntervalSec(exportIntervalSec);
   const sidesDelay = settings
     ? sidesRefreshDelaySec({
         hasSnapshot: settings.sidesHasSnapshot,
@@ -627,16 +606,19 @@ export async function rescheduleAfterSettingsChange(): Promise<void> {
     : DEFAULT_SIDES_REFRESH_INTERVAL_SEC;
   logger.info("scheduler.reschedule", {
     regsEnabled: settings?.regsEnabled ?? false,
-    regsIntervalSec,
+    regsIntervalSec: REGS_POLL_INTERVAL_SEC,
+    regsDelaySec: REGS_RESCHEDULE_DELAY_SEC,
     exportEnabled: settings?.exportEnabled ?? false,
-    exportIntervalSec,
-    groupsDelaySec,
+    phonesIntervalSec: PHONES_SYNC_INTERVAL_SEC,
+    phonesDelaySec: PHONES_RESCHEDULE_DELAY_SEC,
+    groupsIntervalSec: GROUPS_SYNC_INTERVAL_SEC,
+    groupsDelaySec: GROUPS_RESCHEDULE_DELAY_SEC,
     sidesEnabled: settings?.sidesEnabled ?? false,
     sidesIntervalSec: sidesDelay,
   });
-  scheduleNext(regsIntervalSec);
-  scheduleNextExport(exportIntervalSec);
-  scheduleNextGroups(groupsDelaySec);
+  scheduleNext(REGS_RESCHEDULE_DELAY_SEC);
+  scheduleNextExport(PHONES_RESCHEDULE_DELAY_SEC);
+  scheduleNextGroups(GROUPS_RESCHEDULE_DELAY_SEC);
   scheduleNextSides(sidesDelay);
 }
 
@@ -688,10 +670,10 @@ export function evaluateSchedulerBootstrap(runtime: SchedulerJobRuntime): {
     started: true,
     detail:
       "Auto-scheduler loop started (single-replica only). " +
-      "regs.poll when regsPollEnabled=true; phones.sync on exportSyncIntervalSec " +
-      "and groups.sync on twice that interval when exportSyncEnabled=true " +
-      "(neither starts while regs.poll is running); " +
+      "regs.poll every 30s when regsPollEnabled=true; " +
+      "phones.sync every 60s and groups.sync every 120s when exportSyncEnabled=true " +
+      "(neither catalog load starts while the other or regs.poll is running); " +
       "cdr.sides.refresh when cdrSidesRefreshEnabled=true; " +
-      "intervals from Settings; anti-overlap per action.",
+      "sides interval from Settings; anti-overlap per action.",
   };
 }

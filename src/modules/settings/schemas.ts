@@ -81,9 +81,7 @@ export const settingsUpdateSchema = z.object({
   port: z.number().int().min(1).max(65535).optional(),
   username: z.string().min(1).max(255).optional(),
   regsPollEnabled: z.boolean().optional(),
-  regsPollIntervalSec: z.number().int().min(30).max(86400).optional(),
   exportSyncEnabled: z.boolean().optional(),
-  exportSyncIntervalSec: z.number().int().min(30).max(86400).optional(),
   cdrSidesRefreshEnabled: z.boolean().optional(),
   cdrSidesRefreshIntervalSec: z.number().int().min(30).max(86400).optional(),
   numberGeographyRefreshEnabled: z.boolean().optional(),
@@ -177,8 +175,10 @@ export type SettingsView = {
   keyFingerprint: string | null;
   keyAlgo: string | null;
   regsPollEnabled: boolean;
+  /** Fixed registration poll. The stored column is not the schedule. */
   regsPollIntervalSec: number;
   exportSyncEnabled: boolean;
+  /** Fixed phone-catalog period. Groups use their own fixed period. */
   exportSyncIntervalSec: number;
   cdrSidesRefreshEnabled: boolean;
   cdrSidesRefreshIntervalSec: number;

@@ -72,17 +72,16 @@ describe("scheduledCatalogTick", () => {
     phonesSyncInFlight: false,
     groupsSyncInFlight: false,
     regsPollInFlight: false,
-    intervalSec: 300,
   };
 
-  it("reads phones on the export interval and groups on twice that", () => {
+  it("reads phones every 60s and groups every 120s", () => {
     expect(scheduledCatalogTick({ ...idle, kind: "phones.sync" })).toEqual({
       action: "phones.sync",
-      delaySec: 300,
+      delaySec: 60,
     });
     expect(scheduledCatalogTick({ ...idle, kind: "groups.sync" })).toEqual({
       action: "groups.sync",
-      delaySec: 600,
+      delaySec: 120,
     });
   });
 
@@ -101,11 +100,11 @@ describe("scheduledCatalogTick", () => {
   it("keeps the full period while the export loop is off", () => {
     expect(scheduledCatalogTick({ ...idle, kind: "phones.sync", enabled: false })).toEqual({
       action: null,
-      delaySec: 300,
+      delaySec: 60,
     });
     expect(scheduledCatalogTick({ ...idle, kind: "groups.sync", enabled: false })).toEqual({
       action: null,
-      delaySec: 600,
+      delaySec: 120,
     });
   });
 });

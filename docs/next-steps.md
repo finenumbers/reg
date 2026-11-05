@@ -13,8 +13,8 @@ Phase 7 (production readiness) is complete. Recommended follow-ups are **ops ena
 
 1. Single `app` replica confirmed
 2. SSH test OK. Phones and incoming groups load from the RTU API when the phones+groups checkbox is on.
-3. Settings → enable regular registrations poll and/or phones+groups load (separate checkboxes and intervals, ≥30s) → Save
-4. Watch `/jobs` for `trigger=schedule`. `phones.sync` runs every export interval. `groups.sync` runs every two intervals. Disable the phones-and-groups checkbox to stop both.
+3. Settings → enable regular registrations poll and/or phones+groups load → Save. The periods are fixed: registrations 30s, phones 60s, groups 120s.
+4. Watch `/jobs` for `trigger=schedule`. Disable the phones-and-groups checkbox to stop both catalog loads.
 
 ## 3. Enable VoIPmonitor links (optional)
 

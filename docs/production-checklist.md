@@ -227,7 +227,7 @@ Only when all are true:
 
 1. Single `app` replica
 2. RTU API account saved and the access check succeeds
-3. Settings `regsPollEnabled=true` + Save (interval ≥30s)
+3. Settings `regsPollEnabled=true` + Save. The period is fixed at 30s.
 4. After the next start, the first read is about five seconds later; compare `/regs` with the RTU pages
 
 To disable auto-poll quickly: turn off `regsPollEnabled` in Settings and Save — ticks skip enqueue (no container restart).

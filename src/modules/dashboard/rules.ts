@@ -4,7 +4,11 @@
  */
 
 import { formatCount } from "@/lib/format-count";
-import { groupsIntervalSec } from "@/modules/jobs/export-cadence";
+import {
+  GROUPS_SYNC_INTERVAL_SEC,
+  PHONES_SYNC_INTERVAL_SEC,
+  REGS_POLL_INTERVAL_SEC,
+} from "@/modules/jobs/export-cadence";
 import { formatBytes } from "@/modules/storage/format-bytes";
 import { CDR_VACUUM_BUSY_MESSAGE } from "@/modules/storage/vacuum/gate";
 import { isPurgeHoldError, purgeHoldReleased } from "@/modules/traffic/poison";
@@ -71,8 +75,6 @@ export type SyslogPulse = {
 
 export type DashboardFacts = {
   now: number;
-  regsIntervalSec: number;
-  exportIntervalSec: number;
   jobsOk: boolean;
   regs:
     | (ScheduledPulse & {
@@ -114,23 +116,18 @@ const BADGE_LABEL: Record<DashboardBadge, string> = {
   off: "выключено",
 };
 
-export function regsStaleAfterMs(intervalSec: number): number {
-  return Math.max(REGS_STALE_FLOOR_MS, 2 * clampedIntervalMs(intervalSec));
+export function regsStaleAfterMs(): number {
+  return Math.max(REGS_STALE_FLOOR_MS, 2 * REGS_POLL_INTERVAL_SEC * 1000);
 }
 
-/** phones.sync runs once per export interval. Two missed turns, with a ten-minute floor. */
-export function phonesStaleAfterMs(intervalSec: number): number {
-  return Math.max(EXPORT_STALE_FLOOR_MS, 2 * clampedIntervalMs(intervalSec));
+/** phones.sync runs every 60s. Two missed turns, with a ten-minute floor. */
+export function phonesStaleAfterMs(): number {
+  return Math.max(EXPORT_STALE_FLOOR_MS, 2 * PHONES_SYNC_INTERVAL_SEC * 1000);
 }
 
-/** groups.sync runs once per two export intervals. Two missed turns, with a ten-minute floor. */
-export function groupsStaleAfterMs(intervalSec: number): number {
-  return Math.max(EXPORT_STALE_FLOOR_MS, 2 * groupsIntervalSec(intervalSec) * 1000);
-}
-
-function clampedIntervalMs(intervalSec: number): number {
-  const sec = Number.isFinite(intervalSec) ? intervalSec : 30;
-  return Math.max(30, sec) * 1000;
+/** groups.sync runs every 120s. Two missed turns, with a ten-minute floor. */
+export function groupsStaleAfterMs(): number {
+  return Math.max(EXPORT_STALE_FLOOR_MS, 2 * GROUPS_SYNC_INTERVAL_SEC * 1000);
 }
 
 export function clipError(error: string | null | undefined): string {
@@ -180,7 +177,7 @@ export function buildDashboard(facts: DashboardFacts): {
         failed: "Опрос регистраций не прошёл",
         never: "Опрос регистраций включён, успешного прогона ещё не было.",
         stale: "Опрос регистраций устарел.",
-        thresholdMs: regsStaleAfterMs(facts.regsIntervalSec),
+        thresholdMs: regsStaleAfterMs(),
         now: facts.now,
       });
     }
@@ -189,7 +186,7 @@ export function buildDashboard(facts: DashboardFacts): {
         facts.regs,
         facts.jobsOk,
         facts.now,
-        regsStaleAfterMs(facts.regsIntervalSec),
+        regsStaleAfterMs(),
         {
           id: "registrations",
           title: "Регистрации",
@@ -212,7 +209,7 @@ export function buildDashboard(facts: DashboardFacts): {
         failed: "Загрузка номеров не прошла",
         never: "Загрузка номеров включена, успешного прогона ещё не было.",
         stale: "Загрузка номеров устарела.",
-        thresholdMs: phonesStaleAfterMs(facts.exportIntervalSec),
+        thresholdMs: phonesStaleAfterMs(),
         now: facts.now,
       });
     }
@@ -221,7 +218,7 @@ export function buildDashboard(facts: DashboardFacts): {
         facts.phones,
         facts.jobsOk,
         facts.now,
-        phonesStaleAfterMs(facts.exportIntervalSec),
+        phonesStaleAfterMs(),
         {
           id: "phones",
           title: "Телефонные номера",
@@ -243,7 +240,7 @@ export function buildDashboard(facts: DashboardFacts): {
       failed: "Загрузка групп не прошла",
       never: "Загрузка групп включена, успешного прогона ещё не было.",
       stale: "Загрузка групп устарела.",
-      thresholdMs: groupsStaleAfterMs(facts.exportIntervalSec),
+      thresholdMs: groupsStaleAfterMs(),
       now: facts.now,
     });
   }
