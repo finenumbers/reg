@@ -13,7 +13,7 @@ const PERMISSIONS = [
   { code: "phones:read", description: "View phone endpoints and gateways" },
   {
     code: "phones:request",
-    description: "Trigger phones.sync from softswitch",
+    description: "Phone catalog actions other than viewing",
   },
   { code: "audit:read", description: "View audit log" },
   { code: "users:admin", description: "Manage users and roles" },
@@ -96,13 +96,14 @@ export async function ensurePlatformBaseline(): Promise<{ ok: true }> {
     where: { code: "phones.sync" },
     create: {
       code: "phones.sync",
-      remotePath: "/opt/scripts/export.py",
-      description: "Sync phone endpoints/gateways (read-only JSON)",
+      remotePath: "/opt/scripts/phones_sync",
+      description: "Read phone endpoints and gateways from the RTU API",
       enabled: true,
       module: "phones",
     },
     update: {
-      remotePath: "/opt/scripts/export.py",
+      remotePath: "/opt/scripts/phones_sync",
+      description: "Read phone endpoints and gateways from the RTU API",
       enabled: true,
       module: "phones",
     },

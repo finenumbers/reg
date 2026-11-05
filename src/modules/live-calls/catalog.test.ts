@@ -189,12 +189,20 @@ describe("findTalkColumn", () => {
     title: "Время разговора",
     dataMask: null,
     haveLookup: false,
+    pk: false,
+    ctlType: null,
+    action: null,
+    actionUnreadable: false,
   };
   const seconds = {
     name: "talk_sec",
     title: "Время разговора, сек",
     dataMask: null,
     haveLookup: false,
+    pk: false,
+    ctlType: null,
+    action: null,
+    actionUnreadable: false,
   };
 
   it("prefers the first unique handbook title", () => {

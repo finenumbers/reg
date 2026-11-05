@@ -143,7 +143,6 @@ APIs:
 - `GET /api/phones/export` — XLSX export from template (`phones:read`)
 - `GET /api/phones/ufw-export` — UFW rules XLSX from DB snapshot (`phones:read`; nothing persisted)
 - `GET /api/phones/status` — last sync status (`phones:read`)
-- `POST /api/phones/request` — enqueue softswitch sync (`phones:request`)
 
 UI (`/phones`):
 

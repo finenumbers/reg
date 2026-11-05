@@ -118,6 +118,15 @@ export type SoapColumn = {
   dataMask: string | null;
   /** Handbook `have_lookup`: only `1` and `true` open `getLookup`. */
   haveLookup: boolean;
+  /** Handbook `pk`: only `1` and `true`. */
+  pk: boolean;
+  ctlType: string | null;
+  /**
+   * Handbook `action` bit mask. `1` is view.
+   * Null when the element is absent. `actionUnreadable` means the text was not an integer.
+   */
+  action: number | null;
+  actionUnreadable: boolean;
 };
 
 export type SoapColumns =
@@ -229,11 +238,17 @@ function asColumn(record: Record<string, unknown>): SoapColumn | null {
     hasKey(record, "represent");
   if (!looks) return null;
   const mask = ownText(record, "data_mask");
+  const action = columnAction(ownText(record, "action"));
+  const ctl = ownText(record, "ctl_type");
   return {
     name,
     title,
     dataMask: mask ? mask : null,
     haveLookup: columnHasLookup(ownText(record, "have_lookup")),
+    pk: columnHasLookup(ownText(record, "pk")),
+    ctlType: ctl ? ctl : null,
+    action: action.action,
+    actionUnreadable: action.actionUnreadable,
   };
 }
 
@@ -241,6 +256,80 @@ function columnHasLookup(value: string | null): boolean {
   if (!value) return false;
   const text = value.trim().toLowerCase();
   return text === "1" || text === "true";
+}
+
+function columnAction(value: string | null): {
+  action: number | null;
+  actionUnreadable: boolean;
+} {
+  if (value == null || value.trim() === "") {
+    return { action: null, actionUnreadable: false };
+  }
+  const text = value.trim();
+  if (!/^\d+$/.test(text)) return { action: null, actionUnreadable: true };
+  const action = Number(text);
+  if (!Number.isSafeInteger(action)) return { action: null, actionUnreadable: true };
+  return { action, actionUnreadable: false };
+}
+
+export type SoapCount =
+  | { kind: "fault"; detail: string }
+  | { kind: "bad" }
+  | { kind: "count"; count: number };
+
+/** Integer row count from `countRowset`. Several different integers are not a count. */
+export function interpretCountRowset(xml: string, password: string): SoapCount {
+  const parsed = parseSoap(xml, password);
+  if (parsed.kind !== "tree") return parsed;
+  if (!hasLocalName(parsed.tree, "countRowsetResponse")) return { kind: "bad" };
+  const numbers = new Set<string>();
+  collectCountIntegers(parsed.tree, false, numbers);
+  if (numbers.size !== 1) return { kind: "bad" };
+  const [text] = numbers;
+  if (!text || !/^\d+$/.test(text)) return { kind: "bad" };
+  const count = Number(text);
+  if (!Number.isSafeInteger(count)) return { kind: "bad" };
+  return { kind: "count", count };
+}
+
+function collectCountIntegers(node: unknown, inside: boolean, out: Set<string>): void {
+  if (!node || typeof node !== "object") return;
+  if (Array.isArray(node)) {
+    for (const item of node) collectCountIntegers(item, inside, out);
+    return;
+  }
+  for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
+    if (key.startsWith("@_")) continue;
+    const response = localName(key) === "countRowsetResponse";
+    if (!inside && !response) {
+      collectCountIntegers(value, false, out);
+      continue;
+    }
+    if (response) {
+      const direct = leafInteger(value);
+      if (direct !== null) out.add(direct);
+      collectCountIntegers(value, true, out);
+      continue;
+    }
+    const text = leafInteger(value);
+    if (text !== null) out.add(text);
+    collectCountIntegers(value, true, out);
+  }
+}
+
+function leafInteger(value: unknown): string | null {
+  if (typeof value === "string" && /^\d+$/.test(value.trim())) return value.trim();
+  if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) {
+    return String(value);
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  const keys = Object.keys(record).filter((key) => !key.startsWith("@_"));
+  if (keys.length === 1 && keys[0] === "#text") {
+    const text = record["#text"];
+    if (typeof text === "string" && /^\d+$/.test(text.trim())) return text.trim();
+  }
+  return null;
 }
 
 function collectLookupPairs(

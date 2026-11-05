@@ -30,16 +30,7 @@ import {
   downloadPhonesUfwExport,
   fetchPhonesList,
   fetchPhonesStatus,
-  postPhonesRequest,
-  toSyncStatusSnapshot,
 } from "@/modules/phones/api-client";
-import {
-  IDLE_SYNC_STATE,
-  isSyncInFlight,
-  reduceSyncUiState,
-  waitForPhonesSyncOutcome,
-  type SyncUiState,
-} from "@/modules/phones/request-action";
 import type { ListPhonesResult } from "@/modules/phones/service";
 import type { PhoneKind } from "@/modules/phones/types";
 import { PhonesTable } from "@/modules/phones/ui/phones-table";
@@ -50,7 +41,6 @@ const PAGE_SIZE = TABLE_PAGE_SIZE;
 const PHONE_SEARCH_DEBOUNCE_MS = 300;
 
 type Props = {
-  canRequest: boolean;
   initial: ListPhonesResult;
   /** Live SIP Unregistered from reg_current (Registrations), not catalog «Нет». */
   initialRegsUnregisteredCount: number;
@@ -66,7 +56,7 @@ function selectKind(next: PhoneKind, current: PhoneKind, load: (k: PhoneKind) =>
   load(next);
 }
 
-export function PhonesView({ canRequest, initial, initialRegsUnregisteredCount }: Props) {
+export function PhonesView({ initial, initialRegsUnregisteredCount }: Props) {
   const { timeZone } = useDisplayTimezone();
   const [kind, setKind] = useState<PhoneKind>(initial.kind);
   const [filters, setFilters] = useState<ColumnFilters>({});
@@ -90,7 +80,6 @@ export function PhonesView({ canRequest, initial, initialRegsUnregisteredCount }
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [listError, setListError] = useState<string | null>(null);
-  const [syncState, setSyncState] = useState<SyncUiState>(IDLE_SYNC_STATE);
   const [exporting, setExporting] = useState(false);
   const [rtuConverting, setRtuConverting] = useState(false);
   const [ufwExporting, setUfwExporting] = useState(false);
@@ -99,7 +88,6 @@ export function PhonesView({ canRequest, initial, initialRegsUnregisteredCount }
     details: string[];
   } | null>(null);
   const rtuFileInputRef = useRef<HTMLInputElement | null>(null);
-  const syncInFlightRef = useRef(false);
   const refreshSeq = useRef(0);
   const loadingMoreRef = useRef(false);
   const filtersRef = useRef(filters);
@@ -241,6 +229,29 @@ export function PhonesView({ canRequest, initial, initialRegsUnregisteredCount }
     },
   });
 
+  useEffect(() => {
+    let cancelled = false;
+    let timer: number | null = null;
+    let seen: string | null | undefined;
+    async function tick() {
+      const status = await fetchPhonesStatus();
+      if (cancelled) return;
+      if (status.ok) {
+        const next = status.data.lastSyncedAt;
+        if (seen !== undefined && seen !== next) {
+          void loadListRef.current({ page: 1, replace: true, soft: true });
+        }
+        seen = next;
+      }
+      timer = window.setTimeout(() => void tick(), PHONES_REGS_UNREGISTERED_POLL_MS);
+    }
+    timer = window.setTimeout(() => void tick(), PHONES_REGS_UNREGISTERED_POLL_MS);
+    return () => {
+      cancelled = true;
+      if (timer != null) window.clearTimeout(timer);
+    };
+  }, []);
+
   const onLoadMore = useCallback(() => {
     if (!hasMore || loading || loadingMoreRef.current) return;
     void loadList({ page: page + 1, replace: false });
@@ -317,69 +328,6 @@ export function PhonesView({ canRequest, initial, initialRegsUnregisteredCount }
     });
   }
 
-  async function onRequest() {
-    if (!canRequest || syncInFlightRef.current || isSyncInFlight(syncState)) {
-      return;
-    }
-    syncInFlightRef.current = true;
-    setSyncState(reduceSyncUiState(syncState, { type: "START" }));
-
-    try {
-      let before = await fetchPhonesStatus();
-      if (!before.ok) before = await fetchPhonesStatus();
-      const beforeFinishedAt = before.ok ? before.data.lastFinishedAt : null;
-
-      const enqueued = await postPhonesRequest();
-      if (!enqueued.ok) {
-        const next = reduceSyncUiState(IDLE_SYNC_STATE, {
-          type: "ERROR",
-          message: enqueued.message,
-          conflict: enqueued.conflict,
-        });
-        setSyncState(next);
-        toast.error(enqueued.message);
-        return;
-      }
-
-      const outcome = await waitForPhonesSyncOutcome({
-        beforeFinishedAt,
-        baselineKnown: before.ok,
-        fetchStatus: async () => {
-          const status = await fetchPhonesStatus();
-          if (!status.ok) {
-            throw new Error(status.message);
-          }
-          return toSyncStatusSnapshot(status.data);
-        },
-      });
-
-      if (outcome.ok) {
-        setSyncState(
-          reduceSyncUiState(IDLE_SYNC_STATE, {
-            type: "SUCCESS",
-            message: outcome.message,
-          }),
-        );
-        toast.success(outcome.message);
-        await loadList({ page: 1, replace: true });
-      } else {
-        setSyncState(
-          reduceSyncUiState(IDLE_SYNC_STATE, {
-            type: "ERROR",
-            message: outcome.message,
-          }),
-        );
-        toast.error(outcome.message);
-      }
-    } catch {
-      const message = "Не удалось выполнить запрос";
-      setSyncState(reduceSyncUiState(IDLE_SYNC_STATE, { type: "ERROR", message }));
-      toast.error(message);
-    } finally {
-      syncInFlightRef.current = false;
-    }
-  }
-
   async function onExportXlsx() {
     if (exporting) return;
     setExporting(true);
@@ -433,8 +381,6 @@ export function PhonesView({ canRequest, initial, initialRegsUnregisteredCount }
     }
     toast.success("Файл для импорта в UFW скачан");
   }
-
-  const pending = isSyncInFlight(syncState);
 
   function switchKind(next: PhoneKind) {
     selectKind(next, kind, (k) => {
@@ -506,15 +452,6 @@ export function PhonesView({ canRequest, initial, initialRegsUnregisteredCount }
           >
             {ufwExporting ? "Формирование…" : "Импорт в UFW"}
           </Button>
-          {canRequest ? (
-            <Button
-              type="button"
-              onClick={() => void onRequest()}
-              disabled={pending || ufwExporting || rtuConverting || exporting}
-            >
-              {pending ? "Загрузка…" : "Загрузить данные"}
-            </Button>
-          ) : null}
         </div>
       </div>
 
@@ -530,18 +467,6 @@ export function PhonesView({ canRequest, initial, initialRegsUnregisteredCount }
             ))}
           </ul>
         </div>
-      ) : null}
-
-      {syncState.message ? (
-        <p
-          className={
-            syncState.status === "success"
-              ? "shrink-0 text-sm text-emerald-700"
-              : "text-destructive shrink-0 text-sm"
-          }
-        >
-          {syncState.message}
-        </p>
       ) : null}
 
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
@@ -613,7 +538,7 @@ export function PhonesView({ canRequest, initial, initialRegsUnregisteredCount }
             emptyMessage={
               filtersActive
                 ? "Нет данных по текущим фильтрам. Сбросьте фильтры или уточните выбор."
-                : "Нет данных. Нажмите «Загрузить данные», чтобы загрузить с softswitch."
+                : "Нет данных. Включите регулярную загрузку телефонных номеров и входящих групп в Настройках."
             }
             filters={filters}
             phoneQ={phoneQ}

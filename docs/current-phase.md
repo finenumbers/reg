@@ -1,7 +1,13 @@
-# Current Phase — production (v1.225.4)
+# Current Phase — production (v1.226.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, number geography, free numbers, purchased numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls.  
-**Date:** 2026-11-05
+**Date:** 2026-11-06
+
+## v1.226.0 — Phone numbers load from the RTU API
+
+There is no migration. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. Keep a single `app` replica. Replace the `app` container. The switch is only read. Until this load succeeds, the previous phone catalog stays.
+
+«Телефонные номера» no longer has «Загрузить данные». When the existing phone-and-group checkbox is on, `phones.sync` reads the RTU page «Оборудование» in the folder «Оборудование». The first load starts one export interval after the process starts, then alternates with incoming groups. A complete read replaces `phone_endpoints` and `phone_gateways`. Supplier and category stay on a number that remains. An empty read does not wipe a non-empty catalog. A fault, a timeout, a truncated page, a count mismatch, or a snapshot that drops a whole side, passwords, zones, protocols, address lists, or groups leaves the previous rows. `export.py` stays on the switch for an image rollback. Nothing is written to the switch. Compare three rows with the RTU page before trusting geography, registrations, and CDR sides.
 
 ## v1.225.4 — One phone keeps the registration that ends later
 

@@ -1,11 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildCountRowsetEnvelope,
   buildDescribeTableEnvelope,
   buildGetLookupEnvelope,
   buildSelectRowsetEnvelope,
+  EQUIPMENT_SELECT_COLUMN_CAP,
+  EQUIPMENT_SELECT_OFFSET_CAP,
+  SELECT_COLUMN_CAP,
   SELECT_ROW_LIMIT,
 } from "@/modules/rtu-soap/envelope";
 import {
+  interpretCountRowset,
   interpretDescribeTable,
   interpretGetLookup,
   interpretSelectRowset,
@@ -122,6 +127,8 @@ describe("readCallReads", () => {
     expect(plan.describeTable.operation).toBe("describeTable");
     expect(plan.selectRowset.operation).toBe("selectRowset");
     expect(plan.getLookup).toBeNull();
+    expect(plan.countRowset).toBeNull();
+    expect(plan.countRowsetRejected).toBe(false);
     if (plan.selectRowset.kind !== "rpc-encoded") throw new Error("expected rpc");
     expect(plan.selectRowset.parts[0]).toBe("p_sort");
   });
@@ -333,7 +340,16 @@ describe("live-call responses", () => {
     expect(columns).toEqual({
       kind: "columns",
       columns: [
-        { name: "t_start", title: "Время начала", dataMask: "YMDhms", haveLookup: false },
+        {
+          name: "t_start",
+          title: "Время начала",
+          dataMask: "YMDhms",
+          haveLookup: false,
+          pk: false,
+          ctlType: null,
+          action: null,
+          actionUnreadable: false,
+        },
       ],
     });
 
@@ -363,12 +379,20 @@ describe("live-call responses", () => {
           title: "Состояние вызова",
           dataMask: null,
           haveLookup: true,
+          pk: false,
+          ctlType: null,
+          action: null,
+          actionUnreadable: false,
         },
         {
           name: "src_name",
           title: "Имя инициатора",
           dataMask: null,
           haveLookup: false,
+          pk: false,
+          ctlType: null,
+          action: null,
+          actionUnreadable: false,
         },
       ],
     });
@@ -526,5 +550,125 @@ describe("getLookup", () => {
     expect(both.ok).toBe(true);
     if (!both.ok || !both.getLookup) throw new Error("lookup missing");
     expect(both.getLookup.operation).toBe("getLookup");
+  });
+});
+
+describe("equipment page bounds", () => {
+  it("keeps the short column list and five-page offset unless asked", () => {
+    const { selectRowset } = rpcReads();
+    const wide = Array.from({ length: SELECT_COLUMN_CAP + 1 }, (_, index) => `c${index}`);
+    expect(() =>
+      buildSelectRowsetEnvelope(selectRowset, "admin", "s3cret", "08.2504.01", wide),
+    ).toThrow(/column list/);
+    expect(() =>
+      buildSelectRowsetEnvelope(
+        selectRowset,
+        "admin",
+        "s3cret",
+        "08.2504.01",
+        ["conf_id"],
+        undefined,
+        SELECT_ROW_LIMIT * 5,
+      ),
+    ).toThrow(/row offset/);
+  });
+
+  it("accepts the equipment column list and the 25th page offset", () => {
+    const { selectRowset } = rpcReads();
+    const columns = Array.from({ length: 22 }, (_, index) => `c${index}`);
+    const envelope = buildSelectRowsetEnvelope(
+      selectRowset,
+      "admin",
+      "s3cret",
+      "02.2201.01",
+      columns,
+      undefined,
+      EQUIPMENT_SELECT_OFFSET_CAP,
+      {
+        columnCap: EQUIPMENT_SELECT_COLUMN_CAP,
+        offsetCap: EQUIPMENT_SELECT_OFFSET_CAP,
+      },
+    );
+    expect(envelope).toContain(`<p_offset xsi:type="xsd:int">${EQUIPMENT_SELECT_OFFSET_CAP}</p_offset>`);
+    expect(envelope).toContain("c21");
+    expect(envelope).toContain(`<p_filter xsi:nil="true"/>`);
+    expect(envelope).not.toContain('xmlns="args"');
+    expect(envelope).not.toContain("<node");
+    expect(() =>
+      buildSelectRowsetEnvelope(
+        selectRowset,
+        "admin",
+        "s3cret",
+        "02.2201.01",
+        Array.from({ length: EQUIPMENT_SELECT_COLUMN_CAP + 1 }, (_, index) => `c${index}`),
+        undefined,
+        0,
+        {
+          columnCap: EQUIPMENT_SELECT_COLUMN_CAP,
+          offsetCap: EQUIPMENT_SELECT_OFFSET_CAP,
+        },
+      ),
+    ).toThrow(/column list/);
+  });
+
+  it("counts rows with a nil filter when the WSDL lists countRowset", () => {
+    const withCount = RPC_WSDL.replace(
+      `<message name="insertRowsetRequest">`,
+      `<message name="countRowsetRequest"><part name="p_table_hi" type="xsd:string"/><part name="p_filter" type="xsd:string"/></message><message name="insertRowsetRequest">`,
+    )
+      .replace(
+        `<operation name="insertRowset"><input message="tns:insertRowsetRequest"/></operation>`,
+        `<operation name="countRowset"><input message="tns:countRowsetRequest"/></operation><operation name="insertRowset"><input message="tns:insertRowsetRequest"/></operation>`,
+      )
+      .replace(
+        `<operation name="insertRowset">
+      <soap:operation soapAction="urn:insertRowset"/>`,
+        `<operation name="countRowset">
+      <soap:operation soapAction="urn:rtu-api#countRowset"/>
+      <input><soap:body use="encoded" namespace="urn:rtu-api" encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"/></input>
+    </operation>
+    <operation name="insertRowset">
+      <soap:operation soapAction="urn:insertRowset"/>`,
+      );
+    const plan = readCallReads(withCount, ORIGIN);
+    expect(plan.ok).toBe(true);
+    if (!plan.ok || !plan.countRowset) throw new Error("count missing");
+    expect(plan.countRowsetRejected).toBe(false);
+    const envelope = buildCountRowsetEnvelope(
+      plan.countRowset,
+      "admin",
+      "s3cret",
+      "02.2201.01",
+    );
+    expect(envelope).toContain("<ns1:countRowset ");
+    expect(envelope).toContain(`<p_filter xsi:nil="true"/>`);
+    expect(envelope).not.toContain('xmlns="args"');
+    expect(envelope).not.toContain("<node");
+    expect(envelope).not.toContain("selectRowset");
+
+    const wrong = withCount.replace(
+      `<message name="countRowsetRequest"><part name="p_table_hi" type="xsd:string"/><part name="p_filter" type="xsd:string"/></message>`,
+      `<message name="countRowsetRequest"><part name="p_table_hi" type="xsd:string"/><part name="p_filter" type="xsd:string"/><part name="p_extra" type="xsd:string"/></message>`,
+    );
+    const rejected = readCallReads(wrong, ORIGIN);
+    expect(rejected.ok).toBe(true);
+    if (!rejected.ok) return;
+    expect(rejected.countRowset).toBeNull();
+    expect(rejected.countRowsetRejected).toBe(true);
+  });
+
+  it("reads one integer from countRowset", () => {
+    expect(
+      interpretCountRowset(
+        `<?xml version="1.0"?><Envelope><Body><countRowsetResponse><return>12</return></countRowsetResponse></Body></Envelope>`,
+        "s3cret",
+      ),
+    ).toEqual({ kind: "count", count: 12 });
+    expect(
+      interpretCountRowset(
+        `<?xml version="1.0"?><Envelope><Body><countRowsetResponse><return>1</return><return>2</return></countRowsetResponse></Body></Envelope>`,
+        "",
+      ).kind,
+    ).toBe("bad");
   });
 });

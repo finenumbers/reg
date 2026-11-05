@@ -5,7 +5,7 @@
  * - regs: regsPollEnabled / regsPollIntervalSec → regs.poll
  *   (same loop always drains CDR inbox, SMG inbox, SMG syslog traces, and VoIPmonitor)
  * - export: exportSyncEnabled / exportSyncIntervalSec → phones.sync
- *   then groups.sync (phones use export.py; groups read the RTU API)
+ *   then groups.sync (phones and groups both read the RTU API)
  * - sides: cdrSidesRefreshEnabled / interval → cdr.sides.refresh
  *   (also chained after phones.sync / cdr.import)
  * - parking: always, every 60s, reads calls.log only
@@ -89,7 +89,7 @@ export function scheduledRegsAction(regsPollInFlight: boolean): "regs.poll" | nu
   return regsPollInFlight ? null : "regs.poll";
 }
 
-/** Next export.py job. Pure — used by tests. */
+/** Next phone or group load. Pure — used by tests. */
 export function scheduledExportAction(input: {
   phonesSyncInFlight: boolean;
   groupsSyncInFlight: boolean;

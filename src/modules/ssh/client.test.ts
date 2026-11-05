@@ -30,10 +30,21 @@ describe("buildAllowlistedExecCommand", () => {
     expect(() => resolveActionForExecution("regs.poll")).toThrow(/local-only/);
   });
 
-  it("returns cd+/sudo ./export.py for phones.sync", () => {
-    expect(buildAllowlistedExecCommand(ACTION_REGISTRY["phones.sync"])).toBe(
-      "/bin/bash -c 'cd /opt/scripts && exec /usr/bin/sudo -n -- ./export.py'",
-    );
+  it("does not build an SSH command for phones.sync", () => {
+    expect(ACTION_REGISTRY["phones.sync"].kind).toBe("local");
+    expect(ACTION_REGISTRY["phones.sync"].remotePath).not.toContain("export.py");
+    expect(() => resolveActionForExecution("phones.sync")).toThrow(/local-only/);
+  });
+
+  it("returns cd+/sudo ./export.py for a rollback script definition", () => {
+    expect(
+      buildAllowlistedExecCommand({
+        ...ACTION_REGISTRY["phones.sync"],
+        kind: "ssh",
+        remotePath: "/opt/scripts/export.py",
+        elevateWithSudo: true,
+      }),
+    ).toBe("/bin/bash -c 'cd /opt/scripts && exec /usr/bin/sudo -n -- ./export.py'");
   });
 
   it("does not build an SSH command for groups.sync", () => {
@@ -45,7 +56,9 @@ describe("buildAllowlistedExecCommand", () => {
   it("returns bare path when elevateWithSudo is false", () => {
     expect(
       buildAllowlistedExecCommand({
-        ...ACTION_REGISTRY["phones.sync"],
+        ...ACTION_REGISTRY["cdr.import"],
+        kind: "ssh",
+        remotePath: "/opt/scripts/export.py",
         elevateWithSudo: false,
       }),
     ).toBe("/opt/scripts/export.py");
@@ -54,7 +67,9 @@ describe("buildAllowlistedExecCommand", () => {
   it("rejects non-empty argv", () => {
     expect(() =>
       buildAllowlistedExecCommand({
-        ...ACTION_REGISTRY["phones.sync"],
+        ...ACTION_REGISTRY["cdr.import"],
+        kind: "ssh",
+        remotePath: "/opt/scripts/export.py",
         argv: ["--oops"],
       }),
     ).toThrow(/argv/);

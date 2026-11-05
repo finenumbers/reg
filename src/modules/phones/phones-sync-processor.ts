@@ -1,21 +1,22 @@
 /**
- * phones.sync job processor — remote exec → parse JSON → replace snapshot.
- *
- * Fail / timeout / exit≠0 / invalid JSON → mark job failed and do NOT touch tables.
+ * phones.sync — read the RTU page «Оборудование» and replace the phone catalog.
+ * Does not call SSH. A failed or incomplete read does not touch the tables.
  */
 
 import type { JobTrigger } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
 import { logger } from "@/lib/logger";
-import { truncateUtf8 } from "@/lib/utf8-truncate";
-import {
-  remoteExecutionService,
-  type RemoteExecutionService,
-} from "@/modules/actions/execution";
 import { AUDIT_ACTIONS, auditService } from "@/modules/audit";
 import { applyPhonesSnapshot } from "@/modules/phones/apply";
-import { parsePhonesStdout } from "@/modules/phones/parser";
-import { sanitizeStderrSnippet } from "@/modules/jobs/regs-poll-processor";
+import {
+  readStoredEquipment,
+  type EquipmentRead,
+} from "@/modules/phones/rtu-read";
+import {
+  refusePhonesSnapshot,
+  type PhoneCatalogSide,
+} from "@/modules/phones/rtu-rows";
+import type { PhoneRowData } from "@/modules/phones/types";
 import { failJobRunIfStillRunning } from "@/modules/jobs/finalize";
 
 export type PhonesSyncProcessorInput = {
@@ -34,82 +35,37 @@ export type PhonesSyncProcessorResult = {
 };
 
 export type PhonesSyncProcessorDeps = {
-  execute: RemoteExecutionService["execute"];
+  read: () => Promise<EquipmentRead>;
   apply: typeof applyPhonesSnapshot;
+  catalog: () => Promise<PhoneCatalogSide>;
 };
 
-const DEFAULT_DEPS: PhonesSyncProcessorDeps = {
-  execute: (req) => remoteExecutionService.execute(req),
-  apply: applyPhonesSnapshot,
-};
-
-const DEFAULT_ARTIFACT_MAX_BYTES = 50_000_000;
-
-function emptyStdoutErrorMessage(stderr: string): string {
-  const snippet = sanitizeStderrSnippet(stderr);
-  const base =
-    "Удалённый export.py вернул пустой stdout — таблица номеров не обновлена";
-  if (snippet) {
-    return `${base}. stderr: ${snippet}`;
-  }
-  return `${base}. Проверьте NOPASSWD sudoers на /opt/scripts/export.py.`;
-}
-
-function remoteExitErrorMessage(
-  exitCode: number | null | undefined,
-  stderr: string,
-): string {
-  const code = exitCode ?? "unknown";
-  const snippet = sanitizeStderrSnippet(stderr);
-  const base = `Remote script exited with code ${code}`;
-  if (snippet) return `${base}. stderr: ${snippet}`;
-  return base;
-}
-
-async function loadArtifactLimits(): Promise<{
-  maxBytes: number;
-  retentionDays: number;
-  keepLastRuns: number;
-}> {
-  const settings = await prisma.appSetting.findUnique({ where: { id: 1 } });
+async function loadPhoneCatalog(): Promise<PhoneCatalogSide> {
+  const [endpoints, gateways] = await Promise.all([
+    prisma.phoneEndpoint.findMany({ select: { data: true } }),
+    prisma.phoneGateway.findMany({ select: { data: true } }),
+  ]);
   return {
-    maxBytes: settings?.artifactMaxBytes ?? DEFAULT_ARTIFACT_MAX_BYTES,
-    retentionDays: settings?.artifactRetentionDays ?? 14,
-    keepLastRuns: settings?.artifactKeepLastRuns ?? 50,
+    endpoints: endpoints.map((row) => asRow(row.data)),
+    gateways: gateways.map((row) => asRow(row.data)),
   };
 }
 
-async function pruneArtifacts(limits: {
-  retentionDays: number;
-  keepLastRuns: number;
-}): Promise<void> {
-  try {
-    const cutoff = new Date(
-      Date.now() - limits.retentionDays * 24 * 60 * 60 * 1000,
-    );
-    const keep = await prisma.jobRun.findMany({
-      where: { actionCode: "phones.sync" },
-      orderBy: { startedAt: "desc" },
-      take: limits.keepLastRuns,
-      select: { id: true },
-    });
-    const keepIds = keep.map((r) => r.id);
-
-    await prisma.jobRunArtifact.deleteMany({
-      where: {
-        jobRun: {
-          actionCode: "phones.sync",
-          startedAt: { lt: cutoff },
-          ...(keepIds.length > 0 ? { id: { notIn: keepIds } } : {}),
-        },
-      },
-    });
-  } catch (error) {
-    logger.warn("phones.sync.artifact_prune_failed", {
-      error: error instanceof Error ? error.message : String(error),
-    });
+function asRow(data: unknown): PhoneRowData {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return {};
+  const out: PhoneRowData = {};
+  for (const [key, value] of Object.entries(data)) {
+    if (typeof value === "string") out[key] = value;
+    else if (typeof value === "number" || typeof value === "boolean") out[key] = String(value);
   }
+  return out;
 }
+
+const DEFAULT_DEPS: PhonesSyncProcessorDeps = {
+  read: () => readStoredEquipment(),
+  apply: applyPhonesSnapshot,
+  catalog: loadPhoneCatalog,
+};
 
 export async function processPhonesSync(
   input: PhonesSyncProcessorInput,
@@ -128,240 +84,97 @@ export async function processPhonesSync(
   });
 
   try {
-  await auditService.append({
-    actorUserId: input.actorUserId,
-    action:
-      input.trigger === "manual"
-        ? AUDIT_ACTIONS.PHONES_SYNC_MANUAL
-        : AUDIT_ACTIONS.PHONES_SYNC_START,
-    entityType: "job_run",
-    entityId: jobRun.id,
-    meta: {
+    await auditService.append({
+      actorUserId: input.actorUserId,
+      action:
+        input.trigger === "manual"
+          ? AUDIT_ACTIONS.PHONES_SYNC_MANUAL
+          : AUDIT_ACTIONS.PHONES_SYNC_START,
+      entityType: "job_run",
+      entityId: jobRun.id,
+      meta: {
+        trigger: input.trigger,
+        actionCode: "phones.sync",
+        phase: "started",
+      },
+    });
+
+    logger.info("phones.sync.started", {
+      jobRunId: jobRun.id,
       trigger: input.trigger,
-      actionCode: "phones.sync",
-      phase: "started",
-    },
-  });
+    });
 
-  logger.info("phones.sync.started", {
-    jobRunId: jobRun.id,
-    trigger: input.trigger,
-  });
-
-  const fail = async (
-    errorMessage: string,
-    extras: {
-      exitCode?: number | null;
-      stdout?: string;
-      stderr?: string;
-      phonesParsed?: number;
-    } = {},
-  ): Promise<PhonesSyncProcessorResult> => {
-    const finishedAt = new Date();
-    const limits = await loadArtifactLimits();
-
-    if (extras.stdout !== undefined || extras.stderr !== undefined) {
-      await prisma.jobRunArtifact.upsert({
-        where: { jobRunId: jobRun.id },
-        create: {
-          jobRunId: jobRun.id,
-          stdout: truncateUtf8(extras.stdout ?? "", limits.maxBytes),
-          stderr: truncateUtf8(extras.stderr ?? "", limits.maxBytes),
-        },
-        update: {
-          stdout: truncateUtf8(extras.stdout ?? "", limits.maxBytes),
-          stderr: truncateUtf8(extras.stderr ?? "", limits.maxBytes),
+    const fail = async (errorMessage: string): Promise<PhonesSyncProcessorResult> => {
+      const finishedAt = new Date();
+      await prisma.jobRun.update({
+        where: { id: jobRun.id },
+        data: {
+          status: "failed",
+          finishedAt,
+          durationMs: finishedAt.getTime() - startedAt.getTime(),
+          errorMessage,
+          exitCode: null,
+          phonesParsed: 0,
+          linesBad: 0,
+          changesCount: 0,
         },
       });
-    }
 
-    await prisma.jobRun.update({
-      where: { id: jobRun.id },
-      data: {
-        status: "failed",
-        finishedAt,
-        durationMs: finishedAt.getTime() - startedAt.getTime(),
-        errorMessage,
-        exitCode: extras.exitCode ?? null,
-        phonesParsed: extras.phonesParsed ?? 0,
-        linesBad: 0,
-        changesCount: 0,
-      },
-    });
-
-    await auditService.append({
-      actorUserId: input.actorUserId,
-      action: AUDIT_ACTIONS.PHONES_SYNC_FINISH,
-      entityType: "job_run",
-      entityId: jobRun.id,
-      meta: {
-        trigger: input.trigger,
-        status: "failed",
-        errorMessage,
-        exitCode: extras.exitCode ?? null,
-      },
-    });
-
-    logger.warn("phones.sync.failed", {
-      jobRunId: jobRun.id,
-      errorMessage,
-      exitCode: extras.exitCode ?? null,
-    });
-
-    return {
-      jobRunId: jobRun.id,
-      status: "failed",
-      errorMessage,
-      phonesParsed: extras.phonesParsed ?? 0,
-      endpointCount: 0,
-      gatewayCount: 0,
-      exitCode: extras.exitCode ?? null,
-    };
-  };
-
-  let execResult;
-  try {
-    execResult = await deps.execute({
-      actionCode: "phones.sync",
-      timeoutMs: 120_000,
-    });
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Remote execution failed";
-    return fail(message);
-  }
-
-  if (execResult.timedOut) {
-    return fail("SSH exec timed out", {
-      exitCode: execResult.exitCode,
-      stdout: execResult.stdout,
-      stderr: execResult.stderr,
-    });
-  }
-
-  if (execResult.exitCode !== 0) {
-    return fail(remoteExitErrorMessage(execResult.exitCode, execResult.stderr), {
-      exitCode: execResult.exitCode,
-      stdout: execResult.stdout,
-      stderr: execResult.stderr,
-    });
-  }
-
-  if (!execResult.stdout.trim()) {
-    return fail(emptyStdoutErrorMessage(execResult.stderr), {
-      exitCode: execResult.exitCode,
-      stdout: execResult.stdout,
-      stderr: execResult.stderr,
-    });
-  }
-
-  let parsed;
-  try {
-    parsed = parsePhonesStdout(execResult.stdout);
-  } catch (error) {
-    return fail(
-      error instanceof Error ? error.message : "Failed to parse phones JSON",
-      {
-        exitCode: execResult.exitCode,
-        stdout: execResult.stdout,
-        stderr: execResult.stderr,
-      },
-    );
-  }
-
-  const totalRows = parsed.endpoints.length + parsed.gateways.length;
-
-  if (totalRows === 0) {
-    const [endpointCount, gatewayCount] = await Promise.all([
-      prisma.phoneEndpoint.count(),
-      prisma.phoneGateway.count(),
-    ]);
-    const liveCount = endpointCount + gatewayCount;
-    if (liveCount > 0) {
-      return fail(
-        "Пустой снимок отклонён — отказ от wipe непустой таблицы номеров",
-        {
-          exitCode: execResult.exitCode,
-          stdout: execResult.stdout,
-          stderr: execResult.stderr,
-          phonesParsed: 0,
+      await auditService.append({
+        actorUserId: input.actorUserId,
+        action: AUDIT_ACTIONS.PHONES_SYNC_FINISH,
+        entityType: "job_run",
+        entityId: jobRun.id,
+        meta: {
+          trigger: input.trigger,
+          status: "failed",
+          errorMessage,
         },
+      });
+
+      logger.warn("phones.sync.failed", {
+        jobRunId: jobRun.id,
+        errorMessage,
+      });
+
+      return {
+        jobRunId: jobRun.id,
+        status: "failed",
+        errorMessage,
+        phonesParsed: 0,
+        endpointCount: 0,
+        gatewayCount: 0,
+        exitCode: null,
+      };
+    };
+
+    const read = await deps.read();
+    if (!read.ok) return fail(read.detail);
+    const payload = read.payload;
+    const totalRows = payload.endpoints.length + payload.gateways.length;
+
+    let catalog: PhoneCatalogSide;
+    try {
+      catalog = await deps.catalog();
+    } catch (error) {
+      return fail(error instanceof Error ? error.message : "Failed to read the phone catalog");
+    }
+    if (totalRows === 0 && catalog.endpoints.length + catalog.gateways.length > 0) {
+      return fail("Пустой снимок отклонён — отказ от wipe непустой таблицы номеров");
+    }
+    const refused = refusePhonesSnapshot(catalog, payload);
+    if (!refused.ok) return fail(refused.detail);
+
+    let applyResult;
+    try {
+      applyResult = await deps.apply(payload, jobRun.id, new Date());
+    } catch (error) {
+      return fail(
+        error instanceof Error ? error.message : "Failed to apply phones snapshot",
       );
     }
-  }
 
-  let applyResult;
-  try {
-    applyResult = await deps.apply(parsed, jobRun.id, new Date());
-  } catch (error) {
-    return fail(
-      error instanceof Error ? error.message : "Failed to apply phones snapshot",
-      {
-        exitCode: execResult.exitCode,
-        stdout: execResult.stdout,
-        stderr: execResult.stderr,
-        phonesParsed: totalRows,
-      },
-    );
-  }
-
-  const finishedAt = new Date();
-  try {
-    const limits = await loadArtifactLimits();
-    await prisma.jobRunArtifact.upsert({
-      where: { jobRunId: jobRun.id },
-      create: {
-        jobRunId: jobRun.id,
-        stdout: truncateUtf8(execResult.stdout, limits.maxBytes),
-        stderr: truncateUtf8(execResult.stderr, limits.maxBytes),
-      },
-      update: {
-        stdout: truncateUtf8(execResult.stdout, limits.maxBytes),
-        stderr: truncateUtf8(execResult.stderr, limits.maxBytes),
-      },
-    });
-
-    await prisma.jobRun.update({
-      where: { id: jobRun.id },
-      data: {
-        status: "success",
-        finishedAt,
-        durationMs: finishedAt.getTime() - startedAt.getTime(),
-        errorMessage: null,
-        exitCode: execResult.exitCode,
-        phonesParsed: totalRows,
-        linesBad: 0,
-        changesCount: totalRows,
-        meta: {
-          endpointCount: applyResult.endpointCount,
-          gatewayCount: applyResult.gatewayCount,
-          version: parsed.version,
-          durationMsRemote: execResult.durationMs,
-        },
-      },
-    });
-
-    await pruneArtifacts(limits);
-
-    await auditService.append({
-      actorUserId: input.actorUserId,
-      action: AUDIT_ACTIONS.PHONES_SYNC_FINISH,
-      entityType: "job_run",
-      entityId: jobRun.id,
-      meta: {
-        trigger: input.trigger,
-        status: "success",
-        endpointCount: applyResult.endpointCount,
-        gatewayCount: applyResult.gatewayCount,
-        phonesParsed: totalRows,
-        exitCode: execResult.exitCode,
-      },
-    });
-  } catch (error) {
-    logger.warn("phones.sync.post_apply_finalize_failed", {
-      jobRunId: jobRun.id,
-      error: error instanceof Error ? error.message : String(error),
-    });
+    const finishedAt = new Date();
     try {
       await prisma.jobRun.update({
         where: { id: jobRun.id },
@@ -370,41 +183,74 @@ export async function processPhonesSync(
           finishedAt,
           durationMs: finishedAt.getTime() - startedAt.getTime(),
           errorMessage: null,
-          exitCode: execResult.exitCode,
+          exitCode: null,
           phonesParsed: totalRows,
           linesBad: 0,
           changesCount: totalRows,
           meta: {
             endpointCount: applyResult.endpointCount,
             gatewayCount: applyResult.gatewayCount,
-            version: parsed.version,
-            durationMsRemote: execResult.durationMs,
+            version: payload.version,
+            source: "rtu",
           },
         },
       });
-    } catch (markError) {
-      logger.error("phones.sync.success_mark_failed", {
-        jobRunId: jobRun.id,
-        error: markError instanceof Error ? markError.message : String(markError),
+
+      await auditService.append({
+        actorUserId: input.actorUserId,
+        action: AUDIT_ACTIONS.PHONES_SYNC_FINISH,
+        entityType: "job_run",
+        entityId: jobRun.id,
+        meta: {
+          trigger: input.trigger,
+          status: "success",
+          endpointCount: applyResult.endpointCount,
+          gatewayCount: applyResult.gatewayCount,
+          phonesParsed: totalRows,
+        },
       });
+    } catch (error) {
+      logger.warn("phones.sync.post_apply_finalize_failed", {
+        jobRunId: jobRun.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      try {
+        await prisma.jobRun.update({
+          where: { id: jobRun.id },
+          data: {
+            status: "success",
+            finishedAt,
+            durationMs: finishedAt.getTime() - startedAt.getTime(),
+            errorMessage: null,
+            exitCode: null,
+            phonesParsed: totalRows,
+            linesBad: 0,
+            changesCount: totalRows,
+          },
+        });
+      } catch (markError) {
+        logger.error("phones.sync.success_mark_failed", {
+          jobRunId: jobRun.id,
+          error: markError instanceof Error ? markError.message : String(markError),
+        });
+      }
     }
-  }
 
-  logger.info("phones.sync.finished", {
-    jobRunId: jobRun.id,
-    endpointCount: applyResult.endpointCount,
-    gatewayCount: applyResult.gatewayCount,
-  });
+    logger.info("phones.sync.finished", {
+      jobRunId: jobRun.id,
+      endpointCount: applyResult.endpointCount,
+      gatewayCount: applyResult.gatewayCount,
+    });
 
-  return {
-    jobRunId: jobRun.id,
-    status: "success",
-    errorMessage: null,
-    phonesParsed: totalRows,
-    endpointCount: applyResult.endpointCount,
-    gatewayCount: applyResult.gatewayCount,
-    exitCode: execResult.exitCode,
-  };
+    return {
+      jobRunId: jobRun.id,
+      status: "success",
+      errorMessage: null,
+      phonesParsed: totalRows,
+      endpointCount: applyResult.endpointCount,
+      gatewayCount: applyResult.gatewayCount,
+      exitCode: null,
+    };
   } finally {
     await failJobRunIfStillRunning(
       jobRun.id,

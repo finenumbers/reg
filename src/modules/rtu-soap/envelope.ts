@@ -1,4 +1,9 @@
-import type { CallBinding, GetObjectsBinding, LookupBinding } from "@/modules/rtu-soap/wsdl";
+import type {
+  CallBinding,
+  CountBinding,
+  GetObjectsBinding,
+  LookupBinding,
+} from "@/modules/rtu-soap/wsdl";
 import { escapeXml, isXmlName } from "@/modules/rtu-soap/xml";
 
 /**
@@ -6,23 +11,40 @@ import { escapeXml, isXmlName } from "@/modules/rtu-soap/xml";
  * Callers cannot substitute another one.
  * `getObjects` is the Settings access check.
  * `describeTable` and `selectRowset` read the transit-call tables,
- * the incoming-groups page, and the two registration summary pages.
+ * the incoming-groups page, the equipment page, and the two registration summary pages.
  * An optional module name adds one `node` header on `selectRowset`.
  * The live-call snapshot passes that name only for a signaling or scripting
  * call table. A registration summary passes none. A registration template
  * passes it only for signaling on ПКомм and scripting on ПУпр. Groups pass none.
- * `getLookup` reads «Состояние вызова» on the ПУпр call table and
- * «Состояние» on «Регистрации (ПКомм)». It sends no `node` header.
+ * The equipment page passes none.
+ * `getLookup` reads «Состояние вызова» on the ПУпр call table,
+ * «Состояние» on «Регистрации (ПКомм)», and three columns of «Оборудование».
+ * It sends no `node` header.
  * `getColumnLookup` is sent only when that operation is in the same WSDL.
+ * `countRowset` is one nil-filter count of the equipment page.
  */
 const GET_OBJECTS = "getObjects";
 const DESCRIBE_TABLE = "describeTable";
 const SELECT_ROWSET = "selectRowset";
+const COUNT_ROWSET = "countRowset";
 const GET_LOOKUP = "getLookup";
 const GET_COLUMN_LOOKUP = "getColumnLookup";
 
 /** Handbook requires limit and offset together. This is the one page we read. */
 export const SELECT_ROW_LIMIT = 2000;
+/** Calls, groups, and registrations stay inside this column list. */
+export const SELECT_COLUMN_CAP = 16;
+/** Five pages: offsets 0, 2000, 4000, 6000, and 8000. */
+export const SELECT_OFFSET_CAP = SELECT_ROW_LIMIT * 4;
+/** Equipment page: 21 fields plus one primary key, with room for the zone columns. */
+export const EQUIPMENT_SELECT_COLUMN_CAP = 24;
+/** Twenty-five equipment pages. The last offset is 48000. */
+export const EQUIPMENT_SELECT_OFFSET_CAP = SELECT_ROW_LIMIT * 24;
+
+export type SelectRowsetBounds = {
+  columnCap: number;
+  offsetCap: number;
+};
 const ROW_OFFSET = 0;
 const OBJECT_ID = /^[0-9]+(?:\.[0-9]+)+$/;
 
@@ -121,13 +143,26 @@ export function buildSelectRowsetEnvelope(
   columns: readonly string[],
   moduleName?: string,
   offset = ROW_OFFSET,
+  bounds?: SelectRowsetBounds,
 ): string {
   if (binding.operation !== SELECT_ROWSET) {
     throw new Error("selectRowset binding required");
   }
   assertObjectId(objectId);
-  assertPageOffset(offset);
-  if (columns.length === 0 || columns.length > 16) {
+  const columnCap = bounds?.columnCap ?? SELECT_COLUMN_CAP;
+  const offsetCap = bounds?.offsetCap ?? SELECT_OFFSET_CAP;
+  if (
+    !Number.isInteger(columnCap) ||
+    columnCap < 1 ||
+    columnCap > EQUIPMENT_SELECT_COLUMN_CAP ||
+    !Number.isInteger(offsetCap) ||
+    offsetCap < 0 ||
+    offsetCap > EQUIPMENT_SELECT_OFFSET_CAP
+  ) {
+    throw new Error("column list rejected");
+  }
+  assertPageOffset(offset, offsetCap);
+  if (columns.length === 0 || columns.length > columnCap) {
     throw new Error("column list rejected");
   }
   for (const column of columns) {
@@ -204,16 +239,33 @@ export function buildGetLookupEnvelope(
   return wrap(login, password, callBody(binding, fields));
 }
 
+/** One nil-filter count. The operation name is the literal `countRowset`. */
+export function buildCountRowsetEnvelope(
+  binding: CountBinding,
+  login: string,
+  password: string,
+  objectId: string,
+): string {
+  if (binding.operation !== COUNT_ROWSET) {
+    throw new Error("countRowset binding required");
+  }
+  assertObjectId(objectId);
+  const fields = {
+    p_table_hi: taggedString("p_table_hi", objectId, binding.kind),
+    p_filter: nilElement("p_filter"),
+  };
+  return wrap(login, password, callBody(binding, fields));
+}
+
 function assertObjectId(objectId: string): void {
   if (!isRtuObjectId(objectId)) throw new Error("object id rejected");
 }
 
-function assertPageOffset(offset: number): void {
-  const lastPage = SELECT_ROW_LIMIT * 4;
+function assertPageOffset(offset: number, offsetCap: number): void {
   if (
     !Number.isInteger(offset) ||
     offset < 0 ||
-    offset > lastPage ||
+    offset > offsetCap ||
     offset % SELECT_ROW_LIMIT !== 0
   ) {
     throw new Error("row offset rejected");
@@ -259,7 +311,7 @@ function wrap(
 }
 
 function callBody(
-  binding: CallBinding | LookupBinding,
+  binding: CallBinding | LookupBinding | CountBinding,
   fields: Record<string, string>,
 ): string {
   if (binding.kind === "rpc-encoded") {

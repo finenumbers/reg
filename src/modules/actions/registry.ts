@@ -69,13 +69,13 @@ export const ACTION_REGISTRY: Record<AllowedActionCode, AllowedActionDefinition>
   },
   "phones.sync": {
     code: "phones.sync",
-    kind: "ssh",
-    remotePath: "/opt/scripts/export.py",
+    kind: "local",
+    remotePath: "/opt/scripts/phones_sync",
     argv: [],
     module: "phones",
-    description: "Sync phone endpoints/gateways from softswitch (read-only JSON)",
+    description: "Read phone endpoints and gateways from the RTU API",
     usesPlatformExecWrapper: true,
-    elevateWithSudo: true,
+    elevateWithSudo: false,
     needsPty: false,
   },
   "groups.sync": {

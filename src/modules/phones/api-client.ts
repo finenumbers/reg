@@ -12,11 +12,6 @@ import type {
 } from "@/modules/phones/service";
 import type { PhoneKind } from "@/modules/phones/types";
 import {
-  interpretSyncResponse,
-  type PhonesSyncStatusSnapshot,
-  type SyncApiResult,
-} from "@/modules/phones/request-action";
-import {
   downloadXlsxFromUrl,
   triggerBlobDownload,
   type DownloadXlsxResult,
@@ -120,24 +115,6 @@ export async function fetchPhonesList(
   return { ok: true, data: body as ListPhonesResult };
 }
 
-export async function postPhonesRequest(
-  init?: RequestInit,
-): Promise<SyncApiResult> {
-  const res = await fetch("/api/phones/request", {
-    ...init,
-    method: "POST",
-  });
-  const body = (await readJson(res)) as {
-    accepted?: boolean;
-    message?: string;
-    reason?: string;
-    error?: string;
-    code?: string;
-    retryAfterSec?: number;
-  } | null;
-  return interpretSyncResponse(res.status, body);
-}
-
 export async function fetchPhonesStatus(
   init?: RequestInit,
 ): Promise<FetchPhonesStatusResult> {
@@ -157,18 +134,6 @@ export async function fetchPhonesStatus(
   }
 
   return { ok: true, data: body as PhonesOperationalStatus };
-}
-
-export function toSyncStatusSnapshot(
-  data: PhonesOperationalStatus,
-): PhonesSyncStatusSnapshot {
-  return {
-    lastJobStatus: data.lastJobStatus,
-    lastError: data.lastError,
-    lastFinishedAt: data.lastFinishedAt,
-    runningCount: data.runningCount,
-    lastFailedError: data.lastFailedError,
-  };
 }
 
 export async function downloadPhonesExport(): Promise<DownloadXlsxResult> {

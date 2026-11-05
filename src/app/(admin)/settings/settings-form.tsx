@@ -1405,8 +1405,8 @@ export function SettingsForm({ initial, parkingKey }: Props) {
             </Label>
           </div>
           <p className="text-sm text-muted-foreground">
-            Отдельное расписание: номера через export.py, входящие группы через
-            API РТУ, по очереди. Не совмещается с опросом регистраций.
+            Отдельное расписание: номера и входящие группы через API РТУ, по
+            очереди. Не совмещается с опросом регистраций.
           </p>
           <div className="space-y-2">
             <Label htmlFor="export-interval">
@@ -1434,8 +1434,8 @@ export function SettingsForm({ initial, parkingKey }: Props) {
           </div>
           <p className="text-sm text-muted-foreground">
             Подставляет Описание из справочника в уже загруженные звонки, когда
-            оно появилось или изменилось. После «Загрузить данные» запускается
-            сразу. Поиск в трафике по-прежнему за весь выбранный месяц.
+            оно появилось или изменилось. После успешной загрузки номеров
+            запускается сразу. Поиск в трафике по-прежнему за весь выбранный месяц.
           </p>
           <div className="space-y-2">
             <Label htmlFor="sides-refresh-interval">

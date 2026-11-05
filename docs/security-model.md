@@ -26,13 +26,13 @@
 | action code | remote path | argv | exec command |
 |-------------|-------------|------|--------------|
 | `regs.poll` | local (API РТУ) | `[]` | не SSH — чтение «Регистрации (ПКомм)» и «Регистрации (ПУпр)» |
-| `phones.sync` | `/opt/scripts/export.py` | `[]` | `/bin/bash -c 'cd /opt/scripts && exec /usr/bin/sudo -n -- ./export.py'` (no PTY) |
+| `phones.sync` | local (API РТУ) | `[]` | не SSH — чтение страницы «Оборудование» |
 | `groups.sync` | local (API РТУ) | `[]` | не SSH — чтение страницы «Входящие группы» |
 | `cdr.import` | local (FTP inbox) | `[]` | не SSH — drain локальной папки |
 | `cdr.sides.refresh` | local | `[]` | не SSH — сверка Описаний каталога с `cdr_records.side_*` |
 | `cdr.purge.month` | local | `[]` | не SSH — пакетное удаление самого старого полного месяца CDR |
 
-`phones.sync` — read-only `SELECT` в MySQL softswitch; JSON в stdout (`version` 2 включает `groups[]`, этот массив номера не применяют); **без** записи `export.xlsx` и без SFTP. `groups.sync` SSH не вызывает: читает страницу РТУ «Входящие группы» и заменяет только `routing_groups`.
+`phones.sync` SSH не вызывает: читает страницу РТУ «Оборудование» и заменяет `phone_endpoints` и `phone_gateways`. Пароли регистраций в таблице phones по-прежнему хранятся и показываются открытым текстом (доступ через RBAC `phones:read`). Конверт и тело ответа в артефакты задания не пишутся. `groups.sync` SSH не вызывает: читает страницу РТУ «Входящие группы» и заменяет только `routing_groups`. `export.py` на коммутаторе остаётся для отката образа.
 
 Правила:
 
@@ -72,7 +72,7 @@ Wrapper:
 
 Цепочка: app allowlist → SSH exec (`bash -c 'cd /opt/scripts && sudo -n -- ./…'`, PTY только если `needsPty`) → (optional forced `platform_exec.sh`) → sudoers → script.
 
-`export.py` — только чтение MySQL; пароли регистраций в ответе/таблице phones хранятся и показываются открытым текстом (доступ через RBAC `phones:read`).
+`export.py` остаётся на коммутаторе только для отката образа. Текущее приложение его не вызывает. Пароли регистраций в таблице phones хранятся и показываются открытым текстом (доступ через RBAC `phones:read`).
 
 ### Parking RADIUS
 
@@ -129,6 +129,7 @@ Ciphertext envelope в БД: `v1:<iv_b64>:<authTag_b64>:<ciphertext_b64>`.
 - `POST /api/settings/rtu/test` — одна читающая операция `getObjects` (таблицы и процедуры). Конверт с паролем уходит только на host из origin. Запись и `call` клиент собрать не может.
 - `GET /api/live-calls` — сессия с `phones:read`. API-ключ маршрут не открывает. Сервер читает `describeTable` и `selectRowset` только у «Транзитные вызовы (ПКомм)» и «Транзитные вызовы (ПУпр)». Имена таблиц с клиента не принимаются. Удаление вызова не отправляется. Пока раздел открыт, снимок обновляется не чаще одного раза в 3 секунды на процесс.
 - `groups.sync` читает `describeTable` и `selectRowset` только у страницы «Входящие группы» в папке «Оборудование». Заголовок `node` и `getLookup` не отправляются. Успешный список целиком заменяет `routing_groups`. Конверт и тело ответа в артефакты задания не пишутся.
+- `phones.sync` читает `describeTable` и `selectRowset` только у страницы «Оборудование» в папке «Оборудование», до 25 страниц. Заголовка `node` нет. `getLookup` только для «Тип оборудования», «Протокол сигнализации» и «Входящие группы», когда `describeTable` ставит `have_lookup`. `countRowset` — один раз, с пустым фильтром, если операция есть в WSDL v2. Успешное чтение заменяет `phone_endpoints` и `phone_gateways`. Пустая страница непустой каталог не стирает. Конверт и тело ответа в артефакты не пишутся.
 - `regs.poll` читает `describeTable` и `selectRowset` у «Регистрации (ПКомм)» и «Регистрации (ПУпр)». Сводная страница идёт без `node`. Если её нет, общий шаблон «Регистрации» читается с `node` только для `signaling-<цифры>` на ПКомм и `scripting-<цифры>` на ПУпр, не больше четырёх, после страницы «Активные модули». `getLookup` уходит только для «Состояние» на ПКомм, когда `describeTable` ставит `have_lookup`. `getColumnLookup` уходит, только если эта операция есть в полученном WSDL v2. Если обеих нет, один `getLookup` идёт в стиле уже принятого `describeTable`. Отсутствующий или непрочитанный список задание не валит. Неузнанная ячейка валит задание и не меняет `reg_current`. «Время окончания регистрации» добавляется в тот же `selectRowset` ПКомм, только если заголовок встретился один раз и техническое имя допустимо. Для неё `getLookup` не вызывается, а отсутствие колонки чтение не валит. Несколько живых регистраций одного номера оставляют более позднее окончание; равное или неразобранное время оставляет меньший ID. Время в таблицу не пишется. Успешный непустой список заменяет `reg_current`. Пустая страница непустую таблицу не стирает. Конверт и тело ответа в артефакты не пишутся.
 - Сессия `settings:write`. API-ключи маршрут не открывают. 5 проверок на пользователя за 10 минут и один выполняющийся тест на процесс.
 - Аудит `rtu.soap.test`: origin, логин, код, два счётчика. Список объектов и SOAP-тело не пишутся.
@@ -136,8 +137,8 @@ Ciphertext envelope в БД: `v1:<iv_b64>:<authTag_b64>:<ciphertext_b64>`.
 
 ### Allowlisted business exec (Phase 4)
 
-- `phones.sync` → константный path `/opt/scripts/export.py`, argv `[]`.
-- Реализация: `sshClient.execAllowlisted` + `SshAllowlistedRemoteExecutionService` + jobs processor.
+- `phones.sync` — локальное чтение API РТУ. Ручного `POST /api/phones/request` нет. Право `phones:request` в сиде остаётся: им пользуются поставщики, география, повтор трафика и SMG.
+- `resolveActionForExecution("phones.sync")` отказывает. Путь-заглушка в сиде — `/opt/scripts/phones_sync`.
 - Клиент/API **не** передаёт `command` / `scriptPath` / `remoteArgs`.
 - `regs.poll` — локальное чтение API РТУ. Ручного `POST /api/regs/poll` нет. Право `regs:poll` в сиде остаётся и в интерфейсе не создаёт кнопку.
 - Auto-scheduler: in-process loop always starts at boot; ticks enqueue only when Settings `regsPollEnabled=true` (interval from `regsPollIntervalSec`, min 30s). Первый тик после старта процесса — около пяти секунд. Single `app` replica required.

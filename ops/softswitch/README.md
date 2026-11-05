@@ -4,18 +4,15 @@
 
 The app reads «Регистрации (ПКомм)» and «Регистрации (ПУпр)» from the RTU API. It does not run `check_regs.sh` and does not request a PTY. Leave the script and its sudoers entry in place so an image rollback can restore the old poll.
 
-## Phones (`export.py`)
+## Phones
 
-App command (no PTY required; sudo -n + cwd) — used by `phones.sync`. Incoming groups are read from the RTU API and do not run this script:
+The app reads the RTU page «Оборудование» in the folder «Оборудование». It does not run `export.py`. Leave the script and its sudoers entry in place so an image rollback can restore the old sync.
+
+`export.py` itself stays a read-only `SELECT` from MVTS MySQL via `/etc/mvts3g/access-db.conf`. It prints JSON to **stdout** (`version` 2): endpoints, gateways, and `groups[]`. It does **not** write `export.xlsx` and does **not** mutate MySQL. The current app does not call it. The rollback command is:
 
 ```text
 /bin/bash -c 'cd /opt/scripts && exec /usr/bin/sudo -n -- ./export.py'
 ```
-
-Read-only: `SELECT` from MVTS MySQL via `/etc/mvts3g/access-db.conf`. Prints JSON to
-**stdout** (`version` 2): endpoints, gateways, and `groups[]` (`ID` / `Название` from
-`mvts_routing_groups`, ordered by `routing_group_id`). Does **not** write `export.xlsx`
-and does **not** mutate MySQL.
 
 Requires NOPASSWD on `/opt/scripts/export.py` (config file is root-readable only).
 File must be executable (`chmod +x` / `install -m 0755`).

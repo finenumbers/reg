@@ -293,6 +293,7 @@ function localName(value: string): string {
 
 const DESCRIBE_TABLE = "describeTable";
 const SELECT_ROWSET = "selectRowset";
+const COUNT_ROWSET = "countRowset";
 const GET_LOOKUP = "getLookup";
 const GET_COLUMN_LOOKUP = "getColumnLookup";
 const DESCRIBE_PARTS = ["p_object_id"] as const;
@@ -304,13 +305,19 @@ const SELECT_PARTS = [
   "p_offset",
   "p_columns",
 ] as const;
+const COUNT_PARTS = ["p_table_hi", "p_filter"] as const;
 const LOOKUP_ID_PARTS = new Set(["p_object_id", "p_table_hi"]);
 const LOOKUP_COLUMN_PARTS = new Set(["p_column_nm", "p_column_name"]);
 
 export type CallParamStyle = "scalar" | "repeat" | "items";
 
 type LookupOperation = typeof GET_LOOKUP | typeof GET_COLUMN_LOOKUP;
-type ReadOperation = typeof DESCRIBE_TABLE | typeof SELECT_ROWSET | LookupOperation;
+type CountOperation = typeof COUNT_ROWSET;
+type ReadOperation =
+  | typeof DESCRIBE_TABLE
+  | typeof SELECT_ROWSET
+  | LookupOperation
+  | CountOperation;
 
 export type CallBinding =
   | {
@@ -360,6 +367,22 @@ type BoundCall =
       parameters: readonly { name: string; style: CallParamStyle }[];
     };
 
+export type CountBinding =
+  | {
+      kind: "rpc-encoded";
+      operation: CountOperation;
+      operationNamespace: string;
+      soapAction: string;
+      parts: readonly string[];
+    }
+  | {
+      kind: "document-literal";
+      operation: CountOperation;
+      targetNamespace: string;
+      soapAction: string;
+      parameters: readonly { name: string; style: CallParamStyle }[];
+    };
+
 export type CallReadPlan =
   | {
       ok: true;
@@ -368,6 +391,10 @@ export type CallReadPlan =
       selectRowset: CallBinding;
       /** Absent when this binding has neither handbook lookup operation. */
       getLookup: LookupBinding | null;
+      /** Handbook `countRowset (p_table_hi, p_filter)`. Null when that operation is absent. */
+      countRowset: CountBinding | null;
+      /** The operation is listed, but its arguments are not the handbook pair. */
+      countRowsetRejected: boolean;
     }
   | { ok: false; reason: "doctype" | "parse" | "unsupported" | "host" };
 
@@ -397,13 +424,29 @@ export function readCallReads(xml: string, origin: string): CallReadPlan {
     const getLookup =
       asLookup(understandCall(definitions, binding, GET_LOOKUP)) ??
       asLookup(understandCall(definitions, binding, GET_COLUMN_LOOKUP));
-    return { ok: true, endpoint, describeTable, selectRowset, getLookup };
+    const countRowset = asCount(understandCall(definitions, binding, COUNT_ROWSET));
+    const countRowsetRejected =
+      countRowset === null && listedOperation(binding, COUNT_ROWSET);
+    return {
+      ok: true,
+      endpoint,
+      describeTable,
+      selectRowset,
+      getLookup,
+      countRowset,
+      countRowsetRejected,
+    };
   }
   return { ok: false, reason: hostMismatch ? "host" : "unsupported" };
 }
 
 function asCallRead(binding: BoundCall | null): CallBinding | null {
-  if (!binding || isLookupOperation(binding.operation)) return null;
+  if (
+    !binding ||
+    (binding.operation !== DESCRIBE_TABLE && binding.operation !== SELECT_ROWSET)
+  ) {
+    return null;
+  }
   if (binding.kind === "rpc-encoded") {
     return {
       kind: "rpc-encoded",
@@ -420,6 +463,30 @@ function asCallRead(binding: BoundCall | null): CallBinding | null {
     soapAction: binding.soapAction,
     parameters: binding.parameters,
   };
+}
+
+function asCount(binding: BoundCall | null): CountBinding | null {
+  if (!binding || binding.operation !== COUNT_ROWSET) return null;
+  if (binding.kind === "rpc-encoded") {
+    return {
+      kind: "rpc-encoded",
+      operation: binding.operation,
+      operationNamespace: binding.operationNamespace,
+      soapAction: binding.soapAction,
+      parts: binding.parts,
+    };
+  }
+  return {
+    kind: "document-literal",
+    operation: binding.operation,
+    targetNamespace: binding.targetNamespace,
+    soapAction: binding.soapAction,
+    parameters: binding.parameters,
+  };
+}
+
+function listedOperation(binding: Record<string, unknown>, name: string): boolean {
+  return childRecords(binding, "operation").some((item) => attr(item, "name") === name);
 }
 
 function asLookup(binding: BoundCall | null): LookupBinding | null {
@@ -523,7 +590,12 @@ function documentCallBinding(
 
 function exactParts(names: readonly string[], operationName: ReadOperation): boolean {
   if (isLookupOperation(operationName)) return exactLookupParts(names);
-  const required = operationName === DESCRIBE_TABLE ? DESCRIBE_PARTS : SELECT_PARTS;
+  const required =
+    operationName === DESCRIBE_TABLE
+      ? DESCRIBE_PARTS
+      : operationName === COUNT_ROWSET
+        ? COUNT_PARTS
+        : SELECT_PARTS;
   if (names.length !== required.length) return false;
   const seen = new Set(names);
   return required.every((name) => seen.has(name));

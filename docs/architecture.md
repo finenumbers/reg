@@ -5,7 +5,7 @@
 Документ фиксирует архитектурные решения. Open questions закрыты — см. [open-questions.md](./open-questions.md).
 
 **Утверждённые продуктовые решения:**
-- sudo на softswitch разрешён узко (NOPASSWD sudoers) для `phones.sync` (`export.py`); регистрации читает API РТУ, не SSH;
+- sudo на softswitch оставлен узко (NOPASSWD sudoers) для отката `export.py`; номера, группы и регистрации читает API РТУ, не SSH;
 - сразу общая обёртка `/opt/scripts/platform_exec.sh` (рекомендуется);
 - local auth only (Better Auth); один SSH profile;
 - интервал опроса и retention артефактов — в Настройках UI;
@@ -19,7 +19,7 @@
 - primary login identifier = **username** (Better Auth username plugin);
 - UI kit = **shadcn/ui + Tailwind CSS**; таблицы данных = custom tables + column filters;
 - Prisma-модели Better Auth = **adapter/CLI-generated source of truth** (не изобретать кастомную auth-схему до генерации);
-- in-process scheduler bootstrap: `instrumentation.ts` (always starts timer loops); `regs.poll` when `regsPollEnabled`; `phones.sync`/`groups.sync` when `exportSyncEnabled` (phones run `export.py`, groups read the RTU API, one turn at a time); `cdr.sides.refresh` when `cdrSidesRefreshEnabled`; single `app` replica assumed (no leader election in v1).
+- in-process scheduler bootstrap: `instrumentation.ts` (always starts timer loops); `regs.poll` when `regsPollEnabled`; `phones.sync`/`groups.sync` when `exportSyncEnabled` (both read the RTU API, one turn at a time); `cdr.sides.refresh` when `cdrSidesRefreshEnabled`; single `app` replica assumed (no leader election in v1).
 
 ## 1. Цель системы
 
@@ -30,9 +30,9 @@
 3. Парсит stdout, сохраняет данные в PostgreSQL.
 4. Показывает операторам UI на основе **локальной БД** (не live-SSH для таблиц).
 
-Первый продуктовый модуль — **мониторинг SIP-регистраций** (страницы РТУ «Регистрации (ПКомм)» и «Регистрации (ПУпр)»). Второй — **телефонные номера / шлюзы** (`export.py`). Архитектура рассчитана на дополнительные модули вокруг других скриптов.
+Первый продуктовый модуль — **мониторинг SIP-регистраций** (страницы РТУ «Регистрации (ПКомм)» и «Регистрации (ПУпр)»). Второй — **телефонные номера / шлюзы** (страница РТУ «Оборудование»). Архитектура рассчитана на дополнительные модули вокруг других скриптов.
 
-Руководства SATEL по РТУ МТТ лежат только на машине разработчика в `docs/vendor/rtu-mtt/`. Каталог исключён из git и из Docker-контекста, поэтому в публичный репозиторий и в образ они не входят. Справочник API в комплекте описывает продукт 2.0, остальные файлы — 2.2.0. Номера и CDR по-прежнему идут по SSH allowlist и файлам. SOAP не входит в SSH. Проверка доступа в Настройках читает `getObjects` один раз. «Текущие звонки» дополнительно читает `describeTable` и `selectRowset` у двух таблиц транзитных вызовов (сводные страницы или общие шаблоны модулей). Если у «Состояние вызова» стоит `have_lookup`, та же страница читает `getLookup` для этой колонки. Собранные строки показываются по «Времени начала», поздние сверху; пустая и неразобранная метка остаётся внизу. Подпись снимка в UTC. Сортировка запроса остаётся пустой. PEM сертификата коммутатора из настроек доверяется этим чтениям. «Входящие группы» читает `describeTable` и `selectRowset` у страницы «Входящие группы» в папке «Оборудование», без заголовка `node` и без `getLookup`. «Регистрации» читает те же две операции у сводных страниц «Регистрации (ПКомм)» и «Регистрации (ПУпр)». Если сводной страницы нет, читается общий шаблон «Регистрации»: `node` только для `signaling-<цифры>` на ПКомм и `scripting-<цифры>` на ПУпр, не больше четырёх, после «Активные модули». `getLookup` только для «Состояние» на ПКомм, когда колонка помечена `have_lookup`. `getColumnLookup` уходит, только если эта операция есть в полученном WSDL v2. Если обеих нет, один `getLookup` идёт в стиле уже принятого `describeTable`. Отсутствующий или непрочитанный список чтение не валит. Неузнанная ячейка валит задание. «Время окончания регистрации» добавляется в тот же `selectRowset` ПКомм, только если заголовок встретился один раз и техническое имя допустимо. Для неё `getLookup` не вызывается, а отсутствие колонки чтение не валит. Несколько живых регистраций одного номера оставляют более позднее окончание; равное или неразобранное время оставляет меньший ID. Время в таблицу не пишется. Запись на коммутатор возможна только если отдельная задача называет операцию.
+Руководства SATEL по РТУ МТТ лежат только на машине разработчика в `docs/vendor/rtu-mtt/`. Каталог исключён из git и из Docker-контекста, поэтому в публичный репозиторий и в образ они не входят. Справочник API в комплекте описывает продукт 2.0, остальные файлы — 2.2.0. CDR по-прежнему идёт по файлам. SOAP не входит в SSH. Номера читает страница «Оборудование» в папке «Оборудование»: `describeTable`, `selectRowset` до 25 страниц, `getLookup` для типа, протокола и входящих групп, и один `countRowset` с пустым фильтром, если эта операция есть в WSDL v2. Заголовка `node` нет. Неполный ответ каталог не заменяет. Проверка доступа в Настройках читает `getObjects` один раз. «Текущие звонки» дополнительно читает `describeTable` и `selectRowset` у двух таблиц транзитных вызовов (сводные страницы или общие шаблоны модулей). Если у «Состояние вызова» стоит `have_lookup`, та же страница читает `getLookup` для этой колонки. Собранные строки показываются по «Времени начала», поздние сверху; пустая и неразобранная метка остаётся внизу. Подпись снимка в UTC. Сортировка запроса остаётся пустой. PEM сертификата коммутатора из настроек доверяется этим чтениям. «Входящие группы» читает `describeTable` и `selectRowset` у страницы «Входящие группы» в папке «Оборудование», без заголовка `node` и без `getLookup`. «Регистрации» читает те же две операции у сводных страниц «Регистрации (ПКомм)» и «Регистрации (ПУпр)». Если сводной страницы нет, читается общий шаблон «Регистрации»: `node` только для `signaling-<цифры>` на ПКомм и `scripting-<цифры>` на ПУпр, не больше четырёх, после «Активные модули». `getLookup` только для «Состояние» на ПКомм, когда колонка помечена `have_lookup`. `getColumnLookup` уходит, только если эта операция есть в полученном WSDL v2. Если обеих нет, один `getLookup` идёт в стиле уже принятого `describeTable`. Отсутствующий или непрочитанный список чтение не валит. Неузнанная ячейка валит задание. «Время окончания регистрации» добавляется в тот же `selectRowset` ПКомм, только если заголовок встретился один раз и техническое имя допустимо. Для неё `getLookup` не вызывается, а отсутствие колонки чтение не валит. Несколько живых регистраций одного номера оставляют более позднее окончание; равное или неразобранное время оставляет меньший ID. Время в таблицу не пишется. Запись на коммутатор возможна только если отдельная задача называет операцию.
 
 ## 2. Разделение Platform Core и Module
 
@@ -66,10 +66,10 @@ Core **не знает** бизнес-семантику регистраций 
 
 | Область | Ответственность |
 |---------|-----------------|
-| Action | `phones.sync` → allowlisted `export.py` на softswitch |
+| Action | `phones.sync` — локальное чтение API РТУ, без SSH |
 | Storage | `phone_endpoints`, `phone_gateways` (полный replace snapshot) |
-| API | list/facets/status/request; XLSX export; RTU CSV convert; UFW XLSX export |
-| UI | `/phones` — фильтры, экспорт, импорт в РТУ/UFW |
+| API | list/facets/status; XLSX export; RTU CSV convert; UFW XLSX export |
+| UI | `/phones` — фильтры, экспорт, импорт в РТУ/UFW, без ручной загрузки |
 
 ### Module: Incoming groups
 
@@ -113,8 +113,8 @@ Browser
     → app  (Next.js: UI + /api Route Handlers)
          ↘ PostgreSQL
          ↘ p-queue scheduler / job runners (in-process)
-              → SSH Executor (allowlist only) → phones `export.py`
-              → RTU SOAP (read only) → registrations, groups, live calls
+              → SSH Executor (allowlist only) → CDR and rollback scripts
+              → RTU SOAP (read only) → phones, registrations, groups, live calls
                    → Debian softswitch
 ```
 

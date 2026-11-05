@@ -83,7 +83,7 @@ Permissions seed: `settings:write`, `ssh:test`, `regs:read`, `regs:poll`, `audit
 | Column | Notes |
 |--------|-------|
 | code | PK, e.g. `regs.poll` |
-| remote_path | `regs.poll` хранит `/opt/scripts/regs_poll` и выполняется локально; `phones.sync` — `/opt/scripts/export.py` |
+| remote_path | `regs.poll` хранит `/opt/scripts/regs_poll`, `phones.sync` — `/opt/scripts/phones_sync`; оба выполняются локально |
 | description | |
 | enabled | boolean |
 | module | `registrations` |
