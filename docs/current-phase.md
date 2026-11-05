@@ -1,13 +1,19 @@
-# Current Phase — production (v1.226.0)
+# Current Phase — production (v1.227.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, number geography, free numbers, purchased numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls.  
 **Date:** 2026-11-06
+
+## v1.227.0 — RTU loads stay on the API
+
+There is no migration. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. Keep a single `app` replica. Replace the `app` container. The switch is only read.
+
+The unused switch-script runner, its stdout parsers, and the install notes are gone. Registrations, phone numbers, incoming groups, and live calls still read the RTU API. CDR files still arrive in the local FTP inbox. The Settings SSH button still checks the session and still sends no command. On startup the ten `allowed_actions.remote_path` values become the action code. Nothing is written to the switch.
 
 ## v1.226.0 — Phone numbers load from the RTU API
 
 There is no migration. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. Keep a single `app` replica. Replace the `app` container. The switch is only read. Until this load succeeds, the previous phone catalog stays.
 
-«Телефонные номера» no longer has «Загрузить данные». When the existing phone-and-group checkbox is on, `phones.sync` reads the RTU page «Оборудование» in the folder «Оборудование». The first load starts one export interval after the process starts, then alternates with incoming groups. A complete read replaces `phone_endpoints` and `phone_gateways`. Supplier and category stay on a number that remains. An empty read does not wipe a non-empty catalog. A fault, a timeout, a truncated page, a count mismatch, or a snapshot that drops a whole side, passwords, zones, protocols, address lists, or groups leaves the previous rows. `export.py` stays on the switch for an image rollback. Nothing is written to the switch. Compare three rows with the RTU page before trusting geography, registrations, and CDR sides.
+«Телефонные номера» no longer has «Загрузить данные». When the existing phone-and-group checkbox is on, `phones.sync` reads the RTU page «Оборудование» in the folder «Оборудование». The first load starts one export interval after the process starts, then alternates with incoming groups. A complete read replaces `phone_endpoints` and `phone_gateways`. Supplier and category stay on a number that remains. An empty read does not wipe a non-empty catalog. A fault, a timeout, a truncated page, a count mismatch, or a snapshot that drops a whole side, passwords, zones, protocols, address lists, or groups leaves the previous rows. Nothing is written to the switch. Compare three rows with the RTU page before trusting geography, registrations, and CDR sides.
 
 ## v1.225.4 — One phone keeps the registration that ends later
 
@@ -37,13 +43,13 @@ There is no migration. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN ro
 
 Stop `app` before this update. Start one new process only after `migrate` exits. The migration adds nullable `userAgent` on `reg_current`. It does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `smg-syslog`. Keep a single `app` replica. The switch is only read.
 
-«Регистрации» no longer has «Загрузить данные». When the existing registrations checkbox is on, `regs.poll` reads «Регистрации (ПКомм)» and «Регистрации (ПУпр)». The first read is about five seconds after start. Until it succeeds, the previous snapshot stays and «Оборудование» is empty. A non-empty read replaces `reg_current`. Catalog numbers with «Регистрация» = «Да» that are missing from that read stay «Не зарегистрирован». An empty page does not wipe a non-empty table. A fault, a timeout, or a truncated page leaves the previous rows. Compare `/regs` with the two RTU pages before trusting «Без регистрации». Nothing is written to the switch. Phone numbers still use `export.py`.
+«Регистрации» no longer has «Загрузить данные». When the existing registrations checkbox is on, `regs.poll` reads «Регистрации (ПКомм)» and «Регистрации (ПУпр)». The first read is about five seconds after start. Until it succeeds, the previous snapshot stays and «Оборудование» is empty. A non-empty read replaces `reg_current`. Catalog numbers with «Регистрация» = «Да» that are missing from that read stay «Не зарегистрирован». An empty page does not wipe a non-empty table. A fault, a timeout, or a truncated page leaves the previous rows. Compare `/regs` with the two RTU pages before trusting «Без регистрации». Nothing is written to the switch.
 
 ## v1.224.0 — Incoming groups load from the RTU API
 
 There is no migration. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. Keep a single `app` replica. Replace the `app` container. The switch is only read.
 
-«Входящие группы» no longer has «Загрузить данные». The stored ID and name are replaced by the current RTU page «Входящие группы» when Settings regular phone-and-group load is on. Phones still use `export.py` and still take turns with groups. A complete read, including an empty list, replaces `routing_groups`. A fault, a timeout, or a truncated page leaves the previous rows. Nothing is written to the switch.
+«Входящие группы» no longer has «Загрузить данные». The stored ID and name are replaced by the current RTU page «Входящие группы» when Settings regular phone-and-group load is on. Phones and groups still take turns. A complete read, including an empty list, replaces `routing_groups`. A fault, a timeout, or a truncated page leaves the previous rows. Nothing is written to the switch.
 
 ## v1.223.0 — Live-call direction and right-aligned catalog numbers
 
@@ -820,7 +826,7 @@ There is no new migration.
 
 ## v1.136.0 — The Dashboard drops the groups card and scrolls under the heading
 
-The home screen no longer draws «Входящие группы». A failed, never-successful, or stale groups sync still raises a line. Phone numbers and routing groups still share one `export.py` and take turns, so each is still allowed four export intervals, with a ten-minute floor. The dashboard no longer reads the stored group count.
+The home screen no longer draws «Входящие группы». A failed, never-successful, or stale groups sync still raises a line. Phone numbers and routing groups still take turns, so each is still allowed four export intervals, with a ten-minute floor. The dashboard no longer reads the stored group count.
 
 The five remaining cards are registrations, phone numbers, traffic, SMG calls, and syslog. They sit in one row when the content area is wide enough to show those titles, and wrap on a narrower window instead of clipping «Телефонные номера» into «Телефонный трафик». Each cell keeps the badge, the counts, the age, and any note in full. The row is above the call charts.
 
@@ -852,7 +858,7 @@ There is no new migration.
 
 `/` still has no menu item. The logo and a fresh login land here. The screen now lists the feeds the signed-in user is allowed to see: SIP registrations, phone numbers, routing groups, softswitch CDR, SMG CDR, and SMG syslog.
 
-A red line appears only when a switched-on loop has failed, has never succeeded, or is older than its own cadence. Registrations use two poll intervals, with a two-minute floor. Phone numbers and routing groups share one `export.py` and take turns, so each is allowed four export intervals, with a ten-minute floor. A running job is not called stale. A switched-off poll is a badge on its card, not an alarm. Unregistered SIP numbers stay on the card and do not raise a line.
+A red line appears only when a switched-on loop has failed, has never succeeded, or is older than its own cadence. Registrations use two poll intervals, with a two-minute floor. Phone numbers and routing groups take turns, so each is allowed four export intervals, with a ten-minute floor. A running job is not called stale. A switched-off poll is a badge on its card, not an alarm. Unregistered SIP numbers stay on the card and do not raise a line.
 
 CDR and SMG lines follow the same inbox rules as those pages: a purge hold is not poison, and a waiting folder is mentioned from the second ready file, not while an import is already running. Poison on the softswitch side links to «Сырые данные». Syslog uses the status file on the shared volume. A quiet receiver, a dead socket, low disk, or packets from unknown addresses are lines. The card does not walk the syslog tree.
 
@@ -974,7 +980,7 @@ There is no new migration.
 
 A file that is still inside the two-second settle window no longer waits for the next registration tick, and it does not start `smg.import` while it is young. The scheduler keeps one timer. When the file is ready, one import runs. An empty scan still turns the counter red. A file that is already ready is unchanged.
 
-A scheduled phones or groups export moves to the other script only after the queue accepts that job. A rejected enqueue retries the same script on the next tick. A manual run of both scripts at once is unchanged.
+A scheduled phones or groups load moves to the other job only after the queue accepts it. A rejected enqueue retries the same job on the next tick. A manual run of both jobs at once is unchanged.
 
 «Загрузить данные» on registrations, phones, and groups, and «Повторить импорт» on softswitch CDR, no longer report the previous success when the status read that should have captured the baseline failed. That read is tried once more before the job is queued. The first run, when nothing has finished yet, is unchanged.
 
@@ -1618,11 +1624,11 @@ Exact Call-ID match writes a Calltrace URL even if another Satel row already cla
 
 ## v1.18.0 — separate phones/groups schedule
 
-Registrations keep `regsPollEnabled` / `regsPollIntervalSec`. Phones and incoming groups use `exportSyncEnabled` / `exportSyncIntervalSec` (one `export.py` at a time, alternating). The two loops do not share a tick. Default export interval is 300s and off until enabled.
+Registrations keep `regsPollEnabled` / `regsPollIntervalSec`. Phones and incoming groups use `exportSyncEnabled` / `exportSyncIntervalSec` (one load at a time, alternating). The two loops do not share a tick. Default export interval is 300s and off until enabled.
 
 ## v1.17.0 — scheduled phones/groups and Jobs enrich banner
 
-Settings «Регулярная загрузка» now also schedules `phones.sync` and `groups.sync` on the same interval (one `export.py` at a time, alternating). `/jobs` shows PSTN/GeoIP backlog next to VoIPmonitor. Traffic inbox banner waits for two or more pending files so a single in-flight import stays quiet.
+Settings «Регулярная загрузка» now also schedules `phones.sync` and `groups.sync` on the same interval (one load at a time, alternating). `/jobs` shows PSTN/GeoIP backlog next to VoIPmonitor. Traffic inbox banner waits for two or more pending files so a single in-flight import stays quiet.
 
 ## v1.16.1 — match visibility and PSTN retry
 

@@ -1,23 +1,11 @@
 /**
- * SSH client — auth/session test + allowlisted remote exec (Phase 4).
+ * SSH client — authentication and session test.
  *
- * Connection test: reachability + authentication + session only (no script exec).
- * Allowlisted exec: ssh2.exec of a code-owned command under /opt/scripts/
- * (via `/usr/bin/sudo -n --` when elevateWithSudo). PTY is allocated only when
- * action.needsPty is true (e.g. check_regs.sh). Never accepts arbitrary commands from UI/API.
+ * The connection test checks reachability, authentication, and session
+ * establishment. It does not send a command.
  */
 
 import { Client, type ConnectConfig } from "ssh2";
-import { concatUtf8Chunks } from "@/lib/utf8-truncate";
-import type { RemoteExecutionResult } from "@/modules/actions/execution";
-import {
-  assertOptScriptsPath,
-  buildElevatedOptScriptsCommand,
-  type AllowedActionDefinition,
-} from "@/modules/actions/registry";
-
-/** Wide PTY so check_regs.sh TTY lines are not hard-wrapped. */
-const REGS_PTY = { term: "xterm", cols: 1024, rows: 24 } as const;
 
 export type SshConnectionConfig = {
   host: string;
@@ -25,11 +13,6 @@ export type SshConnectionConfig = {
   username: string;
   /** Decrypted private key PEM/OpenSSH — never log or persist after use */
   privateKeyPem: string;
-};
-
-export type SshExecOptions = {
-  action: AllowedActionDefinition;
-  timeoutMs: number;
 };
 
 export type SshConnectionTestOutcome = {
@@ -41,26 +24,15 @@ export type SshConnectionTestOutcome = {
 export interface SshClient {
   /**
    * Auth + session establishment only (connection test).
-   * Does not execute remote scripts.
+   * Does not execute a remote command.
    */
   testConnection(
     connection: SshConnectionConfig,
     timeoutMs?: number,
   ): Promise<SshConnectionTestOutcome>;
-
-  /**
-   * Execute exactly one allowlisted remote action via ssh2 exec.
-   * PTY is allocated only when action.needsPty is true.
-   * Command string is constructed from the allowlist definition only.
-   */
-  execAllowlisted(
-    connection: SshConnectionConfig,
-    options: SshExecOptions,
-  ): Promise<RemoteExecutionResult>;
 }
 
 const DEFAULT_TEST_TIMEOUT_MS = 15_000;
-const DEFAULT_EXEC_TIMEOUT_MS = 60_000;
 
 function classifySshError(error: unknown): {
   result: "auth_error" | "timeout" | "error";
@@ -97,31 +69,6 @@ function classifySshError(error: unknown): {
   }
   // Never echo raw node/ssh2 internals that might leak paths.
   return { result: "error", detail: "SSH connection failed" };
-}
-
-/**
- * Build the remote command string solely from the allowlisted action.
- * Defense-in-depth: re-validate path; reject non-empty argv / shell operators.
- * When elevateWithSudo: fixed
- * `/bin/bash -c 'cd /opt/scripts && exec /usr/bin/sudo -n -- ./<script>'`
- * so cwd matches interactive `sudo ./check_regs.sh` (never from UI).
- */
-export function buildAllowlistedExecCommand(
-  action: AllowedActionDefinition,
-): string {
-  assertOptScriptsPath(action.remotePath);
-  if (action.argv.length > 0) {
-    throw new Error(
-      `Action ${action.code} has non-empty argv — not permitted in v1`,
-    );
-  }
-  if (/[;&|`$<>\\]/.test(action.remotePath)) {
-    throw new Error("Remote path rejected: shell metacharacters not allowed");
-  }
-  if (action.elevateWithSudo) {
-    return buildElevatedOptScriptsCommand(action.remotePath);
-  }
-  return action.remotePath;
 }
 
 export class Ssh2Client implements SshClient {
@@ -196,135 +143,6 @@ export class Ssh2Client implements SshClient {
           ...classified,
           durationMs: Date.now() - started,
         });
-      }
-    });
-  }
-
-  async execAllowlisted(
-    connection: SshConnectionConfig,
-    options: SshExecOptions,
-  ): Promise<RemoteExecutionResult> {
-    const timeoutMs = options.timeoutMs > 0 ? options.timeoutMs : DEFAULT_EXEC_TIMEOUT_MS;
-    const command = buildAllowlistedExecCommand(options.action);
-    const started = Date.now();
-
-    return new Promise((resolve) => {
-      const client = new Client();
-      let settled = false;
-      const stdoutChunks: Array<Buffer | string> = [];
-      const stderrChunks: Array<Buffer | string> = [];
-      let exitCode: number | null = null;
-      let timedOut = false;
-
-      const decodedStdout = () => concatUtf8Chunks(stdoutChunks);
-      const decodedStderr = () => concatUtf8Chunks(stderrChunks);
-
-      const finish = (result: RemoteExecutionResult) => {
-        if (settled) return;
-        settled = true;
-        try {
-          client.end();
-        } catch {
-          /* ignore */
-        }
-        resolve(result);
-      };
-
-      const failSafe = (detail: string, code: number | null = null) => {
-        const stderr = decodedStderr();
-        finish({
-          actionCode: options.action.code,
-          remotePath: options.action.remotePath,
-          exitCode: code,
-          stdout: decodedStdout(),
-          stderr: stderr || detail,
-          durationMs: Date.now() - started,
-          timedOut,
-        });
-      };
-
-      const timer = setTimeout(() => {
-        timedOut = true;
-        try {
-          client.destroy();
-        } catch {
-          /* ignore */
-        }
-        const stderr = decodedStderr();
-        finish({
-          actionCode: options.action.code,
-          remotePath: options.action.remotePath,
-          exitCode: null,
-          stdout: decodedStdout(),
-          stderr: stderr || "SSH exec timed out",
-          durationMs: Date.now() - started,
-          timedOut: true,
-        });
-      }, timeoutMs);
-
-      client.on("ready", () => {
-        // PTY only when needed (check_regs.sh). Softswitch authorized_keys
-        // must not set no-pty for the platform key when regs.poll is used.
-        // Wide cols avoid hard-wrapping long registration lines.
-        const execOpts = options.action.needsPty
-          ? { pty: { ...REGS_PTY } }
-          : {};
-        client.exec(command, execOpts, (err, stream) => {
-          if (err) {
-            clearTimeout(timer);
-            const classified = classifySshError(err);
-            failSafe(classified.detail);
-            return;
-          }
-
-          // Accumulate raw buffers — decode once at close so multi-byte UTF-8
-          // (Cyrillic JSON keys) is never split across chunk boundaries.
-          stream.on("data", (data: Buffer | string) => {
-            stdoutChunks.push(data);
-          });
-          // With PTY, stderr is usually merged into stdout; attach if present.
-          stream.stderr?.on("data", (data: Buffer | string) => {
-            stderrChunks.push(data);
-          });
-          stream.on("close", (code: number | null) => {
-            clearTimeout(timer);
-            exitCode = typeof code === "number" ? code : null;
-            finish({
-              actionCode: options.action.code,
-              remotePath: options.action.remotePath,
-              exitCode,
-              stdout: decodedStdout(),
-              stderr: decodedStderr(),
-              durationMs: Date.now() - started,
-              timedOut: false,
-            });
-          });
-        });
-      });
-
-      client.on("error", (err) => {
-        if (settled) return;
-        clearTimeout(timer);
-        const classified = classifySshError(err);
-        failSafe(classified.detail);
-      });
-
-      const config: ConnectConfig = {
-        host: connection.host,
-        port: connection.port,
-        username: connection.username,
-        privateKey: connection.privateKeyPem,
-        readyTimeout: Math.min(timeoutMs, 30_000),
-        tryKeyboard: false,
-        agent: undefined,
-      };
-
-      try {
-        client.connect(config);
-      } catch (error) {
-        clearTimeout(timer);
-        const classified = classifySshError(error);
-        failSafe(classified.detail);
       }
     });
   }

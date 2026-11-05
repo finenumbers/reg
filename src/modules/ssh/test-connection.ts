@@ -2,8 +2,7 @@
  * SSH connection test orchestration (Phase 3).
  *
  * Scope: connectivity + authentication + session establishment only.
- * Does NOT run check_regs.sh / regs.poll and does NOT update reg_current.
- * Allowlisted remote exec for business polling lands in Phase 4.
+ * Does not send a command and does not update reg_current.
  */
 
 import { prisma } from "@/lib/db";

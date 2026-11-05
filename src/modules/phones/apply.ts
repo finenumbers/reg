@@ -1,5 +1,5 @@
 /**
- * Replace phone_endpoints / phone_gateways with the full export.py snapshot.
+ * Replace phone_endpoints / phone_gateways with a full catalog snapshot.
  * Empty arrays are a valid empty snapshot (wipe previous rows) when the
  * caller has already passed integrity gates.
  */

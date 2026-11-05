@@ -9,12 +9,11 @@ Open questions **закрыты** — см. [open-questions.md](./open-questions
 
 Утверждено для реализации:
 
-- sudo на softswitch разрешён узко (NOPASSWD); app шлёт константу `sudo -n -- /opt/scripts/check_regs.sh` из allowlist;
+- номера, группы и регистрации читает API РТУ; SSH к коммутатору только проверяет вход;
 - local auth only через Better Auth;
 - один SSH profile;
 - retention артефактов и interval опроса — поля в Settings UI;
 - при ошибке poll — не писать regs, показать проблему в UI;
-- сразу `platform_exec.sh`;
 - bootstrap admin из env;
 - внешний NPM, сеть `proxy`;
 - ключ только replace, без export;
@@ -42,7 +41,7 @@ Open questions **закрыты** — см. [open-questions.md](./open-questions
 - Prisma schema (сущности из data-model, включая Better Auth tables)
 - health endpoints skeleton
 - module skeletons (auth, settings, ssh, actions, jobs, registrations, audit, health)
-- secure execution abstraction (allowlist only — без реального SSH exec бизнес-логики)
+- локальные коды заданий
 - README с ссылками на docs + `docs/current-phase.md` / `docs/next-steps.md`
 
 **Checkpoint:** `compose up` поднимает db; Prisma migrate/generate ok; `next build` близок к успешному; health отвечает.
@@ -76,14 +75,14 @@ Open questions **закрыты** — см. [open-questions.md](./open-questions
 
 **Сделать:**
 
-- seed `allowed_actions.regs.poll` → `/opt/scripts/check_regs.sh`
-- parser + unit tests на примере CSV
+- seed `allowed_actions.regs.poll`
+- чтение страниц регистраций и unit tests
 - `p-queue` processor `regs.poll` (schedule + manual)
 - anti-overlap (concurrency 1 + in-flight guard)
 - apply to `reg_current` / `reg_change_events`
 - API list/search/history/status/poll
 
-**Checkpoint:** при mock/real SSH данные пишутся; unchanged poll не плодит history; empty/fail не портит current.
+**Checkpoint:** успешное чтение API пишет строки; unchanged poll не плодит history; empty/fail не портит current.
 
 ### Phase 5 — Registrations UI
 
@@ -102,8 +101,6 @@ Open questions **закрыты** — см. [open-questions.md](./open-questions
 - Audit page (admin)
 - login rate limit, CSRF/origin checks (совместимо с Better Auth cookies)
 - log redaction review
-- remote server setup runbook (forced command, sudoers/ACL) как `docs/remote-server-setup.md`
-
 **Checkpoint:** security checklist выполнен. **Status: complete.**
 
 ### Phase 7 — Production readiness
@@ -191,16 +188,15 @@ UI pages и Route Handlers вызывают модули; бизнес-логи�
 - Persist every attempt in `job_runs`
 - v1 assumption: single `app` replica
 
-## 7. Parser / failure behaviors
+## 7. Registration read failures
 
 | Case | Behavior |
 |------|----------|
-| Empty stdout | fail run; keep current |
-| Malformed line | skip + bad counter |
-| Duplicate phone in one output | last wins + warning |
+| Empty or faulted read | fail run; keep current |
+| Unrecognized state | fail run; keep current |
+| Two live rows for one phone | keep the later end time |
 | Identical state | update `last_seen_at` only |
-| SSH timeout/auth error | fail run; scheduler continues |
-| exitCode ≠ 0 / fail | fail run; **не применять** данные; UI показывает ошибку последнего цикла |
+| API timeout | fail run; scheduler continues |
 
 ## 8. Order of implementation chats
 

@@ -2,7 +2,7 @@
  * Apply parsed registration rows to reg_current + reg_change_events.
  *
  * Full-replace rules (successful poll only — caller must NOT invoke on
- * failed / empty stdout / exit≠0 polls):
+ * failed or empty polls):
  * - upsert every phone from the dump (insert / update / lastSeenAt)
  * - delete from reg_current any phone absent from the dump
  * - empty dump may wipe only when the caller already confirmed the live

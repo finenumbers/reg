@@ -97,7 +97,7 @@ model AppSetting {
   regsPollEnabled       Boolean     @default(false)
   /// Technical floor enforced in validation (>= 30 recommended).
   regsPollIntervalSec   Int         @default(60)
-  /// Phones + groups (export.py), independent of regs.poll.
+  /// Phones + groups, independent of regs.poll.
   exportSyncEnabled     Boolean     @default(false)
   exportSyncIntervalSec Int         @default(300)
   /// Backfill cdr_records.side_* from the phones catalog (diff-only).
@@ -375,7 +375,7 @@ model PstnPhoneCache {
 }
 
 // ---------------------------------------------------------------------------
-// Phones module (export.py JSON → local snapshot)
+// Phones module (catalog snapshot)
 // ---------------------------------------------------------------------------
 
 model PhoneEndpoint {

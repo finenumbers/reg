@@ -236,7 +236,7 @@ describe("dashboard attention", () => {
       facts({
         groups: pulse({
           lastStatus: "failed",
-          lastError: "export.py",
+          lastError: "groups read failed",
           lastSuccessAt: NOW - 60_000,
         }),
       }),

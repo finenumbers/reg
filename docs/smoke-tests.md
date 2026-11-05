@@ -46,7 +46,7 @@ Complete after first production deploy and after major upgrades:
 
 ## Softswitch (outside the app container)
 
-Before enabling auto-poll, run the SSH host checks in [remote-server-setup.md](./remote-server-setup.md) (`whoami` must not give a shell).
+The SSH connection test checks the session only. Registrations, phones, and groups load from the RTU API.
 
 ## Auto-poll enablement smoke
 

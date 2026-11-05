@@ -80,7 +80,7 @@ describe("scheduledExportAction", () => {
     });
   });
 
-  it("does not start a second export.py while one is in flight", () => {
+  it("does not start a second phone or group load while one is in flight", () => {
     expect(
       scheduledExportAction({
         phonesSyncInFlight: true,

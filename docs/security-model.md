@@ -1,6 +1,6 @@
 # Security Model
 
-Жёсткие требования безопасности для платформы, работающей по SSH с продуктивным softswitch. SSH-пользователь на сервере может иметь sudo «по жизни»; приложение **не имеет права** использовать это как общий shell.
+Номера, группы, регистрации и текущие звонки читает API РТУ. SSH к коммутатору открывается только для проверки входа и команду не шлёт. Журнал парковки читается отдельным ключом на другом хосте.
 
 Бизнес- и SSH-ограничения ниже **не зависят** от смены стека (Next.js / Better Auth / p-queue). Меняется только способ AuthN на стороне приложения.
 
@@ -8,71 +8,31 @@
 
 | Угроза | Контрмера |
 |--------|-----------|
-| Произвольная команда с UI/API | Allowlist actionId only; нет полей command/path |
-| Shell injection / argument injection | `ssh.exec` без shell; argv пустой; path — константа |
-| Path traversal (`../`) | Regex `^/opt/scripts/[A-Za-z0-9._-]+$` |
-| Использование account как general-purpose SSH | Forced command / wrapper; no agent/port forwarding; PTY only for allowlisted script exec |
-| Злоупотребление sudo | App шлёт только константу `/usr/bin/sudo -n -- <allowlisted path>` из кода; на ОС — NOPASSWD только на точный script path; запрет произвольного sudo из UI |
+| Произвольная команда с UI/API | Нет полей command, scriptPath, remoteArgs. Задания РТУ — локальные коды |
+| Команда на коммутатор | Приложение её не собирает и не отправляет |
+| Злоупотребление sudo на коммутаторе | Приложение sudo не отправляет |
 | Утечка private key | AES-256-GCM at rest; decrypt только in-memory; не логировать; UI mask; нет export |
 | Подмена ключа/настроек | RBAC; audit log |
 | CSRF | Session cookies Better Auth (httpOnly, Secure, SameSite) + проверка Origin/CSRF на mutating requests |
 
-## 2. Три слоя контроля удалённого выполнения
+## 2. Локальные задания и SSH к коммутатору
 
-### Слой A — Application allowlist (обязательный)
+В коде платформы (и в seed БД, синхронизированном с кодом) есть реестр заданий:
 
-В коде платформы (и seed БД, синхронизированный с кодом) существует реестр действий:
+| action code | Что делает |
+|-------------|------------|
+| `regs.poll` | Чтение «Регистрации (ПКомм)» и «Регистрации (ПУпр)» |
+| `phones.sync` | Чтение страницы «Оборудование» |
+| `groups.sync` | Чтение страницы «Входящие группы» |
+| `cdr.import` | Разбор локальной папки FTP |
+| `cdr.sides.refresh` | Сверка Описаний каталога с `cdr_records.side_*` |
+| `cdr.purge.month` | Пакетное удаление самого старого полного месяца CDR |
 
-| action code | remote path | argv | exec command |
-|-------------|-------------|------|--------------|
-| `regs.poll` | local (API РТУ) | `[]` | не SSH — чтение «Регистрации (ПКомм)» и «Регистрации (ПУпр)» |
-| `phones.sync` | local (API РТУ) | `[]` | не SSH — чтение страницы «Оборудование» |
-| `groups.sync` | local (API РТУ) | `[]` | не SSH — чтение страницы «Входящие группы» |
-| `cdr.import` | local (FTP inbox) | `[]` | не SSH — drain локальной папки |
-| `cdr.sides.refresh` | local | `[]` | не SSH — сверка Описаний каталога с `cdr_records.side_*` |
-| `cdr.purge.month` | local | `[]` | не SSH — пакетное удаление самого старого полного месяца CDR |
+`phones.sync` читает страницу РТУ «Оборудование» и заменяет `phone_endpoints` и `phone_gateways`. Пароли регистраций в таблице phones по-прежнему хранятся и показываются открытым текстом (доступ через RBAC `phones:read`). Конверт и тело ответа в артефакты задания не пишутся. `groups.sync` читает страницу РТУ «Входящие группы» и заменяет только `routing_groups`.
 
-`phones.sync` SSH не вызывает: читает страницу РТУ «Оборудование» и заменяет `phone_endpoints` и `phone_gateways`. Пароли регистраций в таблице phones по-прежнему хранятся и показываются открытым текстом (доступ через RBAC `phones:read`). Конверт и тело ответа в артефакты задания не пишутся. `groups.sync` SSH не вызывает: читает страницу РТУ «Входящие группы» и заменяет только `routing_groups`. `export.py` на коммутаторе остаётся для отката образа.
+Клиент не передаёт команду. SSH-профиль коммутатора используется кнопкой проверки сессии: после входа канал с командой не открывается.
 
-Правила:
-
-1. Клиент передаёт только `actionId` / `actionCode`.
-2. Путь **не** приходит из UI, query, body, headers, БД-редактируемых админкой полей.
-3. Изменение remote path для production-action — только через релиз кода + миграцию/seed, не через «форму настроек».
-4. Executor использует `ssh2` exec с **константной** командой `bash -c 'cd /opt/scripts && exec sudo -n -- ./<script>'` (не из UI). Interactive shell недоступен. Текущее приложение PTY не запрашивает. `regs.poll` читает API РТУ.
-5. Defense in depth: даже константный path проходит валидатор `/opt/scripts/[A-Za-z0-9._-]+`.
-
-### Слой B — SSH forced command / remote wrapper (обязательный на softswitch)
-
-**Решение (утверждено):** сразу wrapper `/opt/scripts/platform_exec.sh`.
-
-В `authorized_keys` для ключа платформы:
-
-```text
-command="/opt/scripts/platform_exec.sh",no-port-forwarding,no-X11-forwarding,no-agent-forwarding ...
-```
-
-Wrapper:
-
-- принимает только allowlisted `SSH_ORIGINAL_COMMAND` для `check_regs.sh` и `export.py`: bare path, absolute `sudo -n -- …`, или fixed bash -c cwd form;
-- делает `cd /opt/scripts` и `exec /usr/bin/sudo -n -- ./<basename>`;
-- иначе exit non-zero.
-
-Обёртка по-прежнему принимает `check_regs.sh`, чтобы откат образа мог вернуть прежний опрос. Текущее приложение эту команду не шлёт и PTY не запрашивает. Interactive shell по-прежнему недоступен из‑за forced command.
-
-### Слой C — OS least privilege / sudo risk
-
-Факт: скрипт может требовать доступ к файлам вроде `/etc/mvts3g/access-db.conf` и зависит от cwd `/opt/scripts`.
-
-**Решение (утверждено, обновлено):** sudo на softswitch **разрешён**, узко; приложение **отправляет** константный `sudo -n` из `/opt/scripts`.
-
-1. На ОС: `sudoers` NOPASSWD **только** на скрипты из allowlist (`/opt/scripts/check_regs.sh`, `/opt/scripts/export.py`).
-2. Приложение строит sudo-команду **только** в коде allowlist (`cd /opt/scripts && sudo -n -- ./<script>`), никогда из UI/настроек/произвольного ввода.
-3. Запрещено: `sudo ALL`, произвольный sudo, user-controlled аргументы, sudo-строка из форм.
-
-Цепочка: app allowlist → SSH exec (`bash -c 'cd /opt/scripts && sudo -n -- ./…'`, PTY только если `needsPty`) → (optional forced `platform_exec.sh`) → sudoers → script.
-
-`export.py` остаётся на коммутаторе только для отката образа. Текущее приложение его не вызывает. Пароли регистраций в таблице phones хранятся и показываются открытым текстом (доступ через RBAC `phones:read`).
+### Parking RADIUS
 
 ### Parking RADIUS
 
@@ -120,7 +80,7 @@ Ciphertext envelope в БД: `v1:<iv_b64>:<authTag_b64>:<ciphertext_b64>`.
 ### Test connection
 
 - Phase 3+: проверяет **только** reachability + authentication + session establishment (`ssh2` connect/ready).
-- **Не** выполняет `check_regs.sh` / `regs.poll` и **не** обновляет `reg_current` / history.
+- Команду не отправляет и `reg_current` не обновляет.
 - Пишет результат в `ssh_connection_tests` + audit `ssh.test`.
 
 ### RTU SOAP
@@ -135,10 +95,9 @@ Ciphertext envelope в БД: `v1:<iv_b64>:<authTag_b64>:<ciphertext_b64>`.
 - Аудит `rtu.soap.test`: origin, логин, код, два счётчика. Список объектов и SOAP-тело не пишутся.
 - Сертификат коммутатора можно вставить в Настройках как PEM. Он доверяется проверке доступа и чтению текущих вызовов и не становится корнем процесса. Совпадение отпечатка листа разрешает адрес по IP; чужой лист того же CA — нет. Проверка подписи и срока не отключается. `NODE_EXTRA_CA_CERTS` по-прежнему добавляет корень всему процессу. SSH allowlist не расширяется.
 
-### Allowlisted business exec (Phase 4)
+### Задания РТУ
 
 - `phones.sync` — локальное чтение API РТУ. Ручного `POST /api/phones/request` нет. Право `phones:request` в сиде остаётся: им пользуются поставщики, география, повтор трафика и SMG.
-- `resolveActionForExecution("phones.sync")` отказывает. Путь-заглушка в сиде — `/opt/scripts/phones_sync`.
 - Клиент/API **не** передаёт `command` / `scriptPath` / `remoteArgs`.
 - `regs.poll` — локальное чтение API РТУ. Ручного `POST /api/regs/poll` нет. Право `regs:poll` в сиде остаётся и в интерфейсе не создаёт кнопку.
 - Auto-scheduler: in-process loop always starts at boot; ticks enqueue only when Settings `regsPollEnabled=true` (interval from `regsPollIntervalSec`, min 30s). Первый тик после старта процесса — около пяти секунд. Single `app` replica required.
@@ -216,20 +175,12 @@ Go-live: [production-checklist.md](./production-checklist.md). Smoke: [smoke-tes
 - Редактируемый remote command в Settings
 - Хранение plaintext ключей
 - Возврат расшифрованного ключа в API («показать ключ»)
-- `invoke_shell` / PTY для allowlisted exec
-- Универсальный «run any script from /opt/scripts» picker без code review/release allowlist
+- Запуск команды на коммутаторе из приложения
 - Произвольный `ssh.exec` строки от клиента
 - Горизонтальный запуск poll на нескольких репликах без single-runner (v1: одна реплика `app`)
 
-## 7. Remote server checklist (ops)
+## 7. SSH к коммутатору
 
-Документируется для DevOps — см. [remote-server-setup.md](./remote-server-setup.md):
-
-1. Отдельный unix-пользователь для платформы.
-2. Ключ только для платформы.
-3. `authorized_keys` с `command=...`, **без** `no-pty` (скрипту нужен TTY), без forwarding.
-4. Скрипты только в `/opt/scripts/`, минимальные права.
-5. ACL или узкий sudoers.
-6. Проверка: `ssh -i key user@host whoami` всё равно выполняет forced script и печатает CSV / ожидаемый результат.
+Кнопка в Настройках проверяет только вход. Приложение не требует forced command и sudoers на коммутаторе. Журнал парковки описан выше.
 
 См. также [open-questions.md](./open-questions.md).

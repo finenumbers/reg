@@ -10,8 +10,7 @@ import { requireSessionUserId } from "@/modules/auth/session";
 /**
  * POST /api/settings/ssh/test — SSH auth/session connection test (ssh:test).
  *
- * Does NOT execute check_regs.sh / regs.poll.
- * Does NOT update registration data.
+ * Does not send a command and does not update registration data.
  * Hardening: same-origin + per-user rate limit.
  */
 export async function POST(request: Request) {

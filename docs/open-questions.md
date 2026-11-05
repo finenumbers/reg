@@ -4,18 +4,6 @@
 
 ---
 
-## Q1. Привилегии `check_regs.sh` — DECIDED
-
-**Решение:** разрешаем использование **sudo** для запуска скриптов платформы.
-
-На softswitch: узкий `sudoers` NOPASSWD на `/opt/scripts/check_regs.sh`.  
-Приложение **отправляет** константу `/usr/bin/sudo -n -- /opt/scripts/check_regs.sh` из кода allowlist (`elevateWithSudo`), **не** из UI. Опциональный forced wrapper принимает path или эту же sudo-строку и всегда elevates через `sudo -n`.
-
-- Status: `DECIDED`
-- Answer: sudo разрешён (контролируемо: app constant `sudo -n` + NOPASSWD sudoers; no UI-built sudo)
-
----
-
 ## Q2. Аутентификация — DECIDED
 
 **Решение:** только локальные пользователи. SSO/LDAP не в v1.
@@ -60,16 +48,6 @@
 
 **Решение:** **ничего не сохранять** в `reg_current` / `reg_change_events` при неуспешном прогоне.  
 На сайте **явно сигнализировать** о проблеме (статус последнего цикла, ошибка, stderr preview / сообщение).
-
-- Status: `DECIDED`
-
----
-
-## Q7. Forced command / wrapper — DECIDED
-
-**Решение: B** — сразу общая обёртка `/opt/scripts/platform_exec.sh` под будущие скрипты.
-
-Ключ платформы в `authorized_keys` с forced command на wrapper; wrapper держит локальный allowlist путей только в `/opt/scripts/`.
 
 - Status: `DECIDED`
 

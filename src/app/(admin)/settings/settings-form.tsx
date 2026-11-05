@@ -1196,8 +1196,7 @@ export function SettingsForm({ initial, parkingKey }: Props) {
                   <p className="mt-2 text-muted-foreground">{testResult.detail}</p>
                 ) : null}
                 <p className="mt-2 text-xs text-muted-foreground">
-                  Только auth/сессия — не запускает check_regs.sh и не обновляет
-                  регистрации.
+                  Только auth/сессия — команду не отправляет и регистрации не обновляет.
                 </p>
               </div>
             ) : null}

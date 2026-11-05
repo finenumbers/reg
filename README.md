@@ -1,8 +1,8 @@
 # Reg Platform
 
-Internal telecom ops platform for monitoring SIP registrations on an operator softswitch via allowlisted SSH scripts under `/opt/scripts/`.
+Internal telecom ops platform. Phone numbers, groups, registrations, and live calls are read from the RTU API.
 
-**Repository:** [github.com/finenumbers/reg](https://github.com/finenumbers/reg) · **Release:** [v1.223.0](https://github.com/finenumbers/reg/releases/tag/v1.223.0)
+**Repository:** [github.com/finenumbers/reg](https://github.com/finenumbers/reg) · **Release:** [v1.227.0](https://github.com/finenumbers/reg/releases/tag/v1.227.0)
 
 ## Stack (approved)
 
@@ -32,7 +32,6 @@ Versioned tags (`:1.0.0`, …) are also published by CI; production compose uses
 - [open questions](docs/open-questions.md)
 - [current phase](docs/current-phase.md)
 - [next steps](docs/next-steps.md)
-- [remote softswitch setup](docs/remote-server-setup.md)
 - [production checklist](docs/production-checklist.md)
 - [backup and restore](docs/backup-and-restore.md)
 - [smoke tests](docs/smoke-tests.md)
@@ -87,20 +86,18 @@ Do not hand-author conflicting auth table definitions. App RBAC (`roles` / `perm
 
 ## Security notes
 
-- Remote execution: allowlisted action codes only → `/opt/scripts/...`
+- Job codes are local. The app does not send a command to the softswitch
 - No arbitrary shell endpoints
 - PuTTYgen `.ppk` import is implemented via `ppk-to-openssh` + `sshpk` normalize; passphrase is import-time only and never stored
 - Private keys encrypted at rest with AES-256-GCM (`APP_ENCRYPTION_KEY`, 64 hex chars)
 - Settings UI/API mask keys (`hasPrivateKey` / fingerprint) — replace only, never export
-- SSH connection test is auth/session only; it does **not** run `check_regs.sh`
+- SSH connection test is auth/session only and sends no command
 - RTU SOAP access check (Settings) is one read of `getObjects`. The password is AES-256-GCM ciphertext. A pasted PEM certificate is trusted only by that check. The client cannot build a write. API keys cannot call it.
-- `regs.poll` reads the RTU registration pages when Settings regular registration polling is on. It does not run `check_regs.sh`.
+- `regs.poll` reads the RTU registration pages when Settings regular registration polling is on.
 - Auto-poll is Settings-only (`regsPollEnabled` + interval); in-process loop starts at boot; single `app` replica required
 - Admin/settings/audit routes require RBAC permissions; anonymous users are redirected or rejected
 - Mutating APIs require same-origin Origin/Referer; login/poll/SSH-test are rate-limited (in-memory; single replica)
 - Machine API keys (Settings → API-ключи): read-only `regs:read` + `phones:read`; `Authorization: Bearer` / `X-Api-Key`; 10 000 req/min per key; no poll/sync/settings/SSH/RTU-import/tariffs/SMG-xlsx-export
-- Softswitch host hardening: see [remote-server-setup.md](docs/remote-server-setup.md)
-
 ## Settings / SSH APIs
 
 - `GET /api/settings` — masked settings (`settings:write`)

@@ -2,7 +2,7 @@
 
 Production path using **GHCR images** (linux/amd64) and the existing NPM `proxy` network.  
 Compose file: [`docker-compose.portainer.yml`](../docker-compose.portainer.yml).  
-Related: [production-checklist.md](./production-checklist.md), [remote-server-setup.md](./remote-server-setup.md).
+Related: [production-checklist.md](./production-checklist.md).
 
 ## Images (redeploy)
 
@@ -26,7 +26,7 @@ Package: [ghcr.io/finenumbers/reg](https://github.com/finenumbers/reg/pkgs/conta
    docker network create proxy
    ```
 
-3. Softswitch scripts installed per [remote-server-setup.md](./remote-server-setup.md) (`/opt/scripts/…`).
+3. RTU account for the API. The SSH profile is only the connection test.
 
 ## 2. Stack env (required)
 
@@ -84,7 +84,7 @@ Set `BETTER_AUTH_URL` to the exact public origin (`https://regs.example.com`) an
 1. Open `https://regs.example.com/login` with bootstrap admin.
 2. **Settings:** SSH host/user/key → **Test connection**. If GeoIP Analytics runs on **this same Docker host**, set the GeoIP URL per [§6](#6-geoip-on-the-same-docker-host) before relying on country/city/ISP columns. If PSTN Analytics is on the same host, set the PSTN URL per [§7](#7-pstn-on-the-same-docker-host) before operator and geography columns.
 3. **Registrations:** manual poll once; check `/jobs` and `/regs`.
-4. **Phones:** turn on regular phone-and-group load in Settings. The first read starts one interval after the process starts. Leave `export.py` on the switch for an image rollback.
+4. **Phones:** turn on regular phone-and-group load in Settings. The first read starts one interval after the process starts.
 5. Only then enable Settings auto-poll (`regsPollEnabled`) — still one replica.
 6. **Телефонный трафик:** софтсвитч заливает CDR активным FTP на **IP Docker-хоста:2121** (не HTTPS NPM). В стеке опубликован `2121`. В Настройках: логин, пароль, порт 2121.
 7. **Звонки на SMG:** шлюз заливает CDR на тот же FTP, порт **2121**, тот же логин и пароль. Путь на шлюзе `/smg`. В Настройках, блок FTP, поле «Внешний IPv4» — адрес этого хоста. На файрволе открыты TCP 2121 и 50100–50109.

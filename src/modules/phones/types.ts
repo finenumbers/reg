@@ -1,5 +1,5 @@
 /**
- * Fixed Russian column headers matching softswitch export.py / legacy Excel sheets.
+ * Fixed Russian column headers of the phone catalog. «емкость» uses «е».
  */
 
 export const ENDPOINT_HEADERS = [

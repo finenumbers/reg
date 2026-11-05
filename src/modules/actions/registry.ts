@@ -1,9 +1,7 @@
 /**
- * Code-owned allowlist of remote actions.
+ * Code-owned allowlist of local jobs.
  * Clients may only pass action codes — never paths, argv, or shell commands.
  */
-
-const OPT_SCRIPTS_PATH_PATTERN = /^\/opt\/scripts\/[A-Za-z0-9._-]+$/;
 
 export type AllowedActionCode =
   | "regs.poll"
@@ -17,179 +15,64 @@ export type AllowedActionCode =
   | "cdr.tariff.rate"
   | "db.vacuum";
 
-/** Absolute sudo binary used for non-interactive elevation (never from UI). */
-const REMOTE_SUDO_BIN = "/usr/bin/sudo";
-
-/**
- * Fixed elevated exec — matches interactive
- * `cd /opt/scripts && sudo ./<script>` (cwd-sensitive scripts).
- * Never built from UI input.
- */
-export function buildElevatedOptScriptsCommand(remotePath: string): string {
-  assertOptScriptsPath(remotePath);
-  const basename = remotePath.slice("/opt/scripts/".length);
-  return `/bin/bash -c 'cd /opt/scripts && exec ${REMOTE_SUDO_BIN} -n -- ./${basename}'`;
-}
-
 export type AllowedActionDefinition = {
   code: AllowedActionCode;
-  kind: "ssh" | "local";
-  /** Absolute path under /opt/scripts only — unused for local actions */
-  remotePath: string;
-  /** Always empty in v1 — no user-controlled argv */
-  argv: readonly string[];
   module: "registrations" | "phones" | "groups" | "traffic" | "smg";
   description: string;
-  /** Remote wrapper token channel uses the same absolute path */
-  usesPlatformExecWrapper: true;
-  /**
-   * When true, SSH exec uses fixed
-   * `/bin/bash -c 'cd /opt/scripts && exec /usr/bin/sudo -n -- ./<script>'`
-   * (code constant). Requires NOPASSWD sudoers on softswitch for that script path.
-   */
-  elevateWithSudo: boolean;
-  /** When true, ssh2 allocates a PTY. No current action needs one. */
-  needsPty: boolean;
 };
 
 /**
- * Production allowlist. Adding a new script requires a code release + seed update.
+ * Production allowlist. Adding a job requires a code release and a baseline update.
  */
 export const ACTION_REGISTRY: Record<AllowedActionCode, AllowedActionDefinition> = {
   "regs.poll": {
     code: "regs.poll",
-    kind: "local",
-    remotePath: "/opt/scripts/regs_poll",
-    argv: [],
     module: "registrations",
     description: "Read SIP registrations from the RTU API",
-    usesPlatformExecWrapper: true,
-    elevateWithSudo: false,
-    needsPty: false,
   },
   "phones.sync": {
     code: "phones.sync",
-    kind: "local",
-    remotePath: "/opt/scripts/phones_sync",
-    argv: [],
     module: "phones",
     description: "Read phone endpoints and gateways from the RTU API",
-    usesPlatformExecWrapper: true,
-    elevateWithSudo: false,
-    needsPty: false,
   },
   "groups.sync": {
     code: "groups.sync",
-    kind: "local",
-    remotePath: "/opt/scripts/groups_sync",
-    argv: [],
     module: "groups",
     description: "Read incoming groups from the RTU API",
-    usesPlatformExecWrapper: true,
-    elevateWithSudo: false,
-    needsPty: false,
   },
   "cdr.import": {
     code: "cdr.import",
-    kind: "local",
-    remotePath: "/opt/scripts/cdr_import",
-    argv: [],
     module: "traffic",
     description: "Import softswitch CDR files from the local FTP inbox",
-    usesPlatformExecWrapper: true,
-    elevateWithSudo: false,
-    needsPty: false,
   },
   "smg.import": {
     code: "smg.import",
-    kind: "local",
-    remotePath: "/opt/scripts/smg_import",
-    argv: [],
     module: "smg",
     description: "Import Eltex SMG CDR files from the local FTP inbox",
-    usesPlatformExecWrapper: true,
-    elevateWithSudo: false,
-    needsPty: false,
   },
   "voipmonitor.match": {
     code: "voipmonitor.match",
-    kind: "local",
-    remotePath: "/opt/scripts/voipmonitor_match",
-    argv: [],
     module: "traffic",
     description: "Correlate CDR rows with VoIPmonitor and store deep-links",
-    usesPlatformExecWrapper: true,
-    elevateWithSudo: false,
-    needsPty: false,
   },
   "cdr.sides.refresh": {
     code: "cdr.sides.refresh",
-    kind: "local",
-    remotePath: "/opt/scripts/cdr_sides_refresh",
-    argv: [],
     module: "traffic",
     description: "Refresh CDR side A/B labels from the phones catalog",
-    usesPlatformExecWrapper: true,
-    elevateWithSudo: false,
-    needsPty: false,
   },
   "cdr.purge.month": {
     code: "cdr.purge.month",
-    kind: "local",
-    remotePath: "/opt/scripts/cdr_purge_month",
-    argv: [],
     module: "traffic",
     description: "Delete the oldest complete CDR calendar month",
-    usesPlatformExecWrapper: true,
-    elevateWithSudo: false,
-    needsPty: false,
   },
   "cdr.tariff.rate": {
     code: "cdr.tariff.rate",
-    kind: "local",
-    remotePath: "/opt/scripts/cdr_tariff_rate",
-    argv: [],
     module: "traffic",
     description: "Recompute CDR direction, price, and charge from the tariff snapshot",
-    usesPlatformExecWrapper: true,
-    elevateWithSudo: false,
-    needsPty: false,
   },
   "db.vacuum": {
     code: "db.vacuum",
-    kind: "local",
-    remotePath: "/opt/scripts/db_vacuum",
-    argv: [],
     module: "traffic",
     description: "VACUUM FULL cdr_voipmonitor_links, cdr_records, and smg_cdr_records",
-    usesPlatformExecWrapper: true,
-    elevateWithSudo: false,
-    needsPty: false,
   },
 };
-
-export function resolveActionForExecution(code: string): AllowedActionDefinition {
-  const action = getAllowedAction(code);
-  if (!action) {
-    throw new Error(`Unknown or disallowed action code: ${code}`);
-  }
-  if (action.kind === "local") {
-    throw new Error(`Action ${code} is local-only and cannot be executed remotely`);
-  }
-  if (action.argv.length > 0) {
-    throw new Error(`Action ${code} has non-empty argv — not permitted in v1`);
-  }
-  assertOptScriptsPath(action.remotePath);
-  return action;
-}
-
-function getAllowedAction(code: string): AllowedActionDefinition | null {
-  if (!(code in ACTION_REGISTRY)) return null;
-  return ACTION_REGISTRY[code as AllowedActionCode];
-}
-
-export function assertOptScriptsPath(path: string): void {
-  if (!OPT_SCRIPTS_PATH_PATTERN.test(path)) {
-    throw new Error(`Remote path rejected: must match ${OPT_SCRIPTS_PATH_PATTERN}`);
-  }
-}

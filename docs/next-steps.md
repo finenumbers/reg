@@ -5,7 +5,7 @@ Phase 7 (production readiness) is complete. Recommended follow-ups are **ops ena
 ## 1. Go live (ops)
 
 1. Follow [production-checklist.md](./production-checklist.md)
-2. Configure softswitch per [remote-server-setup.md](./remote-server-setup.md)
+2. Save the RTU API account in Settings and run the access check
 3. Run [smoke-tests.md](./smoke-tests.md) against the public URL
 4. Schedule DB backups + vault `APP_ENCRYPTION_KEY` ([backup-and-restore.md](./backup-and-restore.md))
 

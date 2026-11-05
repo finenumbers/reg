@@ -83,7 +83,7 @@ Permissions seed: `settings:write`, `ssh:test`, `regs:read`, `regs:poll`, `audit
 | Column | Notes |
 |--------|-------|
 | code | PK, e.g. `regs.poll` |
-| remote_path | `regs.poll` хранит `/opt/scripts/regs_poll`, `phones.sync` — `/opt/scripts/phones_sync`; оба выполняются локально |
+| remote_path | Код действия (`regs.poll`, `phones.sync`, …). Задания выполняются локально. Через API колонка не редактируется |
 | description | |
 | enabled | boolean |
 | module | `registrations` |
@@ -193,7 +193,7 @@ Full snapshot всех номеров на каждый run **не хранит�
 | Индикатор последнего опроса | `job_runs` (+ app_settings) |
 | Диагностика SSH | `ssh_connection_tests` / `job_runs` |
 | Security/compliance | `audit_logs` |
-| Разбор «что вернул скрипт» | `job_run_artifacts` |
+| Сырой вывод задания | `job_run_artifacts` |
 | Сессии логина | Better Auth `session` (+ `account`) |
 
 ## 5. Правила записи регистраций

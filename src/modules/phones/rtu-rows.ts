@@ -1,6 +1,6 @@
 /**
  * Turn one page of «Оборудование» into the phone catalog snapshot.
- * Catalog keys stay the export.py names, including «емкость» with «е».
+ * Catalog keys stay the phone-table names, including «емкость» with «е».
  */
 
 import { normalizeRtuLabel } from "@/modules/live-calls/columns";

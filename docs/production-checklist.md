@@ -2,7 +2,7 @@
 
 Operator checklist for deploying Reg behind Docker/Portainer + Nginx Proxy Manager.  
 **Recommended production path:** GHCR images + [`docker-compose.portainer.yml`](../docker-compose.portainer.yml) — see [deploy-portainer.md](./deploy-portainer.md).  
-Related: [backup-and-restore.md](./backup-and-restore.md), [smoke-tests.md](./smoke-tests.md), [remote-server-setup.md](./remote-server-setup.md), [security-model.md](./security-model.md).
+Related: [backup-and-restore.md](./backup-and-restore.md), [smoke-tests.md](./smoke-tests.md), [security-model.md](./security-model.md).
 
 ## Must not do (production)
 
@@ -193,7 +193,7 @@ v1.152.0 deletes every SMG syslog card once, from the running process, with no m
 
 ## 4. Softswitch (before polling)
 
-Follow [remote-server-setup.md](./remote-server-setup.md): dedicated user, forced `platform_exec.sh`, narrow sudoers/ACL, smoke SSH from ops host.
+Save the RTU API account and run the access check. The SSH button checks the session and sends no command.
 
 ## 5. Application configuration
 

@@ -149,7 +149,7 @@ describe("mapEquipmentRows", () => {
     });
   }
 
-  it("builds the same catalog keys as export.py", () => {
+  it("builds the phone catalog keys", () => {
     const mapped = map([
       row("e1", {
         name: "EP yes",
