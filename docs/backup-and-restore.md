@@ -48,7 +48,7 @@ Adjust `-U` / `-d` if you changed `POSTGRES_USER` / `POSTGRES_DB`.
 
 3. Ensure the **same** `APP_ENCRYPTION_KEY` is set in the app environment as when keys were encrypted.
 4. Start the stack: `docker compose up -d`
-5. Smoke: `/api/readyz`, login, Settings shows `hasPrivateKey`, SSH test, optional manual poll.
+5. Smoke: `/api/readyz`, login, Settings shows `hasPrivateKey`, SSH test.
 
 ### If `APP_ENCRYPTION_KEY` was rotated or lost
 

@@ -201,9 +201,9 @@ Save the RTU API account and run the access check. The SSH button checks the ses
 2. **Settings:** SSH host/port/user; import key (PPK/PEM); **Test connection** (auth/session only).
 3. **API РТУ** saved. Registrations have no manual button. Enable «Включить регулярный опрос регистраций» only when that account can read the two registration pages. The first read is about five seconds after the process starts. Until it succeeds, the previous rows stay. Spot-check `/regs` against «Регистрации (ПКомм)» and «Регистрации (ПУпр)» before trusting «Без регистрации».
 4. Then enable phones+groups load. Incoming groups follow on the next groups turn and replace `routing_groups` with the current RTU list, including an empty list. A fault or a truncated read leaves the previous rows. Spot-check `/groups` against the RTU page before the next RTU CSV import.
-5. Phones keep their **Загрузить данные** button. Registrations do not. Keep one `app` replica.
+5. Phones load with the phones-and-groups checkbox from step 4 (`phones.sync`). There is no **Загрузить данные** button. Keep one `app` replica.
 
-**Sync data-loss note:** regs and phones apply is full-replace. An empty phones or regs dump is rejected when the table is non-empty, but a **truncated non-empty** softswitch dump (exit 0) can still wipe missing phone rows. A successful groups read replaces the catalog with the current RTU list. A truncated or failed groups read does not. After an anomalous sync, check `/jobs` before trusting the snapshot.
+**Sync data-loss note:** regs and phones apply is full-replace. An empty phones or regs read is rejected when the table is non-empty. An incomplete equipment list, a count mismatch, a fault, or a timeout does not reach the write. A snapshot that drops a whole side, passwords, zones, protocols, address lists, or groups is rejected. A successful complete phone snapshot replaces the catalog, including numbers that left the page. A successful groups read replaces the catalog with the current RTU list, including an empty list. A truncated or failed groups read does not. After an anomalous sync, check `/jobs` before trusting the snapshot.
 
 ## 6. Verify
 

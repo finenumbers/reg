@@ -83,7 +83,7 @@ Set `BETTER_AUTH_URL` to the exact public origin (`https://regs.example.com`) an
 
 1. Open `https://regs.example.com/login` with bootstrap admin.
 2. **Settings:** SSH host/user/key → **Test connection**. If GeoIP Analytics runs on **this same Docker host**, set the GeoIP URL per [§6](#6-geoip-on-the-same-docker-host) before relying on country/city/ISP columns. If PSTN Analytics is on the same host, set the PSTN URL per [§7](#7-pstn-on-the-same-docker-host) before operator and geography columns.
-3. **Registrations:** manual poll once; check `/jobs` and `/regs`.
+3. **Registrations:** there is no manual poll. Leave the checkbox off until step 5. After that read, check `/jobs` for `regs.poll` with `trigger=schedule` and `/regs`.
 4. **Phones:** turn on regular phone-and-group load in Settings. The first read starts one interval after the process starts.
 5. Only then enable Settings auto-poll (`regsPollEnabled`) — still one replica.
 6. **Телефонный трафик:** софтсвитч заливает CDR активным FTP на **IP Docker-хоста:2121** (не HTTPS NPM). В стеке опубликован `2121`. В Настройках: логин, пароль, порт 2121.

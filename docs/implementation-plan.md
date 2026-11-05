@@ -125,6 +125,8 @@ Open questions **закрыты** — см. [open-questions.md](./open-questions
 - `PUT /api/settings/ssh/key` (multipart/raw replace)
 - `POST /api/settings/ssh/test`
 
+Ручного `POST /api/regs/poll`, `POST /api/phones/request` и кнопки ручного опроса из Phase 5 нет. Опрос регистраций и загрузка номеров включаются в Настройках.
+
 ### Registrations
 - `GET /api/regs?filters&phoneQ&page&pageSize`
 - `GET /api/regs/[phone]` (current + history)

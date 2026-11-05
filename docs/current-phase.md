@@ -1,7 +1,13 @@
-# Current Phase — production (v1.227.0)
+# Current Phase — production (v1.228.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, number geography, free numbers, purchased numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls.  
 **Date:** 2026-11-06
+
+## v1.228.0 — Unused poll helper is gone
+
+There is no migration. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. Keep a single `app` replica. Replace the `app` container. The switch is only read.
+
+The registration poll button helper and the unused RTU SOAP barrel are gone. Registrations, phones, groups, and live calls still read the RTU API. The Settings checkboxes still start `regs.poll`, `phones.sync`, and `groups.sync`. Nothing is written to the switch.
 
 ## v1.227.0 — RTU loads stay on the API
 
