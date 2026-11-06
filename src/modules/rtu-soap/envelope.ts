@@ -36,7 +36,7 @@ export const SELECT_ROW_LIMIT = 2000;
 export const SELECT_COLUMN_CAP = 16;
 /** Five pages: offsets 0, 2000, 4000, 6000, and 8000. */
 export const SELECT_OFFSET_CAP = SELECT_ROW_LIMIT * 4;
-/** Equipment page: 21 fields plus one primary key, with room for the zone columns. */
+/** Equipment page: catalog fields, the activation flag, and one primary key. The cap leaves room for the zone columns. */
 export const EQUIPMENT_SELECT_COLUMN_CAP = 24;
 /** Twenty-five equipment pages. The last offset is 48000. */
 export const EQUIPMENT_SELECT_OFFSET_CAP = SELECT_ROW_LIMIT * 24;

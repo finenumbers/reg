@@ -16,6 +16,9 @@ import {
   GATEWAY_HEADERS,
   REGISTRATION_NO,
   REGISTRATION_YES,
+  STATUS_ACTIVE,
+  STATUS_BLOCKED,
+  STATUS_FIELD,
   type ParsedPhoneEndpoint,
   type ParsedPhoneGateway,
   type ParsedPhonesPayload,
@@ -44,6 +47,7 @@ export const EQUIPMENT_TITLES = {
   regName: "Регистрационное имя",
   regPassword: "Регистрационный пароль",
   regAddresses: "Список разреш. адресов для регистрации (IPv4)",
+  active: "Запись активна",
 } as const;
 
 export type EquipmentField = keyof typeof EQUIPMENT_TITLES;
@@ -98,7 +102,10 @@ export function prepareEquipmentColumns(
   for (const key of Object.keys(EQUIPMENT_TITLES) as EquipmentField[]) {
     const column = columnByName(columns, mapped.columns[key].name);
     if (!column) {
-      return { ok: false, detail: `В таблице «${EQUIPMENT_TITLE}» нет колонки «${EQUIPMENT_TITLES[key]}».` };
+      return {
+        ok: false,
+        detail: `В таблице «${EQUIPMENT_TITLE}» нет колонки «${EQUIPMENT_TITLES[key]}».`,
+      };
     }
     const hidden = rejectHidden(column);
     if (hidden) return { ok: false, detail: hidden };
@@ -106,7 +113,10 @@ export function prepareEquipmentColumns(
   }
   const names = new Set(Object.values(field));
   if (names.size !== Object.keys(field).length) {
-    return { ok: false, detail: "Колонки «Оборудование» имеют одинаковые технические имена." };
+    return {
+      ok: false,
+      detail: "Колонки «Оборудование» имеют одинаковые технические имена.",
+    };
   }
 
   const srcNamed = oneTechnical(columns, SRC_ZONE_NAME);
@@ -137,12 +147,7 @@ export function prepareEquipmentColumns(
     };
   }
 
-  const selected = uniqueNames([
-    pkColumn.name,
-    ...valueFields(field),
-    srcZone,
-    dstZone,
-  ]);
+  const selected = uniqueNames([pkColumn.name, ...valueFields(field), srcZone, dstZone]);
   if (selected.length > EQUIPMENT_SELECT_COLUMN_CAP) {
     return { ok: false, detail: "Список колонок оборудования не помещается в запрос." };
   }
@@ -190,16 +195,15 @@ export function mapEquipmentRows(input: {
   if (typePairs && (!gatewayPair || !endpointPair)) {
     return {
       ok: false,
-      detail: "Подстановка «Тип оборудования» не содержит «Шлюз» и «Оконечное оборудование».",
+      detail:
+        "Подстановка «Тип оборудования» не содержит «Шлюз» и «Оконечное оборудование».",
     };
   }
   if (gatewayPair === "many" || endpointPair === "many") {
     return { ok: false, detail: "Подстановка «Тип оборудования» повторяет подпись." };
   }
 
-  const protocolLabels = input.lookups.protocol
-    ? pairMap(input.lookups.protocol)
-    : null;
+  const protocolLabels = input.lookups.protocol ? pairMap(input.lookups.protocol) : null;
   const groupLabels = input.lookups.groups ? pairMap(input.lookups.groups) : null;
   const endpoints: ParsedPhoneEndpoint[] = [];
   const gateways: ParsedPhoneGateway[] = [];
@@ -242,6 +246,10 @@ export function mapEquipmentRows(input: {
     if (registration !== REGISTRATION_YES && registration !== REGISTRATION_NO) {
       return { ok: false, detail: "Регистрация должна быть «Да» или «Нет»." };
     }
+    const activation = decodeActivation(cell(row, input.layout.field.active));
+    if (!activation) {
+      return { ok: false, detail: "Статус активации должен быть «Да» или «Нет»." };
+    }
     const data = blank(ENDPOINT_HEADERS);
     data[CATALOG.name] = name;
     data[CATALOG.description] = cell(row, input.layout.field.description);
@@ -256,7 +264,15 @@ export function mapEquipmentRows(input: {
     data[CATALOG.regName] = cell(row, input.layout.field.regName);
     data[CATALOG.regPassword] = cell(row, input.layout.field.regPassword);
     data[CATALOG.regAddresses] = cell(row, input.layout.field.regAddresses);
-    fillShared(data, row, input.layout, data[CATALOG.srcZone] ?? "", data[CATALOG.dstZone] ?? "", groups);
+    data[STATUS_FIELD] = activation;
+    fillShared(
+      data,
+      row,
+      input.layout,
+      data[CATALOG.srcZone] ?? "",
+      data[CATALOG.dstZone] ?? "",
+      groups,
+    );
     endpoints.push({
       name,
       endpointNumber: number.length > 0 ? number : null,
@@ -311,7 +327,10 @@ export function refusePhonesSnapshot(
     anyFilled(previousRegistered, CATALOG.zone) &&
     !anyFilled(nextRegistered, CATALOG.zone)
   ) {
-    return { ok: false, detail: "В новом снимке не осталось зон у зарегистрированного оборудования." };
+    return {
+      ok: false,
+      detail: "В новом снимке не осталось зон у зарегистрированного оборудования.",
+    };
   }
   const previousOpen = [...unregistered(previous.endpoints), ...previous.gateways];
   const nextOpen = [...unregistered(nextEndpoints), ...nextGateways];
@@ -340,6 +359,15 @@ export function refusePhonesSnapshot(
   }
   if (anyFilled(previousAll, CATALOG.groups) && !anyFilled(nextAll, CATALOG.groups)) {
     return { ok: false, detail: "В новом снимке не осталось входящих групп." };
+  }
+  if (
+    anyFilled(previous.endpoints, STATUS_FIELD) &&
+    !anyFilled(nextEndpoints, STATUS_FIELD)
+  ) {
+    return {
+      ok: false,
+      detail: "В новом снимке не осталось статусов оконечного оборудования.",
+    };
   }
   return { ok: true };
 }
@@ -380,10 +408,7 @@ function uniqueNames(names: readonly string[]): string[] {
   return out;
 }
 
-function columnByName(
-  columns: readonly SoapColumn[],
-  name: string,
-): SoapColumn | null {
+function columnByName(columns: readonly SoapColumn[], name: string): SoapColumn | null {
   return columns.find((column) => column.name === name) ?? null;
 }
 
@@ -450,9 +475,7 @@ function classifyType(
 }
 
 function matchesPair(text: string, pair: { key: string; value: string }): boolean {
-  return (
-    text === normalizeRtuLabel(pair.key) || text === normalizeRtuLabel(pair.value)
-  );
+  return text === normalizeRtuLabel(pair.key) || text === normalizeRtuLabel(pair.value);
 }
 
 function decodeBool(raw: string): "Да" | "Нет" | "Ошибка" {
@@ -460,6 +483,16 @@ function decodeBool(raw: string): "Да" | "Нет" | "Ошибка" {
   if (text === "1" || text === "true" || text === "да") return "Да";
   if (text === "0" || text === "false" || text === "нет") return "Нет";
   return "Ошибка";
+}
+
+/** «Запись активна» on an endpoint. A lookup is not read. The cell value stays out of the error. */
+function decodeActivation(
+  raw: string,
+): typeof STATUS_ACTIVE | typeof STATUS_BLOCKED | null {
+  const flag = decodeBool(raw);
+  if (flag === "Да") return STATUS_ACTIVE;
+  if (flag === "Нет") return STATUS_BLOCKED;
+  return null;
 }
 
 function decodeProto(raw: string, labels: ReadonlyMap<string, string> | null): string {
@@ -511,11 +544,15 @@ function anyFilled(rows: readonly PhoneRowData[], key: string): boolean {
 }
 
 function registered(rows: readonly PhoneRowData[]): PhoneRowData[] {
-  return rows.filter((row) => (row[CATALOG.registration] ?? "").trim() === REGISTRATION_YES);
+  return rows.filter(
+    (row) => (row[CATALOG.registration] ?? "").trim() === REGISTRATION_YES,
+  );
 }
 
 function unregistered(rows: readonly PhoneRowData[]): PhoneRowData[] {
-  return rows.filter((row) => (row[CATALOG.registration] ?? "").trim() === REGISTRATION_NO);
+  return rows.filter(
+    (row) => (row[CATALOG.registration] ?? "").trim() === REGISTRATION_NO,
+  );
 }
 
 function anyProtocol(rows: readonly PhoneRowData[]): boolean {

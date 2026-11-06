@@ -29,6 +29,8 @@ import {
   REGISTRATION_FIELD,
   REGISTRATION_NO,
   REGISTRATION_YES,
+  STATUS_BLOCKED,
+  STATUS_FIELD,
   isEndpointPhoneKind,
   type PhoneKind,
   type PhoneRowData,
@@ -57,6 +59,8 @@ export type ListPhonesResult = {
   registeredCount: number;
   unregisteredCount: number;
   errorCount: number;
+  /** «Заблокировано» in this section, ignoring search and column filters. */
+  blockedCount: number;
 };
 
 export type PhonesOperationalStatus = {
@@ -88,8 +92,16 @@ function asStringRecord(data: unknown): PhoneRowData {
   return out;
 }
 
+function withStatusHeader(headers: readonly string[]): string[] {
+  const next = headers.filter((header) => header !== STATUS_FIELD);
+  next.push(STATUS_FIELD);
+  return next;
+}
+
 function endpointHeaders(value: unknown): string[] {
-  return withCategoryHeader(withSupplierHeader(asStringArray(value, ENDPOINT_HEADERS)));
+  return withStatusHeader(
+    withCategoryHeader(withSupplierHeader(asStringArray(value, ENDPOINT_HEADERS))),
+  );
 }
 
 function asStringArray(value: unknown, fallback: readonly string[]): string[] {
@@ -117,6 +129,30 @@ function registrationErrorWhere(): Prisma.PhoneEndpointWhereInput {
       { NOT: registrationEquals(REGISTRATION_NO) },
     ],
   };
+}
+
+function blockedWhere(): Prisma.PhoneEndpointWhereInput {
+  return {
+    data: {
+      path: [STATUS_FIELD],
+      equals: STATUS_BLOCKED,
+    },
+  };
+}
+
+function withBlocked(
+  where: Prisma.PhoneEndpointWhereInput,
+  blockedOnly: boolean,
+): Prisma.PhoneEndpointWhereInput {
+  if (!blockedOnly) return where;
+  return { AND: [where, blockedWhere()] };
+}
+
+async function countBlockedEndpoints(kind: PhoneKind): Promise<number> {
+  if (!isEndpointPhoneKind(kind)) return 0;
+  return prisma.phoneEndpoint.count({
+    where: { AND: [endpointKindWhere(kind), blockedWhere()] },
+  });
 }
 
 function endpointKindWhere(kind: PhoneKind): Prisma.PhoneEndpointWhereInput {
@@ -226,6 +262,8 @@ export async function listPhones(opts: {
   phoneQ?: string;
   /** Only endpoints with live SIP Unregistered (endpoints_registered only). */
   sipUnregisteredOnly?: boolean;
+  /** Only endpoints whose «Статус» is «Заблокировано». Gateways ignore this. */
+  blockedOnly?: boolean;
   page?: number;
   pageSize?: number;
 }): Promise<ListPhonesResult> {
@@ -235,11 +273,13 @@ export async function listPhones(opts: {
   const phoneQ = opts.phoneQ?.trim() ?? "";
   const sipUnregisteredOnly =
     Boolean(opts.sipUnregisteredOnly) && opts.kind === "endpoints_registered";
+  const blockedOnly = Boolean(opts.blockedOnly) && isEndpointPhoneKind(opts.kind);
   const skip = (page - 1) * pageSize;
 
-  const [state, buckets] = await Promise.all([
+  const [state, buckets, blockedCount] = await Promise.all([
     prisma.phoneImportState.findUnique({ where: { id: 1 } }),
     countRegistrationBuckets(),
+    countBlockedEndpoints(opts.kind),
   ]);
 
   const emptyMeta = {
@@ -249,6 +289,7 @@ export async function listPhones(opts: {
     registeredCount: buckets.registeredCount,
     unregisteredCount: buckets.unregisteredCount,
     errorCount: buckets.errorCount,
+    blockedCount,
   };
 
   if (isEndpointPhoneKind(opts.kind)) {
@@ -278,6 +319,7 @@ export async function listPhones(opts: {
       }
       where = filtered;
     }
+    where = withBlocked(where, blockedOnly);
 
     const [total, rows] = await Promise.all([
       prisma.phoneEndpoint.count({ where }),
@@ -359,6 +401,7 @@ export async function listPhones(opts: {
     registeredCount: buckets.registeredCount,
     unregisteredCount: buckets.unregisteredCount,
     errorCount: buckets.errorCount,
+    blockedCount,
   };
 }
 
@@ -368,6 +411,7 @@ export async function listPhoneFacets(opts: {
   filters?: ColumnFilters;
   phoneQ?: string;
   sipUnregisteredOnly?: boolean;
+  blockedOnly?: boolean;
   q?: string;
   limit?: number;
 }): Promise<FacetResponse> {
@@ -380,6 +424,7 @@ export async function listPhoneFacets(opts: {
   const phoneQ = opts.phoneQ?.trim() ?? "";
   const sipUnregisteredOnly =
     Boolean(opts.sipUnregisteredOnly) && opts.kind === "endpoints_registered";
+  const blockedOnly = Boolean(opts.blockedOnly) && isEndpointPhoneKind(opts.kind);
 
   if (isEndpointPhoneKind(opts.kind)) {
     let where = applyEndpointPhoneQ(
@@ -397,6 +442,7 @@ export async function listPhoneFacets(opts: {
       }
       where = filtered;
     }
+    where = withBlocked(where, blockedOnly);
 
     const rows = await prisma.phoneEndpoint.findMany({
       where,

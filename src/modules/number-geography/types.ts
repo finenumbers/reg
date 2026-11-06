@@ -26,6 +26,7 @@ export type NumberGeographyItem = {
   operator: string;
   geography: string;
   title: string;
+  activation: string;
   cityAlert: boolean;
   pstnStatus: PstnLookupStatus;
 };
@@ -38,4 +39,6 @@ export type ListNumberGeographyResult = {
   refresh: NumberGeographyRefresh;
   /** `max(lastSyncedAt)` of phone endpoints. Changes when phones.sync replaces the catalog. */
   catalogStamp: string;
+  /** «Заблокировано» in the number list, ignoring search and column filters. */
+  blockedCount: number;
 };

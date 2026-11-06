@@ -6,7 +6,7 @@ import { parsePhoneKind } from "@/modules/phones/types";
 
 /**
  * GET /api/phones — list phone gateways or endpoint registration buckets from local DB.
- * Optional: filters=<json>, phoneQ, sipUnregisteredOnly, page, pageSize.
+ * Optional: filters=<json>, phoneQ, sipUnregisteredOnly, blockedOnly, page, pageSize.
  */
 export async function GET(request: Request) {
   const gate = await requireApiPermission("phones:read");
@@ -19,6 +19,9 @@ export async function GET(request: Request) {
   const sipUnregisteredOnly =
     url.searchParams.get("sipUnregisteredOnly") === "1" ||
     url.searchParams.get("sipUnregisteredOnly") === "true";
+  const blockedOnly =
+    url.searchParams.get("blockedOnly") === "1" ||
+    url.searchParams.get("blockedOnly") === "true";
   const page = Number(url.searchParams.get("page") ?? "1");
   const pageSize = Number(url.searchParams.get("pageSize") ?? "100");
 
@@ -27,6 +30,7 @@ export async function GET(request: Request) {
     filters,
     phoneQ,
     sipUnregisteredOnly,
+    blockedOnly,
     page: Number.isFinite(page) ? page : 1,
     pageSize: Number.isFinite(pageSize) ? pageSize : 100,
   });

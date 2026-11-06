@@ -33,6 +33,7 @@ async function readJson(res: Response): Promise<unknown> {
 export function buildNumberGeographyListUrl(opts: {
   filters?: ColumnFilters;
   phoneQ?: string;
+  blockedOnly?: boolean;
   page?: number;
   pageSize?: number;
 }): string {
@@ -40,6 +41,7 @@ export function buildNumberGeographyListUrl(opts: {
   const encoded = opts.filters ? encodeFilters(opts.filters) : null;
   if (encoded) params.set("filters", encoded);
   if (opts.phoneQ?.trim()) params.set("phoneQ", opts.phoneQ.trim());
+  if (opts.blockedOnly) params.set("blockedOnly", "1");
   if (opts.page != null) params.set("page", String(opts.page));
   if (opts.pageSize != null) params.set("pageSize", String(opts.pageSize));
   const query = params.toString();
@@ -50,6 +52,7 @@ export function buildNumberGeographyFacetsUrl(opts: {
   column: string;
   filters?: ColumnFilters;
   phoneQ?: string;
+  blockedOnly?: boolean;
   q?: string;
   limit?: number;
 }): string {
@@ -58,6 +61,7 @@ export function buildNumberGeographyFacetsUrl(opts: {
   const encoded = opts.filters ? encodeFilters(opts.filters) : null;
   if (encoded) params.set("filters", encoded);
   if (opts.phoneQ?.trim()) params.set("phoneQ", opts.phoneQ.trim());
+  if (opts.blockedOnly) params.set("blockedOnly", "1");
   if (opts.q?.trim()) params.set("q", opts.q.trim());
   if (opts.limit != null) params.set("limit", String(opts.limit));
   return `/api/number-geography/facets?${params.toString()}`;
@@ -66,6 +70,7 @@ export function buildNumberGeographyFacetsUrl(opts: {
 export async function fetchNumberGeographyList(opts: {
   filters?: ColumnFilters;
   phoneQ?: string;
+  blockedOnly?: boolean;
   page?: number;
   pageSize?: number;
 }): Promise<FetchNumberGeographyResult> {

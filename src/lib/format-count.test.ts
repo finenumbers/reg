@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { formatCount, formatUnregisteredOnlyLabel } from "@/lib/format-count";
+import {
+  formatBlockedOnlyLabel,
+  formatCount,
+  formatUnregisteredOnlyLabel,
+} from "@/lib/format-count";
 
 const NBSP = "\u202F";
 
@@ -20,8 +24,13 @@ describe("formatUnregisteredOnlyLabel", () => {
   it("includes a grouped count in parentheses", () => {
     expect(formatUnregisteredOnlyLabel(0)).toBe("Без регистрации (0)");
     expect(formatUnregisteredOnlyLabel(5)).toBe("Без регистрации (5)");
-    expect(formatUnregisteredOnlyLabel(125768)).toBe(
-      `Без регистрации (125${NBSP}768)`,
-    );
+    expect(formatUnregisteredOnlyLabel(125768)).toBe(`Без регистрации (125${NBSP}768)`);
+  });
+});
+
+describe("formatBlockedOnlyLabel", () => {
+  it("includes a grouped count in parentheses", () => {
+    expect(formatBlockedOnlyLabel(0)).toBe("Блокировка (0)");
+    expect(formatBlockedOnlyLabel(125768)).toBe(`Блокировка (125${NBSP}768)`);
   });
 });

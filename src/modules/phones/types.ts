@@ -42,10 +42,7 @@ export const GATEWAY_HEADERS = [
 ] as const;
 
 export type PhoneKind =
-  | "gateways"
-  | "endpoints_registered"
-  | "endpoints_unregistered"
-  | "endpoints_error";
+  "gateways" | "endpoints_registered" | "endpoints_unregistered" | "endpoints_error";
 
 export function parsePhoneKind(value: string | null | undefined): PhoneKind {
   if (
@@ -68,6 +65,11 @@ export const REGISTRATION_YES = "Да";
 export const REGISTRATION_NO = "Нет";
 export const REGISTRATION_FIELD = "Регистрация";
 export const ENDPOINT_NUMBER_FIELD = "Номер оконечного оборудования";
+
+/** Screen label for the RTU checkbox «Запись активна». Not a softswitch export column. */
+export const STATUS_FIELD = "Статус";
+export const STATUS_ACTIVE = "Активно";
+export const STATUS_BLOCKED = "Заблокировано";
 
 export type PhoneRowData = Record<string, string>;
 

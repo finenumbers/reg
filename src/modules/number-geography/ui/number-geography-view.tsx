@@ -4,8 +4,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { downloadXlsxFromUrl } from "@/lib/download-xlsx";
 import { FILTER_TOOLBAR_TEXT } from "@/components/filter-toolbar";
 import { PhoneSearchInput } from "@/components/phone-search-input";
+import { RowColorMark } from "@/components/row-color-legend";
 import { EXPORT_XLSX_BUTTON_CLASS } from "@/components/export-xlsx-button-class";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 import {
   ActiveFiltersBar,
   hasActiveFilters,
@@ -15,6 +17,7 @@ import {
 } from "@/components/column-filters";
 import { TableCountFooter, TableInfiniteBody } from "@/components/table-infinite-body";
 import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
+import { formatBlockedOnlyLabel } from "@/lib/format-count";
 import { TABLE_PAGE_SIZE } from "@/lib/table-pagination";
 import {
   fetchNumberGeographyList,
@@ -49,6 +52,8 @@ export function NumberGeographyView({ initial, canRequest }: Props) {
   const [filters, setFilters] = useState<ColumnFilters>({});
   const [phoneInput, setPhoneInput] = useState("");
   const [phoneQ, setPhoneQ] = useState("");
+  const [blockedOnly, setBlockedOnly] = useState(false);
+  const [blockedCount, setBlockedCount] = useState(initial.blockedCount);
   const [openColumn, setOpenColumn] = useState<string | null>(null);
   const [page, setPage] = useState(initial.page);
   const [items, setItems] = useState(initial.items);
@@ -69,6 +74,7 @@ export function NumberGeographyView({ initial, canRequest }: Props) {
   const loadingMoreRef = useRef(false);
   const filtersRef = useRef(filters);
   const phoneQRef = useRef(phoneQ);
+  const blockedOnlyRef = useRef(blockedOnly);
   const phoneSearchTimerRef = useRef<number | null>(null);
   const pageRef = useRef(page);
   const itemsLenRef = useRef(items.length);
@@ -80,6 +86,7 @@ export function NumberGeographyView({ initial, canRequest }: Props) {
     (opts: {
       filters?: ColumnFilters;
       phoneQ?: string;
+      blockedOnly?: boolean;
       page?: number;
       replace?: boolean;
       soft?: boolean;
@@ -95,11 +102,13 @@ export function NumberGeographyView({ initial, canRequest }: Props) {
   >(() => {});
 
   const hasMore = items.length < total;
-  const filtersActive = hasActiveFilters(filters) || phoneQ.trim().length > 0;
+  const filtersActive =
+    hasActiveFilters(filters) || phoneQ.trim().length > 0 || blockedOnly;
 
   async function loadList(opts: {
     filters?: ColumnFilters;
     phoneQ?: string;
+    blockedOnly?: boolean;
     page?: number;
     replace?: boolean;
     soft?: boolean;
@@ -108,6 +117,8 @@ export function NumberGeographyView({ initial, canRequest }: Props) {
     const soft = opts.soft === true;
     const nextFilters = opts.filters ?? filtersRef.current;
     const nextPhoneQ = opts.phoneQ !== undefined ? opts.phoneQ : phoneQRef.current;
+    const nextBlocked =
+      opts.blockedOnly !== undefined ? opts.blockedOnly : blockedOnlyRef.current;
     const nextPage = opts.page ?? (replace ? 1 : pageRef.current);
     const seq = ++refreshSeq.current;
     inFlightRef.current = true;
@@ -126,6 +137,7 @@ export function NumberGeographyView({ initial, canRequest }: Props) {
       const result = await fetchNumberGeographyList({
         filters: nextFilters,
         phoneQ: nextPhoneQ,
+        blockedOnly: nextBlocked,
         page: nextPage,
         pageSize: PAGE_SIZE,
       });
@@ -146,6 +158,7 @@ export function NumberGeographyView({ initial, canRequest }: Props) {
         await loadList({
           filters: nextFilters,
           phoneQ: nextPhoneQ,
+          blockedOnly: nextBlocked,
           page: 1,
           replace: true,
           soft,
@@ -158,6 +171,7 @@ export function NumberGeographyView({ initial, canRequest }: Props) {
       const nextRefresh = result.data.refresh;
       refreshRef.current = nextRefresh;
       setTotal(result.data.total);
+      setBlockedCount(result.data.blockedCount);
       setPage(result.data.page);
       setItems((prev) => (replace ? result.data.items : [...prev, ...result.data.items]));
       setListError(null);
@@ -281,6 +295,7 @@ export function NumberGeographyView({ initial, canRequest }: Props) {
   useEffect(() => {
     filtersRef.current = filters;
     phoneQRef.current = phoneQ;
+    blockedOnlyRef.current = blockedOnly;
     pageRef.current = page;
     itemsLenRef.current = items.length;
     openColumnRef.current = openColumn;
@@ -394,9 +409,21 @@ export function NumberGeographyView({ initial, canRequest }: Props) {
     }
     setPhoneInput("");
     setPhoneQ("");
+    setBlockedOnly(false);
     setFilters({});
     setOpenColumn(null);
-    void loadList({ filters: {}, phoneQ: "", page: 1, replace: true });
+    void loadList({
+      filters: {},
+      phoneQ: "",
+      blockedOnly: false,
+      page: 1,
+      replace: true,
+    });
+  }
+
+  function onBlockedOnlyChange(checked: boolean) {
+    setBlockedOnly(checked);
+    void loadList({ blockedOnly: checked, page: 1, replace: true });
   }
 
   async function onExport() {
@@ -502,6 +529,20 @@ export function NumberGeographyView({ initial, canRequest }: Props) {
           value={phoneInput}
           onChange={onPhoneInputChange}
         />
+        <div className="flex items-center gap-2">
+          <input
+            id="number-geography-blocked-only"
+            type="checkbox"
+            className="size-4 rounded border"
+            checked={blockedOnly}
+            onChange={(e) => onBlockedOnlyChange(e.target.checked)}
+          />
+          <Label htmlFor="number-geography-blocked-only">
+            <RowColorMark tone="blocked">
+              {formatBlockedOnlyLabel(blockedCount)}
+            </RowColorMark>
+          </Label>
+        </div>
         <Button
           type="button"
           variant="outline"
@@ -548,6 +589,7 @@ export function NumberGeographyView({ initial, canRequest }: Props) {
             }
             filters={filters}
             phoneQ={phoneQ}
+            blockedOnly={blockedOnly}
             lookupFailed={lookupFailed}
             openColumn={openColumn}
             onOpenColumnChange={setOpenColumn}

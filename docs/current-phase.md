@@ -1,7 +1,15 @@
-# Current Phase — production (v1.230.0)
+# Current Phase — production (v1.231.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, number geography, free numbers, purchased numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls.  
 **Date:** 2026-11-06
+
+## v1.231.0 — Endpoint activation status
+
+There is no migration. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. Keep a single `app` replica. Replace the `app` container. The switch is only read.
+
+`phones.sync` also selects «Запись активна» on the equipment page. The technical name comes from `describeTable`. The job does not call `getLookup` for that column. On terminal equipment the value is stored as «Статус»: «Активно» or «Заблокировано». An empty or unrecognized cell on a terminal row fails the job and keeps the previous catalog. Gateways and other types may leave the cell empty. A snapshot that drops every stored status is refused. Until the next successful sync the new cell is empty, and an empty cell is not blocked.
+
+«Статус» is the last column on the three terminal-equipment tabs and on «География номеров». A blocked row is black with white text, ahead of the SIP pink fill and the geography red, yellow, and blue fills. The checkbox «Блокировка» shows how many rows in the current section are blocked, ignoring search and column filters, and filters the table to those rows. The softswitch XLSX and the UFW file do not gain the column. The geography export keeps the full catalog and paints a blocked row black with white text. Nothing is written to the switch.
 
 ## v1.230.0 — Poll periods are fixed
 

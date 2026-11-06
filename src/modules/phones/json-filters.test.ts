@@ -33,4 +33,19 @@ describe("capacity filter", () => {
       ],
     });
   });
+
+  it("matches a missing status key the same way", () => {
+    const where = applyJsonColumnFilters({}, { Статус: ["__empty__"] });
+    expect(where).toEqual({
+      AND: [
+        {},
+        {
+          OR: [
+            { data: { path: ["Статус"], equals: "" } },
+            { data: { path: ["Статус"], equals: Prisma.AnyNull } },
+          ],
+        },
+      ],
+    });
+  });
 });

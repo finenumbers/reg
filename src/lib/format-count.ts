@@ -11,3 +11,8 @@ export function formatCount(n: number): string {
 export function formatUnregisteredOnlyLabel(n: number): string {
   return `Без регистрации (${formatCount(n)})`;
 }
+
+/** Toolbar checkbox on phone endpoints and number geography. */
+export function formatBlockedOnlyLabel(n: number): string {
+  return `Блокировка (${formatCount(n)})`;
+}

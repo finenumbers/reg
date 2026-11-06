@@ -8,10 +8,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  ColumnFilterDropdown,
-  type ColumnFilters,
-} from "@/components/column-filters";
+import { ColumnFilterDropdown, type ColumnFilters } from "@/components/column-filters";
 import { HighlightText } from "@/components/highlight-text";
 import { cn } from "@/lib/utils";
 import type { PhoneListItem } from "@/modules/phones/service";
@@ -19,6 +16,8 @@ import { buildPhonesFacetsUrl } from "@/modules/phones/api-client";
 import { displayTermCapacity, TERM_CAPACITY_FIELD } from "@/modules/phones/capacity";
 import {
   ENDPOINT_NUMBER_FIELD,
+  STATUS_BLOCKED,
+  STATUS_FIELD,
   type PhoneKind,
 } from "@/modules/phones/types";
 
@@ -37,6 +36,7 @@ type Props = {
   filters: ColumnFilters;
   phoneQ?: string;
   sipUnregisteredOnly?: boolean;
+  blockedOnly?: boolean;
   openColumn: string | null;
   onOpenColumnChange: (column: string | null) => void;
   onColumnFilterChange: (column: string, values: string[]) => void;
@@ -51,6 +51,7 @@ export function PhonesTable({
   filters,
   phoneQ = "",
   sipUnregisteredOnly = false,
+  blockedOnly = false,
   openColumn,
   onOpenColumnChange,
   onColumnFilterChange,
@@ -77,12 +78,11 @@ export function PhonesTable({
                     filters: f,
                     phoneQ,
                     sipUnregisteredOnly,
+                    blockedOnly,
                     q,
                   })
                 }
-                onToggle={() =>
-                  onOpenColumnChange(openColumn === h ? null : h)
-                }
+                onToggle={() => onOpenColumnChange(openColumn === h ? null : h)}
                 onChange={(values) => onColumnFilterChange(h, values)}
                 onClear={() => onColumnFilterChange(h, [])}
               />
@@ -93,46 +93,44 @@ export function PhonesTable({
       <TableBody>
         {loading ? (
           <TableRow>
-            <TableCell
-              colSpan={colCount}
-              className="h-24 text-muted-foreground"
-            >
+            <TableCell colSpan={colCount} className="text-muted-foreground h-24">
               Загрузка…
             </TableCell>
           </TableRow>
         ) : showEmpty ? (
           <TableRow>
-            <TableCell
-              colSpan={colCount}
-              className="h-24 text-muted-foreground"
-            >
+            <TableCell colSpan={colCount} className="text-muted-foreground h-24">
               {emptyMessage}
             </TableCell>
           </TableRow>
         ) : (
-          data.map((row) => (
-            <TableRow
-              key={row.id}
-              className={cn(
-                row.sipUnregistered &&
-                  "bg-destructive/10 hover:bg-destructive/15",
-              )}
-            >
-              {headers.map((h) => {
-                const raw = row.data[h] ?? "";
-                const value = displayPhoneCellValue(h, raw);
-                return (
-                  <TableCell key={`${row.id}-${h}`}>
-                    {h === ENDPOINT_NUMBER_FIELD ? (
-                      <HighlightText text={raw} query={phoneQ} />
-                    ) : (
-                      value
-                    )}
-                  </TableCell>
-                );
-              })}
-            </TableRow>
-          ))
+          data.map((row) => {
+            const blocked = row.data[STATUS_FIELD] === STATUS_BLOCKED;
+            return (
+              <TableRow
+                key={row.id}
+                className={cn(
+                  blocked
+                    ? "bg-black text-white hover:bg-black hover:text-white"
+                    : row.sipUnregistered && "bg-destructive/10 hover:bg-destructive/15",
+                )}
+              >
+                {headers.map((h) => {
+                  const raw = row.data[h] ?? "";
+                  const value = displayPhoneCellValue(h, raw);
+                  return (
+                    <TableCell key={`${row.id}-${h}`}>
+                      {h === ENDPOINT_NUMBER_FIELD ? (
+                        <HighlightText text={raw} query={phoneQ} />
+                      ) : (
+                        value
+                      )}
+                    </TableCell>
+                  );
+                })}
+              </TableRow>
+            );
+          })
         )}
       </TableBody>
     </Table>

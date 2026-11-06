@@ -6,7 +6,7 @@ import { listNumberGeography } from "@/modules/number-geography/service";
 
 /**
  * GET /api/number-geography — catalog projection. Session or phones:read key.
- * Optional: filters=<json>, phoneQ, page, pageSize.
+ * Optional: filters=<json>, phoneQ, blockedOnly, page, pageSize.
  */
 export async function GET(request: Request) {
   const gate = await requireApiPermission("phones:read");
@@ -15,12 +15,16 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const filters = parseFiltersParam(url.searchParams.get("filters"));
   const phoneQ = url.searchParams.get("phoneQ") ?? undefined;
+  const blockedOnly =
+    url.searchParams.get("blockedOnly") === "1" ||
+    url.searchParams.get("blockedOnly") === "true";
   const page = Number(url.searchParams.get("page") ?? "1");
   const pageSize = Number(url.searchParams.get("pageSize") ?? "100");
 
   const data = await listNumberGeography({
     filters,
     phoneQ,
+    blockedOnly,
     page: clampPage(page),
     pageSize: clampPageSize(Number.isFinite(pageSize) ? pageSize : undefined),
   });

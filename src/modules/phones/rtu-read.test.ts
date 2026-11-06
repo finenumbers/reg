@@ -36,6 +36,7 @@ const TECH: Record<EquipmentField, string> = {
   regName: "reg_name",
   regPassword: "reg_password",
   regAddresses: "reg_addresses",
+  active: "enable",
 };
 
 const WSDL = `<?xml version="1.0"?>
@@ -142,9 +143,13 @@ function cells(values: Record<string, string>): string {
     .join("")}</item>`;
 }
 
-function equipmentCells(id: string, values: Partial<Record<EquipmentField, string>>): string {
+function equipmentCells(
+  id: string,
+  values: Partial<Record<EquipmentField, string>>,
+): string {
   const all: Record<string, string> = { gateway_id: id };
-  for (const key of Object.keys(TECH) as EquipmentField[]) all[TECH[key]] = values[key] ?? "";
+  for (const key of Object.keys(TECH) as EquipmentField[])
+    all[TECH[key]] = values[key] ?? "";
   return cells(all);
 }
 
@@ -159,11 +164,13 @@ const ROWS = `<?xml version="1.0"?><Envelope><Body><selectRowsetResponse>
     regPassword: PASSWORD,
     groups: "1",
     dstCapacity: "0",
+    active: "1",
   })}
   ${equipmentCells("e2", {
     name: "EP no",
     equipmentType: "6",
     registration: "0",
+    active: "нет",
     srcZone: "SRC",
     dstZone: "DST",
   })}
@@ -263,16 +270,28 @@ describe("readEquipment", () => {
     const result = await readEquipment({ account, exchange });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.payload.endpoints.map((item) => item.name)).toEqual(["EP yes", "EP no"]);
+    expect(result.payload.endpoints.map((item) => item.name)).toEqual([
+      "EP yes",
+      "EP no",
+    ]);
     expect(result.payload.gateways.map((item) => item.name)).toEqual(["GW"]);
     expect(result.payload.endpoints[0]?.data["Регистрационный пароль"]).toBe(PASSWORD);
     expect(result.payload.endpoints[0]?.data["Зона"]).toBe("A");
     expect(result.payload.endpoints[1]?.data["ИНИЦ. зона"]).toBe("SRC");
     expect(result.payload.gateways[0]?.data["Протокол сигнализации"]).toBe("SIP");
     expect(result.payload.endpoints[0]?.data["Входящие группы"]).toBe("Moscow");
-    expect(JSON.stringify({ endpoints: result.payload.endpoints.map((item) => item.name) })).not.toContain(
-      PASSWORD,
-    );
+    expect(result.payload.endpoints[0]?.data["Статус"]).toBe("Активно");
+    expect(result.payload.endpoints[1]?.data["Статус"]).toBe("Заблокировано");
+    expect(result.payload.gateways[0]?.data["Статус"]).toBeUndefined();
+    const select = bodies.find((body) => body.includes("selectRowset")) ?? "";
+    expect(select).toContain("enable");
+    expect(
+      bodies.some((body) => body.includes("getLookup") && body.includes("enable")),
+    ).toBe(false);
+    expect(bodies.some((body) => body.includes("updateRowset"))).toBe(false);
+    expect(
+      JSON.stringify({ endpoints: result.payload.endpoints.map((item) => item.name) }),
+    ).not.toContain(PASSWORD);
     expect(bodies.some((body) => body.includes("countRowset"))).toBe(true);
     expect(bodies.some((body) => body.includes("getLookup"))).toBe(true);
     expect(bodies.filter((body) => body.includes("selectRowset"))).toHaveLength(1);
@@ -304,11 +323,14 @@ describe("readEquipment", () => {
 
   it("rejects an empty primary key", async () => {
     const { exchange } = harness({
-      rows: `<?xml version="1.0"?><Envelope><Body><selectRowsetResponse>${equipmentCells("", {
-        name: "x",
-        equipmentType: "6",
-        registration: "1",
-      })}</selectRowsetResponse></Body></Envelope>`,
+      rows: `<?xml version="1.0"?><Envelope><Body><selectRowsetResponse>${equipmentCells(
+        "",
+        {
+          name: "x",
+          equipmentType: "6",
+          registration: "1",
+        },
+      )}</selectRowsetResponse></Body></Envelope>`,
       count: `<?xml version="1.0"?><Envelope><Body><countRowsetResponse><return>1</return></countRowsetResponse></Body></Envelope>`,
     });
     const result = await readEquipment({ account, exchange });

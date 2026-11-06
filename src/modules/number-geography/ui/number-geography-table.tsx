@@ -28,6 +28,7 @@ type Props = {
   emptyMessage?: string;
   filters: ColumnFilters;
   phoneQ?: string;
+  blockedOnly?: boolean;
   lookupFailed?: ReadonlySet<string>;
   openColumn: string | null;
   onOpenColumnChange: (column: string | null) => void;
@@ -35,6 +36,7 @@ type Props = {
 };
 
 const ROW_TONE_CLASS: Record<GeographyRowTone, string> = {
+  blocked: "bg-black text-white hover:bg-black hover:text-white",
   red: "bg-destructive/10 hover:bg-destructive/15",
   yellow: "bg-amber-400/25 hover:bg-amber-400/35",
   blue: "bg-sky-500/15 hover:bg-sky-500/25",
@@ -51,6 +53,7 @@ export function NumberGeographyTable({
   emptyMessage = "Нет данных.",
   filters,
   phoneQ = "",
+  blockedOnly = false,
   lookupFailed,
   openColumn,
   onOpenColumnChange,
@@ -76,6 +79,7 @@ export function NumberGeographyTable({
                     column: col,
                     filters: next,
                     phoneQ,
+                    blockedOnly,
                     q,
                   })
                 }
@@ -101,36 +105,34 @@ export function NumberGeographyTable({
             </TableCell>
           </TableRow>
         ) : (
-          data.map((row) => (
-            <TableRow
-              key={row.id}
-              className={
-                ROW_TONE_CLASS[
-                  geographyRowTone(row, {
-                    surface: "screen",
-                    lookupFailed: lookupFailed?.has(row.id) === true,
-                  })
-                ]
-              }
-            >
-              {NUMBER_GEOGRAPHY_COLUMNS.map((column) => (
-                <TableCell
-                  key={`${row.id}-${column}`}
-                  className={
-                    column === "number"
-                      ? "font-bold text-black dark:text-white"
-                      : undefined
-                  }
-                >
-                  {column === "number" ? (
-                    <HighlightText text={cellText(row, column)} query={phoneQ} />
-                  ) : (
-                    cellText(row, column)
-                  )}
-                </TableCell>
-              ))}
-            </TableRow>
-          ))
+          data.map((row) => {
+            const tone = geographyRowTone(row, {
+              surface: "screen",
+              lookupFailed: lookupFailed?.has(row.id) === true,
+            });
+            return (
+              <TableRow key={row.id} className={ROW_TONE_CLASS[tone]}>
+                {NUMBER_GEOGRAPHY_COLUMNS.map((column) => (
+                  <TableCell
+                    key={`${row.id}-${column}`}
+                    className={
+                      column === "number"
+                        ? tone === "blocked"
+                          ? "font-bold text-white"
+                          : "font-bold text-black dark:text-white"
+                        : undefined
+                    }
+                  >
+                    {column === "number" ? (
+                      <HighlightText text={cellText(row, column)} query={phoneQ} />
+                    ) : (
+                      cellText(row, column)
+                    )}
+                  </TableCell>
+                ))}
+              </TableRow>
+            );
+          })
         )}
       </TableBody>
     </Table>

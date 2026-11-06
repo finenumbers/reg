@@ -33,9 +33,14 @@ const TECH: Record<EquipmentField, string> = {
   regName: "reg_name",
   regPassword: "reg_password",
   regAddresses: "reg_addresses",
+  active: "enable",
 };
 
-function column(name: string, title: string, extra: Partial<SoapColumn> = {}): SoapColumn {
+function column(
+  name: string,
+  title: string,
+  extra: Partial<SoapColumn> = {},
+): SoapColumn {
   return {
     name,
     title,
@@ -95,7 +100,9 @@ const GROUP_PAIRS: LookupPairs = [
 
 function withLookups(columns: SoapColumn[]): SoapColumn[] {
   return columns.map((item) =>
-    item.name === "equipment_type" || item.name === "protocol" || item.name === "src_groups"
+    item.name === "equipment_type" ||
+    item.name === "protocol" ||
+    item.name === "src_groups"
       ? { ...item, haveLookup: true }
       : item,
   );
@@ -107,9 +114,13 @@ describe("prepareEquipmentColumns", () => {
     expect(layout.pk).toBe("gateway_id");
     expect(layout.names).toContain("src_zone");
     expect(layout.names).toContain("dst_zone");
+    expect(layout.names).toContain("enable");
+    expect(layout.names).toHaveLength(22);
     expect(layout.names).not.toContain("visible_zone");
     expect(layout.lookup).toEqual({ type: false, protocol: false, groups: false });
-    expect(prepareEquipmentColumns(described().filter((item) => item.title !== "Название"))).toEqual({
+    expect(
+      prepareEquipmentColumns(described().filter((item) => item.title !== "Название")),
+    ).toEqual({
       ok: false,
       detail: "В таблице «Оборудование» нет колонки «Название».",
     });
@@ -118,7 +129,9 @@ describe("prepareEquipmentColumns", () => {
   it("fails a hidden required column and a list without a lookup", () => {
     expect(
       prepareEquipmentColumns(
-        described((item) => (item.name === "reg_password" ? { ...item, action: 2 } : item)),
+        described((item) =>
+          item.name === "reg_password" ? { ...item, action: 2 } : item,
+        ),
       ).ok,
     ).toBe(false);
     expect(
@@ -128,6 +141,24 @@ describe("prepareEquipmentColumns", () => {
         ),
       ),
     ).toMatchObject({ ok: false });
+  });
+
+  it("selects the activation flag without treating a lookup as required", () => {
+    const prepared = prepareEquipmentColumns(
+      described((item) =>
+        item.name === "enable"
+          ? { ...item, haveLookup: true, ctlType: "checkbox" }
+          : item,
+      ),
+    );
+    expect(prepared.ok).toBe(true);
+    if (!prepared.ok) return;
+    expect(prepared.layout.names).toContain("enable");
+    expect(prepared.layout.lookup).toEqual({
+      type: false,
+      protocol: false,
+      groups: false,
+    });
   });
 
   it("fails two columns with the same zone name", () => {
@@ -172,11 +203,13 @@ describe("mapEquipmentRows", () => {
         regName: "user",
         regPassword: "secret",
         regAddresses: "3.3.3.3",
+        active: "1",
       }),
       row("e2", {
         name: "EP no",
         equipmentType: "6",
         registration: "false",
+        active: "0",
         srcZone: "SRC",
         dstZone: "DST",
         zone: "VISIBLE",
@@ -196,6 +229,7 @@ describe("mapEquipmentRows", () => {
     ]);
     expect(mapped.ok).toBe(true);
     if (!mapped.ok) return;
+    expect(ENDPOINT_HEADERS).not.toContain("Статус");
     expect(mapped.payload.endpointHeaders).toEqual([...ENDPOINT_HEADERS]);
     expect(mapped.payload.gatewayHeaders).toEqual([...GATEWAY_HEADERS]);
     expect(mapped.payload.endpoints).toHaveLength(2);
@@ -212,17 +246,20 @@ describe("mapEquipmentRows", () => {
     expect(registered["ТЕРМ. порт"]).toBe("5080");
     expect(registered["Инициирующее устройство"]).toBe("Да");
     expect(registered["Терминирующее устройство"]).toBe("Нет");
+    expect(registered["Статус"]).toBe("Активно");
     const open = mapped.payload.endpoints[1]?.data ?? {};
     expect(open["Регистрация"]).toBe("Нет");
     expect(open["Зона"]).toBe("");
     expect(open["ИНИЦ. зона"]).toBe("SRC");
     expect(open["ТЕРМ. зона"]).toBe("DST");
+    expect(open["Статус"]).toBe("Заблокировано");
     const gateway = mapped.payload.gateways[0]?.data ?? {};
     expect(gateway["Протокол сигнализации"]).toBe("SS7");
     expect(gateway["ИНИЦ. зона"]).toBe("GS");
     expect(gateway["ТЕРМ. зона"]).toBe("GD");
     expect(gateway["Зона"]).toBeUndefined();
     expect(gateway["Регистрация"]).toBeUndefined();
+    expect(gateway["Статус"]).toBeUndefined();
     expect(JSON.stringify(mapped.payload.endpoints[0])).not.toContain("VISIBLE");
   });
 
@@ -234,16 +271,17 @@ describe("mapEquipmentRows", () => {
     ]);
     expect(mapped.ok).toBe(true);
     if (!mapped.ok) return;
-    expect(mapped.payload.gateways.map((item) => item.data["Протокол сигнализации"])).toEqual([
-      "SIP",
-      "Internal",
-      "Ошибка",
-    ]);
+    expect(
+      mapped.payload.gateways.map((item) => item.data["Протокол сигнализации"]),
+    ).toEqual(["SIP", "Internal", "Ошибка"]);
   });
 
   it("drops an unknown type and refuses a snapshot that recognizes nothing", () => {
     const dropped = map([row("x", { name: "other", equipmentType: "9" })]);
-    expect(dropped).toMatchObject({ ok: false, detail: "Тип оборудования не распознан." });
+    expect(dropped).toMatchObject({
+      ok: false,
+      detail: "Тип оборудования не распознан.",
+    });
     const empty = map([]);
     expect(empty.ok).toBe(true);
     if (!empty.ok) return;
@@ -266,22 +304,51 @@ describe("mapEquipmentRows", () => {
     expect(
       map([row("e", { name: "a", equipmentType: "6", registration: "yes" })]).ok,
     ).toBe(false);
-    expect(map([row("e", { name: "  ", equipmentType: "6", registration: "1" })]).ok).toBe(
-      false,
-    );
+    expect(
+      map([row("e", { name: "  ", equipmentType: "6", registration: "1" })]).ok,
+    ).toBe(false);
   });
 
   it("keeps a group cell unchanged when it has no lookup", () => {
     const plain = layoutOf(described());
     const mapped = mapEquipmentRows({
       layout: plain,
-      rows: [row("e", { name: "a", equipmentType: "6", registration: "Да", groups: "1;;2" })],
+      rows: [
+        row("e", {
+          name: "a",
+          equipmentType: "6",
+          registration: "Да",
+          groups: "1;;2",
+          active: "да",
+        }),
+      ],
       lookups: { type: null, protocol: null, groups: null },
     });
     expect(mapped.ok).toBe(true);
     if (!mapped.ok) return;
     expect(mapped.payload.endpoints[0]?.data["Входящие группы"]).toBe("1;;2");
     expect(mapped.payload.endpoints[0]?.data["Регистрация"]).toBe("Да");
+    expect(mapped.payload.endpoints[0]?.data["Статус"]).toBe("Активно");
+  });
+
+  it("refuses an endpoint whose activation is empty or unknown and keeps the cell out of the error", () => {
+    const secret = "maybe-secret";
+    const bad = map([
+      row("e", { name: "a", equipmentType: "6", registration: "1", active: secret }),
+    ]);
+    expect(bad).toEqual({
+      ok: false,
+      detail: "Статус активации должен быть «Да» или «Нет».",
+    });
+    if (bad.ok) return;
+    expect(bad.detail).not.toContain(secret);
+    expect(map([row("e", { name: "a", equipmentType: "6", registration: "1" })]).ok).toBe(
+      false,
+    );
+    const gateway = map([row("g", { name: "GW", equipmentType: "1" })]);
+    expect(gateway.ok).toBe(true);
+    if (!gateway.ok) return;
+    expect(gateway.payload.gateways[0]?.data["Статус"]).toBeUndefined();
   });
 });
 
@@ -305,7 +372,10 @@ describe("refusePhonesSnapshot", () => {
     "Входящие группы": "SPb",
   };
 
-  function payload(endpoints: Array<Record<string, string>>, gateways: Array<Record<string, string>>) {
+  function payload(
+    endpoints: Array<Record<string, string>>,
+    gateways: Array<Record<string, string>>,
+  ) {
     return {
       version: 2,
       endpointHeaders: [...ENDPOINT_HEADERS],
@@ -326,7 +396,10 @@ describe("refusePhonesSnapshot", () => {
 
   it("allows a one-row edit", () => {
     expect(
-      refusePhonesSnapshot(previous, payload([endpoint("A"), endpoint("C", "new")], [gateway])),
+      refusePhonesSnapshot(
+        previous,
+        payload([endpoint("A"), endpoint("C", "new")], [gateway]),
+      ),
     ).toEqual({ ok: true });
   });
 
@@ -342,8 +415,28 @@ describe("refusePhonesSnapshot", () => {
     expect(
       refusePhonesSnapshot(
         previous,
-        payload([endpoint(""), endpoint("")], [{ ...gateway, "ИНИЦ. зона": "", "ТЕРМ. зона": "" }]),
+        payload(
+          [endpoint(""), endpoint("")],
+          [{ ...gateway, "ИНИЦ. зона": "", "ТЕРМ. зона": "" }],
+        ),
       ).ok,
     ).toBe(false);
+  });
+
+  it("refuses a snapshot that drops every activation status after one was stored", () => {
+    const stored = {
+      endpoints: [{ ...endpoint("A"), Статус: "Активно" }],
+      gateways: [gateway],
+    };
+    expect(refusePhonesSnapshot(stored, payload([endpoint("A")], [gateway]))).toEqual({
+      ok: false,
+      detail: "В новом снимке не осталось статусов оконечного оборудования.",
+    });
+    expect(
+      refusePhonesSnapshot(
+        stored,
+        payload([{ ...endpoint("A"), Статус: "Заблокировано" }], [gateway]),
+      ),
+    ).toEqual({ ok: true });
   });
 });

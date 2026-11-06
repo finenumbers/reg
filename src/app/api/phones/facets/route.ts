@@ -26,6 +26,9 @@ export async function GET(request: Request) {
   const sipUnregisteredOnly =
     url.searchParams.get("sipUnregisteredOnly") === "1" ||
     url.searchParams.get("sipUnregisteredOnly") === "true";
+  const blockedOnly =
+    url.searchParams.get("blockedOnly") === "1" ||
+    url.searchParams.get("blockedOnly") === "true";
   const q = url.searchParams.get("q") ?? undefined;
   const limitRaw = Number(url.searchParams.get("limit") ?? "200");
   const limit = Number.isFinite(limitRaw) ? limitRaw : 200;
@@ -36,6 +39,7 @@ export async function GET(request: Request) {
     filters,
     phoneQ,
     sipUnregisteredOnly,
+    blockedOnly,
     q,
     limit,
   });

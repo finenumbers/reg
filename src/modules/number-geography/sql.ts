@@ -12,6 +12,7 @@ import {
 } from "@/components/column-filters/types";
 import { MISSING_PSTN_LABEL } from "@/modules/enrich/types";
 import { PREMIUM_CAPACITY } from "@/modules/phones/capacity";
+import { STATUS_BLOCKED } from "@/modules/phones/types";
 import {
   EXPENSIVE_COLUMNS,
   FREE_CALL_DIRECTION,
@@ -95,6 +96,8 @@ function columnRef(column: NumberGeographyColumn): Prisma.Sql {
       return Prisma.sql`geography`;
     case "title":
       return Prisma.sql`title`;
+    case "activation":
+      return Prisma.sql`activation`;
   }
 }
 
@@ -152,11 +155,25 @@ export function cheapWhere(
   filters: ColumnFilters,
   excludeColumn?: string,
   phoneQ?: string,
+  blockedOnly = false,
 ): Prisma.Sql {
   const base = whereFor(filters, "cheap", excludeColumn);
   const phone = phoneNumberSql(phoneQ);
-  if (!phone) return base;
-  return Prisma.sql`(${base} AND ${phone})`;
+  let where = phone ? Prisma.sql`(${base} AND ${phone})` : base;
+  if (blockedOnly) {
+    where = Prisma.sql`(${where} AND activation = ${STATUS_BLOCKED})`;
+  }
+  return where;
+}
+
+/** «Заблокировано» across the number list. Search and column filters stay out. */
+export function blockedCountSql(): Prisma.Sql {
+  return Prisma.sql`
+    WITH ${baseCte}
+    SELECT count(*)::int AS n
+    FROM base
+    WHERE activation = ${STATUS_BLOCKED}
+  `;
 }
 
 export function expensiveWhere(
@@ -178,6 +195,7 @@ const baseCte = Prisma.sql`
       END AS capacity,
       btrim(COALESCE(e.data->>'Поставщик', '')) AS supplier,
       btrim(COALESCE(e.data->>'Категория', '')) AS category,
+      btrim(COALESCE(e.data->>'Статус', '')) AS activation,
       CASE
         WHEN btrim(COALESCE(e.data->>'Название', '')) <> ''
           THEN btrim(e.data->>'Название')
@@ -313,6 +331,7 @@ function labeledSelect(): Prisma.Sql {
       supplier,
       category,
       title,
+      activation,
       ${pstnStatusSql()} AS pstn_status,
       ${cityLabelSql(Prisma.sql`direction`)} AS city,
       ${cityAlertSql(Prisma.sql`direction`)} AS city_alert,

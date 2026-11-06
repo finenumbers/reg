@@ -10,6 +10,7 @@ import {
 } from "@/components/column-filters/types";
 import { PREMIUM_CAPACITY, TERM_CAPACITY_FIELD } from "@/modules/phones/capacity";
 import { CATEGORY_FIELD } from "@/modules/phones/category";
+import { STATUS_FIELD } from "@/modules/phones/types";
 import { SUPPLIER_FIELD } from "@/modules/phones/supplier";
 
 type JsonDataWhere = {
@@ -17,7 +18,8 @@ type JsonDataWhere = {
   OR?: JsonDataWhere[];
 };
 
-const ANNOTATION_FIELDS = new Set<string>([SUPPLIER_FIELD, CATEGORY_FIELD]);
+/** A missing key is blank on screen. `equals ""` does not match it. */
+const ANNOTATION_FIELDS = new Set<string>([SUPPLIER_FIELD, CATEGORY_FIELD, STATUS_FIELD]);
 
 function jsonEquals(column: string, value: string): JsonDataWhere {
   return {

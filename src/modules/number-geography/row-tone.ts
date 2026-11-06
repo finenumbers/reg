@@ -1,12 +1,13 @@
 /**
  * One background for a geography row.
- * Red wins, then the old tariff alert (now yellow), then a blank annotation.
+ * A blocked number wins, then red, then the old tariff alert (now yellow), then a blank annotation.
  */
 
 import { MISSING_PSTN_LABEL } from "@/modules/enrich/types";
+import { STATUS_BLOCKED } from "@/modules/phones/types";
 import type { PstnLookupStatus } from "@/modules/number-geography/types";
 
-export type GeographyRowTone = "red" | "yellow" | "blue" | "none";
+export type GeographyRowTone = "blocked" | "red" | "yellow" | "blue" | "none";
 
 export type GeographyToneRow = {
   operator: string;
@@ -14,6 +15,7 @@ export type GeographyToneRow = {
   category: string;
   cityAlert: boolean;
   pstnStatus: PstnLookupStatus;
+  activation: string;
 };
 
 export type GeographyToneOptions = {
@@ -39,6 +41,7 @@ export function geographyRowTone(
   row: GeographyToneRow,
   opts: GeographyToneOptions,
 ): GeographyRowTone {
+  if (row.activation.trim() === STATUS_BLOCKED) return "blocked";
   if (pstnRed(row, opts)) return "red";
   if (row.cityAlert) return "yellow";
   if (!row.supplier.trim() || !row.category.trim()) return "blue";

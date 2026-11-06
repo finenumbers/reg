@@ -16,6 +16,8 @@ import {
   facetProjection,
   filterMatchSql,
   listProjection,
+  blockedCountSql,
+  pageFacetSql,
   pageListSql,
   PSTN_ELEVEN_DIGIT,
   PSTN_TEN_DIGIT,
@@ -132,6 +134,23 @@ describe("geography columns", () => {
       "city",
       "number",
     ]);
+    expect(NUMBER_GEOGRAPHY_COLUMNS.at(-1)).toBe("activation");
+  });
+
+  it("keeps the activation column on the cheap path and out of the export filter", () => {
+    expect(listProjection({ activation: ["Заблокировано"] })).toBe("page");
+    const page = flattenSql(pageListSql(Prisma.sql`TRUE`, 10, 0));
+    const facets = flattenSql(pageFacetSql("activation", Prisma.sql`TRUE`));
+    expect(page.text).toContain("data->>'Статус'");
+    expect(page.text).toContain("AS activation");
+    expect(facets.text).toContain("data->>'Статус'");
+    const filtered = flattenSql(cheapWhere({}, undefined, undefined, true));
+    expect(filtered.text).toContain("activation =");
+    expect(filtered.values).toContain("Заблокировано");
+    expect(filtered.text).not.toContain("Заблокировано");
+    const counted = flattenSql(blockedCountSql());
+    expect(counted.text).toContain("data->>'Статус'");
+    expect(counted.values).toContain("Заблокировано");
   });
 });
 

@@ -2,14 +2,8 @@
  * Browser fetch helpers for phones APIs.
  */
 
-import {
-  encodeFilters,
-  type ColumnFilters,
-} from "@/components/column-filters/types";
-import type {
-  ListPhonesResult,
-  PhonesOperationalStatus,
-} from "@/modules/phones/service";
+import { encodeFilters, type ColumnFilters } from "@/components/column-filters/types";
+import type { ListPhonesResult, PhonesOperationalStatus } from "@/modules/phones/service";
 import type { PhoneKind } from "@/modules/phones/types";
 import {
   downloadXlsxFromUrl,
@@ -18,8 +12,7 @@ import {
 } from "@/lib/download-xlsx";
 
 export type FetchPhonesListResult =
-  | { ok: true; data: ListPhonesResult }
-  | { ok: false; status: number; message: string };
+  { ok: true; data: ListPhonesResult } | { ok: false; status: number; message: string };
 
 export type FetchPhonesStatusResult =
   | { ok: true; data: PhonesOperationalStatus }
@@ -46,6 +39,7 @@ function buildPhonesListUrl(opts: {
   filters?: ColumnFilters;
   phoneQ?: string;
   sipUnregisteredOnly?: boolean;
+  blockedOnly?: boolean;
   page?: number;
   pageSize?: number;
 }): string {
@@ -55,6 +49,7 @@ function buildPhonesListUrl(opts: {
   if (encoded) params.set("filters", encoded);
   if (opts.phoneQ?.trim()) params.set("phoneQ", opts.phoneQ.trim());
   if (opts.sipUnregisteredOnly) params.set("sipUnregisteredOnly", "1");
+  if (opts.blockedOnly) params.set("blockedOnly", "1");
   if (opts.page != null) params.set("page", String(opts.page));
   if (opts.pageSize != null) params.set("pageSize", String(opts.pageSize));
   return `/api/phones?${params.toString()}`;
@@ -66,6 +61,7 @@ export function buildPhonesFacetsUrl(opts: {
   filters?: ColumnFilters;
   phoneQ?: string;
   sipUnregisteredOnly?: boolean;
+  blockedOnly?: boolean;
   q?: string;
   limit?: number;
 }): string {
@@ -76,6 +72,7 @@ export function buildPhonesFacetsUrl(opts: {
   if (encoded) params.set("filters", encoded);
   if (opts.phoneQ?.trim()) params.set("phoneQ", opts.phoneQ.trim());
   if (opts.sipUnregisteredOnly) params.set("sipUnregisteredOnly", "1");
+  if (opts.blockedOnly) params.set("blockedOnly", "1");
   if (opts.q?.trim()) params.set("q", opts.q.trim());
   if (opts.limit != null) params.set("limit", String(opts.limit));
   return `/api/phones/facets?${params.toString()}`;
@@ -87,6 +84,7 @@ export async function fetchPhonesList(
     filters?: ColumnFilters;
     phoneQ?: string;
     sipUnregisteredOnly?: boolean;
+    blockedOnly?: boolean;
     page?: number;
     pageSize?: number;
   },
@@ -155,9 +153,7 @@ export type RtuImportClientResult =
 /**
  * Upload XLSX, receive CSV download. Nothing is stored on the server.
  */
-export async function convertPhonesRtuImport(
-  file: File,
-): Promise<RtuImportClientResult> {
+export async function convertPhonesRtuImport(file: File): Promise<RtuImportClientResult> {
   const body = new FormData();
   body.set("file", file);
   const res = await fetch("/api/phones/rtu-import", {

@@ -12,11 +12,35 @@ function row(over: Partial<GeographyToneRow> = {}): GeographyToneRow {
     category: "VIP",
     cityAlert: false,
     pstnStatus: "resolved",
+    activation: "",
     ...over,
   };
 }
 
 describe("geographyRowTone", () => {
+  it("paints a blocked number black ahead of every other tone", () => {
+    expect(
+      geographyRowTone(
+        row({
+          activation: "Заблокировано",
+          operator: MISSING_PSTN_LABEL,
+          cityAlert: true,
+          supplier: "",
+          pstnStatus: "unresolved",
+        }),
+        { surface: "screen" },
+      ),
+    ).toBe("blocked");
+    expect(
+      geographyRowTone(row({ activation: "Заблокировано" }), { surface: "export" }),
+    ).toBe("blocked");
+    expect(
+      geographyRowTone(row({ activation: "Активно", operator: MISSING_PSTN_LABEL }), {
+        surface: "screen",
+      }),
+    ).toBe("red");
+  });
+
   it("paints a registry miss red ahead of the tariff alert and a blank supplier", () => {
     expect(
       geographyRowTone(

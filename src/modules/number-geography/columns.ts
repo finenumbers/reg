@@ -13,6 +13,7 @@ export const NUMBER_GEOGRAPHY_COLUMNS = [
   "operator",
   "geography",
   "title",
+  "activation",
 ] as const;
 
 export type NumberGeographyColumn = (typeof NUMBER_GEOGRAPHY_COLUMNS)[number];
@@ -27,6 +28,7 @@ export const NUMBER_GEOGRAPHY_HEADERS: Record<NumberGeographyColumn, string> = {
   operator: "Оператор связи",
   geography: "География",
   title: "Название",
+  activation: "Статус",
 };
 
 /** Tariff directions that stay a normal row. A «г. …» city is the third kind. */

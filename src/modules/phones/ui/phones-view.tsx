@@ -22,7 +22,11 @@ import {
   PHONES_REGS_UNREGISTERED_POLL_MS,
   useRegsUnregisteredCount,
 } from "@/hooks/use-regs-unregistered-count";
-import { formatCount, formatUnregisteredOnlyLabel } from "@/lib/format-count";
+import {
+  formatBlockedOnlyLabel,
+  formatCount,
+  formatUnregisteredOnlyLabel,
+} from "@/lib/format-count";
 import { TABLE_PAGE_SIZE } from "@/lib/table-pagination";
 import {
   convertPhonesRtuImport,
@@ -32,7 +36,7 @@ import {
   fetchPhonesStatus,
 } from "@/modules/phones/api-client";
 import type { ListPhonesResult } from "@/modules/phones/service";
-import type { PhoneKind } from "@/modules/phones/types";
+import { isEndpointPhoneKind, type PhoneKind } from "@/modules/phones/types";
 import { PhonesTable } from "@/modules/phones/ui/phones-table";
 import { useDisplayTimezone } from "@/components/display-timezone-provider";
 import { useStampRefresh } from "@/hooks/stamp-watch";
@@ -75,6 +79,7 @@ export function PhonesView({
   const [phoneInput, setPhoneInput] = useState("");
   const [phoneQ, setPhoneQ] = useState("");
   const [sipUnregisteredOnly, setSipUnregisteredOnly] = useState(false);
+  const [blockedOnly, setBlockedOnly] = useState(false);
   const [openColumn, setOpenColumn] = useState<string | null>(null);
   const [page, setPage] = useState(initial.page);
   const [items, setItems] = useState(initial.items);
@@ -86,6 +91,7 @@ export function PhonesView({
     initialRegsUnregisteredCount,
   );
   const [errorCount, setErrorCount] = useState(initial.errorCount);
+  const [blockedCount, setBlockedCount] = useState(initial.blockedCount);
   const [sync, setSync] = useState(initialSync);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -103,6 +109,7 @@ export function PhonesView({
   const filtersRef = useRef(filters);
   const phoneQRef = useRef(phoneQ);
   const sipUnregisteredOnlyRef = useRef(sipUnregisteredOnly);
+  const blockedOnlyRef = useRef(blockedOnly);
   const kindRef = useRef(kind);
   const pageRef = useRef(page);
   const itemsLenRef = useRef(items.length);
@@ -114,6 +121,7 @@ export function PhonesView({
   filtersRef.current = filters;
   phoneQRef.current = phoneQ;
   sipUnregisteredOnlyRef.current = sipUnregisteredOnly;
+  blockedOnlyRef.current = blockedOnly;
   kindRef.current = kind;
   pageRef.current = page;
   itemsLenRef.current = items.length;
@@ -122,7 +130,10 @@ export function PhonesView({
 
   const hasMore = items.length < total;
   const filtersActive =
-    hasActiveFilters(filters) || phoneQ.trim().length > 0 || sipUnregisteredOnly;
+    hasActiveFilters(filters) ||
+    phoneQ.trim().length > 0 ||
+    sipUnregisteredOnly ||
+    (isEndpointPhoneKind(kind) && blockedOnly);
 
   const headerLabels = useMemo(() => {
     const map: Record<string, string> = {};
@@ -171,6 +182,7 @@ export function PhonesView({
     filters?: ColumnFilters;
     phoneQ?: string;
     sipUnregisteredOnly?: boolean;
+    blockedOnly?: boolean;
     page?: number;
     replace?: boolean;
     soft?: boolean;
@@ -183,6 +195,8 @@ export function PhonesView({
       opts.sipUnregisteredOnly !== undefined
         ? opts.sipUnregisteredOnly
         : sipUnregisteredOnlyRef.current;
+    const nextBlocked =
+      opts.blockedOnly !== undefined ? opts.blockedOnly : blockedOnlyRef.current;
     const nextPage = opts.page ?? (replace ? 1 : page);
     const seq = ++refreshSeq.current;
 
@@ -201,6 +215,7 @@ export function PhonesView({
       filters: nextFilters,
       phoneQ: nextPhoneQ,
       sipUnregisteredOnly: nextKind === "endpoints_registered" ? nextSipOnly : false,
+      blockedOnly: isEndpointPhoneKind(nextKind) ? nextBlocked : false,
       page: nextPage,
       pageSize: PAGE_SIZE,
     });
@@ -226,6 +241,9 @@ export function PhonesView({
     setRegisteredCount(result.data.registeredCount);
     setUnregisteredCount(result.data.unregisteredCount);
     setErrorCount(result.data.errorCount);
+    if (isEndpointPhoneKind(result.data.kind)) {
+      setBlockedCount(result.data.blockedCount);
+    }
     setItems((prev) => (replace ? result.data.items : [...prev, ...result.data.items]));
     setLoading(false);
     setLoadingMore(false);
@@ -323,12 +341,23 @@ export function PhonesView({
     setPhoneInput("");
     setPhoneQ("");
     setSipUnregisteredOnly(false);
+    setBlockedOnly(false);
     setFilters({});
     setOpenColumn(null);
     void loadList({
       filters: {},
       phoneQ: "",
       sipUnregisteredOnly: false,
+      blockedOnly: false,
+      page: 1,
+      replace: true,
+    });
+  }
+
+  function onBlockedOnlyChange(checked: boolean) {
+    setBlockedOnly(checked);
+    void loadList({
+      blockedOnly: checked,
       page: 1,
       replace: true,
     });
@@ -503,6 +532,22 @@ export function PhonesView({
               </Label>
             </div>
           ) : null}
+          {isEndpointPhoneKind(kind) ? (
+            <div className="flex items-center gap-2">
+              <input
+                id="phones-blocked-only"
+                type="checkbox"
+                className="size-4 rounded border"
+                checked={blockedOnly}
+                onChange={(e) => onBlockedOnlyChange(e.target.checked)}
+              />
+              <Label htmlFor="phones-blocked-only">
+                <RowColorMark tone="blocked">
+                  {formatBlockedOnlyLabel(blockedCount)}
+                </RowColorMark>
+              </Label>
+            </div>
+          ) : null}
           <Button
             type="button"
             variant="outline"
@@ -554,6 +599,7 @@ export function PhonesView({
             filters={filters}
             phoneQ={phoneQ}
             sipUnregisteredOnly={kind === "endpoints_registered" && sipUnregisteredOnly}
+            blockedOnly={isEndpointPhoneKind(kind) && blockedOnly}
             openColumn={openColumn}
             onOpenColumnChange={setOpenColumn}
             onColumnFilterChange={onColumnChange}

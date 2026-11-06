@@ -16,6 +16,7 @@ import {
 } from "@/modules/number-geography/columns";
 import { clampPage, clampPageSize } from "@/modules/number-geography/paging";
 import {
+  blockedCountSql,
   catalogCountSql,
   catalogFacetSql,
   catalogListSql,
@@ -47,6 +48,7 @@ type DbRow = {
   supplier: string;
   category: string;
   title: string;
+  activation: string | null;
   city: string;
   operator: string;
   geography: string;
@@ -69,6 +71,7 @@ function mapRow(row: DbRow): NumberGeographyItem {
     operator: row.operator ?? "",
     geography: row.geography ?? "",
     title: row.title ?? "",
+    activation: row.activation ?? "",
     cityAlert: row.city_alert === true,
     pstnStatus: parsePstnLookupStatus(row.pstn_status),
   };
@@ -117,6 +120,7 @@ async function readRefresh(): Promise<NumberGeographyRefresh> {
 export async function listNumberGeography(opts: {
   filters?: ColumnFilters;
   phoneQ?: string;
+  blockedOnly?: boolean;
   page?: number;
   pageSize?: number;
 }): Promise<ListNumberGeographyResult> {
@@ -124,7 +128,13 @@ export async function listNumberGeography(opts: {
   const pageSize = clampPageSize(opts.pageSize);
   const filters = opts.filters ?? {};
   const phoneQ = opts.phoneQ?.trim() ?? "";
-  const [refresh, catalogStamp] = await Promise.all([readRefresh(), readCatalogStamp()]);
+  const blockedOnly = opts.blockedOnly === true;
+  const [refresh, catalogStamp, blockedRows] = await Promise.all([
+    readRefresh(),
+    readCatalogStamp(),
+    prisma.$queryRaw<CountRow[]>(blockedCountSql()),
+  ]);
+  const blockedCount = Number(blockedRows[0]?.n ?? 0);
   const empty: ListNumberGeographyResult = {
     items: [],
     total: 0,
@@ -132,13 +142,14 @@ export async function listNumberGeography(opts: {
     pageSize,
     refresh,
     catalogStamp,
+    blockedCount,
   };
   const projection = listProjection(filters);
   if (projection === "empty") return empty;
 
   const offset = (page - 1) * pageSize;
   if (projection === "page") {
-    const cheap = cheapWhere(filters, undefined, phoneQ);
+    const cheap = cheapWhere(filters, undefined, phoneQ, blockedOnly);
     const [counts, rows] = await Promise.all([
       prisma.$queryRaw<CountRow[]>(pageCountSql(cheap)),
       prisma.$queryRaw<DbRow[]>(pageListSql(cheap, pageSize, offset)),
@@ -150,10 +161,11 @@ export async function listNumberGeography(opts: {
       pageSize,
       refresh,
       catalogStamp,
+      blockedCount,
     };
   }
 
-  const cheap = cheapWhere(filters, undefined, phoneQ);
+  const cheap = cheapWhere(filters, undefined, phoneQ, blockedOnly);
   const expensive = expensiveWhere(filters);
   const [counts, rows] = await Promise.all([
     prisma.$queryRaw<CountRow[]>(catalogCountSql(cheap, expensive)),
@@ -166,6 +178,7 @@ export async function listNumberGeography(opts: {
     pageSize,
     refresh,
     catalogStamp,
+    blockedCount,
   };
 }
 
@@ -184,6 +197,7 @@ export async function listNumberGeographyFacets(opts: {
   column: string;
   filters?: ColumnFilters;
   phoneQ?: string;
+  blockedOnly?: boolean;
   q?: string;
   limit?: number;
 }): Promise<FacetResponse> {
@@ -193,18 +207,19 @@ export async function listNumberGeographyFacets(opts: {
   }
   const filters = opts.filters ?? {};
   const phoneQ = opts.phoneQ?.trim() ?? "";
+  const blockedOnly = opts.blockedOnly === true;
   const projection = facetProjection(column, filters);
   if (projection === "empty") return { items: [], truncated: false };
 
   const rows =
     projection === "page"
       ? await prisma.$queryRaw<FacetRow[]>(
-          pageFacetSql(column, cheapWhere(filters, column, phoneQ)),
+          pageFacetSql(column, cheapWhere(filters, column, phoneQ, blockedOnly)),
         )
       : await prisma.$queryRaw<FacetRow[]>(
           catalogFacetSql(
             column,
-            cheapWhere(filters, column, phoneQ),
+            cheapWhere(filters, column, phoneQ, blockedOnly),
             expensiveWhere(filters, column),
           ),
         );

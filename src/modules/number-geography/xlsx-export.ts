@@ -20,6 +20,7 @@ import { listAllNumberGeography } from "@/modules/number-geography/service";
 import { getDisplayTimezone } from "@/modules/settings";
 
 const TONE_FILL: Record<Exclude<GeographyRowTone, "none">, string> = {
+  blocked: "FF000000",
   red: "FFFEE2E2",
   yellow: "FFFEF3C7",
   blue: "FFDBEAFE",
@@ -58,8 +59,18 @@ export async function buildNumberGeographyExportXlsx(): Promise<NumberGeographyE
       if (rowIndex < 0) return;
       const item = items[rowIndex];
       if (!item) return;
-      const fill = toneFill(geographyRowTone(item, { surface: "export" }));
+      const tone = geographyRowTone(item, { surface: "export" });
+      const fill = toneFill(tone);
       if (fill) cell.fill = fill;
+      if (tone === "blocked") {
+        const font = cell.font;
+        cell.font = {
+          name: font?.name ?? "Calibri",
+          size: font?.size ?? 11,
+          bold: Boolean(font?.bold),
+          color: { argb: "FFFFFFFF" },
+        };
+      }
     },
   });
   const buffer = await workbookToBuffer(workbook);

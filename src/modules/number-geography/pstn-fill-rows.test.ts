@@ -18,6 +18,7 @@ function row(over: Partial<NumberGeographyItem> = {}): NumberGeographyItem {
     operator: "",
     geography: "",
     title: "Электротехмонтаж ТД",
+    activation: "",
     cityAlert: true,
     ...over,
   };
