@@ -13,14 +13,20 @@ export type ActivationTarget = {
   activation: string;
 };
 
+export type ActivationOutcome = {
+  ok: boolean;
+  message: string;
+};
+
 type Props = {
   target: ActivationTarget | null;
   pending: boolean;
+  result: ActivationOutcome | null;
   onClose: () => void;
   onConfirm: (phone: string) => void;
 };
 
-export function ActivationDialog({ target, pending, onClose, onConfirm }: Props) {
+export function ActivationDialog({ target, pending, result, onClose, onConfirm }: Props) {
   const titleId = useId();
 
   useEffect(() => {
@@ -63,19 +69,36 @@ export function ActivationDialog({ target, pending, onClose, onConfirm }: Props)
         <p className="mt-2 text-sm">
           {target.activation} → {next}. Номер {target.number}. {target.title}.
         </p>
-        <p className="text-muted-foreground mt-2 text-sm">
-          Введите номер ещё раз. После подтверждения статус проверяется загрузкой
-          телефонных номеров.
-        </p>
-        <ActivationForm
-          key={target.id}
-          titleId={titleId}
-          number={target.number}
-          pending={pending}
-          next={next}
-          onClose={onClose}
-          onConfirm={onConfirm}
-        />
+        {result ? (
+          <>
+            <p
+              className={result.ok ? "mt-4 text-base" : "text-destructive mt-4 text-base"}
+            >
+              {result.message}
+            </p>
+            <div className="mt-4 flex justify-end">
+              <Button type="button" onClick={onClose}>
+                Закрыть
+              </Button>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="text-muted-foreground mt-2 text-sm">
+              Введите номер ещё раз. После подтверждения статус проверяется загрузкой
+              телефонных номеров.
+            </p>
+            <ActivationForm
+              key={target.id}
+              titleId={titleId}
+              number={target.number}
+              pending={pending}
+              next={next}
+              onClose={onClose}
+              onConfirm={onConfirm}
+            />
+          </>
+        )}
       </div>
     </div>
   );

@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   parseActivationBody,
+  catalogDisplayTitle,
+  catalogSpaceTrim,
   changeEndpointActivation,
 } from "@/modules/phones/activation";
-import type { ActivationDeps } from "@/modules/phones/activation";
+import type { ActivationDeps, ActivationRequest } from "@/modules/phones/activation";
 import type { ActivationWriteAttempt } from "@/modules/phones/activation-write";
 import type { EquipmentIdentity } from "@/modules/phones/rtu-rows";
 import type { EquipmentRead } from "@/modules/phones/rtu-read";
@@ -82,20 +84,66 @@ function deps(overrides: Partial<ActivationDeps> = {}): ActivationDeps {
     read: async () => read([identity("1")]),
     write,
     sync,
-    audit: async () => {},
+    loadByNumber: vi.fn(async () => []),
+    audit: vi.fn(async () => {}),
     ...overrides,
   };
 }
 
+function ask(patch: Partial<ActivationRequest> = {}): ActivationRequest & { actorUserId: string } {
+  return {
+    endpointId: "row-1",
+    phone: "74951234567",
+    activation: STATUS_ACTIVE,
+    title: "EP",
+    actorUserId: "user-1",
+    ...patch,
+  };
+}
+
 describe("parseActivationBody", () => {
-  it("accepts the two fields and rejects a target status", () => {
-    expect(parseActivationBody({ endpointId: "row-1", phone: " 7495 " })).toEqual({
+  it("accepts the screen status and title and rejects a target status", () => {
+    expect(
+      parseActivationBody({
+        endpointId: "row-1",
+        phone: " 7495 ",
+        activation: ` ${STATUS_ACTIVE} `,
+        title: " EP ",
+      }),
+    ).toEqual({
       endpointId: "row-1",
       phone: "7495",
+      activation: STATUS_ACTIVE,
+      title: "EP",
     });
     expect(
-      "error" in parseActivationBody({ endpointId: "row-1", phone: "1", status: "0" }),
+      "error" in
+        parseActivationBody({
+          endpointId: "row-1",
+          phone: "1",
+          activation: STATUS_ACTIVE,
+          title: "EP",
+          status: "0",
+        }),
     ).toBe(true);
+    expect(
+      "error" in
+        parseActivationBody({
+          endpointId: "row-1",
+          phone: "1",
+          activation: "0",
+          title: "EP",
+        }),
+    ).toBe(true);
+  });
+});
+
+describe("catalogDisplayTitle", () => {
+  it("follows the geography list and keeps a non-breaking space", () => {
+    expect(catalogDisplayTitle("EP", { Название: "  Line  " })).toBe("Line");
+    expect(catalogDisplayTitle("  EP  ", { Название: "   " })).toBe("EP");
+    expect(catalogDisplayTitle("EP", {})).toBe("EP");
+    expect(catalogSpaceTrim("\u00a0EP")).toBe("\u00a0EP");
   });
 });
 
@@ -106,29 +154,21 @@ describe("changeEndpointActivation", () => {
 
   it("does not write when the typed number differs", async () => {
     const used = deps();
-    const result = await changeEndpointActivation(
-      { endpointId: "row-1", phone: "7000", actorUserId: "user-1" },
-      used,
-    );
+    const result = await changeEndpointActivation(ask({ phone: "7000" }), used);
     expect(result.ok).toBe(false);
     expect(used.write).not.toHaveBeenCalled();
     expect(used.sync).not.toHaveBeenCalled();
+    expect(used.loadByNumber).not.toHaveBeenCalled();
   });
 
   it("does not write without the update bit or a checkbox", async () => {
     const blocked = deps({ read: async () => read([identity("1")], "checkbox", 1) });
-    const result = await changeEndpointActivation(
-      { endpointId: "row-1", phone: "74951234567", actorUserId: "user-1" },
-      blocked,
-    );
+    const result = await changeEndpointActivation(ask(), blocked);
     expect(result.ok).toBe(false);
     expect(blocked.write).not.toHaveBeenCalled();
 
     const text = deps({ read: async () => read([identity("1")], "textbox", 2) });
-    await changeEndpointActivation(
-      { endpointId: "row-1", phone: "74951234567", actorUserId: "user-1" },
-      text,
-    );
+    await changeEndpointActivation(ask(), text);
     expect(text.write).not.toHaveBeenCalled();
   });
 
@@ -136,20 +176,14 @@ describe("changeEndpointActivation", () => {
     const used = deps({
       read: async () => read([identity("1", "15"), identity("1", "16")]),
     });
-    const result = await changeEndpointActivation(
-      { endpointId: "row-1", phone: "74951234567", actorUserId: "user-1" },
-      used,
-    );
+    const result = await changeEndpointActivation(ask(), used);
     expect(result.ok).toBe(false);
     expect(used.write).not.toHaveBeenCalled();
   });
 
   it("writes once and confirms the flipped flag", async () => {
     const used = deps();
-    const result = await changeEndpointActivation(
-      { endpointId: "row-1", phone: "74951234567", actorUserId: "user-1" },
-      used,
-    );
+    const result = await changeEndpointActivation(ask(), used);
     expect(result.ok).toBe(true);
     expect(result.message).toContain(STATUS_BLOCKED);
     expect(used.write).toHaveBeenCalledTimes(1);
@@ -178,10 +212,7 @@ describe("changeEndpointActivation", () => {
         identities: [identity("0", "15"), { ...other, rawActive: "0" }],
       })),
     });
-    const result = await changeEndpointActivation(
-      { endpointId: "row-1", phone: "74951234567", actorUserId: "user-1" },
-      used,
-    );
+    const result = await changeEndpointActivation(ask(), used);
     expect(result.ok).toBe(false);
     expect(result.message).toContain("не только у этого номера");
     expect(used.write).toHaveBeenCalledTimes(1);
@@ -192,12 +223,10 @@ describe("changeEndpointActivation", () => {
     const used = deps({
       occupy: async () => ({ accepted: false as const }),
     });
-    const result = await changeEndpointActivation(
-      { endpointId: "row-1", phone: "74951234567", actorUserId: "user-1" },
-      used,
-    );
+    const result = await changeEndpointActivation(ask(), used);
     expect(result.busy).toBe(true);
     expect(used.write).not.toHaveBeenCalled();
+    expect(used.loadByNumber).not.toHaveBeenCalled();
   });
 
   it("does not sync when the binding is rejected", async () => {
@@ -207,12 +236,88 @@ describe("changeEndpointActivation", () => {
         detail: "Схема записи не разобрана.",
       })),
     });
-    const result = await changeEndpointActivation(
-      { endpointId: "row-1", phone: "74951234567", actorUserId: "user-1" },
-      used,
-    );
+    const result = await changeEndpointActivation(ask(), used);
     expect(result.ok).toBe(false);
     expect(used.sync).not.toHaveBeenCalled();
+  });
+
+  it("resolves a replaced catalog id when the screen still matches", async () => {
+    const used = deps({
+      loadEndpoint: async () => null,
+      loadByNumber: vi.fn(async () => [
+        {
+          id: "row-new",
+          name: "EP",
+          endpointNumber: "74951234567",
+          data: { Статус: STATUS_ACTIVE, Название: " EP " },
+        },
+      ]),
+    });
+    const result = await changeEndpointActivation(ask(), used);
+    expect(result.ok).toBe(true);
+    expect(used.write).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(used.audit).mock.calls.at(-1)?.[2]).toBe("row-new");
+  });
+
+  it("does not write when the replaced row has another status or title", async () => {
+    const otherStatus = deps({
+      loadEndpoint: async () => null,
+      loadByNumber: async () => [
+        {
+          id: "row-new",
+          name: "EP",
+          endpointNumber: "74951234567",
+          data: { Статус: STATUS_BLOCKED, Название: "EP" },
+        },
+      ],
+    });
+    const statusResult = await changeEndpointActivation(ask(), otherStatus);
+    expect(statusResult.ok).toBe(false);
+    expect(statusResult.message).toContain("изменилась");
+    expect(otherStatus.write).not.toHaveBeenCalled();
+
+    const otherTitle = deps({
+      loadEndpoint: async () => null,
+      loadByNumber: async () => [
+        {
+          id: "row-new",
+          name: "EP",
+          endpointNumber: "74951234567",
+          data: { Статус: STATUS_ACTIVE, Название: "Other" },
+        },
+      ],
+    });
+    const titleResult = await changeEndpointActivation(ask(), otherTitle);
+    expect(titleResult.ok).toBe(false);
+    expect(otherTitle.write).not.toHaveBeenCalled();
+  });
+
+  it("does not write when the number is missing or repeated", async () => {
+    const missing = deps({ loadEndpoint: async () => null });
+    const missingResult = await changeEndpointActivation(ask(), missing);
+    expect(missingResult.message).toContain("не найдена");
+    expect(missing.write).not.toHaveBeenCalled();
+
+    const many = deps({
+      loadEndpoint: async () => null,
+      loadByNumber: async () => [
+        {
+          id: "row-new",
+          name: "EP",
+          endpointNumber: "74951234567",
+          data: { Статус: STATUS_ACTIVE },
+        },
+        {
+          id: "row-other",
+          name: "Other",
+          endpointNumber: "74951234567",
+          data: { Статус: STATUS_ACTIVE },
+        },
+      ],
+    });
+    const manyResult = await changeEndpointActivation(ask(), many);
+    expect(manyResult.message).toContain("больше одного раза");
+    expect(many.write).not.toHaveBeenCalled();
   });
 });
 

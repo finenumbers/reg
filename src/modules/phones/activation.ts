@@ -1,3 +1,4 @@
+import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
 import { AUDIT_ACTIONS, auditService } from "@/modules/audit";
 import { confirmActivationDiff } from "@/modules/phones/activation-diff";
@@ -25,6 +26,20 @@ const UNCONFIRMED =
   "Результат смены не подтверждён загрузкой телефонных номеров. Повторная запись не отправлена.";
 const CATALOG_LAG =
   "Коммутатор сменил статус, каталог не обновился. Повторная запись не отправлена. Дождитесь следующей загрузки номеров.";
+const NOT_FOUND = "Строка каталога не найдена. Запись не отправлена.";
+const MANY_NUMBERS =
+  "Номер есть в каталоге больше одного раза. Обновите страницу. Запись не отправлена.";
+const ROW_CHANGED =
+  "Строка каталога изменилась. Обновите страницу. Запись не отправлена.";
+const TITLE_FIELD = "Название";
+const TITLE_MAX = 500;
+
+export type ActivationRequest = {
+  endpointId: string;
+  phone: string;
+  activation: typeof STATUS_ACTIVE | typeof STATUS_BLOCKED;
+  title: string;
+};
 
 export type ActivationResult = {
   ok: boolean;
@@ -44,6 +59,7 @@ export type ActivationDeps = {
     run: () => Promise<T>,
   ) => Promise<{ accepted: true; value: T } | { accepted: false }>;
   loadEndpoint: (id: string) => Promise<CatalogEndpoint | null>;
+  loadByNumber: (phone: string) => Promise<CatalogEndpoint[]>;
   countTwins: (name: string, number: string, id: string) => Promise<number>;
   read: () => Promise<EquipmentRead>;
   write: (
@@ -60,35 +76,68 @@ export type ActivationDeps = {
 
 export function parseActivationBody(
   value: unknown,
-): { endpointId: string; phone: string } | { error: string } {
+): ActivationRequest | { error: string } {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return { error: "Некорректный запрос." };
   }
   const record = value as Record<string, unknown>;
   const keys = Object.keys(record);
-  if (keys.length !== 2 || !keys.includes("endpointId") || !keys.includes("phone")) {
+  if (
+    keys.length !== 4 ||
+    !keys.includes("endpointId") ||
+    !keys.includes("phone") ||
+    !keys.includes("activation") ||
+    !keys.includes("title")
+  ) {
     return { error: "Некорректный запрос." };
   }
-  if (typeof record.endpointId !== "string" || typeof record.phone !== "string") {
+  if (
+    typeof record.endpointId !== "string" ||
+    typeof record.phone !== "string" ||
+    typeof record.activation !== "string" ||
+    typeof record.title !== "string"
+  ) {
     return { error: "Некорректный запрос." };
   }
   const endpointId = record.endpointId.trim();
   const phone = record.phone.trim();
+  const activation = catalogSpaceTrim(record.activation);
+  const title = catalogSpaceTrim(record.title);
   if (
     !endpointId ||
     !phone ||
+    !title ||
     endpointId.length > 64 ||
     phone.length > 64 ||
-    /[\r\n\0]/.test(endpointId) ||
-    /[\r\n\0]/.test(phone)
+    title.length > TITLE_MAX ||
+    (activation !== STATUS_ACTIVE && activation !== STATUS_BLOCKED) ||
+    /[\r\n\0]/.test(record.endpointId) ||
+    /[\r\n\0]/.test(record.phone) ||
+    /[\r\n\0]/.test(record.title)
   ) {
     return { error: "Некорректный запрос." };
   }
-  return { endpointId, phone };
+  return { endpointId, phone, activation, title };
+}
+
+/** PostgreSQL `btrim`: only U+0020, matching the geography list. */
+export function catalogSpaceTrim(value: string): string {
+  let start = 0;
+  let end = value.length;
+  while (start < end && value.charCodeAt(start) === 32) start += 1;
+  while (end > start && value.charCodeAt(end - 1) === 32) end -= 1;
+  return value.slice(start, end);
+}
+
+/** List title: non-empty «Название», otherwise the equipment name. */
+export function catalogDisplayTitle(name: string, data: unknown): string {
+  const titled = catalogSpaceTrim(textOf(data, TITLE_FIELD));
+  if (titled !== "") return titled;
+  return catalogSpaceTrim(name);
 }
 
 export async function changeEndpointActivation(
-  input: { endpointId: string; phone: string; actorUserId: string },
+  input: ActivationRequest & { actorUserId: string },
   deps: ActivationDeps = defaultDeps(),
 ): Promise<ActivationResult> {
   const held = await deps.occupy(() => runActivation(input, deps));
@@ -97,30 +146,44 @@ export async function changeEndpointActivation(
 }
 
 async function runActivation(
-  input: { endpointId: string; phone: string; actorUserId: string },
+  input: ActivationRequest & { actorUserId: string },
   deps: ActivationDeps,
 ): Promise<ActivationResult> {
   let sent = false;
+  let resolvedId = input.endpointId;
   try {
-    const row = await deps.loadEndpoint(input.endpointId);
+    let row = await deps.loadEndpoint(input.endpointId);
     if (!row) {
-      return finish(
-        deps,
-        input,
-        "Строка каталога не найдена. Запись не отправлена.",
-        false,
-      );
+      const found = await deps.loadByNumber(input.phone);
+      if (found.length !== 1 || !found[0]) {
+        return finish(
+          deps,
+          input,
+          input.endpointId,
+          found.length > 1 ? MANY_NUMBERS : NOT_FOUND,
+          false,
+        );
+      }
+      row = found[0];
     }
+    resolvedId = row.id;
     const phone = input.phone.trim();
     const stored = row.endpointNumber?.trim() ?? "";
     const name = row.name.trim();
     if (!name) {
-      return finish(deps, input, "У строки нет названия. Запись не отправлена.", false);
+      return finish(
+        deps,
+        input,
+        row.id,
+        "У строки нет названия. Запись не отправлена.",
+        false,
+      );
     }
     if (!stored || stored !== phone) {
       return finish(
         deps,
         input,
+        row.id,
         "Введённый номер не совпадает с этой строкой. Запись не отправлена.",
         false,
       );
@@ -130,38 +193,47 @@ async function runActivation(
       return finish(
         deps,
         input,
+        row.id,
         "У строки нет статуса, который можно сменить. Запись не отправлена.",
         false,
       );
+    }
+    if (
+      from !== input.activation ||
+      catalogDisplayTitle(row.name, row.data) !== input.title
+    ) {
+      return finish(deps, input, row.id, ROW_CHANGED, false);
     }
     if ((await deps.countTwins(name, stored, row.id)) > 0) {
       return finish(
         deps,
         input,
+        row.id,
         "Номер с этим названием уже есть в каталоге дважды. Запись не отправлена.",
         false,
       );
     }
     const read = await deps.read();
     if (!read.ok)
-      return finish(deps, input, `${read.detail} Запись не отправлена.`, false);
+      return finish(deps, input, row.id, `${read.detail} Запись не отправлена.`, false);
     if (!read.identities || !read.objectId || !read.pkColumn || !read.activeColumn) {
       return finish(
         deps,
         input,
+        row.id,
         "Чтение оборудования неполное. Запись не отправлена.",
         false,
       );
     }
     const columnError = columnReady(read.activeColumn, read.pkColumn);
-    if (columnError) return finish(deps, input, columnError, false);
+    if (columnError) return finish(deps, input, row.id, columnError, false);
     const hits = liveHits(read.identities, name, stored, from);
     if (hits.length !== 1 || !hits[0]) {
       const message =
         hits.length > 1
           ? "Номер встречается больше одного раза. Запись не отправлена."
           : "Строка на коммутаторе не совпала с каталогом. Запись не отправлена.";
-      return finish(deps, input, message, false);
+      return finish(deps, input, row.id, message, false);
     }
     const hit = hits[0];
     const fromWire = from === STATUS_ACTIVE ? "1" : "0";
@@ -178,7 +250,7 @@ async function runActivation(
       },
       rowPassword,
     );
-    if (!attempt.sent) return finish(deps, input, attempt.detail, false);
+    if (!attempt.sent) return finish(deps, input, row.id, attempt.detail, false);
     sent = true;
     const sync = await deps.sync(input.actorUserId);
     const diff = sync.identities
@@ -211,7 +283,7 @@ async function runActivation(
     return { ok: false, message: diff.ok ? CATALOG_LAG : diff.detail };
   } catch {
     if (sent) {
-      await record(deps, input, input.endpointId, { result: "unconfirmed" });
+      await record(deps, input, resolvedId, { result: "unconfirmed" });
     }
     return {
       ok: false,
@@ -261,11 +333,12 @@ function liveHits(
 
 async function finish(
   deps: ActivationDeps,
-  input: { endpointId: string; phone: string; actorUserId: string },
+  input: { phone: string; actorUserId: string },
+  entityId: string,
   message: string,
   ok: boolean,
 ): Promise<ActivationResult> {
-  await record(deps, input, input.endpointId, { result: ok ? "confirmed" : "refused" });
+  await record(deps, input, entityId, { result: ok ? "confirmed" : "refused" });
   return { ok, message };
 }
 
@@ -283,9 +356,13 @@ async function record(
 }
 
 function statusOf(data: unknown): string {
+  return catalogSpaceTrim(textOf(data, STATUS_FIELD));
+}
+
+function textOf(data: unknown, key: string): string {
   if (!data || typeof data !== "object" || Array.isArray(data)) return "";
-  const value = (data as PhoneRowData)[STATUS_FIELD];
-  return typeof value === "string" ? value.trim() : "";
+  const value = (data as PhoneRowData)[key];
+  return typeof value === "string" ? value : "";
 }
 
 function passwordOf(data: PhoneRowData | null): string {
@@ -301,6 +378,13 @@ function defaultDeps(): ActivationDeps {
         where: { id },
         select: { id: true, name: true, endpointNumber: true, data: true },
       }),
+    loadByNumber: async (phone) =>
+      prisma.$queryRaw<CatalogEndpoint[]>(Prisma.sql`
+        SELECT id, name, "endpointNumber", data
+        FROM phone_endpoints
+        WHERE btrim("endpointNumber") = ${phone}
+        LIMIT 2
+      `),
     countTwins: async (name, number, id) => {
       const rows = await prisma.phoneEndpoint.findMany({
         where: { name, endpointNumber: number },

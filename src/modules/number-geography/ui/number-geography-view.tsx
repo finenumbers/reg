@@ -40,6 +40,7 @@ import type {
 } from "@/modules/number-geography/types";
 import {
   ActivationDialog,
+  type ActivationOutcome,
   type ActivationTarget,
 } from "@/modules/number-geography/ui/activation-dialog";
 import { NumberGeographyTable } from "@/modules/number-geography/ui/number-geography-table";
@@ -71,6 +72,9 @@ export function NumberGeographyView({ initial, canRequest, canActivate }: Props)
   const [actionError, setActionError] = useState<string | null>(null);
   const [activationTarget, setActivationTarget] = useState<ActivationTarget | null>(null);
   const [activationPending, setActivationPending] = useState(false);
+  const [activationResult, setActivationResult] = useState<ActivationOutcome | null>(
+    null,
+  );
   const dialogOpenRef = useRef(false);
   const [lookupFailed, setLookupFailed] = useState<ReadonlySet<string>>(() => new Set());
   const supplierFileRef = useRef<HTMLInputElement>(null);
@@ -490,10 +494,11 @@ export function NumberGeographyView({ initial, canRequest, canActivate }: Props)
   }
 
   function openActivation(row: NumberGeographyItem) {
-    if (!canActivate || activationPending) return;
+    if (!canActivate || activationPending || activationResult) return;
     dialogOpenRef.current = true;
     setActionError(null);
     setActionMessage(null);
+    setActivationResult(null);
     setActivationTarget({
       id: row.id,
       number: row.number,
@@ -506,40 +511,53 @@ export function NumberGeographyView({ initial, canRequest, canActivate }: Props)
     if (activationPending) return;
     dialogOpenRef.current = false;
     setActivationTarget(null);
+    setActivationResult(null);
   }
 
   async function confirmActivation(phone: string) {
     const target = activationTarget;
-    if (!target || activationPending) return;
+    if (!target || activationPending || activationResult) return;
     setActivationPending(true);
     dialogOpenRef.current = true;
+    const network =
+      "Ответ не получен. Не нажимайте ссылку снова, пока строка не обновится или не появится сообщение сервера.";
+    let outcome: ActivationOutcome = { ok: false, message: network };
+    let responded = false;
     try {
       const res = await fetch("/api/number-geography/activation", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ endpointId: target.id, phone }),
+        body: JSON.stringify({
+          endpointId: target.id,
+          phone,
+          activation: target.activation,
+          title: target.title,
+        }),
       });
       const payload = (await res.json().catch(() => null)) as {
         ok?: boolean;
         message?: string;
         error?: string;
       } | null;
-      const message =
-        payload?.message ||
-        payload?.error ||
-        "Ответ не получен. Не нажимайте ссылку снова, пока строка не обновится или не появится сообщение сервера.";
-      if (!res.ok || payload?.ok !== true) setActionError(message);
-      else setActionMessage(message);
-      if (res.ok) await loadList({ page: 1, replace: true });
+      outcome = {
+        ok: res.ok && payload?.ok === true,
+        message: payload?.message || payload?.error || network,
+      };
+      responded = res.ok;
     } catch {
-      setActionError(
-        "Ответ не получен. Не нажимайте ссылку снова, пока строка не обновится или не появится сообщение сервера.",
-      );
+      outcome = { ok: false, message: network };
     } finally {
       setActivationPending(false);
-      dialogOpenRef.current = false;
-      setActivationTarget(null);
+      setActivationResult(outcome);
+      if (outcome.ok) {
+        setActionMessage(outcome.message);
+        setActionError(null);
+      } else {
+        setActionError(outcome.message);
+        setActionMessage(null);
+      }
     }
+    if (responded) await loadList({ page: 1, replace: true });
   }
 
   return (
@@ -547,6 +565,7 @@ export function NumberGeographyView({ initial, canRequest, canActivate }: Props)
       <ActivationDialog
         target={activationTarget}
         pending={activationPending}
+        result={activationResult}
         onClose={closeActivation}
         onConfirm={(phone) => void confirmActivation(phone)}
       />

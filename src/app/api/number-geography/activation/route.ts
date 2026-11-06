@@ -13,7 +13,7 @@ export const maxDuration = 300;
 /**
  * POST /api/number-geography/activation
  * One «Запись активна» change after the phone number is typed.
- * The client does not send the target status.
+ * The client sends the status and title it showed. It does not send the target status.
  */
 export async function POST(request: Request) {
   const origin = assertSameOrigin(request);
@@ -49,6 +49,8 @@ export async function POST(request: Request) {
   const result = await changeEndpointActivation({
     endpointId: parsed.endpointId,
     phone: parsed.phone,
+    activation: parsed.activation,
+    title: parsed.title,
     actorUserId: userId,
   });
   return NextResponse.json(

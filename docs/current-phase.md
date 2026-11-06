@@ -1,7 +1,13 @@
-# Current Phase — production (v1.233.0)
+# Current Phase — production (v1.233.1)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, number geography, free numbers, purchased numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls.  
 **Date:** 2026-11-06
+
+## v1.233.1 — Geography status change survives a catalog reload
+
+There is no migration. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten by this deploy itself. Keep a single `app` replica. Replace the `app` container. Refresh the browser after the deploy so the status dialog sends the on-screen status and title.
+
+A phone load gives every catalog row a new id. The dialog can still change the typed number when that id is gone, the number belongs to one row, and the status and title on the screen still match it. A different status, a different title, or two rows with that number sends nothing. The dialog stays open and shows the server message until it is closed. The line above the table keeps the same message.
 
 ## v1.233.0 — Geography can change one active flag
 
