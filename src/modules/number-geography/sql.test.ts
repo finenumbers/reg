@@ -6,6 +6,7 @@ import {
   FREE_CALL_DIRECTION,
   MOBILE_RF_DIRECTION,
   NUMBER_GEOGRAPHY_COLUMNS,
+  NUMBER_GEOGRAPHY_HEADERS,
 } from "@/modules/number-geography/columns";
 import {
   activeFilterColumns,
@@ -127,14 +128,16 @@ describe("filter clauses", () => {
 });
 
 describe("geography columns", () => {
-  it("leads with category, then supplier, then city, then number", () => {
-    expect(NUMBER_GEOGRAPHY_COLUMNS.slice(0, 4)).toEqual([
+  it("places the phone column immediately before the title", () => {
+    expect(NUMBER_GEOGRAPHY_COLUMNS.slice(0, 3)).toEqual([
       "category",
       "supplier",
       "city",
-      "number",
     ]);
+    const numberIndex = NUMBER_GEOGRAPHY_COLUMNS.indexOf("number");
+    expect(NUMBER_GEOGRAPHY_COLUMNS[numberIndex + 1]).toBe("title");
     expect(NUMBER_GEOGRAPHY_COLUMNS.at(-1)).toBe("activation");
+    expect(NUMBER_GEOGRAPHY_HEADERS.number).toBe("Телефонный номер");
   });
 
   it("keeps the activation column on the cheap path and out of the export filter", () => {
@@ -144,9 +147,7 @@ describe("geography columns", () => {
     expect(page.text).toContain("data->>'Статус'");
     expect(page.text).toContain("AS activation");
     expect(page.text).toContain("k.activation");
-    const catalog = flattenSql(
-      catalogListSql(Prisma.sql`TRUE`, Prisma.sql`TRUE`, 10, 0),
-    );
+    const catalog = flattenSql(catalogListSql(Prisma.sql`TRUE`, Prisma.sql`TRUE`, 10, 0));
     expect(catalog.text).toContain("k.activation");
     const labels = flattenSql(pstnLabelsByIdsSql(["endpoint-1"]));
     expect(labels.text).not.toContain("k.activation");

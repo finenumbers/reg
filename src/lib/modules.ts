@@ -14,7 +14,6 @@ export type FeatureModuleId =
   | "groups"
   | "number-geography"
   | "free-numbers"
-  | "purchased-numbers"
   | "numbering-resource"
   | "raw"
   | "live-calls"
@@ -74,14 +73,6 @@ export const FEATURE_MODULES: FeatureModuleDefinition[] = [
     title: "Свободные номера",
     description: "Каталог свободных номеров DID",
     href: "/free-numbers",
-    navPermission: "phones:read",
-    navGroup: "links",
-  },
-  {
-    id: "purchased-numbers",
-    title: "Купленные номера",
-    description: "Каталог купленных номеров DID",
-    href: "/purchased-numbers",
     navPermission: "phones:read",
     navGroup: "links",
   },

@@ -14,15 +14,9 @@ export const DID_UNREACHABLE_HINT =
 export const DID_TIMEOUT_MESSAGE = "DID не ответил вовремя";
 export const DID_UNAUTHORIZED_MESSAGE = "Неверный API-токен DID";
 export const DID_UNAVAILABLE_MESSAGE = "DID временно недоступен";
-export const DID_NOT_CONFIGURED_MESSAGE =
-  "Сначала сохраните API-токен DID в Настройках";
+export const DID_NOT_CONFIGURED_MESSAGE = "Сначала сохраните API-токен DID в Настройках";
 
-export const DID_API_PATHS = [
-  "/numbers/free",
-  "/numbers/free/facets",
-  "/numbers/purchased",
-  "/numbers/purchased/facets",
-] as const;
+export const DID_API_PATHS = ["/numbers/free", "/numbers/free/facets"] as const;
 
 export type DidApiPath = (typeof DID_API_PATHS)[number];
 

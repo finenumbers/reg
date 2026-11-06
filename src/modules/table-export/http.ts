@@ -1,5 +1,5 @@
 /**
- * Session-only HTTP for the three catalog XLSX builds.
+ * Session-only HTTP for the catalog XLSX builds.
  */
 
 import { createReadStream } from "node:fs";
@@ -31,7 +31,6 @@ const PRIVATE = { "Cache-Control": "private, no-store" };
 
 const FILE_PREFIX: Record<TableExportKind, string> = {
   free: "free-numbers",
-  purchased: "purchased-numbers",
   numbering: "numbering-resource",
 };
 

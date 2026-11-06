@@ -35,6 +35,86 @@ describe("parseSupplierXlsx", () => {
     });
   });
 
+  it("reads a geography export from the telephone header, not the client column", async () => {
+    const parsed = await parseSupplierXlsx(
+      await workbook([
+        [
+          "Категория",
+          "Поставщик",
+          "Город",
+          "Клиент",
+          "Канальность",
+          "Оператор связи",
+          "География",
+          "Телефонный номер",
+          "Название",
+          "Статус",
+        ],
+        [
+          "VIP",
+          "Ростелеком",
+          "Москва",
+          "Клиент",
+          "10",
+          "МТС",
+          "Край",
+          "74951234567",
+          "Имя",
+          "Активно",
+        ],
+      ]),
+    );
+    expect(parsed).toEqual({
+      ok: true,
+      rows: [
+        {
+          rowNumber: 2,
+          number: "74951234567",
+          supplier: "Ростелеком",
+          category: "VIP",
+        },
+      ],
+    });
+
+    const emptyPhone = await parseSupplierXlsx(
+      await workbook([
+        [
+          "Категория",
+          "Поставщик",
+          "Город",
+          "Клиент",
+          "Телефонный номер",
+        ],
+        ["", "", "Казань", "Клиент", ""],
+      ]),
+    );
+    expect(emptyPhone.ok).toBe(false);
+    if (!emptyPhone.ok) expect(emptyPhone.details[0]).toContain("«Телефонный номер»");
+  });
+
+  it("keeps the legacy fourth column when a telephone header is also present", async () => {
+    const parsed = await parseSupplierXlsx(
+      await workbook([
+        [...HEAD, "Телефонный номер"],
+        ["VIP", "Ростелеком", "Москва", "111", "222"],
+      ]),
+    );
+    expect(parsed).toEqual({
+      ok: true,
+      rows: [{ rowNumber: 2, number: "111", supplier: "Ростелеком", category: "VIP" }],
+    });
+  });
+
+  it("rejects a repeated telephone header", async () => {
+    const parsed = await parseSupplierXlsx(
+      await workbook([
+        ["Категория", "Поставщик", "Город", "Телефонный номер", "Телефонный номер"],
+        ["VIP", "Ростелеком", "Москва", "1", "2"],
+      ]),
+    );
+    expect(parsed.ok).toBe(false);
+  });
+
   it("rejects a file that is not in column order", async () => {
     const oldFile = await parseSupplierXlsx(
       await workbook([

@@ -14,7 +14,6 @@ import {
   type NumberingFilters,
 } from "@/modules/numbering-resource/filters";
 import { NumberingQueryError } from "@/modules/numbering-resource/errors";
-import { allowPurchasedNumberFilters } from "@/modules/purchased-numbers/query";
 import type { TableExportKind, TableExportRequest } from "@/modules/table-export/job";
 
 export class TableExportRequestError extends Error {
@@ -57,13 +56,6 @@ export function parseTableExportRequest(
       return {
         kind,
         filters: allowFreeNumberFilters(filters),
-        phoneQ: readPhone(record.phoneQ, FREE_NUMBERS_MAX_QUERY_CHARS),
-      };
-    }
-    if (kind === "purchased") {
-      return {
-        kind,
-        filters: allowPurchasedNumberFilters(filters),
         phoneQ: readPhone(record.phoneQ, FREE_NUMBERS_MAX_QUERY_CHARS),
       };
     }

@@ -22,11 +22,6 @@ import {
   summarizeNumberingResource,
 } from "@/modules/numbering-resource/service";
 import type { NumberingRow } from "@/modules/numbering-resource/types";
-import {
-  PURCHASED_NUMBER_COLUMNS,
-  PURCHASED_NUMBER_HEADERS,
-} from "@/modules/purchased-numbers/columns";
-import { mapPurchasedNumberRow } from "@/modules/purchased-numbers/format";
 import type {
   TableExportRequest,
   TableExportRunContext,
@@ -95,20 +90,16 @@ function numberingHasFilter(filters: NumberingFilters): boolean {
   );
 }
 
-async function writeCatalog(
-  kind: "free" | "purchased",
+async function writeFree(
   ctx: TableExportRunContext,
-  request: Extract<TableExportRequest, { kind: "free" | "purchased" }>,
+  request: Extract<TableExportRequest, { kind: "free" }>,
 ): Promise<void> {
   const creds = await loadDidCredentials();
   if (!creds) throw didNotConfigured();
-  const columns = kind === "free" ? FREE_NUMBER_COLUMNS : PURCHASED_NUMBER_COLUMNS;
-  const headers = kind === "free" ? FREE_NUMBER_HEADERS : PURCHASED_NUMBER_HEADERS;
-  const mapRow = kind === "free" ? mapFreeNumberRow : mapPurchasedNumberRow;
   const book = openStreamingWorkbook({
     filePath: ctx.filePath,
-    sheetName: kind === "free" ? "Свободные номера" : "Купленные номера",
-    columns: textColumns(columns, headers),
+    sheetName: "Свободные номера",
+    columns: textColumns(FREE_NUMBER_COLUMNS, FREE_NUMBER_HEADERS),
     signal: ctx.signal,
     onRows: ctx.setWritten,
   });
@@ -125,7 +116,6 @@ async function writeCatalog(
           pageSize,
           load: (size) =>
             listDidNumbers(
-              kind,
               {
                 page,
                 pageSize: size,
@@ -146,9 +136,9 @@ async function writeCatalog(
       },
       onPage: async (items) => {
         for (const raw of items) {
-          const row = mapRow(raw);
+          const row = mapFreeNumberRow(raw);
           if (!row) continue;
-          await book.writeRow(catalogCells(columns, row));
+          await book.writeRow(catalogCells(FREE_NUMBER_COLUMNS, row));
         }
       },
     });
@@ -222,5 +212,5 @@ export async function executeTableExport(ctx: TableExportRunContext): Promise<vo
     await writeNumbering(ctx, ctx.request.filters);
     return;
   }
-  await writeCatalog(ctx.request.kind, ctx, ctx.request);
+  await writeFree(ctx, ctx.request);
 }

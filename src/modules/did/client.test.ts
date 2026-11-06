@@ -1,12 +1,15 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { DidClientError, listDidFreeNumbers, listDidNumbers } from "@/modules/did/client";
+import { DidClientError, listDidFreeNumbers } from "@/modules/did/client";
 import {
   DID_TIMEOUT_MESSAGE,
   DID_UNAUTHORIZED_MESSAGE,
   DID_UNREACHABLE_HINT,
 } from "@/modules/did/types";
 
-const creds = { baseUrl: "http://did-frontend:3000/free-numbers", apiToken: "super-secret" };
+const creds = {
+  baseUrl: "http://did-frontend:3000/free-numbers",
+  apiToken: "super-secret",
+};
 
 function jsonResponse(status: number, body: unknown) {
   return {
@@ -22,9 +25,11 @@ describe("DID free-number client", () => {
   });
 
   it("calls the UI proxy with the bearer header and a literal phone search", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      jsonResponse(200, { items: [], total: 3, page: 1, page_size: 1 }),
-    );
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        jsonResponse(200, { items: [], total: 3, page: 1, page_size: 1 }),
+      );
     vi.stubGlobal("fetch", fetchMock);
 
     const page = await listDidFreeNumbers(
@@ -40,9 +45,9 @@ describe("DID free-number client", () => {
 
     expect(page.total).toBe(3);
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url.startsWith("http://did-frontend:3000/api/backend/api/v1/numbers/free?")).toBe(
-      true,
-    );
+    expect(
+      url.startsWith("http://did-frontend:3000/api/backend/api/v1/numbers/free?"),
+    ).toBe(true);
     expect(url).toContain("sort_by=abc_code");
     expect(url).toContain("sort_dir=asc");
     expect(url).toContain("number_local_q=12%5C%253");
@@ -55,9 +60,11 @@ describe("DID free-number client", () => {
   it("maps 401 to a token error and does not treat it as a REG logout", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue(
-        jsonResponse(401, { error: { message: "Требуется вход администратора" } }),
-      ),
+      vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse(401, { error: { message: "Требуется вход администратора" } }),
+        ),
     );
     await expect(
       listDidFreeNumbers({ page: 1, pageSize: 1, filters: {}, phoneQ: "" }, creds, 1000),
@@ -103,7 +110,11 @@ describe("DID free-number client", () => {
       ),
     );
     await expect(
-      listDidFreeNumbers({ page: 1, pageSize: 500, filters: {}, phoneQ: "" }, creds, 1000),
+      listDidFreeNumbers(
+        { page: 1, pageSize: 500, filters: {}, phoneQ: "" },
+        creds,
+        1000,
+      ),
     ).rejects.toMatchObject({
       code: "HTTP_ERROR",
       httpStatus: 422,
@@ -122,7 +133,11 @@ describe("DID free-number client", () => {
       ),
     );
     await expect(
-      listDidFreeNumbers({ page: 1, pageSize: 500, filters: {}, phoneQ: "" }, creds, 1000),
+      listDidFreeNumbers(
+        { page: 1, pageSize: 500, filters: {}, phoneQ: "" },
+        creds,
+        1000,
+      ),
     ).rejects.toMatchObject({
       httpStatus: 422,
       pageSizeLimit: null,
@@ -138,7 +153,11 @@ describe("DID free-number client", () => {
       ),
     );
     try {
-      await listDidFreeNumbers({ page: 1, pageSize: 500, filters: {}, phoneQ: "" }, creds, 1000);
+      await listDidFreeNumbers(
+        { page: 1, pageSize: 500, filters: {}, phoneQ: "" },
+        creds,
+        1000,
+      );
       expect.fail("expected a 422");
     } catch (error) {
       expect(error).toBeInstanceOf(DidClientError);
@@ -147,32 +166,12 @@ describe("DID free-number client", () => {
     }
   });
 
-  it("reads purchased numbers on their own path and rejects the other catalog", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      jsonResponse(200, {
-        items: [{ id: "1", inventory_kind: "purchased" }],
-        total: 1,
-        page: 1,
-        page_size: 1,
-      }),
-    );
-    vi.stubGlobal("fetch", fetchMock);
-    await listDidNumbers(
-      "purchased",
-      { page: 1, pageSize: 1, filters: {}, phoneQ: "" },
-      creds,
-      1000,
-    );
-    const [url] = fetchMock.mock.calls[0] as [string];
-    expect(url).toContain("/api/backend/api/v1/numbers/purchased?");
-    expect(url).not.toContain("/numbers/free");
-    expect(url).not.toContain("export-jobs");
-
+  it("rejects a page whose inventory is not the free catalog", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue(
         jsonResponse(200, {
-          items: [{ id: "1", inventory_kind: "free" }],
+          items: [{ id: "1", inventory_kind: "purchased" }],
           total: 1,
           page: 1,
           page_size: 1,
@@ -180,12 +179,7 @@ describe("DID free-number client", () => {
       ),
     );
     await expect(
-      listDidNumbers(
-        "purchased",
-        { page: 1, pageSize: 1, filters: {}, phoneQ: "" },
-        creds,
-        1000,
-      ),
+      listDidFreeNumbers({ page: 1, pageSize: 1, filters: {}, phoneQ: "" }, creds, 1000),
     ).rejects.toMatchObject({ code: "BAD_RESPONSE" });
   });
 });

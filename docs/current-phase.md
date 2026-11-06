@@ -1,7 +1,15 @@
-# Current Phase — production (v1.233.1)
+# Current Phase — production (v1.234.0)
 
-**Status:** in production. Modules beyond Phase 7: phones, groups, number geography, free numbers, purchased numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls.  
+**Status:** in production. Modules beyond Phase 7: phones, groups, number geography, free numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls.  
 **Date:** 2026-11-06
+
+## v1.234.0 — Purchased numbers leave, geography phone column moves
+
+There is no migration. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten by this deploy itself. Keep a single `app` replica. Replace the `app` container. Refresh the browser after the deploy.
+
+«Купленные номера» is gone. The page, its API, and its XLSX slot are gone. DID is still read with GET only, and only for `/numbers/free` and `/numbers/free/facets`. A bookmark of `/purchased-numbers` does not open another catalog. Nothing is written to the switch.
+
+On «География номеров» the phone column is labeled «Телефонный номер» and sits immediately before «Название». The column key stays `number`. The screen and the XLSX use that order. «Загрузить поставщиков» still reads a file whose first four cells are «Категория», «Поставщик», «Город», «Номер». It also reads a geography export by the header «Телефонный номер», so the client column is not stored as the number. A shifted «Номер» is still rejected.
 
 ## v1.233.1 — Geography status change survives a catalog reload
 

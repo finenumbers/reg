@@ -61,10 +61,10 @@ describe("FEATURE_MODULES nav groups", () => {
     }
   });
 
-  it("keeps catalog links internal, with numbering resource after purchased numbers", () => {
+  it("keeps catalog links internal, with numbering resource after free numbers", () => {
     const featureIds = FEATURE_MODULES.map((module) => module.id as string);
     expect(featureIds).toContain("free-numbers");
-    expect(featureIds).toContain("purchased-numbers");
+    expect(featureIds).not.toContain("purchased-numbers");
     expect(featureIds).toContain("numbering-resource");
     expect(featureIds).not.toContain("did-free-numbers");
     expect(featureIds).not.toContain("pstn-numbering");
@@ -78,13 +78,6 @@ describe("FEATURE_MODULES nav groups", () => {
       navPermission: "phones:read",
       navGroup: "links",
     });
-    const purchased = FEATURE_MODULES.find((module) => module.id === "purchased-numbers");
-    expect(purchased).toMatchObject({
-      title: "Купленные номера",
-      href: "/purchased-numbers",
-      navPermission: "phones:read",
-      navGroup: "links",
-    });
     const numbering = FEATURE_MODULES.find(
       (module) => module.id === "numbering-resource",
     );
@@ -95,13 +88,9 @@ describe("FEATURE_MODULES nav groups", () => {
       navGroup: "links",
     });
     const freeIndex = FEATURE_MODULES.findIndex((module) => module.id === "free-numbers");
-    const purchasedIndex = FEATURE_MODULES.findIndex(
-      (module) => module.id === "purchased-numbers",
-    );
     const numberingIndex = FEATURE_MODULES.findIndex(
       (module) => module.id === "numbering-resource",
     );
-    expect(purchasedIndex).toBe(freeIndex + 1);
-    expect(numberingIndex).toBe(purchasedIndex + 1);
+    expect(numberingIndex).toBe(freeIndex + 1);
   });
 });
