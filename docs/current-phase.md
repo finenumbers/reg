@@ -1,7 +1,13 @@
-# Current Phase — production (v1.232.0)
+# Current Phase — production (v1.232.1)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, number geography, free numbers, purchased numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls.  
 **Date:** 2026-11-06
+
+## v1.232.1 — Registration status badges stay on blocked rows
+
+There is no migration. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. Keep a single `app` replica. Replace the `app` container. The switch is only read.
+
+On «Регистрации», a row whose catalog «Статус» is «Заблокировано» stays black with white text. The «Статус» column keeps the same green «Зарегистрирован» and red «Не зарегистрирован» badges as the other rows. The registration workbook still paints that whole row black with white text. Nothing is written to the switch.
 
 ## v1.232.0 — Blocked numbers paint the call and catalog rows
 

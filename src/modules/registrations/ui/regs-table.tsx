@@ -18,7 +18,6 @@ import {
   buildRegsFacetsUrl,
   displayFacetForColumn,
   formatEndpoint,
-  formatRegStatus,
   formatTimestamp,
   REG_COLUMN_HEADERS,
   REG_COLUMN_ORDER,
@@ -130,11 +129,7 @@ export function RegsTable({
                   {row.description ? row.description : <span className={quiet}>—</span>}
                 </TableCell>
                 <TableCell>
-                  {blocked ? (
-                    formatRegStatus(row.status)
-                  ) : (
-                    <RegStatusBadge status={row.status} />
-                  )}
+                  <RegStatusBadge status={row.status} />
                 </TableCell>
                 <TableCell>
                   <span className={quiet}>{formatEndpoint(row.ip, row.port)}</span>
