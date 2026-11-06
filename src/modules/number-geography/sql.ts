@@ -308,6 +308,7 @@ function joinedFrom(source: Prisma.Sql, cheap: Prisma.Sql): Prisma.Sql {
         k.supplier,
         k.category,
         k.title,
+        k.activation,
         cdr_tariff_direction(k.number) AS direction,
         ${pstnKeyFromDigits(Prisma.sql`k.digits`)} AS pstn_key,
         c.phone AS pstn_phone,

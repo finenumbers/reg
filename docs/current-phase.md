@@ -1,7 +1,13 @@
-# Current Phase — production (v1.231.0)
+# Current Phase — production (v1.231.1)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, number geography, free numbers, purchased numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls.  
 **Date:** 2026-11-06
+
+## v1.231.1 — Geography list keeps the activation column
+
+There is no migration. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. Keep a single `app` replica. Replace the `app` container. The switch is only read.
+
+v1.231.0 stored «Статус» and showed it on «География номеров», but the list query dropped that column at the PSTN join. Opening the page failed before any row was returned. The join now keeps the column, so the page and the geography export open again. The separate PSTN label query is unchanged. Nothing is written to the switch.
 
 ## v1.231.0 — Endpoint activation status
 

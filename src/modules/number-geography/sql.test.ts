@@ -143,6 +143,13 @@ describe("geography columns", () => {
     const facets = flattenSql(pageFacetSql("activation", Prisma.sql`TRUE`));
     expect(page.text).toContain("data->>'Статус'");
     expect(page.text).toContain("AS activation");
+    expect(page.text).toContain("k.activation");
+    const catalog = flattenSql(
+      catalogListSql(Prisma.sql`TRUE`, Prisma.sql`TRUE`, 10, 0),
+    );
+    expect(catalog.text).toContain("k.activation");
+    const labels = flattenSql(pstnLabelsByIdsSql(["endpoint-1"]));
+    expect(labels.text).not.toContain("k.activation");
     expect(facets.text).toContain("data->>'Статус'");
     const filtered = flattenSql(cheapWhere({}, undefined, undefined, true));
     expect(filtered.text).toContain("activation =");
