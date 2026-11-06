@@ -33,6 +33,7 @@ type Props<T extends { id: string }, C extends string> = {
     q?: string;
   }) => string;
   rowClassName?: (row: T) => string;
+  cellClassName?: (row: T, column: C) => string | undefined;
 };
 
 export function CatalogNumbersTable<T extends { id: string }, C extends string>({
@@ -51,6 +52,7 @@ export function CatalogNumbersTable<T extends { id: string }, C extends string>(
   formatValue,
   buildFacetsUrl,
   rowClassName,
+  cellClassName,
 }: Props<T, C>) {
   const showEmpty = !loading && data.length === 0;
   const colCount = columns.length;
@@ -109,6 +111,7 @@ export function CatalogNumbersTable<T extends { id: string }, C extends string>(
                   className={cn(
                     column === numberColumn &&
                       "text-right font-bold text-black dark:text-white",
+                    cellClassName?.(row, column),
                   )}
                 >
                   {column === numberColumn ? (

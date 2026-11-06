@@ -1,7 +1,15 @@
-# Current Phase — production (v1.231.1)
+# Current Phase — production (v1.232.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, number geography, free numbers, purchased numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls.  
 **Date:** 2026-11-06
+
+## v1.232.0 — Blocked numbers paint the call and catalog rows
+
+There is no migration. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. Keep a single `app` replica. Replace the `app` container. The switch is only read.
+
+«Не подключено» on «Купленные номера» is saturated red with white text. A terminal number whose «Статус» is «Заблокировано» is a black row with white text on «Регистрации» and «Купленные номера», ahead of the other fills. The registration workbook uses the same black row. The purchased number is matched by the hidden DID `msisdn`. That value stays off the response. An empty `msisdn` does not paint the row. The local number alone is not a match.
+
+«Телефонный трафик», «Сырые данные», «География звонков», «Операторы связи», «Трафик SMG», and «Звонки на SMG» paint a call black when that endpoint appears as a calling, called, billing, original, external, authenticated, or redirecting number. The match is the catalog text, or the same 10-digit number with or without a leading 7 or 8. A longer digit string is not a match. A short number matches only as written. Black wins over the call colors, including Parking and the antifraud «Заблокирован» fill. CDR, SMG, and purchased workbooks are unchanged. A failed catalog read leaves those rows uncolored and does not fail the list. Nothing is written to the switch.
 
 ## v1.231.1 — Geography list keeps the activation column
 

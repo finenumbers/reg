@@ -21,12 +21,14 @@ import {
   writeSmgExportFile,
   type SmgExportLayout,
 } from "@/modules/smg/xlsx-export";
+import { smgHasBlockedNumber } from "@/modules/smg/blocked-number";
 import {
   isSmgField,
   SMG_FIELDS,
   SMG_PHONE_FIELDS,
   type SmgField,
 } from "@/modules/smg/columns";
+import { loadBlockedNumbers } from "@/modules/phones/blocked-numbers";
 import {
   querySmgFacetValues,
   querySmgIdPage,
@@ -71,6 +73,8 @@ export type SmgListItem = Record<SmgField, string> &
     id: string;
     antifraud: string;
     antifraudStatus: string;
+    /** A blocked endpoint appears in a calling, called, or redirecting number. */
+    blocked?: boolean;
   };
 
 export type SmgListResult = {
@@ -225,7 +229,10 @@ async function loadSmgNodeNames(): Promise<SmgNodeName[]> {
   });
 }
 
-async function monthSignGroups(month: CdrMonth, refresh: boolean): Promise<SmgSignCount[]> {
+async function monthSignGroups(
+  month: CdrMonth,
+  refresh: boolean,
+): Promise<SmgSignCount[]> {
   if (isDatabaseVacuumActive()) return [];
   const cursor = await latestSmgImportCursor();
   const key = `${month.key}\n${cursor ?? ""}`;
@@ -595,6 +602,10 @@ export async function listSmgCalls(input: {
   const items = rows.map((row) => toListItem(row, storedAf));
   if (mode.off) paintNoAntifraud(items);
   else await attachAntifraud(items, storedAf);
+  const blockedNumbers = await loadBlockedNumbers();
+  for (const item of items) {
+    if (smgHasBlockedNumber(blockedNumbers, item)) item.blocked = true;
+  }
   return {
     items,
     total,

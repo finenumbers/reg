@@ -41,6 +41,12 @@ export function PurchasedNumbersTable(props: Props) {
       formatValue={displayFreeNumberFacet}
       buildFacetsUrl={buildPurchasedNumbersFacetsUrl}
       rowClassName={(row) => PURCHASED_ROW_CLASS[purchasedRowTone(row)]}
+      cellClassName={(row, column) => {
+        if (column !== "number_local") return undefined;
+        const tone = purchasedRowTone(row);
+        if (tone === "blocked" || tone === "red") return "text-white";
+        return undefined;
+      }}
     />
   );
 }

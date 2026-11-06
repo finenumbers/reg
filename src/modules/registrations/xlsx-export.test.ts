@@ -1,10 +1,9 @@
+import ExcelJS from "exceljs";
 import { describe, expect, it } from "vitest";
 import type { RegistrationListItem } from "@/modules/registrations/types";
+import { REG_COLUMN_HEADERS, REG_COLUMN_ORDER } from "@/modules/registrations/ui-format";
 import {
-  REG_COLUMN_HEADERS,
-  REG_COLUMN_ORDER,
-} from "@/modules/registrations/ui-format";
-import {
+  paintBlockedRegistrationCell,
   REG_EXPORT_COLUMNS,
   registrationExportRow,
 } from "@/modules/registrations/xlsx-export";
@@ -45,11 +44,19 @@ describe("registrations XLSX columns", () => {
   it("writes capacity and empty catalog miss", () => {
     const tz = "Europe/Moscow";
     expect(registrationExportRow(sample, tz)[1]).toBe("10");
-    expect(
-      registrationExportRow({ ...sample, channelality: null }, tz)[1],
-    ).toBe("Премиум");
-    expect(registrationExportRow(sample, tz)).toHaveLength(
-      REG_EXPORT_COLUMNS.length,
+    expect(registrationExportRow({ ...sample, channelality: null }, tz)[1]).toBe(
+      "Премиум",
     );
+    expect(registrationExportRow(sample, tz)).toHaveLength(REG_EXPORT_COLUMNS.length);
+  });
+
+  it("paints a blocked registration black with white text", () => {
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet("t");
+    const cell = sheet.addRow(["a"]).getCell(1);
+    cell.font = { name: "Calibri", size: 11, bold: true, color: { argb: "FF000000" } };
+    paintBlockedRegistrationCell(cell);
+    expect(cell.fill).toMatchObject({ fgColor: { argb: "FF000000" } });
+    expect(cell.font).toMatchObject({ bold: true, color: { argb: "FFFFFFFF" } });
   });
 });

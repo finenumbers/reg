@@ -8,10 +8,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  ColumnFilterDropdown,
-  type ColumnFilters,
-} from "@/components/column-filters";
+import { ColumnFilterDropdown, type ColumnFilters } from "@/components/column-filters";
+import { BLOCKED_ROW_CLASS } from "@/components/blocked-row-class";
 import { HighlightText } from "@/components/highlight-text";
 import { useDisplayTimezone } from "@/components/display-timezone-provider";
 import { displayTermCapacity } from "@/modules/phones/capacity";
@@ -20,6 +18,7 @@ import {
   buildRegsFacetsUrl,
   displayFacetForColumn,
   formatEndpoint,
+  formatRegStatus,
   formatTimestamp,
   REG_COLUMN_HEADERS,
   REG_COLUMN_ORDER,
@@ -79,12 +78,8 @@ export function RegsTable({
                     q,
                   })
                 }
-                formatValue={(value) =>
-                  displayFacetForColumn(id, value, timeZone)
-                }
-                onToggle={() =>
-                  onOpenColumnChange(openColumn === id ? null : id)
-                }
+                formatValue={(value) => displayFacetForColumn(id, value, timeZone)}
+                onToggle={() => onOpenColumnChange(openColumn === id ? null : id)}
                 onChange={(values) => onColumnFilterChange(id, values)}
                 onClear={() => onColumnFilterChange(id, [])}
               />
@@ -95,34 +90,32 @@ export function RegsTable({
       <TableBody>
         {loading ? (
           <TableRow>
-            <TableCell
-              colSpan={colCount}
-              className="h-24 text-muted-foreground"
-            >
+            <TableCell colSpan={colCount} className="text-muted-foreground h-24">
               Загрузка регистраций…
             </TableCell>
           </TableRow>
         ) : showEmpty ? (
           <TableRow>
-            <TableCell
-              colSpan={colCount}
-              className="h-24 text-muted-foreground"
-            >
+            <TableCell colSpan={colCount} className="text-muted-foreground h-24">
               {emptyMessage}
             </TableCell>
           </TableRow>
         ) : (
           data.map((row) => {
             const selected = selectedPhone === row.phone;
+            const blocked = row.blocked === true;
+            const quiet = blocked ? undefined : "text-muted-foreground";
             return (
               <TableRow
                 key={row.phone}
                 data-state={selected ? "selected" : undefined}
                 className={cn(
                   onRowClick && "cursor-pointer",
-                  row.status === "Unregistered"
-                    ? "bg-destructive/10 hover:bg-destructive/15 data-[state=selected]:bg-destructive/20"
-                    : selected && "bg-muted/60",
+                  blocked
+                    ? BLOCKED_ROW_CLASS
+                    : row.status === "Unregistered"
+                      ? "bg-destructive/10 hover:bg-destructive/15 data-[state=selected]:bg-destructive/20"
+                      : selected && "bg-muted/60",
                 )}
                 onClick={() => onRowClick?.(row)}
               >
@@ -134,54 +127,32 @@ export function RegsTable({
                 </TableCell>
                 <TableCell>{displayTermCapacity(row.channelality)}</TableCell>
                 <TableCell>
-                  {row.description ? (
-                    row.description
+                  {row.description ? row.description : <span className={quiet}>—</span>}
+                </TableCell>
+                <TableCell>
+                  {blocked ? (
+                    formatRegStatus(row.status)
                   ) : (
-                    <span className="text-muted-foreground">—</span>
+                    <RegStatusBadge status={row.status} />
                   )}
                 </TableCell>
                 <TableCell>
-                  <RegStatusBadge status={row.status} />
+                  <span className={quiet}>{formatEndpoint(row.ip, row.port)}</span>
                 </TableCell>
                 <TableCell>
-                  <span className="text-muted-foreground">
-                    {formatEndpoint(row.ip, row.port)}
-                  </span>
+                  {row.userAgent ? row.userAgent : <span className={quiet}>—</span>}
                 </TableCell>
                 <TableCell>
-                  {row.userAgent ? (
-                    row.userAgent
-                  ) : (
-                    <span className="text-muted-foreground">—</span>
-                  )}
+                  {row.country ? row.country : <span className={quiet}>—</span>}
                 </TableCell>
                 <TableCell>
-                  {row.country ? (
-                    row.country
-                  ) : (
-                    <span className="text-muted-foreground">—</span>
-                  )}
+                  {row.city ? row.city : <span className={quiet}>—</span>}
                 </TableCell>
                 <TableCell>
-                  {row.city ? (
-                    row.city
-                  ) : (
-                    <span className="text-muted-foreground">—</span>
-                  )}
+                  {row.isp ? row.isp : <span className={quiet}>—</span>}
                 </TableCell>
-                <TableCell>
-                  {row.isp ? (
-                    row.isp
-                  ) : (
-                    <span className="text-muted-foreground">—</span>
-                  )}
-                </TableCell>
-                <TableCell>
-                  {formatTimestamp(row.lastChangedAt, timeZone)}
-                </TableCell>
-                <TableCell>
-                  {formatTimestamp(row.lastSeenAt, timeZone)}
-                </TableCell>
+                <TableCell>{formatTimestamp(row.lastChangedAt, timeZone)}</TableCell>
+                <TableCell>{formatTimestamp(row.lastSeenAt, timeZone)}</TableCell>
               </TableRow>
             );
           })

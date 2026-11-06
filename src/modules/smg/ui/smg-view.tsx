@@ -14,6 +14,7 @@ import { EMPTY_FILTER_TOKEN, encodeFilters } from "@/components/column-filters/t
 import { useDisplayTimezone } from "@/components/display-timezone-provider";
 import { FILTER_TOOLBAR_TEXT } from "@/components/filter-toolbar";
 import { FitSelect } from "@/components/fit-select";
+import { BLOCKED_ROW_CLASS } from "@/components/blocked-row-class";
 import { HighlightText } from "@/components/highlight-text";
 import { usePublishNavClock } from "@/components/nav-clock-provider";
 import { PhoneSearchInput } from "@/components/phone-search-input";
@@ -797,15 +798,18 @@ export function SmgView({
               </TableRow>
             ) : (
               items.map((row) => {
-                const fill = paintRows
-                  ? smgTrafficRowFill(row.antifraud, row.afDelayParking)
-                  : null;
+                const numberBlocked = row.blocked === true;
+                const fill =
+                  numberBlocked || !paintRows
+                    ? null
+                    : smgTrafficRowFill(row.antifraud, row.afDelayParking);
                 return (
                   <TableRow
                     key={row.id}
                     data-state={traceRow?.id === row.id ? "selected" : undefined}
                     className={cn(
                       "cursor-pointer",
+                      numberBlocked && BLOCKED_ROW_CLASS,
                       fill === "parking" &&
                         "bg-gray-200 hover:bg-gray-300/90 data-[state=selected]:bg-gray-200 dark:bg-gray-950 dark:hover:bg-gray-900 dark:data-[state=selected]:bg-gray-950",
                       fill === "blocked" &&

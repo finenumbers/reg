@@ -9,6 +9,7 @@ const {
   nodeFindFirst,
   nodeFindMany,
   jobFindFirst,
+  findState,
 } = vi.hoisted(() => ({
   count: vi.fn(),
   findMany: vi.fn(),
@@ -18,6 +19,7 @@ const {
   nodeFindFirst: vi.fn(),
   nodeFindMany: vi.fn(),
   jobFindFirst: vi.fn(),
+  findState: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -38,6 +40,9 @@ vi.mock("@/lib/db", () => ({
     jobRun: {
       findFirst: (...args: unknown[]) => jobFindFirst(...args),
     },
+    phoneImportState: {
+      findUnique: (...args: unknown[]) => findState(...args),
+    },
   },
 }));
 
@@ -49,6 +54,10 @@ vi.mock("@/modules/storage/vacuum/gate", () => ({
   isDatabaseVacuumActive: () => false,
 }));
 
+import {
+  loadBlockedNumbers,
+  resetBlockedNumberCacheForTests,
+} from "@/modules/phones/blocked-numbers";
 import { AF_CATEGORY, AF_STATUS } from "@/modules/smg-trace/classify";
 import { NO_ANTIFRAUD_LABEL } from "@/modules/smg/row-tokens";
 import {
@@ -56,6 +65,8 @@ import {
   listSmgFacets,
   resetSmgDeviceCacheForTests,
 } from "@/modules/smg/service";
+
+const BLOCKED_STAMP = new Date("2020-01-01T00:00:00.000Z");
 
 const NODES = [
   { identifier: "kazan", name: "Казань" },
@@ -67,7 +78,7 @@ const OCTOBER = {
 };
 
 describe("listSmgCalls", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     count.mockReset();
     findMany.mockReset();
     groupBy.mockReset();
@@ -76,10 +87,15 @@ describe("listSmgCalls", () => {
     nodeFindFirst.mockReset();
     nodeFindMany.mockReset();
     jobFindFirst.mockReset();
+    findState.mockReset();
     resetSmgDeviceCacheForTests();
+    resetBlockedNumberCacheForTests();
     count.mockResolvedValue(0);
     findMany.mockResolvedValue([]);
     queryRaw.mockResolvedValue([]);
+    findState.mockResolvedValue({ lastSyncedAt: BLOCKED_STAMP });
+    await loadBlockedNumbers();
+    queryRaw.mockClear();
     groupBy.mockResolvedValue([]);
     traceFindMany.mockResolvedValue([]);
     nodeFindFirst.mockResolvedValue(null);

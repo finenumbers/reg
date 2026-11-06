@@ -51,6 +51,8 @@ import {
   type TimeSort,
 } from "@/modules/traffic/traffic-sort";
 import { trafficFlagWhere, type TrafficRowFlags } from "@/modules/traffic/row-flags";
+import { cdrHasBlockedNumber } from "@/modules/traffic/blocked-number";
+import { loadBlockedNumbers } from "@/modules/phones/blocked-numbers";
 
 export type { CdrMonth };
 
@@ -58,6 +60,8 @@ export type TrafficListItem = {
   id: string;
   cdrAt: string | null;
   data: Record<string, string>;
+  /** A blocked endpoint appears in a calling, called, billing, or redirect field. */
+  blocked?: boolean;
 };
 
 export type ListTrafficResult = {
@@ -278,7 +282,7 @@ export async function listTraffic(opts: {
   const skip = (page - 1) * pageSize;
   const includeMonths = page === 1;
 
-  const [total, rows, months] = await Promise.all([
+  const [total, rows, months, blockedNumbers] = await Promise.all([
     prisma.cdrRecord.count({ where }),
     prisma.cdrRecord.findMany({
       where,
@@ -287,6 +291,7 @@ export async function listTraffic(opts: {
       take: pageSize,
     }),
     includeMonths ? listTrafficMonths() : Promise.resolve(undefined),
+    loadBlockedNumbers(),
   ]);
 
   const [links, guiSetting] =
@@ -317,6 +322,7 @@ export async function listTraffic(opts: {
         linkById.get(row.id),
         guiUrl,
       ),
+      ...(cdrHasBlockedNumber(blockedNumbers, row) ? { blocked: true } : {}),
     })),
     headers: [...CDR_COLUMNS],
     total,

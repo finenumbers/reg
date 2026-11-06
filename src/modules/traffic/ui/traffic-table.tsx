@@ -9,6 +9,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ColumnFilterDropdown, type ColumnFilters } from "@/components/column-filters";
+import { BLOCKED_ROW_CLASS } from "@/components/blocked-row-class";
 import { HighlightText } from "@/components/highlight-text";
 import {
   BILLING_MINUTES_COLUMN,
@@ -148,14 +149,15 @@ export function TrafficTable({
           </TableRow>
         ) : (
           data.map((row) => {
-            const tone = cdrRowTone(
-              row.data.call_category ?? "",
-              row.data.call_status ?? "",
-            );
+            const blocked = row.blocked === true;
+            const tone = blocked
+              ? null
+              : cdrRowTone(row.data.call_category ?? "", row.data.call_status ?? "");
             return (
               <TableRow
                 key={row.id}
                 className={cn(
+                  blocked && BLOCKED_ROW_CLASS,
                   tone === "phantom" &&
                     "bg-green-200 hover:bg-green-300/90 dark:bg-green-950 dark:hover:bg-green-900",
                   tone === "call_error" && "bg-destructive/25 hover:bg-destructive/35",
@@ -179,7 +181,7 @@ export function TrafficTable({
                       className={cn(
                         "whitespace-nowrap",
                         boldSet.has(h) && "font-bold",
-                        trafficMissingLabelClass(h, shown),
+                        !blocked && trafficMissingLabelClass(h, shown),
                       )}
                     >
                       {VOIPMONITOR_COLUMN_SET.has(h) ? (
@@ -188,7 +190,10 @@ export function TrafficTable({
                             href={raw}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-primary underline-offset-2 hover:underline"
+                            className={cn(
+                              "underline-offset-2 hover:underline",
+                              blocked ? "text-white" : "text-primary",
+                            )}
                           >
                             {row.data[
                               h === VOIPMONITOR_COLUMN_IN

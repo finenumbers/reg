@@ -28,6 +28,8 @@ export type PurchasedNumberRow = {
   type_label: string;
   premium: string;
   rtu_connected: string;
+  /** Set from the hidden DID msisdn when that endpoint is «Заблокировано». */
+  blocked?: boolean;
 };
 
 export type ListPurchasedNumbersResult = {
@@ -36,6 +38,12 @@ export type ListPurchasedNumbersResult = {
   page: number;
   pageSize: number;
 };
+
+/** Full DID number. Not copied onto the screen row. */
+export function purchasedMsisdn(raw: unknown): string {
+  if (!raw || typeof raw !== "object") return "";
+  return asText((raw as Record<string, unknown>).msisdn);
+}
 
 function asText(value: unknown): string {
   if (value == null) return "";

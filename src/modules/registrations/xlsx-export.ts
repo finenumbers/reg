@@ -2,6 +2,7 @@
  * Build registrations list XLSX (full table, no filters).
  */
 
+import ExcelJS from "exceljs";
 import {
   createSimpleWorkbook,
   formatExportTimestamp,
@@ -53,13 +54,27 @@ export function registrationExportCell(
   }
 }
 
+/** Black fill and white text. Applied after the unregistered pink fill. */
+export function paintBlockedRegistrationCell(cell: ExcelJS.Cell): void {
+  cell.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "FF000000" },
+  };
+  const font = cell.font;
+  cell.font = {
+    name: font?.name ?? "Calibri",
+    size: font?.size ?? 11,
+    bold: Boolean(font?.bold),
+    color: { argb: "FFFFFFFF" },
+  };
+}
+
 export function registrationExportRow(
   row: RegistrationListItem,
   timeZone: string,
 ): string[] {
-  return REG_EXPORT_COLUMNS.map((key) =>
-    registrationExportCell(row, key, timeZone),
-  );
+  return REG_EXPORT_COLUMNS.map((key) => registrationExportCell(row, key, timeZone));
 }
 
 export type RegsExportResult = {
@@ -80,6 +95,10 @@ export async function buildRegsExportXlsx(): Promise<RegsExportResult> {
     rows,
     highlightFill: XLSX_UNREGISTERED_FILL,
     highlightRow: (index) => items[index]?.status === "Unregistered",
+    styleCell: ({ rowIndex, cell }) => {
+      if (rowIndex < 0 || !items[rowIndex]?.blocked) return;
+      paintBlockedRegistrationCell(cell);
+    },
   });
   const buffer = await workbookToBuffer(workbook);
   return {

@@ -7,9 +7,11 @@ import { facetQueryMatchesEmptyLabel } from "@/components/column-filters/types";
 import { didNotConfigured, listDidFacets, listDidNumbers } from "@/modules/did/client";
 import { loadDidCredentials } from "@/modules/did/credentials";
 import { DID_LIST_TIMEOUT_MS, type DidCredentials } from "@/modules/did/types";
+import { loadBlockedNumbers, numberIsBlocked } from "@/modules/phones/blocked-numbers";
 import {
   facetSearchQuery,
   mapPurchasedNumberRow,
+  purchasedMsisdn,
   shapePurchasedNumberFacets,
   type ListPurchasedNumbersResult,
   type PurchasedNumberRow,
@@ -30,12 +32,17 @@ export async function listPurchasedNumbers(
   query: PurchasedNumbersListQuery,
 ): Promise<ListPurchasedNumbersResult> {
   const creds = await requireCreds();
-  const page = await listDidNumbers("purchased", query, creds, DID_LIST_TIMEOUT_MS);
+  const [page, blocked] = await Promise.all([
+    listDidNumbers("purchased", query, creds, DID_LIST_TIMEOUT_MS),
+    loadBlockedNumbers(),
+  ]);
   const items: PurchasedNumberRow[] = [];
   for (const raw of page.items) {
     if (items.length >= query.pageSize) break;
     const row = mapPurchasedNumberRow(raw);
-    if (row) items.push(row);
+    if (!row) continue;
+    if (numberIsBlocked(blocked, purchasedMsisdn(raw))) row.blocked = true;
+    items.push(row);
   }
   return {
     items,

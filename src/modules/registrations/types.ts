@@ -23,6 +23,8 @@ export type RegistrationListItem = {
   geoPending?: boolean;
   lastSeenAt: string | null;
   lastChangedAt: string | null;
+  /** Exact catalog endpoint whose «Статус» is «Заблокировано». */
+  blocked?: boolean;
 };
 
 export type RegistrationHistoryItem = {

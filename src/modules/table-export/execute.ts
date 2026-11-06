@@ -7,7 +7,7 @@ import { loadDidCredentials } from "@/modules/did/credentials";
 import { didNotConfigured, listDidNumbers } from "@/modules/did/client";
 import { DID_LIST_TIMEOUT_MS } from "@/modules/did/types";
 import { FREE_NUMBER_COLUMNS, FREE_NUMBER_HEADERS } from "@/modules/free-numbers/columns";
-import { mapFreeNumberRow, type FreeNumberRow } from "@/modules/free-numbers/format";
+import { mapFreeNumberRow } from "@/modules/free-numbers/format";
 import {
   NUMBERING_COLUMNS,
   NUMBERING_HEADERS,
@@ -26,10 +26,7 @@ import {
   PURCHASED_NUMBER_COLUMNS,
   PURCHASED_NUMBER_HEADERS,
 } from "@/modules/purchased-numbers/columns";
-import {
-  mapPurchasedNumberRow,
-  type PurchasedNumberRow,
-} from "@/modules/purchased-numbers/format";
+import { mapPurchasedNumberRow } from "@/modules/purchased-numbers/format";
 import type {
   TableExportRequest,
   TableExportRunContext,
@@ -71,11 +68,12 @@ function textColumns(
   return columns.map((column) => ({ header: headers[column] ?? column, text: true }));
 }
 
-function catalogCells(
-  columns: readonly string[],
-  row: Record<string, string>,
-): StreamCell[] {
-  return columns.map((column) => row[column] ?? "");
+function catalogCells(columns: readonly string[], row: object): StreamCell[] {
+  const record = row as Record<string, unknown>;
+  return columns.map((column) => {
+    const value = record[column];
+    return typeof value === "string" ? value : "";
+  });
 }
 
 function numberingCells(row: NumberingRow): StreamCell[] {
@@ -150,9 +148,7 @@ async function writeCatalog(
         for (const raw of items) {
           const row = mapRow(raw);
           if (!row) continue;
-          await book.writeRow(
-            catalogCells(columns, row as FreeNumberRow & PurchasedNumberRow),
-          );
+          await book.writeRow(catalogCells(columns, row));
         }
       },
     });

@@ -18,6 +18,7 @@ import {
   loadGeoCacheByIps,
   uniqueLookupIps,
 } from "@/modules/geoip";
+import { blockedRegistrationPhones } from "@/modules/registrations/blocked-phone";
 import {
   buildPhoneEndpointEnrichmentMap,
   type PhoneEndpointEnrichment,
@@ -73,6 +74,7 @@ function toListItem(
   },
   enrichment: PhoneEndpointEnrichment | undefined = undefined,
   geo: { country: string | null; city: string | null; isp: string | null } | null = null,
+  blocked = false,
 ): RegistrationListItem {
   return {
     phone: row.phone,
@@ -87,6 +89,7 @@ function toListItem(
     isp: geo?.isp ?? null,
     lastSeenAt: row.lastSeenAt.toISOString(),
     lastChangedAt: row.lastChangedAt.toISOString(),
+    ...(blocked ? { blocked: true } : {}),
   };
 }
 
@@ -157,12 +160,14 @@ function toHistoryItem(row: {
   };
 }
 
-async function enrichmentForPhones(
-  phones: string[],
-): Promise<Map<string, PhoneEndpointEnrichment>> {
-  const map = new Map<string, PhoneEndpointEnrichment>();
+async function enrichmentForPhones(phones: string[]): Promise<{
+  enrichment: Map<string, PhoneEndpointEnrichment>;
+  blocked: Set<string>;
+}> {
+  const enrichment = new Map<string, PhoneEndpointEnrichment>();
+  const blocked = new Set<string>();
   const unique = [...new Set(phones.map((phone) => phone.trim()).filter(Boolean))];
-  if (unique.length === 0) return map;
+  if (unique.length === 0) return { enrichment, blocked };
   for (const batch of chunkArray(unique, DB_IN_CHUNK)) {
     const endpoints = await prisma.phoneEndpoint.findMany({
       where: { endpointNumber: { in: batch } },
@@ -171,10 +176,11 @@ async function enrichmentForPhones(
     });
     const part = buildPhoneEndpointEnrichmentMap(endpoints);
     for (const [phone, value] of part) {
-      if (!map.has(phone)) map.set(phone, value);
+      if (!enrichment.has(phone)) enrichment.set(phone, value);
     }
+    for (const phone of blockedRegistrationPhones(endpoints)) blocked.add(phone);
   }
-  return map;
+  return { enrichment, blocked };
 }
 
 export async function loadAllRegistrationItems(
@@ -183,9 +189,17 @@ export async function loadAllRegistrationItems(
   const rows = await prisma.registrationCurrent.findMany({
     orderBy: [{ phone: "asc" }],
   });
-  const enrichment = await enrichmentForPhones(rows.map((r) => r.phone));
+  const loaded = await enrichmentForPhones(rows.map((r) => r.phone));
   const items = sortRegistrationItemsByPhone(
-    rows.map((row) => toListItem(row, enrichment.get(row.phone.trim()))),
+    rows.map((row) => {
+      const phone = row.phone.trim();
+      return toListItem(
+        row,
+        loaded.enrichment.get(phone),
+        null,
+        loaded.blocked.has(phone),
+      );
+    }),
   );
   return attachGeoFields(items, { wait: opts.waitGeo });
 }
@@ -267,7 +281,7 @@ export async function getRegistrationDetail(
   if (!current) return null;
 
   const historyLimit = Math.min(500, Math.max(1, options.historyLimit ?? 100));
-  const [events, enrichment] = await Promise.all([
+  const [events, loaded] = await Promise.all([
     prisma.registrationEvent.findMany({
       where: { phone: normalized },
       orderBy: { changedAt: "desc" },
@@ -280,7 +294,14 @@ export async function getRegistrationDetail(
     current: withoutGeoPending(
       (
         await attachGeoFields(
-          [toListItem(current, enrichment.get(normalized))],
+          [
+            toListItem(
+              current,
+              loaded.enrichment.get(normalized),
+              null,
+              loaded.blocked.has(normalized),
+            ),
+          ],
           { wait: true },
         )
       )[0]!,
