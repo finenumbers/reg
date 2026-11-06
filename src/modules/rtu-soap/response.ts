@@ -203,11 +203,7 @@ function hasLocalName(node: unknown, expected: string): boolean {
   return found;
 }
 
-function collectColumns(
-  node: unknown,
-  out: SoapColumn[],
-  seen: Set<string>,
-): void {
+function collectColumns(node: unknown, out: SoapColumn[], seen: Set<string>): void {
   if (!node || typeof node !== "object") return;
   if (Array.isArray(node)) {
     for (const item of node) collectColumns(item, out, seen);
@@ -273,17 +269,28 @@ function columnAction(value: string | null): {
 }
 
 export type SoapCount =
-  | { kind: "fault"; detail: string }
-  | { kind: "bad" }
-  | { kind: "count"; count: number };
+  { kind: "fault"; detail: string } | { kind: "bad" } | { kind: "count"; count: number };
 
 /** Integer row count from `countRowset`. Several different integers are not a count. */
 export function interpretCountRowset(xml: string, password: string): SoapCount {
+  return interpretOneInteger(xml, password, "countRowsetResponse");
+}
+
+/** Integer changed-row count from `updateRowset`. Several different integers are not a count. */
+export function interpretUpdateRowset(xml: string, password: string): SoapCount {
+  return interpretOneInteger(xml, password, "updateRowsetResponse");
+}
+
+function interpretOneInteger(
+  xml: string,
+  password: string,
+  responseName: string,
+): SoapCount {
   const parsed = parseSoap(xml, password);
   if (parsed.kind !== "tree") return parsed;
-  if (!hasLocalName(parsed.tree, "countRowsetResponse")) return { kind: "bad" };
+  if (!hasLocalName(parsed.tree, responseName)) return { kind: "bad" };
   const numbers = new Set<string>();
-  collectCountIntegers(parsed.tree, false, numbers);
+  collectResponseIntegers(parsed.tree, responseName, false, numbers);
   if (numbers.size !== 1) return { kind: "bad" };
   const [text] = numbers;
   if (!text || !/^\d+$/.test(text)) return { kind: "bad" };
@@ -292,28 +299,40 @@ export function interpretCountRowset(xml: string, password: string): SoapCount {
   return { kind: "count", count };
 }
 
-function collectCountIntegers(node: unknown, inside: boolean, out: Set<string>): void {
+function collectResponseIntegers(
+  node: unknown,
+  responseName: string,
+  inside: boolean,
+  out: Set<string>,
+): void {
+  if (inside) {
+    const text = leafInteger(node);
+    if (text !== null) {
+      out.add(text);
+      return;
+    }
+  }
   if (!node || typeof node !== "object") return;
   if (Array.isArray(node)) {
-    for (const item of node) collectCountIntegers(item, inside, out);
+    for (const item of node) collectResponseIntegers(item, responseName, inside, out);
     return;
   }
   for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
     if (key.startsWith("@_")) continue;
-    const response = localName(key) === "countRowsetResponse";
+    const response = localName(key) === responseName;
     if (!inside && !response) {
-      collectCountIntegers(value, false, out);
+      collectResponseIntegers(value, responseName, false, out);
       continue;
     }
     if (response) {
       const direct = leafInteger(value);
       if (direct !== null) out.add(direct);
-      collectCountIntegers(value, true, out);
+      collectResponseIntegers(value, responseName, true, out);
       continue;
     }
     const text = leafInteger(value);
     if (text !== null) out.add(text);
-    collectCountIntegers(value, true, out);
+    collectResponseIntegers(value, responseName, true, out);
   }
 }
 

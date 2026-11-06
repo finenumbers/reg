@@ -15,6 +15,10 @@ const PERMISSIONS = [
     code: "phones:request",
     description: "Phone catalog actions other than viewing",
   },
+  {
+    code: "phones:activate",
+    description: "Change the RTU active flag from number geography",
+  },
   { code: "audit:read", description: "View audit log" },
   { code: "users:admin", description: "Manage users and roles" },
 ] as const;

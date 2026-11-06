@@ -76,6 +76,7 @@ curl -fsS https://regs.example.com/api/readyz
 5. Enable **SSL** (Let's Encrypt or your cert).
 6. Keep **Block Common Exploits** / Websockets as needed; Websockets not required for v1 UI.
 7. Ensure client IP headers (`X-Forwarded-For` / `X-Real-IP`) — NPM default is usually fine (login rate limits / audit).
+8. In the proxy host Advanced tab, set `proxy_read_timeout 300s;` before anyone uses «Сменить статус» on «География номеров». The default minute can close the browser response while the app is still reading the equipment page. The app does not send a second write when that happens.
 
 Set `BETTER_AUTH_URL` to the exact public origin (`https://regs.example.com`) and redeploy/restart `app` if you change it.
 

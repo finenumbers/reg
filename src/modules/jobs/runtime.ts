@@ -89,6 +89,13 @@ function tariffRateRetryDelay(failed: boolean): number | null {
 export interface JobRuntime {
   enqueue(input: JobEnqueueInput): Promise<JobEnqueueResult>;
   isInFlight(actionCode: AllowedActionCode): boolean;
+  /**
+   * Hold the phones.sync flag for one geography activation.
+   * The check and the add happen before the first await.
+   */
+  occupyPhonesSync<T>(
+    run: () => Promise<T>,
+  ): Promise<{ accepted: true; value: T } | { accepted: false }>;
 }
 
 export class PQueueJobRuntime implements JobRuntime {
@@ -97,6 +104,19 @@ export class PQueueJobRuntime implements JobRuntime {
 
   isInFlight(actionCode: AllowedActionCode): boolean {
     return this.inFlight.has(actionCode);
+  }
+
+  async occupyPhonesSync<T>(
+    run: () => Promise<T>,
+  ): Promise<{ accepted: true; value: T } | { accepted: false }> {
+    if (this.isInFlight("phones.sync")) return { accepted: false };
+    this.inFlight.add("phones.sync");
+    try {
+      const value = await run();
+      return { accepted: true, value };
+    } finally {
+      this.inFlight.delete("phones.sync");
+    }
   }
 
   async enqueue(input: JobEnqueueInput): Promise<JobEnqueueResult> {

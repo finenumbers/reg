@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  hasPermission,
-  ROLE_PERMISSIONS,
-} from "@/modules/rbac/permissions";
+import { hasPermission, ROLE_PERMISSIONS } from "@/modules/rbac/permissions";
 
 describe("RBAC permissions", () => {
   it("grants admin all seeded permissions", () => {
@@ -15,6 +12,8 @@ describe("RBAC permissions", () => {
     expect(hasPermission(ROLE_PERMISSIONS.operator, "settings:write")).toBe(false);
     expect(hasPermission(ROLE_PERMISSIONS.operator, "audit:read")).toBe(false);
     expect(hasPermission(ROLE_PERMISSIONS.operator, "regs:read")).toBe(true);
+    expect(hasPermission(ROLE_PERMISSIONS.operator, "phones:activate")).toBe(false);
+    expect(hasPermission(ROLE_PERMISSIONS.admin, "phones:activate")).toBe(true);
   });
 
   it("treats missing grants as deny", () => {

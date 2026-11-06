@@ -7,10 +7,17 @@ import { hasPermission } from "@/modules/rbac/permissions";
 export default async function NumberGeographyPage() {
   const ctx = await requirePagePermission("phones:read");
   const canRequest = hasPermission(ctx.authz.permissions, "phones:request");
+  const canActivate = hasPermission(ctx.authz.permissions, "phones:activate");
   const initial = await listNumberGeography({
     page: 1,
     pageSize: TABLE_PAGE_SIZE,
   });
 
-  return <NumberGeographyView initial={initial} canRequest={canRequest} />;
+  return (
+    <NumberGeographyView
+      initial={initial}
+      canRequest={canRequest}
+      canActivate={canActivate}
+    />
+  );
 }

@@ -1,7 +1,15 @@
-# Current Phase — production (v1.232.1)
+# Current Phase — production (v1.233.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, number geography, free numbers, purchased numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls.  
 **Date:** 2026-11-06
+
+## v1.233.0 — Geography can change one active flag
+
+There is no migration. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten by this deploy itself. Keep a single `app` replica. Replace the `app` container. Before the first use, set the NPM proxy read timeout for this site to 300 seconds.
+
+On «География номеров», «Активно» and «Заблокировано» are links for a session with `phones:activate`. That permission is on the admin role only. The app grants it to admin when it starts. The dialog asks for the same «Номер» again and shows the equipment name. The request body is the endpoint id and that number. The server chooses the opposite status.
+
+The switch write is one `updateRowset` on «Оборудование». The filter is nil. The row is the primary key plus «Запись активна» as `0` or `1`. No other SOAP write is sent, and this one is not retried. A following `phones.sync` read replaces the catalog only when the usual snapshot checks pass. The screen reports success when that second read shows the flag changed on that primary key alone and the other fields of that row stayed. A busy phone load, a missing update bit, a non-checkbox column, or a raw cell other than `0` or `1` sends nothing.
 
 ## v1.232.1 — Registration status badges stay on blocked rows
 

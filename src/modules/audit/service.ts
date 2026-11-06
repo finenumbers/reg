@@ -45,6 +45,7 @@ export const AUDIT_ACTIONS = {
   PHONES_SYNC_START: "phones.sync_start",
   PHONES_SYNC_FINISH: "phones.sync_finish",
   PHONES_SUPPLIERS_IMPORT: "phones.suppliers_import",
+  PHONES_ACTIVATION: "phones.activation",
   GROUPS_SYNC_MANUAL: "groups.sync_manual",
   GROUPS_SYNC_START: "groups.sync_start",
   GROUPS_SYNC_FINISH: "groups.sync_finish",

@@ -8,6 +8,7 @@ import { EQUIPMENT_TITLE, findEquipmentTable } from "@/modules/phones/rtu-catalo
 import {
   mapEquipmentRows,
   prepareEquipmentColumns,
+  type EquipmentIdentity,
   type EquipmentLayout,
   type LookupPairs,
 } from "@/modules/phones/rtu-rows";
@@ -55,8 +56,22 @@ export type EquipmentAccount = {
   caPem: string | null;
 };
 
+export type EquipmentActiveColumn = {
+  name: string;
+  ctlType: string | null;
+  action: number | null;
+  actionUnreadable: boolean;
+};
+
 export type EquipmentRead =
-  | { ok: true; payload: ParsedPhonesPayload }
+  | {
+      ok: true;
+      payload: ParsedPhonesPayload;
+      identities?: EquipmentIdentity[];
+      objectId?: string;
+      pkColumn?: string;
+      activeColumn?: EquipmentActiveColumn;
+    }
   | { ok: false; detail: string };
 
 export type EquipmentExchange = (input: {
@@ -235,38 +250,42 @@ export async function readEquipment(deps: {
     expectedCount = count.count;
   }
 
-  const pages = await collectEquipmentPages(async (offset) => {
-    let envelope: string;
-    try {
-      envelope = buildSelectRowsetEnvelope(
-        readsPlan.selectRowset,
-        deps.account.login,
-        deps.account.password,
-        table.objectId,
-        layout.names,
-        undefined,
-        offset,
-        EQUIPMENT_BOUNDS,
+  const pages = await collectEquipmentPages(
+    async (offset) => {
+      let envelope: string;
+      try {
+        envelope = buildSelectRowsetEnvelope(
+          readsPlan.selectRowset,
+          deps.account.login,
+          deps.account.password,
+          table.objectId,
+          layout.names,
+          undefined,
+          offset,
+          EQUIPMENT_BOUNDS,
+        );
+      } catch {
+        return { ok: false, detail: "Страница списка оборудования не собрана." };
+      }
+      const selected = await postRead(
+        deps,
+        exchange,
+        readsPlan.endpoint,
+        readsPlan.selectRowset.soapAction,
+        envelope,
+        PAGE_TIMEOUT_MS,
       );
-    } catch {
-      return { ok: false, detail: "Страница списка оборудования не собрана." };
-    }
-    const selected = await postRead(
-      deps,
-      exchange,
-      readsPlan.endpoint,
-      readsPlan.selectRowset.soapAction,
-      envelope,
-      PAGE_TIMEOUT_MS,
-    );
-    if (!selected.ok) return selected;
-    const parsed = interpretSelectRowset(selected.text, secret);
-    if (parsed.kind === "fault") return { ok: false, detail: parsed.detail };
-    if (parsed.kind !== "rows") {
-      return { ok: false, detail: "Ответ selectRowset не разобран." };
-    }
-    return { ok: true, rows: parsed.rows };
-  }, layout.pk, expectedCount !== null);
+      if (!selected.ok) return selected;
+      const parsed = interpretSelectRowset(selected.text, secret);
+      if (parsed.kind === "fault") return { ok: false, detail: parsed.detail };
+      if (parsed.kind !== "rows") {
+        return { ok: false, detail: "Ответ selectRowset не разобран." };
+      }
+      return { ok: true, rows: parsed.rows };
+    },
+    layout.pk,
+    expectedCount !== null,
+  );
   if (!pages.ok) return fail(pages.detail);
   if (expectedCount !== null && pages.rows.length !== expectedCount) {
     return fail(
@@ -284,7 +303,21 @@ export async function readEquipment(deps: {
     },
   });
   if (!mapped.ok) return fail(mapped.detail);
-  return mapped;
+  const active = columns.columns.find((column) => column.name === layout.field.active);
+  if (!active) return fail("Колонка «Запись активна» не разобрана.");
+  return {
+    ok: true,
+    payload: mapped.payload,
+    identities: mapped.identities,
+    objectId: table.objectId,
+    pkColumn: layout.pk,
+    activeColumn: {
+      name: active.name,
+      ctlType: active.ctlType,
+      action: active.action,
+      actionUnreadable: active.actionUnreadable,
+    },
+  };
 }
 
 /**
@@ -296,14 +329,12 @@ export async function collectEquipmentPages(
   readPage: (
     offset: number,
   ) => Promise<
-    | { ok: true; rows: Array<Record<string, string>> }
-    | { ok: false; detail: string }
+    { ok: true; rows: Array<Record<string, string>> } | { ok: false; detail: string }
   >,
   pk: string,
   verifyCount: boolean,
 ): Promise<
-  | { ok: true; rows: Array<Record<string, string>> }
-  | { ok: false; detail: string }
+  { ok: true; rows: Array<Record<string, string>> } | { ok: false; detail: string }
 > {
   const maxPages = verifyCount ? EQUIPMENT_MAX_PAGES : 1;
   const rows: Array<Record<string, string>> = [];
@@ -316,7 +347,8 @@ export async function collectEquipmentPages(
     }
     for (const row of selected.rows) {
       const id = (row[pk] ?? "").trim();
-      if (!id) return { ok: false, detail: "Пустой первичный ключ в строке оборудования." };
+      if (!id)
+        return { ok: false, detail: "Пустой первичный ключ в строке оборудования." };
       if (seen.has(id)) {
         return { ok: false, detail: "Страницы оборудования пересекаются." };
       }

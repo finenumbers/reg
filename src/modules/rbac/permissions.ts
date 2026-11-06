@@ -9,6 +9,7 @@ export const PERMISSIONS = [
   "regs:poll",
   "phones:read",
   "phones:request",
+  "phones:activate",
   "audit:read",
   "users:admin",
 ] as const;
@@ -26,16 +27,11 @@ export const ROLE_PERMISSIONS: Record<RoleName, PermissionCode[]> = {
     "regs:poll",
     "phones:read",
     "phones:request",
+    "phones:activate",
     "audit:read",
     "users:admin",
   ],
-  operator: [
-    "regs:read",
-    "regs:poll",
-    "phones:read",
-    "phones:request",
-    "ssh:test",
-  ],
+  operator: ["regs:read", "regs:poll", "phones:read", "phones:request", "ssh:test"],
 };
 
 export function hasPermission(

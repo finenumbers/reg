@@ -21,6 +21,7 @@ import {
   type GeographyRowTone,
 } from "@/modules/number-geography/row-tone";
 import type { NumberGeographyItem } from "@/modules/number-geography/types";
+import { STATUS_ACTIVE, STATUS_BLOCKED } from "@/modules/phones/types";
 
 type Props = {
   data: NumberGeographyItem[];
@@ -33,6 +34,7 @@ type Props = {
   openColumn: string | null;
   onOpenColumnChange: (column: string | null) => void;
   onColumnFilterChange: (column: string, values: string[]) => void;
+  onActivation?: (row: NumberGeographyItem) => void;
 };
 
 const ROW_TONE_CLASS: Record<GeographyRowTone, string> = {
@@ -58,6 +60,7 @@ export function NumberGeographyTable({
   openColumn,
   onOpenColumnChange,
   onColumnFilterChange,
+  onActivation,
 }: Props) {
   const showEmpty = !loading && data.length === 0;
   const colCount = NUMBER_GEOGRAPHY_COLUMNS.length;
@@ -125,6 +128,17 @@ export function NumberGeographyTable({
                   >
                     {column === "number" ? (
                       <HighlightText text={cellText(row, column)} query={phoneQ} />
+                    ) : column === "activation" &&
+                      onActivation &&
+                      (cellText(row, column) === STATUS_ACTIVE ||
+                        cellText(row, column) === STATUS_BLOCKED) ? (
+                      <button
+                        type="button"
+                        className="text-inherit underline underline-offset-2"
+                        onClick={() => onActivation(row)}
+                      >
+                        {cellText(row, column)}
+                      </button>
                     ) : (
                       cellText(row, column)
                     )}

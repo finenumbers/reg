@@ -87,9 +87,7 @@ function understandBinding(
   return null;
 }
 
-function getObjectsMessageName(
-  definitions: Record<string, unknown>,
-): string | null {
+function getObjectsMessageName(definitions: Record<string, unknown>): string | null {
   for (const portType of childRecords(definitions, "portType")) {
     for (const operation of childRecords(portType, "operation")) {
       if (attr(operation, "name") !== "getObjects") continue;
@@ -194,10 +192,7 @@ function endpointFor(
   return sawAddress ? "mismatch" : "missing";
 }
 
-function findNamedElement(
-  root: unknown,
-  name: string,
-): Record<string, unknown> | null {
+function findNamedElement(root: unknown, name: string): Record<string, unknown> | null {
   let found: Record<string, unknown> | null = null;
   walk(root, (key, value) => {
     if (found || localName(key) !== "element") return;
@@ -260,10 +255,7 @@ function asRecords(value: unknown): Record<string, unknown>[] {
   );
 }
 
-function walk(
-  node: unknown,
-  visit: (key: string, value: unknown) => void,
-): void {
+function walk(node: unknown, visit: (key: string, value: unknown) => void): void {
   if (!node || typeof node !== "object") return;
   if (Array.isArray(node)) {
     for (const item of node) walk(item, visit);
@@ -276,7 +268,10 @@ function walk(
   }
 }
 
-function attr(node: Record<string, unknown> | undefined, name: string): string | undefined {
+function attr(
+  node: Record<string, unknown> | undefined,
+  name: string,
+): string | undefined {
   if (!node) return undefined;
   for (const [key, value] of Object.entries(node)) {
     if (!key.startsWith("@_")) continue;
@@ -314,10 +309,7 @@ export type CallParamStyle = "scalar" | "repeat" | "items";
 type LookupOperation = typeof GET_LOOKUP | typeof GET_COLUMN_LOOKUP;
 type CountOperation = typeof COUNT_ROWSET;
 type ReadOperation =
-  | typeof DESCRIBE_TABLE
-  | typeof SELECT_ROWSET
-  | LookupOperation
-  | CountOperation;
+  typeof DESCRIBE_TABLE | typeof SELECT_ROWSET | LookupOperation | CountOperation;
 
 export type CallBinding =
   | {
@@ -412,7 +404,9 @@ export function readCallReads(xml: string, origin: string): CallReadPlan {
 
   let hostMismatch = false;
   for (const binding of childRecords(definitions, "binding")) {
-    const describeTable = asCallRead(understandCall(definitions, binding, DESCRIBE_TABLE));
+    const describeTable = asCallRead(
+      understandCall(definitions, binding, DESCRIBE_TABLE),
+    );
     const selectRowset = asCallRead(understandCall(definitions, binding, SELECT_ROWSET));
     if (!describeTable || !selectRowset) continue;
     const endpoint = endpointFor(definitions, attr(binding, "name") ?? "", origin);
@@ -438,6 +432,112 @@ export function readCallReads(xml: string, origin: string): CallReadPlan {
     };
   }
   return { ok: false, reason: hostMismatch ? "host" : "unsupported" };
+}
+
+const UPDATE_ROWSET = "updateRowset";
+const UPDATE_PARTS = ["p_table_hi", "p_rowset", "p_filter"] as const;
+
+export type ActivationWriteBinding =
+  | {
+      kind: "rpc-encoded";
+      operation: typeof UPDATE_ROWSET;
+      operationNamespace: string;
+      soapAction: string;
+      parts: readonly string[];
+    }
+  | {
+      kind: "document-literal";
+      operation: typeof UPDATE_ROWSET;
+      targetNamespace: string;
+      soapAction: string;
+      parts: readonly string[];
+    };
+
+/**
+ * The one write binding. Accepted only when the parts are the handbook
+ * `updateRowset (p_table_hi, p_rowset, p_filter)`. Read plans never ask for it.
+ */
+export function readActivationWrite(
+  xml: string,
+  origin: string,
+):
+  | { ok: true; endpoint: string; binding: ActivationWriteBinding }
+  | { ok: false; reason: "doctype" | "parse" | "unsupported" | "host" } {
+  if (hasDoctype(xml)) return { ok: false, reason: "doctype" };
+  let parsed: unknown;
+  try {
+    parsed = parser.parse(xml);
+  } catch {
+    return { ok: false, reason: "parse" };
+  }
+  const definitions = findChildRecord(parsed, "definitions");
+  if (!definitions) return { ok: false, reason: "parse" };
+
+  let hostMismatch = false;
+  for (const binding of childRecords(definitions, "binding")) {
+    const updateRowset = understandUpdate(definitions, binding);
+    if (!updateRowset) continue;
+    const endpoint = endpointFor(definitions, attr(binding, "name") ?? "", origin);
+    if (endpoint === "missing") continue;
+    if (endpoint === "mismatch") {
+      hostMismatch = true;
+      continue;
+    }
+    return { ok: true, endpoint, binding: updateRowset };
+  }
+  return { ok: false, reason: hostMismatch ? "host" : "unsupported" };
+}
+
+function understandUpdate(
+  definitions: Record<string, unknown>,
+  binding: Record<string, unknown>,
+): ActivationWriteBinding | null {
+  const soapBinding = childRecords(binding, "binding")[0];
+  const style = soapBinding ? attr(soapBinding, "style") : undefined;
+  for (const operation of childRecords(binding, "operation")) {
+    if (attr(operation, "name") !== UPDATE_ROWSET) continue;
+    const soapOperation = childRecords(operation, "operation")[0];
+    const soapAction = soapOperation ? (attr(soapOperation, "soapAction") ?? "") : "";
+    const input = childRecords(operation, "input")[0];
+    const body = input ? childRecords(input, "body")[0] : undefined;
+    const use = body ? attr(body, "use") : undefined;
+    if (style === "rpc" && use === "encoded") {
+      const operationNamespace = body ? (attr(body, "namespace") ?? "") : "";
+      if (!operationNamespace) return null;
+      const parts = inputPartNames(definitions, UPDATE_ROWSET);
+      if (!parts || !exactUpdateParts(parts)) return null;
+      return {
+        kind: "rpc-encoded",
+        operation: UPDATE_ROWSET,
+        operationNamespace,
+        soapAction,
+        parts,
+      };
+    }
+    if (style === "document" && use === "literal") {
+      const element = findNamedElement(definitions, UPDATE_ROWSET);
+      if (!element) return null;
+      const names = sequenceElements(element)
+        .map((item) => attr(item, "name"))
+        .filter((name): name is string => Boolean(name));
+      if (names.some((name) => !isXmlName(name)) || !exactUpdateParts(names)) return null;
+      return {
+        kind: "document-literal",
+        operation: UPDATE_ROWSET,
+        targetNamespace: attr(definitions, "targetNamespace") ?? "",
+        soapAction,
+        parts: names,
+      };
+    }
+    return null;
+  }
+  return null;
+}
+
+function exactUpdateParts(names: readonly string[]): boolean {
+  if (names.length !== UPDATE_PARTS.length) return false;
+  const seen = new Set(names);
+  return UPDATE_PARTS.every((name) => seen.has(name));
 }
 
 function asCallRead(binding: BoundCall | null): CallBinding | null {
@@ -574,7 +674,13 @@ function documentCallBinding(
     if (!style) return null;
     parameters.push({ name, style });
   }
-  if (!exactParts(parameters.map((item) => item.name), operationName)) return null;
+  if (
+    !exactParts(
+      parameters.map((item) => item.name),
+      operationName,
+    )
+  )
+    return null;
   if (operationName === SELECT_ROWSET) {
     const columns = parameters.find((item) => item.name === "p_columns");
     if (!columns || columns.style === "scalar") return null;

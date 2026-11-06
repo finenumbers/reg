@@ -8,12 +8,10 @@ import { prisma } from "@/lib/db";
 import { logger } from "@/lib/logger";
 import { AUDIT_ACTIONS, auditService } from "@/modules/audit";
 import { applyPhonesSnapshot } from "@/modules/phones/apply";
-import {
-  readStoredEquipment,
-  type EquipmentRead,
-} from "@/modules/phones/rtu-read";
+import { readStoredEquipment, type EquipmentRead } from "@/modules/phones/rtu-read";
 import {
   refusePhonesSnapshot,
+  type EquipmentIdentity,
   type PhoneCatalogSide,
 } from "@/modules/phones/rtu-rows";
 import type { PhoneRowData } from "@/modules/phones/types";
@@ -32,6 +30,8 @@ export type PhonesSyncProcessorResult = {
   endpointCount: number;
   gatewayCount: number;
   exitCode: number | null;
+  /** In-memory rows from the read. Not stored on the job. */
+  identities: EquipmentIdentity[] | null;
 };
 
 export type PhonesSyncProcessorDeps = {
@@ -56,7 +56,8 @@ function asRow(data: unknown): PhoneRowData {
   const out: PhoneRowData = {};
   for (const [key, value] of Object.entries(data)) {
     if (typeof value === "string") out[key] = value;
-    else if (typeof value === "number" || typeof value === "boolean") out[key] = String(value);
+    else if (typeof value === "number" || typeof value === "boolean")
+      out[key] = String(value);
   }
   return out;
 }
@@ -104,6 +105,8 @@ export async function processPhonesSync(
       trigger: input.trigger,
     });
 
+    let snapshotIdentities: EquipmentIdentity[] | null = null;
+
     const fail = async (errorMessage: string): Promise<PhonesSyncProcessorResult> => {
       const finishedAt = new Date();
       await prisma.jobRun.update({
@@ -145,11 +148,13 @@ export async function processPhonesSync(
         endpointCount: 0,
         gatewayCount: 0,
         exitCode: null,
+        identities: snapshotIdentities,
       };
     };
 
     const read = await deps.read();
     if (!read.ok) return fail(read.detail);
+    snapshotIdentities = read.identities ?? null;
     const payload = read.payload;
     const totalRows = payload.endpoints.length + payload.gateways.length;
 
@@ -157,7 +162,9 @@ export async function processPhonesSync(
     try {
       catalog = await deps.catalog();
     } catch (error) {
-      return fail(error instanceof Error ? error.message : "Failed to read the phone catalog");
+      return fail(
+        error instanceof Error ? error.message : "Failed to read the phone catalog",
+      );
     }
     if (totalRows === 0 && catalog.endpoints.length + catalog.gateways.length > 0) {
       return fail("Пустой снимок отклонён — отказ от wipe непустой таблицы номеров");
@@ -250,6 +257,7 @@ export async function processPhonesSync(
       endpointCount: applyResult.endpointCount,
       gatewayCount: applyResult.gatewayCount,
       exitCode: null,
+      identities: snapshotIdentities,
     };
   } finally {
     await failJobRunIfStillRunning(

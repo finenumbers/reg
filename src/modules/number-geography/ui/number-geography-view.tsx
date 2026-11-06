@@ -38,6 +38,10 @@ import type {
   NumberGeographyItem,
   NumberGeographyRefresh,
 } from "@/modules/number-geography/types";
+import {
+  ActivationDialog,
+  type ActivationTarget,
+} from "@/modules/number-geography/ui/activation-dialog";
 import { NumberGeographyTable } from "@/modules/number-geography/ui/number-geography-table";
 
 const PAGE_SIZE = TABLE_PAGE_SIZE;
@@ -46,9 +50,10 @@ const PHONE_SEARCH_DEBOUNCE_MS = 300;
 type Props = {
   initial: ListNumberGeographyResult;
   canRequest: boolean;
+  canActivate: boolean;
 };
 
-export function NumberGeographyView({ initial, canRequest }: Props) {
+export function NumberGeographyView({ initial, canRequest, canActivate }: Props) {
   const [filters, setFilters] = useState<ColumnFilters>({});
   const [phoneInput, setPhoneInput] = useState("");
   const [phoneQ, setPhoneQ] = useState("");
@@ -64,6 +69,9 @@ export function NumberGeographyView({ initial, canRequest }: Props) {
   const [uploading, setUploading] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [activationTarget, setActivationTarget] = useState<ActivationTarget | null>(null);
+  const [activationPending, setActivationPending] = useState(false);
+  const dialogOpenRef = useRef(false);
   const [lookupFailed, setLookupFailed] = useState<ReadonlySet<string>>(() => new Set());
   const supplierFileRef = useRef<HTMLInputElement>(null);
   const [listError, setListError] = useState<string | null>(null);
@@ -324,6 +332,7 @@ export function NumberGeographyView({ initial, canRequest }: Props) {
       if (document.visibilityState === "hidden") return;
       if (!refreshRef.current.enabled) return;
       if (inFlightRef.current) return;
+      if (dialogOpenRef.current) return;
       if (openColumnRef.current) return;
       if (pageRef.current > 1 || itemsLenRef.current > PAGE_SIZE) return;
       void loadListRef.current({ page: 1, replace: true, soft: true });
@@ -480,8 +489,67 @@ export function NumberGeographyView({ initial, canRequest }: Props) {
     }
   }
 
+  function openActivation(row: NumberGeographyItem) {
+    if (!canActivate || activationPending) return;
+    dialogOpenRef.current = true;
+    setActionError(null);
+    setActionMessage(null);
+    setActivationTarget({
+      id: row.id,
+      number: row.number,
+      title: row.title,
+      activation: row.activation,
+    });
+  }
+
+  function closeActivation() {
+    if (activationPending) return;
+    dialogOpenRef.current = false;
+    setActivationTarget(null);
+  }
+
+  async function confirmActivation(phone: string) {
+    const target = activationTarget;
+    if (!target || activationPending) return;
+    setActivationPending(true);
+    dialogOpenRef.current = true;
+    try {
+      const res = await fetch("/api/number-geography/activation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ endpointId: target.id, phone }),
+      });
+      const payload = (await res.json().catch(() => null)) as {
+        ok?: boolean;
+        message?: string;
+        error?: string;
+      } | null;
+      const message =
+        payload?.message ||
+        payload?.error ||
+        "Ответ не получен. Не нажимайте ссылку снова, пока строка не обновится или не появится сообщение сервера.";
+      if (!res.ok || payload?.ok !== true) setActionError(message);
+      else setActionMessage(message);
+      if (res.ok) await loadList({ page: 1, replace: true });
+    } catch {
+      setActionError(
+        "Ответ не получен. Не нажимайте ссылку снова, пока строка не обновится или не появится сообщение сервера.",
+      );
+    } finally {
+      setActivationPending(false);
+      dialogOpenRef.current = false;
+      setActivationTarget(null);
+    }
+  }
+
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
+      <ActivationDialog
+        target={activationTarget}
+        pending={activationPending}
+        onClose={closeActivation}
+        onConfirm={(phone) => void confirmActivation(phone)}
+      />
       <div className="flex shrink-0 flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold tracking-tight [text-box:trim-start_cap_alphabetic]">
@@ -594,6 +662,7 @@ export function NumberGeographyView({ initial, canRequest }: Props) {
             openColumn={openColumn}
             onOpenColumnChange={setOpenColumn}
             onColumnFilterChange={onColumnChange}
+            onActivation={canActivate ? openActivation : undefined}
           />
         </TableInfiniteBody>
         <TableCountFooter shown={items.length} total={total} />

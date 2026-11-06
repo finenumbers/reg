@@ -171,6 +171,18 @@ export function prepareEquipmentColumns(
   };
 }
 
+export type EquipmentIdentity = {
+  pk: string;
+  kind: "endpoint" | "gateway" | "other";
+  name: string;
+  number: string;
+  /** Trimmed raw «Запись активна» cell. */
+  rawActive: string;
+  /** Decoded «Статус» for an endpoint. The raw cell for every other row. */
+  activation: string;
+  endpoint: PhoneRowData | null;
+};
+
 export function mapEquipmentRows(input: {
   layout: EquipmentLayout;
   rows: readonly Record<string, string>[];
@@ -179,7 +191,9 @@ export function mapEquipmentRows(input: {
     protocol: LookupPairs | null;
     groups: LookupPairs | null;
   };
-}): { ok: true; payload: ParsedPhonesPayload } | { ok: false; detail: string } {
+}):
+  | { ok: true; payload: ParsedPhonesPayload; identities: EquipmentIdentity[] }
+  | { ok: false; detail: string } {
   const typePairs = input.layout.lookup.type ? input.lookups.type : null;
   if (input.layout.lookup.type && !typePairs) {
     return { ok: false, detail: "Подстановка «Тип оборудования» пуста." };
@@ -207,8 +221,17 @@ export function mapEquipmentRows(input: {
   const groupLabels = input.lookups.groups ? pairMap(input.lookups.groups) : null;
   const endpoints: ParsedPhoneEndpoint[] = [];
   const gateways: ParsedPhoneGateway[] = [];
+  const identities: EquipmentIdentity[] = [];
+  const seenPk = new Set<string>();
 
   for (const row of input.rows) {
+    const pk = cell(row, input.layout.pk).trim();
+    if (!pk) return { ok: false, detail: "Пустой первичный ключ в строке оборудования." };
+    if (seenPk.has(pk)) {
+      return { ok: false, detail: "Повтор первичного ключа в строке оборудования." };
+    }
+    seenPk.add(pk);
+    const rawActive = cell(row, input.layout.field.active).trim();
     const kind = classifyType(
       cell(row, input.layout.field.equipmentType),
       gatewayPair,
@@ -217,7 +240,18 @@ export function mapEquipmentRows(input: {
     if (kind === "ambiguous") {
       return { ok: false, detail: "Тип оборудования неоднозначен." };
     }
-    if (kind === "other") continue;
+    if (kind === "other") {
+      identities.push({
+        pk,
+        kind,
+        name: cell(row, input.layout.field.name).trim(),
+        number: "",
+        rawActive,
+        activation: rawActive,
+        endpoint: null,
+      });
+      continue;
+    }
     const name = cell(row, input.layout.field.name).trim();
     if (!name) return { ok: false, detail: "Пустое название оборудования." };
     const originator = decodeBool(cell(row, input.layout.field.originator));
@@ -240,6 +274,15 @@ export function mapEquipmentRows(input: {
       );
       fillShared(data, row, input.layout, srcZone, dstZone, groups);
       gateways.push({ name, data });
+      identities.push({
+        pk,
+        kind: "gateway",
+        name,
+        number: "",
+        rawActive,
+        activation: rawActive,
+        endpoint: null,
+      });
       continue;
     }
     const registration = decodeBool(cell(row, input.layout.field.registration));
@@ -278,6 +321,15 @@ export function mapEquipmentRows(input: {
       endpointNumber: number.length > 0 ? number : null,
       data,
     });
+    identities.push({
+      pk,
+      kind: "endpoint",
+      name,
+      number,
+      rawActive,
+      activation,
+      endpoint: { ...data },
+    });
   }
 
   if (input.rows.length > 0 && endpoints.length === 0 && gateways.length === 0) {
@@ -292,6 +344,7 @@ export function mapEquipmentRows(input: {
       endpoints,
       gateways,
     },
+    identities,
   };
 }
 

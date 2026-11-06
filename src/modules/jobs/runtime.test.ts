@@ -587,4 +587,33 @@ describe("PQueueJobRuntime anti-overlap", () => {
     expect(vacuumResult.reason).toMatch(/month export/);
     expect(processDatabaseVacuum).not.toHaveBeenCalled();
   });
+
+  it("holds phones.sync until the activation finishes and clears the flag after a throw", async () => {
+    const runtime = new PQueueJobRuntime();
+    const gate: { release: (() => void) | null } = { release: null };
+    const held = runtime.occupyPhonesSync(
+      () =>
+        new Promise<void>((resolve) => {
+          gate.release = resolve;
+        }),
+    );
+    expect(runtime.isInFlight("phones.sync")).toBe(true);
+    const queued = await runtime.enqueue({
+      actionCode: "phones.sync",
+      trigger: "manual",
+    });
+    expect(queued.accepted).toBe(false);
+    const release = gate.release;
+    if (!release) throw new Error("missing release");
+    release();
+    await held;
+    expect(runtime.isInFlight("phones.sync")).toBe(false);
+
+    await expect(
+      runtime.occupyPhonesSync(async () => {
+        throw new Error("stopped");
+      }),
+    ).rejects.toThrow("stopped");
+    expect(runtime.isInFlight("phones.sync")).toBe(false);
+  });
 });
