@@ -9,6 +9,7 @@ import {
   workbookToBuffer,
 } from "@/lib/xlsx-export";
 import {
+  geographyDigitAlign,
   NUMBER_GEOGRAPHY_COLUMNS,
   NUMBER_GEOGRAPHY_HEADERS,
 } from "@/modules/number-geography/columns";
@@ -55,8 +56,13 @@ export async function buildNumberGeographyExportXlsx(): Promise<NumberGeographyE
     sheetName: "География номеров",
     headers,
     rows,
-    styleCell: ({ rowIndex, cell }) => {
+    styleCell: ({ rowIndex, colIndex, cell }) => {
       if (rowIndex < 0) return;
+      const align = geographyDigitAlign(NUMBER_GEOGRAPHY_COLUMNS[colIndex] ?? "category");
+      if (align) {
+        cell.numFmt = "@";
+        cell.alignment = { horizontal: align, vertical: "middle" };
+      }
       const item = items[rowIndex];
       if (!item) return;
       const tone = geographyRowTone(item, { surface: "export" });

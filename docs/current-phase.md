@@ -1,7 +1,13 @@
-# Current Phase — production (v1.234.0)
+# Current Phase — production (v1.235.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, number geography, free numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls.  
 **Date:** 2026-11-06
+
+## v1.235.0 — Geography splits the phone into ABC and the local number
+
+The migrator creates `cdr_tariff_abc`. It does not replace `cdr_tariff_direction`, the rater, or the CDR trigger, and it does not rewrite stored rows. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten by this deploy itself. Keep a single `app` replica. Replace the `app` container after migrate. Refresh the browser.
+
+On «География номеров», «ABC» and «Номер» sit between «Город» and «Клиент». ABC is the tariff code that already chooses the city. «Номер» is the rest of «Телефонный номер». A number the tariff does not match leaves both cells empty. The screen aligns ABC to the left and «Номер» to the right. The XLSX stores those cells as text. «Загрузить поставщиков» still reads «Телефонный номер» from a geography export. The new «Номер» column is not the phone. Nothing is written to the switch.
 
 ## v1.234.0 — Purchased numbers leave, geography phone column moves
 

@@ -10,8 +10,10 @@ import {
 } from "@/components/ui/table";
 import { ColumnFilterDropdown, type ColumnFilters } from "@/components/column-filters";
 import { HighlightText } from "@/components/highlight-text";
+import { cn } from "@/lib/utils";
 import { buildNumberGeographyFacetsUrl } from "@/modules/number-geography/api-client";
 import {
+  geographyDigitAlign,
   NUMBER_GEOGRAPHY_COLUMNS,
   NUMBER_GEOGRAPHY_HEADERS,
   type NumberGeographyColumn,
@@ -115,35 +117,39 @@ export function NumberGeographyTable({
             });
             return (
               <TableRow key={row.id} className={ROW_TONE_CLASS[tone]}>
-                {NUMBER_GEOGRAPHY_COLUMNS.map((column) => (
-                  <TableCell
-                    key={`${row.id}-${column}`}
-                    className={
-                      column === "number"
-                        ? tone === "blocked"
-                          ? "font-bold text-white"
-                          : "font-bold text-black dark:text-white"
-                        : undefined
-                    }
-                  >
-                    {column === "number" ? (
-                      <HighlightText text={cellText(row, column)} query={phoneQ} />
-                    ) : column === "activation" &&
-                      onActivation &&
-                      (cellText(row, column) === STATUS_ACTIVE ||
-                        cellText(row, column) === STATUS_BLOCKED) ? (
-                      <button
-                        type="button"
-                        className="text-inherit underline underline-offset-2"
-                        onClick={() => onActivation(row)}
-                      >
-                        {cellText(row, column)}
-                      </button>
-                    ) : (
-                      cellText(row, column)
-                    )}
-                  </TableCell>
-                ))}
+                {NUMBER_GEOGRAPHY_COLUMNS.map((column) => {
+                  const align = geographyDigitAlign(column);
+                  return (
+                    <TableCell
+                      key={`${row.id}-${column}`}
+                      className={cn(
+                        align === "left" && "text-left tabular-nums",
+                        align === "right" && "text-right tabular-nums",
+                        column === "number" &&
+                          (tone === "blocked"
+                            ? "font-bold text-white"
+                            : "font-bold text-black dark:text-white"),
+                      )}
+                    >
+                      {column === "number" ? (
+                        <HighlightText text={cellText(row, column)} query={phoneQ} />
+                      ) : column === "activation" &&
+                        onActivation &&
+                        (cellText(row, column) === STATUS_ACTIVE ||
+                          cellText(row, column) === STATUS_BLOCKED) ? (
+                        <button
+                          type="button"
+                          className="text-inherit underline underline-offset-2"
+                          onClick={() => onActivation(row)}
+                        >
+                          {cellText(row, column)}
+                        </button>
+                      ) : (
+                        cellText(row, column)
+                      )}
+                    </TableCell>
+                  );
+                })}
               </TableRow>
             );
           })

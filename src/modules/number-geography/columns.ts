@@ -7,6 +7,8 @@ export const NUMBER_GEOGRAPHY_COLUMNS = [
   "category",
   "supplier",
   "city",
+  "abc",
+  "telephone",
   "client",
   "capacity",
   "operator",
@@ -21,6 +23,8 @@ export type NumberGeographyColumn = (typeof NUMBER_GEOGRAPHY_COLUMNS)[number];
 export const NUMBER_GEOGRAPHY_HEADERS: Record<NumberGeographyColumn, string> = {
   category: "Категория",
   city: "Город",
+  abc: "ABC",
+  telephone: "Номер",
   supplier: "Поставщик",
   number: "Телефонный номер",
   client: "Клиент",
@@ -41,9 +45,20 @@ export function isNumberGeographyColumn(value: string): value is NumberGeography
   return COLUMN_SET.has(value);
 }
 
-/** City, operator, and geography need the tariff function or the PSTN join. */
+/** City, ABC, the local number, operator, and geography need the tariff function or the PSTN join. */
 export const EXPENSIVE_COLUMNS = new Set<NumberGeographyColumn>([
   "city",
+  "abc",
+  "telephone",
   "operator",
   "geography",
 ]);
+
+/** Digit columns split from the tariff row. ABC stays left, the local number stays right. */
+export function geographyDigitAlign(
+  column: NumberGeographyColumn,
+): "left" | "right" | null {
+  if (column === "abc") return "left";
+  if (column === "telephone") return "right";
+  return null;
+}

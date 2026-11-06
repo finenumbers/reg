@@ -4,6 +4,7 @@ import { EMPTY_FILTER_TOKEN } from "@/components/column-filters/types";
 import { MISSING_PSTN_LABEL } from "@/modules/enrich/types";
 import {
   FREE_CALL_DIRECTION,
+  geographyDigitAlign,
   MOBILE_RF_DIRECTION,
   NUMBER_GEOGRAPHY_COLUMNS,
   NUMBER_GEOGRAPHY_HEADERS,
@@ -129,15 +130,22 @@ describe("filter clauses", () => {
 
 describe("geography columns", () => {
   it("places the phone column immediately before the title", () => {
-    expect(NUMBER_GEOGRAPHY_COLUMNS.slice(0, 3)).toEqual([
+    expect(NUMBER_GEOGRAPHY_COLUMNS.slice(0, 5)).toEqual([
       "category",
       "supplier",
       "city",
+      "abc",
+      "telephone",
     ]);
     const numberIndex = NUMBER_GEOGRAPHY_COLUMNS.indexOf("number");
     expect(NUMBER_GEOGRAPHY_COLUMNS[numberIndex + 1]).toBe("title");
     expect(NUMBER_GEOGRAPHY_COLUMNS.at(-1)).toBe("activation");
     expect(NUMBER_GEOGRAPHY_HEADERS.number).toBe("Телефонный номер");
+    expect(NUMBER_GEOGRAPHY_HEADERS.abc).toBe("ABC");
+    expect(NUMBER_GEOGRAPHY_HEADERS.telephone).toBe("Номер");
+    expect(geographyDigitAlign("abc")).toBe("left");
+    expect(geographyDigitAlign("telephone")).toBe("right");
+    expect(geographyDigitAlign("number")).toBeNull();
   });
 
   it("keeps the activation column on the cheap path and out of the export filter", () => {
@@ -212,13 +220,32 @@ describe("city sql phrase", () => {
     expect(page.text.indexOf("LIMIT")).toBeLessThan(
       page.text.indexOf("cdr_tariff_direction"),
     );
+    expect(page.text.indexOf("LIMIT")).toBeLessThan(page.text.indexOf("cdr_tariff_abc"));
     const catalog = flattenSql(
       catalogListSql(Prisma.sql`TRUE`, Prisma.sql`city = ?`, 100, 0),
     );
     expect(catalog.text.indexOf("cdr_tariff_direction")).toBeLessThan(
       catalog.text.lastIndexOf("LIMIT"),
     );
+    expect(catalog.text.indexOf("cdr_tariff_abc")).toBeLessThan(
+      catalog.text.lastIndexOf("LIMIT"),
+    );
     expect(catalog.values).toContain(MISSING_PSTN_LABEL);
+    expect(page.text).toContain("COALESCE(matched_abc, '')");
+    const emptyAt = page.text.indexOf("matched_abc IS NULL OR matched_abc = ''");
+    const startsAt = page.text.indexOf("starts_with(btrim(number), matched_abc)");
+    expect(emptyAt).toBeGreaterThan(-1);
+    expect(emptyAt).toBeLessThan(startsAt);
+    expect(page.text).toContain("substring(btrim(number) FROM length(matched_abc) + 1)");
+    expect(page.text).toContain("AS telephone");
+  });
+
+  it("reads ABC and the local number through the catalog path", () => {
+    expect(facetProjection("abc", {})).toBe("catalog");
+    expect(facetProjection("telephone", {})).toBe("catalog");
+    expect(listProjection({ abc: ["7383"] })).toBe("catalog");
+    expect(listProjection({ telephone: ["480882"] })).toBe("catalog");
+    expect(listProjection({})).toBe("page");
   });
 });
 
@@ -229,6 +256,7 @@ describe("pstn labels by id", () => {
     const page = flattenSql(pageListSql(Prisma.sql`TRUE`, 10, 0));
     expect(flat.text).not.toContain("DROP TABLE");
     expect(flat.text).not.toContain("cdr_tariff_direction");
+    expect(flat.text).not.toContain("cdr_tariff_abc");
     expect(flat.text).toContain("pstn_phone IS NULL");
     expect(flat.values).toContain(hostile);
     expect(flat.values).toContain(MISSING_PSTN_LABEL);

@@ -1,8 +1,9 @@
 /**
  * SQL projection for «География номеров».
  * City label and the PSTN key are one phrase each, shared by the list,
- * the count, and the facets. cdr_tariff_direction is the only ABC matcher.
- * Filter values are bound parameters. Column names come from the allowlist.
+ * the count, and the facets. cdr_tariff_direction and cdr_tariff_abc share one
+ * predicate. The parity test reads both bodies. Filter values are bound
+ * parameters. Column names come from the allowlist.
  */
 
 import { Prisma } from "@/generated/prisma/client";
@@ -38,7 +39,7 @@ export function pstnCacheKey(raw: string | null | undefined): string | null {
 
 /**
  * Page: sort and limit first, then tariff and PSTN for that page.
- * Catalog: a city, operator, or geography filter must see every row.
+ * Catalog: a city, ABC, local-number, operator, or geography filter must see every row.
  * Empty is reserved. Supplier is a cheap column like number and client.
  */
 export function listProjection(filters: ColumnFilters): ListProjection {
@@ -82,6 +83,10 @@ function columnRef(column: NumberGeographyColumn): Prisma.Sql {
       return Prisma.sql`category`;
     case "city":
       return Prisma.sql`city`;
+    case "abc":
+      return Prisma.sql`abc`;
+    case "telephone":
+      return Prisma.sql`telephone`;
     case "supplier":
       return Prisma.sql`supplier`;
     case "number":
@@ -310,6 +315,7 @@ function joinedFrom(source: Prisma.Sql, cheap: Prisma.Sql): Prisma.Sql {
         k.title,
         k.activation,
         cdr_tariff_direction(k.number) AS direction,
+        cdr_tariff_abc(k.number) AS matched_abc,
         ${pstnKeyFromDigits(Prisma.sql`k.digits`)} AS pstn_key,
         c.phone AS pstn_phone,
         c.found AS pstn_found,
@@ -336,6 +342,13 @@ function labeledSelect(): Prisma.Sql {
       ${pstnStatusSql()} AS pstn_status,
       ${cityLabelSql(Prisma.sql`direction`)} AS city,
       ${cityAlertSql(Prisma.sql`direction`)} AS city_alert,
+      COALESCE(matched_abc, '') AS abc,
+      CASE
+        WHEN matched_abc IS NULL OR matched_abc = '' THEN ''
+        WHEN starts_with(btrim(number), matched_abc)
+          THEN substring(btrim(number) FROM length(matched_abc) + 1)
+        ELSE ''
+      END AS telephone,
       ${operatorLabelSql()} AS operator,
       ${geographyLabelSql()} AS geography
     FROM joined

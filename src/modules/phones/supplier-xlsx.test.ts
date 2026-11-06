@@ -78,18 +78,58 @@ describe("parseSupplierXlsx", () => {
 
     const emptyPhone = await parseSupplierXlsx(
       await workbook([
-        [
-          "Категория",
-          "Поставщик",
-          "Город",
-          "Клиент",
-          "Телефонный номер",
-        ],
+        ["Категория", "Поставщик", "Город", "Клиент", "Телефонный номер"],
         ["", "", "Казань", "Клиент", ""],
       ]),
     );
     expect(emptyPhone.ok).toBe(false);
     if (!emptyPhone.ok) expect(emptyPhone.details[0]).toContain("«Телефонный номер»");
+  });
+
+  it("reads a geography export from the telephone header when ABC and Номер sit beside the city", async () => {
+    const parsed = await parseSupplierXlsx(
+      await workbook([
+        [
+          "Категория",
+          "Поставщик",
+          "Город",
+          "ABC",
+          "Номер",
+          "Клиент",
+          "Канальность",
+          "Оператор связи",
+          "География",
+          "Телефонный номер",
+          "Название",
+          "Статус",
+        ],
+        [
+          "VIP",
+          "Ростелеком",
+          "Москва",
+          "7495",
+          "1234567",
+          "Клиент",
+          "10",
+          "МТС",
+          "Край",
+          "74951234567",
+          "Имя",
+          "Активно",
+        ],
+      ]),
+    );
+    expect(parsed).toEqual({
+      ok: true,
+      rows: [
+        {
+          rowNumber: 2,
+          number: "74951234567",
+          supplier: "Ростелеком",
+          category: "VIP",
+        },
+      ],
+    });
   });
 
   it("keeps the legacy fourth column when a telephone header is also present", async () => {

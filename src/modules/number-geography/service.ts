@@ -50,6 +50,8 @@ type DbRow = {
   title: string;
   activation: string | null;
   city: string;
+  abc: string;
+  telephone: string;
   operator: string;
   geography: string;
   city_alert: boolean | null;
@@ -64,6 +66,8 @@ function mapRow(row: DbRow): NumberGeographyItem {
     id: row.id,
     category: row.category ?? "",
     city: row.city ?? "",
+    abc: row.abc ?? "",
+    telephone: row.telephone ?? "",
     supplier: row.supplier ?? "",
     number: row.number ?? "",
     client: row.client ?? "",
