@@ -1,7 +1,13 @@
-# Current Phase — production (v1.243.0)
+# Current Phase — production (v1.244.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls.  
 **Date:** 2026-11-08
+
+## v1.244.0 — Upload limit stays on the middleware body clone
+
+There is no migration. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. Keep a single `app` replica. Replace the `app` container. Refresh the browser. Nothing is written to the switch.
+
+Supplier upload, tariff upload, and the RTU XLSX import still pass through middleware. The clone limit stays `proxyClientMaxBodySize` at `200mb`. Each of those routes still rejects a file above 20 MiB. Do not lower `200mb`. The deploy note no longer tells an operator to re-upload a CSV to `/api/enrich`. Registrations still have no manual poll button. The poll checkbox does not wait on SSH.
 
 ## v1.243.0 — RTU management reads a published screen
 

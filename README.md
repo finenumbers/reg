@@ -2,7 +2,7 @@
 
 Internal telecom ops platform. Phone numbers, groups, registrations, and live calls are read from the RTU API.
 
-**Repository:** [github.com/finenumbers/reg](https://github.com/finenumbers/reg) · **Release:** [v1.243.0](https://github.com/finenumbers/reg/releases/tag/v1.243.0)
+**Repository:** [github.com/finenumbers/reg](https://github.com/finenumbers/reg) · **Release:** [v1.244.0](https://github.com/finenumbers/reg/releases/tag/v1.244.0)
 
 ## Stack (approved)
 
@@ -130,7 +130,7 @@ UI (`/regs`):
 
 - List with phone search, column filters, pagination
 - Row click opens a detail sheet (history)
-- Manual **Run poll** when the user has `regs:poll` (disabled while in flight)
+- Registrations refresh from Settings «Включить регулярный опрос регистраций» (`regsPollEnabled`), every 30 seconds. There is no manual poll button.
 
 ## Phones
 
@@ -192,7 +192,7 @@ BASE_URL=http://localhost:3000 npm run smoke
 
 - Production compose attaches `app` to external NPM network `proxy` (no public `:3000`)
 - NPM: forward `/` and `/api` to the same `app:3000` upstream; set `BETTER_AUTH_URL` to the public HTTPS origin
-- Auto-poll: enable via Settings `regsPollEnabled` after SSH readiness; keep a single `app` replica
+- Auto-poll: turn on Settings «Включить регулярный опрос регистраций» (`regsPollEnabled`) after the RTU API account is saved and the read is intended. The read does not use SSH. Keep a single `app` replica
 - Backups: `npm run backup:db` — also vault `APP_ENCRYPTION_KEY` ([backup-and-restore.md](docs/backup-and-restore.md))
 - Full go-live list: [production-checklist.md](docs/production-checklist.md)
 
