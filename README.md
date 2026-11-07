@@ -2,7 +2,7 @@
 
 Internal telecom ops platform. Phone numbers, groups, registrations, and live calls are read from the RTU API.
 
-**Repository:** [github.com/finenumbers/reg](https://github.com/finenumbers/reg) · **Release:** [v1.241.0](https://github.com/finenumbers/reg/releases/tag/v1.241.0)
+**Repository:** [github.com/finenumbers/reg](https://github.com/finenumbers/reg) · **Release:** [v1.242.0](https://github.com/finenumbers/reg/releases/tag/v1.242.0)
 
 ## Stack (approved)
 
@@ -98,6 +98,7 @@ Do not hand-author conflicting auth table definitions. App RBAC (`roles` / `perm
 - Admin/settings/audit routes require RBAC permissions; anonymous users are redirected or rejected
 - Mutating APIs require same-origin Origin/Referer; login/poll/SSH-test are rate-limited (in-memory; single replica)
 - Machine API keys (Settings → API-ключи): read-only `regs:read` + `phones:read`; `Authorization: Bearer` / `X-Api-Key`; 10 000 req/min per key; no poll/sync/settings/SSH/RTU-import/tariffs/SMG-xlsx-export
+
 ## Settings / SSH APIs
 
 - `GET /api/settings` — masked settings (`settings:write`)

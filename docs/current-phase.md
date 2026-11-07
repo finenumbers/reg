@@ -1,7 +1,17 @@
-# Current Phase — production (v1.241.0)
+# Current Phase — production (v1.242.0)
 
-**Status:** in production. Modules beyond Phase 7: phones, groups, number geography, free numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls.  
-**Date:** 2026-11-07
+**Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls.  
+**Date:** 2026-11-08
+
+## v1.242.0 — RTU management replaces number geography
+
+There is no migration. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. Keep a single `app` replica. Replace the `app` container. Refresh the browser. Nothing is written to the switch except the existing equipment activation.
+
+«Управление РТУ» is the first primary item, at `/rtu`, with `phones:read`. «Регистрации» follows it. «География номеров» and `/number-geography` are gone. That address is not redirected. An open old tab gets a missing page until the browser loads `/rtu`.
+
+The screen keeps the phone search, the three checkboxes, «Загрузить поставщиков», and «Экспорт XLSX». «Телефонный номер» is gone from the table and from the workbook. The other columns keep their order, and «Статус» stays last. The search still matches the full number and marks the hit in «ABC» and «Номер». The status dialog still shows that full number. The workbook sheet is «Управление РТУ». A new export is not a supplier file, because it no longer has the header «Телефонный номер». The four-column supplier file and an older export that still has that header still load through `POST /api/phones/suppliers`.
+
+The list, facets, export, PSTN fill, and activation are `/api/rtu`, `/api/rtu/facets`, `/api/rtu/export`, `/api/rtu/pstn-fill`, and `/api/rtu/activation`. The old API paths are absent. Activation is still one `updateRowset` on «Оборудование» for a session with `phones:activate`. An API key cannot send it. Settings labels name «Управление РТУ». The stored refresh fields stay `numberGeographyRefreshEnabled` and `numberGeographyRefreshIntervalSec`.
 
 ## v1.241.0 — Geography shows country code 7 as «7 (code)» and marks the phone search there
 

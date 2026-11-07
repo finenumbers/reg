@@ -54,6 +54,8 @@ Optional publish ports: `APP_PUBLISH_PORT`, `POSTGRES_PUBLISH_PORT`.
 
 ## 3. Database
 
+v1.242.0 does not migrate and does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `smg-syslog`. Keep a single `app` replica. Replace the `app` container. Refresh the browser. «Управление РТУ» is the first primary item, at `/rtu`. «География номеров» is gone and `/number-geography` is not redirected. «Телефонный номер» is gone from that table and from its XLSX. Search still marks «ABC» and «Номер». Activation stays one `updateRowset` at `POST /api/rtu/activation`. Supplier upload stays `POST /api/phones/suppliers`. Nothing else is written to the switch.
+
 v1.241.0 does not migrate and does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `smg-syslog`. Keep a single `app` replica. Replace the `app` container. Refresh the browser. On «География номеров» a country-code 7 ABC is shown as `7 (39155)` for stored `739155` and as `7 (903)` for a mobile DEF `903`. The ABC filter still lists the stored code. The phone-search mark moves from «Телефонный номер» to the matching digits in «ABC» and «Номер». The workbook uses the same ABC text. Nothing is written to the switch.
 
 v1.240.0 does not migrate and does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `smg-syslog`. Keep a single `app` replica. Replace the `app` container. Refresh the browser. Endpoint tables on «Телефонные номера» lead with «Категория» and «Поставщик». «География номеров» paints a missing operator blue, an Unregistered number the same light red as «Регистрации», and keeps a blocked row black. «Нет в РТУ» stays bright red. The new checkboxes are «Без регистрации» and «Нет в РТУ». DID provider Finenumbers is shown as «Вручную». Nothing is written to the switch.

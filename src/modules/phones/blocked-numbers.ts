@@ -7,7 +7,7 @@
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
 import { logger } from "@/lib/logger";
-import { pstnCacheKey } from "@/modules/number-geography/sql";
+import { pstnCacheKey } from "@/modules/rtu/sql";
 import { STATUS_BLOCKED } from "@/modules/phones/types";
 
 export type BlockedNumberIndex = {

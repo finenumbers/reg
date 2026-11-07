@@ -49,7 +49,7 @@ export function middleware(request: NextRequest) {
     pathname.startsWith("/regs") ||
     pathname.startsWith("/phones") ||
     pathname.startsWith("/groups") ||
-    pathname.startsWith("/number-geography") ||
+    pathname.startsWith("/rtu") ||
     pathname.startsWith("/free-numbers") ||
     pathname.startsWith("/numbering-resource") ||
     pathname.startsWith("/raw") ||

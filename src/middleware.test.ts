@@ -94,11 +94,11 @@ describe("middleware protected routes", () => {
     expect(res.headers.get("location")).toContain("next=%2Fnumbering-resource");
   });
 
-  it("redirects anonymous users from /number-geography to /login", () => {
-    const res = middleware(makeRequest("/number-geography"));
+  it("redirects anonymous users from /rtu to /login", () => {
+    const res = middleware(makeRequest("/rtu"));
     expect(res.status).toBe(307);
     expect(res.headers.get("location")).toContain("/login");
-    expect(res.headers.get("location")).toContain("next=%2Fnumber-geography");
+    expect(res.headers.get("location")).toContain("next=%2Frtu");
   });
 
   it("redirects anonymous users from /settings to /login", () => {

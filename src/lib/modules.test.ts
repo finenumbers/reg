@@ -15,6 +15,17 @@ function idsInGroup(group: "cdr" | "smg" | "analytics" | "admin"): string[] {
 }
 
 describe("FEATURE_MODULES nav groups", () => {
+  it("puts Управление РТУ first in the primary nav", () => {
+    expect(FEATURE_MODULES[0]).toMatchObject({
+      id: "rtu",
+      title: "Управление РТУ",
+      href: "/rtu",
+      navPermission: "phones:read",
+    });
+    expect(FEATURE_MODULES[1]?.id).toBe("registrations");
+    expect(FEATURE_MODULES.map((module) => module.id)).not.toContain("number-geography");
+  });
+
   it("keeps Детализация and Статистика as analytics, in that order", () => {
     expect(idsInGroup("analytics")).toEqual(["detail", "stats"]);
   });

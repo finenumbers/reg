@@ -12,7 +12,7 @@ export type FeatureModuleId =
   | "registrations"
   | "phones"
   | "groups"
-  | "number-geography"
+  | "rtu"
   | "free-numbers"
   | "numbering-resource"
   | "raw"
@@ -41,6 +41,13 @@ type FeatureModuleDefinition = {
 
 export const FEATURE_MODULES: FeatureModuleDefinition[] = [
   {
+    id: "rtu",
+    title: "Управление РТУ",
+    description: "Учётные записи оконечного оборудования софтсвитча",
+    href: "/rtu",
+    navPermission: "phones:read",
+  },
+  {
     id: "registrations",
     title: "Регистрации",
     description: "Мониторинг SIP-регистраций через regs.poll",
@@ -59,13 +66,6 @@ export const FEATURE_MODULES: FeatureModuleDefinition[] = [
     title: "Входящие группы",
     description: "Справочник routing groups с softswitch (только просмотр)",
     href: "/groups",
-    navPermission: "phones:read",
-  },
-  {
-    id: "number-geography",
-    title: "География номеров",
-    description: "Город, оператор и территория оконечных номеров",
-    href: "/number-geography",
     navPermission: "phones:read",
   },
   {

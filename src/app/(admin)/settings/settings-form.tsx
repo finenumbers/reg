@@ -1427,7 +1427,7 @@ export function SettingsForm({ initial, parkingKey }: Props) {
           </div>
           <div className="flex items-center gap-3">
             <input
-              id="number-geography-refresh-enabled"
+              id="rtu-refresh-enabled"
               type="checkbox"
               className="size-4 rounded border"
               checked={numberGeographyRefreshEnabled}
@@ -1435,8 +1435,8 @@ export function SettingsForm({ initial, parkingKey }: Props) {
                 setNumberGeographyRefreshEnabled(e.target.checked)
               }
             />
-            <Label htmlFor="number-geography-refresh-enabled">
-              Автообновление географии номеров
+            <Label htmlFor="rtu-refresh-enabled">
+              Автообновление раздела «Управление РТУ»
             </Label>
           </div>
           <p className="text-sm text-muted-foreground">
@@ -1444,11 +1444,11 @@ export function SettingsForm({ initial, parkingKey }: Props) {
             кэш PSTN по-прежнему обновляются своими расписаниями.
           </p>
           <div className="space-y-2">
-            <Label htmlFor="number-geography-refresh-interval">
-              Интервал автообновления географии номеров (секунды)
+            <Label htmlFor="rtu-refresh-interval">
+              Интервал автообновления раздела «Управление РТУ» (секунды)
             </Label>
             <Input
-              id="number-geography-refresh-interval"
+              id="rtu-refresh-interval"
               type="number"
               min={30}
               value={numberGeographyRefreshIntervalSec}
@@ -1498,7 +1498,7 @@ export function SettingsForm({ initial, parkingKey }: Props) {
             Описания в журнале: {cdrSidesRefreshEnabled ? "вкл" : "выкл"} /{" "}
             {cdrSidesRefreshIntervalSec} с
             {" · "}
-            География номеров: {numberGeographyRefreshEnabled ? "вкл" : "выкл"} /{" "}
+            Управление РТУ: {numberGeographyRefreshEnabled ? "вкл" : "выкл"} /{" "}
             {numberGeographyRefreshIntervalSec} с
           </p>
           <Button type="button" disabled={pending} onClick={onSaveSettings}>

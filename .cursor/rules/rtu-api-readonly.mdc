@@ -18,7 +18,7 @@ Call the RTU SOAP API only to read. A write is allowed only when a separate task
 
 Do not add `getLookup` for any other column. Do not add `getObjectId`, `describeObject`, `describeProcedure`, `describeProcedureContext`, or `countRowset` for any other page. Do not point `describeTable` or `selectRowset` at any other object.
 
-One write is named. `POST /api/number-geography/activation` may send one `updateRowset` after a session with `phones:activate` types the endpoint number. The page is «Оборудование» in «Оборудование». `p_filter` is nil. The rowset is one row: that row's primary key and «Запись активна» set to `0` or `1`. No `node` header. The call is not repeated. The next step is the existing `phones.sync` read, which confirms the change. An API key cannot send it.
+One write is named. `POST /api/rtu/activation` may send one `updateRowset` after a session with `phones:activate` types the endpoint number. The page is «Оборудование» in «Оборудование». `p_filter` is nil. The rowset is one row: that row's primary key and «Запись активна» set to `0` or `1`. No `node` header. The call is not repeated. The next step is the existing `phones.sync` read, which confirms the change. An API key cannot send it.
 
 Do not send `insertRowset`, `deleteRowset`, `transaction`, `checkRowset`, `call`, `callContext`, API v1 except `getColumnLookup` when the fetched WSDL v2 contains that operation, the `args:node` header except on the `selectRowset` calls named above, or the `http://mfisoft.ru/auth` namespace. `checkRowset` is a write: its actions are `insert`, `update`, and `delete`.
 
