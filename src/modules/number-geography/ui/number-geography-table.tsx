@@ -9,8 +9,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ColumnFilterDropdown, type ColumnFilters } from "@/components/column-filters";
-import { HighlightText } from "@/components/highlight-text";
 import { cn } from "@/lib/utils";
+import {
+  geographyDigitMarks,
+  type DigitMark,
+} from "@/modules/number-geography/abc-display";
 import { buildNumberGeographyFacetsUrl } from "@/modules/number-geography/api-client";
 import {
   geographyDigitAlign,
@@ -53,6 +56,22 @@ const ROW_TONE_CLASS: Record<GeographyRowTone, string> = {
 
 function cellText(row: NumberGeographyItem, column: NumberGeographyColumn): string {
   return row[column] ?? "";
+}
+
+function MarkedDigits({ marks }: { marks: DigitMark[] }) {
+  return (
+    <>
+      {marks.map((part, index) =>
+        part.hit ? (
+          <mark key={index} className="search-hit">
+            {part.text}
+          </mark>
+        ) : (
+          <span key={index}>{part.text}</span>
+        ),
+      )}
+    </>
+  );
 }
 
 export function NumberGeographyTable({
@@ -123,6 +142,7 @@ export function NumberGeographyTable({
               surface: "screen",
               lookupFailed: lookupFailed?.has(row.id) === true,
             });
+            const marks = geographyDigitMarks(row.number, row.abc, row.telephone, phoneQ);
             return (
               <TableRow key={row.id} className={ROW_TONE_CLASS[tone]}>
                 {NUMBER_GEOGRAPHY_COLUMNS.map((column) => {
@@ -141,8 +161,10 @@ export function NumberGeographyTable({
                             : "font-bold text-black dark:text-white"),
                       )}
                     >
-                      {column === "number" ? (
-                        <HighlightText text={cellText(row, column)} query={phoneQ} />
+                      {column === "abc" ? (
+                        <MarkedDigits marks={marks.abc} />
+                      ) : column === "telephone" ? (
+                        <MarkedDigits marks={marks.telephone} />
                       ) : column === "activation" &&
                         onActivation &&
                         (cellText(row, column) === STATUS_ACTIVE ||

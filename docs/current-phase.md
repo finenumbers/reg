@@ -1,7 +1,15 @@
-# Current Phase — production (v1.240.0)
+# Current Phase — production (v1.241.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, number geography, free numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls.  
 **Date:** 2026-11-07
+
+## v1.241.0 — Geography shows country code 7 as «7 (code)» and marks the phone search there
+
+There is no migration. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. Keep a single `app` replica. Replace the `app` container. Refresh the browser. Nothing is written to the switch.
+
+On «География номеров», a country-code 7 ABC is shown as `7 (39155)` when the stored code is `739155`, and as `7 (903)` when the mobile DEF code is `903`. Exactly one leading 7 moves outside the parentheses. A code of only `7` stays `7`. An incomplete mobile tariff that is still `79` shows `7 (9)`. Kazakhstan `77` shows `7 (7)`. A code that does not rebuild the phone stays as stored, including an 8-prefix and any other country. The ABC filter and its chips still list the stored code. The workbook writes the same ABC text as the screen.
+
+The phone search still matches «Телефонный номер». The yellow mark moves onto the matching digits in «ABC» and «Номер». A query that crosses the boundary is marked in both cells. The space and the parentheses are not marked. «Телефонный номер» is no longer marked. A row whose ABC and local number do not rebuild the phone keeps both cells unmarked.
 
 ## v1.240.0 — Geography separates missing operators, unregistered numbers, and manual DID source
 

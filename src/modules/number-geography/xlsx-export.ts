@@ -8,6 +8,7 @@ import {
   formatExportTimestamp,
   workbookToBuffer,
 } from "@/lib/xlsx-export";
+import { geographyAbcText } from "@/modules/number-geography/abc-display";
 import {
   geographyDigitAlign,
   NUMBER_GEOGRAPHY_COLUMNS,
@@ -52,7 +53,13 @@ export async function buildNumberGeographyExportXlsx(): Promise<NumberGeographyE
     (column) => NUMBER_GEOGRAPHY_HEADERS[column],
   );
   const rows = items.map((item) =>
-    NUMBER_GEOGRAPHY_COLUMNS.map((column) => guardExcelText(item[column])),
+    NUMBER_GEOGRAPHY_COLUMNS.map((column) =>
+      guardExcelText(
+        column === "abc"
+          ? geographyAbcText(item.number, item.abc, item.telephone)
+          : item[column],
+      ),
+    ),
   );
   const workbook = createSimpleWorkbook({
     sheetName: "География номеров",
