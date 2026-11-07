@@ -54,6 +54,8 @@ Optional publish ports: `APP_PUBLISH_PORT`, `POSTGRES_PUBLISH_PORT`.
 
 ## 3. Database
 
+v1.236.0 adds nullable `tariff_rates.numbering`. It does not rewrite phone, tariff, CDR, or PSTN rows and does not replace the rater. Do not stop `smg-syslog`. Keep a single `app` replica. Replace the `app` container after migrate. The migration is label-free, so startup does not rescan the CDR journal. «Тарификация» shows «Нумерация» between «Разрядность» and «Цена». Upload a five-column file after the app is up. A four-column file is rejected and the previous snapshot stays. Until that upload the new cell is empty. On «География номеров» the «ABC» and «Номер» cells are bold, white on a blocked row. The geography workbook is unchanged. Nothing is written to the switch.
+
 v1.223.0 does not migrate and does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `app`. Do not stop `smg-syslog`. Keep a single `app` replica. «Текущие звонки» shows «Направление» between «Сторона B» and «Секунды». Only an already «Исходящий» row is filled, from the outgoing B-number. «Номер» on «Свободные номера» and «Купленные номера» is right-aligned. The XLSX export is unchanged. Nothing is written to the switch.
 
 v1.222.0 does not migrate and does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `app`. Do not stop `smg-syslog`. Keep a single `app` replica. The home cards count the current UTC month. A failed or compressed read stays «…» unless that month already has a successful count. The antifraud total does not block the page, and a count older than one minute or for a different disabled-node set is not shown. The home page paints the UTC clock. A missing phone import row shows a gap.

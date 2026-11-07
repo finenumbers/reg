@@ -470,6 +470,9 @@ model TariffRate {
   /// Dialed lengths joined by "/". Null when the cell is empty and for every ABC that starts with 7.
   /// An empty string matches no length. Prisma cannot store a nullable integer list.
   digitLengths String?
+  /// Lengths outside the ABC, joined by "/". Null when the cell is empty.
+  /// Rating does not read this column. An empty string is shown blank.
+  numbering String?
   price     Decimal @db.Decimal(18, 6)
 
   @@unique([sortIndex])

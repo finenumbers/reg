@@ -18,6 +18,7 @@ export const LABEL_FREE_MIGRATIONS = new Set([
   "20261020220000_dial_exceptions",
   "20261021021000_smg_trace_labels",
   "20261031180000_drop_enrich_jobs",
+  "20261107123000_tariff_numbering",
 ]);
 
 /**

@@ -119,13 +119,15 @@ export function NumberGeographyTable({
               <TableRow key={row.id} className={ROW_TONE_CLASS[tone]}>
                 {NUMBER_GEOGRAPHY_COLUMNS.map((column) => {
                   const align = geographyDigitAlign(column);
+                  const bold =
+                    column === "abc" || column === "telephone" || column === "number";
                   return (
                     <TableCell
                       key={`${row.id}-${column}`}
                       className={cn(
                         align === "left" && "text-left tabular-nums",
                         align === "right" && "text-right tabular-nums",
-                        column === "number" &&
+                        bold &&
                           (tone === "blocked"
                             ? "font-bold text-white"
                             : "font-bold text-black dark:text-white"),

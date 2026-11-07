@@ -3,7 +3,7 @@
  */
 
 import { prisma } from "@/lib/db";
-import { formatTariffDecimal } from "@/modules/tariffs/parse-xlsx";
+import { formatTariffDecimal, parseStoredNumbering } from "@/modules/tariffs/parse-xlsx";
 import type { TariffRateLookup } from "@/modules/traffic/cdr-tariff";
 import { parseStoredDigitLengths } from "@/modules/traffic/tariff-match";
 
@@ -12,6 +12,7 @@ export type TariffListItem = {
   direction: string;
   abc: string;
   digitLengths: number[] | null;
+  numbering: number[] | null;
   price: string;
 };
 
@@ -66,6 +67,7 @@ export async function listTariffRates(opts: {
         direction: true,
         abc: true,
         digitLengths: true,
+        numbering: true,
         price: true,
       },
     }),
@@ -77,6 +79,7 @@ export async function listTariffRates(opts: {
       direction: row.direction,
       abc: row.abc,
       digitLengths: parseStoredDigitLengths(row.digitLengths),
+      numbering: parseStoredNumbering(row.numbering),
       price: formatTariffDecimal(row.price.toString()),
     })),
     total,

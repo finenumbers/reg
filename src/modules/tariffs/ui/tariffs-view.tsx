@@ -27,12 +27,17 @@ import {
 } from "@/modules/traffic/tariff-match";
 
 const PAGE_SIZE = TABLE_PAGE_SIZE;
-const TARIFF_COLUMN_COUNT = 4;
+const TARIFF_COLUMN_COUNT = 5;
 
 function digitLengthLabel(abc: string, digitLengths: number[] | null): string {
   if (abcIgnoresDigitLengths(abc)) return String(RUSSIAN_NUMBER_LENGTH);
   if (digitLengths == null || digitLengths.length === 0) return "";
   return digitLengths.join("/");
+}
+
+function numberingLabel(numbering: number[] | null): string {
+  if (numbering == null || numbering.length === 0) return "";
+  return numbering.join("/");
 }
 
 type ImportError = { error: string; details: string[] };
@@ -198,6 +203,7 @@ export function TariffsView({ initial }: { initial: ListTariffsResult }) {
                 <TableHead>Направления</TableHead>
                 <TableHead>ABC</TableHead>
                 <TableHead>Разрядность</TableHead>
+                <TableHead>Нумерация</TableHead>
                 <TableHead>Цена</TableHead>
               </TableRow>
             </TableHeader>
@@ -229,6 +235,7 @@ export function TariffsView({ initial }: { initial: ListTariffsResult }) {
                     <TableCell>{row.direction}</TableCell>
                     <TableCell>{row.abc}</TableCell>
                     <TableCell>{digitLengthLabel(row.abc, row.digitLengths)}</TableCell>
+                    <TableCell>{numberingLabel(row.numbering)}</TableCell>
                     <TableCell>{formatMoney2(row.price)}</TableCell>
                   </TableRow>
                 ))

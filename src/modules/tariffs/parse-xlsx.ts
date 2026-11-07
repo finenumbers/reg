@@ -2,6 +2,7 @@
  * Parse a tariff XLSX snapshot.
  * Direction is text, ABC is a digit fragment of a phone number,
  * digit length is empty, one whole number, or several lengths separated by /,
+ * numbering is empty or a 0–14 length outside the ABC, also as a slash list,
  * price is a decimal with at most 6 fractional digits.
  */
 
@@ -13,7 +14,20 @@ import {
   TARIFF_NUMBER_MIN_LENGTH,
 } from "@/modules/traffic/tariff-match";
 
-export const TARIFF_HEADERS = ["Направления", "ABC", "Разрядность", "Цена"] as const;
+export const TARIFF_HEADERS = [
+  "Направления",
+  "ABC",
+  "Разрядность",
+  "Нумерация",
+  "Цена",
+] as const;
+
+const NUMBERING_MIN = 0;
+const NUMBERING_MAX = 14;
+/** One outside-ABC length: 0 through 14, no leading zero. */
+const NUMBERING_PART = /^(?:0|[1-9]|1[0-4])$/;
+
+const TARIFF_HEADER_ERROR = `В первой строке должны быть столбцы ${TARIFF_HEADERS.map((name) => `«${name}»`).join(", ")} и больше ничего`;
 
 export const TARIFF_MAX_ROWS = 50_000;
 export const TARIFF_MAX_ERRORS = 30;
@@ -30,6 +44,8 @@ export type TariffParsedRow = {
   abc: string;
   /** Null when the cell is empty, and for every ABC that starts with 7. */
   digitLengths: number[] | null;
+  /** Null when the cell is empty. File order, not sorted. */
+  numbering: number[] | null;
   price: string;
 };
 
@@ -161,6 +177,54 @@ function parseDigitLengthCell(value: unknown): DigitLengthParse {
   return { ok: true, value: lengths };
 }
 
+/** One outside-ABC length, written without a leading zero. */
+function parseOneNumbering(text: string): number | null {
+  if (!NUMBERING_PART.test(text)) return null;
+  return Number(text);
+}
+
+/**
+ * Blank is null. A number is one length. Text with / keeps file order.
+ * A date is refused: Excel turns 12/13 into a date unless the cell is text.
+ * This is not the 10–15 total-length parser.
+ */
+function parseNumberingCell(value: unknown): DigitLengthParse {
+  const raw = unwrap(value);
+  if (raw == null) return { ok: true, value: null };
+  if (raw instanceof Date) return { ok: false, date: true };
+  if (typeof raw === "string" && raw.trim() === "") return { ok: true, value: null };
+  if (typeof raw === "number") {
+    if (!Number.isFinite(raw) || Math.abs(raw - Math.round(raw)) > 1e-6) {
+      return { ok: false, date: false };
+    }
+    const parsed = Math.round(raw);
+    if (parsed < NUMBERING_MIN || parsed > NUMBERING_MAX)
+      return { ok: false, date: false };
+    if (!NUMBERING_PART.test(String(parsed))) return { ok: false, date: false };
+    return { ok: true, value: [parsed] };
+  }
+  if (typeof raw !== "string") return { ok: false, date: false };
+  const parts = raw
+    .trim()
+    .split("/")
+    .map((part) => part.trim());
+  if (parts.some((part) => part.length === 0)) return { ok: false, date: false };
+  const lengths: number[] = [];
+  for (const part of parts) {
+    const parsed = parseOneNumbering(part);
+    if (parsed == null || lengths.includes(parsed)) return { ok: false, date: false };
+    lengths.push(parsed);
+  }
+  return { ok: true, value: lengths };
+}
+
+/** Null when the cell was empty or the stored text is not a 0–14 list. */
+export function parseStoredNumbering(value: string | null): number[] | null {
+  if (value == null || value === "") return null;
+  const parsed = parseNumberingCell(value);
+  return parsed.ok ? parsed.value : null;
+}
+
 function parseAbc(value: unknown): string | null {
   const raw = unwrap(value);
   if (typeof raw === "number") {
@@ -252,9 +316,7 @@ export async function parseTariffXlsx(
 
   const block = readHeaderBlock(ws);
   if (!block || !headersMatch(block)) {
-    return fail([
-      "В первой строке должны быть столбцы «Направления», «ABC», «Разрядность», «Цена» и больше ничего",
-    ]);
+    return fail([TARIFF_HEADER_ERROR]);
   }
 
   const col = new Map<string, number>();
@@ -280,11 +342,13 @@ export async function parseTariffXlsx(
     const directionCell = row.getCell(col.get("Направления")!).value;
     const abcCell = row.getCell(col.get("ABC")!).value;
     const lengthCell = row.getCell(col.get("Разрядность")!).value;
+    const numberingCell = row.getCell(col.get("Нумерация")!).value;
     const priceCell = row.getCell(col.get("Цена")!).value;
     if (
       isBlank(directionCell) &&
       isBlank(abcCell) &&
       isBlank(lengthCell) &&
+      isBlank(numberingCell) &&
       isBlank(priceCell)
     ) {
       return;
@@ -299,7 +363,9 @@ export async function parseTariffXlsx(
     const abc = parseAbc(abcCell);
     const price = parseMoney(priceCell);
     let digitLengths: number[] | null = null;
+    let numbering: number[] | null = null;
     let lengthOk = true;
+    let numberingOk = true;
     if (!direction) {
       push(
         `Строка ${rowNumber}: «Направления» должно быть непустым текстом до ${MAX_DIRECTION} символов`,
@@ -333,15 +399,27 @@ export async function parseTariffXlsx(
         digitLengths = parsedLength.value;
       }
     }
+    const parsedNumbering = parseNumberingCell(numberingCell);
+    if (!parsedNumbering.ok) {
+      push(
+        parsedNumbering.date
+          ? `Строка ${rowNumber}: «Нумерация» — текстовый формат, иначе запись вроде 12/13 становится датой`
+          : `Строка ${rowNumber}: «Нумерация» — целое от ${NUMBERING_MIN} до ${NUMBERING_MAX}, список через /, либо пусто`,
+      );
+      numberingOk = false;
+    } else {
+      numbering = parsedNumbering.value;
+    }
     if (!price) {
       push(`Строка ${rowNumber}: «Цена» должна быть числом`);
     }
-    if (direction && abc && price && lengthOk) {
+    if (direction && abc && price && lengthOk && numberingOk) {
       rows.push({
         sortIndex: rows.length,
         direction,
         abc,
         digitLengths,
+        numbering,
         price,
       });
     }

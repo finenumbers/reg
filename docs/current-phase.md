@@ -1,7 +1,15 @@
-# Current Phase — production (v1.235.0)
+# Current Phase — production (v1.236.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, number geography, free numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls.  
-**Date:** 2026-11-06
+**Date:** 2026-11-07
+
+## v1.236.0 — Tariff file gains «Нумерация», geography ABC and local number are bold
+
+The migrator adds nullable `numbering` on `tariff_rates`. It does not replace `cdr_tariff_direction`, the rater, or the CDR trigger, and it does not rewrite stored rows. The migration is label-free, so startup does not rescan the CDR journal. Do not stop `smg-syslog`. Phone, CDR, and PSTN rows are not rewritten. Keep a single `app` replica. Replace the `app` container after migrate. Refresh the browser.
+
+«Тарификация» shows «Нумерация» between «Разрядность» and «Цена». The XLSX needs the same five headers. A file without that column does not replace the snapshot. An empty cell stays empty. A filled cell is a whole number from 0 to 14, or several such numbers separated by `/`, in file order. `0` is kept. The column is not used to rate calls. ABC codes that start with 7 still show 11 in «Разрядность» and still store «Нумерация».
+
+On «География номеров», the «ABC» and «Номер» cells are bold. A blocked row keeps them white. The geography workbook is unchanged. Nothing is written to the switch.
 
 ## v1.235.0 — Geography splits the phone into ABC and the local number
 

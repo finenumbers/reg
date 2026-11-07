@@ -30,6 +30,7 @@ export async function applyTariffSnapshot(
           direction: row.direction,
           abc: row.abc,
           digitLengths: formatDigitLengths(row.digitLengths),
+          numbering: formatDigitLengths(row.numbering),
           price: row.price,
         })),
       });
