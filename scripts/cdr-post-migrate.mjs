@@ -20,6 +20,7 @@ export const LABEL_FREE_MIGRATIONS = new Set([
   "20261031180000_drop_enrich_jobs",
   "20261107123000_tariff_numbering",
   "20261107161000_tariff_region",
+  "20261107170000_geography_mobile_abc",
 ]);
 
 /**

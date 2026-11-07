@@ -1,7 +1,13 @@
-# Current Phase — production (v1.237.0)
+# Current Phase — production (v1.238.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, number geography, free numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls.  
 **Date:** 2026-11-07
+
+## v1.238.0 — Geography shows the mobile DEF code without the country digit
+
+The migrator replaces `geography_digit_split`. It does not replace `cdr_tariff_direction`, `cdr_tariff_abc`, the rater, or the CDR trigger, and it does not rewrite stored rows. The migration is label-free, so startup does not rescan the CDR journal. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. Keep a single `app` replica. Replace the `app` container after migrate. Refresh the browser.
+
+On «География номеров», a number matched by tariff ABC `79` with numbering `7` shows the three digits after the leading 7 in «ABC» and the last seven digits in «Номер». `79039039900` shows `903` and `9039900`. The full phone stays in «Телефонный номер». An empty numbering cell still shows `79` and the remainder. Two numbering values do not pick a winner. City codes stay as they were: `7495` stays `7495`, and `74232` still becomes `7423`. Kazakhstan `77` is not treated as a Russian mobile prefix. No new tariff upload is required when numbering `7` is already stored on the `79` row. The ABC filter for those rows then lists the `9xx` codes. Rating still uses tariff ABC `79`. Nothing is written to the switch.
 
 ## v1.237.0 — Tariff file gains «Регион», geography trims ABC by «Нумерация»
 
