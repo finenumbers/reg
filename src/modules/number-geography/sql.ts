@@ -26,6 +26,10 @@ import {
   type NumberGeographyColumn,
 } from "@/modules/number-geography/columns";
 import { CITY_DIRECTION_PREFIX } from "@/modules/traffic/call-class";
+import {
+  FINENUMBERS_PROVIDER_CODE,
+  GEOGRAPHY_MANUAL_SOURCE,
+} from "@/modules/number-geography/source-label";
 
 /** Same shape as normalizePstnPhone: 11 digits on 7/8 drop the first, else 10. */
 export const PSTN_ELEVEN_DIGIT = "^[78][0-9]{10}$";
@@ -180,29 +184,57 @@ export function phoneNumberSql(phoneQ: string | undefined): Prisma.Sql | null {
   return Prisma.sql`number ILIKE ${phoneLikePattern(q)} ESCAPE '\\'`;
 }
 
+export type CheapFlags = {
+  blockedOnly?: boolean;
+  unregisteredOnly?: boolean;
+  missingOnly?: boolean;
+};
+
 export function cheapWhere(
   filters: ColumnFilters,
   excludeColumn?: string,
   phoneQ?: string,
-  blockedOnly = false,
+  flags: CheapFlags = {},
 ): Prisma.Sql {
   const base = whereFor(filters, "cheap", excludeColumn);
   const phone = phoneNumberSql(phoneQ);
   let where = phone ? Prisma.sql`(${base} AND ${phone})` : base;
-  if (blockedOnly) {
+  if (flags.blockedOnly) {
     where = Prisma.sql`(${where} AND activation = ${STATUS_BLOCKED})`;
+  }
+  if (flags.unregisteredOnly) {
+    where = Prisma.sql`(${where} AND unregistered)`;
+  }
+  if (flags.missingOnly) {
+    where = Prisma.sql`(${where} AND missing)`;
   }
   return where;
 }
 
-/** «Заблокировано» across the number list. Search and column filters stay out. */
-export function blockedCountSql(): Prisma.Sql {
+/**
+ * Toolbar counts for the whole number list.
+ * Search and column filters stay out. One scan of `base`.
+ */
+export function toolbarCountSql(): Prisma.Sql {
   return Prisma.sql`
     WITH ${baseCte}
-    SELECT count(*)::int AS n
+    SELECT
+      count(*) FILTER (WHERE activation = ${STATUS_BLOCKED})::int AS blocked,
+      count(*) FILTER (WHERE unregistered)::int AS unregistered,
+      count(*) FILTER (WHERE missing)::int AS missing
     FROM base
-    WHERE activation = ${STATUS_BLOCKED}
   `;
+}
+
+/** Stored DID provider, with Finenumbers shown as «Вручную». */
+function sourceLabelSql(provider: Prisma.Sql): Prisma.Sql {
+  return Prisma.sql`(
+    CASE
+      WHEN lower(btrim(COALESCE(${provider}, ''))) = ${FINENUMBERS_PROVIDER_CODE}
+        THEN ${GEOGRAPHY_MANUAL_SOURCE}
+      ELSE btrim(COALESCE(${provider}, ''))
+    END
+  )`;
 }
 
 export function expensiveWhere(
@@ -267,7 +299,7 @@ const baseCte = Prisma.sql`
     FROM geography_did_sources s
     WHERE s.generation = (SELECT generation FROM did_generation)
   ),
-  base AS (
+  base_rows AS (
     SELECT
       e.id,
       e.number,
@@ -277,7 +309,7 @@ const baseCte = Prisma.sql`
       e.category,
       e.activation,
       e.title,
-      COALESCE(d.provider, '') AS source,
+      ${sourceLabelSql(Prisma.sql`d.provider`)} AS source,
       FALSE AS missing
     FROM endpoint_keys e
     LEFT JOIN did_rows d ON d.match_key = e.match_key
@@ -291,7 +323,7 @@ const baseCte = Prisma.sql`
       '' AS category,
       ${STATUS_NOT_IN_RTU} AS activation,
       '' AS title,
-      d.provider AS source,
+      ${sourceLabelSql(Prisma.sql`d.provider`)} AS source,
       TRUE AS missing
     FROM did_rows d
     WHERE NOT EXISTS (
@@ -299,6 +331,15 @@ const baseCte = Prisma.sql`
       FROM endpoint_keys e
       WHERE e.match_key = d.match_key
     )
+  ),
+  base AS (
+    SELECT
+      rows.*,
+      (r.phone IS NOT NULL) AS unregistered
+    FROM base_rows rows
+    LEFT JOIN reg_current r
+      ON r.phone = rows.number
+     AND r.status = ${"Unregistered"}::"RegStatus"
   )
 `;
 
@@ -406,6 +447,7 @@ function joinedFrom(source: Prisma.Sql, cheap: Prisma.Sql): Prisma.Sql {
         k.activation,
         k.source,
         k.missing,
+        k.unregistered,
         geo.direction AS direction,
         geo.abc AS matched_abc,
         geo.region AS matched_region,
@@ -436,6 +478,7 @@ function labeledSelect(): Prisma.Sql {
       activation,
       source,
       missing,
+      unregistered,
       ${pstnStatusSql()} AS pstn_status,
       ${cityLabelSql(Prisma.sql`direction`)} AS city,
       ${cityAlertSql(Prisma.sql`direction`)} AS city_alert,

@@ -15,8 +15,7 @@ import { syncSnapshotFromJob } from "@/modules/jobs/sync-snapshot";
 import { getJobRunSummary } from "@/modules/jobs/query";
 import { displayTermCapacity, TERM_CAPACITY_FIELD } from "@/modules/phones/capacity";
 import { applyJsonColumnFilters } from "@/modules/phones/json-filters";
-import { withCategoryHeader } from "@/modules/phones/category";
-import { withSupplierHeader } from "@/modules/phones/supplier";
+import { screenEndpointHeaders } from "@/modules/phones/category";
 import {
   isSipUnregistered,
   sipUnregisteredFilterPhones,
@@ -92,16 +91,8 @@ function asStringRecord(data: unknown): PhoneRowData {
   return out;
 }
 
-function withStatusHeader(headers: readonly string[]): string[] {
-  const next = headers.filter((header) => header !== STATUS_FIELD);
-  next.push(STATUS_FIELD);
-  return next;
-}
-
 function endpointHeaders(value: unknown): string[] {
-  return withStatusHeader(
-    withCategoryHeader(withSupplierHeader(asStringArray(value, ENDPOINT_HEADERS))),
-  );
+  return screenEndpointHeaders(asStringArray(value, ENDPOINT_HEADERS));
 }
 
 function asStringArray(value: unknown, fallback: readonly string[]): string[] {

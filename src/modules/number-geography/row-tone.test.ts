@@ -14,6 +14,7 @@ function row(over: Partial<GeographyToneRow> = {}): GeographyToneRow {
     pstnStatus: "resolved",
     activation: "",
     missing: false,
+    unregistered: false,
     ...over,
   };
 }
@@ -56,10 +57,10 @@ describe("geographyRowTone", () => {
       geographyRowTone(row({ activation: "Активно", operator: MISSING_PSTN_LABEL }), {
         surface: "screen",
       }),
-    ).toBe("red");
+    ).toBe("operator");
   });
 
-  it("paints a registry miss red ahead of the tariff alert and a blank supplier", () => {
+  it("paints a registry miss blue ahead of the tariff alert and a blank supplier", () => {
     expect(
       geographyRowTone(
         row({
@@ -70,15 +71,15 @@ describe("geographyRowTone", () => {
         }),
         { surface: "screen" },
       ),
-    ).toBe("red");
+    ).toBe("operator");
   });
 
-  it("paints a number that cannot be a PSTN key red before the lookup returns", () => {
+  it("paints a number that cannot be a PSTN key blue before the lookup returns", () => {
     expect(
       geographyRowTone(row({ operator: "", pstnStatus: "unresolved", cityAlert: true }), {
         surface: "screen",
       }),
-    ).toBe("red");
+    ).toBe("operator");
   });
 
   it("trusts a real operator even when the stored status is still pending", () => {
@@ -111,19 +112,42 @@ describe("geographyRowTone", () => {
     ).toBe("blue");
   });
 
-  it("paints a failed lookup red and a pending export red", () => {
+  it("paints a failed lookup blue and a pending export blue", () => {
     expect(
       geographyRowTone(row({ operator: "", pstnStatus: "pending" }), {
         surface: "screen",
         lookupFailed: true,
       }),
-    ).toBe("red");
+    ).toBe("operator");
     expect(
       geographyRowTone(
         row({ operator: "", pstnStatus: "pending", cityAlert: true, supplier: "" }),
         { surface: "export" },
       ),
-    ).toBe("red");
+    ).toBe("operator");
+  });
+
+  it("paints a live unregistered number under black and a DID-only row", () => {
+    expect(
+      geographyRowTone(
+        row({
+          unregistered: true,
+          operator: MISSING_PSTN_LABEL,
+          cityAlert: true,
+          supplier: "",
+          category: "",
+        }),
+        { surface: "screen" },
+      ),
+    ).toBe("unregistered");
+    expect(
+      geographyRowTone(row({ unregistered: true, activation: "Заблокировано" }), {
+        surface: "screen",
+      }),
+    ).toBe("blocked");
+    expect(
+      geographyRowTone(row({ unregistered: true, missing: true }), { surface: "export" }),
+    ).toBe("missing");
   });
 
   it("lets the tariff alert win over a blank category", () => {

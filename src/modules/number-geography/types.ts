@@ -38,6 +38,8 @@ export type NumberGeographyItem = {
   pstnStatus: PstnLookupStatus;
   /** True when the row comes from the DID snapshot and is absent from RTU. */
   missing: boolean;
+  /** True when reg_current has this number as Unregistered. */
+  unregistered: boolean;
 };
 
 export type ListNumberGeographyResult = {
@@ -50,4 +52,8 @@ export type ListNumberGeographyResult = {
   catalogStamp: string;
   /** «Заблокировано» in the number list, ignoring search and column filters. */
   blockedCount: number;
+  /** Live Unregistered rows in the number list, ignoring search and column filters. */
+  unregisteredCount: number;
+  /** «Нет в РТУ» rows in the number list, ignoring search and column filters. */
+  missingCount: number;
 };

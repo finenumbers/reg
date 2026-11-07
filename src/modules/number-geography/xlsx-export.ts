@@ -23,7 +23,8 @@ import { getDisplayTimezone } from "@/modules/settings";
 const TONE_FILL: Record<Exclude<GeographyRowTone, "none">, string> = {
   blocked: "FF000000",
   missing: "FFDC2626",
-  red: "FFFEE2E2",
+  unregistered: "FFFEE2E2",
+  operator: "FFBFDBFE",
   yellow: "FFFEF3C7",
   blue: "FFDBEAFE",
 };

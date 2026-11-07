@@ -75,6 +75,14 @@ describe("purchased walk", () => {
     expect(rows[0]?.provider).toBe("");
   });
 
+  it("stores a Finenumbers provider as Вручную", () => {
+    const rows = collapseDidSources([
+      { msisdn: "79039039900", providerCode: "finenumbers" },
+      { msisdn: "79001112233", providerCode: "Finenumbers" },
+    ]);
+    expect(rows.map((row) => row.provider)).toEqual(["Вручную", "Вручную"]);
+  });
+
   it("keeps the named provider when the other label is empty", () => {
     const rows = collapseDidSources([
       { msisdn: "79039039900", providerCode: "" },

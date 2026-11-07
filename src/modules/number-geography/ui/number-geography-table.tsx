@@ -32,6 +32,8 @@ type Props = {
   filters: ColumnFilters;
   phoneQ?: string;
   blockedOnly?: boolean;
+  unregisteredOnly?: boolean;
+  missingOnly?: boolean;
   lookupFailed?: ReadonlySet<string>;
   openColumn: string | null;
   onOpenColumnChange: (column: string | null) => void;
@@ -42,7 +44,8 @@ type Props = {
 const ROW_TONE_CLASS: Record<GeographyRowTone, string> = {
   blocked: "bg-black text-white hover:bg-black hover:text-white",
   missing: "bg-red-600 text-white hover:bg-red-600 hover:text-white",
-  red: "bg-destructive/10 hover:bg-destructive/15",
+  unregistered: "bg-destructive/10 hover:bg-destructive/15",
+  operator: "bg-blue-200 hover:bg-blue-300 dark:bg-blue-950 dark:hover:bg-blue-900",
   yellow: "bg-amber-400/25 hover:bg-amber-400/35",
   blue: "bg-sky-500/15 hover:bg-sky-500/25",
   none: "",
@@ -59,6 +62,8 @@ export function NumberGeographyTable({
   filters,
   phoneQ = "",
   blockedOnly = false,
+  unregisteredOnly = false,
+  missingOnly = false,
   lookupFailed,
   openColumn,
   onOpenColumnChange,
@@ -86,6 +91,8 @@ export function NumberGeographyTable({
                     filters: next,
                     phoneQ,
                     blockedOnly,
+                    unregisteredOnly,
+                    missingOnly,
                     q,
                   })
                 }

@@ -16,3 +16,8 @@ export function formatUnregisteredOnlyLabel(n: number): string {
 export function formatBlockedOnlyLabel(n: number): string {
   return `Блокировка (${formatCount(n)})`;
 }
+
+/** Toolbar checkbox on number geography. */
+export function formatMissingRtuLabel(n: number): string {
+  return `Нет в РТУ (${formatCount(n)})`;
+}

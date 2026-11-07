@@ -18,7 +18,6 @@ import {
 } from "@/modules/number-geography/columns";
 import { clampPage, clampPageSize } from "@/modules/number-geography/paging";
 import {
-  blockedCountSql,
   catalogCountSql,
   catalogFacetSql,
   catalogListSql,
@@ -29,6 +28,8 @@ import {
   pageCountSql,
   pageFacetSql,
   pageListSql,
+  toolbarCountSql,
+  type CheapFlags,
 } from "@/modules/number-geography/sql";
 import {
   parsePstnLookupStatus,
@@ -53,6 +54,7 @@ type DbRow = {
   activation: string | null;
   source: string | null;
   missing: boolean | null;
+  unregistered: boolean | null;
   city: string;
   region: string;
   abc: string;
@@ -64,7 +66,20 @@ type DbRow = {
 };
 
 type CountRow = { n: number };
+type ToolbarCountRow = { blocked: number; unregistered: number; missing: number };
 type FacetRow = { value: string | null; count: number };
+
+function listFlags(opts: {
+  blockedOnly?: boolean;
+  unregisteredOnly?: boolean;
+  missingOnly?: boolean;
+}): CheapFlags {
+  return {
+    blockedOnly: opts.blockedOnly === true,
+    unregisteredOnly: opts.unregisteredOnly === true,
+    missingOnly: opts.missingOnly === true,
+  };
+}
 
 function mapRow(row: DbRow): NumberGeographyItem {
   return {
@@ -85,6 +100,7 @@ function mapRow(row: DbRow): NumberGeographyItem {
     source: row.source ?? "",
     cityAlert: row.city_alert === true,
     missing: row.missing === true,
+    unregistered: row.unregistered === true,
     pstnStatus: parsePstnLookupStatus(row.pstn_status),
   };
 }
@@ -146,6 +162,8 @@ export async function listNumberGeography(opts: {
   filters?: ColumnFilters;
   phoneQ?: string;
   blockedOnly?: boolean;
+  unregisteredOnly?: boolean;
+  missingOnly?: boolean;
   page?: number;
   pageSize?: number;
 }): Promise<ListNumberGeographyResult> {
@@ -153,16 +171,19 @@ export async function listNumberGeography(opts: {
   const pageSize = clampPageSize(opts.pageSize);
   const filters = opts.filters ?? {};
   const phoneQ = opts.phoneQ?.trim() ?? "";
-  const blockedOnly = opts.blockedOnly === true;
+  const flags = listFlags(opts);
   kickGeographyDidRefresh();
   return prisma.$transaction(async (tx) => {
     const db = tx as GeographyDb;
-    const [refresh, catalogStamp, blockedRows] = await Promise.all([
+    const [refresh, catalogStamp, countRows] = await Promise.all([
       readRefresh(db),
       readCatalogStamp(db),
-      db.$queryRaw<CountRow[]>(blockedCountSql()),
+      db.$queryRaw<ToolbarCountRow[]>(toolbarCountSql()),
     ]);
-    const blockedCount = Number(blockedRows[0]?.n ?? 0);
+    const counted = countRows[0];
+    const blockedCount = Number(counted?.blocked ?? 0);
+    const unregisteredCount = Number(counted?.unregistered ?? 0);
+    const missingCount = Number(counted?.missing ?? 0);
     const empty: ListNumberGeographyResult = {
       items: [],
       total: 0,
@@ -171,13 +192,15 @@ export async function listNumberGeography(opts: {
       refresh,
       catalogStamp,
       blockedCount,
+      unregisteredCount,
+      missingCount,
     };
     const projection = listProjection(filters);
     if (projection === "empty") return empty;
 
     const offset = (page - 1) * pageSize;
     if (projection === "page") {
-      const cheap = cheapWhere(filters, undefined, phoneQ, blockedOnly);
+      const cheap = cheapWhere(filters, undefined, phoneQ, flags);
       const [counts, rows] = await Promise.all([
         db.$queryRaw<CountRow[]>(pageCountSql(cheap)),
         db.$queryRaw<DbRow[]>(pageListSql(cheap, pageSize, offset)),
@@ -190,10 +213,12 @@ export async function listNumberGeography(opts: {
         refresh,
         catalogStamp,
         blockedCount,
+        unregisteredCount,
+        missingCount,
       };
     }
 
-    const cheap = cheapWhere(filters, undefined, phoneQ, blockedOnly);
+    const cheap = cheapWhere(filters, undefined, phoneQ, flags);
     const expensive = expensiveWhere(filters);
     const [counts, rows] = await Promise.all([
       db.$queryRaw<CountRow[]>(catalogCountSql(cheap, expensive)),
@@ -207,6 +232,8 @@ export async function listNumberGeography(opts: {
       refresh,
       catalogStamp,
       blockedCount,
+      unregisteredCount,
+      missingCount,
     };
   }, GEOGRAPHY_READ);
 }
@@ -228,6 +255,8 @@ export async function listNumberGeographyFacets(opts: {
   filters?: ColumnFilters;
   phoneQ?: string;
   blockedOnly?: boolean;
+  unregisteredOnly?: boolean;
+  missingOnly?: boolean;
   q?: string;
   limit?: number;
 }): Promise<FacetResponse> {
@@ -238,19 +267,19 @@ export async function listNumberGeographyFacets(opts: {
   }
   const filters = opts.filters ?? {};
   const phoneQ = opts.phoneQ?.trim() ?? "";
-  const blockedOnly = opts.blockedOnly === true;
+  const flags = listFlags(opts);
   const projection = facetProjection(column, filters);
   if (projection === "empty") return { items: [], truncated: false };
 
   const rows =
     projection === "page"
       ? await prisma.$queryRaw<FacetRow[]>(
-          pageFacetSql(column, cheapWhere(filters, column, phoneQ, blockedOnly)),
+          pageFacetSql(column, cheapWhere(filters, column, phoneQ, flags)),
         )
       : await prisma.$queryRaw<FacetRow[]>(
           catalogFacetSql(
             column,
-            cheapWhere(filters, column, phoneQ, blockedOnly),
+            cheapWhere(filters, column, phoneQ, flags),
             expensiveWhere(filters, column),
           ),
         );

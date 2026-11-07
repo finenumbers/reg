@@ -4,7 +4,7 @@
  */
 
 import { SUPPLIER_FIELD } from "@/modules/phones/supplier";
-import { ENDPOINT_NUMBER_FIELD } from "@/modules/phones/types";
+import { STATUS_FIELD } from "@/modules/phones/types";
 
 export const CATEGORY_FIELD = "Категория";
 export const CATEGORY_MAX_LENGTH = 200;
@@ -56,17 +56,17 @@ export function stampCategory<T extends Record<string, string>>(
   return { ...data, [CATEGORY_FIELD]: category };
 }
 
-/** Show «Категория» after «Поставщик». Leave an existing header where it is. */
-export function withCategoryHeader(headers: readonly string[]): string[] {
-  if (headers.includes(CATEGORY_FIELD)) return [...headers];
-  const next = [...headers];
-  const supplierAt = next.indexOf(SUPPLIER_FIELD);
-  if (supplierAt !== -1) {
-    next.splice(supplierAt + 1, 0, CATEGORY_FIELD);
-    return next;
-  }
-  const at = next.indexOf(ENDPOINT_NUMBER_FIELD);
-  if (at === -1) next.push(CATEGORY_FIELD);
-  else next.splice(at + 1, 0, CATEGORY_FIELD);
-  return next;
+/** «Категория», then «Поставщик», then the other headers, each name once. */
+export function leadWithCategoryAndSupplier(headers: readonly string[]): string[] {
+  const rest = headers.filter(
+    (header) => header !== CATEGORY_FIELD && header !== SUPPLIER_FIELD,
+  );
+  return [CATEGORY_FIELD, SUPPLIER_FIELD, ...rest];
+}
+
+/** Screen order. «Статус» stays last. */
+export function screenEndpointHeaders(headers: readonly string[]): string[] {
+  const led = leadWithCategoryAndSupplier(headers);
+  const rest = led.filter((header) => header !== STATUS_FIELD);
+  return [...rest, STATUS_FIELD];
 }

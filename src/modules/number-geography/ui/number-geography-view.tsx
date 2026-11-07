@@ -17,7 +17,11 @@ import {
 } from "@/components/column-filters";
 import { TableCountFooter, TableInfiniteBody } from "@/components/table-infinite-body";
 import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
-import { formatBlockedOnlyLabel } from "@/lib/format-count";
+import {
+  formatBlockedOnlyLabel,
+  formatMissingRtuLabel,
+  formatUnregisteredOnlyLabel,
+} from "@/lib/format-count";
 import { TABLE_PAGE_SIZE } from "@/lib/table-pagination";
 import {
   fetchNumberGeographyList,
@@ -59,7 +63,11 @@ export function NumberGeographyView({ initial, canRequest, canActivate }: Props)
   const [phoneInput, setPhoneInput] = useState("");
   const [phoneQ, setPhoneQ] = useState("");
   const [blockedOnly, setBlockedOnly] = useState(false);
+  const [unregisteredOnly, setUnregisteredOnly] = useState(false);
+  const [missingOnly, setMissingOnly] = useState(false);
   const [blockedCount, setBlockedCount] = useState(initial.blockedCount);
+  const [unregisteredCount, setUnregisteredCount] = useState(initial.unregisteredCount);
+  const [missingCount, setMissingCount] = useState(initial.missingCount);
   const [openColumn, setOpenColumn] = useState<string | null>(null);
   const [page, setPage] = useState(initial.page);
   const [items, setItems] = useState(initial.items);
@@ -87,6 +95,8 @@ export function NumberGeographyView({ initial, canRequest, canActivate }: Props)
   const filtersRef = useRef(filters);
   const phoneQRef = useRef(phoneQ);
   const blockedOnlyRef = useRef(blockedOnly);
+  const unregisteredOnlyRef = useRef(unregisteredOnly);
+  const missingOnlyRef = useRef(missingOnly);
   const phoneSearchTimerRef = useRef<number | null>(null);
   const pageRef = useRef(page);
   const itemsLenRef = useRef(items.length);
@@ -99,6 +109,8 @@ export function NumberGeographyView({ initial, canRequest, canActivate }: Props)
       filters?: ColumnFilters;
       phoneQ?: string;
       blockedOnly?: boolean;
+      unregisteredOnly?: boolean;
+      missingOnly?: boolean;
       page?: number;
       replace?: boolean;
       soft?: boolean;
@@ -115,12 +127,18 @@ export function NumberGeographyView({ initial, canRequest, canActivate }: Props)
 
   const hasMore = items.length < total;
   const filtersActive =
-    hasActiveFilters(filters) || phoneQ.trim().length > 0 || blockedOnly;
+    hasActiveFilters(filters) ||
+    phoneQ.trim().length > 0 ||
+    blockedOnly ||
+    unregisteredOnly ||
+    missingOnly;
 
   async function loadList(opts: {
     filters?: ColumnFilters;
     phoneQ?: string;
     blockedOnly?: boolean;
+    unregisteredOnly?: boolean;
+    missingOnly?: boolean;
     page?: number;
     replace?: boolean;
     soft?: boolean;
@@ -131,6 +149,12 @@ export function NumberGeographyView({ initial, canRequest, canActivate }: Props)
     const nextPhoneQ = opts.phoneQ !== undefined ? opts.phoneQ : phoneQRef.current;
     const nextBlocked =
       opts.blockedOnly !== undefined ? opts.blockedOnly : blockedOnlyRef.current;
+    const nextUnregistered =
+      opts.unregisteredOnly !== undefined
+        ? opts.unregisteredOnly
+        : unregisteredOnlyRef.current;
+    const nextMissing =
+      opts.missingOnly !== undefined ? opts.missingOnly : missingOnlyRef.current;
     const nextPage = opts.page ?? (replace ? 1 : pageRef.current);
     const seq = ++refreshSeq.current;
     inFlightRef.current = true;
@@ -150,6 +174,8 @@ export function NumberGeographyView({ initial, canRequest, canActivate }: Props)
         filters: nextFilters,
         phoneQ: nextPhoneQ,
         blockedOnly: nextBlocked,
+        unregisteredOnly: nextUnregistered,
+        missingOnly: nextMissing,
         page: nextPage,
         pageSize: PAGE_SIZE,
       });
@@ -171,6 +197,8 @@ export function NumberGeographyView({ initial, canRequest, canActivate }: Props)
           filters: nextFilters,
           phoneQ: nextPhoneQ,
           blockedOnly: nextBlocked,
+          unregisteredOnly: nextUnregistered,
+          missingOnly: nextMissing,
           page: 1,
           replace: true,
           soft,
@@ -184,6 +212,8 @@ export function NumberGeographyView({ initial, canRequest, canActivate }: Props)
       refreshRef.current = nextRefresh;
       setTotal(result.data.total);
       setBlockedCount(result.data.blockedCount);
+      setUnregisteredCount(result.data.unregisteredCount);
+      setMissingCount(result.data.missingCount);
       setPage(result.data.page);
       setItems((prev) => (replace ? result.data.items : [...prev, ...result.data.items]));
       setListError(null);
@@ -308,6 +338,8 @@ export function NumberGeographyView({ initial, canRequest, canActivate }: Props)
     filtersRef.current = filters;
     phoneQRef.current = phoneQ;
     blockedOnlyRef.current = blockedOnly;
+    unregisteredOnlyRef.current = unregisteredOnly;
+    missingOnlyRef.current = missingOnly;
     pageRef.current = page;
     itemsLenRef.current = items.length;
     openColumnRef.current = openColumn;
@@ -423,15 +455,29 @@ export function NumberGeographyView({ initial, canRequest, canActivate }: Props)
     setPhoneInput("");
     setPhoneQ("");
     setBlockedOnly(false);
+    setUnregisteredOnly(false);
+    setMissingOnly(false);
     setFilters({});
     setOpenColumn(null);
     void loadList({
       filters: {},
       phoneQ: "",
       blockedOnly: false,
+      unregisteredOnly: false,
+      missingOnly: false,
       page: 1,
       replace: true,
     });
+  }
+
+  function onUnregisteredOnlyChange(checked: boolean) {
+    setUnregisteredOnly(checked);
+    void loadList({ unregisteredOnly: checked, page: 1, replace: true });
+  }
+
+  function onMissingOnlyChange(checked: boolean) {
+    setMissingOnly(checked);
+    void loadList({ missingOnly: checked, page: 1, replace: true });
   }
 
   function onBlockedOnlyChange(checked: boolean) {
@@ -618,6 +664,20 @@ export function NumberGeographyView({ initial, canRequest, canActivate }: Props)
         />
         <div className="flex items-center gap-2">
           <input
+            id="number-geography-unregistered-only"
+            type="checkbox"
+            className="size-4 rounded border"
+            checked={unregisteredOnly}
+            onChange={(e) => onUnregisteredOnlyChange(e.target.checked)}
+          />
+          <Label htmlFor="number-geography-unregistered-only">
+            <RowColorMark tone="unregistered">
+              {formatUnregisteredOnlyLabel(unregisteredCount)}
+            </RowColorMark>
+          </Label>
+        </div>
+        <div className="flex items-center gap-2">
+          <input
             id="number-geography-blocked-only"
             type="checkbox"
             className="size-4 rounded border"
@@ -627,6 +687,20 @@ export function NumberGeographyView({ initial, canRequest, canActivate }: Props)
           <Label htmlFor="number-geography-blocked-only">
             <RowColorMark tone="blocked">
               {formatBlockedOnlyLabel(blockedCount)}
+            </RowColorMark>
+          </Label>
+        </div>
+        <div className="flex items-center gap-2">
+          <input
+            id="number-geography-missing-only"
+            type="checkbox"
+            className="size-4 rounded border"
+            checked={missingOnly}
+            onChange={(e) => onMissingOnlyChange(e.target.checked)}
+          />
+          <Label htmlFor="number-geography-missing-only">
+            <RowColorMark tone="missing">
+              {formatMissingRtuLabel(missingCount)}
             </RowColorMark>
           </Label>
         </div>
@@ -677,6 +751,8 @@ export function NumberGeographyView({ initial, canRequest, canActivate }: Props)
             filters={filters}
             phoneQ={phoneQ}
             blockedOnly={blockedOnly}
+            unregisteredOnly={unregisteredOnly}
+            missingOnly={missingOnly}
             lookupFailed={lookupFailed}
             openColumn={openColumn}
             onOpenColumnChange={setOpenColumn}

@@ -11,7 +11,7 @@ import { logger } from "@/lib/logger";
 import { DidClientError, listDidPurchasedNumbers } from "@/modules/did/client";
 import { loadDidCredentials } from "@/modules/did/credentials";
 import { DID_LIST_TIMEOUT_MS, type DidCredentials } from "@/modules/did/types";
-import { displayProviderCode } from "@/modules/free-numbers/format";
+import { geographyProviderLabel } from "@/modules/number-geography/source-label";
 import { geographyMatchKey } from "@/modules/number-geography/sql";
 import {
   CATALOG_EXPORT_PAGE_SIZE,
@@ -162,7 +162,7 @@ export function collapseDidSources(
     if (!matchKey) continue;
     const group = groups.get(matchKey) ?? { displays: [], providers: new Set() };
     group.displays.push(geographyDisplayNumber(item.msisdn));
-    const label = displayProviderCode(item.providerCode);
+    const label = geographyProviderLabel(item.providerCode);
     if (label) group.providers.add(label.slice(0, PROVIDER_MAX));
     groups.set(matchKey, group);
   }

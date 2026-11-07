@@ -6,7 +6,7 @@ import { listNumberGeography } from "@/modules/number-geography/service";
 
 /**
  * GET /api/number-geography — catalog projection. Session or phones:read key.
- * Optional: filters=<json>, phoneQ, blockedOnly, page, pageSize.
+ * Optional: filters=<json>, phoneQ, blockedOnly, unregisteredOnly, missingOnly, page, pageSize.
  */
 export async function GET(request: Request) {
   const gate = await requireApiPermission("phones:read");
@@ -15,9 +15,9 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const filters = parseFiltersParam(url.searchParams.get("filters"));
   const phoneQ = url.searchParams.get("phoneQ") ?? undefined;
-  const blockedOnly =
-    url.searchParams.get("blockedOnly") === "1" ||
-    url.searchParams.get("blockedOnly") === "true";
+  const blockedOnly = flagParam(url, "blockedOnly");
+  const unregisteredOnly = flagParam(url, "unregisteredOnly");
+  const missingOnly = flagParam(url, "missingOnly");
   const page = Number(url.searchParams.get("page") ?? "1");
   const pageSize = Number(url.searchParams.get("pageSize") ?? "100");
 
@@ -25,9 +25,16 @@ export async function GET(request: Request) {
     filters,
     phoneQ,
     blockedOnly,
+    unregisteredOnly,
+    missingOnly,
     page: clampPage(page),
     pageSize: clampPageSize(Number.isFinite(pageSize) ? pageSize : undefined),
   });
 
   return NextResponse.json(data);
+}
+
+function flagParam(url: URL, name: string): boolean {
+  const value = url.searchParams.get(name);
+  return value === "1" || value === "true";
 }

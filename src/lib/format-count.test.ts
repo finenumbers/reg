@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   formatBlockedOnlyLabel,
   formatCount,
+  formatMissingRtuLabel,
   formatUnregisteredOnlyLabel,
 } from "@/lib/format-count";
 
@@ -32,5 +33,12 @@ describe("formatBlockedOnlyLabel", () => {
   it("includes a grouped count in parentheses", () => {
     expect(formatBlockedOnlyLabel(0)).toBe("Блокировка (0)");
     expect(formatBlockedOnlyLabel(125768)).toBe(`Блокировка (125${NBSP}768)`);
+  });
+});
+
+describe("formatMissingRtuLabel", () => {
+  it("includes a grouped count in parentheses", () => {
+    expect(formatMissingRtuLabel(0)).toBe("Нет в РТУ (0)");
+    expect(formatMissingRtuLabel(125768)).toBe(`Нет в РТУ (125${NBSP}768)`);
   });
 });

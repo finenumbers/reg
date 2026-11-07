@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   categoryMapFromEndpoints,
+  leadWithCategoryAndSupplier,
+  screenEndpointHeaders,
   stampCategory,
-  withCategoryHeader,
 } from "@/modules/phones/category";
-import { withSupplierHeader } from "@/modules/phones/supplier";
 
 describe("category snapshot merge", () => {
   it("keeps the first non-empty category for a trimmed number", () => {
@@ -32,21 +32,24 @@ describe("category snapshot merge", () => {
     });
   });
 
-  it("inserts the header after the supplier once", () => {
+  it("puts category and supplier first and keeps status last", () => {
     expect(
-      withCategoryHeader(
-        withSupplierHeader(["Название", "Номер оконечного оборудования", "Описание"]),
-      ),
+      leadWithCategoryAndSupplier([
+        "Название",
+        "Номер оконечного оборудования",
+        "Поставщик",
+        "Описание",
+        "Категория",
+      ]),
     ).toEqual([
+      "Категория",
+      "Поставщик",
       "Название",
       "Номер оконечного оборудования",
-      "Поставщик",
-      "Категория",
       "Описание",
     ]);
-    expect(withCategoryHeader(["Категория", "Название"])).toEqual([
-      "Категория",
-      "Название",
-    ]);
+    expect(
+      screenEndpointHeaders(["Статус", "Название", "Категория", "Поставщик", "Описание"]),
+    ).toEqual(["Категория", "Поставщик", "Название", "Описание", "Статус"]);
   });
 });

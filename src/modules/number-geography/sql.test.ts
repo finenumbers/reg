@@ -18,7 +18,7 @@ import {
   facetProjection,
   filterMatchSql,
   listProjection,
-  blockedCountSql,
+  toolbarCountSql,
   pageFacetSql,
   pageListSql,
   PSTN_ELEVEN_DIGIT,
@@ -167,13 +167,25 @@ describe("geography columns", () => {
     const labels = flattenSql(pstnLabelsByIdsSql(["endpoint-1"]));
     expect(labels.text).not.toContain("k.activation");
     expect(facets.text).toContain("data->>'Статус'");
-    const filtered = flattenSql(cheapWhere({}, undefined, undefined, true));
+    const filtered = flattenSql(
+      cheapWhere({}, undefined, undefined, {
+        blockedOnly: true,
+        unregisteredOnly: true,
+        missingOnly: true,
+      }),
+    );
     expect(filtered.text).toContain("activation =");
+    expect(filtered.text).toContain("unregistered");
+    expect(filtered.text).toContain("missing");
     expect(filtered.values).toContain("Заблокировано");
     expect(filtered.text).not.toContain("Заблокировано");
-    const counted = flattenSql(blockedCountSql());
+    const counted = flattenSql(toolbarCountSql());
     expect(counted.text).toContain("data->>'Статус'");
+    expect(counted.text).toContain("FILTER");
+    expect(counted.text).toContain("reg_current");
     expect(counted.values).toContain("Заблокировано");
+    expect(counted.values).toContain("Unregistered");
+    expect(counted.text).toContain('::"RegStatus"');
   });
 });
 
@@ -250,6 +262,12 @@ describe("city sql phrase", () => {
     expect(page.text).toContain('s."displayNumber" AS number');
     expect(page.text).toContain("AS source");
     expect(page.text).toContain("AS missing");
+    expect(page.text).toContain("AS unregistered");
+    expect(page.text).toContain("reg_current");
+    expect(page.text).toContain('::"RegStatus"');
+    expect(page.values).toContain("finenumbers");
+    expect(page.values).toContain("Вручную");
+    expect(page.values).toContain("Unregistered");
     expect(page.values).toContain("Нет в РТУ");
     const sourceFacet = flattenSql(pageFacetSql("source", Prisma.sql`TRUE`));
     expect(sourceFacet.text.indexOf("cdr_tariff_geo")).toBe(-1);

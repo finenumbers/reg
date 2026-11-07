@@ -1,7 +1,17 @@
-# Current Phase — production (v1.239.0)
+# Current Phase — production (v1.240.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, number geography, free numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls.  
 **Date:** 2026-11-07
+
+## v1.240.0 — Geography separates missing operators, unregistered numbers, and manual DID source
+
+There is no migration. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. Keep a single `app` replica. Replace the `app` container. Refresh the browser. Nothing is written to the switch.
+
+On «Телефонные номера», endpoint tables lead with «Категория» and then «Поставщик». The other columns keep their order. «Статус» stays last. Gateways are unchanged. The phones workbook stays on the RTU template.
+
+On «География номеров», a number with no operator is blue. An empty «Категория» or «Поставщик» stays the lighter blue it already had. A number that is Unregistered in the registration table uses the same light red fill as «Регистрации» and «Телефонные номера». A blocked row stays black and wins over that red. A «Нет в РТУ» row stays bright red. A lookup that is still running does not turn the row blue. The geography workbook uses the same order.
+
+The toolbar checkboxes are «Без регистрации», «Блокировка», and «Нет в РТУ». Each count is the whole list. The three filters combine. «Источник» shows «Вручную» where the DID provider was Finenumbers. Free numbers still show Finenumbers.
 
 ## v1.239.0 — Geography shows the DID provider as «Источник»
 

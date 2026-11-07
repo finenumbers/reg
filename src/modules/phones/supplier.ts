@@ -3,8 +3,6 @@
  * The file match is looser and lives in supplier-match.ts.
  */
 
-import { ENDPOINT_NUMBER_FIELD } from "@/modules/phones/types";
-
 export const SUPPLIER_FIELD = "Поставщик";
 export const SUPPLIER_MAX_LENGTH = 200;
 
@@ -57,14 +55,4 @@ export function stampSupplier<T extends Record<string, string>>(
   const supplier = number ? suppliers.get(number) : undefined;
   if (!supplier) return data;
   return { ...data, [SUPPLIER_FIELD]: supplier };
-}
-
-/** Show «Поставщик» after the terminal number. Leave an existing header where it is. */
-export function withSupplierHeader(headers: readonly string[]): string[] {
-  if (headers.includes(SUPPLIER_FIELD)) return [...headers];
-  const next = [...headers];
-  const at = next.indexOf(ENDPOINT_NUMBER_FIELD);
-  if (at === -1) next.push(SUPPLIER_FIELD);
-  else next.splice(at + 1, 0, SUPPLIER_FIELD);
-  return next;
 }

@@ -24,6 +24,7 @@ function row(over: Partial<NumberGeographyItem> = {}): NumberGeographyItem {
     activation: "",
     source: "",
     missing: false,
+    unregistered: false,
     cityAlert: true,
     ...over,
   };
@@ -52,7 +53,7 @@ describe("blankPstnRowIds", () => {
 
 describe("mergePstnLabels", () => {
   it("replaces the two PSTN cells and leaves the rest of the row", () => {
-    const original = row();
+    const original = row({ unregistered: true });
     const [merged] = mergePstnLabels(
       [original],
       [{ id: "a", operator: "МТС", geography: "край" }],
