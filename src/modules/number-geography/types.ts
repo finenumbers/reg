@@ -1,3 +1,6 @@
+/** A purchased DID number that is not in the RTU catalog. */
+export const STATUS_NOT_IN_RTU = "Нет в РТУ";
+
 export type NumberGeographyRefresh = {
   enabled: boolean;
   intervalSec: number;
@@ -23,6 +26,7 @@ export type NumberGeographyItem = {
   abc: string;
   telephone: string;
   supplier: string;
+  source: string;
   number: string;
   client: string;
   capacity: string;
@@ -32,6 +36,8 @@ export type NumberGeographyItem = {
   activation: string;
   cityAlert: boolean;
   pstnStatus: PstnLookupStatus;
+  /** True when the row comes from the DID snapshot and is absent from RTU. */
+  missing: boolean;
 };
 
 export type ListNumberGeographyResult = {
@@ -40,7 +46,7 @@ export type ListNumberGeographyResult = {
   page: number;
   pageSize: number;
   refresh: NumberGeographyRefresh;
-  /** `max(lastSyncedAt)` of phone endpoints. Changes when phones.sync replaces the catalog. */
+  /** Phone sync time plus the DID snapshot generation. A change reloads the list. */
   catalogStamp: string;
   /** «Заблокировано» in the number list, ignoring search and column filters. */
   blockedCount: number;

@@ -1,5 +1,6 @@
 /**
- * Live projection of phone endpoints. No stored geography table.
+ * Live projection of phone endpoints plus the purchased-DID snapshot.
+ * The snapshot is read inside the same SQL. A refresh of it does not block the page.
  */
 
 import {
@@ -7,8 +8,9 @@ import {
   type ColumnFilters,
   type FacetResponse,
 } from "@/components/column-filters/types";
-import { Prisma } from "@/generated/prisma/client";
+import { Prisma, type PrismaClient } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
+import { kickGeographyDidRefresh } from "@/modules/number-geography/did-snapshot";
 import { EXCEL_MAX_ROWS } from "@/modules/enrich/types";
 import {
   isNumberGeographyColumn,
@@ -49,6 +51,8 @@ type DbRow = {
   category: string;
   title: string;
   activation: string | null;
+  source: string | null;
+  missing: boolean | null;
   city: string;
   region: string;
   abc: string;
@@ -78,7 +82,9 @@ function mapRow(row: DbRow): NumberGeographyItem {
     geography: row.geography ?? "",
     title: row.title ?? "",
     activation: row.activation ?? "",
+    source: row.source ?? "",
     cityAlert: row.city_alert === true,
+    missing: row.missing === true,
     pstnStatus: parsePstnLookupStatus(row.pstn_status),
   };
 }
@@ -97,15 +103,28 @@ function facetsFromGroups(
   return aggregateFacetItems(values(), opts);
 }
 
-async function readCatalogStamp(): Promise<string> {
-  const row = await prisma.phoneEndpoint.aggregate({
-    _max: { lastSyncedAt: true },
-  });
-  return row._max.lastSyncedAt?.toISOString() ?? "";
+type GeographyDb = Pick<
+  PrismaClient,
+  "phoneEndpoint" | "appSetting" | "geographyDidState" | "$queryRaw"
+>;
+
+const GEOGRAPHY_READ = {
+  isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead,
+  maxWait: 5_000,
+  timeout: 120_000,
+} as const;
+
+async function readCatalogStamp(db: GeographyDb): Promise<string> {
+  const [phones, did] = await Promise.all([
+    db.phoneEndpoint.aggregate({ _max: { lastSyncedAt: true } }),
+    db.geographyDidState.findUnique({ where: { id: 1 }, select: { generation: true } }),
+  ]);
+  const phoneStamp = phones._max.lastSyncedAt?.toISOString() ?? "";
+  return `${phoneStamp}|${did?.generation ?? 0}`;
 }
 
-async function readRefresh(): Promise<NumberGeographyRefresh> {
-  const row = await prisma.appSetting.findUnique({
+async function readRefresh(db: GeographyDb): Promise<NumberGeographyRefresh> {
+  const row = await db.appSetting.findUnique({
     where: { id: 1 },
     select: {
       numberGeographyRefreshEnabled: true,
@@ -135,30 +154,50 @@ export async function listNumberGeography(opts: {
   const filters = opts.filters ?? {};
   const phoneQ = opts.phoneQ?.trim() ?? "";
   const blockedOnly = opts.blockedOnly === true;
-  const [refresh, catalogStamp, blockedRows] = await Promise.all([
-    readRefresh(),
-    readCatalogStamp(),
-    prisma.$queryRaw<CountRow[]>(blockedCountSql()),
-  ]);
-  const blockedCount = Number(blockedRows[0]?.n ?? 0);
-  const empty: ListNumberGeographyResult = {
-    items: [],
-    total: 0,
-    page,
-    pageSize,
-    refresh,
-    catalogStamp,
-    blockedCount,
-  };
-  const projection = listProjection(filters);
-  if (projection === "empty") return empty;
+  kickGeographyDidRefresh();
+  return prisma.$transaction(async (tx) => {
+    const db = tx as GeographyDb;
+    const [refresh, catalogStamp, blockedRows] = await Promise.all([
+      readRefresh(db),
+      readCatalogStamp(db),
+      db.$queryRaw<CountRow[]>(blockedCountSql()),
+    ]);
+    const blockedCount = Number(blockedRows[0]?.n ?? 0);
+    const empty: ListNumberGeographyResult = {
+      items: [],
+      total: 0,
+      page,
+      pageSize,
+      refresh,
+      catalogStamp,
+      blockedCount,
+    };
+    const projection = listProjection(filters);
+    if (projection === "empty") return empty;
 
-  const offset = (page - 1) * pageSize;
-  if (projection === "page") {
+    const offset = (page - 1) * pageSize;
+    if (projection === "page") {
+      const cheap = cheapWhere(filters, undefined, phoneQ, blockedOnly);
+      const [counts, rows] = await Promise.all([
+        db.$queryRaw<CountRow[]>(pageCountSql(cheap)),
+        db.$queryRaw<DbRow[]>(pageListSql(cheap, pageSize, offset)),
+      ]);
+      return {
+        items: rows.map(mapRow),
+        total: Number(counts[0]?.n ?? 0),
+        page,
+        pageSize,
+        refresh,
+        catalogStamp,
+        blockedCount,
+      };
+    }
+
     const cheap = cheapWhere(filters, undefined, phoneQ, blockedOnly);
+    const expensive = expensiveWhere(filters);
     const [counts, rows] = await Promise.all([
-      prisma.$queryRaw<CountRow[]>(pageCountSql(cheap)),
-      prisma.$queryRaw<DbRow[]>(pageListSql(cheap, pageSize, offset)),
+      db.$queryRaw<CountRow[]>(catalogCountSql(cheap, expensive)),
+      db.$queryRaw<DbRow[]>(catalogListSql(cheap, expensive, pageSize, offset)),
     ]);
     return {
       items: rows.map(mapRow),
@@ -169,27 +208,12 @@ export async function listNumberGeography(opts: {
       catalogStamp,
       blockedCount,
     };
-  }
-
-  const cheap = cheapWhere(filters, undefined, phoneQ, blockedOnly);
-  const expensive = expensiveWhere(filters);
-  const [counts, rows] = await Promise.all([
-    prisma.$queryRaw<CountRow[]>(catalogCountSql(cheap, expensive)),
-    prisma.$queryRaw<DbRow[]>(catalogListSql(cheap, expensive, pageSize, offset)),
-  ]);
-  return {
-    items: rows.map(mapRow),
-    total: Number(counts[0]?.n ?? 0),
-    page,
-    pageSize,
-    refresh,
-    catalogStamp,
-    blockedCount,
-  };
+  }, GEOGRAPHY_READ);
 }
 
 /** Full catalog, one snapshot. Used by the XLSX download. */
 export async function listAllNumberGeography(): Promise<NumberGeographyItem[]> {
+  kickGeographyDidRefresh();
   const rows = await prisma.$queryRaw<DbRow[]>(
     catalogListSql(Prisma.sql`TRUE`, Prisma.sql`TRUE`, EXCEL_MAX_ROWS + 1, 0),
   );
@@ -208,6 +232,7 @@ export async function listNumberGeographyFacets(opts: {
   limit?: number;
 }): Promise<FacetResponse> {
   const column = opts.column.trim();
+  kickGeographyDidRefresh();
   if (!isNumberGeographyColumn(column)) {
     return { items: [], truncated: false };
   }

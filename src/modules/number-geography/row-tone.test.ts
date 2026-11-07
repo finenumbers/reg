@@ -13,11 +13,29 @@ function row(over: Partial<GeographyToneRow> = {}): GeographyToneRow {
     cityAlert: false,
     pstnStatus: "resolved",
     activation: "",
+    missing: false,
     ...over,
   };
 }
 
 describe("geographyRowTone", () => {
+  it("paints a DID-only number red ahead of a blocked status", () => {
+    expect(
+      geographyRowTone(
+        row({
+          missing: true,
+          activation: "Заблокировано",
+          operator: MISSING_PSTN_LABEL,
+          supplier: "",
+          category: "",
+          cityAlert: true,
+          pstnStatus: "unresolved",
+        }),
+        { surface: "screen" },
+      ),
+    ).toBe("missing");
+  });
+
   it("paints a blocked number black ahead of every other tone", () => {
     expect(
       geographyRowTone(

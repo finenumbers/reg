@@ -25,6 +25,7 @@ import {
   PSTN_TEN_DIGIT,
   pstnCacheKey,
   pstnLabelsByIdsSql,
+  pstnLabelsForNumbersSql,
 } from "@/modules/number-geography/sql";
 import { normalizePstnPhone } from "@/modules/pstn/types";
 import { CITY_DIRECTION_PREFIX } from "@/modules/traffic/call-class";
@@ -66,6 +67,8 @@ describe("list projection", () => {
     expect(listProjection({ category: ["VIP"] })).toBe("page");
     expect(listProjection({ supplier: ["Ростелеком"] })).toBe("page");
     expect(listProjection({ supplier: [EMPTY_FILTER_TOKEN, "Ростелеком"] })).toBe("page");
+    expect(listProjection({ source: ["MCN Telecom"] })).toBe("page");
+    expect(facetProjection("source", { number: ["7900"] })).toBe("page");
   });
 
   it("still projects the catalog for a city facet when other filters are cheap", () => {
@@ -130,9 +133,10 @@ describe("filter clauses", () => {
 
 describe("geography columns", () => {
   it("places the phone column immediately before the title", () => {
-    expect(NUMBER_GEOGRAPHY_COLUMNS.slice(0, 6)).toEqual([
+    expect(NUMBER_GEOGRAPHY_COLUMNS.slice(0, 7)).toEqual([
       "category",
       "supplier",
+      "source",
       "city",
       "region",
       "abc",
@@ -141,6 +145,7 @@ describe("geography columns", () => {
     const numberIndex = NUMBER_GEOGRAPHY_COLUMNS.indexOf("number");
     expect(NUMBER_GEOGRAPHY_COLUMNS[numberIndex + 1]).toBe("title");
     expect(NUMBER_GEOGRAPHY_COLUMNS.at(-1)).toBe("activation");
+    expect(NUMBER_GEOGRAPHY_HEADERS.source).toBe("Источник");
     expect(NUMBER_GEOGRAPHY_HEADERS.number).toBe("Телефонный номер");
     expect(NUMBER_GEOGRAPHY_HEADERS.region).toBe("Регион");
     expect(NUMBER_GEOGRAPHY_HEADERS.abc).toBe("ABC");
@@ -238,6 +243,16 @@ describe("city sql phrase", () => {
     expect(page.text).toContain("COALESCE(matched_region, '')");
     expect(page.text).toContain("AS region");
     expect(page.text).toContain("AS telephone");
+    expect(page.text).toContain("geography_did_sources");
+    expect(page.text).toContain("d.match_key = e.match_key");
+    expect(page.text).toContain("e.match_key = d.match_key");
+    expect(page.text).toContain('btrim(e."endpointNumber") AS number');
+    expect(page.text).toContain('s."displayNumber" AS number');
+    expect(page.text).toContain("AS source");
+    expect(page.text).toContain("AS missing");
+    expect(page.values).toContain("Нет в РТУ");
+    const sourceFacet = flattenSql(pageFacetSql("source", Prisma.sql`TRUE`));
+    expect(sourceFacet.text.indexOf("cdr_tariff_geo")).toBe(-1);
   });
 
   it("reads ABC and the local number through the catalog path", () => {
@@ -255,6 +270,12 @@ describe("pstn labels by id", () => {
   it("uses the table's miss label and does not rate the number", () => {
     const hostile = "id'); DROP TABLE pstn_phone_cache;--";
     const flat = flattenSql(pstnLabelsByIdsSql([hostile, "endpoint-2"]));
+    const byNumber = flattenSql(
+      pstnLabelsForNumbersSql([{ id: hostile, number: "79001112233" }]),
+    );
+    expect(byNumber.text).toContain("::text");
+    expect(byNumber.text).not.toContain("DROP TABLE");
+    expect(byNumber.values).toContain(hostile);
     const page = flattenSql(pageListSql(Prisma.sql`TRUE`, 10, 0));
     expect(flat.text).not.toContain("DROP TABLE");
     expect(flat.text).not.toContain("cdr_tariff_direction");

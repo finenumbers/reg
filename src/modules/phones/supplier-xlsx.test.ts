@@ -35,6 +35,26 @@ describe("parseSupplierXlsx", () => {
     });
   });
 
+  it("reads a geography export when Источник sits after Поставщик", async () => {
+    const parsed = await parseSupplierXlsx(
+      await workbook([
+        ["Категория", "Поставщик", "Источник", "Город", "Телефонный номер"],
+        ["VIP", "Ростелеком", "MCN Telecom", "Москва", "74951234567"],
+      ]),
+    );
+    expect(parsed).toEqual({
+      ok: true,
+      rows: [
+        {
+          rowNumber: 2,
+          number: "74951234567",
+          supplier: "Ростелеком",
+          category: "VIP",
+        },
+      ],
+    });
+  });
+
   it("reads a geography export from the telephone header, not the client column", async () => {
     const parsed = await parseSupplierXlsx(
       await workbook([

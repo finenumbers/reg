@@ -23,7 +23,7 @@ describe("DID origin", () => {
     );
   });
 
-  it("builds only the free catalog paths and leaves the token out of the URL", () => {
+  it("builds the allowed catalog paths and leaves the token out of the URL", () => {
     const params = new URLSearchParams({ page: "1", page_size: "1" });
     const url = didApiUrl("https://did.finenumbers.com/ignored", "/numbers/free", params);
     expect(url).toBe(
@@ -33,11 +33,10 @@ describe("DID origin", () => {
     expect(
       didApiUrl(SAME_HOST_DID_BASE_URL, "/numbers/free/facets", new URLSearchParams()),
     ).toBe("http://did-frontend:3000/api/backend/api/v1/numbers/free/facets");
-    for (const path of [
-      "/numbers/purchased",
-      "/numbers/purchased/facets",
-      "/numbers/free/export-jobs",
-    ]) {
+    expect(
+      didApiUrl(SAME_HOST_DID_BASE_URL, "/numbers/purchased", new URLSearchParams()),
+    ).toBe("http://did-frontend:3000/api/backend/api/v1/numbers/purchased");
+    for (const path of ["/numbers/purchased/facets", "/numbers/free/export-jobs"]) {
       expect(() =>
         didApiUrl(SAME_HOST_DID_BASE_URL, path as "/numbers/free", new URLSearchParams()),
       ).toThrow(/not allowed/);

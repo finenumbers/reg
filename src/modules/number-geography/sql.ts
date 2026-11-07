@@ -4,7 +4,9 @@
  * the count, and the facets. cdr_tariff_geo uses the same predicate as
  * cdr_tariff_direction. Geography calls it once, then geography_digit_split
  * trims the screen ABC. Filter values are bound parameters. Column names
- * come from the allowlist.
+ * come from the allowlist. «Источник» is a cheap column joined from the DID
+ * snapshot by one match key. Rows that are only in that snapshot are unioned
+ * before the page limit. The tariff function still runs after that limit.
  */
 
 import { Prisma } from "@/generated/prisma/client";
@@ -13,6 +15,7 @@ import {
   type ColumnFilters,
 } from "@/components/column-filters/types";
 import { MISSING_PSTN_LABEL } from "@/modules/enrich/types";
+import { STATUS_NOT_IN_RTU } from "@/modules/number-geography/types";
 import { PREMIUM_CAPACITY } from "@/modules/phones/capacity";
 import { STATUS_BLOCKED } from "@/modules/phones/types";
 import {
@@ -36,6 +39,22 @@ export function pstnCacheKey(raw: string | null | undefined): string | null {
   if (new RegExp(PSTN_ELEVEN_DIGIT).test(digits)) return digits.slice(1);
   if (new RegExp(PSTN_TEN_DIGIT).test(digits)) return digits;
   return null;
+}
+
+/**
+ * One key for a full phone number.
+ * 11 digits on 7 or 8, and a 10-digit number, share the PSTN key.
+ * Any other digit string stays whole. A number with no digits keeps its text.
+ */
+export function geographyMatchKey(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const pstn = pstnCacheKey(trimmed);
+  if (pstn) return `p:${pstn}`;
+  const digits = trimmed.replace(/\D/g, "");
+  if (digits) return `d:${digits}`;
+  return `e:${trimmed}`;
 }
 
 /**
@@ -92,6 +111,8 @@ function columnRef(column: NumberGeographyColumn): Prisma.Sql {
       return Prisma.sql`telephone`;
     case "supplier":
       return Prisma.sql`supplier`;
+    case "source":
+      return Prisma.sql`source`;
     case "number":
       return Prisma.sql`number`;
     case "client":
@@ -191,8 +212,26 @@ export function expensiveWhere(
   return whereFor(filters, "expensive", excludeColumn);
 }
 
+/** Same branches as geographyMatchKey. The number expression is already trimmed. */
+export function geographyMatchKeySql(numberExpr: Prisma.Sql): Prisma.Sql {
+  const digits = Prisma.sql`regexp_replace(${numberExpr}, '[^0-9]', '', 'g')`;
+  return Prisma.sql`(
+    CASE
+      WHEN ${digits} ~ ${PSTN_ELEVEN_DIGIT} THEN 'p:' || substring(${digits} FROM 2)
+      WHEN ${digits} ~ ${PSTN_TEN_DIGIT} THEN 'p:' || ${digits}
+      WHEN ${digits} <> '' THEN 'd:' || ${digits}
+      ELSE 'e:' || ${numberExpr}
+    END
+  )`;
+}
+
 const baseCte = Prisma.sql`
-  base AS (
+  did_generation AS (
+    SELECT generation
+    FROM geography_did_state
+    WHERE id = 1
+  ),
+  endpoints AS (
     SELECT
       e.id,
       btrim(e."endpointNumber") AS number,
@@ -212,6 +251,54 @@ const baseCte = Prisma.sql`
     FROM phone_endpoints e
     WHERE e."endpointNumber" IS NOT NULL
       AND btrim(e."endpointNumber") <> ''
+  ),
+  endpoint_keys AS (
+    SELECT
+      endpoints.*,
+      ${geographyMatchKeySql(Prisma.sql`endpoints.number`)} AS match_key
+    FROM endpoints
+  ),
+  did_rows AS (
+    SELECT
+      s."rowId" AS id,
+      s."displayNumber" AS number,
+      s."matchKey" AS match_key,
+      s.provider AS provider
+    FROM geography_did_sources s
+    WHERE s.generation = (SELECT generation FROM did_generation)
+  ),
+  base AS (
+    SELECT
+      e.id,
+      e.number,
+      e.client,
+      e.capacity,
+      e.supplier,
+      e.category,
+      e.activation,
+      e.title,
+      COALESCE(d.provider, '') AS source,
+      FALSE AS missing
+    FROM endpoint_keys e
+    LEFT JOIN did_rows d ON d.match_key = e.match_key
+    UNION ALL
+    SELECT
+      d.id,
+      d.number,
+      '' AS client,
+      '' AS capacity,
+      '' AS supplier,
+      '' AS category,
+      ${STATUS_NOT_IN_RTU} AS activation,
+      '' AS title,
+      d.provider AS source,
+      TRUE AS missing
+    FROM did_rows d
+    WHERE NOT EXISTS (
+      SELECT 1
+      FROM endpoint_keys e
+      WHERE e.match_key = d.match_key
+    )
   )
 `;
 
@@ -317,6 +404,8 @@ function joinedFrom(source: Prisma.Sql, cheap: Prisma.Sql): Prisma.Sql {
         k.category,
         k.title,
         k.activation,
+        k.source,
+        k.missing,
         geo.direction AS direction,
         geo.abc AS matched_abc,
         geo.region AS matched_region,
@@ -345,6 +434,8 @@ function labeledSelect(): Prisma.Sql {
       category,
       title,
       activation,
+      source,
+      missing,
       ${pstnStatusSql()} AS pstn_status,
       ${cityLabelSql(Prisma.sql`direction`)} AS city,
       ${cityAlertSql(Prisma.sql`direction`)} AS city_alert,
@@ -457,6 +548,43 @@ export function catalogFacetSql(
  * Operator and geography labels for a handful of endpoints.
  * Same CASE as the table. No tariff lookup.
  */
+/** Operator and geography for ids whose numbers are already known. */
+export function pstnLabelsForNumbersSql(
+  rows: readonly { id: string; number: string }[],
+): Prisma.Sql {
+  const values = Prisma.join(
+    rows.map((row) => Prisma.sql`(${row.id}::text, ${row.number}::text)`),
+  );
+  return Prisma.sql`
+    WITH src AS (
+      SELECT id, number
+      FROM (VALUES ${values}) AS v(id, number)
+    ),
+    keyed AS (
+      SELECT
+        src.id,
+        regexp_replace(src.number, '[^0-9]', '', 'g') AS digits
+      FROM src
+    ),
+    joined AS (
+      SELECT
+        k.id,
+        c.phone AS pstn_phone,
+        c.found AS pstn_found,
+        c.operator AS pstn_operator,
+        c."garTerritory" AS pstn_geography
+      FROM keyed k
+      LEFT JOIN pstn_phone_cache c
+        ON c.phone = ${pstnKeyFromDigits(Prisma.sql`k.digits`)}
+    )
+    SELECT
+      id,
+      ${operatorLabelSql()} AS operator,
+      ${geographyLabelSql()} AS geography
+    FROM joined
+  `;
+}
+
 export function pstnLabelsByIdsSql(ids: string[]): Prisma.Sql {
   const idList = Prisma.join(ids.map((id) => Prisma.sql`${id}`));
   return Prisma.sql`

@@ -90,7 +90,9 @@ function deps(overrides: Partial<ActivationDeps> = {}): ActivationDeps {
   };
 }
 
-function ask(patch: Partial<ActivationRequest> = {}): ActivationRequest & { actorUserId: string } {
+function ask(
+  patch: Partial<ActivationRequest> = {},
+): ActivationRequest & { actorUserId: string } {
   return {
     endpointId: "row-1",
     phone: "74951234567",
@@ -135,6 +137,15 @@ describe("parseActivationBody", () => {
           title: "EP",
         }),
     ).toBe(true);
+    expect(
+      "error" in
+        parseActivationBody({
+          endpointId: "did:p:9039039900",
+          phone: "79039039900",
+          activation: STATUS_ACTIVE,
+          title: "EP",
+        }),
+    ).toBe(true);
   });
 });
 
@@ -150,6 +161,20 @@ describe("catalogDisplayTitle", () => {
 describe("changeEndpointActivation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it("does not look up or write a synthetic DID row", async () => {
+    const loadEndpoint = vi.fn(async () => null);
+    const loadByNumber = vi.fn(async () => []);
+    const used = deps({ loadEndpoint, loadByNumber });
+    const result = await changeEndpointActivation(
+      ask({ endpointId: "did:p:9039039900", phone: "79039039900" }),
+      used,
+    );
+    expect(result.ok).toBe(false);
+    expect(used.write).not.toHaveBeenCalled();
+    expect(loadEndpoint).not.toHaveBeenCalled();
+    expect(loadByNumber).not.toHaveBeenCalled();
   });
 
   it("does not write when the typed number differs", async () => {

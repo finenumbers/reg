@@ -41,6 +41,7 @@ type Props = {
 
 const ROW_TONE_CLASS: Record<GeographyRowTone, string> = {
   blocked: "bg-black text-white hover:bg-black hover:text-white",
+  missing: "bg-red-600 text-white hover:bg-red-600 hover:text-white",
   red: "bg-destructive/10 hover:bg-destructive/15",
   yellow: "bg-amber-400/25 hover:bg-amber-400/35",
   blue: "bg-sky-500/15 hover:bg-sky-500/25",
@@ -128,7 +129,7 @@ export function NumberGeographyTable({
                         align === "left" && "text-left tabular-nums",
                         align === "right" && "text-right tabular-nums",
                         bold &&
-                          (tone === "blocked"
+                          (tone === "blocked" || tone === "missing"
                             ? "font-bold text-white"
                             : "font-bold text-black dark:text-white"),
                       )}

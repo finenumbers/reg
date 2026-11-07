@@ -1,5 +1,6 @@
 /**
- * Server-side reader for DID free numbers. Two GET paths, nothing else.
+ * Server-side reader for DID catalogs.
+ * GET /numbers/free, /numbers/free/facets, and /numbers/purchased. Nothing else.
  */
 
 import { logger } from "@/lib/logger";
@@ -254,15 +255,19 @@ function parseFacets(body: unknown): DidFacetPage {
   return { items, truncated: record.truncated === true };
 }
 
-function assertFreeCatalog(items: unknown[]): void {
+function assertCatalogKind(items: unknown[], kind: "free" | "purchased"): void {
   for (const raw of items) {
     if (!raw || typeof raw !== "object") {
       throw new DidClientError("BAD_RESPONSE", DID_UNAVAILABLE_MESSAGE);
     }
-    if ((raw as Record<string, unknown>).inventory_kind !== "free") {
+    if ((raw as Record<string, unknown>).inventory_kind !== kind) {
       throw new DidClientError("BAD_RESPONSE", DID_UNAVAILABLE_MESSAGE);
     }
   }
+}
+
+function assertFreeCatalog(items: unknown[]): void {
+  assertCatalogKind(items, "free");
 }
 
 export async function listDidNumbers(
@@ -296,6 +301,24 @@ export async function listDidFacets(
   appendCommon(params, query.filters, query.phoneQ);
   if (query.q) params.set("q", query.q);
   return parseFacets(await didGet(FREE_FACETS_PATH, params, creds, timeoutMs));
+}
+
+/** Unfiltered purchased catalog. Callers cannot pass a filter or a phone search. */
+export async function listDidPurchasedNumbers(
+  page: number,
+  pageSize: number,
+  creds: DidCredentials,
+  timeoutMs: number,
+): Promise<DidFreePage> {
+  const params = new URLSearchParams({
+    page: String(page),
+    page_size: String(pageSize),
+    sort_by: "abc_code",
+    sort_dir: "asc",
+  });
+  const result = parsePage(await didGet("/numbers/purchased", params, creds, timeoutMs));
+  assertCatalogKind(result.items, "purchased");
+  return result;
 }
 
 export function listDidFreeNumbers(

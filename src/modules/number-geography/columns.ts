@@ -6,6 +6,7 @@
 export const NUMBER_GEOGRAPHY_COLUMNS = [
   "category",
   "supplier",
+  "source",
   "city",
   "region",
   "abc",
@@ -28,6 +29,7 @@ export const NUMBER_GEOGRAPHY_HEADERS: Record<NumberGeographyColumn, string> = {
   abc: "ABC",
   telephone: "Номер",
   supplier: "Поставщик",
+  source: "Источник",
   number: "Телефонный номер",
   client: "Клиент",
   capacity: "Канальность",

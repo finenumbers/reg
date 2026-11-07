@@ -100,6 +100,9 @@ export function parseActivationBody(
     return { error: "Некорректный запрос." };
   }
   const endpointId = record.endpointId.trim();
+  if (endpointId.startsWith("did:")) {
+    return { error: "Некорректный запрос." };
+  }
   const phone = record.phone.trim();
   const activation = catalogSpaceTrim(record.activation);
   const title = catalogSpaceTrim(record.title);
@@ -152,6 +155,9 @@ async function runActivation(
   let sent = false;
   let resolvedId = input.endpointId;
   try {
+    if (input.endpointId.startsWith("did:")) {
+      return finish(deps, input, input.endpointId, "Некорректный запрос.", false);
+    }
     let row = await deps.loadEndpoint(input.endpointId);
     if (!row) {
       const found = await deps.loadByNumber(input.phone);

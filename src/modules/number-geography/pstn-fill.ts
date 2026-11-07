@@ -24,7 +24,10 @@ import {
   type PstnFillItem,
   type PstnFillResponse,
 } from "@/modules/number-geography/pstn-fill-contract";
-import { pstnLabelsByIdsSql } from "@/modules/number-geography/sql";
+import {
+  pstnLabelsByIdsSql,
+  pstnLabelsForNumbersSql,
+} from "@/modules/number-geography/sql";
 
 export const PSTN_FILL_FAILURE_COOLDOWN_MS = 5 * 60 * 1000;
 export const PSTN_FILL_AUTH_BLOCK_MS = 10 * 60 * 1000;
@@ -172,28 +175,78 @@ function lookupOnce(
   return promise;
 }
 
+function splitPstnIds(ids: readonly string[]): { endpoints: string[]; did: string[] } {
+  const endpoints: string[] = [];
+  const did: string[] = [];
+  for (const id of ids) {
+    if (id.startsWith("did:")) did.push(id);
+    else endpoints.push(id);
+  }
+  return { endpoints, did };
+}
+
+async function endpointNumbers(ids: readonly string[]): Promise<PstnFillEndpoint[]> {
+  if (ids.length === 0) return [];
+  const rows = await prisma.phoneEndpoint.findMany({
+    where: { id: { in: [...ids] } },
+    select: { id: true, endpointNumber: true },
+  });
+  return rows.flatMap((row) => {
+    const number = row.endpointNumber?.trim() ?? "";
+    return number === "" ? [] : [{ id: row.id, number }];
+  });
+}
+
+async function didNumbers(ids: readonly string[]): Promise<PstnFillEndpoint[]> {
+  if (ids.length === 0) return [];
+  const state = await prisma.geographyDidState.findUnique({
+    where: { id: 1 },
+    select: { generation: true },
+  });
+  if (!state) return [];
+  const rows = await prisma.geographyDidSource.findMany({
+    where: { generation: state.generation, rowId: { in: [...ids] } },
+    select: { rowId: true, displayNumber: true },
+  });
+  return rows.flatMap((row) => {
+    const number = row.displayNumber.trim();
+    return number === "" ? [] : [{ id: row.rowId, number }];
+  });
+}
+
+async function numbersForPstnFill(ids: readonly string[]): Promise<PstnFillEndpoint[]> {
+  const parts = splitPstnIds(ids);
+  const [endpoints, did] = await Promise.all([
+    endpointNumbers(parts.endpoints),
+    didNumbers(parts.did),
+  ]);
+  return [...endpoints, ...did];
+}
+
 const defaultDeps: PstnFillDeps = {
   loadCredentials: loadPstnCredentials,
-  async loadEndpoints(ids) {
-    if (ids.length === 0) return [];
-    const rows = await prisma.phoneEndpoint.findMany({
-      where: { id: { in: ids } },
-      select: { id: true, endpointNumber: true },
-    });
-    return rows.flatMap((row) => {
-      const number = row.endpointNumber?.trim() ?? "";
-      return number === "" ? [] : [{ id: row.id, number }];
-    });
-  },
+  loadEndpoints: numbersForPstnFill,
   loadCache: loadPstnCacheByPhones,
   lookup: lookupPstnPhone,
   upsert: upsertPstnCache,
   async loadLabels(ids) {
     if (ids.length === 0) return [];
-    const rows = await prisma.$queryRaw<
-      { id: string; operator: string | null; geography: string | null }[]
-    >(pstnLabelsByIdsSql(ids));
-    return rows.map((row) => ({
+    const parts = splitPstnIds(ids);
+    const [endpointRows, didPairs] = await Promise.all([
+      parts.endpoints.length === 0
+        ? Promise.resolve([])
+        : prisma.$queryRaw<
+            { id: string; operator: string | null; geography: string | null }[]
+          >(pstnLabelsByIdsSql(parts.endpoints)),
+      didNumbers(parts.did),
+    ]);
+    const didRows =
+      didPairs.length === 0
+        ? []
+        : await prisma.$queryRaw<
+            { id: string; operator: string | null; geography: string | null }[]
+          >(pstnLabelsForNumbersSql(didPairs));
+    return [...endpointRows, ...didRows].map((row) => ({
       id: row.id,
       operator: row.operator ?? "",
       geography: row.geography ?? "",
@@ -222,9 +275,7 @@ export async function fillNumberGeographyPstn(
     const phone = number == null ? null : normalizePstnPhone(number);
     return { id, phone };
   });
-  const phones = [
-    ...new Set(slots.flatMap((slot) => (slot.phone ? [slot.phone] : []))),
-  ];
+  const phones = [...new Set(slots.flatMap((slot) => (slot.phone ? [slot.phone] : [])))];
   const cache = phones.length > 0 ? await deps.loadCache(phones) : new Map();
 
   const outcome = new Map<string, "cached" | LookupOutcome>();

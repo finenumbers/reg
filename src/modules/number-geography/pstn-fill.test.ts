@@ -16,7 +16,7 @@ const creds: PstnCredentials = {
 
 const found: PstnFields = {
   found: true,
-  operator: "ПАО \"ВЫМПЕЛКОМ\"",
+  operator: 'ПАО "ВЫМПЕЛКОМ"',
   garTerritory: "Новосибирская область",
 };
 
@@ -45,12 +45,19 @@ function deps(over: Partial<PstnFillDeps> = {}): PstnFillDeps {
 
 describe("parsePstnFillIds", () => {
   it("rejects a batch larger than 16 and a non-array", () => {
-    expect(parsePstnFillIds({ ids: Array.from({ length: 17 }, (_, i) => String(i)) }).ok).toBe(
-      false,
-    );
+    expect(
+      parsePstnFillIds({ ids: Array.from({ length: 17 }, (_, i) => String(i)) }).ok,
+    ).toBe(false);
     expect(parsePstnFillIds({ ids: "79001112233" }).ok).toBe(false);
     expect(parsePstnFillIds({ ids: [""] }).ok).toBe(false);
     expect(parsePstnFillIds({ ids: ["x".repeat(65)] }).ok).toBe(false);
+  });
+
+  it("accepts a DID row id next to an endpoint id", () => {
+    expect(parsePstnFillIds({ ids: ["endpoint-1", "did:p:9039039900"] })).toEqual({
+      ok: true,
+      ids: ["endpoint-1", "did:p:9039039900"],
+    });
   });
 
   it("keeps the first copy of a repeated id", () => {
@@ -64,6 +71,36 @@ describe("parsePstnFillIds", () => {
 describe("fillNumberGeographyPstn", () => {
   beforeEach(() => {
     resetPstnFillForTests({ concurrency: 1 });
+  });
+
+  it("fills an endpoint and a DID row in one request", async () => {
+    const lookup = vi.fn(async () => found);
+    const result = await fillNumberGeographyPstn(
+      ["endpoint-1", "did:p:9039039900"],
+      deps({
+        loadEndpoints: async () => [
+          { id: "endpoint-1", number: "79001112233" },
+          { id: "did:p:9039039900", number: "79039039900" },
+        ],
+        loadCache: async () => new Map(),
+        lookup,
+        loadLabels: async (ids) =>
+          ids.map((id) => ({ id, operator: "МТС", geography: "Москва" })),
+      }),
+    );
+    expect(lookup).toHaveBeenCalledTimes(2);
+    expect(result).toEqual({
+      configured: true,
+      items: [
+        { id: "endpoint-1", status: "filled", operator: "МТС", geography: "Москва" },
+        {
+          id: "did:p:9039039900",
+          status: "filled",
+          operator: "МТС",
+          geography: "Москва",
+        },
+      ],
+    });
   });
 
   it("writes a cache miss and does not call PSTN when credentials are missing", async () => {
@@ -114,7 +151,11 @@ describe("fillNumberGeographyPstn", () => {
         lookup,
         loadCache: async () => stale,
         loadLabels: async () => [
-          { id: "a", operator: "Нет в реестре МинЦифры", geography: "Нет в реестре МинЦифры" },
+          {
+            id: "a",
+            operator: "Нет в реестре МинЦифры",
+            geography: "Нет в реестре МинЦифры",
+          },
         ],
       }),
     );
@@ -140,7 +181,11 @@ describe("fillNumberGeographyPstn", () => {
         lookup: async () => missing,
         upsert,
         loadLabels: async () => [
-          { id: "a", operator: "Нет в реестре МинЦифры", geography: "Нет в реестре МинЦифры" },
+          {
+            id: "a",
+            operator: "Нет в реестре МинЦифры",
+            geography: "Нет в реестре МинЦифры",
+          },
         ],
       }),
     );

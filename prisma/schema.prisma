@@ -374,6 +374,31 @@ model PstnPhoneCache {
   @@map("pstn_phone_cache")
 }
 
+// One complete read of DID purchased numbers. Readers use the generation
+// named by GeographyDidState. A failed read does not switch that generation.
+model GeographyDidSource {
+  generation    Int
+  matchKey      String
+  displayNumber String
+  provider      String
+  rowId         String
+
+  @@id([generation, matchKey])
+  @@index([rowId])
+  @@map("geography_did_sources")
+}
+
+model GeographyDidState {
+  id          Int       @id
+  generation  Int       @default(0)
+  refreshedAt DateTime?
+  attemptedAt DateTime?
+  lockedUntil DateTime?
+  lockedToken String?
+
+  @@map("geography_did_state")
+}
+
 // ---------------------------------------------------------------------------
 // Phones module (catalog snapshot)
 // ---------------------------------------------------------------------------

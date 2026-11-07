@@ -1,7 +1,13 @@
-# Current Phase — production (v1.238.0)
+# Current Phase — production (v1.239.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, number geography, free numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls.  
 **Date:** 2026-11-07
+
+## v1.239.0 — Geography shows the DID provider as «Источник»
+
+The migrator creates `geography_did_sources` and `geography_did_state`. It does not rewrite phone, tariff, CDR, or PSTN rows and does not replace the rater or `geography_digit_split`. The migration is label-free, so startup does not rescan the CDR journal. Do not stop `smg-syslog`. Keep a single `app` replica. Replace the `app` container after migrate. Refresh the browser.
+
+«География номеров» shows «Источник» after «Поставщик». The cell is the DID «Провайдер» of the same full number. The purchased page stays gone. DID is still read with GET only. The new path is `/numbers/purchased`, using the URL and token already saved in Settings. A number that is only in that catalog is added with status «Нет в РТУ» and a bright red row. Its city, region, ABC, local number, operator, and geography are filled the same way as an RTU row. Its category, supplier, client, capacity, and title stay empty. The row cannot change the switch. A failed or partial DID read keeps the previous snapshot. Nothing else is written to the switch.
 
 ## v1.238.0 — Geography shows the mobile DEF code without the country digit
 

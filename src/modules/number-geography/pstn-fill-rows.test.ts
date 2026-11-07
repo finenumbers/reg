@@ -22,6 +22,8 @@ function row(over: Partial<NumberGeographyItem> = {}): NumberGeographyItem {
     geography: "",
     title: "Электротехмонтаж ТД",
     activation: "",
+    source: "",
+    missing: false,
     cityAlert: true,
     ...over,
   };

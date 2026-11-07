@@ -22,6 +22,7 @@ import { getDisplayTimezone } from "@/modules/settings";
 
 const TONE_FILL: Record<Exclude<GeographyRowTone, "none">, string> = {
   blocked: "FF000000",
+  missing: "FFDC2626",
   red: "FFFEE2E2",
   yellow: "FFFEF3C7",
   blue: "FFDBEAFE",
@@ -68,7 +69,7 @@ export async function buildNumberGeographyExportXlsx(): Promise<NumberGeographyE
       const tone = geographyRowTone(item, { surface: "export" });
       const fill = toneFill(tone);
       if (fill) cell.fill = fill;
-      if (tone === "blocked") {
+      if (tone === "blocked" || tone === "missing") {
         const font = cell.font;
         cell.font = {
           name: font?.name ?? "Calibri",
