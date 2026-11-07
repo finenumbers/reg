@@ -27,6 +27,9 @@ import {
   pstnCacheKey,
   pstnLabelsByIdsSql,
   pstnLabelsForNumbersSql,
+  screenBuildInsertSql,
+  screenListSql,
+  screenStampsSql,
 } from "@/modules/rtu/sql";
 import { normalizePstnPhone } from "@/modules/pstn/types";
 import { CITY_DIRECTION_PREFIX } from "@/modules/traffic/call-class";
@@ -58,8 +61,11 @@ describe("list projection", () => {
     expect(listProjection({ supplier: [EMPTY_FILTER_TOKEN] })).toBe("page");
   });
 
-  it("uses the full catalog when city or operator is filtered", () => {
-    expect(listProjection({ city: ["Москва"] })).toBe("catalog");
+  it("joins the live cache only for operator and geography", () => {
+    expect(listProjection({ city: ["Москва"] })).toBe("page");
+    expect(listProjection({ region: ["Приморский край"] })).toBe("page");
+    expect(listProjection({ abc: ["7383"] })).toBe("page");
+    expect(listProjection({ telephone: ["480882"] })).toBe("page");
     expect(listProjection({ operator: ["МТС"], number: ["7900"] })).toBe("catalog");
     expect(listProjection({ geography: ["край"] })).toBe("catalog");
   });
@@ -72,8 +78,9 @@ describe("list projection", () => {
     expect(facetProjection("source", { number: ["7900"] })).toBe("page");
   });
 
-  it("still projects the catalog for a city facet when other filters are cheap", () => {
-    expect(facetProjection("city", { number: ["7900"] })).toBe("catalog");
+  it("keeps a stored city facet on the page path", () => {
+    expect(facetProjection("city", { number: ["7900"] })).toBe("page");
+    expect(facetProjection("operator", { number: ["7900"] })).toBe("catalog");
     expect(facetProjection("client", { number: ["7900"] })).toBe("page");
     expect(isRtuColumn("number")).toBe(false);
     expect(facetProjection("client", { supplier: ["нет такого"] })).toBe("page");
@@ -273,13 +280,14 @@ describe("city sql phrase", () => {
     expect(sourceFacet.text.indexOf("cdr_tariff_geo")).toBe(-1);
   });
 
-  it("reads ABC and the local number through the catalog path", () => {
-    expect(facetProjection("abc", {})).toBe("catalog");
-    expect(facetProjection("telephone", {})).toBe("catalog");
-    expect(facetProjection("region", {})).toBe("catalog");
-    expect(listProjection({ abc: ["7383"] })).toBe("catalog");
-    expect(listProjection({ telephone: ["480882"] })).toBe("catalog");
-    expect(listProjection({ region: ["Приморский край"] })).toBe("catalog");
+  it("reads stored ABC, region, and the local number on the page path", () => {
+    expect(facetProjection("abc", {})).toBe("page");
+    expect(facetProjection("telephone", {})).toBe("page");
+    expect(facetProjection("region", {})).toBe("page");
+    expect(facetProjection("geography", {})).toBe("catalog");
+    expect(listProjection({ abc: ["7383"] })).toBe("page");
+    expect(listProjection({ telephone: ["480882"] })).toBe("page");
+    expect(listProjection({ region: ["Приморский край"] })).toBe("page");
     expect(listProjection({})).toBe("page");
   });
 });
@@ -307,5 +315,63 @@ describe("pstn labels by id", () => {
     );
     expect(flat.text).toContain("btrim(pstn_geography) = '' THEN ''");
     expect(page.text).toContain("btrim(pstn_geography) = '' THEN ''");
+  });
+});
+
+describe("screen snapshot sql", () => {
+  it("rates the build and does not copy a registration password", () => {
+    expect(() => screenBuildInsertSql("not-a-token")).toThrow(/Некорректный ключ/);
+    const built = flattenSql(screenBuildInsertSql("ab12cd34"));
+    expect(built.text).toContain('"rtu_screen_build_ab12cd34"');
+    expect(built.text).toContain("cdr_tariff_geo");
+    expect(built.text).toContain("geography_digit_split");
+    expect(built.text).not.toContain("Регистрационный пароль");
+  });
+
+  it("limits the page before the live PSTN join", () => {
+    const page = flattenSql(
+      screenListSql({
+        joined: false,
+        where: Prisma.sql`TRUE`,
+        limit: 100,
+        offset: 0,
+      }),
+    );
+    expect(page.text).toContain("rtu_screen");
+    expect(page.text).not.toContain("cdr_tariff_geo");
+    expect(page.text.indexOf("LIMIT")).toBeLessThan(page.text.indexOf("pstn_phone_cache"));
+    const joined = flattenSql(
+      screenListSql({
+        joined: true,
+        where: Prisma.sql`TRUE`,
+        limit: 100,
+        offset: 0,
+      }),
+    );
+    expect(joined.text.indexOf("pstn_phone_cache")).toBeLessThan(joined.text.indexOf("LIMIT"));
+  });
+
+  it("binds the cursor and hashes DID only outside the swap lock", () => {
+    const hostile = "1'); DROP TABLE rtu_screen;--";
+    const page = flattenSql(
+      screenListSql({
+        joined: false,
+        where: Prisma.sql`TRUE`,
+        cursorNumber: hostile,
+        cursorId: "row-1",
+        limit: 50,
+        offset: 0,
+      }),
+    );
+    expect(page.text).not.toContain("DROP TABLE");
+    expect(page.values).toContain(hostile);
+    expect(page.values).toContain("row-1");
+    const locked = flattenSql(screenStampsSql(true));
+    expect(locked.text).toContain("FOR UPDATE OF st");
+    expect(locked.text).not.toContain("string_agg");
+    const open = flattenSql(screenStampsSql(false));
+    expect(open.text).toContain("string_agg");
+    expect(open.text).toContain("did_generation");
+    expect(open.text).not.toContain("FOR UPDATE");
   });
 });

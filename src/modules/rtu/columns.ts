@@ -47,15 +47,11 @@ export function isRtuColumn(value: string): value is RtuColumn {
   return COLUMN_SET.has(value);
 }
 
-/** City, region, ABC, the local number, operator, and geography need the tariff function or the PSTN join. */
-export const EXPENSIVE_COLUMNS = new Set<RtuColumn>([
-  "city",
-  "region",
-  "abc",
-  "telephone",
-  "operator",
-  "geography",
-]);
+/**
+ * Operator and geography are read from the PSTN cache at request time.
+ * City, region, ABC, and the local number are stored on the screen snapshot.
+ */
+export const EXPENSIVE_COLUMNS = new Set<RtuColumn>(["operator", "geography"]);
 
 /** Digit columns split from the tariff row. ABC stays left, the local number stays right. */
 export function geographyDigitAlign(column: RtuColumn): "left" | "right" | null {

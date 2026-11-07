@@ -1,7 +1,15 @@
-# Current Phase — production (v1.242.0)
+# Current Phase — production (v1.243.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls.  
 **Date:** 2026-11-08
+
+## v1.243.0 — RTU management reads a published screen
+
+The migrator creates `rtu_screen`, `rtu_screen_state`, and the `pg_trgm` extension. It does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `smg-syslog`. Keep a single `app` replica. Replace the `app` container after migrate. Refresh the browser.
+
+The first open of «Управление РТУ» can say «Каталог готовится» until the screen snapshot is published. Search, filters, and scrolling then read that snapshot. «Без регистрации», «Оператор связи», and «География» stay live. City, region, ABC, and the local number are stored on the snapshot and recomputed from the tariff when it is rebuilt. A rebuild follows a phone sync, a tariff upload, a supplier upload, or a DID snapshot whose content changed. Scrolling does not rebuild it.
+
+Activation is still one `updateRowset` on «Оборудование», then `phones.sync`. The screen publish is attempted before that sync returns. Supplier upload stays `POST /api/phones/suppliers` and patches the published screen in the same transaction. Nothing else is written to the switch.
 
 ## v1.242.0 — RTU management replaces number geography
 

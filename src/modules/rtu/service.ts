@@ -1,31 +1,28 @@
 /**
- * Live projection of phone endpoints plus the purchased-DID snapshot.
- * The snapshot is read inside the same SQL. A refresh of it does not block the page.
+ * «Управление РТУ» reads the published screen.
+ * Unregistered status, operator, and geography stay live for the page.
  */
 
 import {
-  aggregateFacetItems,
+  cellToFilterToken,
+  displayFacetValue,
   type ColumnFilters,
   type FacetResponse,
 } from "@/components/column-filters/types";
-import { Prisma, type PrismaClient } from "@/generated/prisma/client";
+import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
 import { kickGeographyDidRefresh } from "@/modules/rtu/did-snapshot";
 import { EXCEL_MAX_ROWS } from "@/modules/enrich/types";
 import { isRtuColumn, type RtuColumn } from "@/modules/rtu/columns";
 import { clampPage, clampPageSize } from "@/modules/rtu/paging";
+import { readRtuScreenGate, requestRtuScreenPublish } from "@/modules/rtu/screen-publish";
 import {
-  catalogCountSql,
-  catalogFacetSql,
-  catalogListSql,
   cheapWhere,
   expensiveWhere,
   facetProjection,
   listProjection,
-  pageCountSql,
-  pageFacetSql,
-  pageListSql,
-  toolbarCountSql,
+  screenFacetSql,
+  screenListSql,
   type CheapFlags,
 } from "@/modules/rtu/sql";
 import {
@@ -62,9 +59,15 @@ type DbRow = {
   pstn_status: string | null;
 };
 
-type CountRow = { n: number };
-type ToolbarCountRow = { blocked: number; unregistered: number; missing: number };
 type FacetRow = { value: string | null; count: number };
+type ListQueryRow = Omit<DbRow, "id"> & {
+  id: string | null;
+  n: number | null;
+  blocked: number | null;
+  unregistered_count: number | null;
+  missing_count: number | null;
+  catalog_revision: number | null;
+};
 
 function listFlags(opts: {
   blockedOnly?: boolean;
@@ -106,38 +109,29 @@ function facetsFromGroups(
   rows: FacetRow[],
   opts: { q?: string; limit?: number },
 ): FacetResponse {
-  function* values(): Generator<string> {
-    for (const row of rows) {
-      const n = Number(row.count) || 0;
-      const value = row.value ?? "";
-      for (let i = 0; i < n; i++) yield value;
-    }
+  const limit = Math.min(500, Math.max(1, opts.limit ?? 200));
+  const q = opts.q?.trim().toLowerCase() ?? "";
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    const token = cellToFilterToken(row.value ?? "");
+    counts.set(token, (counts.get(token) ?? 0) + (Number(row.count) || 0));
   }
-  return aggregateFacetItems(values(), opts);
+  let items = [...counts.entries()].map(([value, count]) => ({ value, count }));
+  items.sort((a, b) => {
+    if (b.count !== a.count) return b.count - a.count;
+    return displayFacetValue(a.value).localeCompare(displayFacetValue(b.value), "ru");
+  });
+  if (q) {
+    items = items.filter((item) =>
+      displayFacetValue(item.value).toLowerCase().includes(q),
+    );
+  }
+  const truncated = items.length > limit;
+  return { items: truncated ? items.slice(0, limit) : items, truncated };
 }
 
-type GeographyDb = Pick<
-  PrismaClient,
-  "phoneEndpoint" | "appSetting" | "geographyDidState" | "$queryRaw"
->;
-
-const GEOGRAPHY_READ = {
-  isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead,
-  maxWait: 5_000,
-  timeout: 120_000,
-} as const;
-
-async function readCatalogStamp(db: GeographyDb): Promise<string> {
-  const [phones, did] = await Promise.all([
-    db.phoneEndpoint.aggregate({ _max: { lastSyncedAt: true } }),
-    db.geographyDidState.findUnique({ where: { id: 1 }, select: { generation: true } }),
-  ]);
-  const phoneStamp = phones._max.lastSyncedAt?.toISOString() ?? "";
-  return `${phoneStamp}|${did?.generation ?? 0}`;
-}
-
-async function readRefresh(db: GeographyDb): Promise<RtuRefresh> {
-  const row = await db.appSetting.findUnique({
+async function readRefresh(): Promise<RtuRefresh> {
+  const row = await prisma.appSetting.findUnique({
     where: { id: 1 },
     select: {
       numberGeographyRefreshEnabled: true,
@@ -155,6 +149,51 @@ async function readRefresh(db: GeographyDb): Promise<RtuRefresh> {
   };
 }
 
+function preparingResult(
+  page: number,
+  pageSize: number,
+  refresh: RtuRefresh,
+): ListRtuResult {
+  return {
+    items: [],
+    total: 0,
+    page,
+    pageSize,
+    refresh,
+    catalogStamp: "0",
+    blockedCount: 0,
+    unregisteredCount: 0,
+    missingCount: 0,
+    preparing: true,
+  };
+}
+
+function cursorPair(
+  number: string | undefined,
+  id: string | undefined,
+): { number: string; id: string } | null {
+  const trimmedNumber = number?.trim() ?? "";
+  const trimmedId = id?.trim() ?? "";
+  if (!trimmedNumber || !trimmedId) return null;
+  return { number: trimmedNumber, id: trimmedId };
+}
+
+function screenWhere(
+  joined: boolean,
+  filters: ColumnFilters,
+  exclude: RtuColumn | undefined,
+  phoneQ: string,
+  flags: CheapFlags,
+): Prisma.Sql {
+  const cheap = cheapWhere(filters, exclude, phoneQ, flags);
+  if (!joined) return cheap;
+  return Prisma.sql`(${cheap} AND ${expensiveWhere(filters, exclude)})`;
+}
+
+function itemsFrom(rows: ListQueryRow[]): RtuItem[] {
+  return rows.flatMap((row) => (row.id == null ? [] : [mapRow({ ...row, id: row.id })]));
+}
+
 export async function listRtu(opts: {
   filters?: ColumnFilters;
   phoneQ?: string;
@@ -163,88 +202,77 @@ export async function listRtu(opts: {
   missingOnly?: boolean;
   page?: number;
   pageSize?: number;
+  cursorNumber?: string;
+  cursorId?: string;
 }): Promise<ListRtuResult> {
   const page = clampPage(opts.page ?? 1);
   const pageSize = clampPageSize(opts.pageSize);
   const filters = opts.filters ?? {};
   const phoneQ = opts.phoneQ?.trim() ?? "";
   const flags = listFlags(opts);
+  const cursor = cursorPair(opts.cursorNumber, opts.cursorId);
   kickGeographyDidRefresh();
-  return prisma.$transaction(async (tx) => {
-    const db = tx as GeographyDb;
-    const [refresh, catalogStamp, countRows] = await Promise.all([
-      readRefresh(db),
-      readCatalogStamp(db),
-      db.$queryRaw<ToolbarCountRow[]>(toolbarCountSql()),
-    ]);
-    const counted = countRows[0];
-    const blockedCount = Number(counted?.blocked ?? 0);
-    const unregisteredCount = Number(counted?.unregistered ?? 0);
-    const missingCount = Number(counted?.missing ?? 0);
-    const empty: ListRtuResult = {
-      items: [],
-      total: 0,
-      page,
-      pageSize,
-      refresh,
-      catalogStamp,
-      blockedCount,
-      unregisteredCount,
-      missingCount,
-    };
-    const projection = listProjection(filters);
-    if (projection === "empty") return empty;
+  const [refresh, gate] = await Promise.all([readRefresh(), readRtuScreenGate()]);
+  if (!gate?.published || gate.needsPublish) {
+    void requestRtuScreenPublish();
+  }
+  if (!gate?.published) return preparingResult(page, pageSize, refresh);
 
-    const offset = (page - 1) * pageSize;
-    if (projection === "page") {
-      const cheap = cheapWhere(filters, undefined, phoneQ, flags);
-      const [counts, rows] = await Promise.all([
-        db.$queryRaw<CountRow[]>(pageCountSql(cheap)),
-        db.$queryRaw<DbRow[]>(pageListSql(cheap, pageSize, offset)),
-      ]);
-      return {
-        items: rows.map(mapRow),
-        total: Number(counts[0]?.n ?? 0),
-        page,
-        pageSize,
-        refresh,
-        catalogStamp,
-        blockedCount,
-        unregisteredCount,
-        missingCount,
-      };
-    }
-
-    const cheap = cheapWhere(filters, undefined, phoneQ, flags);
-    const expensive = expensiveWhere(filters);
-    const [counts, rows] = await Promise.all([
-      db.$queryRaw<CountRow[]>(catalogCountSql(cheap, expensive)),
-      db.$queryRaw<DbRow[]>(catalogListSql(cheap, expensive, pageSize, offset)),
-    ]);
+  const projection = listProjection(filters);
+  if (projection === "empty") {
     return {
-      items: rows.map(mapRow),
-      total: Number(counts[0]?.n ?? 0),
-      page,
-      pageSize,
-      refresh,
-      catalogStamp,
-      blockedCount,
-      unregisteredCount,
-      missingCount,
+      ...preparingResult(page, pageSize, refresh),
+      preparing: false,
+      catalogStamp: String(gate.catalogRevision),
     };
-  }, GEOGRAPHY_READ);
+  }
+  const joined = projection === "catalog" || flags.unregisteredOnly === true;
+  const rows = await prisma.$queryRaw<ListQueryRow[]>(
+    screenListSql({
+      joined,
+      where: screenWhere(joined, filters, undefined, phoneQ, flags),
+      cursorNumber: cursor?.number,
+      cursorId: cursor?.id,
+      limit: pageSize,
+      offset: cursor ? 0 : (page - 1) * pageSize,
+    }),
+  );
+  const head = rows[0];
+  return {
+    items: itemsFrom(rows),
+    total: Number(head?.n ?? 0),
+    page,
+    pageSize,
+    refresh,
+    catalogStamp: String(Number(head?.catalog_revision ?? gate.catalogRevision) || 0),
+    blockedCount: Number(head?.blocked ?? 0),
+    unregisteredCount: Number(head?.unregistered_count ?? 0),
+    missingCount: Number(head?.missing_count ?? 0),
+    preparing: false,
+  };
 }
 
 /** Full catalog, one snapshot. Used by the XLSX download. */
 export async function listAllRtu(): Promise<RtuItem[]> {
   kickGeographyDidRefresh();
-  const rows = await prisma.$queryRaw<DbRow[]>(
-    catalogListSql(Prisma.sql`TRUE`, Prisma.sql`TRUE`, EXCEL_MAX_ROWS + 1, 0),
+  const gate = await readRtuScreenGate();
+  if (!gate?.published) {
+    void requestRtuScreenPublish();
+    throw new Error("Каталог готовится");
+  }
+  const rows = await prisma.$queryRaw<ListQueryRow[]>(
+    screenListSql({
+      joined: true,
+      where: Prisma.sql`TRUE`,
+      limit: EXCEL_MAX_ROWS + 1,
+      offset: 0,
+    }),
   );
-  if (rows.length > EXCEL_MAX_ROWS) {
+  const items = itemsFrom(rows);
+  if (items.length > EXCEL_MAX_ROWS) {
     throw new Error("Слишком много строк для одного файла XLSX");
   }
-  return rows.map(mapRow);
+  return items;
 }
 
 export async function listRtuFacets(opts: {
@@ -262,24 +290,20 @@ export async function listRtuFacets(opts: {
   if (!isRtuColumn(column)) {
     return { items: [], truncated: false };
   }
+  const gate = await readRtuScreenGate();
+  if (!gate?.published) {
+    void requestRtuScreenPublish();
+    return { items: [], truncated: false };
+  }
   const filters = opts.filters ?? {};
   const phoneQ = opts.phoneQ?.trim() ?? "";
   const flags = listFlags(opts);
   const projection = facetProjection(column, filters);
   if (projection === "empty") return { items: [], truncated: false };
-
-  const rows =
-    projection === "page"
-      ? await prisma.$queryRaw<FacetRow[]>(
-          pageFacetSql(column, cheapWhere(filters, column, phoneQ, flags)),
-        )
-      : await prisma.$queryRaw<FacetRow[]>(
-          catalogFacetSql(
-            column,
-            cheapWhere(filters, column, phoneQ, flags),
-            expensiveWhere(filters, column),
-          ),
-        );
+  const joined = projection === "catalog" || flags.unregisteredOnly === true;
+  const rows = await prisma.$queryRaw<FacetRow[]>(
+    screenFacetSql(column, screenWhere(joined, filters, column, phoneQ, flags), joined),
+  );
   return facetsFromGroups(rows, { q: opts.q, limit: opts.limit });
 }
 

@@ -7,6 +7,7 @@ import { listRtu } from "@/modules/rtu/service";
 /**
  * GET /api/rtu — catalog projection. Session or phones:read key.
  * Optional: filters=<json>, phoneQ, blockedOnly, unregisteredOnly, missingOnly, page, pageSize.
+ * cursorNumber and cursorId together replace the offset. page stays for key clients.
  */
 export async function GET(request: Request) {
   const gate = await requireApiPermission("phones:read");
@@ -20,6 +21,8 @@ export async function GET(request: Request) {
   const missingOnly = flagParam(url, "missingOnly");
   const page = Number(url.searchParams.get("page") ?? "1");
   const pageSize = Number(url.searchParams.get("pageSize") ?? "100");
+  const cursorNumber = url.searchParams.get("cursorNumber") ?? undefined;
+  const cursorId = url.searchParams.get("cursorId") ?? undefined;
 
   const data = await listRtu({
     filters,
@@ -29,6 +32,8 @@ export async function GET(request: Request) {
     missingOnly,
     page: clampPage(page),
     pageSize: clampPageSize(Number.isFinite(pageSize) ? pageSize : undefined),
+    cursorNumber,
+    cursorId,
   });
 
   return NextResponse.json(data);

@@ -37,6 +37,8 @@ export function buildRtuListUrl(opts: {
   missingOnly?: boolean;
   page?: number;
   pageSize?: number;
+  cursorNumber?: string;
+  cursorId?: string;
 }): string {
   const params = new URLSearchParams();
   const encoded = opts.filters ? encodeFilters(opts.filters) : null;
@@ -47,6 +49,10 @@ export function buildRtuListUrl(opts: {
   if (opts.missingOnly) params.set("missingOnly", "1");
   if (opts.page != null) params.set("page", String(opts.page));
   if (opts.pageSize != null) params.set("pageSize", String(opts.pageSize));
+  if (opts.cursorNumber && opts.cursorId) {
+    params.set("cursorNumber", opts.cursorNumber);
+    params.set("cursorId", opts.cursorId);
+  }
   const query = params.toString();
   return query ? `/api/rtu?${query}` : "/api/rtu";
 }
@@ -82,6 +88,8 @@ export async function fetchRtuList(opts: {
   missingOnly?: boolean;
   page?: number;
   pageSize?: number;
+  cursorNumber?: string;
+  cursorId?: string;
 }): Promise<FetchRtuResult> {
   const res = await fetch(buildRtuListUrl(opts), {
     method: "GET",

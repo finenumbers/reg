@@ -54,7 +54,11 @@ export async function POST(request: Request) {
     actorUserId: userId,
   });
   return NextResponse.json(
-    { ok: result.ok, message: result.message },
+    {
+      ok: result.ok,
+      message: result.message,
+      ...(result.screenPending ? { screenPending: true } : {}),
+    },
     { status: result.busy ? 409 : 200 },
   );
 }

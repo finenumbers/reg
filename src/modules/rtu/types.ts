@@ -56,4 +56,6 @@ export type ListRtuResult = {
   unregisteredCount: number;
   /** «Нет в РТУ» rows in the number list, ignoring search and column filters. */
   missingCount: number;
+  /** True until the first screen snapshot is published. The list is not empty. */
+  preparing: boolean;
 };

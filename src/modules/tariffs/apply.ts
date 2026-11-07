@@ -59,5 +59,9 @@ export async function applyTariffSnapshot(
     .then(({ requestCdrTariffRate }) => requestCdrTariffRate("schedule"))
     .catch(() => undefined);
 
+  void import("@/modules/rtu/screen-publish")
+    .then(({ requestRtuScreenPublish }) => requestRtuScreenPublish())
+    .catch(() => undefined);
+
   return { rowCount: rows.length, loadedAt };
 }

@@ -13,6 +13,8 @@ type TableInfiniteBodyProps = {
   scrollRef: Ref<HTMLDivElement>;
   sentinelRef: (node: HTMLElement | null) => void;
   loadingMore?: boolean;
+  /** Other tables keep the loading line in the scroller. RTU puts it in the footer. */
+  showLoadingRow?: boolean;
   className?: string;
   children: ReactNode;
 };
@@ -25,6 +27,7 @@ export function TableInfiniteBody({
   scrollRef,
   sentinelRef,
   loadingMore = false,
+  showLoadingRow = true,
   className,
   children,
 }: TableInfiniteBodyProps) {
@@ -34,7 +37,7 @@ export function TableInfiniteBody({
       className={cn("min-h-0 flex-1 overflow-auto", className)}
     >
       {children}
-      {loadingMore ? (
+      {showLoadingRow && loadingMore ? (
         <p className="py-2 text-sm text-muted-foreground">Загрузка…</p>
       ) : null}
       <div ref={sentinelRef} className="h-1 w-full" aria-hidden />
@@ -45,6 +48,7 @@ export function TableInfiniteBody({
 type TableCountFooterProps = {
   shown: number;
   total: number;
+  note?: string;
   className?: string;
 };
 
@@ -52,6 +56,7 @@ type TableCountFooterProps = {
 export function TableCountFooter({
   shown,
   total,
+  note,
   className,
 }: TableCountFooterProps) {
   return (
@@ -62,6 +67,7 @@ export function TableCountFooter({
       )}
     >
       <p>{formatTableShownCount(shown, total)}</p>
+      {note ? <p>{note}</p> : null}
     </div>
   );
 }

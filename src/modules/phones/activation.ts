@@ -45,6 +45,8 @@ export type ActivationResult = {
   ok: boolean;
   busy?: boolean;
   message: string;
+  /** Catalog sync finished. The screen snapshot is still publishing. */
+  screenPending?: boolean;
 };
 
 type CatalogEndpoint = {
@@ -277,7 +279,11 @@ async function runActivation(
         to,
         soapCount: attempt.count,
       });
-      return { ok: true, message: `Статус номера ${phone} теперь «${to}».` };
+      return {
+        ok: true,
+        message: `Статус номера ${phone} теперь «${to}».`,
+        ...(sync.screenPending ? { screenPending: true } : {}),
+      };
     }
     await record(deps, input, row.id, {
       result: diff.ok ? "catalog" : "unconfirmed",

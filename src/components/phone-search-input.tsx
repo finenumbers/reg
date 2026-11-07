@@ -1,3 +1,4 @@
+import type { KeyboardEvent } from "react";
 import { FILTER_TOOLBAR_INPUT } from "@/components/filter-toolbar";
 import { Input } from "@/components/ui/input";
 
@@ -7,10 +8,12 @@ type Props = {
   id: string;
   value: string;
   onChange: (value: string) => void;
+  busy?: boolean;
+  onKeyDown?: (event: KeyboardEvent<HTMLInputElement>) => void;
 };
 
 /** Width is the placeholder plus equal horizontal padding. Typed text scrolls inside. */
-export function PhoneSearchInput({ id, value, onChange }: Props) {
+export function PhoneSearchInput({ id, value, onChange, busy, onKeyDown }: Props) {
   return (
     <div className="relative inline-grid h-8 shrink-0">
       <span
@@ -25,7 +28,9 @@ export function PhoneSearchInput({ id, value, onChange }: Props) {
         onChange={(event) => onChange(event.target.value)}
         placeholder={PLACEHOLDER}
         aria-label={PLACEHOLDER}
+        aria-busy={busy || undefined}
         autoComplete="off"
+        onKeyDown={onKeyDown}
         className={`absolute top-0 left-0 h-full w-full ${FILTER_TOOLBAR_INPUT}`}
       />
     </div>

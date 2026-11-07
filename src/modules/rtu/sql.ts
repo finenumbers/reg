@@ -63,7 +63,8 @@ export function geographyMatchKey(raw: string | null | undefined): string | null
 
 /**
  * Page: sort and limit first, then tariff and PSTN for that page.
- * Catalog: a city, ABC, local-number, operator, or geography filter must see every row.
+ * Catalog: an operator or geography filter must see every row.
+ * City, region, ABC, and the local number are stored on the screen snapshot.
  * Empty is reserved. Supplier is a cheap column like number and client.
  */
 export function listProjection(filters: ColumnFilters): ListProjection {
@@ -654,5 +655,356 @@ export function pstnLabelsByIdsSql(ids: string[]): Prisma.Sql {
       ${operatorLabelSql()} AS operator,
       ${geographyLabelSql()} AS geography
     FROM joined
+  `;
+}
+
+const SCREEN_BUILD_TOKEN = /^[a-f0-9]{8}$/;
+
+/** Hex token for a private build table. Rejects anything that is not eight hex digits. */
+export function screenBuildToken(token: string): string {
+  if (!SCREEN_BUILD_TOKEN.test(token)) {
+    throw new Error("Некорректный ключ сборки снимка");
+  }
+  return token;
+}
+
+export function screenBuildTable(token: string): string {
+  return `rtu_screen_build_${screenBuildToken(token)}`;
+}
+
+/**
+ * Insert the screen projection into the private build table.
+ * City and the digit split use the same functions as the live list used to.
+ */
+export function screenBuildInsertSql(token: string): Prisma.Sql {
+  const table = Prisma.raw(`"${screenBuildTable(token)}"`);
+  return Prisma.sql`
+    INSERT INTO ${table} (
+      "id",
+      "number",
+      "client",
+      "capacity",
+      "supplier",
+      "category",
+      "activation",
+      "title",
+      "source",
+      "missing",
+      "city",
+      "region",
+      "abc",
+      "telephone",
+      "cityAlert",
+      "pstnKey"
+    )
+    WITH ${baseCte},
+    keyed AS (
+      SELECT
+        src.id,
+        src.number,
+        src.client,
+        src.capacity,
+        src.supplier,
+        src.category,
+        src.activation,
+        src.title,
+        src.source,
+        src.missing,
+        regexp_replace(src.number, '[^0-9]', '', 'g') AS digits
+      FROM base src
+    ),
+    tariffed AS (
+      SELECT
+        k.id,
+        k.number,
+        k.client,
+        k.capacity,
+        k.supplier,
+        k.category,
+        k.activation,
+        k.title,
+        k.source,
+        k.missing,
+        ${pstnKeyFromDigits(Prisma.sql`k.digits`)} AS pstn_key,
+        geo.direction AS direction,
+        geo.abc AS matched_abc,
+        geo.region AS matched_region,
+        geo.numbering AS matched_numbering
+      FROM keyed k
+      LEFT JOIN LATERAL cdr_tariff_geo(k.number) AS geo ON TRUE
+    )
+    SELECT
+      id,
+      number,
+      client,
+      capacity,
+      supplier,
+      category,
+      activation,
+      title,
+      source,
+      missing,
+      ${cityLabelSql(Prisma.sql`direction`)} AS city,
+      COALESCE(matched_region, '') AS region,
+      split.abc AS abc,
+      split.telephone AS telephone,
+      ${cityAlertSql(Prisma.sql`direction`)} AS "cityAlert",
+      pstn_key AS "pstnKey"
+    FROM tariffed
+    CROSS JOIN LATERAL geography_digit_split(matched_abc, matched_numbering, number) AS split
+  `;
+}
+
+function screenCursorSql(cursorNumber?: string, cursorId?: string): Prisma.Sql {
+  if (!cursorNumber || !cursorId) return Prisma.sql`TRUE`;
+  return Prisma.sql`("number", "id") > (${cursorNumber}, ${cursorId})`;
+}
+
+function screenJoinRaw(source: Prisma.Sql): Prisma.Sql {
+  return Prisma.sql`
+    SELECT
+      src.id,
+      src.number,
+      src.client,
+      src.capacity,
+      src.supplier,
+      src.category,
+      src.title,
+      src.activation,
+      src.source,
+      src.missing,
+      src.city,
+      src.region,
+      src.abc,
+      src.telephone,
+      src."cityAlert" AS city_alert,
+      src."pstnKey" AS pstn_key,
+      (r.phone IS NOT NULL) AS unregistered,
+      c.phone AS pstn_phone,
+      c.found AS pstn_found,
+      c.operator AS pstn_operator,
+      c."garTerritory" AS pstn_geography
+    FROM ${source} src
+    LEFT JOIN reg_current r
+      ON r.phone = src.number
+     AND r.status = ${"Unregistered"}::"RegStatus"
+    LEFT JOIN pstn_phone_cache c
+      ON c.phone = src."pstnKey"
+  `;
+}
+
+function screenLabeledFrom(raw: Prisma.Sql): Prisma.Sql {
+  return Prisma.sql`
+    SELECT
+      id,
+      number,
+      client,
+      capacity,
+      supplier,
+      category,
+      title,
+      activation,
+      source,
+      missing,
+      unregistered,
+      city,
+      region,
+      abc,
+      telephone,
+      city_alert,
+      ${pstnStatusSql()} AS pstn_status,
+      ${operatorLabelSql()} AS operator,
+      ${geographyLabelSql()} AS geography
+    FROM (${raw}) raw
+  `;
+}
+
+function screenCountsSql(): Prisma.Sql {
+  return Prisma.sql`
+    counts AS (
+      SELECT
+        (SELECT count(*)::int FROM filtered) AS n,
+        (
+          SELECT count(*) FILTER (WHERE activation = ${STATUS_BLOCKED})::int
+          FROM rtu_screen
+        ) AS blocked,
+        (
+          SELECT count(*) FILTER (WHERE missing)::int
+          FROM rtu_screen
+        ) AS missing_count,
+        (
+          SELECT count(*)::int
+          FROM rtu_screen s
+          JOIN reg_current r
+            ON r.phone = s.number
+           AND r.status = ${"Unregistered"}::"RegStatus"
+        ) AS unregistered_count,
+        (
+          SELECT "catalogRevision"
+          FROM rtu_screen_state
+          WHERE id = 1
+        ) AS catalog_revision
+    )
+  `;
+}
+
+const screenRowSelect = Prisma.sql`
+  visible.id,
+  visible.number,
+  visible.client,
+  visible.capacity,
+  visible.supplier,
+  visible.category,
+  visible.title,
+  visible.activation,
+  visible.source,
+  visible.missing,
+  visible.unregistered,
+  visible.city,
+  visible.region,
+  visible.abc,
+  visible.telephone,
+  visible.city_alert,
+  visible.pstn_status,
+  visible.operator,
+  visible.geography,
+  counts.n,
+  counts.blocked,
+  counts.unregistered_count,
+  counts.missing_count,
+  counts.catalog_revision
+`;
+
+export type ScreenReadOpts = {
+  joined: boolean;
+  where: Prisma.Sql;
+  cursorNumber?: string;
+  cursorId?: string;
+  limit: number;
+  offset: number;
+};
+
+/** One statement: filtered total, toolbar counts, and the page. */
+export function screenListSql(opts: ScreenReadOpts): Prisma.Sql {
+  const cursor = screenCursorSql(opts.cursorNumber, opts.cursorId);
+  const counts = screenCountsSql();
+  if (!opts.joined) {
+    return Prisma.sql`
+      WITH filtered AS (
+        SELECT *
+        FROM rtu_screen
+        WHERE ${opts.where}
+      ),
+      ${counts},
+      page AS (
+        SELECT *
+        FROM filtered
+        WHERE ${cursor}
+        ORDER BY "number" ASC, "id" ASC
+        LIMIT ${opts.limit} OFFSET ${opts.offset}
+      ),
+      joined_raw AS (
+        ${screenJoinRaw(Prisma.sql`page`)}
+      ),
+      visible AS (
+        ${screenLabeledFrom(Prisma.sql`SELECT * FROM joined_raw`)}
+      )
+      SELECT ${screenRowSelect}
+      FROM counts
+      LEFT JOIN visible ON TRUE
+      ORDER BY visible.number ASC NULLS FIRST, visible.id ASC NULLS FIRST
+    `;
+  }
+  return Prisma.sql`
+    WITH joined_raw AS (
+      ${screenJoinRaw(Prisma.sql`rtu_screen`)}
+    ),
+    labeled AS (
+      ${screenLabeledFrom(Prisma.sql`SELECT * FROM joined_raw`)}
+    ),
+    filtered AS (
+      SELECT *
+      FROM labeled
+      WHERE ${opts.where}
+    ),
+    ${counts},
+    visible AS (
+      SELECT *
+      FROM filtered
+      WHERE ${cursor}
+      ORDER BY "number" ASC, "id" ASC
+      LIMIT ${opts.limit} OFFSET ${opts.offset}
+    )
+    SELECT ${screenRowSelect}
+    FROM counts
+    LEFT JOIN visible ON TRUE
+    ORDER BY visible.number ASC NULLS FIRST, visible.id ASC NULLS FIRST
+  `;
+}
+
+export function screenFacetSql(
+  column: RtuColumn,
+  where: Prisma.Sql,
+  joined: boolean,
+): Prisma.Sql {
+  const expr = columnRef(column);
+  if (!joined) {
+    return Prisma.sql`
+      SELECT ${expr} AS value, count(*)::int AS count
+      FROM rtu_screen
+      WHERE ${where}
+      GROUP BY 1
+    `;
+  }
+  return Prisma.sql`
+    WITH joined_raw AS (
+      ${screenJoinRaw(Prisma.sql`rtu_screen`)}
+    ),
+    labeled AS (
+      ${screenLabeledFrom(Prisma.sql`SELECT * FROM joined_raw`)}
+    )
+    SELECT ${expr} AS value, count(*)::int AS count
+    FROM labeled
+    WHERE ${where}
+    GROUP BY 1
+  `;
+}
+
+/** Live source stamps and the stamps stored for the published screen. */
+export function screenStampsSql(forUpdate: boolean): Prisma.Sql {
+  const lock = forUpdate ? Prisma.sql`FOR UPDATE OF st` : Prisma.empty;
+  // The content hash walks every DID row. The locked swap compares the generation
+  // instead, so that walk does not sit on the state-row lock.
+  const didHash = forUpdate
+    ? Prisma.sql`''::text`
+    : Prisma.sql`COALESCE((
+        SELECT md5(string_agg(
+          s."matchKey" || chr(31) || s."displayNumber" || chr(31) || s.provider,
+          chr(30) ORDER BY s."matchKey"
+        ))
+        FROM geography_did_sources s
+        WHERE s.generation = (
+          SELECT generation FROM geography_did_state WHERE id = 1
+        )
+      ), '')`;
+  return Prisma.sql`
+    SELECT
+      p."lastSyncedAt" AS phones_synced_at,
+      COALESCE(t."rateGeneration", 0)::int AS tariff_generation,
+      st."supplierRevision"::int AS supplier_revision,
+      st."publishedSupplierRevision"::int AS published_supplier_revision,
+      st."didHash" AS published_did_hash,
+      st."phonesSyncedAt" AS published_phones_synced_at,
+      st."tariffGeneration"::int AS published_tariff_generation,
+      st.published AS published,
+      st."needsPublish" AS needs_publish,
+      st."catalogRevision"::int AS catalog_revision,
+      COALESCE((SELECT generation FROM geography_did_state WHERE id = 1), 0)::int AS did_generation,
+      ${didHash} AS did_hash
+    FROM rtu_screen_state st
+    LEFT JOIN phone_import_state p ON p.id = 1
+    LEFT JOIN tariff_import_state t ON t.id = 1
+    WHERE st.id = 1
+    ${lock}
   `;
 }

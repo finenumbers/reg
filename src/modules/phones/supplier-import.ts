@@ -12,6 +12,7 @@ import {
   matchSupplierNumber,
 } from "@/modules/phones/supplier-match";
 import { PHONE_CATALOG_LOCK_SQL } from "@/modules/phones/supplier";
+import { patchRtuScreenSuppliers } from "@/modules/rtu/screen-publish";
 import type { SupplierFileRow } from "@/modules/phones/supplier-xlsx";
 
 const APPLY_TX = { maxWait: 10_000, timeout: 180_000 } as const;
@@ -76,6 +77,7 @@ export async function importPhoneSuppliers(
     let cleared = 0;
     let categoryUpdated = 0;
     let categoryCleared = 0;
+    const screenRows: { id: string; supplier: string; category: string }[] = [];
     for (const [id, nextValues] of pending) {
       const row = byId.get(id);
       if (!row) continue;
@@ -89,7 +91,13 @@ export async function importPhoneSuppliers(
         where: { id },
         data: { data: patch.data as Prisma.InputJsonValue },
       });
+      screenRows.push({
+        id,
+        supplier: nextValues.supplier.trim(),
+        category: nextValues.category.trim(),
+      });
     }
+    await patchRtuScreenSuppliers(tx, screenRows);
     return { updated, cleared, categoryUpdated, categoryCleared, unmatched };
   }, APPLY_TX);
 }

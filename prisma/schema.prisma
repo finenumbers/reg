@@ -399,6 +399,48 @@ model GeographyDidState {
   @@map("geography_did_state")
 }
 
+// Published rows of «Управление РТУ». Rebuilt beside this table, then swapped.
+// The GIN trigram index on number is created in SQL (pg_trgm).
+model RtuScreen {
+  id         String  @id
+  number     String
+  client     String
+  capacity   String
+  supplier   String
+  category   String
+  activation String
+  title      String
+  source     String
+  missing    Boolean
+  city       String
+  region     String
+  abc        String
+  telephone  String
+  cityAlert  Boolean
+  pstnKey    String?
+
+  @@index([number, id], map: "rtu_screen_number_id_idx")
+  @@index([activation], map: "rtu_screen_activation_idx")
+  @@index([missing], map: "rtu_screen_missing_idx")
+  @@map("rtu_screen")
+}
+
+// Stamps of the published screen. Readers use catalogRevision as catalogStamp.
+model RtuScreenState {
+  id                        Int       @id
+  published                 Boolean   @default(false)
+  needsPublish              Boolean   @default(false)
+  phonesSyncedAt            DateTime?
+  supplierRevision          Int       @default(0)
+  publishedSupplierRevision Int       @default(0)
+  didHash                   String    @default("")
+  tariffGeneration          Int       @default(0)
+  catalogRevision           Int       @default(0)
+  publishedAt               DateTime?
+
+  @@map("rtu_screen_state")
+}
+
 // ---------------------------------------------------------------------------
 // Phones module (catalog snapshot)
 // ---------------------------------------------------------------------------

@@ -393,6 +393,13 @@ export function kickGeographyDidRefresh(): void {
     .then((result) => {
       if (result.status === "published") {
         logger.info("number_geography.did_snapshot", { status: "published" });
+        void import("@/modules/rtu/screen-publish")
+          .then(({ requestRtuScreenPublish }) => requestRtuScreenPublish())
+          .catch((error: unknown) => {
+            logger.warn("rtu.screen.did_kick_failed", {
+              error: error instanceof Error ? error.message : String(error),
+            });
+          });
       } else if (result.status === "kept") {
         logger.warn("number_geography.did_snapshot", {
           status: "kept",

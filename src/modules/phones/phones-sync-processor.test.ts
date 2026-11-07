@@ -15,6 +15,10 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
+vi.mock("@/modules/rtu/screen-publish", () => ({
+  requestRtuScreenPublish: vi.fn(async () => ({ published: true })),
+}));
+
 vi.mock("@/modules/audit", () => ({
   AUDIT_ACTIONS: {
     PHONES_SYNC_MANUAL: "phones.sync_manual",

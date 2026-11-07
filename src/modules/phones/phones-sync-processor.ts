@@ -16,6 +16,7 @@ import {
 } from "@/modules/phones/rtu-rows";
 import type { PhoneRowData } from "@/modules/phones/types";
 import { failJobRunIfStillRunning } from "@/modules/jobs/finalize";
+import { requestRtuScreenPublish } from "@/modules/rtu/screen-publish";
 
 export type PhonesSyncProcessorInput = {
   trigger: JobTrigger;
@@ -32,12 +33,15 @@ export type PhonesSyncProcessorResult = {
   exitCode: number | null;
   /** In-memory rows from the read. Not stored on the job. */
   identities: EquipmentIdentity[] | null;
+  /** The catalog was saved, and the screen snapshot is still catching up. */
+  screenPending?: boolean;
 };
 
 export type PhonesSyncProcessorDeps = {
   read: () => Promise<EquipmentRead>;
   apply: typeof applyPhonesSnapshot;
   catalog: () => Promise<PhoneCatalogSide>;
+  publishScreen?: () => Promise<{ published: boolean }>;
 };
 
 async function loadPhoneCatalog(): Promise<PhoneCatalogSide> {
@@ -249,6 +253,18 @@ export async function processPhonesSync(
       gatewayCount: applyResult.gatewayCount,
     });
 
+    let screenPending = false;
+    try {
+      const published = await (deps.publishScreen ?? requestRtuScreenPublish)();
+      screenPending = published.published !== true;
+    } catch (error) {
+      screenPending = true;
+      logger.warn("phones.sync.screen_pending", {
+        jobRunId: jobRun.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
     return {
       jobRunId: jobRun.id,
       status: "success",
@@ -258,6 +274,7 @@ export async function processPhonesSync(
       gatewayCount: applyResult.gatewayCount,
       exitCode: null,
       identities: snapshotIdentities,
+      screenPending,
     };
   } finally {
     await failJobRunIfStillRunning(

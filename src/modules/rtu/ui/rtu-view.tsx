@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { downloadXlsxFromUrl } from "@/lib/download-xlsx";
 import { FILTER_TOOLBAR_TEXT } from "@/components/filter-toolbar";
 import { PhoneSearchInput } from "@/components/phone-search-input";
@@ -38,6 +38,8 @@ import { RtuTable } from "@/modules/rtu/ui/rtu-table";
 
 const PAGE_SIZE = TABLE_PAGE_SIZE;
 const PHONE_SEARCH_DEBOUNCE_MS = 300;
+const SCREEN_POLL_MS = 2000;
+const ACTIVATION_SCREEN_POLLS = 15;
 
 type Props = {
   initial: ListRtuResult;
@@ -59,6 +61,7 @@ export function RtuView({ initial, canRequest, canActivate }: Props) {
   const [page, setPage] = useState(initial.page);
   const [items, setItems] = useState(initial.items);
   const [total, setTotal] = useState(initial.total);
+  const [preparing, setPreparing] = useState(initial.preparing);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -86,6 +89,7 @@ export function RtuView({ initial, canRequest, canActivate }: Props) {
   const missingOnlyRef = useRef(missingOnly);
   const phoneSearchTimerRef = useRef<number | null>(null);
   const pageRef = useRef(page);
+  const itemsRef = useRef(items);
   const itemsLenRef = useRef(items.length);
   const openColumnRef = useRef(openColumn);
   const refreshRef = useRef<RtuRefresh>(initial.refresh);
@@ -101,6 +105,9 @@ export function RtuView({ initial, canRequest, canActivate }: Props) {
       page?: number;
       replace?: boolean;
       soft?: boolean;
+      keepRows?: boolean;
+      cursorNumber?: string;
+      cursorId?: string;
     }) => Promise<void>
   >(async () => {});
   const fillGeneration = useRef(0);
@@ -129,9 +136,13 @@ export function RtuView({ initial, canRequest, canActivate }: Props) {
     page?: number;
     replace?: boolean;
     soft?: boolean;
+    keepRows?: boolean;
+    cursorNumber?: string;
+    cursorId?: string;
   }) {
     const replace = opts.replace ?? true;
     const soft = opts.soft === true;
+    const keepRows = opts.keepRows === true;
     const nextFilters = opts.filters ?? filtersRef.current;
     const nextPhoneQ = opts.phoneQ !== undefined ? opts.phoneQ : phoneQRef.current;
     const nextBlocked =
@@ -165,11 +176,13 @@ export function RtuView({ initial, canRequest, canActivate }: Props) {
         missingOnly: nextMissing,
         page: nextPage,
         pageSize: PAGE_SIZE,
+        cursorNumber: replace ? undefined : opts.cursorNumber,
+        cursorId: replace ? undefined : opts.cursorId,
       });
       if (seq !== refreshSeq.current) return;
 
       if (!result.ok) {
-        if (replace && !soft) {
+        if (replace && !soft && !keepRows) {
           setItems([]);
           setTotal(0);
           setPage(1);
@@ -177,6 +190,8 @@ export function RtuView({ initial, canRequest, canActivate }: Props) {
         setListError(result.message);
         return;
       }
+
+      setPreparing(result.data.preparing);
 
       const nextStamp = result.data.catalogStamp ?? "";
       if (!replace && !geographyAppendAllowed(catalogStampRef.current, nextStamp)) {
@@ -197,7 +212,11 @@ export function RtuView({ initial, canRequest, canActivate }: Props) {
       const prevRefresh = refreshRef.current;
       const nextRefresh = result.data.refresh;
       refreshRef.current = nextRefresh;
-      setTotal(result.data.total);
+      setTotal(
+        !replace && result.data.items.length === 0
+          ? itemsLenRef.current
+          : result.data.total,
+      );
       setBlockedCount(result.data.blockedCount);
       setUnregisteredCount(result.data.unregisteredCount);
       setMissingCount(result.data.missingCount);
@@ -328,6 +347,7 @@ export function RtuView({ initial, canRequest, canActivate }: Props) {
     unregisteredOnlyRef.current = unregisteredOnly;
     missingOnlyRef.current = missingOnly;
     pageRef.current = page;
+    itemsRef.current = items;
     itemsLenRef.current = items.length;
     openColumnRef.current = openColumn;
     loadListRef.current = loadList;
@@ -389,15 +409,32 @@ export function RtuView({ initial, canRequest, canActivate }: Props) {
     };
   }, []);
 
+  useEffect(() => {
+    if (!preparing) return;
+    const timer = window.setInterval(() => {
+      if (inFlightRef.current) return;
+      void loadListRef.current({ page: 1, replace: true, soft: true });
+    }, SCREEN_POLL_MS);
+    return () => window.clearInterval(timer);
+  }, [preparing]);
+
   const onLoadMore = useCallback(() => {
     if (!hasMore || loading || loadingMoreRef.current || inFlightRef.current) return;
-    void loadListRef.current({ page: pageRef.current + 1, replace: false });
+    const last = itemsRef.current.at(-1);
+    if (!last) return;
+    void loadListRef.current({
+      page: pageRef.current + 1,
+      replace: false,
+      cursorNumber: last.number,
+      cursorId: last.id,
+    });
   }, [hasMore, loading]);
 
   const sentinelRef = useInfiniteScroll({
-    enabled: hasMore && !loading && !loadingMore && !listError,
+    enabled: hasMore && !loading && !loadingMore && !listError && !preparing,
     onLoadMore,
     root: scrollRoot,
+    rootMargin: "800px",
   });
 
   function onColumnChange(column: string, values: string[]) {
@@ -420,8 +457,26 @@ export function RtuView({ initial, canRequest, canActivate }: Props) {
     phoneSearchTimerRef.current = window.setTimeout(() => {
       const next = value.trim();
       setPhoneQ(next);
-      void loadList({ phoneQ: next, page: 1, replace: true });
+      void loadList({ phoneQ: next, page: 1, replace: true, keepRows: true });
     }, PHONE_SEARCH_DEBOUNCE_MS);
+  }
+
+  function onPhoneKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      if (phoneSearchTimerRef.current != null) {
+        window.clearTimeout(phoneSearchTimerRef.current);
+        phoneSearchTimerRef.current = null;
+      }
+      const next = event.currentTarget.value.trim();
+      setPhoneQ(next);
+      void loadList({ phoneQ: next, page: 1, replace: true, keepRows: true });
+      return;
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      onClearPhoneQuery();
+    }
   }
 
   function onClearPhoneQuery() {
@@ -553,6 +608,7 @@ export function RtuView({ initial, canRequest, canActivate }: Props) {
       "Ответ не получен. Не нажимайте ссылку снова, пока строка не обновится или не появится сообщение сервера.";
     let outcome: ActivationOutcome = { ok: false, message: network };
     let responded = false;
+    let screenPending = false;
     try {
       const res = await fetch("/api/rtu/activation", {
         method: "POST",
@@ -568,12 +624,14 @@ export function RtuView({ initial, canRequest, canActivate }: Props) {
         ok?: boolean;
         message?: string;
         error?: string;
+        screenPending?: boolean;
       } | null;
       outcome = {
         ok: res.ok && payload?.ok === true,
         message: payload?.message || payload?.error || network,
       };
       responded = res.ok;
+      screenPending = payload?.screenPending === true;
     } catch {
       outcome = { ok: false, message: network };
     } finally {
@@ -587,7 +645,17 @@ export function RtuView({ initial, canRequest, canActivate }: Props) {
         setActionMessage(null);
       }
     }
-    if (responded) await loadList({ page: 1, replace: true });
+    if (responded) {
+      const stampBefore = catalogStampRef.current;
+      await loadList({ page: 1, replace: true, soft: true });
+      if (outcome.ok && screenPending) {
+        for (let attempt = 0; attempt < ACTIVATION_SCREEN_POLLS; attempt++) {
+          if (catalogStampRef.current !== stampBefore) break;
+          await new Promise((resolve) => window.setTimeout(resolve, SCREEN_POLL_MS));
+          await loadList({ page: 1, replace: true, soft: true });
+        }
+      }
+    }
   }
 
   return (
@@ -644,7 +712,9 @@ export function RtuView({ initial, canRequest, canActivate }: Props) {
         <PhoneSearchInput
           id="rtu-phone-search"
           value={phoneInput}
+          busy={loading || loadingMore}
           onChange={onPhoneInputChange}
+          onKeyDown={onPhoneKeyDown}
         />
         <div className="flex items-center gap-2">
           <input
@@ -723,14 +793,17 @@ export function RtuView({ initial, canRequest, canActivate }: Props) {
           scrollRef={setScrollRoot}
           sentinelRef={sentinelRef}
           loadingMore={loadingMore}
+          showLoadingRow={false}
         >
           <RtuTable
             data={items}
-            loading={loading && items.length === 0}
+            loading={loading && items.length === 0 && !preparing}
             emptyMessage={
-              filtersActive
-                ? "Нет данных по текущим фильтрам. Сбросьте фильтры или уточните выбор."
-                : "Нет данных."
+              preparing
+                ? "Каталог готовится"
+                : filtersActive
+                  ? "Нет данных по текущим фильтрам. Сбросьте фильтры или уточните выбор."
+                  : "Нет данных."
             }
             filters={filters}
             phoneQ={phoneQ}
@@ -744,7 +817,13 @@ export function RtuView({ initial, canRequest, canActivate }: Props) {
             onActivation={canActivate ? openActivation : undefined}
           />
         </TableInfiniteBody>
-        <TableCountFooter shown={items.length} total={total} />
+        <TableCountFooter
+          shown={items.length}
+          total={total}
+          note={
+            preparing ? "Каталог готовится" : loading || loadingMore ? "Загрузка…" : undefined
+          }
+        />
       </div>
     </div>
   );

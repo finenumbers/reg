@@ -156,6 +156,19 @@ export async function register() {
     logger.warn("scheduler.bootstrap.evaluate", result);
 
     try {
+      const { requestRtuScreenPublish } = await import("@/modules/rtu/screen-publish");
+      void requestRtuScreenPublish().catch((error: unknown) => {
+        logger.error("rtu.screen.bootstrap_failed", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
+    } catch (error) {
+      logger.error("rtu.screen.bootstrap_failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    try {
       const { requestCdrTariffRate } =
         await import("@/modules/traffic/tariff-rate/enqueue");
       await requestCdrTariffRate("schedule");
