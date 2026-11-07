@@ -13,6 +13,7 @@ export type TariffListItem = {
   abc: string;
   digitLengths: number[] | null;
   numbering: number[] | null;
+  region: string | null;
   price: string;
 };
 
@@ -68,6 +69,7 @@ export async function listTariffRates(opts: {
         abc: true,
         digitLengths: true,
         numbering: true,
+        region: true,
         price: true,
       },
     }),
@@ -80,6 +82,7 @@ export async function listTariffRates(opts: {
       abc: row.abc,
       digitLengths: parseStoredDigitLengths(row.digitLengths),
       numbering: parseStoredNumbering(row.numbering),
+      region: row.region,
       price: formatTariffDecimal(row.price.toString()),
     })),
     total,

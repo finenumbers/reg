@@ -31,6 +31,7 @@ export async function applyTariffSnapshot(
           abc: row.abc,
           digitLengths: formatDigitLengths(row.digitLengths),
           numbering: formatDigitLengths(row.numbering),
+          region: row.region,
           price: row.price,
         })),
       });

@@ -2,7 +2,7 @@
 
 Internal telecom ops platform. Phone numbers, groups, registrations, and live calls are read from the RTU API.
 
-**Repository:** [github.com/finenumbers/reg](https://github.com/finenumbers/reg) · **Release:** [v1.236.0](https://github.com/finenumbers/reg/releases/tag/v1.236.0)
+**Repository:** [github.com/finenumbers/reg](https://github.com/finenumbers/reg) · **Release:** [v1.237.0](https://github.com/finenumbers/reg/releases/tag/v1.237.0)
 
 ## Stack (approved)
 
@@ -165,7 +165,7 @@ UI (`/groups`):
 Session only (`phones:read`). API keys are rejected.
 
 - `GET /api/tariffs` — current snapshot, paging
-- `POST /api/tariffs/import` — replace the snapshot from an XLSX (`Направления`, `ABC`, `Разрядность`, `Нумерация`, `Цена`)
+- `POST /api/tariffs/import` — replace the snapshot from an XLSX (`Направления`, `Регион`, `ABC`, `Разрядность`, `Нумерация`, `Цена`)
 
 UI (`/tariffs`): table plus **Загрузить данные**. A failed file leaves the previous snapshot in place.
 

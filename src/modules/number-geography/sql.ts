@@ -1,9 +1,10 @@
 /**
  * SQL projection for «География номеров».
  * City label and the PSTN key are one phrase each, shared by the list,
- * the count, and the facets. cdr_tariff_direction and cdr_tariff_abc share one
- * predicate. The parity test reads both bodies. Filter values are bound
- * parameters. Column names come from the allowlist.
+ * the count, and the facets. cdr_tariff_geo uses the same predicate as
+ * cdr_tariff_direction. Geography calls it once, then geography_digit_split
+ * trims the screen ABC. Filter values are bound parameters. Column names
+ * come from the allowlist.
  */
 
 import { Prisma } from "@/generated/prisma/client";
@@ -83,6 +84,8 @@ function columnRef(column: NumberGeographyColumn): Prisma.Sql {
       return Prisma.sql`category`;
     case "city":
       return Prisma.sql`city`;
+    case "region":
+      return Prisma.sql`region`;
     case "abc":
       return Prisma.sql`abc`;
     case "telephone":
@@ -222,7 +225,7 @@ function pstnKeyFromDigits(digits: Prisma.Sql): Prisma.Sql {
   )`;
 }
 
-/** City label. `direction` is already one cdr_tariff_direction result. */
+/** City label. `direction` is the direction from the matched tariff row. */
 export function cityLabelSql(direction: Prisma.Sql): Prisma.Sql {
   const start = CITY_DIRECTION_PREFIX.length + 1;
   const bare = CITY_DIRECTION_PREFIX.trim();
@@ -314,14 +317,17 @@ function joinedFrom(source: Prisma.Sql, cheap: Prisma.Sql): Prisma.Sql {
         k.category,
         k.title,
         k.activation,
-        cdr_tariff_direction(k.number) AS direction,
-        cdr_tariff_abc(k.number) AS matched_abc,
+        geo.direction AS direction,
+        geo.abc AS matched_abc,
+        geo.region AS matched_region,
+        geo.numbering AS matched_numbering,
         ${pstnKeyFromDigits(Prisma.sql`k.digits`)} AS pstn_key,
         c.phone AS pstn_phone,
         c.found AS pstn_found,
         c.operator AS pstn_operator,
         c."garTerritory" AS pstn_geography
       FROM keyed k
+      LEFT JOIN LATERAL cdr_tariff_geo(k.number) AS geo ON TRUE
       LEFT JOIN pstn_phone_cache c
         ON c.phone = ${pstnKeyFromDigits(Prisma.sql`k.digits`)}
     )
@@ -342,16 +348,13 @@ function labeledSelect(): Prisma.Sql {
       ${pstnStatusSql()} AS pstn_status,
       ${cityLabelSql(Prisma.sql`direction`)} AS city,
       ${cityAlertSql(Prisma.sql`direction`)} AS city_alert,
-      COALESCE(matched_abc, '') AS abc,
-      CASE
-        WHEN matched_abc IS NULL OR matched_abc = '' THEN ''
-        WHEN starts_with(btrim(number), matched_abc)
-          THEN substring(btrim(number) FROM length(matched_abc) + 1)
-        ELSE ''
-      END AS telephone,
+      COALESCE(matched_region, '') AS region,
+      split.abc AS abc,
+      split.telephone AS telephone,
       ${operatorLabelSql()} AS operator,
       ${geographyLabelSql()} AS geography
     FROM joined
+    CROSS JOIN LATERAL geography_digit_split(matched_abc, matched_numbering, number) AS split
   `;
 }
 

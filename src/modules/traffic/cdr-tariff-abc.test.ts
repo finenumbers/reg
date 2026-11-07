@@ -38,6 +38,9 @@ describe("cdr_tariff_abc", () => {
     expect(abc).toContain("SELECT t.abc");
     expect(abc).not.toContain("SELECT t.direction");
     expect(fromTariffRates(abc)).toBe(fromTariffRates(direction));
+    const geo = latestFunctionBody("cdr_tariff_geo");
+    expect(geo).toContain("SELECT t.direction, t.abc, t.region, t.numbering");
+    expect(fromTariffRates(geo)).toBe(fromTariffRates(direction));
   });
 
   it("does not replace the CDR rater", () => {

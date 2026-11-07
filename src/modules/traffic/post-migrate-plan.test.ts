@@ -67,6 +67,15 @@ describe("planPostMigrate", () => {
     ).toEqual({ callClass: false, tariff: false });
   });
 
+  it("does not scan the journal when tariff region is added", () => {
+    expect(
+      planPostMigrate("Applying migration `20261107161000_tariff_region`\n", {
+        rateGeneration: 4,
+        ratedGeneration: 4,
+      }),
+    ).toEqual({ callClass: false, tariff: false });
+  });
+
   it("does not scan the journal for the syslog label migration", () => {
     expect(
       planPostMigrate("Applying migration `20261021021000_smg_trace_labels`\n", {

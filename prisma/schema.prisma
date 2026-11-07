@@ -473,6 +473,9 @@ model TariffRate {
   /// Lengths outside the ABC, joined by "/". Null when the cell is empty.
   /// Rating does not read this column. An empty string is shown blank.
   numbering String?
+  /// Display name from the tariff file. Null when the cell is empty.
+  /// Rating does not read this column. Geography shows an empty string for null.
+  region    String?
   price     Decimal @db.Decimal(18, 6)
 
   @@unique([sortIndex])

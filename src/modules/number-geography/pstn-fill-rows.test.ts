@@ -10,6 +10,7 @@ function row(over: Partial<NumberGeographyItem> = {}): NumberGeographyItem {
     id: "a",
     category: "",
     city: "Ростов-на-Дону",
+    region: "",
     abc: "",
     telephone: "",
     supplier: "",

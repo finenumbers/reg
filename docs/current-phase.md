@@ -1,7 +1,15 @@
-# Current Phase — production (v1.236.0)
+# Current Phase — production (v1.237.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, number geography, free numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls.  
 **Date:** 2026-11-07
+
+## v1.237.0 — Tariff file gains «Регион», geography trims ABC by «Нумерация»
+
+The migrator adds nullable `region` on `tariff_rates` and creates `cdr_tariff_geo` and `geography_digit_split`. It does not replace `cdr_tariff_direction`, `cdr_tariff_abc`, the rater, or the CDR trigger, and it does not rewrite stored rows. The migration is label-free, so startup does not rescan the CDR journal. Do not stop `smg-syslog`. Phone, CDR, and PSTN rows are not rewritten. Keep a single `app` replica. Replace the `app` container after migrate. Refresh the browser.
+
+«Тарификация» shows «Регион» between «Направления» and «ABC». The XLSX needs six headers: «Направления», «Регион», «ABC», «Разрядность», «Нумерация», «Цена». A five-column file does not replace the snapshot. An empty region stays empty. A filled cell is text up to 200 characters. The column is not used to rate calls.
+
+On «География номеров», «Регион» sits between «Город» and «ABC» and comes from the matched tariff row. The match is still the longest tariff ABC. «Нумерация» of that row then shortens the screen ABC when exactly one value says trailing digits of that ABC already belong to «Номер». Several values, zero, or an empty cell leave the tariff ABC as it is. A numbering list already loaded by v1.236.0 starts trimming as soon as this app is up. Region stays empty until a six-column file is uploaded. The geography workbook gains «Регион». «Загрузить поставщиков» still reads «Телефонный номер». Nothing is written to the switch.
 
 ## v1.236.0 — Tariff file gains «Нумерация», geography ABC and local number are bold
 

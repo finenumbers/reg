@@ -130,10 +130,11 @@ describe("filter clauses", () => {
 
 describe("geography columns", () => {
   it("places the phone column immediately before the title", () => {
-    expect(NUMBER_GEOGRAPHY_COLUMNS.slice(0, 5)).toEqual([
+    expect(NUMBER_GEOGRAPHY_COLUMNS.slice(0, 6)).toEqual([
       "category",
       "supplier",
       "city",
+      "region",
       "abc",
       "telephone",
     ]);
@@ -141,6 +142,7 @@ describe("geography columns", () => {
     expect(NUMBER_GEOGRAPHY_COLUMNS[numberIndex + 1]).toBe("title");
     expect(NUMBER_GEOGRAPHY_COLUMNS.at(-1)).toBe("activation");
     expect(NUMBER_GEOGRAPHY_HEADERS.number).toBe("Телефонный номер");
+    expect(NUMBER_GEOGRAPHY_HEADERS.region).toBe("Регион");
     expect(NUMBER_GEOGRAPHY_HEADERS.abc).toBe("ABC");
     expect(NUMBER_GEOGRAPHY_HEADERS.telephone).toBe("Номер");
     expect(geographyDigitAlign("abc")).toBe("left");
@@ -217,34 +219,34 @@ describe("city sql phrase", () => {
 
   it("rates only the limited page unless a catalog filter is on", () => {
     const page = flattenSql(pageListSql(Prisma.sql`TRUE`, 100, 0));
+    expect(page.text.indexOf("LIMIT")).toBeLessThan(page.text.indexOf("cdr_tariff_geo"));
     expect(page.text.indexOf("LIMIT")).toBeLessThan(
-      page.text.indexOf("cdr_tariff_direction"),
+      page.text.indexOf("geography_digit_split"),
     );
-    expect(page.text.indexOf("LIMIT")).toBeLessThan(page.text.indexOf("cdr_tariff_abc"));
+    expect(page.text).not.toContain("cdr_tariff_direction");
+    expect(page.text).not.toContain("cdr_tariff_abc");
     const catalog = flattenSql(
       catalogListSql(Prisma.sql`TRUE`, Prisma.sql`city = ?`, 100, 0),
     );
-    expect(catalog.text.indexOf("cdr_tariff_direction")).toBeLessThan(
+    expect(catalog.text.indexOf("cdr_tariff_geo")).toBeLessThan(
       catalog.text.lastIndexOf("LIMIT"),
     );
-    expect(catalog.text.indexOf("cdr_tariff_abc")).toBeLessThan(
+    expect(catalog.text.indexOf("geography_digit_split")).toBeLessThan(
       catalog.text.lastIndexOf("LIMIT"),
     );
     expect(catalog.values).toContain(MISSING_PSTN_LABEL);
-    expect(page.text).toContain("COALESCE(matched_abc, '')");
-    const emptyAt = page.text.indexOf("matched_abc IS NULL OR matched_abc = ''");
-    const startsAt = page.text.indexOf("starts_with(btrim(number), matched_abc)");
-    expect(emptyAt).toBeGreaterThan(-1);
-    expect(emptyAt).toBeLessThan(startsAt);
-    expect(page.text).toContain("substring(btrim(number) FROM length(matched_abc) + 1)");
+    expect(page.text).toContain("COALESCE(matched_region, '')");
+    expect(page.text).toContain("AS region");
     expect(page.text).toContain("AS telephone");
   });
 
   it("reads ABC and the local number through the catalog path", () => {
     expect(facetProjection("abc", {})).toBe("catalog");
     expect(facetProjection("telephone", {})).toBe("catalog");
+    expect(facetProjection("region", {})).toBe("catalog");
     expect(listProjection({ abc: ["7383"] })).toBe("catalog");
     expect(listProjection({ telephone: ["480882"] })).toBe("catalog");
+    expect(listProjection({ region: ["Приморский край"] })).toBe("catalog");
     expect(listProjection({})).toBe("page");
   });
 });

@@ -19,6 +19,7 @@ export type NumberGeographyItem = {
   id: string;
   category: string;
   city: string;
+  region: string;
   abc: string;
   telephone: string;
   supplier: string;

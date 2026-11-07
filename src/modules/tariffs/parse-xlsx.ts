@@ -2,6 +2,7 @@
  * Parse a tariff XLSX snapshot.
  * Direction is text, ABC is a digit fragment of a phone number,
  * digit length is empty, one whole number, or several lengths separated by /,
+ * region is empty or text up to 200 characters,
  * numbering is empty or a 0–14 length outside the ABC, also as a slash list,
  * price is a decimal with at most 6 fractional digits.
  */
@@ -16,6 +17,7 @@ import {
 
 export const TARIFF_HEADERS = [
   "Направления",
+  "Регион",
   "ABC",
   "Разрядность",
   "Нумерация",
@@ -32,6 +34,7 @@ const TARIFF_HEADER_ERROR = `В первой строке должны быть 
 export const TARIFF_MAX_ROWS = 50_000;
 export const TARIFF_MAX_ERRORS = 30;
 const MAX_DIRECTION = 500;
+const MAX_REGION = 200;
 const MAX_ABC = 15;
 const MONEY_SCALE = 6;
 const MONEY_INT_DIGITS = 12;
@@ -46,6 +49,8 @@ export type TariffParsedRow = {
   digitLengths: number[] | null;
   /** Null when the cell is empty. File order, not sorted. */
   numbering: number[] | null;
+  /** Null when the cell is empty. */
+  region: string | null;
   price: string;
 };
 
@@ -132,6 +137,25 @@ function parseDirection(value: unknown): string | null {
   const text = raw.trim();
   if (!text || text.length > MAX_DIRECTION) return null;
   return text;
+}
+
+type RegionParse = { ok: true; value: string | null } | { ok: false; date: boolean };
+
+/** Blank is null. A finite Excel number is stored as text. A date is refused. */
+function parseRegion(value: unknown): RegionParse {
+  const raw = unwrap(value);
+  if (raw == null) return { ok: true, value: null };
+  if (raw instanceof Date) return { ok: false, date: true };
+  if (typeof raw === "number") {
+    const text = numberToPlain(raw);
+    if (!text || text.length > MAX_REGION) return { ok: false, date: false };
+    return { ok: true, value: text };
+  }
+  if (typeof raw !== "string") return { ok: false, date: false };
+  const text = raw.trim();
+  if (!text) return { ok: true, value: null };
+  if (text.length > MAX_REGION) return { ok: false, date: false };
+  return { ok: true, value: text };
 }
 
 type DigitLengthParse =
@@ -340,12 +364,14 @@ export async function parseTariffXlsx(
   ws.eachRow({ includeEmpty: false }, (row, rowNumber) => {
     if (stopped || rowNumber === 1) return;
     const directionCell = row.getCell(col.get("Направления")!).value;
+    const regionCell = row.getCell(col.get("Регион")!).value;
     const abcCell = row.getCell(col.get("ABC")!).value;
     const lengthCell = row.getCell(col.get("Разрядность")!).value;
     const numberingCell = row.getCell(col.get("Нумерация")!).value;
     const priceCell = row.getCell(col.get("Цена")!).value;
     if (
       isBlank(directionCell) &&
+      isBlank(regionCell) &&
       isBlank(abcCell) &&
       isBlank(lengthCell) &&
       isBlank(numberingCell) &&
@@ -364,8 +390,10 @@ export async function parseTariffXlsx(
     const price = parseMoney(priceCell);
     let digitLengths: number[] | null = null;
     let numbering: number[] | null = null;
+    let region: string | null = null;
     let lengthOk = true;
     let numberingOk = true;
+    let regionOk = true;
     if (!direction) {
       push(
         `Строка ${rowNumber}: «Направления» должно быть непустым текстом до ${MAX_DIRECTION} символов`,
@@ -410,16 +438,28 @@ export async function parseTariffXlsx(
     } else {
       numbering = parsedNumbering.value;
     }
+    const parsedRegion = parseRegion(regionCell);
+    if (!parsedRegion.ok) {
+      push(
+        parsedRegion.date
+          ? `Строка ${rowNumber}: «Регион» — текстовый формат, иначе значение становится датой`
+          : `Строка ${rowNumber}: «Регион» — текст до ${MAX_REGION} символов либо пусто`,
+      );
+      regionOk = false;
+    } else {
+      region = parsedRegion.value;
+    }
     if (!price) {
       push(`Строка ${rowNumber}: «Цена» должна быть числом`);
     }
-    if (direction && abc && price && lengthOk && numberingOk) {
+    if (direction && abc && price && lengthOk && numberingOk && regionOk) {
       rows.push({
         sortIndex: rows.length,
         direction,
         abc,
         digitLengths,
         numbering,
+        region,
         price,
       });
     }

@@ -27,7 +27,7 @@ import {
 } from "@/modules/traffic/tariff-match";
 
 const PAGE_SIZE = TABLE_PAGE_SIZE;
-const TARIFF_COLUMN_COUNT = 5;
+const TARIFF_COLUMN_COUNT = 6;
 
 function digitLengthLabel(abc: string, digitLengths: number[] | null): string {
   if (abcIgnoresDigitLengths(abc)) return String(RUSSIAN_NUMBER_LENGTH);
@@ -201,6 +201,7 @@ export function TariffsView({ initial }: { initial: ListTariffsResult }) {
             <TableHeader>
               <TableRow>
                 <TableHead>Направления</TableHead>
+                <TableHead>Регион</TableHead>
                 <TableHead>ABC</TableHead>
                 <TableHead>Разрядность</TableHead>
                 <TableHead>Нумерация</TableHead>
@@ -233,6 +234,7 @@ export function TariffsView({ initial }: { initial: ListTariffsResult }) {
                     className={isRussianAbc(row.abc) ? undefined : "font-bold"}
                   >
                     <TableCell>{row.direction}</TableCell>
+                    <TableCell>{row.region ?? ""}</TableCell>
                     <TableCell>{row.abc}</TableCell>
                     <TableCell>{digitLengthLabel(row.abc, row.digitLengths)}</TableCell>
                     <TableCell>{numberingLabel(row.numbering)}</TableCell>
