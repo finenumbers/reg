@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/table";
 import { formatCount } from "@/lib/format-count";
 import { formatDisplayTimestamp } from "@/lib/format-display-time";
+import { nameListHref, type VatsNameHrefPrefix } from "@/modules/vats/names";
 
 type Props = {
   title: string;
@@ -22,7 +23,7 @@ type Props = {
   readAt: string | null;
   configured: boolean;
   refreshUrl: string;
-  hrefFor: (name: string) => string;
+  hrefPrefix: VatsNameHrefPrefix;
 };
 
 export function VatsNameList({
@@ -32,7 +33,7 @@ export function VatsNameList({
   readAt,
   configured,
   refreshUrl,
-  hrefFor,
+  hrefPrefix,
 }: Props) {
   const { timeZone } = useDisplayTimezone();
   const [rows, setRows] = useState(names);
@@ -105,7 +106,7 @@ export function VatsNameList({
                 rows.map((name) => (
                   <TableRow key={name}>
                     <TableCell>
-                      <Link href={hrefFor(name)} className="hover:underline">
+                      <Link href={nameListHref(hrefPrefix, name)} className="hover:underline">
                         {name}
                       </Link>
                     </TableCell>

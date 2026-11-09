@@ -15,7 +15,7 @@ export default async function VatsDomainsPage() {
       readAt={list.readAt}
       configured={list.configured}
       refreshUrl="/api/vats/domains/refresh"
-      hrefFor={(name) => `/vats/domains/${encodeURIComponent(name)}`}
+      hrefPrefix="/vats/domains"
     />
   );
 }

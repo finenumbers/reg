@@ -3,6 +3,7 @@ import { bossRequestTarget, domainPath } from "@/modules/vats/allowlist";
 import { domainCardView } from "@/modules/vats/card";
 import { domainPutBody } from "@/modules/vats/client";
 import {
+  nameListHref,
   parseClientValue,
   parseDomainName,
   parseTelnum,
@@ -34,6 +35,12 @@ describe("VATS names", () => {
     expect(parseTelnum("+79000000000")).toBeNull();
     expect(parseClientValue("  Acme  ")).toBe("Acme");
     expect(parseClientValue("")).toBe("");
+  });
+
+  it("keeps a list link inside one path segment", () => {
+    expect(nameListHref("/vats/domains", "example.com")).toBe("/vats/domains/example.com");
+    expect(nameListHref("/vats/telnums", "79000000000")).toBe("/vats/telnums/79000000000");
+    expect(nameListHref("/vats/domains", "a/b")).toBe("/vats/domains/a%2Fb");
   });
 
   it("does not clear a stored password when the field is blank", () => {

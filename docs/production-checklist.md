@@ -54,6 +54,8 @@ Optional publish ports: `APP_PUBLISH_PORT`, `POSTGRES_PUBLISH_PORT`.
 
 ## 3. Database
 
+v1.248.0 does not migrate and does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `smg-syslog`. Keep a single `app` replica. Recreate only the `app` container. Refresh the browser. «Домены ВАТС» and «Номера ВАТС» render again. Nothing is written to the switch. RTU activation is unchanged.
+
 v1.247.0 adds `vatsBossBaseUrl`, `vatsBossLogin`, and `vatsBossPasswordCiphertext` on `app_settings`, and creates `vats_name_lists`. It does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `smg-syslog`. Keep a single `app` replica. Replace the `app` container after migrate. Refresh the browser. «Облачная АТС» is below SMG. The only platform write is one domain field, «Клиент» or «Язык», after «Изменить». Nothing else is written to the switch. RTU activation is unchanged.
 
 v1.246.0 does not migrate and does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `smg-syslog`. Keep a single `app` replica. Replace the `app` container. Refresh the browser. «Маски и типы» and «Тарификация» filter every column on the server across the whole snapshot. Export still returns that whole snapshot. Nothing is written to the switch.

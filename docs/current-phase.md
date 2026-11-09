@@ -1,7 +1,13 @@
-# Current Phase — production (v1.247.0)
+# Current Phase — production (v1.248.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, cloud PBX domains and numbers.  
 **Date:** 2026-11-09
+
+## v1.248.0 — VATS list pages render
+
+There is no migration. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. Keep a single `app` replica. Recreate only the `app` container. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged.
+
+«Домены ВАТС» and «Номера ВАТС» render again. The list link is a path prefix, `/vats/domains` or `/vats/telnums`, plus one encoded name. The platform write is still one domain field, «Клиент» or «Язык», after «Изменить».
 
 ## v1.247.0 — Cloud PBX reads and two domain fields
 

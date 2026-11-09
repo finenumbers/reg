@@ -15,7 +15,7 @@ export default async function VatsTelnumsPage() {
       readAt={list.readAt}
       configured={list.configured}
       refreshUrl="/api/vats/telnums/refresh"
-      hrefFor={(name) => `/vats/telnums/${encodeURIComponent(name)}`}
+      hrefPrefix="/vats/telnums"
     />
   );
 }
