@@ -1,21 +1,19 @@
 import { requirePagePermission } from "@/modules/auth/guards";
-import { listVatsDomains } from "@/modules/vats/service";
-import { VatsNameList } from "@/modules/vats/ui/name-list";
+import { getVatsDomainPage } from "@/modules/vats/service";
+import { VatsDomainTable } from "@/modules/vats/ui/section-table";
 
 export const dynamic = "force-dynamic";
 
 export default async function VatsDomainsPage() {
   await requirePagePermission("vats:read");
-  const list = await listVatsDomains();
+  const page = await getVatsDomainPage(0);
   return (
-    <VatsNameList
+    <VatsDomainTable
       title="Домены ВАТС"
-      column="Домен"
-      names={list.names}
-      readAt={list.readAt}
-      configured={list.configured}
-      refreshUrl="/api/vats/domains/refresh"
-      hrefPrefix="/vats/domains"
+      rows={page.rows}
+      total={page.total}
+      readAt={page.readAt}
+      notice={page.notice}
     />
   );
 }

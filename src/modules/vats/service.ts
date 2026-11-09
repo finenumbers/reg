@@ -9,23 +9,36 @@ import {
 import {
   asRecord,
   domainCardView,
-  parseCatalog,
   telnumCardView,
   type VatsDomainCard,
   type VatsTelnumCard,
 } from "@/modules/vats/card";
+import { VATS_PAGE_SIZE } from "@/modules/vats/cadence";
 import {
-  getDialplans,
   getDomain,
   getDomains,
-  getGateways,
-  getRoutes,
   getTelnum,
-  getTelnums,
   parseNameList,
   putDomainField,
   type BossAuth,
 } from "@/modules/vats/client";
+import {
+  isVatsCycleRunning,
+  requestVatsRestart,
+  vatsGeneration,
+} from "@/modules/vats/control";
+import {
+  runVatsPass,
+  type SectionOutcome,
+  type VatsPassResult,
+} from "@/modules/vats/cycle";
+import {
+  MSG_CREDENTIALS,
+  MSG_NOT_LIST,
+  resolveRefs,
+  uniqueInOrder,
+} from "@/modules/vats/labels";
+import { withBossLock } from "@/modules/vats/lock";
 import {
   parseClientValue,
   parseDomainName,
@@ -37,47 +50,59 @@ import {
 } from "@/modules/vats/names";
 import { parseVatsOrigin } from "@/modules/vats/origin";
 import { readbackAccepts } from "@/modules/vats/readback";
-import { keptPreviousList, nextNameList, type StoredNameList } from "@/modules/vats/snapshot";
+import {
+  toDomainTable,
+  toTelnumTable,
+  settingsLists,
+  type DomainTableRow,
+  type TelnumTableRow,
+} from "@/modules/vats/rows";
+import {
+  createPrismaCycleStore,
+  domainMember,
+  domainPage,
+  readCatalogScreen,
+  readDomainScreen,
+  readGatewayCatalog,
+  readTelnumScreen,
+  stampDomainClient,
+  telnumMember,
+  telnumPage,
+} from "@/modules/vats/store";
 import type { VatsCatalogs, VatsSettingsView } from "@/modules/vats/views";
-
-const MISSING_CREDENTIALS = "Укажите хост, логин и пароль в Настройках ВАТС.";
 
 export type { VatsCatalogs, VatsSettingsView };
 
-export type VatsNameSnapshot = {
-  names: string[];
-  readAt: string | null;
-  configured: boolean;
-};
-
-export type VatsListResult =
-  | { ok: true; names: string[]; readAt: string | null; notice: string | null }
-  | { ok: false; status: number; error: string };
-
 export type VatsCardResult<T> =
-  | { ok: true; card: T }
-  | { ok: false; status: number; error: string };
+  { ok: true; card: T } | { ok: false; status: number; error: string };
 
 export type VatsDomainWrite =
   | { ok: true; card: VatsDomainCard; sent: boolean }
   | { ok: false; status: number; error: string; card?: VatsDomainCard };
 
-type NameKind = "domains" | "telnums";
+export type VatsTablePage<T> = {
+  configured: boolean;
+  readAt: string | null;
+  notice: string | null;
+  total: number;
+  rows: T[];
+};
 
-type StoredRow = StoredNameList & { readAt: Date };
+export type VatsStatusBody = {
+  loading: boolean;
+  domains: { readAt: string | null; notice: string | null };
+  telnums: { readAt: string | null; notice: string | null };
+  settings: { readAt: string | null; notice: string | null };
+};
 
-let listTail: Promise<void> = Promise.resolve();
 let writeTail: Promise<void> = Promise.resolve();
 
-function enqueue<T>(slot: "list" | "write", job: () => Promise<T>): Promise<T> {
-  const prev = slot === "list" ? listTail : writeTail;
-  const run = prev.then(job, job);
-  const settled = run.then(
+function enqueueWrite<T>(job: () => Promise<T>): Promise<T> {
+  const run = writeTail.then(job, job);
+  writeTail = run.then(
     () => undefined,
     () => undefined,
   );
-  if (slot === "list") listTail = settled;
-  else writeTail = settled;
   return run;
 }
 
@@ -85,7 +110,9 @@ function platformError(error: string): { ok: false; status: 502; error: string }
   return { ok: false, status: 502, error };
 }
 
-async function loadCreds(): Promise<{ ok: true; auth: BossAuth } | { ok: false; error: string }> {
+async function loadCreds(): Promise<
+  { ok: true; auth: BossAuth } | { ok: false; error: string }
+> {
   const row = await prisma.appSetting.findUnique({
     where: { id: 1 },
     select: {
@@ -96,15 +123,23 @@ async function loadCreds(): Promise<{ ok: true; auth: BossAuth } | { ok: false; 
   });
   const origin = row?.vatsBossBaseUrl ? parseVatsOrigin(row.vatsBossBaseUrl) : null;
   const login = row?.vatsBossLogin ? parseVatsLogin(row.vatsBossLogin) : null;
-  if (!origin || !login || !row?.vatsBossPasswordCiphertext || origin !== row.vatsBossBaseUrl) {
-    return { ok: false, error: MISSING_CREDENTIALS };
+  if (
+    !origin ||
+    !login ||
+    !row?.vatsBossPasswordCiphertext ||
+    origin !== row.vatsBossBaseUrl
+  ) {
+    return { ok: false, error: MSG_CREDENTIALS };
   }
   try {
     const password = getSecretEncryptionService().decrypt(
       deserializeEncryptedSecret(row.vatsBossPasswordCiphertext),
     );
     if (parseVatsPassword(password) !== password) {
-      return { ok: false, error: "Сохранённый пароль ВАТС недопустим. Сохраните его снова." };
+      return {
+        ok: false,
+        error: "Сохранённый пароль ВАТС недопустим. Сохраните его снова.",
+      };
     }
     return { ok: true, auth: { origin, login, password } };
   } catch {
@@ -113,55 +148,96 @@ async function loadCreds(): Promise<{ ok: true; auth: BossAuth } | { ok: false; 
   }
 }
 
-async function readStored(
-  kind: NameKind,
-  accept: (value: string) => string | null,
-): Promise<StoredRow | null> {
-  const row = await prisma.vatsNameList.findUnique({ where: { kind } });
-  if (!row) return null;
-  return {
-    origin: row.origin,
-    names: parseNameList(row.names, accept) ?? [],
-    readAt: row.readAt,
-  };
+async function hostView(): Promise<{ origin: string | null; configured: boolean }> {
+  const row = await prisma.appSetting.findUnique({
+    where: { id: 1 },
+    select: {
+      vatsBossBaseUrl: true,
+      vatsBossLogin: true,
+      vatsBossPasswordCiphertext: true,
+    },
+  });
+  const origin = row?.vatsBossBaseUrl ? parseVatsOrigin(row.vatsBossBaseUrl) : null;
+  const configured = Boolean(
+    origin &&
+    row?.vatsBossLogin &&
+    row.vatsBossPasswordCiphertext &&
+    origin === row.vatsBossBaseUrl,
+  );
+  return { origin: configured ? origin : null, configured };
 }
 
-function shown(row: StoredRow | null, origin: string): { names: string[]; readAt: string | null } {
-  if (!row || row.origin !== origin) return { names: [], readAt: null };
-  return { names: row.names, readAt: row.readAt.toISOString() };
+function shown(
+  configured: boolean,
+  screen: { readAt: string | null; notice: string | null },
+): { readAt: string | null; notice: string | null } {
+  if (!configured) return { readAt: null, notice: MSG_CREDENTIALS };
+  return { readAt: screen.readAt, notice: screen.notice };
 }
 
-async function recordJob(input: {
-  actorUserId: string;
-  kind: NameKind;
+async function recordCycleJob(input: {
   ok: boolean;
   error: string | null;
-  count: number | null;
-  kept: boolean;
   startedAt: Date;
+  domains: SectionOutcome;
+  telnums: SectionOutcome;
+  domainCount: number | null;
+  telnumCount: number | null;
+  settingsComplete: boolean;
 }): Promise<void> {
   try {
     const finishedAt = new Date();
     await prisma.jobRun.create({
       data: {
         actionCode: "vats.sync",
-        trigger: "manual",
+        trigger: "schedule",
         status: input.ok ? "success" : "failed",
         startedAt: input.startedAt,
         finishedAt,
         durationMs: finishedAt.getTime() - input.startedAt.getTime(),
         errorMessage: input.error,
-        actorUserId: input.actorUserId,
+        actorUserId: null,
         meta: {
-          kind: input.kind,
-          ...(input.count != null ? { count: input.count } : {}),
-          ...(input.kept ? { kept: true } : {}),
+          domains: input.domains,
+          telnums: input.telnums,
+          domainCount: input.domainCount,
+          telnumCount: input.telnumCount,
+          settings: input.settingsComplete ? "complete" : "incomplete",
         },
       },
     });
   } catch {
     logger.error("vats.job.skip");
   }
+}
+
+export async function runScheduledVatsCycle(): Promise<void> {
+  const creds = await loadCreds();
+  if (!creds.ok) return;
+  const generation = vatsGeneration();
+  const startedAt = new Date();
+  let result: VatsPassResult;
+  try {
+    result = await runVatsPass({
+      auth: creds.auth,
+      store: createPrismaCycleStore(creds.auth.origin, generation),
+    });
+  } catch {
+    logger.error("vats.cycle.failed");
+    return;
+  }
+  if (!result.called) return;
+  if (result.aborted && !result.platformFailure) return;
+  await recordCycleJob({
+    ok: !result.platformFailure,
+    error: result.platformFailure ? result.error : null,
+    startedAt,
+    domains: result.domains,
+    telnums: result.telnums,
+    domainCount: result.domainCount,
+    telnumCount: result.telnumCount,
+    settingsComplete: result.settingsComplete,
+  });
 }
 
 export async function getVatsSettings(): Promise<VatsSettingsView> {
@@ -183,7 +259,9 @@ export async function getVatsSettings(): Promise<VatsSettingsView> {
 export async function saveVatsSettings(
   input: { baseUrl: string; login: string; password?: string },
   actor: { userId: string; ip: string | null },
-): Promise<{ ok: true; settings: VatsSettingsView } | { ok: false; status: number; error: string }> {
+): Promise<
+  { ok: true; settings: VatsSettingsView } | { ok: false; status: number; error: string }
+> {
   const origin = parseVatsOrigin(input.baseUrl);
   const login = parseVatsLogin(input.login);
   if (!origin || !login) {
@@ -193,7 +271,10 @@ export async function saveVatsSettings(
     where: { id: 1 },
     select: { vatsBossPasswordCiphertext: true },
   });
-  const write = passwordWrite(input.password, Boolean(existing?.vatsBossPasswordCiphertext));
+  const write = passwordWrite(
+    input.password,
+    Boolean(existing?.vatsBossPasswordCiphertext),
+  );
   if (write === "missing") return { ok: false, status: 400, error: "Укажите пароль." };
   let ciphertext: string | undefined;
   if (write === "replace" && input.password != null) {
@@ -216,6 +297,7 @@ export async function saveVatsSettings(
       ...(ciphertext ? { vatsBossPasswordCiphertext: ciphertext } : {}),
     },
   });
+  requestVatsRestart();
 
   await auditService.append({
     actorUserId: actor.userId,
@@ -232,190 +314,115 @@ export async function saveVatsSettings(
   };
 }
 
-async function refreshLocked(kind: NameKind, actorUserId: string): Promise<VatsListResult> {
+export async function checkVatsAccess(): Promise<
+  { ok: true; count: number } | { ok: false; status: number; error: string }
+> {
   const creds = await loadCreds();
   if (!creds.ok) return { ok: false, status: 400, error: creds.error };
-  const accept = kind === "domains" ? parseDomainName : parseTelnum;
-  const startedAt = new Date();
-  const response = kind === "domains" ? await getDomains(creds.auth) : await getTelnums(creds.auth);
-  if (!response.ok) {
-    await recordJob({
-      actorUserId,
-      kind,
-      ok: false,
-      error: response.error,
-      count: null,
-      kept: false,
-      startedAt,
-    });
-    return platformError(response.error);
-  }
-  const parsed = parseNameList(response.data, accept);
-  if (parsed == null) {
-    const error = "Платформа вернула не список имён.";
-    await recordJob({
-      actorUserId,
-      kind,
-      ok: false,
-      error,
-      count: null,
-      kept: false,
-      startedAt,
-    });
-    return platformError(error);
-  }
-  const stored = await readStored(kind, accept);
-  const kept = keptPreviousList(stored, parsed);
-  const decided = nextNameList(stored, creds.auth.origin, parsed);
-  let row: StoredRow | null = stored;
-  if (!kept && decided) {
-    const readAt = new Date();
-    await prisma.vatsNameList.upsert({
-      where: { kind },
-      create: { kind, origin: decided.origin, names: decided.names, readAt },
-      update: { origin: decided.origin, names: decided.names, readAt },
-    });
-    row = { ...decided, readAt };
-  }
-  await recordJob({
-    actorUserId,
-    kind,
-    ok: true,
-    error: null,
-    count: parsed.length,
-    kept,
-    startedAt,
-  });
-  const visible = shown(row, creds.auth.origin);
+  const response = await withBossLock(() => getDomains(creds.auth));
+  if (!response.ok) return platformError(response.error);
+  const names = parseNameList(response.data, parseDomainName);
+  if (!names) return platformError(MSG_NOT_LIST);
+  return { ok: true, count: uniqueInOrder(names).length };
+}
+
+export async function getVatsDomainPage(
+  offset: number,
+): Promise<VatsTablePage<DomainTableRow>> {
+  const host = await hostView();
+  const loaded = await readDomainScreen(host.origin);
+  const view = shown(host.configured, loaded.screen);
+  const rows = host.configured ? domainPage(loaded.rows, offset, VATS_PAGE_SIZE) : [];
   return {
-    ok: true,
-    names: visible.names,
-    readAt: visible.readAt,
-    notice: kept ? "Пустой ответ не заменил сохранённый список." : null,
+    configured: host.configured,
+    readAt: view.readAt,
+    notice: view.notice,
+    total: host.configured ? loaded.rows.length : 0,
+    rows: rows.map(toDomainTable),
   };
 }
 
-export function refreshVatsDomains(actorUserId: string): Promise<VatsListResult> {
-  return enqueue("list", () => refreshLocked("domains", actorUserId));
+export async function getVatsTelnumPage(
+  offset: number,
+): Promise<VatsTablePage<TelnumTableRow>> {
+  const host = await hostView();
+  const loaded = await readTelnumScreen(host.origin);
+  const view = shown(host.configured, loaded.screen);
+  const rows = host.configured ? telnumPage(loaded.rows, offset, VATS_PAGE_SIZE) : [];
+  return {
+    configured: host.configured,
+    readAt: view.readAt,
+    notice: view.notice,
+    total: host.configured ? loaded.rows.length : 0,
+    rows: rows.map(toTelnumTable),
+  };
 }
 
-export function refreshVatsTelnums(actorUserId: string): Promise<VatsListResult> {
-  return enqueue("list", () => refreshLocked("telnums", actorUserId));
+export async function getVatsStatus(): Promise<VatsStatusBody> {
+  const host = await hostView();
+  const [domains, telnums, catalogs] = await Promise.all([
+    readDomainScreen(host.origin),
+    readTelnumScreen(host.origin),
+    readCatalogScreen(host.origin),
+  ]);
+  return {
+    loading: isVatsCycleRunning(),
+    domains: shown(host.configured, domains.screen),
+    telnums: shown(host.configured, telnums.screen),
+    settings: shown(host.configured, catalogs.screen),
+  };
 }
 
-export async function listVatsDomains(): Promise<VatsNameSnapshot> {
-  return listNames("domains", parseDomainName);
-}
-
-export async function listVatsTelnums(): Promise<VatsNameSnapshot> {
-  return listNames("telnums", parseTelnum);
-}
-
-async function listNames(
-  kind: NameKind,
-  accept: (value: string) => string | null,
-): Promise<VatsNameSnapshot> {
-  const row = await prisma.appSetting.findUnique({
-    where: { id: 1 },
-    select: {
-      vatsBossBaseUrl: true,
-      vatsBossLogin: true,
-      vatsBossPasswordCiphertext: true,
-    },
-  });
-  const origin = row?.vatsBossBaseUrl ? parseVatsOrigin(row.vatsBossBaseUrl) : null;
-  const configured = Boolean(
-    origin && row?.vatsBossLogin && row.vatsBossPasswordCiphertext && origin === row.vatsBossBaseUrl,
-  );
-  if (!configured || !origin) return { names: [], readAt: null, configured: false };
-  const stored = await readStored(kind, accept);
-  const visible = shown(stored, origin);
-  return { ...visible, configured: true };
-}
-
-async function memberOf(kind: NameKind, origin: string, name: string): Promise<boolean> {
-  const accept = kind === "domains" ? parseDomainName : parseTelnum;
-  const stored = await readStored(kind, accept);
-  return Boolean(stored && stored.origin === origin && stored.names.includes(name));
+export async function getVatsCatalogView(): Promise<VatsCatalogs> {
+  const host = await hostView();
+  const loaded = await readCatalogScreen(host.origin);
+  return settingsLists(loaded.snap);
 }
 
 export function getDomainCard(domain: string): Promise<VatsCardResult<VatsDomainCard>> {
-  return enqueue("list", async () => {
+  return (async () => {
     if (parseDomainName(domain) !== domain) {
       return { ok: false, status: 400, error: "Недопустимое имя домена." };
     }
     const creds = await loadCreds();
     if (!creds.ok) return { ok: false, status: 400, error: creds.error };
-    if (!(await memberOf("domains", creds.auth.origin, domain))) {
+    if (!(await domainMember(creds.auth.origin, domain))) {
       return {
         ok: false,
         status: 409,
-        error: "Этого домена нет в списке текущего хоста. Обновите список.",
+        error: "Этого домена нет в списке текущего хоста.",
       };
     }
-    const response = await getDomain(creds.auth, domain);
+    const response = await withBossLock(() => getDomain(creds.auth, domain));
     if (!response.ok) return platformError(response.error);
     const raw = asRecord(response.data);
     if (!raw) return platformError("Платформа вернула не карточку домена.");
     return { ok: true, card: domainCardView(domain, raw) };
-  });
+  })();
 }
 
 export function getTelnumCard(telnum: string): Promise<VatsCardResult<VatsTelnumCard>> {
-  return enqueue("list", async () => {
+  return (async () => {
     if (parseTelnum(telnum) !== telnum) {
       return { ok: false, status: 400, error: "Недопустимый номер." };
     }
     const creds = await loadCreds();
     if (!creds.ok) return { ok: false, status: 400, error: creds.error };
-    if (!(await memberOf("telnums", creds.auth.origin, telnum))) {
+    if (!(await telnumMember(creds.auth.origin, telnum))) {
       return {
         ok: false,
         status: 409,
-        error: "Этого номера нет в списке текущего хоста. Обновите список.",
+        error: "Этого номера нет в списке текущего хоста.",
       };
     }
-    const response = await getTelnum(creds.auth, telnum);
+    const response = await withBossLock(() => getTelnum(creds.auth, telnum));
     if (!response.ok) return platformError(response.error);
     const raw = asRecord(response.data);
     if (!raw) return platformError("Платформа вернула не карточку номера.");
-    return { ok: true, card: telnumCardView(telnum, raw) };
-  });
-}
-
-export function loadVatsCatalogs(): Promise<VatsCatalogs> {
-  return enqueue("list", async () => {
-    const creds = await loadCreds();
-    if (!creds.ok) return { gateways: [], routes: [], dialplans: [], error: null };
-    const empty = { gateways: [] as string[], routes: [] as string[], dialplans: [] as string[] };
-    const gateways = await getGateways(creds.auth);
-    if (!gateways.ok) return { ...empty, error: gateways.error };
-    const gatewayNames = parseCatalog(gateways.data);
-    if (!gatewayNames) return { ...empty, error: "Платформа вернула не список шлюзов." };
-    const routes = await getRoutes(creds.auth);
-    if (!routes.ok) return { ...empty, gateways: gatewayNames, error: routes.error };
-    const routeNames = parseCatalog(routes.data);
-    if (!routeNames) return { ...empty, gateways: gatewayNames, error: "Платформа вернула не список маршрутов." };
-    const dialplans = await getDialplans(creds.auth);
-    if (!dialplans.ok) {
-      return { gateways: gatewayNames, routes: routeNames, dialplans: [], error: dialplans.error };
-    }
-    const dialplanNames = parseCatalog(dialplans.data);
-    if (!dialplanNames) {
-      return {
-        gateways: gatewayNames,
-        routes: routeNames,
-        dialplans: [],
-        error: "Платформа вернула не список диал-планов.",
-      };
-    }
-    return {
-      gateways: gatewayNames,
-      routes: routeNames,
-      dialplans: dialplanNames,
-      error: null,
-    };
-  });
+    const card = telnumCardView(telnum, raw);
+    const catalog = await readGatewayCatalog(creds.auth.origin);
+    return { ok: true, card: { ...card, gateways: resolveRefs(card.gateways, catalog) } };
+  })();
 }
 
 async function auditDomain(
@@ -447,12 +454,14 @@ export function changeDomainField(
   },
   actor: { userId: string; ip: string | null },
 ): Promise<VatsDomainWrite> {
-  return enqueue("write", async () => {
+  return enqueueWrite(async () => {
     if (parseDomainName(input.domain) !== input.domain) {
       return { ok: false, status: 400, error: "Недопустимое имя домена." };
     }
     const value =
-      input.field === "client" ? parseClientValue(input.value) : parseLanguageValue(input.value);
+      input.field === "client"
+        ? parseClientValue(input.value)
+        : parseLanguageValue(input.value);
     if (value == null) return { ok: false, status: 400, error: "Недопустимое значение." };
     if (
       input.expected != null &&
@@ -462,15 +471,15 @@ export function changeDomainField(
     }
     const creds = await loadCreds();
     if (!creds.ok) return { ok: false, status: 400, error: creds.error };
-    if (!(await memberOf("domains", creds.auth.origin, input.domain))) {
+    if (!(await domainMember(creds.auth.origin, input.domain))) {
       return {
         ok: false,
         status: 409,
-        error: "Этого домена нет в списке текущего хоста. Обновите список. Запрос не отправлен.",
+        error: "Этого домена нет в списке текущего хоста. Запрос не отправлен.",
       };
     }
 
-    const before = await getDomain(creds.auth, input.domain);
+    const before = await withBossLock(() => getDomain(creds.auth, input.domain));
     if (!before.ok) return platformError(before.error);
     const raw = asRecord(before.data);
     if (!raw) return platformError("Платформа вернула не карточку домена.");
@@ -493,21 +502,39 @@ export function changeDomainField(
         card,
       };
     }
-    if (currentText === value) return { ok: true, card, sent: false };
+    if (currentText === value) {
+      if (input.field === "client")
+        await stampDomainClient(creds.auth.origin, input.domain, value);
+      return { ok: true, card, sent: false };
+    }
 
-    const written = await putDomainField(creds.auth, input.domain, input.field, value);
+    const written = await withBossLock(() =>
+      putDomainField(creds.auth, input.domain, input.field, value),
+    );
     if (!written.ok) {
       await auditDomain(
-        { domain: input.domain, field: input.field, before: currentText, after: value, outcome: "rejected" },
+        {
+          domain: input.domain,
+          field: input.field,
+          before: currentText,
+          after: value,
+          outcome: "rejected",
+        },
         actor,
       );
       return platformError(written.error);
     }
 
-    const after = await getDomain(creds.auth, input.domain);
+    const after = await withBossLock(() => getDomain(creds.auth, input.domain));
     if (!after.ok) {
       await auditDomain(
-        { domain: input.domain, field: input.field, before: currentText, after: value, outcome: "unchecked" },
+        {
+          domain: input.domain,
+          field: input.field,
+          before: currentText,
+          after: value,
+          outcome: "unchecked",
+        },
         actor,
       );
       return platformError(
@@ -515,9 +542,19 @@ export function changeDomainField(
       );
     }
     const afterRaw = asRecord(after.data);
-    if (!afterRaw || afterRaw[input.field] !== value || !readbackAccepts(raw, afterRaw, input.field, value)) {
+    if (
+      !afterRaw ||
+      afterRaw[input.field] !== value ||
+      !readbackAccepts(raw, afterRaw, input.field, value)
+    ) {
       await auditDomain(
-        { domain: input.domain, field: input.field, before: currentText, after: value, outcome: "readback" },
+        {
+          domain: input.domain,
+          field: input.field,
+          before: currentText,
+          after: value,
+          outcome: "readback",
+        },
         actor,
       );
       const otherFieldChanged = Boolean(afterRaw && afterRaw[input.field] === value);
@@ -531,9 +568,17 @@ export function changeDomainField(
       };
     }
     await auditDomain(
-      { domain: input.domain, field: input.field, before: currentText, after: value, outcome: "saved" },
+      {
+        domain: input.domain,
+        field: input.field,
+        before: currentText,
+        after: value,
+        outcome: "saved",
+      },
       actor,
     );
+    if (input.field === "client")
+      await stampDomainClient(creds.auth.origin, input.domain, value);
     return { ok: true, card: domainCardView(input.domain, afterRaw), sent: true };
   });
 }

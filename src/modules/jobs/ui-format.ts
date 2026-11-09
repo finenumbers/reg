@@ -350,6 +350,15 @@ export function summarizeJobResult(job: JobRunListItem): string {
     case "vats.sync": {
       const meta = jobMeta(job);
       if (meta?.kept === true) return "Пустой ответ не заменил список";
+      if (meta && ("domains" in meta || "telnums" in meta)) {
+        const domains = finiteNumber(meta.domainCount);
+        const telnums = finiteNumber(meta.telnumCount);
+        const left =
+          domains == null ? "Домены прочитаны" : `Домены: ${formatCount(domains)}`;
+        const right =
+          telnums == null ? "номера прочитаны" : `номера: ${formatCount(telnums)}`;
+        return `${left}, ${right}`;
+      }
       const kind = meta?.kind === "telnums" ? "Номера" : "Домены";
       const count = finiteNumber(meta?.count);
       return count == null ? `${kind} прочитаны` : `${kind}: ${formatCount(count)}`;

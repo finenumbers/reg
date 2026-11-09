@@ -1,7 +1,7 @@
 /**
- * In-process scheduler for regs.poll, phones.sync, and groups.sync.
+ * In-process scheduler for regs.poll, phones.sync, groups.sync, and VATS.
  *
- * Three Settings-gated loops (single app replica assumed):
+ * Loops (single app replica assumed):
  * - regs: regsPollEnabled → regs.poll every REGS_POLL_INTERVAL_SEC
  *   (same loop always drains CDR inbox, SMG inbox, SMG syslog traces, and VoIPmonitor)
  * - export: exportSyncEnabled → phones.sync every PHONES_SYNC_INTERVAL_SEC,
@@ -11,6 +11,8 @@
  * - sides: cdrSidesRefreshEnabled / interval → cdr.sides.refresh
  *   (also chained after phones.sync / cdr.import)
  * - parking: always, every 60s, reads calls.log only
+ * - vats: always, first pass after 5s, then 120s after each pass finishes.
+ *   One Boss request at a time. Settings save restarts the pass. Not a job-queue action.
  *
  * State lives on globalThis so Next.js instrumentation + request handlers share
  * one loop (module-level `let` is duplicated across bundles).
@@ -39,6 +41,14 @@ import {
   canEnqueueVoipmonitorMatch,
   requestVoipmonitorMatch,
 } from "@/modules/voipmonitor";
+import { nextVatsDelayMs, VATS_FIRST_DELAY_MS } from "@/modules/vats/cadence";
+import {
+  consumeVatsRestart,
+  isVatsCycleRunning,
+  registerVatsKick,
+  setVatsCycleRunning,
+} from "@/modules/vats/control";
+import { runScheduledVatsCycle } from "@/modules/vats/service";
 import {
   catalogPeriodSec,
   clampScheduleInterval,
@@ -95,6 +105,7 @@ type SchedulerGlobalState = {
   /** Yellow file that ended a red episode. Lost on process restart. */
   rtuEpisode: LoadEpisode | null;
   smgEpisode: LoadEpisode | null;
+  vatsTimer: ReturnType<typeof setTimeout> | null;
 };
 
 const DEFAULT_SIDES_REFRESH_INTERVAL_SEC = 300;
@@ -193,6 +204,7 @@ function schedulerState(): SchedulerGlobalState {
       lastSmgEmptyScanAt: null,
       rtuEpisode: null,
       smgEpisode: null,
+      vatsTimer: null,
     };
   }
   return g[SCHEDULER_GLOBAL_KEY];
@@ -411,7 +423,8 @@ async function tickCatalog(kind: ExportSyncAction): Promise<number> {
       regsPollInFlight: state.runtimeRef.isInFlight("regs.poll"),
     });
     delaySec = decision.delaySec;
-    const logName = kind === "phones.sync" ? "scheduler.phones.skipped" : "scheduler.groups.skipped";
+    const logName =
+      kind === "phones.sync" ? "scheduler.phones.skipped" : "scheduler.groups.skipped";
     if (!settings.exportEnabled) {
       logger.debug(logName, { reason: "exportSyncEnabled=false" });
       return delaySec;
@@ -423,9 +436,12 @@ async function tickCatalog(kind: ExportSyncAction): Promise<number> {
     const queued = await enqueueScheduled(decision.action);
     delaySec = catalogDelayAfterEnqueue(decision.delaySec, queued.accepted);
   } catch (error) {
-    logger.error(kind === "phones.sync" ? "scheduler.phones.failed" : "scheduler.groups.failed", {
-      error: error instanceof Error ? error.message : String(error),
-    });
+    logger.error(
+      kind === "phones.sync" ? "scheduler.phones.failed" : "scheduler.groups.failed",
+      {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    );
   }
   return delaySec;
 }
@@ -553,6 +569,31 @@ async function tickSides(): Promise<void> {
   }
 }
 
+function scheduleVats(delayMs: number): void {
+  const state = schedulerState();
+  if (!state.started) return;
+  if (state.vatsTimer) clearTimeout(state.vatsTimer);
+  state.vatsTimer = setTimeout(() => {
+    state.vatsTimer = null;
+    if (!schedulerState().started) return;
+    void runVatsGuarded();
+  }, delayMs);
+}
+
+async function runVatsGuarded(): Promise<void> {
+  if (isVatsCycleRunning()) return;
+  setVatsCycleRunning(true);
+  try {
+    await runScheduledVatsCycle();
+  } catch {
+    logger.error("vats.cycle.failed");
+  } finally {
+    setVatsCycleRunning(false);
+    if (!schedulerState().started) return;
+    scheduleVats(nextVatsDelayMs(consumeVatsRestart()));
+  }
+}
+
 function startSchedulerLoop(runtime: SchedulerJobRuntime): void {
   const state = schedulerState();
   if (state.started) return;
@@ -563,7 +604,8 @@ function startSchedulerLoop(runtime: SchedulerJobRuntime): void {
       "In-process scheduler loop active (single-replica only). " +
       "Duplicate app instances will duplicate polls. " +
       "regs.poll uses regsPollEnabled; phones.sync and groups.sync use exportSyncEnabled; " +
-      "cdr.sides.refresh uses cdrSidesRefreshEnabled.",
+      "cdr.sides.refresh uses cdrSidesRefreshEnabled. " +
+      "VATS reads every 120s after the previous pass, one platform request at a time.",
   });
   // First regs/housekeeping tick after a short delay so boot is not blocked.
   state.timer = armTimer(null, 5_000, () => {
@@ -585,6 +627,8 @@ function startSchedulerLoop(runtime: SchedulerJobRuntime): void {
     scheduleNextSides(sidesDelay);
     scheduleNextParking(8_000);
   })();
+  registerVatsKick(() => scheduleVats(0));
+  scheduleVats(VATS_FIRST_DELAY_MS);
 }
 
 /**
@@ -654,6 +698,10 @@ export function stopAutoScheduler(): void {
     clearTimeout(state.parkingTimer);
     state.parkingTimer = null;
   }
+  if (state.vatsTimer) {
+    clearTimeout(state.vatsTimer);
+    state.vatsTimer = null;
+  }
   clearSmgSettleTimer();
 }
 
@@ -674,6 +722,7 @@ export function evaluateSchedulerBootstrap(runtime: SchedulerJobRuntime): {
       "phones.sync every 60s and groups.sync every 120s when exportSyncEnabled=true " +
       "(neither catalog load starts while the other or regs.poll is running); " +
       "cdr.sides.refresh when cdrSidesRefreshEnabled=true; " +
-      "sides interval from Settings; anti-overlap per action.",
+      "sides interval from Settings; anti-overlap per action; " +
+      "VATS every 120s.",
   };
 }

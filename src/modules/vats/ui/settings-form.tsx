@@ -51,17 +51,16 @@ export function VatsSettingsForm({
     setError(null);
     setNote(null);
     try {
-      const response = await fetch("/api/vats/domains/refresh", { method: "POST" });
+      const response = await fetch("/api/vats/access", { method: "POST" });
       const body = (await response.json().catch(() => null)) as {
         error?: string;
-        names?: string[];
-        notice?: string | null;
+        count?: number;
       } | null;
-      if (!response.ok || !body || !Array.isArray(body.names)) {
+      if (!response.ok || !body || typeof body.count !== "number") {
         setError(body?.error ?? "Доступ не подтверждён.");
         return;
       }
-      setNote(body.notice ?? `Доступ есть. Доменов: ${body.names.length}.`);
+      setNote(`Доступ есть. Доменов: ${body.count}.`);
     } catch {
       setError("Доступ не подтверждён.");
     } finally {
@@ -153,13 +152,18 @@ export function VatsSettingsForm({
           />
         </div>
         <p className="text-muted-foreground text-sm">
-          Адрес выхода этого приложения должен быть в списке доверенных IP кабинета. Проверка
-          доступа не доказывает право на запись.
+          Адрес выхода этого приложения должен быть в списке доверенных IP кабинета.
+          Проверка доступа не доказывает право на запись.
         </p>
         {error ? <p className="text-destructive text-sm">{error}</p> : null}
         {note ? <p className="text-muted-foreground text-sm">{note}</p> : null}
         <div className="flex gap-2">
-          <Button type="button" variant="outline" disabled={pending} onClick={() => void checkAccess()}>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={pending}
+            onClick={() => void checkAccess()}
+          >
             Проверить доступ
           </Button>
           <Button
@@ -185,13 +189,20 @@ export function VatsSettingsForm({
               <br />
               Логин: {confirm.login || "—"}
               <br />
-              {confirm.password.length > 0 ? "Пароль будет сохранён." : "Пароль останется прежним."}
+              {confirm.password.length > 0
+                ? "Пароль будет сохранён."
+                : "Пароль останется прежним."}
             </p>
             <div className="flex gap-2">
               <Button type="button" disabled={pending} onClick={() => void save()}>
                 {pending ? "Сохранение…" : "Сохранить"}
               </Button>
-              <Button type="button" variant="outline" disabled={pending} onClick={() => setConfirm(null)}>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={pending}
+                onClick={() => setConfirm(null)}
+              >
                 Отмена
               </Button>
             </div>
@@ -201,7 +212,6 @@ export function VatsSettingsForm({
       <div className="max-w-xl space-y-4">
         <h2 className="text-sm font-medium">Справочники</h2>
         <p className="text-muted-foreground text-sm">Эти списки только для просмотра.</p>
-        {catalogs.error ? <p className="text-destructive text-sm">{catalogs.error}</p> : null}
         <NameBlock title="Шлюзы" names={catalogs.gateways} />
         <NameBlock title="Маршруты" names={catalogs.routes} />
         <NameBlock title="Диал-планы" names={catalogs.dialplans} />

@@ -254,13 +254,13 @@ export async function ensurePlatformBaseline(): Promise<{ ok: true }> {
     create: {
       code: "vats.sync",
       remotePath: "vats.sync",
-      description: "Read VATS domain or number names. Manual only, not scheduled.",
+      description: "Read VATS domains, numbers, and catalogs on a timer.",
       enabled: true,
       module: "vats",
     },
     update: {
       remotePath: "vats.sync",
-      description: "Read VATS domain or number names. Manual only, not scheduled.",
+      description: "Read VATS domains, numbers, and catalogs on a timer.",
       enabled: true,
       module: "vats",
     },

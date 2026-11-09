@@ -54,6 +54,27 @@ describe("scheduler bootstrap (Settings-only)", () => {
   it("rescheduleAfterSettingsChange is safe before start", async () => {
     await expect(rescheduleAfterSettingsChange()).resolves.toBeUndefined();
   });
+
+  it("clears the VATS timer when the scheduler stops", async () => {
+    vi.useFakeTimers();
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockRejectedValue(new Error("offline"));
+    try {
+      const runtime: SchedulerJobRuntime = {
+        enqueue: vi.fn().mockResolvedValue({ accepted: true }),
+        isInFlight: () => false,
+      };
+      evaluateSchedulerBootstrap(runtime);
+      stopAutoScheduler();
+      await vi.advanceTimersByTimeAsync(20_000);
+      expect(fetchSpy).not.toHaveBeenCalled();
+    } finally {
+      fetchSpy.mockRestore();
+      stopAutoScheduler();
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe("scheduledRegsAction", () => {
@@ -98,11 +119,15 @@ describe("scheduledCatalogTick", () => {
   });
 
   it("keeps the full period while the export loop is off", () => {
-    expect(scheduledCatalogTick({ ...idle, kind: "phones.sync", enabled: false })).toEqual({
+    expect(
+      scheduledCatalogTick({ ...idle, kind: "phones.sync", enabled: false }),
+    ).toEqual({
       action: null,
       delaySec: 60,
     });
-    expect(scheduledCatalogTick({ ...idle, kind: "groups.sync", enabled: false })).toEqual({
+    expect(
+      scheduledCatalogTick({ ...idle, kind: "groups.sync", enabled: false }),
+    ).toEqual({
       action: null,
       delaySec: 120,
     });

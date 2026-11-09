@@ -1,21 +1,19 @@
 import { requirePagePermission } from "@/modules/auth/guards";
-import { listVatsTelnums } from "@/modules/vats/service";
-import { VatsNameList } from "@/modules/vats/ui/name-list";
+import { getVatsTelnumPage } from "@/modules/vats/service";
+import { VatsTelnumTable } from "@/modules/vats/ui/section-table";
 
 export const dynamic = "force-dynamic";
 
 export default async function VatsTelnumsPage() {
   await requirePagePermission("vats:read");
-  const list = await listVatsTelnums();
+  const page = await getVatsTelnumPage(0);
   return (
-    <VatsNameList
+    <VatsTelnumTable
       title="Номера ВАТС"
-      column="Номер"
-      names={list.names}
-      readAt={list.readAt}
-      configured={list.configured}
-      refreshUrl="/api/vats/telnums/refresh"
-      hrefPrefix="/vats/telnums"
+      rows={page.rows}
+      total={page.total}
+      readAt={page.readAt}
+      notice={page.notice}
     />
   );
 }

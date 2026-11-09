@@ -8,5 +8,4 @@ export type VatsCatalogs = {
   gateways: string[];
   routes: string[];
   dialplans: string[];
-  error: string | null;
 };

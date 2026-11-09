@@ -53,6 +53,21 @@ describe("jobs ui-format", () => {
         }),
       ),
     ).toBe("Домены: 3");
+    expect(
+      summarizeJobResult(
+        sample({
+          actionCode: "vats.sync",
+          phonesParsed: null,
+          changesCount: null,
+          meta: {
+            domains: "published",
+            telnums: "published",
+            domainCount: 2,
+            telnumCount: 5,
+          },
+        }),
+      ),
+    ).toBe("Домены: 2, номера: 5");
     expect(formatJobAction("unknown.job")).toBe("unknown.job");
     expect(formatJobActionTitle("cdr.import")).toBe("Импорт CDR (cdr.import)");
   });
