@@ -1,10 +1,12 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useDisplayTimezone } from "@/components/display-timezone-provider";
+import { EXPORT_XLSX_BUTTON_CLASS } from "@/components/export-xlsx-button-class";
 import { TableCountFooter, TableInfiniteBody } from "@/components/table-infinite-body";
 import { Button } from "@/components/ui/button";
+import { downloadXlsxFromUrl } from "@/lib/download-xlsx";
 import {
   Table,
   TableBody,
@@ -64,6 +66,7 @@ export function TariffsView({ initial }: { initial: ListTariffsResult }) {
   const [listError, setListError] = useState<string | null>(null);
   const [importError, setImportError] = useState<ImportError | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const refreshSeq = useRef(0);
   const [scrollRoot, setScrollRoot] = useState<HTMLDivElement | null>(null);
@@ -112,7 +115,9 @@ export function TariffsView({ initial }: { initial: ListTariffsResult }) {
   }
 
   const loadListRef = useRef(loadList);
-  loadListRef.current = loadList;
+  useEffect(() => {
+    loadListRef.current = loadList;
+  });
 
   const onLoadMore = useCallback(() => {
     if (!hasMore || loading || loadingMoreRef.current) return;
@@ -125,10 +130,22 @@ export function TariffsView({ initial }: { initial: ListTariffsResult }) {
     root: scrollRoot,
   });
 
+  async function onExport() {
+    if (exporting || uploading) return;
+    setExporting(true);
+    const result = await downloadXlsxFromUrl("/api/tariffs/export", "tariffs.xlsx");
+    setExporting(false);
+    if (!result.ok) {
+      toast.error(result.message);
+      return;
+    }
+    toast.success("Файл экспорта скачан");
+  }
+
   async function onFileSelected(list: FileList | null) {
     const file = list?.[0];
     if (fileRef.current) fileRef.current.value = "";
-    if (!file || uploading) return;
+    if (!file || uploading || exporting) return;
     setUploading(true);
     setImportError(null);
     const result = await importTariffsFile(file);
@@ -155,7 +172,7 @@ export function TariffsView({ initial }: { initial: ListTariffsResult }) {
             {formatLoadedLine(loadedAt, rowCount, timeZone)}
           </p>
         </div>
-        <div>
+        <div className="flex flex-wrap items-center gap-2">
           <input
             ref={fileRef}
             type="file"
@@ -166,9 +183,17 @@ export function TariffsView({ initial }: { initial: ListTariffsResult }) {
           <Button
             type="button"
             onClick={() => fileRef.current?.click()}
-            disabled={uploading}
+            disabled={uploading || exporting}
           >
-            {uploading ? "Загрузка…" : "Загрузить данные"}
+            {uploading ? "Импорт…" : "Импорт XLSX"}
+          </Button>
+          <Button
+            type="button"
+            className={EXPORT_XLSX_BUTTON_CLASS}
+            onClick={() => void onExport()}
+            disabled={exporting || uploading}
+          >
+            {exporting ? "Экспорт…" : "Экспорт XLSX"}
           </Button>
         </div>
       </div>
@@ -224,7 +249,7 @@ export function TariffsView({ initial }: { initial: ListTariffsResult }) {
                     colSpan={TARIFF_COLUMN_COUNT}
                     className="text-muted-foreground h-24"
                   >
-                    Нет данных. Нажмите «Загрузить данные».
+                    Нет данных. Нажмите «Импорт XLSX».
                   </TableCell>
                 </TableRow>
               ) : (

@@ -60,6 +60,7 @@ export function middleware(request: NextRequest) {
     pathname.startsWith("/operators") ||
     pathname.startsWith("/settings") ||
     pathname.startsWith("/tariffs") ||
+    pathname.startsWith("/masks") ||
     pathname.startsWith("/stats") ||
     pathname.startsWith("/jobs") ||
     pathname.startsWith("/audit");

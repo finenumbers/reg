@@ -64,6 +64,7 @@ export function AppShell({
   const smgNav = visible.filter((m) => m.navGroup === "smg");
   const analyticsNav = visible.filter((m) => m.navGroup === "analytics");
   const linksNav = visible.filter((m) => m.navGroup === "links");
+  const catalogNav = visible.filter((m) => m.navGroup === "catalog");
   const adminNav = visible.filter((m) => m.navGroup === "admin");
 
   async function onLogout() {
@@ -145,6 +146,19 @@ export function AppShell({
                 />
               ))}
             </>
+            {catalogNav.length > 0 ? (
+              <>
+                <Separator className="my-1.5 shrink-0" />
+                {catalogNav.map((item) => (
+                  <NavLink
+                    key={item.href}
+                    href={item.href!}
+                    label={item.title}
+                    active={isNavActive(pathname, item.href!)}
+                  />
+                ))}
+              </>
+            ) : null}
             {adminNav.length > 0 ? (
               <>
                 <Separator className="my-1.5 shrink-0" />

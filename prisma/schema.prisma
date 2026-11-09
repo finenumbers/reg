@@ -561,6 +561,40 @@ model DialException {
   @@map("dial_exceptions")
 }
 
+/// Mask and type snapshot from an uploaded XLSX. Each import replaces every row.
+/// Rating, geography, and phone sync do not read this table.
+model NumberMask {
+  id          String  @id @default(cuid())
+  /// Order in the uploaded file (empty rows omitted).
+  sortIndex   Int
+  /// Whole number 5, 6, or 7. Equals the mask length.
+  digitLength Int
+  category    String
+  /// Digit fragment. Null when the cell is empty. Text so a leading zero survives.
+  abc         String?
+  /// Pattern text. A leading zero is significant.
+  mask        String
+  /// «Тип». Null when the cell is empty.
+  maskType    String?
+  /// «Премиум». Null when the cell is empty. Stored as text.
+  premium     String?
+  /// «Покупка». Null when the cell is empty. Stored as text.
+  purchase    String?
+
+  @@unique([sortIndex])
+  @@map("number_masks")
+}
+
+model NumberMaskImportState {
+  id        Int       @id @default(1)
+  rowCount  Int       @default(0)
+  filename  String?
+  loadedAt  DateTime?
+  updatedAt DateTime  @updatedAt
+
+  @@map("number_mask_import_state")
+}
+
 model TariffImportState {
   id              Int       @id @default(1)
   rowCount        Int       @default(0)

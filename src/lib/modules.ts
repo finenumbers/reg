@@ -6,6 +6,7 @@ import type { PermissionCode } from "@/modules/rbac/permissions";
 
 export type FeatureModuleId =
   | "settings"
+  | "masks"
   | "tariffs"
   | "exceptions"
   | "jobs"
@@ -28,7 +29,14 @@ export type FeatureModuleId =
   | "smg-syslog"
   | "antifraud";
 
-export type FeatureNavGroup = "primary" | "cdr" | "smg" | "analytics" | "links" | "admin";
+export type FeatureNavGroup =
+  | "primary"
+  | "cdr"
+  | "smg"
+  | "analytics"
+  | "links"
+  | "catalog"
+  | "admin";
 
 type FeatureModuleDefinition = {
   id: FeatureModuleId;
@@ -173,12 +181,12 @@ export const FEATURE_MODULES: FeatureModuleDefinition[] = [
     navGroup: "analytics",
   },
   {
-    id: "settings",
-    title: "Настройки",
-    description: "SSH-профиль, интервал опроса, месяцы CDR",
-    href: "/settings",
-    navPermission: "settings:write",
-    navGroup: "admin",
+    id: "masks",
+    title: "Маски и типы",
+    description: "Разрядность, категория, ABC и маска из XLSX",
+    href: "/masks",
+    navPermission: "phones:read",
+    navGroup: "catalog",
   },
   {
     id: "tariffs",
@@ -186,6 +194,14 @@ export const FEATURE_MODULES: FeatureModuleDefinition[] = [
     description: "Направления, ABC, цена и себестоимость из XLSX",
     href: "/tariffs",
     navPermission: "phones:read",
+    navGroup: "catalog",
+  },
+  {
+    id: "settings",
+    title: "Настройки",
+    description: "SSH-профиль, интервал опроса, месяцы CDR",
+    href: "/settings",
+    navPermission: "settings:write",
     navGroup: "admin",
   },
   {

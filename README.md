@@ -2,7 +2,7 @@
 
 Internal telecom ops platform. Phone numbers, groups, registrations, and live calls are read from the RTU API.
 
-**Repository:** [github.com/finenumbers/reg](https://github.com/finenumbers/reg) · **Release:** [v1.244.0](https://github.com/finenumbers/reg/releases/tag/v1.244.0)
+**Repository:** [github.com/finenumbers/reg](https://github.com/finenumbers/reg) · **Release:** [v1.245.0](https://github.com/finenumbers/reg/releases/tag/v1.245.0)
 
 ## Stack (approved)
 
@@ -161,14 +161,25 @@ UI (`/groups`):
 - Read-only ID / Name table (sorted by ID ascending)
 - The snapshot is replaced by the RTU page «Входящие группы» when Settings regular phone-and-group load is on. There is no manual load button.
 
+## Masks
+
+Session only (`phones:read`). API keys are rejected. The catalog is not used to rate calls.
+
+- `GET /api/masks` — current snapshot, paging
+- `POST /api/masks/import` — replace the snapshot from an XLSX (`Разрядность`, `Категория`, `ABC`, `Маска`, `Тип`, `Премиум`, `Покупка`)
+- `GET /api/masks/export` — the same snapshot as XLSX
+
+UI (`/masks`): table, **Импорт XLSX**, and **Экспорт XLSX**. A failed file leaves the previous snapshot in place. The nav block sits above Settings and also contains Tariffs.
+
 ## Tariffs
 
 Session only (`phones:read`). API keys are rejected.
 
 - `GET /api/tariffs` — current snapshot, paging
 - `POST /api/tariffs/import` — replace the snapshot from an XLSX (`Направления`, `Регион`, `ABC`, `Разрядность`, `Нумерация`, `Цена`)
+- `GET /api/tariffs/export` — the same snapshot as XLSX. Export does not rate calls.
 
-UI (`/tariffs`): table plus **Загрузить данные**. A failed file leaves the previous snapshot in place.
+UI (`/tariffs`): table, **Импорт XLSX**, and **Экспорт XLSX**. A failed file leaves the previous snapshot in place.
 
 ## Jobs / Audit (Phase 6)
 

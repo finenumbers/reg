@@ -1,7 +1,15 @@
-# Current Phase — production (v1.244.0)
+# Current Phase — production (v1.245.0)
 
-**Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls.  
-**Date:** 2026-11-08
+**Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls.  
+**Date:** 2026-11-09
+
+## v1.245.0 — Number masks and XLSX import or export on both catalogs
+
+The migrator creates `number_masks` and `number_mask_import_state`. The migration is label-free, so startup does not rescan the CDR journal. It does not rewrite phone, tariff, CDR, or PSTN rows and does not replace the rater. Do not stop `smg-syslog`. Keep a single `app` replica. Replace the `app` container after migrate. Refresh the browser.
+
+«Маски и типы» is a new block immediately above «Настройки», at `/masks`, with `phones:read`. «Тарификация» moves into that same block and stays first after the masks item. «Настройки», «Исключения», «Задачи», and «Аудит» stay where they were. The mask table columns are «Разрядность», «Категория», «ABC», «Маска», «Тип», «Премиум», and «Покупка». The snapshot is empty until an XLSX is imported. An import replaces every mask row. A bad file leaves the previous snapshot. The catalog is not used to rate calls.
+
+On «Маски и типы» and «Тарификация» the left button is «Импорт XLSX» and the right button is the amber «Экспорт XLSX». Export reads the whole snapshot and does not change it. A mask and an ABC are text, so a leading zero survives a later import. A tariff price keeps its stored decimals. An ABC that starts with 7 still shows 11 on the tariff screen and exports an empty «Разрядность» cell. Nothing is written to the switch.
 
 ## v1.244.0 — Upload limit stays on the middleware body clone
 

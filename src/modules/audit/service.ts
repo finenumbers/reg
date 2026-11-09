@@ -69,6 +69,7 @@ export const AUDIT_ACTIONS = {
   API_KEY_CREATE: "api_key.create",
   API_KEY_REVOKE: "api_key.revoke",
   TARIFFS_IMPORT: "tariffs.import",
+  MASKS_IMPORT: "masks.import",
   EXCEPTIONS_ADD: "exceptions.add",
   EXCEPTIONS_DELETE: "exceptions.delete",
   CDR_TARIFF_RATE_START: "cdr.tariff.rate_start",

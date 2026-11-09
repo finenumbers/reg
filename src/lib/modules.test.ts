@@ -7,10 +7,11 @@ const KNOWN_NAV_GROUPS = new Set([
   "smg",
   "analytics",
   "links",
+  "catalog",
   "admin",
 ]);
 
-function idsInGroup(group: "cdr" | "smg" | "analytics" | "admin"): string[] {
+function idsInGroup(group: "cdr" | "smg" | "analytics" | "catalog" | "admin"): string[] {
   return FEATURE_MODULES.filter((m) => m.navGroup === group).map((m) => m.id);
 }
 
@@ -56,19 +57,24 @@ describe("FEATURE_MODULES nav groups", () => {
     expect(titles["smg-syslog"]).toBe("Архивы Syslog");
   });
 
-  it("keeps admin without Статистика", () => {
-    expect(idsInGroup("admin")).toEqual([
-      "settings",
-      "tariffs",
-      "exceptions",
-      "jobs",
-      "audit",
-    ]);
+  it("keeps masks and tariffs together above settings", () => {
+    expect(idsInGroup("catalog")).toEqual(["masks", "tariffs"]);
+    const masks = FEATURE_MODULES.find((module) => module.id === "masks");
+    expect(masks).toMatchObject({
+      title: "Маски и типы",
+      href: "/masks",
+      navPermission: "phones:read",
+      navGroup: "catalog",
+    });
+  });
+
+  it("keeps admin without Статистика and without Тарификация", () => {
+    expect(idsInGroup("admin")).toEqual(["settings", "exceptions", "jobs", "audit"]);
   });
 
   it("uses only known nav groups", () => {
-    for (const module of FEATURE_MODULES) {
-      expect(KNOWN_NAV_GROUPS.has(module.navGroup ?? "primary")).toBe(true);
+    for (const feature of FEATURE_MODULES) {
+      expect(KNOWN_NAV_GROUPS.has(feature.navGroup ?? "primary")).toBe(true);
     }
   });
 
