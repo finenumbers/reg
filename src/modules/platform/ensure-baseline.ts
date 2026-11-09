@@ -19,6 +19,11 @@ const PERMISSIONS = [
     code: "phones:activate",
     description: "Change the RTU active flag from number geography",
   },
+  { code: "vats:read", description: "View VATS domains and numbers" },
+  {
+    code: "vats:write",
+    description: "Change VATS settings and the client or language field",
+  },
   { code: "audit:read", description: "View audit log" },
   { code: "users:admin", description: "Manage users and roles" },
 ] as const;
@@ -68,6 +73,7 @@ export async function ensurePlatformBaseline(): Promise<{ ok: true }> {
     "phones:read",
     "phones:request",
     "ssh:test",
+    "vats:read",
   ]);
   for (const perm of allPerms.filter((p) => operatorCodes.has(p.code))) {
     await prisma.rolePermission.upsert({
@@ -240,6 +246,23 @@ export async function ensurePlatformBaseline(): Promise<{ ok: true }> {
       remotePath: "cdr.purge.month",
       enabled: true,
       module: "traffic",
+    },
+  });
+
+  await prisma.allowedAction.upsert({
+    where: { code: "vats.sync" },
+    create: {
+      code: "vats.sync",
+      remotePath: "vats.sync",
+      description: "Read VATS domain or number names. Manual only, not scheduled.",
+      enabled: true,
+      module: "vats",
+    },
+    update: {
+      remotePath: "vats.sync",
+      description: "Read VATS domain or number names. Manual only, not scheduled.",
+      enabled: true,
+      module: "vats",
     },
   });
 

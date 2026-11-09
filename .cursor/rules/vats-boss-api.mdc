@@ -1,0 +1,31 @@
+---
+description: iTooLabs Boss API writes are limited to one domain field
+alwaysApply: true
+---
+
+# VATS Boss API
+
+The handbook lives only in `docs/vendor/itoolabs/` on the developer machine. That directory is gitignored and dockerignored. Do not commit it or long quotations. The GitHub repository is public.
+
+Object paths in code are literals from that handbook. Do not accept an operation, path, or body field from a caller, a flag, or the saved catalog. Do not invent methods. This is REST, not SOAP, and it is not the RTU API.
+
+This release may send only:
+
+- `GET /sys/boss/v1/domains`
+- `GET /sys/boss/v1/domains/{domain}`
+- `PUT /sys/boss/v1/domains/{domain}` whose JSON body is exactly `{client}` or `{language}`
+- `GET /sys/boss/v1/telnums`
+- `GET /sys/boss/v1/telnums/{telnum}`
+- `GET /sys/boss/v1/gateways`
+- `GET /sys/boss/v1/routes`
+- `GET /sys/boss/v1/dialplans`
+
+Language values sent by the client are only `ru-RU` or `en-US`. The domain is path-encoded. Reject `/` and `..`. Do not echo dialplan, route, services, limits, billing, name, or any other field. If the platform rejects the one-field body, show the error and do not send a second request. After a 204, read the same card. Success only if that one field changed and the rest matches the pre-image. Do not send a compensating `PUT`.
+
+The domain write is sent only by the button «Изменить» after a dialog that shows the domain, the field, the old value, and the new value. Settings are saved only by the confirm button, which shows the host and the login and not the password. Cancel, close, and Enter do not send. «Проверить доступ» is a read and needs no confirm dialog.
+
+Do not call POST, DELETE, HEAD, freeze, unfreeze, allocate, deallocate, assign, enable, disable, block, services, call directions, caller-id forwarding, gateway, dialplan, or route changes, create domain, create number, `GET /generatepassword`, `GET .../session`, or `GET /users/{login}/auth`. «Сотрудники» stays out of the nav until that page exists. A later employee edit may change only realName, position, and email, with the same confirm and readback.
+
+Lists are names. Do not fan out a card request per row. An empty or truncated list does not wipe a non-empty list. A list from another host is hidden and must not be used in `PUT`. HTTPS origin only, no path and no userinfo. Do not follow redirects. Do not trust a custom certificate. GET may retry once. PUT never retries. Body cap 20 MB. Timeout 30s.
+
+The password is ciphertext at rest and is sent only as `Authorization: Basic` to the pinned host. Do not log the password, the header, a session link, or the SOAP-style envelope. API keys cannot call these routes. `vats.sync` is a manual job row only. Do not register it in the scheduler. Do not change RTU, CDR, or SMG behavior.

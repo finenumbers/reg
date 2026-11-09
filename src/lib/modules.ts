@@ -27,12 +27,16 @@ export type FeatureModuleId =
   | "smg"
   | "smg-traffic"
   | "smg-syslog"
-  | "antifraud";
+  | "antifraud"
+  | "vats-domains"
+  | "vats-telnums"
+  | "vats-settings";
 
 export type FeatureNavGroup =
   | "primary"
   | "cdr"
   | "smg"
+  | "vats"
   | "analytics"
   | "links"
   | "catalog"
@@ -163,6 +167,30 @@ export const FEATURE_MODULES: FeatureModuleDefinition[] = [
     href: "/smg/syslog",
     navPermission: "phones:read",
     navGroup: "smg",
+  },
+  {
+    id: "vats-domains",
+    title: "Домены ВАТС",
+    description: "Имена доменов облачной АТС",
+    href: "/vats",
+    navPermission: "vats:read",
+    navGroup: "vats",
+  },
+  {
+    id: "vats-telnums",
+    title: "Номера ВАТС",
+    description: "Имена номеров облачной АТС",
+    href: "/vats/telnums",
+    navPermission: "vats:read",
+    navGroup: "vats",
+  },
+  {
+    id: "vats-settings",
+    title: "Настройки ВАТС",
+    description: "Хост и ключ платформы облачной АТС",
+    href: "/vats/settings",
+    navPermission: "vats:write",
+    navGroup: "vats",
   },
   {
     id: "detail",

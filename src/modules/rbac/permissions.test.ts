@@ -14,6 +14,9 @@ describe("RBAC permissions", () => {
     expect(hasPermission(ROLE_PERMISSIONS.operator, "regs:read")).toBe(true);
     expect(hasPermission(ROLE_PERMISSIONS.operator, "phones:activate")).toBe(false);
     expect(hasPermission(ROLE_PERMISSIONS.admin, "phones:activate")).toBe(true);
+    expect(hasPermission(ROLE_PERMISSIONS.operator, "vats:read")).toBe(true);
+    expect(hasPermission(ROLE_PERMISSIONS.operator, "vats:write")).toBe(false);
+    expect(hasPermission(ROLE_PERMISSIONS.admin, "vats:write")).toBe(true);
   });
 
   it("treats missing grants as deny", () => {

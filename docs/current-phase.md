@@ -1,7 +1,13 @@
-# Current Phase — production (v1.246.0)
+# Current Phase — production (v1.247.0)
 
-**Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls.  
+**Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, cloud PBX domains and numbers.  
 **Date:** 2026-11-09
+
+## v1.247.0 — Cloud PBX reads and two domain fields
+
+The migrator adds `vatsBossBaseUrl`, `vatsBossLogin`, and `vatsBossPasswordCiphertext` on `app_settings`, and creates `vats_name_lists`. It does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `smg-syslog`. Keep a single `app` replica. Replace the `app` container after migrate. Refresh the browser.
+
+«Облачная АТС» sits below SMG and above «Детализация». The items are «Домены ВАТС» (`/vats`), «Номера ВАТС» (`/vats/telnums`), and «Настройки ВАТС» (`/vats/settings`). «Сотрудники» is not in the menu. An operator can read. Only an administrator can save the host and change «Клиент» or «Язык». The only platform write is one `PUT` whose body is exactly `{client}` or `{language}`. The screen shows the domain, the field, the old value, and the new value, and the button «Изменить» sends it. Cancel and Enter do not. A following read must show that one field changed and the rest unchanged. There is no second write. Delete, create, freeze, allocate, number changes, and session links are not in this release. Lists are names only. Opening one domain or one number reads that one card. An empty or cut-off list does not wipe a stored list. Nothing else is written to the switch. RTU activation is unchanged.
 
 ## v1.246.0 — Column filters on masks and tariffs
 

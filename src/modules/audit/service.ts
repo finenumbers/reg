@@ -74,6 +74,8 @@ export const AUDIT_ACTIONS = {
   EXCEPTIONS_DELETE: "exceptions.delete",
   CDR_TARIFF_RATE_START: "cdr.tariff.rate_start",
   CDR_TARIFF_RATE_FINISH: "cdr.tariff.rate_finish",
+  VATS_SETTINGS_UPDATE: "vats.settings_update",
+  VATS_DOMAIN_UPDATE: "vats.domain_update",
 } as const;
 
 export type AuditAction =

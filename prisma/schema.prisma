@@ -162,9 +162,24 @@ model AppSetting {
   rtuSoapCaPem                    String?
   /// UDP syslog receiver for registered SMG nodes. Off until an operator enables it.
   syslogEnabled                   Boolean  @default(false) @map("syslog_enabled")
+  /// HTTPS origin of the iTooLabs platform. No path and no userinfo.
+  vatsBossBaseUrl                 String?
+  vatsBossLogin                   String?
+  /// AES-256-GCM ciphertext of the Boss API password. Never plaintext.
+  vatsBossPasswordCiphertext      String?
   updatedAt             DateTime    @updatedAt
 
   @@map("app_settings")
+}
+
+/// Domain or telnum names read from one Boss API origin. Another origin stays hidden.
+model VatsNameList {
+  kind   String   @id
+  origin String
+  names  Json
+  readAt DateTime @map("read_at")
+
+  @@map("vats_name_lists")
 }
 
 /// Eltex SMG allowed to send syslog. The ip is the UDP source address.

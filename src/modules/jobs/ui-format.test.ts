@@ -42,6 +42,17 @@ describe("jobs ui-format", () => {
     expect(formatDurationMs(null)).toBe("—");
     expect(formatJobTrigger("schedule")).toBe("По расписанию");
     expect(formatJobAction("regs.poll")).toBe("Опрос регистраций");
+    expect(formatJobAction("vats.sync")).toBe("Чтение ВАТС");
+    expect(
+      summarizeJobResult(
+        sample({
+          actionCode: "vats.sync",
+          phonesParsed: null,
+          changesCount: null,
+          meta: { kind: "domains", count: 3 },
+        }),
+      ),
+    ).toBe("Домены: 3");
     expect(formatJobAction("unknown.job")).toBe("unknown.job");
     expect(formatJobActionTitle("cdr.import")).toBe("Импорт CDR (cdr.import)");
   });

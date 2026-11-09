@@ -19,6 +19,7 @@ const JOB_ACTION_LABELS: Record<string, string> = {
   "cdr.purge.month": "Удаление месяца",
   "cdr.tariff.rate": "Пересчёт тарифов",
   "db.vacuum": "Сжатие базы",
+  "vats.sync": "Чтение ВАТС",
 };
 
 const META_FILES_CAP = 8;
@@ -346,6 +347,13 @@ export function summarizeJobResult(job: JobRunListItem): string {
         : "Звонки пересчитаны";
     case "db.vacuum":
       return "Таблицы звонков сжаты. Живые строки сохранены.";
+    case "vats.sync": {
+      const meta = jobMeta(job);
+      if (meta?.kept === true) return "Пустой ответ не заменил список";
+      const kind = meta?.kind === "telnums" ? "Номера" : "Домены";
+      const count = finiteNumber(meta?.count);
+      return count == null ? `${kind} прочитаны` : `${kind}: ${formatCount(count)}`;
+    }
     default:
       return summarizeUnknownSuccess(job);
   }
@@ -633,6 +641,8 @@ export function formatJobMessage(job: JobRunListItem, timeZone: string): string 
         : "Звонки пересчитаны по текущим тарифам.";
     case "db.vacuum":
       return "Таблицы звонков сжаты. Живые строки сохранены.";
+    case "vats.sync":
+      return summarizeJobResult(job);
     default:
       return null;
   }

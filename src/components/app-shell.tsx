@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 function isNavActive(pathname: string, href: string): boolean {
   if (href === "/") return pathname === "/";
   if (href === "/smg") return pathname === "/smg";
+  if (href === "/vats") return pathname === "/vats" || pathname.startsWith("/vats/domains/");
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
@@ -62,6 +63,7 @@ export function AppShell({
   const primaryNav = visible.filter((m) => (m.navGroup ?? "primary") === "primary");
   const cdrNav = visible.filter((m) => m.navGroup === "cdr");
   const smgNav = visible.filter((m) => m.navGroup === "smg");
+  const vatsNav = visible.filter((m) => m.navGroup === "vats");
   const analyticsNav = visible.filter((m) => m.navGroup === "analytics");
   const linksNav = visible.filter((m) => m.navGroup === "links");
   const catalogNav = visible.filter((m) => m.navGroup === "catalog");
@@ -112,6 +114,19 @@ export function AppShell({
               <>
                 <Separator className="my-1.5 shrink-0" />
                 {smgNav.map((item) => (
+                  <NavLink
+                    key={item.href}
+                    href={item.href!}
+                    label={item.title}
+                    active={isNavActive(pathname, item.href!)}
+                  />
+                ))}
+              </>
+            ) : null}
+            {vatsNav.length > 0 ? (
+              <>
+                <Separator className="my-1.5 shrink-0" />
+                {vatsNav.map((item) => (
                   <NavLink
                     key={item.href}
                     href={item.href!}

@@ -9,6 +9,7 @@ const KNOWN_NAV_GROUPS = new Set([
   "links",
   "catalog",
   "admin",
+  "vats",
 ]);
 
 function idsInGroup(group: "cdr" | "smg" | "analytics" | "catalog" | "admin"): string[] {
@@ -48,7 +49,11 @@ describe("FEATURE_MODULES nav groups", () => {
     expect(hrefs.indexOf("/smg/traffic")).toBeLessThan(hrefs.indexOf("/smg"));
     expect(hrefs.indexOf("/smg")).toBeLessThan(hrefs.indexOf("/antifraud"));
     expect(hrefs.indexOf("/antifraud")).toBeLessThan(hrefs.indexOf("/smg/syslog"));
-    expect(hrefs.indexOf("/smg/syslog")).toBeLessThan(hrefs.indexOf("/detail"));
+    expect(hrefs.indexOf("/smg/syslog")).toBeLessThan(hrefs.indexOf("/vats"));
+    expect(hrefs.indexOf("/vats")).toBeLessThan(hrefs.indexOf("/vats/telnums"));
+    expect(hrefs.indexOf("/vats/telnums")).toBeLessThan(hrefs.indexOf("/vats/settings"));
+    expect(hrefs.indexOf("/vats/settings")).toBeLessThan(hrefs.indexOf("/detail"));
+    expect(FEATURE_MODULES.map((module) => module.id)).not.toContain("vats-users");
     const titles = Object.fromEntries(
       FEATURE_MODULES.map((module) => [module.id, module.title]),
     );
