@@ -6,6 +6,7 @@ import { buildTariffExportXlsx } from "@/modules/tariffs/xlsx-export";
 /**
  * GET /api/tariffs/export — full tariff snapshot as XLSX.
  * Session + phones:read. API keys are rejected. Does not rate calls.
+ * Column filters are not applied: a filtered file would replace the catalog on import.
  */
 export async function GET() {
   const gate = await requireTariffSession();

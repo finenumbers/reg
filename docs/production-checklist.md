@@ -54,6 +54,8 @@ Optional publish ports: `APP_PUBLISH_PORT`, `POSTGRES_PUBLISH_PORT`.
 
 ## 3. Database
 
+v1.246.0 does not migrate and does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `smg-syslog`. Keep a single `app` replica. Replace the `app` container. Refresh the browser. «Маски и типы» and «Тарификация» filter every column on the server across the whole snapshot. Export still returns that whole snapshot. Nothing is written to the switch.
+
 v1.245.0 creates `number_masks` and `number_mask_import_state`. The migration is label-free, so startup does not rescan the CDR journal. It does not rewrite phone, tariff, CDR, or PSTN rows and does not replace the rater. Do not stop `smg-syslog`. Keep a single `app` replica. Replace the `app` container after migrate. Refresh the browser. «Маски и типы» sits above «Настройки», with «Тарификация» in the same block. Both screens use «Импорт XLSX» and an amber «Экспорт XLSX». The mask snapshot stays empty until a file is imported. Export does not rate calls. Leave `proxyClientMaxBodySize` at `200mb`. Mask and tariff uploads still reject a file above 20 MiB. Nothing is written to the switch.
 
 v1.244.0 does not migrate and does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `smg-syslog`. Keep a single `app` replica. Replace the `app` container. Refresh the browser. Supplier, tariff, and RTU XLSX uploads still pass through middleware. Leave `proxyClientMaxBodySize` at `200mb`. Each of those routes still rejects a file above 20 MiB. There is no manual registration poll. Nothing is written to the switch.

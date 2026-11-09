@@ -2,7 +2,7 @@
 
 Internal telecom ops platform. Phone numbers, groups, registrations, and live calls are read from the RTU API.
 
-**Repository:** [github.com/finenumbers/reg](https://github.com/finenumbers/reg) · **Release:** [v1.245.0](https://github.com/finenumbers/reg/releases/tag/v1.245.0)
+**Repository:** [github.com/finenumbers/reg](https://github.com/finenumbers/reg) · **Release:** [v1.246.0](https://github.com/finenumbers/reg/releases/tag/v1.246.0)
 
 ## Stack (approved)
 
@@ -116,7 +116,7 @@ Do not hand-author conflicting auth table definitions. App RBAC (`roles` / `perm
 Authorization: Bearer reg_<secret>
 ```
 
-Allowed with `regs:read` / `phones:read`: `GET /api/regs*`, `GET /api/phones*` (except RTU POST), `GET /api/groups`, `GET /api/groups/status`, `GET /api/jobs`. Tariff routes (`/api/tariffs`, `/api/tariffs/import`) and SMG xlsx export (`/api/smg/export`) are session-only and are not open to API keys.
+Allowed with `regs:read` / `phones:read`: `GET /api/regs*`, `GET /api/phones*` (except RTU POST), `GET /api/groups`, `GET /api/groups/status`, `GET /api/jobs`. Mask and tariff routes (`/api/masks`, `/api/tariffs`, including facets, import, and export) and SMG xlsx export (`/api/smg/export`) are session-only and are not open to API keys.
 
 APIs:
 
@@ -165,21 +165,23 @@ UI (`/groups`):
 
 Session only (`phones:read`). API keys are rejected. The catalog is not used to rate calls.
 
-- `GET /api/masks` — current snapshot, paging
+- `GET /api/masks` — current snapshot, paging. `filters` selects from the whole snapshot, then the page is sliced
+- `GET /api/masks/facets` — one column's values over that same filtered snapshot
 - `POST /api/masks/import` — replace the snapshot from an XLSX (`Разрядность`, `Категория`, `ABC`, `Маска`, `Тип`, `Премиум`, `Покупка`)
-- `GET /api/masks/export` — the same snapshot as XLSX
+- `GET /api/masks/export` — the whole snapshot as XLSX. Filters are not applied
 
-UI (`/masks`): table, **Импорт XLSX**, and **Экспорт XLSX**. A failed file leaves the previous snapshot in place. The nav block sits above Settings and also contains Tariffs.
+UI (`/masks`): table, column filters, **Импорт XLSX**, and **Экспорт XLSX**. «Маска» is right-aligned. A failed file leaves the previous snapshot in place. The nav block sits above Settings and also contains Tariffs.
 
 ## Tariffs
 
 Session only (`phones:read`). API keys are rejected.
 
-- `GET /api/tariffs` — current snapshot, paging
+- `GET /api/tariffs` — current snapshot, paging. `filters` selects from the whole snapshot, then the page is sliced
+- `GET /api/tariffs/facets` — one column's values over that same filtered snapshot
 - `POST /api/tariffs/import` — replace the snapshot from an XLSX (`Направления`, `Регион`, `ABC`, `Разрядность`, `Нумерация`, `Цена`)
-- `GET /api/tariffs/export` — the same snapshot as XLSX. Export does not rate calls.
+- `GET /api/tariffs/export` — the whole snapshot as XLSX. Filters are not applied. Export does not rate calls.
 
-UI (`/tariffs`): table, **Импорт XLSX**, and **Экспорт XLSX**. A failed file leaves the previous snapshot in place.
+UI (`/tariffs`): table, column filters, **Импорт XLSX**, and **Экспорт XLSX**. A failed file leaves the previous snapshot in place.
 
 ## Jobs / Audit (Phase 6)
 

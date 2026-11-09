@@ -2,8 +2,17 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import {
+  ActiveFiltersBar,
+  ColumnFilterDropdown,
+  hasActiveFilters,
+  removeFacetValue,
+  setColumnFilterValues,
+  type ColumnFilters,
+} from "@/components/column-filters";
 import { useDisplayTimezone } from "@/components/display-timezone-provider";
 import { EXPORT_XLSX_BUTTON_CLASS } from "@/components/export-xlsx-button-class";
+import { FILTER_TOOLBAR_TEXT } from "@/components/filter-toolbar";
 import { TableCountFooter, TableInfiniteBody } from "@/components/table-infinite-body";
 import { Button } from "@/components/ui/button";
 import { downloadXlsxFromUrl } from "@/lib/download-xlsx";
@@ -19,11 +28,20 @@ import { formatCount } from "@/lib/format-count";
 import { formatDisplayTimestamp } from "@/lib/format-display-time";
 import { TABLE_PAGE_SIZE } from "@/lib/table-pagination";
 import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
-import { fetchMasksList, importMasksFile } from "@/modules/masks/api-client";
+import {
+  buildMasksFacetsUrl,
+  fetchMasksList,
+  importMasksFile,
+} from "@/modules/masks/api-client";
+import {
+  MASK_COLUMN_HEADERS,
+  MASK_COLUMN_ORDER,
+  maskCellText,
+  type MaskColumnId,
+} from "@/modules/masks/query-filter";
 import type { ListMasksResult, MaskListItem } from "@/modules/masks/service";
 
 const PAGE_SIZE = TABLE_PAGE_SIZE;
-const MASK_COLUMN_COUNT = 7;
 
 type ImportError = { error: string; details: string[] };
 
@@ -36,10 +54,6 @@ function formatLoadedLine(
   return `Загружено: ${formatDisplayTimestamp(loadedAt, timeZone)}. Строк: ${formatCount(rowCount)}.`;
 }
 
-function cellText(value: string | null): string {
-  return value ?? "";
-}
-
 export function MasksView({ initial }: { initial: ListMasksResult }) {
   const { timeZone } = useDisplayTimezone();
   const [items, setItems] = useState<MaskListItem[]>(initial.items);
@@ -47,6 +61,8 @@ export function MasksView({ initial }: { initial: ListMasksResult }) {
   const [page, setPage] = useState(initial.page);
   const [loadedAt, setLoadedAt] = useState(initial.loadedAt);
   const [rowCount, setRowCount] = useState(initial.rowCount);
+  const [filters, setFilters] = useState<ColumnFilters>({});
+  const [openColumn, setOpenColumn] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const loadingMoreRef = useRef(false);
@@ -56,13 +72,24 @@ export function MasksView({ initial }: { initial: ListMasksResult }) {
   const [exporting, setExporting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const refreshSeq = useRef(0);
+  const filtersRef = useRef(filters);
   const [scrollRoot, setScrollRoot] = useState<HTMLDivElement | null>(null);
 
   const hasMore = items.length < total;
+  const filtersActive = hasActiveFilters(filters);
 
-  async function loadList(opts: { page?: number; replace?: boolean }) {
+  useEffect(() => {
+    filtersRef.current = filters;
+  });
+
+  async function loadList(opts: {
+    page?: number;
+    replace?: boolean;
+    filters?: ColumnFilters;
+  }) {
     const replace = opts.replace ?? true;
     const nextPage = opts.page ?? (replace ? 1 : page);
+    const nextFilters = opts.filters ?? filtersRef.current;
     const seq = ++refreshSeq.current;
 
     if (replace) {
@@ -75,7 +102,11 @@ export function MasksView({ initial }: { initial: ListMasksResult }) {
     }
     setListError(null);
 
-    const result = await fetchMasksList({ page: nextPage, pageSize: PAGE_SIZE });
+    const result = await fetchMasksList({
+      page: nextPage,
+      pageSize: PAGE_SIZE,
+      filters: nextFilters,
+    });
     if (seq !== refreshSeq.current) return;
 
     if (!result.ok) {
@@ -117,6 +148,21 @@ export function MasksView({ initial }: { initial: ListMasksResult }) {
     root: scrollRoot,
   });
 
+  function applyFilters(next: ColumnFilters, opts: { closeDropdown?: boolean } = {}) {
+    filtersRef.current = next;
+    setFilters(next);
+    if (opts.closeDropdown) setOpenColumn(null);
+    void loadList({ filters: next, page: 1, replace: true });
+  }
+
+  function onColumnFilterChange(column: string, values: string[]) {
+    applyFilters(setColumnFilterValues(filtersRef.current, column, values));
+  }
+
+  function onResetFilters() {
+    applyFilters({}, { closeDropdown: true });
+  }
+
   async function onExport() {
     if (exporting || uploading) return;
     setExporting(true);
@@ -147,6 +193,9 @@ export function MasksView({ initial }: { initial: ListMasksResult }) {
   }
 
   const showEmpty = !loading && items.length === 0;
+  const emptyMessage = filtersActive
+    ? "Нет строк по текущим фильтрам."
+    : "Нет данных. Нажмите «Импорт XLSX».";
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
@@ -203,6 +252,28 @@ export function MasksView({ initial }: { initial: ListMasksResult }) {
         <p className="text-destructive shrink-0 text-sm">{listError}</p>
       ) : null}
 
+      <div className="flex shrink-0 flex-wrap items-center gap-3">
+        <Button
+          type="button"
+          variant="outline"
+          className={FILTER_TOOLBAR_TEXT}
+          disabled={!filtersActive}
+          onClick={onResetFilters}
+        >
+          Сбросить фильтры
+        </Button>
+      </div>
+
+      <ActiveFiltersBar
+        filters={filters}
+        headers={MASK_COLUMN_HEADERS}
+        onRemoveFacet={(field, value) =>
+          applyFilters(removeFacetValue(filtersRef.current, field, value), {
+            closeDropdown: true,
+          })
+        }
+      />
+
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <TableInfiniteBody
           scrollRef={setScrollRoot}
@@ -212,20 +283,23 @@ export function MasksView({ initial }: { initial: ListMasksResult }) {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Разрядность</TableHead>
-                <TableHead>Категория</TableHead>
-                <TableHead>ABC</TableHead>
-                <TableHead>Маска</TableHead>
-                <TableHead>Тип</TableHead>
-                <TableHead>Премиум</TableHead>
-                <TableHead>Покупка</TableHead>
+                {MASK_COLUMN_ORDER.map((id) => (
+                  <MaskColumnHead
+                    key={id}
+                    id={id}
+                    filters={filters}
+                    openColumn={openColumn}
+                    onOpenColumnChange={setOpenColumn}
+                    onColumnFilterChange={onColumnFilterChange}
+                  />
+                ))}
               </TableRow>
             </TableHeader>
             <TableBody>
-              {loading && items.length === 0 ? (
+              {loading ? (
                 <TableRow>
                   <TableCell
-                    colSpan={MASK_COLUMN_COUNT}
+                    colSpan={MASK_COLUMN_ORDER.length}
                     className="text-muted-foreground h-24"
                   >
                     Загрузка…
@@ -234,22 +308,23 @@ export function MasksView({ initial }: { initial: ListMasksResult }) {
               ) : showEmpty ? (
                 <TableRow>
                   <TableCell
-                    colSpan={MASK_COLUMN_COUNT}
+                    colSpan={MASK_COLUMN_ORDER.length}
                     className="text-muted-foreground h-24"
                   >
-                    Нет данных. Нажмите «Импорт XLSX».
+                    {emptyMessage}
                   </TableCell>
                 </TableRow>
               ) : (
                 items.map((row) => (
                   <TableRow key={row.id}>
-                    <TableCell>{row.digitLength}</TableCell>
-                    <TableCell>{row.category}</TableCell>
-                    <TableCell>{cellText(row.abc)}</TableCell>
-                    <TableCell>{row.mask}</TableCell>
-                    <TableCell>{cellText(row.maskType)}</TableCell>
-                    <TableCell>{cellText(row.premium)}</TableCell>
-                    <TableCell>{cellText(row.purchase)}</TableCell>
+                    {MASK_COLUMN_ORDER.map((id) => (
+                      <TableCell
+                        key={id}
+                        className={id === "mask" ? "text-right font-mono" : undefined}
+                      >
+                        {maskCellText(row, id)}
+                      </TableCell>
+                    ))}
                   </TableRow>
                 ))
               )}
@@ -259,5 +334,37 @@ export function MasksView({ initial }: { initial: ListMasksResult }) {
         <TableCountFooter shown={items.length} total={total} />
       </div>
     </div>
+  );
+}
+
+function MaskColumnHead({
+  id,
+  filters,
+  openColumn,
+  onOpenColumnChange,
+  onColumnFilterChange,
+}: {
+  id: MaskColumnId;
+  filters: ColumnFilters;
+  openColumn: string | null;
+  onOpenColumnChange: (column: string | null) => void;
+  onColumnFilterChange: (column: string, values: string[]) => void;
+}) {
+  return (
+    <TableHead className={id === "mask" ? "text-right font-medium" : "font-medium"}>
+      <ColumnFilterDropdown
+        column={id}
+        header={MASK_COLUMN_HEADERS[id]}
+        open={openColumn === id}
+        selected={filters[id] ?? []}
+        filters={filters}
+        buildFacetsUrl={({ column, filters: nextFilters, q }) =>
+          buildMasksFacetsUrl({ column, filters: nextFilters, q })
+        }
+        onToggle={() => onOpenColumnChange(openColumn === id ? null : id)}
+        onChange={(values) => onColumnFilterChange(id, values)}
+        onClear={() => onColumnFilterChange(id, [])}
+      />
+    </TableHead>
   );
 }

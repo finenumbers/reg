@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
+import { parseFiltersParam } from "@/components/column-filters/types";
 import { requireTariffSession } from "@/modules/tariffs/guard";
 import { listTariffRates } from "@/modules/tariffs/service";
 
 /**
  * GET /api/tariffs — current tariff snapshot. Session + phones:read.
- * API keys are rejected.
+ * API keys are rejected. `filters` is applied to the whole snapshot, then paged.
  */
 export async function GET(request: Request) {
   const gate = await requireTariffSession();
@@ -13,10 +14,12 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const page = Number(url.searchParams.get("page") ?? "1");
   const pageSize = Number(url.searchParams.get("pageSize") ?? "100");
+  const filters = parseFiltersParam(url.searchParams.get("filters"));
 
   const data = await listTariffRates({
     page: Number.isFinite(page) ? page : 1,
     pageSize: Number.isFinite(pageSize) ? pageSize : 100,
+    filters,
   });
 
   return NextResponse.json(data);

@@ -2,6 +2,7 @@
  * Browser fetch helpers for the tariff snapshot.
  */
 
+import { encodeFilters, type ColumnFilters } from "@/components/column-filters/types";
 import type { ListTariffsResult } from "@/modules/tariffs/service";
 
 export type FetchTariffsResult =
@@ -27,13 +28,31 @@ function errorMessage(body: unknown, fallback: string): string {
   return fallback;
 }
 
+export function buildTariffsFacetsUrl(opts: {
+  column: string;
+  filters?: ColumnFilters;
+  q?: string;
+  limit?: number;
+}): string {
+  const params = new URLSearchParams();
+  params.set("column", opts.column);
+  const encoded = opts.filters ? encodeFilters(opts.filters) : null;
+  if (encoded) params.set("filters", encoded);
+  if (opts.q?.trim()) params.set("q", opts.q.trim());
+  if (opts.limit != null) params.set("limit", String(opts.limit));
+  return `/api/tariffs/facets?${params.toString()}`;
+}
+
 export async function fetchTariffsList(opts: {
   page?: number;
   pageSize?: number;
+  filters?: ColumnFilters;
 }): Promise<FetchTariffsResult> {
   const params = new URLSearchParams();
   if (opts.page != null) params.set("page", String(opts.page));
   if (opts.pageSize != null) params.set("pageSize", String(opts.pageSize));
+  const encoded = opts.filters ? encodeFilters(opts.filters) : null;
+  if (encoded) params.set("filters", encoded);
   const res = await fetch(`/api/tariffs?${params.toString()}`, {
     method: "GET",
     cache: "no-store",

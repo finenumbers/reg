@@ -6,6 +6,7 @@ import { requireTariffSession } from "@/modules/tariffs/guard";
 /**
  * GET /api/masks/export — full mask snapshot as XLSX.
  * Session + phones:read. API keys are rejected.
+ * Column filters are not applied: a filtered file would replace the catalog on import.
  */
 export async function GET() {
   const gate = await requireTariffSession();

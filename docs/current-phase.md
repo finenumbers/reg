@@ -1,7 +1,13 @@
-# Current Phase — production (v1.245.0)
+# Current Phase — production (v1.246.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls.  
 **Date:** 2026-11-09
+
+## v1.246.0 — Column filters on masks and tariffs
+
+There is no migration. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. Keep a single `app` replica. Replace the `app` container. Refresh the browser. Nothing is written to the switch.
+
+«Маски и типы» and «Тарификация» filter every column the same way as «Регистрации». Choosing a value or searching inside a menu asks the server, and the server reads the whole snapshot before it returns a page of 100. The footer counts the filtered rows. «Строк: N» stays the size of the imported file. Export still downloads that whole file. In «Маска» the characters sit on the right edge. An ABC that starts with 7 still shows 11, and the price filter uses the two-decimal text on the screen.
 
 ## v1.245.0 — Number masks and XLSX import or export on both catalogs
 
