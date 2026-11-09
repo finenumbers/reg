@@ -17,6 +17,7 @@ import { formatDisplayTimestamp } from "@/lib/format-display-time";
 import { VATS_STATUS_POLL_MS } from "@/modules/vats/cadence";
 import { nameListHref } from "@/modules/vats/names";
 import type { DomainTableRow, TelnumTableRow } from "@/modules/vats/rows";
+import { DomainSheet } from "@/modules/vats/ui/domain-sheet";
 
 type StatusSection = "domains" | "telnums" | "settings";
 
@@ -127,56 +128,72 @@ export function VatsDomainTable({
   notice,
   total,
   rows,
-}: Common & { rows: DomainTableRow[] }) {
+  canWrite,
+}: Common & { rows: DomainTableRow[]; canWrite: boolean }) {
+  const [opened, setOpened] = useState<string | null>(null);
   return (
-    <SectionFrame
-      section="domains"
-      title={title}
-      readAt={readAt}
-      notice={notice}
-      total={total}
-      rows={rows}
-    >
-      {(shown) => (
-        <>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Домен</TableHead>
-              <TableHead>Клиент</TableHead>
-              <TableHead>Абоненты</TableHead>
-              <TableHead>Диал-план</TableHead>
-              <TableHead>Блокировка</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {shown.length === 0 ? (
+    <>
+      <SectionFrame
+        section="domains"
+        title={title}
+        readAt={readAt}
+        notice={notice}
+        total={total}
+        rows={rows}
+      >
+        {(shown) => (
+          <>
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={5} className="text-muted-foreground">
-                  Нет данных.
-                </TableCell>
+                <TableHead>Домен</TableHead>
+                <TableHead>Клиент</TableHead>
+                <TableHead>Номера</TableHead>
+                <TableHead>Абоненты</TableHead>
+                <TableHead>Запись разговоров</TableHead>
+                <TableHead>Речевая аналитика</TableHead>
+                <TableHead>Диал-план</TableHead>
+                <TableHead>Блокировка</TableHead>
               </TableRow>
-            ) : (
-              shown.map((row) => (
-                <TableRow key={row.name}>
-                  <TableCell>
-                    <Link
-                      href={nameListHref("/vats/domains", row.name)}
-                      className="hover:underline"
-                    >
-                      {row.name}
-                    </Link>
+            </TableHeader>
+            <TableBody>
+              {shown.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-muted-foreground">
+                    Нет данных.
                   </TableCell>
-                  <TableCell>{row.client}</TableCell>
-                  <TableCell>{row.subscribers}</TableCell>
-                  <TableCell>{row.dialplan}</TableCell>
-                  <TableCell>{row.frozen}</TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </>
-      )}
-    </SectionFrame>
+              ) : (
+                shown.map((row) => (
+                  <TableRow
+                    key={row.name}
+                    className="cursor-pointer"
+                    onClick={() => setOpened(row.name)}
+                  >
+                    <TableCell>{row.name}</TableCell>
+                    <TableCell>{row.client}</TableCell>
+                    <TableCell>{row.numbers}</TableCell>
+                    <TableCell>{row.subscribers}</TableCell>
+                    <TableCell>{row.recordDays}</TableCell>
+                    <TableCell>{row.speechMinutes}</TableCell>
+                    <TableCell>{row.dialplan}</TableCell>
+                    <TableCell>{row.frozen}</TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </>
+        )}
+      </SectionFrame>
+      <DomainSheet
+        domain={opened}
+        open={opened != null}
+        readAt={readAt}
+        canWrite={canWrite}
+        onOpenChange={(next) => {
+          if (!next) setOpened(null);
+        }}
+      />
+    </>
   );
 }
 

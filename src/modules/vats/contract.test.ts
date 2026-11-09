@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bossRequestTarget, domainPath } from "@/modules/vats/allowlist";
+import { bossRequestTarget, domainPath, domainStatPath } from "@/modules/vats/allowlist";
 import { domainCardView } from "@/modules/vats/card";
 import { domainPutBody } from "@/modules/vats/client";
 import {
@@ -38,8 +38,12 @@ describe("VATS names", () => {
   });
 
   it("keeps a list link inside one path segment", () => {
-    expect(nameListHref("/vats/domains", "example.com")).toBe("/vats/domains/example.com");
-    expect(nameListHref("/vats/telnums", "79000000000")).toBe("/vats/telnums/79000000000");
+    expect(nameListHref("/vats/domains", "example.com")).toBe(
+      "/vats/domains/example.com",
+    );
+    expect(nameListHref("/vats/telnums", "79000000000")).toBe(
+      "/vats/telnums/79000000000",
+    );
     expect(nameListHref("/vats/domains", "a/b")).toBe("/vats/domains/a%2Fb");
   });
 
@@ -55,24 +59,49 @@ describe("VATS allowlist", () => {
   it("allows the named reads and one domain put", () => {
     expect(bossRequestTarget("GET", "/sys/boss/v1/domains")).toBe("/sys/boss/v1/domains");
     expect(bossRequestTarget("GET", "/sys/boss/v1/telnums")).toBe("/sys/boss/v1/telnums");
-    expect(bossRequestTarget("GET", "/sys/boss/v1/gateways")).toBe("/sys/boss/v1/gateways");
+    expect(bossRequestTarget("GET", "/sys/boss/v1/gateways")).toBe(
+      "/sys/boss/v1/gateways",
+    );
     expect(bossRequestTarget("GET", "/sys/boss/v1/routes")).toBe("/sys/boss/v1/routes");
-    expect(bossRequestTarget("GET", "/sys/boss/v1/dialplans")).toBe("/sys/boss/v1/dialplans");
+    expect(bossRequestTarget("GET", "/sys/boss/v1/dialplans")).toBe(
+      "/sys/boss/v1/dialplans",
+    );
     expect(bossRequestTarget("PUT", "/sys/boss/v1/domains/domain.pbx.com")).toBe(
       "/sys/boss/v1/domains/domain.pbx.com",
     );
     expect(bossRequestTarget("GET", "/sys/boss/v1/telnums/79000000000")).toBe(
       "/sys/boss/v1/telnums/79000000000",
     );
+    expect(bossRequestTarget("GET", "/sys/boss/v1/domains/domain.pbx.com/stat")).toBe(
+      "/sys/boss/v1/domains/domain.pbx.com/stat",
+    );
+    expect(domainStatPath("domain.pbx.com")).toBe(
+      "/sys/boss/v1/domains/domain.pbx.com/stat",
+    );
   });
 
   it("refuses sessions, deletes, and nested writes", () => {
     expect(bossRequestTarget("DELETE", "/sys/boss/v1/domains/domain.pbx.com")).toBeNull();
     expect(bossRequestTarget("POST", "/sys/boss/v1/domains/domain.pbx.com")).toBeNull();
-    expect(bossRequestTarget("GET", "/sys/boss/v1/domains/domain.pbx.com/session")).toBeNull();
+    expect(
+      bossRequestTarget("GET", "/sys/boss/v1/domains/domain.pbx.com/session"),
+    ).toBeNull();
+    expect(
+      bossRequestTarget("GET", "/sys/boss/v1/domains/domain.pbx.com/services"),
+    ).toBeNull();
+    expect(
+      bossRequestTarget("GET", "/sys/boss/v1/domains/domain.pbx.com/stat/extra"),
+    ).toBeNull();
+    expect(
+      bossRequestTarget("PUT", "/sys/boss/v1/domains/domain.pbx.com/stat"),
+    ).toBeNull();
+    expect(domainStatPath("a/b")).toBeNull();
+    expect(domainStatPath("../etc")).toBeNull();
     expect(bossRequestTarget("GET", "/sys/boss/v1/users/a/auth")).toBeNull();
     expect(bossRequestTarget("PUT", "/sys/boss/v1/telnums/79000000000")).toBeNull();
-    expect(bossRequestTarget("PUT", "/sys/boss/v1/domains/domain.pbx.com/isfrozen")).toBeNull();
+    expect(
+      bossRequestTarget("PUT", "/sys/boss/v1/domains/domain.pbx.com/isfrozen"),
+    ).toBeNull();
     expect(domainPath("../etc")).toBeNull();
     expect(domainPath("a/b")).toBeNull();
   });
@@ -81,7 +110,9 @@ describe("VATS allowlist", () => {
 describe("VATS put body", () => {
   it("sends exactly one field", () => {
     expect(domainPutBody("client", "Acme")).toBe('{"client":"Acme"}');
-    expect(Object.keys(JSON.parse(domainPutBody("language", "en-US")))).toEqual(["language"]);
+    expect(Object.keys(JSON.parse(domainPutBody("language", "en-US")))).toEqual([
+      "language",
+    ]);
     expect(Object.keys(JSON.parse(domainPutBody("client", 'a"b')))).toEqual(["client"]);
     expect(() => domainPutBody("language", "de-DE")).toThrow();
   });
@@ -110,15 +141,27 @@ describe("VATS snapshot", () => {
 });
 
 describe("VATS readback", () => {
-  const before = { name: "domain.pbx.com", client: "Old", language: "ru-RU", dialplan: "dp" };
+  const before = {
+    name: "domain.pbx.com",
+    client: "Old",
+    language: "ru-RU",
+    dialplan: "dp",
+  };
 
   it("accepts the one changed field", () => {
-    expect(readbackAccepts(before, { ...before, client: "New" }, "client", "New")).toBe(true);
+    expect(readbackAccepts(before, { ...before, client: "New" }, "client", "New")).toBe(
+      true,
+    );
   });
 
   it("rejects a second field change", () => {
     expect(
-      readbackAccepts(before, { ...before, client: "New", dialplan: "other" }, "client", "New"),
+      readbackAccepts(
+        before,
+        { ...before, client: "New", dialplan: "other" },
+        "client",
+        "New",
+      ),
     ).toBe(false);
     expect(readbackAccepts(before, { ...before }, "client", "New")).toBe(false);
   });

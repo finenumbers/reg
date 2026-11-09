@@ -3,8 +3,10 @@ import { isDatabaseVacuumActive } from "@/modules/storage/vacuum/gate";
 import {
   asRecord,
   domainCardView,
+  domainStatFields,
   parseCatalog,
   telnumCardView,
+  type VatsDomainCard,
 } from "@/modules/vats/card";
 import {
   VATS_DOMAIN_LIMIT,
@@ -15,6 +17,7 @@ import {
 import {
   getDialplans,
   getDomain,
+  getDomainStat,
   getDomains,
   getGateways,
   getRoutes,
@@ -121,6 +124,41 @@ function storedClient(value: string | null): string | null {
   if (value == null) return null;
   if (value.length > 500 || /[\u0000-\u001F\u007F]/.test(value)) return null;
   return value;
+}
+
+function storedLabel(value: string | null): string | null {
+  if (!value || value.length > 300 || /[\u0000-\u001F\u007F]/.test(value)) return null;
+  return value;
+}
+
+function storedExtDigits(value: number | null): 3 | 4 | 5 | null {
+  if (value === 3 || value === 4 || value === 5) return value;
+  return null;
+}
+
+function cardRow(
+  name: string,
+  view: VatsDomainCard,
+  dialplan: string | null,
+  recordDays: number | null,
+  speechMinutes: number | null,
+): DomainRow {
+  return {
+    name,
+    client: storedClient(view.client),
+    clientAt: null,
+    accountsCount: integerOrNull(view.accountsCount),
+    accountsLimit: integerOrNull(view.accountsLimit),
+    dialplan,
+    frozen: view.frozen,
+    language: storedLabel(view.language),
+    billingType: view.billingType,
+    ownRegion: storedLabel(view.ownRegion),
+    extDigits: storedExtDigits(view.extDigits),
+    sysdomain: view.sysdomain,
+    recordDays,
+    speechMinutes,
+  };
 }
 
 function transportNotice(failure: BossFailure): string {
@@ -245,6 +283,40 @@ export async function runVatsPass(input: {
     const rows: DomainRow[] = [];
     const cardReadAt: Record<string, string> = {};
     let soft = 0;
+
+    async function readStat(
+      name: string,
+    ): Promise<
+      | "halt"
+      | "auth"
+      | "fail"
+      | { recordDays: number | null; speechMinutes: number | null }
+    > {
+      if (hooks.now() - started >= hooks.budgetMs) {
+        await failSection("domains", MSG_BUDGET);
+        return "fail";
+      }
+      const stat = await read(() => getDomainStat(input.auth, name, input.deps));
+      if (stat === "abort") return "halt";
+      const prior = previous.get(name);
+      const kept = {
+        recordDays: prior?.recordDays ?? null,
+        speechMinutes: prior?.speechMinutes ?? null,
+      };
+      if (!stat.ok) {
+        if (stat.status === 401) {
+          authOrTransport(stat);
+          return "auth";
+        }
+        if (stat.status === 403 || stat.status === 404) return kept;
+        await failSection("domains", transportNotice(stat));
+        return "fail";
+      }
+      const raw = asRecord(stat.data);
+      if (!raw) return kept;
+      return domainStatFields(raw);
+    }
+
     for (const name of unique) {
       if (aborted()) {
         halt();
@@ -288,15 +360,21 @@ export async function runVatsPass(input: {
       }
       const view = domainCardView(name, raw);
       const token = typeof raw.dialplan === "string" ? raw.dialplan : null;
-      rows.push({
-        name,
-        client: storedClient(view.client),
-        clientAt: null,
-        accountsCount: integerOrNull(view.accountsCount),
-        accountsLimit: integerOrNull(view.accountsLimit),
-        dialplan: token ? resolveRef(token, dialplans) : null,
-        frozen: view.frozen,
-      });
+      const stat = await readStat(name);
+      if (stat === "halt") {
+        halt();
+        return;
+      }
+      if (stat === "auth" || stat === "fail") return;
+      rows.push(
+        cardRow(
+          name,
+          view,
+          token ? resolveRef(token, dialplans) : null,
+          stat.recordDays,
+          stat.speechMinutes,
+        ),
+      );
       cardReadAt[name] = readAt;
     }
     if (stop || aborted()) return;

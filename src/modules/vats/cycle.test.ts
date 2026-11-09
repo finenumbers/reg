@@ -5,6 +5,7 @@ import { runVatsPass, type VatsCycleStore } from "@/modules/vats/cycle";
 import { MSG_DIALPLANS, MSG_EMPTY, MSG_GATEWAYS, msgSoft } from "@/modules/vats/labels";
 import { withBossLock, yieldEventLoop } from "@/modules/vats/lock";
 import {
+  emptyDomain,
   mergeDomainRows,
   sortDomainRows,
   sortTelnumRows,
@@ -149,20 +150,56 @@ const gateways = [
   { id: "gw-2", name: "gw-1" },
 ];
 
+function domainRow(name: string, extra: Partial<DomainRow> = {}): DomainRow {
+  return { ...emptyDomain(name), ...extra };
+}
+
 function domainCard(name: string, dialplan: string) {
   return {
     client: name === "a.example" ? "Альфа" : "Бета",
+    language: "ru-RU",
+    billingType: "billable",
+    ownRegion: "Москва",
+    extDigits: name === "a.example" ? 4 : 9,
+    sysdomain: false,
     accountsCount: 1,
     accountsLimit: 4,
     frozen: name === "b.example",
     dialplan,
+    services: ["autocaller"],
+    accessURL: "https://secret.example/login",
+    route: "rt",
   };
+}
+
+function statBody(days = 30, minutes = 12) {
+  return {
+    recordExpirationDays: days,
+    speechAnalytics: { total: 99, thisMonth: minutes, prevMonth: 1 },
+    activeCRM: ["crm"],
+    telnumsCount: 50,
+    services: ["autocaller"],
+    accessURL: "https://secret.example/login",
+    route: "rt",
+  };
+}
+
+function answerStat(
+  req: IncomingMessage,
+  res: ServerResponse,
+  body: unknown = statBody(),
+  status = 200,
+): boolean {
+  if (!req.url?.endsWith("/stat")) return false;
+  json(res, body, status);
+  return true;
 }
 
 describe("VATS cycle", () => {
   it("reads catalogs before cards and publishes sorted display fields", async () => {
     const { state, store } = memoryStore();
     const port = await listen((req, res) => {
+      if (answerStat(req, res)) return;
       if (req.url === "/sys/boss/v1/dialplans") return json(res, dialplans);
       if (req.url === "/sys/boss/v1/domains")
         return json(res, ["b.example", "a.example", "a.example"]);
@@ -196,7 +233,9 @@ describe("VATS cycle", () => {
       "/sys/boss/v1/dialplans",
       "/sys/boss/v1/domains",
       "/sys/boss/v1/domains/b.example",
+      "/sys/boss/v1/domains/b.example/stat",
       "/sys/boss/v1/domains/a.example",
+      "/sys/boss/v1/domains/a.example/stat",
       "/sys/boss/v1/gateways",
       "/sys/boss/v1/routes",
       "/sys/boss/v1/telnums",
@@ -210,8 +249,21 @@ describe("VATS cycle", () => {
       accountsLimit: 4,
       dialplan: "Первый",
       frozen: false,
+      language: "ru-RU",
+      billingType: "billable",
+      ownRegion: "Москва",
+      extDigits: 4,
+      sysdomain: false,
+      recordDays: 30,
+      speechMinutes: 12,
     });
     expect(state.domains[1]?.dialplan).toBeNull();
+    expect(state.domains[1]?.extDigits).toBeNull();
+    const packed = JSON.stringify(state.domains);
+    expect(packed).not.toContain("activeCRM");
+    expect(packed).not.toContain("telnumsCount");
+    expect(packed).not.toContain("accessURL");
+    expect(packed).not.toContain("autocaller");
     expect(state.telnums.map((row) => row.telnum)).toEqual(["9", "10"]);
     expect(state.telnums[0]?.gateways).toEqual(["Север", "Север"]);
     expect(state.telnums[1]?.gateways).toEqual([]);
@@ -226,15 +278,13 @@ describe("VATS cycle", () => {
   it("does not read domain cards when dialplans fail, and skips numbers when gateways fail", async () => {
     const { state, store } = memoryStore({
       domains: [
-        {
-          name: "a.example",
+        domainRow("a.example", {
           client: "Было",
-          clientAt: null,
           accountsCount: 2,
           accountsLimit: 2,
           dialplan: "Старый",
           frozen: false,
-        },
+        }),
       ],
     });
     const port = await listen((req, res) => {
@@ -263,19 +313,10 @@ describe("VATS cycle", () => {
 
   it("does not publish cards already read when a later card fails", async () => {
     const { state, store } = memoryStore({
-      domains: [
-        {
-          name: "a.example",
-          client: "Было",
-          clientAt: null,
-          accountsCount: null,
-          accountsLimit: null,
-          dialplan: null,
-          frozen: null,
-        },
-      ],
+      domains: [domainRow("a.example", { client: "Было" })],
     });
     const port = await listen((req, res) => {
+      if (answerStat(req, res)) return;
       if (req.url === "/sys/boss/v1/dialplans") return json(res, dialplans);
       if (req.url === "/sys/boss/v1/domains")
         return json(res, ["a.example", "b.example"]);
@@ -328,15 +369,15 @@ describe("VATS cycle", () => {
       "a5.example",
       "a6.example",
     ];
-    const previous: DomainRow = {
-      name: "a2.example",
+    const previous: DomainRow = domainRow("a2.example", {
       client: "Живой",
-      clientAt: null,
       accountsCount: 3,
       accountsLimit: 9,
       dialplan: "Старый",
       frozen: true,
-    };
+      recordDays: 14,
+      speechMinutes: 3,
+    });
     const held = memoryStore({ domains: [previous] });
     const port = await listen((req, res) => {
       if (req.url === "/sys/boss/v1/dialplans") return json(res, dialplans);
@@ -357,6 +398,7 @@ describe("VATS cycle", () => {
 
     const one = memoryStore({ domains: [previous] });
     const second = await listen((req, res) => {
+      if (answerStat(req, res)) return;
       if (req.url === "/sys/boss/v1/dialplans") return json(res, dialplans);
       if (req.url === "/sys/boss/v1/domains")
         return json(res, ["a.example", "a2.example"]);
@@ -379,22 +421,14 @@ describe("VATS cycle", () => {
     expect(one.state.domainNotice).toBe(msgSoft(1));
     const kept = one.state.domains.find((row) => row.name === "a2.example");
     expect(kept?.client).toBe("Живой");
+    expect(kept?.recordDays).toBe(14);
+    expect(kept?.speechMinutes).toBe(3);
     expect(one.state.domains.map((row) => row.name)).toEqual(["a.example", "a2.example"]);
   });
 
   it("keeps a stored list when the platform returns an empty one", async () => {
     const { state, store } = memoryStore({
-      domains: [
-        {
-          name: "a.example",
-          client: null,
-          clientAt: null,
-          accountsCount: null,
-          accountsLimit: null,
-          dialplan: null,
-          frozen: null,
-        },
-      ],
+      domains: [domainRow("a.example")],
       telnums: [{ telnum: "9", domain: null, isFmc: null, gateways: [] }],
     });
     const port = await listen((req, res) => {
@@ -418,17 +452,7 @@ describe("VATS cycle", () => {
   it("drops a pass when settings change and keeps a newer client stamp", async () => {
     let generation = 1;
     const { state, store } = memoryStore({
-      domains: [
-        {
-          name: "a.example",
-          client: "Старый",
-          clientAt: null,
-          accountsCount: null,
-          accountsLimit: null,
-          dialplan: null,
-          frozen: null,
-        },
-      ],
+      domains: [domainRow("a.example", { client: "Старый" })],
     });
     const port = await listen((req, res) => {
       if (req.url === "/sys/boss/v1/dialplans") {
@@ -437,15 +461,10 @@ describe("VATS cycle", () => {
       }
       if (req.url === "/sys/boss/v1/domains/a.example") {
         state.domains = [
-          {
-            name: "a.example",
+          domainRow("a.example", {
             client: "Новый",
             clientAt: "2020-01-01T00:00:02.000Z",
-            accountsCount: null,
-            accountsLimit: null,
-            dialplan: null,
-            frozen: null,
-          },
+          }),
         ];
         return json(res, domainCard("a.example", "dp-a"));
       }
@@ -470,32 +489,20 @@ describe("VATS cycle", () => {
 
     generation = 1;
     const stamp = memoryStore({
-      domains: [
-        {
-          name: "a.example",
-          client: "Старый",
-          clientAt: null,
-          accountsCount: null,
-          accountsLimit: null,
-          dialplan: null,
-          frozen: null,
-        },
-      ],
+      domains: [domainRow("a.example", { client: "Старый" })],
     });
     const again = await listen((req, res) => {
+      if (answerStat(req, res, statBody(0, 0))) return;
       if (req.url === "/sys/boss/v1/dialplans") return json(res, dialplans);
       if (req.url === "/sys/boss/v1/domains") return json(res, ["a.example"]);
       if (req.url === "/sys/boss/v1/domains/a.example") {
         stamp.state.domains = [
-          {
-            name: "a.example",
+          domainRow("a.example", {
             client: "Новый",
             clientAt: "2020-01-01T00:00:02.000Z",
-            accountsCount: null,
-            accountsLimit: null,
-            dialplan: null,
-            frozen: null,
-          },
+            recordDays: 8,
+            speechMinutes: 6,
+          }),
         ];
         return json(res, { ...domainCard("a.example", "dp-a"), client: "С карточки" });
       }
@@ -515,6 +522,8 @@ describe("VATS cycle", () => {
       },
     });
     expect(stamp.state.domains[0]?.client).toBe("Новый");
+    expect(stamp.state.domains[0]?.recordDays).toBe(0);
+    expect(stamp.state.domains[0]?.speechMinutes).toBe(0);
     expect(stamp.state.domainCommitted).toBe(true);
   });
 
@@ -522,6 +531,7 @@ describe("VATS cycle", () => {
     const order: string[] = [];
     const { store } = memoryStore();
     const port = await listen((req, res) => {
+      if (answerStat(req, res)) return;
       if (req.url === "/sys/boss/v1/dialplans") return json(res, dialplans);
       if (req.url === "/sys/boss/v1/domains")
         return json(res, ["a.example", "b.example"]);
@@ -546,5 +556,176 @@ describe("VATS cycle", () => {
       hooks: { yield: yieldEventLoop },
     });
     expect(order).toEqual(["a", "operator", "b"]);
+  });
+
+  it("keeps recording days when statistics are forbidden and still reads numbers", async () => {
+    const { state, store } = memoryStore({
+      domains: [
+        domainRow("a.example", { client: "Было", recordDays: 14, speechMinutes: 3 }),
+      ],
+    });
+    const port = await listen((req, res) => {
+      if (req.url?.endsWith("/stat")) return json(res, { activeCRM: ["crm"] }, 403);
+      if (req.url === "/sys/boss/v1/dialplans") return json(res, dialplans);
+      if (req.url === "/sys/boss/v1/domains") return json(res, ["a.example"]);
+      if (req.url === "/sys/boss/v1/domains/a.example")
+        return json(res, domainCard("a.example", "dp-a"));
+      if (req.url === "/sys/boss/v1/gateways") return json(res, gateways);
+      if (req.url === "/sys/boss/v1/routes") return json(res, []);
+      if (req.url === "/sys/boss/v1/telnums") return json(res, ["9"]);
+      if (req.url === "/sys/boss/v1/telnums/9") {
+        return json(res, { gateways: [], allocatedTo: "a.example", isFmc: false });
+      }
+      json(res, {}, 500);
+    });
+    const { deps, seen } = forward(port);
+    const result = await runVatsPass({
+      auth,
+      deps,
+      store,
+      hooks: { yield: async () => undefined },
+    });
+    expect(result.domains).toBe("published");
+    expect(result.telnums).toBe("published");
+    expect(state.domains[0]?.client).toBe("Альфа");
+    expect(state.domains[0]?.recordDays).toBe(14);
+    expect(state.domains[0]?.speechMinutes).toBe(3);
+    expect(state.domainNotice).toBeNull();
+    expect(seen.some((line) => line.includes("/telnums/9"))).toBe(true);
+    expect(JSON.stringify(state.domains)).not.toContain("activeCRM");
+  });
+
+  it("does not publish domains when statistics fail and still reads numbers", async () => {
+    const { state, store } = memoryStore({
+      domains: [
+        domainRow("a.example", { client: "Было", recordDays: 14, speechMinutes: 3 }),
+      ],
+    });
+    const port = await listen((req, res) => {
+      if (req.url?.endsWith("/stat")) return json(res, {}, 500);
+      if (req.url === "/sys/boss/v1/dialplans") return json(res, dialplans);
+      if (req.url === "/sys/boss/v1/domains")
+        return json(res, ["a.example", "b.example"]);
+      if (req.url === "/sys/boss/v1/domains/a.example")
+        return json(res, domainCard("a.example", "dp-a"));
+      if (req.url === "/sys/boss/v1/domains/b.example")
+        return json(res, domainCard("b.example", "dp-a"));
+      if (req.url === "/sys/boss/v1/gateways") return json(res, gateways);
+      if (req.url === "/sys/boss/v1/routes") return json(res, []);
+      if (req.url === "/sys/boss/v1/telnums") return json(res, []);
+      json(res, {}, 500);
+    });
+    const { deps, seen } = forward(port);
+    const result = await runVatsPass({
+      auth,
+      deps,
+      store,
+      hooks: { yield: async () => undefined },
+    });
+    expect(result.domains).toBe("skipped");
+    expect(state.domainCommitted).toBe(false);
+    expect(state.domains[0]?.client).toBe("Было");
+    expect(state.domains[0]?.recordDays).toBe(14);
+    expect(state.domainNotice).toContain("Снимок не изменён");
+    expect(seen.some((line) => line.includes("/domains/b.example"))).toBe(false);
+    expect(result.telnums).toBe("published");
+  });
+
+  it("stops the cycle when statistics reject the login", async () => {
+    const { state, store } = memoryStore();
+    const port = await listen((req, res) => {
+      if (req.url?.endsWith("/stat")) return json(res, {}, 401);
+      if (req.url === "/sys/boss/v1/dialplans") return json(res, dialplans);
+      if (req.url === "/sys/boss/v1/domains") return json(res, ["a.example"]);
+      if (req.url === "/sys/boss/v1/domains/a.example")
+        return json(res, domainCard("a.example", "dp-a"));
+      json(res, ["should-not-run"]);
+    });
+    const { deps, seen } = forward(port);
+    const result = await runVatsPass({
+      auth,
+      deps,
+      store,
+      hooks: { yield: async () => undefined },
+    });
+    expect(result.domains).toBe("skipped");
+    expect(result.telnums).toBe("skipped");
+    expect(seen.some((line) => line.includes("/telnums"))).toBe(false);
+    expect(seen.some((line) => line.includes("/gateways"))).toBe(false);
+    expect(state.domainNotice).toContain("не приняты");
+    expect(state.telnumNotice).toBe(state.domainNotice);
+    expect(state.settingsNotice).toBe(state.domainNotice);
+  });
+
+  it("publishes every domain when statistics are absent", async () => {
+    const names = [
+      "a1.example",
+      "a2.example",
+      "a3.example",
+      "a4.example",
+      "a5.example",
+      "a6.example",
+    ];
+    const { state, store } = memoryStore({
+      domains: [
+        domainRow("a1.example", { client: "Живой", recordDays: 14, speechMinutes: 3 }),
+      ],
+    });
+    const port = await listen((req, res) => {
+      if (req.url?.endsWith("/stat")) return json(res, { telnumsCount: 9 }, 404);
+      if (req.url === "/sys/boss/v1/dialplans") return json(res, dialplans);
+      if (req.url === "/sys/boss/v1/domains") return json(res, names);
+      if (req.url?.startsWith("/sys/boss/v1/domains/"))
+        return json(res, domainCard("b.example", "dp-a"));
+      if (req.url === "/sys/boss/v1/gateways") return json(res, gateways);
+      if (req.url === "/sys/boss/v1/routes") return json(res, []);
+      if (req.url === "/sys/boss/v1/telnums") return json(res, []);
+      json(res, {}, 500);
+    });
+    const { deps } = forward(port);
+    const result = await runVatsPass({
+      auth,
+      deps,
+      store,
+      hooks: { yield: async () => undefined },
+    });
+    expect(result.domains).toBe("published");
+    expect(result.domainCount).toBe(6);
+    expect(state.domainNotice).toBeNull();
+    const kept = state.domains.find((row) => row.name === "a1.example");
+    expect(kept?.recordDays).toBe(14);
+    expect(kept?.speechMinutes).toBe(3);
+    expect(kept?.client).toBe("Бета");
+    const fresh = state.domains.find((row) => row.name === "a6.example");
+    expect(fresh?.recordDays).toBeNull();
+    expect(fresh?.speechMinutes).toBeNull();
+    expect(JSON.stringify(state.domains)).not.toContain("telnumsCount");
+  });
+
+  it("clears a missing statistics field", async () => {
+    const { state, store } = memoryStore({
+      domains: [domainRow("a.example", { recordDays: 14, speechMinutes: 3 })],
+    });
+    const port = await listen((req, res) => {
+      if (req.url?.endsWith("/stat")) return json(res, { speechAnalytics: { total: 1 } });
+      if (req.url === "/sys/boss/v1/dialplans") return json(res, dialplans);
+      if (req.url === "/sys/boss/v1/domains") return json(res, ["a.example"]);
+      if (req.url === "/sys/boss/v1/domains/a.example")
+        return json(res, domainCard("a.example", "dp-a"));
+      if (req.url === "/sys/boss/v1/gateways") return json(res, []);
+      if (req.url === "/sys/boss/v1/routes") return json(res, []);
+      if (req.url === "/sys/boss/v1/telnums") return json(res, []);
+      json(res, {}, 500);
+    });
+    const { deps } = forward(port);
+    const result = await runVatsPass({
+      auth,
+      deps,
+      store,
+      hooks: { yield: async () => undefined },
+    });
+    expect(result.domains).toBe("published");
+    expect(state.domains[0]?.recordDays).toBeNull();
+    expect(state.domains[0]?.speechMinutes).toBeNull();
   });
 });

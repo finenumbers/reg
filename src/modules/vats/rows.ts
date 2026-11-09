@@ -3,6 +3,9 @@ import {
   catalogNames,
   compareDomains,
   compareTelnums,
+  formatAssignedNumbers,
+  formatBilling,
+  formatPlainCount,
   formatSubscribers,
   formatYesNo,
   showCell,
@@ -18,6 +21,13 @@ export type DomainRow = {
   accountsLimit: number | null;
   dialplan: string | null;
   frozen: boolean | null;
+  language: string | null;
+  billingType: "demo" | "billable" | null;
+  ownRegion: string | null;
+  extDigits: 3 | 4 | 5 | null;
+  sysdomain: boolean | null;
+  recordDays: number | null;
+  speechMinutes: number | null;
 };
 
 export type TelnumRow = {
@@ -44,9 +54,28 @@ export type CatalogSnap = {
 export type DomainTableRow = {
   name: string;
   client: string;
+  numbers: string;
   subscribers: string;
+  recordDays: string;
+  speechMinutes: string;
   dialplan: string;
   frozen: string;
+};
+
+export type DomainSummary = {
+  name: string;
+  client: string;
+  numbers: string[] | null;
+  subscribers: string;
+  recordDays: string;
+  speechMinutes: string;
+  dialplan: string;
+  frozen: string;
+  language: string;
+  billing: string;
+  region: string;
+  extDigits: string;
+  sysdomain: string;
 };
 
 export type TelnumTableRow = {
@@ -66,6 +95,13 @@ export function emptyDomain(name: string): DomainRow {
     accountsLimit: null,
     dialplan: null,
     frozen: null,
+    language: null,
+    billingType: null,
+    ownRegion: null,
+    extDigits: null,
+    sysdomain: null,
+    recordDays: null,
+    speechMinutes: null,
   };
 }
 
@@ -83,6 +119,27 @@ function noticeOrNull(value: unknown): string | null {
 function intOrNull(value: unknown): number | null {
   if (typeof value !== "number" || !Number.isInteger(value)) return null;
   return value;
+}
+
+function countOrNull(value: unknown): number | null {
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) return null;
+  return value;
+}
+
+function labelOrNull(value: unknown): string | null {
+  if (typeof value !== "string" || !value) return null;
+  if (value.length > 300 || /[\u0000-\u001F\u007F]/.test(value)) return null;
+  return value;
+}
+
+function billingOrNull(value: unknown): "demo" | "billable" | null {
+  if (value === "demo" || value === "billable") return value;
+  return null;
+}
+
+function extOrNull(value: unknown): 3 | 4 | 5 | null {
+  if (value === 3 || value === 4 || value === 5) return value;
+  return null;
 }
 
 function clientAtOrNull(value: unknown): string | null {
@@ -117,6 +174,13 @@ export function parseDomainSnap(value: unknown): SectionSnap<DomainRow> {
       accountsLimit: intOrNull(row.accountsLimit),
       dialplan: typeof row.dialplan === "string" ? safeLabel(row.dialplan) : null,
       frozen: typeof row.frozen === "boolean" ? row.frozen : null,
+      language: labelOrNull(row.language),
+      billingType: billingOrNull(row.billingType),
+      ownRegion: labelOrNull(row.ownRegion),
+      extDigits: extOrNull(row.extDigits),
+      sysdomain: typeof row.sysdomain === "boolean" ? row.sysdomain : null,
+      recordDays: countOrNull(row.recordDays),
+      speechMinutes: countOrNull(row.speechMinutes),
     });
   }
   return {
@@ -267,13 +331,59 @@ export function telnumNames(rows: TelnumRow[]): string[] {
   return rows.map((row) => row.telnum);
 }
 
-export function toDomainTable(row: DomainRow): DomainTableRow {
+export function groupAssignedTelnums(snap: {
+  committed: boolean;
+  rows: TelnumRow[];
+}): Map<string, string[]> | null {
+  if (!snap.committed) return null;
+  const grouped = new Map<string, string[]>();
+  for (const row of snap.rows) {
+    if (!row.domain || parseDomainName(row.domain) !== row.domain) continue;
+    const list = grouped.get(row.domain);
+    if (list) list.push(row.telnum);
+    else grouped.set(row.domain, [row.telnum]);
+  }
+  for (const list of grouped.values()) list.sort(compareTelnums);
+  return grouped;
+}
+
+export function numbersForDomain(
+  domain: string,
+  grouped: Map<string, string[]> | null,
+): string[] | null {
+  if (!grouped) return null;
+  return grouped.get(domain) ?? [];
+}
+
+export function toDomainTable(row: DomainRow, numbers: string[] | null): DomainTableRow {
   return {
     name: row.name,
     client: showCell(row.client),
+    numbers: formatAssignedNumbers(numbers),
     subscribers: formatSubscribers(row.accountsCount, row.accountsLimit),
+    recordDays: formatPlainCount(row.recordDays),
+    speechMinutes: formatPlainCount(row.speechMinutes),
     dialplan: showCell(row.dialplan),
     frozen: formatYesNo(row.frozen),
+  };
+}
+
+export function toDomainSummary(row: DomainRow, numbers: string[] | null): DomainSummary {
+  const listed = numbers && numbers.length > 0 ? numbers : null;
+  return {
+    name: row.name,
+    client: showCell(row.client),
+    numbers: listed,
+    subscribers: formatSubscribers(row.accountsCount, row.accountsLimit),
+    recordDays: formatPlainCount(row.recordDays),
+    speechMinutes: formatPlainCount(row.speechMinutes),
+    dialplan: showCell(row.dialplan),
+    frozen: formatYesNo(row.frozen),
+    language: showCell(row.language),
+    billing: formatBilling(row.billingType),
+    region: showCell(row.ownRegion),
+    extDigits: formatPlainCount(row.extDigits),
+    sysdomain: formatYesNo(row.sysdomain),
   };
 }
 

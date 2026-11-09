@@ -6,6 +6,7 @@ import {
   BOSS_TELNUMS,
   bossRequestTarget,
   domainPath,
+  domainStatPath,
   telnumPath,
 } from "@/modules/vats/allowlist";
 import { parseDomainName, parseLanguageValue, parseTelnum } from "@/modules/vats/names";
@@ -63,11 +64,18 @@ function basicHeader(login: string, password: string): string | null {
   return `Basic ${Buffer.from(`${login}:${password}`, "utf8").toString("base64")}`;
 }
 
-function failure(status: number, error: string, retry: boolean, truncated = false): BossFailure {
+function failure(
+  status: number,
+  error: string,
+  retry: boolean,
+  truncated = false,
+): BossFailure {
   return { ok: false, status, error, retry, truncated };
 }
 
-async function readLimited(response: Response): Promise<{ text: string } | { truncated: true }> {
+async function readLimited(
+  response: Response,
+): Promise<{ text: string } | { truncated: true }> {
   const declared = Number(response.headers.get("content-length"));
   if (Number.isFinite(declared) && declared > MAX_BYTES) {
     await response.body?.cancel();
@@ -153,13 +161,18 @@ async function once(
   }
   if (response.status !== 200) {
     await response.body?.cancel();
-    return failure(response.status, bossStatusMessage(response.status), response.status >= 500);
+    return failure(
+      response.status,
+      bossStatusMessage(response.status),
+      response.status >= 500,
+    );
   }
   const read = await readLimited(response);
   if ("truncated" in read) {
     return failure(0, "Ответ обрезан. Сохранённый список не изменён.", false, true);
   }
-  if (!read.text) return failure(response.status, "Платформа вернула пустой ответ.", false);
+  if (!read.text)
+    return failure(response.status, "Платформа вернула пустой ответ.", false);
   try {
     return { ok: true, status: 200, data: JSON.parse(read.text) as unknown };
   } catch {
@@ -201,7 +214,10 @@ export function parseNameList(
   return names;
 }
 
-export async function getDomains(auth: BossAuth, deps?: BossDeps): Promise<BossResult<unknown>> {
+export async function getDomains(
+  auth: BossAuth,
+  deps?: BossDeps,
+): Promise<BossResult<unknown>> {
   return readOnce(auth, BOSS_DOMAINS, deps);
 }
 
@@ -211,6 +227,18 @@ export async function getDomain(
   deps?: BossDeps,
 ): Promise<BossResult<unknown>> {
   const path = domainPath(domain);
+  if (!path || parseDomainName(domain) !== domain) {
+    return failure(400, "Недопустимое имя домена.", false);
+  }
+  return readOnce(auth, path, deps);
+}
+
+export async function getDomainStat(
+  auth: BossAuth,
+  domain: string,
+  deps?: BossDeps,
+): Promise<BossResult<unknown>> {
+  const path = domainStatPath(domain);
   if (!path || parseDomainName(domain) !== domain) {
     return failure(400, "Недопустимое имя домена.", false);
   }
@@ -237,7 +265,10 @@ export async function putDomainField(
   return { ok: true, status: 204, data: null };
 }
 
-export async function getTelnums(auth: BossAuth, deps?: BossDeps): Promise<BossResult<unknown>> {
+export async function getTelnums(
+  auth: BossAuth,
+  deps?: BossDeps,
+): Promise<BossResult<unknown>> {
   return readOnce(auth, BOSS_TELNUMS, deps);
 }
 
@@ -253,14 +284,23 @@ export async function getTelnum(
   return readOnce(auth, path, deps);
 }
 
-export async function getGateways(auth: BossAuth, deps?: BossDeps): Promise<BossResult<unknown>> {
+export async function getGateways(
+  auth: BossAuth,
+  deps?: BossDeps,
+): Promise<BossResult<unknown>> {
   return readOnce(auth, BOSS_GATEWAYS, deps);
 }
 
-export async function getRoutes(auth: BossAuth, deps?: BossDeps): Promise<BossResult<unknown>> {
+export async function getRoutes(
+  auth: BossAuth,
+  deps?: BossDeps,
+): Promise<BossResult<unknown>> {
   return readOnce(auth, BOSS_ROUTES, deps);
 }
 
-export async function getDialplans(auth: BossAuth, deps?: BossDeps): Promise<BossResult<unknown>> {
+export async function getDialplans(
+  auth: BossAuth,
+  deps?: BossDeps,
+): Promise<BossResult<unknown>> {
   return readOnce(auth, BOSS_DIALPLANS, deps);
 }

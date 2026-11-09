@@ -259,6 +259,7 @@ export type VatsScreen = {
 export async function readDomainScreen(origin: string | null): Promise<{
   screen: VatsScreen;
   rows: DomainRow[];
+  committed: boolean;
 }> {
   return readScreen("domains", origin, parseDomainSnap);
 }
@@ -266,6 +267,7 @@ export async function readDomainScreen(origin: string | null): Promise<{
 export async function readTelnumScreen(origin: string | null): Promise<{
   screen: VatsScreen;
   rows: TelnumRow[];
+  committed: boolean;
 }> {
   return readScreen("telnums", origin, parseTelnumSnap);
 }
@@ -274,13 +276,21 @@ async function readScreen<T>(
   kind: "domains" | "telnums",
   origin: string | null,
   parse: (value: unknown) => SectionSnap<T>,
-): Promise<{ screen: VatsScreen; rows: T[] }> {
+): Promise<{ screen: VatsScreen; rows: T[]; committed: boolean }> {
   if (!origin) {
-    return { screen: { readAt: null, notice: null, loading: false }, rows: [] };
+    return {
+      screen: { readAt: null, notice: null, loading: false },
+      rows: [],
+      committed: false,
+    };
   }
   const row = await prisma.vatsNameList.findUnique({ where: { kind } });
   if (!row || row.origin !== origin) {
-    return { screen: { readAt: null, notice: null, loading: false }, rows: [] };
+    return {
+      screen: { readAt: null, notice: null, loading: false },
+      rows: [],
+      committed: false,
+    };
   }
   const snap = parse(row.names);
   return {
@@ -290,6 +300,7 @@ async function readScreen<T>(
       loading: false,
     },
     rows: snap.rows,
+    committed: snap.committed,
   };
 }
 

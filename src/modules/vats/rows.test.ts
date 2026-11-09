@@ -1,15 +1,21 @@
 import { describe, expect, it } from "vitest";
 import { nextVatsDelayMs } from "@/modules/vats/cadence";
+import { domainStatFields } from "@/modules/vats/card";
 import {
   compareDomains,
   compareTelnums,
+  formatAssignedNumbers,
   formatSubscribers,
   formatYesNo,
   resolveRef,
 } from "@/modules/vats/labels";
 import {
+  emptyDomain,
+  groupAssignedTelnums,
+  numbersForDomain,
   parseDomainSnap,
   parseTelnumSnap,
+  toDomainSummary,
   toDomainTable,
   toTelnumTable,
   visibleReadAt,
@@ -23,8 +29,10 @@ describe("VATS row snapshot", () => {
     expect(
       visibleReadAt(domains.committed, new Date("2026-11-09T00:00:00.000Z")),
     ).toBeNull();
-    expect(toDomainTable(domains.rows[0]!).subscribers).toBe("—");
-    expect(toDomainTable(domains.rows[0]!).frozen).toBe("—");
+    expect(toDomainTable(domains.rows[0]!, null).subscribers).toBe("—");
+    expect(toDomainTable(domains.rows[0]!, null).frozen).toBe("—");
+    expect(toDomainTable(domains.rows[0]!, null).numbers).toBe("—");
+    expect(toDomainTable(domains.rows[0]!, null).recordDays).toBe("—");
 
     const telnums = parseTelnumSnap(["10", "9"]);
     expect(telnums.committed).toBe(false);
@@ -54,6 +62,102 @@ describe("VATS row snapshot", () => {
     expect(resolveRef("gw-1", catalog)).toBe("North");
     expect(resolveRef("gw-2", catalog)).toBe("gw-1");
     expect(resolveRef("missing", catalog)).toBeNull();
+  });
+
+  it("shows one number, a plural, or a dash", () => {
+    expect(formatAssignedNumbers(null)).toBe("—");
+    expect(formatAssignedNumbers([])).toBe("—");
+    expect(formatAssignedNumbers(["01"])).toBe("01");
+    expect(formatAssignedNumbers(["9", "10"])).toBe("2 номера");
+    expect(formatAssignedNumbers(Array.from({ length: 5 }, () => "1"))).toBe("5 номеров");
+    expect(formatAssignedNumbers(Array.from({ length: 11 }, () => "1"))).toBe(
+      "11 номеров",
+    );
+    expect(formatAssignedNumbers(Array.from({ length: 21 }, () => "1"))).toBe("21 номер");
+    expect(formatAssignedNumbers(Array.from({ length: 10 }, () => "1"))).toBe(
+      "10 номеров",
+    );
+  });
+
+  it("counts only numbers assigned to that domain", () => {
+    const telnums = {
+      committed: true,
+      rows: [
+        { telnum: "10", domain: "a.example", isFmc: null, gateways: [] },
+        { telnum: "01", domain: "a.example", isFmc: null, gateways: [] },
+        { telnum: "9", domain: "other.example", isFmc: null, gateways: [] },
+      ],
+    };
+    const grouped = groupAssignedTelnums(telnums);
+    expect(numbersForDomain("a.example", grouped)).toEqual(["01", "10"]);
+    expect(formatAssignedNumbers(numbersForDomain("a.example", grouped))).toBe(
+      "2 номера",
+    );
+    expect(formatAssignedNumbers(numbersForDomain("b.example", grouped))).toBe("—");
+    expect(groupAssignedTelnums({ committed: false, rows: telnums.rows })).toBeNull();
+    expect(groupAssignedTelnums(parseTelnumSnap(["01", "10"]))).toBeNull();
+  });
+
+  it("keeps zero days and minutes and drops a bad statistics field", () => {
+    const fields = domainStatFields({
+      recordExpirationDays: 0,
+      speechAnalytics: { thisMonth: 0, total: 4 },
+      activeCRM: ["crm"],
+      telnumsCount: 9,
+      services: ["autocaller"],
+      accessURL: "https://secret.example/login",
+      route: "rt",
+    });
+    expect(fields).toEqual({ recordDays: 0, speechMinutes: 0 });
+    expect(JSON.stringify(fields)).not.toContain("activeCRM");
+    expect(JSON.stringify(fields)).not.toContain("telnumsCount");
+    expect(JSON.stringify(fields)).not.toContain("accessURL");
+    expect(JSON.stringify(fields)).not.toContain("route");
+    expect(
+      domainStatFields({
+        recordExpirationDays: -1,
+        speechAnalytics: { thisMonth: 1.5 },
+      }),
+    ).toEqual({ recordDays: null, speechMinutes: null });
+    expect(domainStatFields({ speechAnalytics: {} })).toEqual({
+      recordDays: null,
+      speechMinutes: null,
+    });
+
+    const stored = parseDomainSnap({
+      v: 2,
+      committed: true,
+      rows: [
+        {
+          ...emptyDomain("a.example"),
+          recordDays: 0,
+          speechMinutes: 0,
+          extDigits: 4,
+          billingType: "billable",
+          language: "ru-RU",
+          services: ["autocaller"],
+          activeCRM: ["crm"],
+          telnumsCount: 9,
+          accessURL: "https://secret.example/login",
+          route: "rt",
+        },
+      ],
+    });
+    const row = stored.rows[0]!;
+    expect(row.recordDays).toBe(0);
+    expect(row.speechMinutes).toBe(0);
+    expect(toDomainTable(row, []).recordDays).toBe("0");
+    expect(toDomainTable(row, []).speechMinutes).toBe("0");
+    const summary = toDomainSummary(row, null);
+    expect(summary.numbers).toBeNull();
+    expect(summary.billing).toBe("Платный");
+    const packed = JSON.stringify(summary);
+    expect(packed).not.toContain("services");
+    expect(packed).not.toContain("activeCRM");
+    expect(packed).not.toContain("telnumsCount");
+    expect(packed).not.toContain("accessURL");
+    expect(packed).not.toContain("route");
+    expect(Object.keys(summary)).not.toContain("route");
   });
 
   it("waits 120 seconds unless settings asked for a restart", () => {

@@ -53,6 +53,32 @@ export function formatYesNo(value: boolean | null): string {
   return value ? "Да" : "Нет";
 }
 
+export function formatPlainCount(value: number | null): string {
+  if (value == null || !Number.isSafeInteger(value) || value < 0) return "—";
+  return String(value);
+}
+
+export function formatBilling(value: "demo" | "billable" | null): string {
+  if (value === "demo") return "Демо";
+  if (value === "billable") return "Платный";
+  return "—";
+}
+
+function numberWord(count: number): string {
+  const mod10 = count % 10;
+  const mod100 = count % 100;
+  if (mod10 === 1 && mod100 !== 11) return "номер";
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return "номера";
+  return "номеров";
+}
+
+/** One assigned number is the digit string. Several use the Russian plural. */
+export function formatAssignedNumbers(numbers: string[] | null): string {
+  if (!numbers || numbers.length === 0) return "—";
+  if (numbers.length === 1) return numbers[0] ?? "—";
+  return `${numbers.length} ${numberWord(numbers.length)}`;
+}
+
 /** Id wins when the same token is another row's name. */
 export function resolveRef(token: string, catalog: NamedId[]): string | null {
   for (const item of catalog) {

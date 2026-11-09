@@ -1,6 +1,12 @@
 import { createServer } from "node:http";
 import { afterEach, describe, expect, it } from "vitest";
-import { getDomain, getDomains, putDomainField, type BossDeps } from "@/modules/vats/client";
+import {
+  getDomain,
+  getDomainStat,
+  getDomains,
+  putDomainField,
+  type BossDeps,
+} from "@/modules/vats/client";
 
 const password = "pw-secret-not-for-logs";
 const auth = {
@@ -16,7 +22,10 @@ afterEach(async () => {
 });
 
 function listen(
-  onRequest: (req: import("node:http").IncomingMessage, res: import("node:http").ServerResponse) => void,
+  onRequest: (
+    req: import("node:http").IncomingMessage,
+    res: import("node:http").ServerResponse,
+  ) => void,
 ): Promise<number> {
   const server = createServer(onRequest);
   return new Promise((resolve, reject) => {
@@ -140,6 +149,27 @@ describe("VATS Boss client", () => {
     expect(body).toBe('{"client":"Acme"}');
     expect(JSON.stringify(result)).not.toContain(password);
     expect(JSON.stringify(result)).not.toContain("Acme");
+  });
+
+  it("reads domain statistics from the literal stat path", async () => {
+    const port = await listen((req, res) => {
+      expect(req.method).toBe("GET");
+      expect(req.url).toBe("/sys/boss/v1/domains/domain.pbx.com/stat");
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end('{"recordExpirationDays":7,"speechAnalytics":{"thisMonth":2}}');
+    });
+    const { deps, seen } = forward(port);
+    const result = await getDomainStat(auth, "domain.pbx.com", deps);
+    expect(result.ok).toBe(true);
+    expect(seen).toEqual([
+      "https://platform.example/sys/boss/v1/domains/domain.pbx.com/stat",
+    ]);
+    const refused = await getDomainStat(auth, "a/b", {
+      fetchImpl: () => {
+        throw new Error("called");
+      },
+    });
+    expect(refused.ok).toBe(false);
   });
 
   it("does not call the platform for a domain path it refuses", async () => {

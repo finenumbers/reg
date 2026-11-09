@@ -51,9 +51,13 @@ import {
 import { parseVatsOrigin } from "@/modules/vats/origin";
 import { readbackAccepts } from "@/modules/vats/readback";
 import {
+  groupAssignedTelnums,
+  numbersForDomain,
+  settingsLists,
+  toDomainSummary,
   toDomainTable,
   toTelnumTable,
-  settingsLists,
+  type DomainSummary,
   type DomainTableRow,
   type TelnumTableRow,
 } from "@/modules/vats/rows";
@@ -330,16 +334,45 @@ export async function getVatsDomainPage(
   offset: number,
 ): Promise<VatsTablePage<DomainTableRow>> {
   const host = await hostView();
-  const loaded = await readDomainScreen(host.origin);
+  const [loaded, telnums] = await Promise.all([
+    readDomainScreen(host.origin),
+    readTelnumScreen(host.origin),
+  ]);
   const view = shown(host.configured, loaded.screen);
   const rows = host.configured ? domainPage(loaded.rows, offset, VATS_PAGE_SIZE) : [];
+  const grouped = host.configured
+    ? groupAssignedTelnums({ committed: telnums.committed, rows: telnums.rows })
+    : null;
   return {
     configured: host.configured,
     readAt: view.readAt,
     notice: view.notice,
     total: host.configured ? loaded.rows.length : 0,
-    rows: rows.map(toDomainTable),
+    rows: rows.map((row) => toDomainTable(row, numbersForDomain(row.name, grouped))),
   };
+}
+
+export async function getVatsDomainSummary(
+  domain: string,
+): Promise<
+  { ok: true; summary: DomainSummary } | { ok: false; status: 400 | 404; error: string }
+> {
+  if (parseDomainName(domain) !== domain) {
+    return { ok: false, status: 400, error: "Недопустимое имя домена." };
+  }
+  const host = await hostView();
+  if (!host.origin) return { ok: false, status: 404, error: "Домен не найден." };
+  const [domains, telnums] = await Promise.all([
+    readDomainScreen(host.origin),
+    readTelnumScreen(host.origin),
+  ]);
+  const row = domains.rows.find((item) => item.name === domain);
+  if (!row) return { ok: false, status: 404, error: "Домен не найден." };
+  const grouped = groupAssignedTelnums({
+    committed: telnums.committed,
+    rows: telnums.rows,
+  });
+  return { ok: true, summary: toDomainSummary(row, numbersForDomain(domain, grouped)) };
 }
 
 export async function getVatsTelnumPage(

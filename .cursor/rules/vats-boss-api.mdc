@@ -13,12 +13,15 @@ This release may send only:
 
 - `GET /sys/boss/v1/domains`
 - `GET /sys/boss/v1/domains/{domain}`
+- `GET /sys/boss/v1/domains/{domain}/stat`
 - `PUT /sys/boss/v1/domains/{domain}` whose JSON body is exactly `{client}` or `{language}`
 - `GET /sys/boss/v1/telnums`
 - `GET /sys/boss/v1/telnums/{telnum}`
 - `GET /sys/boss/v1/gateways`
 - `GET /sys/boss/v1/routes`
 - `GET /sys/boss/v1/dialplans`
+
+The statistics read is one GET after that domain's card. The lock is released between the two requests. Store only `recordExpirationDays` and `speechAnalytics.thisMonth`, each a non-negative safe integer. A 403, a 404, or a body that is not an object keeps the previous two numbers, and the domain is still published. That miss is not one of the five unread cards. A 401 stops the cycle. A transport failure, timeout, empty body, non-JSON, or 5xx does not publish the domain section. Do not call `GET /domains/{domain}/services`. Do not store `activeCRM`, `telnumsCount`, services, accessURL, or route.
 
 Language values sent by the client are only `ru-RU` or `en-US`. The domain is path-encoded. Reject `/` and `..`. Do not echo dialplan, route, services, limits, billing, name, or any other field. If the platform rejects the one-field body, show the error and do not send a second request. After a 204, read the same card. Success only if that one field changed and the rest matches the pre-image. Do not send a compensating `PUT`.
 

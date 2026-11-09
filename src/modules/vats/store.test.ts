@@ -21,6 +21,7 @@ vi.mock("@/lib/db", () => ({
 }));
 
 import { requestVatsRestart, vatsGeneration } from "@/modules/vats/control";
+import { emptyDomain } from "@/modules/vats/rows";
 import { createPrismaCycleStore } from "@/modules/vats/store";
 
 describe("VATS snapshot commit", () => {
@@ -34,17 +35,7 @@ describe("VATS snapshot commit", () => {
     findUnique.mockResolvedValue({ vatsBossBaseUrl: "https://new.example" });
     const store = createPrismaCycleStore("https://old.example", vatsGeneration());
     const outcome = await store.commitDomains({
-      rows: [
-        {
-          name: "a.example",
-          client: null,
-          clientAt: null,
-          accountsCount: null,
-          accountsLimit: null,
-          dialplan: null,
-          frozen: null,
-        },
-      ],
+      rows: [emptyDomain("a.example")],
       notice: null,
       cardReadAt: {},
       generation: vatsGeneration(),

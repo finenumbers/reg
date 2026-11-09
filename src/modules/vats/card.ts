@@ -38,7 +38,10 @@ function numberOrNull(value: unknown): number | null {
 }
 
 /** View fields only. accessURL, dialplan, route, and services stay on the server. */
-export function domainCardView(domain: string, raw: Record<string, unknown>): VatsDomainCard {
+export function domainCardView(
+  domain: string,
+  raw: Record<string, unknown>,
+): VatsDomainCard {
   const name = textOrNull(raw.name);
   return {
     name: name && parseDomainName(name) === name ? name : domain,
@@ -46,7 +49,10 @@ export function domainCardView(domain: string, raw: Record<string, unknown>): Va
     language: textOrNull(raw.language),
     clientEditable: raw.client == null || typeof raw.client === "string",
     languageEditable: raw.language == null || typeof raw.language === "string",
-    billingType: raw.billingType === "demo" || raw.billingType === "billable" ? raw.billingType : null,
+    billingType:
+      raw.billingType === "demo" || raw.billingType === "billable"
+        ? raw.billingType
+        : null,
     frozen: typeof raw.frozen === "boolean" ? raw.frozen : null,
     ownRegion: textOrNull(raw.ownRegion),
     accountsLimit: numberOrNull(raw.accountsLimit),
@@ -56,7 +62,29 @@ export function domainCardView(domain: string, raw: Record<string, unknown>): Va
   };
 }
 
-export function telnumCardView(telnum: string, raw: Record<string, unknown>): VatsTelnumCard {
+export type DomainStatFields = {
+  recordDays: number | null;
+  speechMinutes: number | null;
+};
+
+function safeCount(value: unknown): number | null {
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) return null;
+  return value;
+}
+
+/** Two integers only. The rest of the statistics object stays on the server. */
+export function domainStatFields(raw: Record<string, unknown>): DomainStatFields {
+  const speech = asRecord(raw.speechAnalytics);
+  return {
+    recordDays: safeCount(raw.recordExpirationDays),
+    speechMinutes: speech ? safeCount(speech.thisMonth) : null,
+  };
+}
+
+export function telnumCardView(
+  telnum: string,
+  raw: Record<string, unknown>,
+): VatsTelnumCard {
   const gateways: string[] = [];
   if (Array.isArray(raw.gateways)) {
     for (const item of raw.gateways) {
