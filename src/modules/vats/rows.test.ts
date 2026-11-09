@@ -5,6 +5,7 @@ import {
   compareDomains,
   compareTelnums,
   formatAssignedNumbers,
+  formatSpeechMinutes,
   formatSubscribers,
   formatYesNo,
   resolveRef,
@@ -147,8 +148,10 @@ describe("VATS row snapshot", () => {
     expect(row.recordDays).toBe(0);
     expect(row.speechMinutes).toBe(0);
     expect(toDomainTable(row, []).recordDays).toBe("0");
-    expect(toDomainTable(row, []).speechMinutes).toBe("0");
+    expect(toDomainTable(row, []).speechMinutes).toBe("—");
     const summary = toDomainSummary(row, null);
+    expect(summary.recordDays).toBe("0");
+    expect(summary.speechMinutes).toBe("—");
     expect(summary.numbers).toBeNull();
     expect(summary.billing).toBe("Платный");
     const packed = JSON.stringify(summary);
@@ -158,6 +161,21 @@ describe("VATS row snapshot", () => {
     expect(packed).not.toContain("accessURL");
     expect(packed).not.toContain("route");
     expect(Object.keys(summary)).not.toContain("route");
+  });
+
+  it("names speech minutes and hides zero", () => {
+    const gap = "\u202F";
+    expect(formatSpeechMinutes(null)).toBe("—");
+    expect(formatSpeechMinutes(0)).toBe("—");
+    expect(formatSpeechMinutes(1)).toBe("1 минута");
+    expect(formatSpeechMinutes(2)).toBe("2 минуты");
+    expect(formatSpeechMinutes(11)).toBe("11 минут");
+    expect(formatSpeechMinutes(12)).toBe("12 минут");
+    expect(formatSpeechMinutes(21)).toBe("21 минута");
+    expect(formatSpeechMinutes(22)).toBe("22 минуты");
+    expect(formatSpeechMinutes(46)).toBe("46 минут");
+    expect(formatSpeechMinutes(1012)).toBe(`1${gap}012 минут`);
+    expect(formatSpeechMinutes(1052)).toBe(`1${gap}052 минуты`);
   });
 
   it("waits 120 seconds unless settings asked for a restart", () => {

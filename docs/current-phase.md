@@ -1,7 +1,13 @@
-# Current Phase — production (v1.250.0)
+# Current Phase — production (v1.251.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, cloud PBX domains and numbers.  
 **Date:** 2026-11-09
+
+## v1.251.0 — Speech minutes and the domain number list
+
+There is no migration. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. Keep a single `app` replica. Stop the old app before the new one starts, then recreate only the `app` container. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged.
+
+«Речевая аналитика» shows «—» when the stored minutes are zero. A positive count keeps the Russian word, so 46 is «46 минут» and 1052 is «1 052 минуты». The number list in the domain summary scrolls with the panel.
 
 ## v1.250.0 — VATS domain summary
 

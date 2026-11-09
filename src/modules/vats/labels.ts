@@ -1,3 +1,4 @@
+import { formatCount } from "@/lib/format-count";
 import { safeLabel } from "@/modules/vats/names";
 
 export type NamedId = { id: string; name: string };
@@ -64,12 +65,22 @@ export function formatBilling(value: "demo" | "billable" | null): string {
   return "—";
 }
 
-function numberWord(count: number): string {
+function ruPlural(count: number, one: string, few: string, many: string): string {
   const mod10 = count % 10;
   const mod100 = count % 100;
-  if (mod10 === 1 && mod100 !== 11) return "номер";
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return "номера";
-  return "номеров";
+  if (mod10 === 1 && mod100 !== 11) return one;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return few;
+  return many;
+}
+
+function numberWord(count: number): string {
+  return ruPlural(count, "номер", "номера", "номеров");
+}
+
+/** Zero and an unread value look the same. A positive count keeps its word. */
+export function formatSpeechMinutes(value: number | null): string {
+  if (value == null || !Number.isSafeInteger(value) || value <= 0) return "—";
+  return `${formatCount(value)} ${ruPlural(value, "минута", "минуты", "минут")}`;
 }
 
 /** One assigned number is the digit string. Several use the Russian plural. */

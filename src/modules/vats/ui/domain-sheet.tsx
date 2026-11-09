@@ -117,7 +117,7 @@ export function DomainSheet({
                 {shown.numbers == null ? (
                   "—"
                 ) : (
-                  <ul className="max-h-40 space-y-1 overflow-auto">
+                  <ul className="space-y-1">
                     {shown.numbers.map((telnum) => (
                       <li key={telnum}>
                         <Link
