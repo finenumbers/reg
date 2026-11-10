@@ -28,6 +28,7 @@ import type {
   DashboardSnapshot,
 } from "@/modules/dashboard/types";
 import { CallsChart, requestDashboardCalls } from "@/modules/dashboard/ui/calls-chart";
+import { ZabbixCharts } from "@/modules/dashboard/ui/zabbix-charts";
 
 const POLL_MS = 30_000;
 const ANTIFRAUD_GAP = "…";
@@ -228,7 +229,10 @@ export function DashboardView() {
             </div>
           ) : null}
           {data?.calls ? (
-            <CallsChart series={series} node={chartNode} initialPhone={phoneChart} />
+            <>
+              <CallsChart series={series} node={chartNode} initialPhone={phoneChart} />
+              {series === "phone" ? <ZabbixCharts /> : null}
+            </>
           ) : null}
         </div>
       </div>

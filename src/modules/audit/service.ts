@@ -77,6 +77,8 @@ export const AUDIT_ACTIONS = {
   VATS_SETTINGS_UPDATE: "vats.settings_update",
   VATS_DOMAIN_UPDATE: "vats.domain_update",
   VATS_DOMAIN_OPEN: "vats.domain_open",
+  ZABBIX_PASSWORD_REPLACE: "zabbix.password_replace",
+  ZABBIX_TEST: "zabbix.test",
 } as const;
 
 export type AuditAction =

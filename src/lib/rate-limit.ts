@@ -98,3 +98,4 @@ export const rtuSoapTestRateLimiter = new SlidingWindowRateLimiter(5, 10 * 60 * 
 
 /** Domain cabinet opens per administrator: 20 / minute. One process. */
 export const vatsCabinetRateLimiter = new SlidingWindowRateLimiter(20, 60 * 1000);
+export const zabbixTestRateLimiter = new SlidingWindowRateLimiter(10, 60 * 1000);

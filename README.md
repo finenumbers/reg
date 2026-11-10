@@ -2,7 +2,7 @@
 
 Internal telecom ops platform. Phone numbers, groups, registrations, and live calls are read from the RTU API.
 
-**Repository:** [github.com/finenumbers/reg](https://github.com/finenumbers/reg) · **Release:** [v1.252.0](https://github.com/finenumbers/reg/releases/tag/v1.252.0)
+**Repository:** [github.com/finenumbers/reg](https://github.com/finenumbers/reg) · **Release:** [v1.253.0](https://github.com/finenumbers/reg/releases/tag/v1.253.0)
 
 ## Stack (approved)
 

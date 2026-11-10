@@ -39,9 +39,11 @@ import {
   settingsUpdateSchema,
   voipmonitorPasswordReplaceSchema,
   rtuSoapPasswordReplaceSchema,
+  zabbixPasswordReplaceSchema,
   type FtpPasswordReplaceInput,
   type VoipmonitorPasswordReplaceInput,
   type RtuSoapPasswordReplaceInput,
+  type ZabbixPasswordReplaceInput,
   type GeoipKeyReplaceInput,
   type KeyReplaceInput,
   type DidKeyReplaceInput,
@@ -65,6 +67,8 @@ import {
 } from "@/modules/did/types";
 import { describeRtuCa, rtuCaPemForStore } from "@/modules/rtu-soap/ca";
 import { parseRtuSoapOrigin } from "@/modules/rtu-soap/origin";
+import { clearZabbixDashboardCache } from "@/modules/zabbix/cache";
+import { parseZabbixApiUrl } from "@/modules/zabbix/url";
 
 async function ensureAppSettings() {
   return prisma.appSetting.upsert({
@@ -123,6 +127,13 @@ function toSettingsView(
     rtuSoapLogin: settings.rtuSoapLogin ?? null,
     hasRtuSoapPassword: Boolean(settings.rtuSoapPasswordCiphertext),
     ...describeRtuCa(settings.rtuSoapCaPem),
+    zabbixApiUrl: settings.zabbixApiUrl ?? null,
+    zabbixUser: settings.zabbixUser ?? null,
+    hasZabbixPassword: Boolean(settings.zabbixPasswordCiphertext),
+    zabbixGraph1Host: settings.zabbixGraph1Host ?? null,
+    zabbixGraph1Name: settings.zabbixGraph1Name ?? null,
+    zabbixGraph2Host: settings.zabbixGraph2Host ?? null,
+    zabbixGraph2Name: settings.zabbixGraph2Name ?? null,
   };
 }
 
@@ -236,6 +247,12 @@ export async function updateSettings(
     rtuSoapBaseUrl?: string | null;
     rtuSoapLogin?: string | null;
     rtuSoapCaPem?: string | null;
+    zabbixApiUrl?: string | null;
+    zabbixUser?: string | null;
+    zabbixGraph1Host?: string | null;
+    zabbixGraph1Name?: string | null;
+    zabbixGraph2Host?: string | null;
+    zabbixGraph2Name?: string | null;
   } = {};
 
   if (parsed.regsPollEnabled !== undefined) {
@@ -334,6 +351,33 @@ export async function updateSettings(
   if (parsed.rtuSoapCaPem !== undefined) {
     settingsData.rtuSoapCaPem = rtuCaPemForStore(parsed.rtuSoapCaPem);
   }
+  if (parsed.zabbixApiUrl !== undefined) {
+    const trimmed = parsed.zabbixApiUrl.trim();
+    settingsData.zabbixApiUrl = trimmed ? parseZabbixApiUrl(trimmed) : null;
+  }
+  if (parsed.zabbixUser !== undefined) {
+    settingsData.zabbixUser = parsed.zabbixUser.trim() || null;
+  }
+  if (parsed.zabbixGraph1Host !== undefined) {
+    settingsData.zabbixGraph1Host = parsed.zabbixGraph1Host.trim() || null;
+  }
+  if (parsed.zabbixGraph1Name !== undefined) {
+    settingsData.zabbixGraph1Name = parsed.zabbixGraph1Name.trim() || null;
+  }
+  if (parsed.zabbixGraph2Host !== undefined) {
+    settingsData.zabbixGraph2Host = parsed.zabbixGraph2Host.trim() || null;
+  }
+  if (parsed.zabbixGraph2Name !== undefined) {
+    settingsData.zabbixGraph2Name = parsed.zabbixGraph2Name.trim() || null;
+  }
+
+  const zabbixChanged =
+    parsed.zabbixApiUrl !== undefined ||
+    parsed.zabbixUser !== undefined ||
+    parsed.zabbixGraph1Host !== undefined ||
+    parsed.zabbixGraph1Name !== undefined ||
+    parsed.zabbixGraph2Host !== undefined ||
+    parsed.zabbixGraph2Name !== undefined;
 
   const ftpChanged =
     parsed.ftpEnabled !== undefined ||
@@ -349,6 +393,7 @@ export async function updateSettings(
       data: settingsData,
     });
   }
+  if (zabbixChanged) clearZabbixDashboardCache();
 
   settings = await prisma.appSetting.findUniqueOrThrow({
     where: { id: 1 },
@@ -409,6 +454,13 @@ export async function updateSettings(
       rtuSoapLogin: view.rtuSoapLogin,
       hasRtuSoapPassword: view.hasRtuSoapPassword,
       hasRtuSoapCa: view.hasRtuSoapCa,
+      zabbixApiUrl: view.zabbixApiUrl,
+      zabbixUser: view.zabbixUser,
+      hasZabbixPassword: view.hasZabbixPassword,
+      zabbixGraph1Host: view.zabbixGraph1Host,
+      zabbixGraph1Name: view.zabbixGraph1Name,
+      zabbixGraph2Host: view.zabbixGraph2Host,
+      zabbixGraph2Name: view.zabbixGraph2Name,
     },
   });
 
@@ -734,6 +786,39 @@ export async function replaceRtuSoapPassword(
     entityId: "1",
     ip: actor.ip,
     meta: { hasRtuSoapPassword: true },
+  });
+
+  return view;
+}
+
+/**
+ * Replace the Zabbix password. Never returns plaintext.
+ * This writes only the local settings row. It does not call Zabbix.
+ */
+export async function replaceZabbixPassword(
+  input: ZabbixPasswordReplaceInput,
+  actor: { userId: string; ip?: string | null },
+): Promise<SettingsView> {
+  const parsed = zabbixPasswordReplaceSchema.parse(input);
+  const encryption = getSecretEncryptionService();
+  const ciphertext = serializeEncryptedSecret(encryption.encrypt(parsed.password));
+
+  await prisma.appSetting.upsert({
+    where: { id: 1 },
+    create: { id: 1, zabbixPasswordCiphertext: ciphertext },
+    update: { zabbixPasswordCiphertext: ciphertext },
+  });
+  clearZabbixDashboardCache();
+
+  const view = await getSettingsView();
+
+  await auditService.append({
+    actorUserId: actor.userId,
+    action: AUDIT_ACTIONS.ZABBIX_PASSWORD_REPLACE,
+    entityType: "app_settings",
+    entityId: "1",
+    ip: actor.ip,
+    meta: { hasZabbixPassword: true },
   });
 
   return view;

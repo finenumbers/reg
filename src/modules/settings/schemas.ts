@@ -15,6 +15,7 @@ import {
 } from "@/modules/did/types";
 import { parseRtuCaPem, rtuCaPemMessage } from "@/modules/rtu-soap/ca";
 import { parseRtuSoapOrigin } from "@/modules/rtu-soap/origin";
+import { parseZabbixApiUrl } from "@/modules/zabbix/url";
 
 function httpOriginSchema(label: string) {
   return z
@@ -76,6 +77,30 @@ export const ftpPasvAddressSchema = z
     return trimmed.length === 0 || IPV4_RE.test(trimmed);
   }, "Внешний адрес пассивного режима должен быть IPv4");
 
+function zabbixSlotPair(
+  host: string | undefined,
+  name: string | undefined,
+  slot: string,
+  ctx: z.RefinementCtx,
+) {
+  if (host === undefined && name === undefined) return;
+  if (host === undefined || name === undefined) {
+    ctx.addIssue({
+      code: "custom",
+      message: `График ${slot}: укажите хост и название`,
+    });
+    return;
+  }
+  const hostText = host.trim();
+  const nameText = name.trim();
+  if ((hostText.length === 0) !== (nameText.length === 0)) {
+    ctx.addIssue({
+      code: "custom",
+      message: `График ${slot}: укажите хост и название`,
+    });
+  }
+}
+
 export const settingsUpdateSchema = z.object({
   host: z.string().min(1).max(255).optional(),
   port: z.number().int().min(1).max(65535).optional(),
@@ -114,6 +139,22 @@ export const settingsUpdateSchema = z.object({
   rtuSoapBaseUrl: rtuSoapBaseUrlSchema.optional(),
   rtuSoapLogin: z.string().max(255).optional(),
   rtuSoapCaPem: rtuSoapCaPemSchema.optional(),
+  zabbixApiUrl: z
+    .string()
+    .max(2048)
+    .refine((value) => {
+      const trimmed = value.trim();
+      return trimmed.length === 0 || parseZabbixApiUrl(trimmed) !== null;
+    }, "Адрес Zabbix должен быть https без учётных данных и query")
+    .optional(),
+  zabbixUser: z.string().max(128).optional(),
+  zabbixGraph1Host: z.string().max(128).optional(),
+  zabbixGraph1Name: z.string().max(128).optional(),
+  zabbixGraph2Host: z.string().max(128).optional(),
+  zabbixGraph2Name: z.string().max(128).optional(),
+}).superRefine((value, ctx) => {
+  zabbixSlotPair(value.zabbixGraph1Host, value.zabbixGraph1Name, "1", ctx);
+  zabbixSlotPair(value.zabbixGraph2Host, value.zabbixGraph2Name, "2", ctx);
 });
 
 export type SettingsUpdateInput = z.infer<typeof settingsUpdateSchema>;
@@ -155,9 +196,15 @@ export const rtuSoapPasswordReplaceSchema = z.object({
   password: z.string().min(1).max(1024),
 });
 
+export const zabbixPasswordReplaceSchema = z.object({
+  password: z.string().min(1).max(1024),
+});
+
 export type RtuSoapPasswordReplaceInput = z.infer<
   typeof rtuSoapPasswordReplaceSchema
 >;
+
+export type ZabbixPasswordReplaceInput = z.infer<typeof zabbixPasswordReplaceSchema>;
 
 export type VoipmonitorPasswordReplaceInput = z.infer<
   typeof voipmonitorPasswordReplaceSchema
@@ -219,6 +266,14 @@ export type SettingsView = {
   /** Public certificates. The PEM itself is not returned. */
   hasRtuSoapCa: boolean;
   rtuSoapCaCerts: { fingerprint256: string; subject: string }[];
+  zabbixApiUrl: string | null;
+  zabbixUser: string | null;
+  /** Never expose the Zabbix password — only whether it is stored */
+  hasZabbixPassword: boolean;
+  zabbixGraph1Host: string | null;
+  zabbixGraph1Name: string | null;
+  zabbixGraph2Host: string | null;
+  zabbixGraph2Name: string | null;
 };
 
 export type SettingsUpdateResult = {

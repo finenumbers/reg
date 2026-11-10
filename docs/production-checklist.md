@@ -54,6 +54,8 @@ Optional publish ports: `APP_PUBLISH_PORT`, `POSTGRES_PUBLISH_PORT`.
 
 ## 3. Database
 
+v1.253.0 adds `zabbixApiUrl`, `zabbixUser`, `zabbixPasswordCiphertext`, `zabbixGraph1Host`, `zabbixGraph1Name`, `zabbixGraph2Host`, and `zabbixGraph2Name` on `app_settings`. It does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `smg-syslog`. Keep a single `app` replica. Replace the `app` container after migrate. Refresh the browser. «Настройки» can store a Zabbix login and two graphs. «Телефонный трафик» on the home page draws those graphs for the last two hours. The read does not change Zabbix. «Номера ВАТС» no longer opens a card from the table. Nothing is written to the switch. RTU activation is unchanged.
+
 v1.252.0 does not migrate and does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before the new one starts, then recreate only the `app` container. Refresh the browser. The app stores nothing and sends no `PUT`. An administrator's domain name asks the platform for a cabinet login link. «Запись разговоров» shows the period name. The stored day count is unchanged. Nothing is written to the switch. RTU activation is unchanged.
 
 v1.251.0 does not migrate and does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before the new one starts, then recreate only the `app` container. Refresh the browser. «Речевая аналитика» shows «—» for zero minutes and a word for a positive count. The domain summary number list scrolls with the panel. Nothing is written to the switch. RTU activation is unchanged.

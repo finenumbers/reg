@@ -167,6 +167,15 @@ model AppSetting {
   vatsBossLogin                   String?
   /// AES-256-GCM ciphertext of the Boss API password. Never plaintext.
   vatsBossPasswordCiphertext      String?
+  /// HTTPS URL of Zabbix api_jsonrpc.php. No userinfo, query, or hash.
+  zabbixApiUrl                    String?
+  zabbixUser                      String?
+  /// AES-256-GCM ciphertext of the Zabbix password. Never plaintext.
+  zabbixPasswordCiphertext        String?
+  zabbixGraph1Host                String?
+  zabbixGraph1Name                String?
+  zabbixGraph2Host                String?
+  zabbixGraph2Name                String?
   updatedAt             DateTime    @updatedAt
 
   @@map("app_settings")

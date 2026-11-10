@@ -10,4 +10,5 @@ export {
   replaceFtpPassword,
   replaceVoipmonitorPassword,
   replaceRtuSoapPassword,
+  replaceZabbixPassword,
 } from "@/modules/settings/service";

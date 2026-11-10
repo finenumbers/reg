@@ -24,8 +24,10 @@ function assertMaskedSettings(view: SettingsView) {
   expect(json).not.toMatch(/smgFtp/i);
   expect(json).not.toMatch(/voipmonitorPasswordCiphertext/i);
   expect(json).not.toMatch(/rtuSoapPasswordCiphertext/i);
+  expect(json).not.toMatch(/zabbixPasswordCiphertext/i);
   expect(typeof view.hasVoipmonitorPassword).toBe("boolean");
   expect(typeof view.hasRtuSoapPassword).toBe("boolean");
+  expect(typeof view.hasZabbixPassword).toBe("boolean");
   expect(typeof view.hasRtuSoapCa).toBe("boolean");
   expect(json).not.toMatch(/rtuSoapCaPem/i);
   expect(json).not.toMatch(/BEGIN CERTIFICATE/i);
@@ -183,6 +185,30 @@ describe("settings schemas and masked view contract", () => {
     ).toThrow();
   });
 
+  it("accepts a Zabbix https address and a complete graph slot", () => {
+    expect(
+      settingsUpdateSchema.parse({
+        zabbixApiUrl: "https://zabbix.example/zabbix",
+        zabbixUser: "ops",
+        zabbixGraph1Host: "gw",
+        zabbixGraph1Name: "SIP",
+        zabbixGraph2Host: "",
+        zabbixGraph2Name: "",
+      }),
+    ).toMatchObject({
+      zabbixApiUrl: "https://zabbix.example/zabbix",
+      zabbixGraph1Name: "SIP",
+    });
+    expect(() => settingsUpdateSchema.parse({ zabbixApiUrl: "http://zabbix.example" })).toThrow();
+    expect(() =>
+      settingsUpdateSchema.parse({ zabbixApiUrl: "https://user:pw@zabbix.example" }),
+    ).toThrow();
+    expect(() =>
+      settingsUpdateSchema.parse({ zabbixGraph1Host: "gw", zabbixGraph1Name: "" }),
+    ).toThrow();
+    expect(settingsUpdateSchema.parse({})).toEqual({});
+  });
+
   it("requires a non-empty GeoIP API key for replace", () => {
     expect(() => geoipKeyReplaceSchema.parse({ apiKey: "" })).toThrow();
     expect(geoipKeyReplaceSchema.parse({ apiKey: "geoip-secret" })).toEqual({
@@ -236,6 +262,13 @@ describe("settings schemas and masked view contract", () => {
       hasRtuSoapPassword: false,
       hasRtuSoapCa: false,
       rtuSoapCaCerts: [],
+      zabbixApiUrl: null,
+      zabbixUser: null,
+      hasZabbixPassword: false,
+      zabbixGraph1Host: null,
+      zabbixGraph1Name: null,
+      zabbixGraph2Host: null,
+      zabbixGraph2Name: null,
     };
     assertMaskedSettings(view);
   });

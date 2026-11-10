@@ -1,7 +1,17 @@
-# Current Phase — production (v1.252.0)
+# Current Phase — production (v1.253.0)
 
-**Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, cloud PBX domains and numbers.  
+**Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-11
+
+## v1.253.0 — Zabbix graphs and a plain VATS number table
+
+The migrator adds `zabbixApiUrl`, `zabbixUser`, `zabbixPasswordCiphertext`, `zabbixGraph1Host`, `zabbixGraph1Name`, `zabbixGraph2Host`, and `zabbixGraph2Name` on `app_settings`. It does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `smg-syslog`. Keep a single `app` replica. Replace the `app` container after migrate. Refresh the browser. There is no new environment variable.
+
+«Настройки» gains «Zabbix»: an https address, a login, a password, and two graphs. Each graph is a host and an exact graph name. The password is stored encrypted and is not returned. «Проверить доступ» logs in once and reads the saved graphs. It does not change Zabbix. The account must be Zabbix 6.0 or newer, without MFA, and the certificate must be publicly trusted.
+
+On the home page, «Телефонный трафик» draws those two graphs under the call charts. Each one is the last 120 minutes, the same window as the lower call chart, in UTC. Other traffic views do not call Zabbix. A missing setting hides the block. A failed read does not become a line of zeros.
+
+«Номера ВАТС» is a plain table. The number and the domain are text. «Домены ВАТС» still opens a summary, and a number in that summary still opens the number card. Nothing is written to the switch. RTU activation is unchanged.
 
 ## v1.252.0 — Domain cabinet link and recording period names
 

@@ -78,6 +78,8 @@ export async function PUT(request: Request) {
       "vatsBossPassword",
       "vatsBossPasswordCiphertext",
       "vatsPassword",
+      "zabbixPassword",
+      "zabbixPasswordCiphertext",
     ] as const;
     for (const key of banned) {
       if (key in (body as Record<string, unknown>)) {

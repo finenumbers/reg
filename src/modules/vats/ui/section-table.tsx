@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useDisplayTimezone } from "@/components/display-timezone-provider";
 import {
@@ -15,7 +14,6 @@ import {
 import { formatCount } from "@/lib/format-count";
 import { formatDisplayTimestamp } from "@/lib/format-display-time";
 import { VATS_STATUS_POLL_MS } from "@/modules/vats/cadence";
-import { nameListHref } from "@/modules/vats/names";
 import type { DomainTableRow, TelnumTableRow } from "@/modules/vats/rows";
 import { DomainSheet } from "@/modules/vats/ui/domain-sheet";
 
@@ -248,26 +246,8 @@ export function VatsTelnumTable({
             ) : (
               shown.map((row) => (
                 <TableRow key={row.telnum}>
-                  <TableCell>
-                    <Link
-                      href={nameListHref("/vats/telnums", row.telnum)}
-                      className="hover:underline"
-                    >
-                      {row.telnum}
-                    </Link>
-                  </TableCell>
-                  <TableCell>
-                    {row.domainHref ? (
-                      <Link
-                        href={nameListHref("/vats/domains", row.domainHref)}
-                        className="hover:underline"
-                      >
-                        {row.domain}
-                      </Link>
-                    ) : (
-                      row.domain
-                    )}
-                  </TableCell>
+                  <TableCell>{row.telnum}</TableCell>
+                  <TableCell>{row.domain}</TableCell>
                   <TableCell>{row.fmc}</TableCell>
                   <TableCell>{row.gateways}</TableCell>
                 </TableRow>

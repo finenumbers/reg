@@ -18,6 +18,7 @@ import {
   SAME_HOST_PSTN_BASE_URL,
   type SettingsView,
 } from "@/modules/settings/schemas";
+import { parseZabbixApiUrl } from "@/modules/zabbix/url";
 import {
   GROUPS_SYNC_INTERVAL_SEC,
   PHONES_SYNC_INTERVAL_SEC,
@@ -136,6 +137,24 @@ export function SettingsForm({ initial, parkingKey }: Props) {
   );
   const [voipmonitorTestResult, setVoipmonitorTestResult] =
     useState<TestResultView | null>(null);
+  const [zabbixApiUrl, setZabbixApiUrl] = useState(initial.zabbixApiUrl ?? "");
+  const [zabbixUser, setZabbixUser] = useState(initial.zabbixUser ?? "");
+  const [zabbixPassword, setZabbixPassword] = useState("");
+  const [zabbixGraph1Host, setZabbixGraph1Host] = useState(
+    initial.zabbixGraph1Host ?? "",
+  );
+  const [zabbixGraph1Name, setZabbixGraph1Name] = useState(
+    initial.zabbixGraph1Name ?? "",
+  );
+  const [zabbixGraph2Host, setZabbixGraph2Host] = useState(
+    initial.zabbixGraph2Host ?? "",
+  );
+  const [zabbixGraph2Name, setZabbixGraph2Name] = useState(
+    initial.zabbixGraph2Name ?? "",
+  );
+  const [zabbixTestResult, setZabbixTestResult] = useState<TestResultView | null>(
+    null,
+  );
   const [rtuSoapBaseUrl, setRtuSoapBaseUrl] = useState(initial.rtuSoapBaseUrl ?? "");
   const [rtuSoapLogin, setRtuSoapLogin] = useState(initial.rtuSoapLogin ?? "");
   const [rtuSoapPassword, setRtuSoapPassword] = useState("");
@@ -217,6 +236,12 @@ export function SettingsForm({ initial, parkingKey }: Props) {
     setVoipmonitorApiUrl(next.voipmonitorApiUrl ?? "");
     setVoipmonitorUser(next.voipmonitorUser ?? "");
     setVoipmonitorGuiUrl(next.voipmonitorGuiUrl ?? "");
+    setZabbixApiUrl(next.zabbixApiUrl ?? "");
+    setZabbixUser(next.zabbixUser ?? "");
+    setZabbixGraph1Host(next.zabbixGraph1Host ?? "");
+    setZabbixGraph1Name(next.zabbixGraph1Name ?? "");
+    setZabbixGraph2Host(next.zabbixGraph2Host ?? "");
+    setZabbixGraph2Name(next.zabbixGraph2Name ?? "");
     setRtuSoapBaseUrl(next.rtuSoapBaseUrl ?? "");
     setRtuSoapLogin(next.rtuSoapLogin ?? "");
     setDisplayTimezone(next.displayTimezone);
@@ -751,6 +776,97 @@ export function SettingsForm({ initial, parkingKey }: Props) {
         });
       } catch {
         toast.error("Тест VoIPmonitor не удался");
+      }
+    });
+  }
+
+  function zabbixSlotMessage(host: string, name: string, slot: string): string | null {
+    const hostText = host.trim();
+    const nameText = name.trim();
+    if ((hostText.length === 0) !== (nameText.length === 0)) {
+      return `График ${slot}: укажите хост и название`;
+    }
+    return null;
+  }
+
+  function onSaveZabbix() {
+    const slotError =
+      zabbixSlotMessage(zabbixGraph1Host, zabbixGraph1Name, "1") ??
+      zabbixSlotMessage(zabbixGraph2Host, zabbixGraph2Name, "2");
+    if (slotError) {
+      toast.error(slotError);
+      return;
+    }
+    if (zabbixApiUrl.trim() && !parseZabbixApiUrl(zabbixApiUrl)) {
+      toast.error("Адрес Zabbix должен быть https без учётных данных");
+      return;
+    }
+    startTransition(async () => {
+      try {
+        const res = await fetch("/api/settings", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            zabbixApiUrl: zabbixApiUrl.trim(),
+            zabbixUser: zabbixUser.trim(),
+            zabbixGraph1Host: zabbixGraph1Host.trim(),
+            zabbixGraph1Name: zabbixGraph1Name.trim(),
+            zabbixGraph2Host: zabbixGraph2Host.trim(),
+            zabbixGraph2Name: zabbixGraph2Name.trim(),
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          const issue = data.issues?.[0]?.message;
+          toast.error(issue ?? data.error ?? "Не удалось сохранить Zabbix");
+          return;
+        }
+        let next = data.settings as SettingsView;
+        const password = zabbixPassword.trim();
+        if (password) {
+          const keyRes = await fetch("/api/settings/zabbix/key", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ password }),
+          });
+          const keyData = await keyRes.json();
+          if (!keyRes.ok) {
+            toast.error(keyData.error ?? "Не удалось сохранить пароль Zabbix");
+            applySettings(next);
+            return;
+          }
+          setZabbixPassword("");
+          next = keyData.settings as SettingsView;
+        }
+        applySettings(next);
+        toast.success("Настройки Zabbix сохранены");
+      } catch {
+        toast.error("Не удалось сохранить Zabbix");
+      }
+    });
+  }
+
+  function onTestZabbix() {
+    if (!settings.hasZabbixPassword) {
+      toast.error("Сначала сохраните пароль Zabbix");
+      return;
+    }
+    startTransition(async () => {
+      setZabbixTestResult(null);
+      try {
+        const res = await fetch("/api/settings/zabbix/test", { method: "POST" });
+        const data = await res.json();
+        if (data.test) {
+          setZabbixTestResult(data.test);
+          if (data.test.result === "success") toast.success("Проверка Zabbix успешна");
+          else toast.error(data.test.detail ?? "Проверка Zabbix не удалась");
+          return;
+        }
+        const message = data.detail ?? data.error ?? "Проверка Zabbix не удалась";
+        toast.error(message);
+        setZabbixTestResult({ result: "error", detail: message, durationMs: null });
+      } catch {
+        toast.error("Проверка Zabbix не удалась");
       }
     });
   }
@@ -1857,6 +1973,123 @@ export function SettingsForm({ initial, parkingKey }: Props) {
                 <p className="mt-2 text-muted-foreground">
                   {voipmonitorTestResult.detail}
                 </p>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      </section>
+
+      <section className="space-y-4">
+        <h2 className="text-base font-semibold">Zabbix</h2>
+        <p className="text-sm text-muted-foreground">
+          Два графика на главной, под графиками телефонного трафика, за последние
+          два часа. Пароль хранится зашифрованным и в UI не показывается. Адрес
+          только https, Zabbix 6.0 или новее, учётная запись без MFA.
+        </p>
+        <div className="grid gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="zabbix-url">Адрес</Label>
+            <Input
+              id="zabbix-url"
+              value={zabbixApiUrl}
+              onChange={(e) => setZabbixApiUrl(e.target.value)}
+              placeholder="https://zabbix.example/zabbix"
+              autoComplete="off"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="zabbix-user">Логин</Label>
+            <Input
+              id="zabbix-user"
+              value={zabbixUser}
+              onChange={(e) => setZabbixUser(e.target.value)}
+              autoComplete="off"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="zabbix-password">Пароль</Label>
+            <Input
+              id="zabbix-password"
+              type="password"
+              value={zabbixPassword}
+              onChange={(e) => setZabbixPassword(e.target.value)}
+              placeholder={
+                settings.hasZabbixPassword
+                  ? "Пароль сохранён — вставьте новый, чтобы заменить"
+                  : "Пароль пользователя Zabbix"
+              }
+              autoComplete="new-password"
+            />
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="zabbix-graph1-host">График 1, хост</Label>
+              <Input
+                id="zabbix-graph1-host"
+                value={zabbixGraph1Host}
+                onChange={(e) => setZabbixGraph1Host(e.target.value)}
+                autoComplete="off"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="zabbix-graph1-name">График 1, название</Label>
+              <Input
+                id="zabbix-graph1-name"
+                value={zabbixGraph1Name}
+                onChange={(e) => setZabbixGraph1Name(e.target.value)}
+                autoComplete="off"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="zabbix-graph2-host">График 2, хост</Label>
+              <Input
+                id="zabbix-graph2-host"
+                value={zabbixGraph2Host}
+                onChange={(e) => setZabbixGraph2Host(e.target.value)}
+                autoComplete="off"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="zabbix-graph2-name">График 2, название</Label>
+              <Input
+                id="zabbix-graph2-name"
+                value={zabbixGraph2Name}
+                onChange={(e) => setZabbixGraph2Name(e.target.value)}
+                autoComplete="off"
+              />
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" disabled={pending} onClick={onSaveZabbix}>
+              Сохранить Zabbix
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={pending || !settings.hasZabbixPassword}
+              onClick={onTestZabbix}
+            >
+              Проверить доступ
+            </Button>
+          </div>
+          {zabbixTestResult ? (
+            <div className="rounded-md border p-3 text-sm">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge
+                  variant={
+                    zabbixTestResult.result === "success" ? "default" : "destructive"
+                  }
+                >
+                  {formatTestResultLabel(zabbixTestResult.result)}
+                </Badge>
+                {zabbixTestResult.durationMs != null ? (
+                  <span className="text-xs text-muted-foreground">
+                    {zabbixTestResult.durationMs} мс
+                  </span>
+                ) : null}
+              </div>
+              {zabbixTestResult.detail ? (
+                <p className="mt-2 text-muted-foreground">{zabbixTestResult.detail}</p>
               ) : null}
             </div>
           ) : null}
