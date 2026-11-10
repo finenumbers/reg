@@ -76,6 +76,7 @@ export const AUDIT_ACTIONS = {
   CDR_TARIFF_RATE_FINISH: "cdr.tariff.rate_finish",
   VATS_SETTINGS_UPDATE: "vats.settings_update",
   VATS_DOMAIN_UPDATE: "vats.domain_update",
+  VATS_DOMAIN_OPEN: "vats.domain_open",
 } as const;
 
 export type AuditAction =

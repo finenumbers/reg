@@ -1,7 +1,13 @@
-# Current Phase — production (v1.251.0)
+# Current Phase — production (v1.252.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, cloud PBX domains and numbers.  
-**Date:** 2026-11-09
+**Date:** 2026-11-11
+
+## v1.252.0 — Domain cabinet link and recording period names
+
+There is no migration. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. Keep a single `app` replica. Stop the old app before the new one starts, then recreate only the `app` container. Refresh the browser. The app stores nothing and sends no `PUT`. RTU activation is unchanged.
+
+On «Домены ВАТС» an administrator's domain name opens that domain's cabinet in a new tab. The click asks the platform for a login link, and the platform opens the cabinet session on its side. The link is not stored. An operator still sees the name as text. A row click still opens the summary. «Запись разговоров» shows the cabinet period name. The stored day count is unchanged.
 
 ## v1.251.0 — Speech minutes and the domain number list
 

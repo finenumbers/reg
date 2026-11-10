@@ -59,6 +59,34 @@ export function formatPlainCount(value: number | null): string {
   return String(value);
 }
 
+const RECORD_PERIODS = new Map<number, string>([
+  [7, "1 неделя"],
+  [14, "2 недели"],
+  [21, "3 недели"],
+  [31, "1 месяц"],
+  [62, "2 месяца"],
+  [91, "3 месяца"],
+  [93, "3 месяца"],
+  [181, "6 месяцев"],
+  [362, "1 год"],
+  [365, "1 год"],
+  [543, "1 год 6 месяцев"],
+  [724, "2 года"],
+  [730, "2 года"],
+  [905, "2 года 6 месяцев"],
+  [1086, "3 года"],
+  [1095, "3 года"],
+  [7300, "Неограниченно"],
+]);
+
+/** Cabinet name for a stored day count. An unlisted count keeps its number. */
+export function formatRecordRetention(value: number | null): string {
+  if (value == null || !Number.isSafeInteger(value) || value < 0) return "—";
+  const named = RECORD_PERIODS.get(value);
+  if (named) return named;
+  return `${value} ${ruPlural(value, "день", "дня", "дней")}`;
+}
+
 export function formatBilling(value: "demo" | "billable" | null): string {
   if (value === "demo") return "Демо";
   if (value === "billable") return "Платный";

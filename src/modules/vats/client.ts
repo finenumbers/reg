@@ -6,6 +6,7 @@ import {
   BOSS_TELNUMS,
   bossRequestTarget,
   domainPath,
+  domainSessionPath,
   domainStatPath,
   telnumPath,
 } from "@/modules/vats/allowlist";
@@ -243,6 +244,19 @@ export async function getDomainStat(
     return failure(400, "Недопустимое имя домена.", false);
   }
   return readOnce(auth, path, deps);
+}
+
+/** One session link. This read is not retried, and a failure does not restart the walk. */
+export async function getDomainSession(
+  auth: BossAuth,
+  domain: string,
+  deps?: BossDeps,
+): Promise<BossResult<unknown>> {
+  const path = domainSessionPath(domain);
+  if (!path || parseDomainName(domain) !== domain) {
+    return failure(400, "Недопустимое имя домена.", false);
+  }
+  return once(auth, "GET", path, null, deps);
 }
 
 export async function putDomainField(

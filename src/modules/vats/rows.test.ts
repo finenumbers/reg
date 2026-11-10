@@ -5,6 +5,7 @@ import {
   compareDomains,
   compareTelnums,
   formatAssignedNumbers,
+  formatRecordRetention,
   formatSpeechMinutes,
   formatSubscribers,
   formatYesNo,
@@ -107,6 +108,7 @@ describe("VATS row snapshot", () => {
       telnumsCount: 9,
       services: ["autocaller"],
       accessURL: "https://secret.example/login",
+      link: "https://domain.pbx.com/api/login?session=secret",
       route: "rt",
     });
     expect(fields).toEqual({ recordDays: 0, speechMinutes: 0 });
@@ -140,17 +142,19 @@ describe("VATS row snapshot", () => {
           activeCRM: ["crm"],
           telnumsCount: 9,
           accessURL: "https://secret.example/login",
+          link: "https://domain.pbx.com/api/login?session=secret",
           route: "rt",
         },
       ],
     });
     const row = stored.rows[0]!;
     expect(row.recordDays).toBe(0);
+    expect(JSON.stringify(row)).not.toContain("session=secret");
     expect(row.speechMinutes).toBe(0);
-    expect(toDomainTable(row, []).recordDays).toBe("0");
+    expect(toDomainTable(row, []).recordDays).toBe("0 дней");
     expect(toDomainTable(row, []).speechMinutes).toBe("—");
     const summary = toDomainSummary(row, null);
-    expect(summary.recordDays).toBe("0");
+    expect(summary.recordDays).toBe("0 дней");
     expect(summary.speechMinutes).toBe("—");
     expect(summary.numbers).toBeNull();
     expect(summary.billing).toBe("Платный");
@@ -176,6 +180,27 @@ describe("VATS row snapshot", () => {
     expect(formatSpeechMinutes(46)).toBe("46 минут");
     expect(formatSpeechMinutes(1012)).toBe(`1${gap}012 минут`);
     expect(formatSpeechMinutes(1052)).toBe(`1${gap}052 минуты`);
+  });
+
+  it("names a recording period and keeps an unlisted count", () => {
+    expect(formatRecordRetention(91)).toBe("3 месяца");
+    expect(formatRecordRetention(93)).toBe("3 месяца");
+    expect(formatRecordRetention(31)).toBe("1 месяц");
+    expect(formatRecordRetention(181)).toBe("6 месяцев");
+    expect(formatRecordRetention(14)).toBe("2 недели");
+    expect(formatRecordRetention(7300)).toBe("Неограниченно");
+    expect(formatRecordRetention(0)).toBe("0 дней");
+    expect(formatRecordRetention(1)).toBe("1 день");
+    expect(formatRecordRetention(2)).toBe("2 дня");
+    expect(formatRecordRetention(5)).toBe("5 дней");
+    expect(formatRecordRetention(11)).toBe("11 дней");
+    expect(formatRecordRetention(21)).toBe("3 недели");
+    expect(formatRecordRetention(41)).toBe("41 день");
+    expect(formatRecordRetention(22)).toBe("22 дня");
+    expect(formatRecordRetention(30)).toBe("30 дней");
+    expect(formatRecordRetention(null)).toBe("—");
+    expect(formatRecordRetention(1.5)).toBe("—");
+    expect(formatRecordRetention(-1)).toBe("—");
   });
 
   it("waits 120 seconds unless settings asked for a restart", () => {

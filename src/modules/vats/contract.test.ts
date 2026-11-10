@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { bossRequestTarget, domainPath, domainStatPath } from "@/modules/vats/allowlist";
+import {
+  bossRequestTarget,
+  domainPath,
+  domainSessionPath,
+  domainStatPath,
+} from "@/modules/vats/allowlist";
 import { domainCardView } from "@/modules/vats/card";
 import { domainPutBody } from "@/modules/vats/client";
 import {
@@ -78,14 +83,25 @@ describe("VATS allowlist", () => {
     expect(domainStatPath("domain.pbx.com")).toBe(
       "/sys/boss/v1/domains/domain.pbx.com/stat",
     );
+    expect(bossRequestTarget("GET", "/sys/boss/v1/domains/domain.pbx.com/session")).toBe(
+      "/sys/boss/v1/domains/domain.pbx.com/session",
+    );
+    expect(domainSessionPath("domain.pbx.com")).toBe(
+      "/sys/boss/v1/domains/domain.pbx.com/session",
+    );
   });
 
   it("refuses sessions, deletes, and nested writes", () => {
     expect(bossRequestTarget("DELETE", "/sys/boss/v1/domains/domain.pbx.com")).toBeNull();
     expect(bossRequestTarget("POST", "/sys/boss/v1/domains/domain.pbx.com")).toBeNull();
     expect(
-      bossRequestTarget("GET", "/sys/boss/v1/domains/domain.pbx.com/session"),
+      bossRequestTarget("PUT", "/sys/boss/v1/domains/domain.pbx.com/session"),
     ).toBeNull();
+    expect(
+      bossRequestTarget("GET", "/sys/boss/v1/domains/domain.pbx.com/users/a/session"),
+    ).toBeNull();
+    expect(bossRequestTarget("GET", "/sys/boss/v1/users/a/session")).toBeNull();
+    expect(domainSessionPath("a/b")).toBeNull();
     expect(
       bossRequestTarget("GET", "/sys/boss/v1/domains/domain.pbx.com/services"),
     ).toBeNull();
@@ -174,6 +190,7 @@ describe("VATS domain card", () => {
       client: "Acme",
       language: "ru-RU",
       accessURL: "https://domain.pbx.com/login",
+      link: "https://domain.pbx.com/api/login?session=secret",
       dialplan: "dp",
       route: "rt",
       services: ["autocaller"],
@@ -182,6 +199,7 @@ describe("VATS domain card", () => {
     });
     expect(view.client).toBe("Acme");
     expect(Object.keys(view)).not.toContain("accessURL");
+    expect(JSON.stringify(view)).not.toContain("session=secret");
     expect(Object.keys(view)).not.toContain("dialplan");
     expect(JSON.stringify(view)).not.toContain("login");
   });

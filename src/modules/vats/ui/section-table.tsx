@@ -169,7 +169,22 @@ export function VatsDomainTable({
                     className="cursor-pointer"
                     onClick={() => setOpened(row.name)}
                   >
-                    <TableCell>{row.name}</TableCell>
+                    <TableCell>
+                      {canWrite ? (
+                        <a
+                          href={`/api/vats/domains/${encodeURIComponent(row.name)}/cabinet`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="hover:underline"
+                          onClick={(event) => event.stopPropagation()}
+                          onAuxClick={(event) => event.stopPropagation()}
+                        >
+                          {row.name}
+                        </a>
+                      ) : (
+                        row.name
+                      )}
+                    </TableCell>
                     <TableCell>{row.client}</TableCell>
                     <TableCell>{row.numbers}</TableCell>
                     <TableCell>{row.subscribers}</TableCell>

@@ -74,6 +74,7 @@ const ACTION_LABELS: Record<string, string> = {
   "cdr.tariff.rate_start": "Старт пересчёта тарифов в журнале звонков",
   "cdr.tariff.rate_finish": "Завершение пересчёта тарифов в журнале звонков",
   "users.change": "Изменение пользователя",
+  "vats.domain_open": "Вход в кабинет домена",
 };
 
 export function formatAuditTimestamp(

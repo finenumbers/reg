@@ -22,7 +22,7 @@ function decodeSegment(value: string): string | null {
   }
 }
 
-/** Literal paths only. DELETE, POST, sessions, and nested writes are refused. */
+/** Literal paths only. DELETE, POST, user sessions, and nested writes are refused. */
 export function bossRequestTarget(method: string, path: string): string | null {
   if (method !== "GET" && method !== "PUT") return null;
   if (!path.startsWith("/sys/boss/v1/")) return null;
@@ -50,6 +50,13 @@ export function bossRequestTarget(method: string, path: string): string | null {
     return path;
   }
 
+  const session = /^\/sys\/boss\/v1\/domains\/([^/]+)\/session$/.exec(path);
+  if (session && method === "GET") {
+    const name = decodeSegment(session[1]);
+    if (!name || parseDomainName(name) !== name) return null;
+    return path;
+  }
+
   const telnum = /^\/sys\/boss\/v1\/telnums\/([^/]+)$/.exec(path);
   if (telnum && method === "GET") {
     const name = decodeSegment(telnum[1]);
@@ -72,6 +79,14 @@ export function domainStatPath(domain: string): string | null {
   const name = parseDomainName(domain);
   if (!name) return null;
   const path = `${BOSS_DOMAINS}/${encodeURIComponent(name)}/stat`;
+  return bossRequestTarget("GET", path) === path ? path : null;
+}
+
+/** Card path plus the literal `/session`. The suffix is not taken from a caller. */
+export function domainSessionPath(domain: string): string | null {
+  const name = parseDomainName(domain);
+  if (!name) return null;
+  const path = `${BOSS_DOMAINS}/${encodeURIComponent(name)}/session`;
   return bossRequestTarget("GET", path) === path ? path : null;
 }
 

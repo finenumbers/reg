@@ -1,6 +1,13 @@
 import { prisma } from "@/lib/db";
 import { logger } from "@/lib/logger";
+import { vatsCabinetRateLimiter } from "@/lib/rate-limit";
 import { AUDIT_ACTIONS, auditService } from "@/modules/audit/service";
+import {
+  cabinetAuditMeta,
+  runCabinetOpen,
+  type CabinetOpenInput,
+  type CabinetOpenResult,
+} from "@/modules/vats/cabinet";
 import {
   deserializeEncryptedSecret,
   getSecretEncryptionService,
@@ -16,6 +23,7 @@ import {
 import { VATS_PAGE_SIZE } from "@/modules/vats/cadence";
 import {
   getDomain,
+  getDomainSession,
   getDomains,
   getTelnum,
   parseNameList,
@@ -432,6 +440,26 @@ export function getDomainCard(domain: string): Promise<VatsCardResult<VatsDomain
     if (!raw) return platformError("Платформа вернула не карточку домена.");
     return { ok: true, card: domainCardView(domain, raw) };
   })();
+}
+
+/** One cabinet link for this click. A 401 here does not stop the walk. */
+export function openDomainCabinet(input: CabinetOpenInput): Promise<CabinetOpenResult> {
+  return runCabinetOpen(input, {
+    creds: loadCreds,
+    member: domainMember,
+    allow: (userId) => vatsCabinetRateLimiter.check(userId).allowed,
+    read: (auth, domain) => withBossLock(() => getDomainSession(auth, domain)),
+    audit: async (domain, actor) => {
+      await auditService.append({
+        action: AUDIT_ACTIONS.VATS_DOMAIN_OPEN,
+        entityType: "vats_domain",
+        entityId: domain,
+        actorUserId: actor.userId,
+        ip: actor.ip,
+        meta: cabinetAuditMeta(domain),
+      });
+    },
+  });
 }
 
 export function getTelnumCard(telnum: string): Promise<VatsCardResult<VatsTelnumCard>> {

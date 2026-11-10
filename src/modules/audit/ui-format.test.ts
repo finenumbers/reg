@@ -32,9 +32,7 @@ describe("audit sanitize", () => {
     });
     expect(out?.host).toBe("softswitch.example");
     expect(out?.password).toBe("[REDACTED]");
-    expect((out?.nested as Record<string, unknown>).privateKey).toBe(
-      "[REDACTED]",
-    );
+    expect((out?.nested as Record<string, unknown>).privateKey).toBe("[REDACTED]");
     expect((out?.nested as Record<string, unknown>).ok).toBe(1);
     expect(out?.userPassword).toBe("[REDACTED]");
     expect(out?.accessToken).toBe("[REDACTED]");
@@ -44,11 +42,12 @@ describe("audit sanitize", () => {
 describe("audit ui-format", () => {
   it("formats action labels and actor/target", () => {
     expect(formatAuditAction("settings.update")).toBe("Изменение настроек");
+    expect(formatAuditAction("vats.domain_open")).toBe("Вход в кабинет домена");
     expect(formatAuditAction("custom.event")).toBe("custom.event");
     expect(formatAuditActor(sample())).toBe("admin");
-    expect(
-      formatAuditActor(sample({ actorUsername: null, actorUserId: null })),
-    ).toBe("система / аноним");
+    expect(formatAuditActor(sample({ actorUsername: null, actorUserId: null }))).toBe(
+      "система / аноним",
+    );
     expect(formatAuditTarget(sample())).toBe("app_settings:1");
   });
 

@@ -95,3 +95,6 @@ export const storageVacuumRateLimiter = new SlidingWindowRateLimiter(3, 60 * 100
 
 /** RTU SOAP access check per user: 5 / 10 minutes. One process, one in-flight check. */
 export const rtuSoapTestRateLimiter = new SlidingWindowRateLimiter(5, 10 * 60 * 1000);
+
+/** Domain cabinet opens per administrator: 20 / minute. One process. */
+export const vatsCabinetRateLimiter = new SlidingWindowRateLimiter(20, 60 * 1000);

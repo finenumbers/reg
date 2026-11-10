@@ -2,6 +2,7 @@ import { createServer } from "node:http";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   getDomain,
+  getDomainSession,
   getDomainStat,
   getDomains,
   putDomainField,
@@ -170,6 +171,43 @@ describe("VATS Boss client", () => {
       },
     });
     expect(refused.ok).toBe(false);
+  });
+
+  it("reads a domain session once and does not retry a failure", async () => {
+    const token = "session-token-a+b%2Fc";
+    let calls = 0;
+    const port = await listen((req, res) => {
+      calls += 1;
+      expect(req.method).toBe("GET");
+      expect(req.url).toBe("/sys/boss/v1/domains/domain.pbx.com/session");
+      res.writeHead(500);
+      res.end(`${token} ${password}`);
+    });
+    const { deps, seen } = forward(port);
+    const logs: string[] = [];
+    const write = console.error;
+    console.error = (...args: unknown[]) => {
+      logs.push(args.map(String).join(" "));
+    };
+    try {
+      const result = await getDomainSession(auth, "domain.pbx.com", deps);
+      expect(result.ok).toBe(false);
+      expect(calls).toBe(1);
+      expect(seen).toEqual([
+        "https://platform.example/sys/boss/v1/domains/domain.pbx.com/session",
+      ]);
+      expect(JSON.stringify(result)).not.toContain(token);
+      expect(JSON.stringify(result)).not.toContain(password);
+      expect(logs.join("\n")).not.toContain(token);
+      const refused = await getDomainSession(auth, "a/b", {
+        fetchImpl: () => {
+          throw new Error("called");
+        },
+      });
+      expect(refused.ok).toBe(false);
+    } finally {
+      console.error = write;
+    }
   });
 
   it("does not call the platform for a domain path it refuses", async () => {

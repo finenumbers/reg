@@ -168,6 +168,7 @@ function domainCard(name: string, dialplan: string) {
     dialplan,
     services: ["autocaller"],
     accessURL: "https://secret.example/login",
+    link: "https://domain.pbx.com/api/login?session=secret",
     route: "rt",
   };
 }
@@ -180,6 +181,7 @@ function statBody(days = 30, minutes = 12) {
     telnumsCount: 50,
     services: ["autocaller"],
     accessURL: "https://secret.example/login",
+    link: "https://domain.pbx.com/api/login?session=secret",
     route: "rt",
   };
 }
@@ -242,6 +244,7 @@ describe("VATS cycle", () => {
       "/sys/boss/v1/telnums/10",
       "/sys/boss/v1/telnums/9",
     ]);
+    expect(seen.join("\n")).not.toContain("/session");
     expect(state.domains.map((row) => row.name)).toEqual(["a.example", "b.example"]);
     expect(state.domains[0]).toMatchObject({
       client: "Альфа",
@@ -263,6 +266,8 @@ describe("VATS cycle", () => {
     expect(packed).not.toContain("activeCRM");
     expect(packed).not.toContain("telnumsCount");
     expect(packed).not.toContain("accessURL");
+    expect(packed).not.toContain("session=secret");
+    expect(packed).not.toContain("/session");
     expect(packed).not.toContain("autocaller");
     expect(state.telnums.map((row) => row.telnum)).toEqual(["9", "10"]);
     expect(state.telnums[0]?.gateways).toEqual(["Север", "Север"]);
