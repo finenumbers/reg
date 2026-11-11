@@ -11,6 +11,7 @@ import {
 import {
   formatZabbixNumber,
   formatZabbixValue,
+  ZABBIX_GRAPH2_MARK,
   zabbixPlotY,
   zabbixScale,
   zabbixTickTop,
@@ -18,6 +19,7 @@ import {
 import type { ZabbixDashboardBody, ZabbixGraphView, ZabbixLineView } from "@/modules/zabbix/types";
 
 const POLL_MS = 60_000;
+const MARK_LABEL_GAP = 6;
 
 export function ZabbixCharts() {
   const [body, setBody] = useState<ZabbixDashboardBody | null>(null);
@@ -98,7 +100,9 @@ function ZabbixGraph({ graph, origin }: { graph: ZabbixGraphView; origin: Date }
     graph.lines?.filter((line) => line.minutes.length === TWO_HOUR_MINUTES) ?? null;
   const drawn = lines && lines.length > 0 ? lines : null;
   const values = drawn ? drawn.flatMap((line) => line.minutes) : [];
-  const scale = zabbixScale(values);
+  const mark = graph.slot === 2 ? ZABBIX_GRAPH2_MARK : null;
+  const scale = zabbixScale(values, mark ?? undefined);
+  const markTop = mark != null ? zabbixTickTop(mark, scale) : null;
   const caption = drawn
     ? hoverCaption(origin, drawn, hover) ?? graph.host
     : graph.host;
@@ -114,15 +118,27 @@ function ZabbixGraph({ graph, origin }: { graph: ZabbixGraphView; origin: Date }
         <div className="flex flex-col gap-2">
           <div className="flex">
             <div className="relative h-36 w-16 shrink-0">
-              {scale.ticks.map((tick, index) => (
+              {scale.ticks.map((tick, index) => {
+                const top = zabbixTickTop(tick, scale);
+                if (markTop != null && Math.abs(top - markTop) < MARK_LABEL_GAP) return null;
+                return (
+                  <span
+                    key={`${index}-${tick}`}
+                    className="text-muted-foreground absolute right-1 -translate-y-1/2 text-[10px] tabular-nums"
+                    style={{ top: `${top}%` }}
+                  >
+                    {formatZabbixNumber(tick)}
+                  </span>
+                );
+              })}
+              {mark != null && markTop != null ? (
                 <span
-                  key={`${index}-${tick}`}
-                  className="text-muted-foreground absolute right-1 -translate-y-1/2 text-[10px] tabular-nums"
-                  style={{ top: `${zabbixTickTop(tick, scale)}%` }}
+                  className="absolute right-1 -translate-y-1/2 text-[10px] tabular-nums text-red-600 dark:text-red-400"
+                  style={{ top: `${markTop}%` }}
                 >
-                  {formatZabbixNumber(tick)}
+                  {formatZabbixNumber(mark)}
                 </span>
-              ))}
+              ) : null}
             </div>
             <div className="min-w-0 flex-1">
               <ZabbixPlot
@@ -132,6 +148,7 @@ function ZabbixGraph({ graph, origin }: { graph: ZabbixGraphView; origin: Date }
                 onHover={setHover}
                 label={caption}
                 zero={scale.min < 0 && scale.max > 0}
+                mark={mark}
               />
               <div className="relative h-4">
                 {chartTimeIndexes(TWO_HOUR_MINUTES).map((index) => (
@@ -200,6 +217,7 @@ function ZabbixPlot({
   onHover,
   label,
   zero,
+  mark,
 }: {
   lines: readonly ZabbixLineView[];
   scale: ReturnType<typeof zabbixScale>;
@@ -207,6 +225,7 @@ function ZabbixPlot({
   onHover: (minute: number | null) => void;
   label: string;
   zero: boolean;
+  mark: number | null;
 }) {
   const span = TWO_HOUR_MINUTES;
   const move = (event: PointerEvent<SVGSVGElement>) => {
@@ -271,6 +290,18 @@ function ZabbixPlot({
           />
         )),
       )}
+      {mark != null ? (
+        <line
+          x1={0}
+          x2={span}
+          y1={zabbixPlotY(mark, scale)}
+          y2={zabbixPlotY(mark, scale)}
+          className="text-red-600 dark:text-red-400"
+          stroke="currentColor"
+          strokeWidth={1.5}
+          vectorEffect="non-scaling-stroke"
+        />
+      ) : null}
       {hover != null ? (
         <line
           x1={hover + 0.5}

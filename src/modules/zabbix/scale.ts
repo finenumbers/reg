@@ -30,12 +30,20 @@ function ticksBetween(min: number, max: number): number[] {
   return [4, 3, 2, 1, 0].map((part) => min + part * step);
 }
 
+/** Reference level on the second home Zabbix graph. The axis prints it as 50M. */
+export const ZABBIX_GRAPH2_MARK = 50_000_000;
+
 /**
  * Non-negative series start at zero. A negative sample keeps its sign.
  * The call-chart ceiling truncates to a whole number and is not used here.
+ * `level` raises the scale only. It is not a sample on a line.
  */
-export function zabbixScale(values: readonly (number | null)[]): ZabbixScale {
+export function zabbixScale(
+  values: readonly (number | null)[],
+  level?: number,
+): ZabbixScale {
   const finite = values.filter((value): value is number => value != null && Number.isFinite(value));
+  if (level != null && Number.isFinite(level)) finite.push(level);
   if (finite.length === 0) return { min: 0, max: 0, ticks: [0] };
   let low = finite[0] ?? 0;
   let high = low;

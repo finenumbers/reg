@@ -1,7 +1,13 @@
-# Current Phase — production (v1.257.0)
+# Current Phase — production (v1.258.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-11
+
+## v1.258.0 — A 50M line on the second Zabbix graph
+
+There is no migration. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. Keep a single `app` replica. Stop the old app before the new one starts, then recreate only the `app` container. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged.
+
+The second Zabbix graph on «Телефонный трафик» draws a red horizontal line at 50M. The scale stays at least that high, so the line does not stick to the top when traffic is lower. The first Zabbix graph is unchanged. Nothing is sent to Zabbix.
 
 ## v1.257.0 — Leave the newest phone minutes unshaded
 
