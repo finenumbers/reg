@@ -4,8 +4,10 @@ import {
   buildAnswerLines,
   buildDelayLines,
   envelopeMinutes,
+  gapRuns,
   lineSegments,
   linesPeak,
+  missingMinutes,
   widenedSetupBounds,
   zoneCacheKey,
 } from "@/modules/dashboard/antifraud-series";
@@ -59,6 +61,35 @@ describe("lineSegments", () => {
       { from: 2, to: 4 },
     ]);
     expect(lineSegments([null, null])).toEqual([]);
+  });
+});
+
+describe("chart gaps", () => {
+  it("joins a hole and keeps both ends", () => {
+    expect(gapRuns([false, true, true, false, true])).toEqual([
+      { from: 1, to: 3 },
+      { from: 4, to: 5 },
+    ]);
+    expect(gapRuns([true, true, true])).toEqual([{ from: 0, to: 3 }]);
+    expect(gapRuns([false, false])).toEqual([]);
+    expect(gapRuns([])).toEqual([]);
+  });
+
+  it("paints a minute only when every line is empty", () => {
+    expect(
+      missingMinutes([{ minutes: [1, null, 0] }, { minutes: [null, null, null] }], 3),
+    ).toEqual([false, true, false]);
+    expect(missingMinutes([{ minutes: [1] }, { minutes: [null, 2] }], 2)).toEqual([
+      false,
+      false,
+    ]);
+    expect(missingMinutes([{ minutes: [1] }], 2)).toEqual([false, true]);
+  });
+
+  it("leaves a measured zero and an empty line list unpainted", () => {
+    expect(missingMinutes([], 4)).toEqual([false, false, false, false]);
+    expect(missingMinutes([{ minutes: [0, 0] }], 2)).toEqual([false, false]);
+    expect(missingMinutes([{ minutes: [null] }], Number.NaN)).toEqual([]);
   });
 });
 

@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, type PointerEvent } from "react";
-import { lineSegments } from "@/modules/dashboard/antifraud-series";
+import { lineSegments, missingMinutes } from "@/modules/dashboard/antifraud-series";
+import { ChartGapBands } from "@/modules/dashboard/ui/gap-bands";
 import {
   chartTimeIndexes,
   formatUtcMinute,
@@ -244,6 +245,7 @@ function ZabbixPlot({
           vectorEffect="non-scaling-stroke"
         />
       ))}
+      <ChartGapBands missing={missingMinutes(lines, TWO_HOUR_MINUTES)} />
       {zero ? (
         <line
           x1={0}

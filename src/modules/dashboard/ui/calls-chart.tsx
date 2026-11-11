@@ -2,7 +2,8 @@
 
 import { useEffect, useState, type CSSProperties, type PointerEvent } from "react";
 import { formatCount } from "@/lib/format-count";
-import { lineSegments } from "@/modules/dashboard/antifraud-series";
+import { lineSegments, missingMinutes } from "@/modules/dashboard/antifraud-series";
+import { ChartGapBands } from "@/modules/dashboard/ui/gap-bands";
 import {
   AXIS_BASELINE,
   AXIS_TOP,
@@ -609,6 +610,7 @@ function MultiPlot({
           />
         );
       })}
+      <ChartGapBands missing={missingMinutes(lines, length)} />
       {windowMarks.map((mark) => (
         <line
           key={mark}

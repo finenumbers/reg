@@ -88,6 +88,38 @@ export function lineSegments(
   return segments;
 }
 
+/**
+ * Minutes already inside the series where every line has no value.
+ * An empty line list is a measured zero, not a hole. An index past `count`
+ * is outside the series and is not returned.
+ */
+export function missingMinutes(
+  lines: readonly { minutes: readonly (number | null)[] }[],
+  count: number,
+): boolean[] {
+  if (!Number.isFinite(count)) return [];
+  const length = Math.max(0, Math.trunc(count));
+  if (lines.length === 0) return new Array<boolean>(length).fill(false);
+  return Array.from({ length }, (_, index) =>
+    lines.every((line) => line.minutes[index] == null),
+  );
+}
+
+/** Contiguous holes. Each run is `[from, to)`. */
+export function gapRuns(missing: readonly boolean[]): Array<{ from: number; to: number }> {
+  const runs: Array<{ from: number; to: number }> = [];
+  let from: number | null = null;
+  for (let index = 0; index <= missing.length; index += 1) {
+    if (index < missing.length && missing[index]) {
+      if (from == null) from = index;
+    } else if (from != null) {
+      runs.push({ from, to: index });
+      from = null;
+    }
+  }
+  return runs;
+}
+
 export function buildAnswerLines(
   minuteCount: number,
   rows: readonly { category: string; minute: number; count: number }[],

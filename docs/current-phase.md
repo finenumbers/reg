@@ -1,7 +1,13 @@
-# Current Phase — production (v1.254.0)
+# Current Phase — production (v1.255.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-11
+
+## v1.255.0 — Red gaps on the home charts
+
+There is no migration. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. Keep a single `app` replica. Stop the old app before the new one starts, then recreate only the `app` container. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged.
+
+A home chart paints a minute red only when that minute is already in the series and every line has no value. A zero stays a value. Minutes that have not started, including the rest of the UTC day, stay unshaded. Phone concurrency and error counts have a number in every minute of the series, so those charts gain no red band. Antifraud delay and Zabbix shade a minute only when all of their drawn lines are empty there.
 
 ## v1.254.0 — Dashboard headings for the two Zabbix graphs
 
