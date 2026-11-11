@@ -91,6 +91,18 @@ describe("chart gaps", () => {
     expect(missingMinutes([{ minutes: [0, 0] }], 2)).toEqual([false, false]);
     expect(missingMinutes([{ minutes: [null] }], Number.NaN)).toEqual([]);
   });
+
+  it("paints a zero on the phone charts and keeps a neighbour that has traffic", () => {
+    expect(missingMinutes([{ minutes: [0, 3, 0] }], 3, true)).toEqual([
+      true,
+      false,
+      true,
+    ]);
+    expect(
+      missingMinutes([{ minutes: [0, 5] }, { minutes: [0, 0] }], 2, true),
+    ).toEqual([true, false]);
+    expect(missingMinutes([{ minutes: [null, 0] }], 2, true)).toEqual([true, true]);
+  });
 });
 
 describe("answer and delay lines", () => {

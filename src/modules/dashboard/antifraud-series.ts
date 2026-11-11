@@ -90,18 +90,23 @@ export function lineSegments(
 
 /**
  * Minutes already inside the series where every line has no value.
- * An empty line list is a measured zero, not a hole. An index past `count`
- * is outside the series and is not returned.
+ * An empty line list is not a hole. An index past `count` is outside the
+ * series and is not returned. `zeroIsGap` counts a measured zero as empty;
+ * the phone-traffic charts use it, and the other charts keep zero as a value.
  */
 export function missingMinutes(
   lines: readonly { minutes: readonly (number | null)[] }[],
   count: number,
+  zeroIsGap = false,
 ): boolean[] {
   if (!Number.isFinite(count)) return [];
   const length = Math.max(0, Math.trunc(count));
   if (lines.length === 0) return new Array<boolean>(length).fill(false);
   return Array.from({ length }, (_, index) =>
-    lines.every((line) => line.minutes[index] == null),
+    lines.every((line) => {
+      const value = line.minutes[index];
+      return value == null || (zeroIsGap && value === 0);
+    }),
   );
 }
 

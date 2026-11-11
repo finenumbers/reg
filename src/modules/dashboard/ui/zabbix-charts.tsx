@@ -245,7 +245,7 @@ function ZabbixPlot({
           vectorEffect="non-scaling-stroke"
         />
       ))}
-      <ChartGapBands missing={missingMinutes(lines, TWO_HOUR_MINUTES)} />
+      <ChartGapBands missing={missingMinutes(lines, TWO_HOUR_MINUTES, true)} />
       {zero ? (
         <line
           x1={0}

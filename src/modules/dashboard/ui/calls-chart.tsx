@@ -288,6 +288,7 @@ function ConcurrencyChart({
                   span={span}
                   provisionalFrom={provisionalFrom}
                   events={events}
+                  shadeZero={series === "phone"}
                   hover={hover}
                   onHover={setHover}
                   label={
@@ -345,6 +346,7 @@ function CallsPlot({
   span,
   provisionalFrom,
   events,
+  shadeZero,
   hover,
   onHover,
   label,
@@ -355,6 +357,7 @@ function CallsPlot({
   span: number;
   provisionalFrom: number;
   events: boolean;
+  shadeZero: boolean;
   hover: number | null;
   onHover: (minute: number | null) => void;
   label: string;
@@ -405,6 +408,11 @@ function CallsPlot({
           />
         );
       })}
+      {shadeZero ? (
+        <ChartGapBands
+          missing={missingMinutes([{ minutes }], minutes.length, true)}
+        />
+      ) : null}
       {windowMarks.map((mark) => (
         <line
           key={mark}
