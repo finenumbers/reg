@@ -54,6 +54,8 @@ Optional publish ports: `APP_PUBLISH_PORT`, `POSTGRES_PUBLISH_PORT`.
 
 ## 3. Database
 
+v1.257.0 does not migrate and does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before the new one starts, then recreate only the `app` container. Refresh the browser. On «Телефонный трафик» the last two minutes of the day chart and of the two-hour chart stay unshaded, because a CDR file can still arrive. Older zero minutes stay red. Zabbix graphs are unchanged. Nothing is written to the switch. RTU activation is unchanged.
+
 v1.256.0 does not migrate and does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before the new one starts, then recreate only the `app` container. Refresh the browser. On «Телефонный трафик» a zero minute already in the series is shaded red on all four charts. A positive value and the rest of the UTC day stay unshaded. Other traffic views still keep zero as a value. Nothing is written to the switch. RTU activation is unchanged.
 
 v1.255.0 does not migrate and does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before the new one starts, then recreate only the `app` container. Refresh the browser. A home chart shades a minute red only when that minute is already in the series and every line has no value. A zero stays a value. The rest of the UTC day stays unshaded. Nothing is written to the switch. RTU activation is unchanged.

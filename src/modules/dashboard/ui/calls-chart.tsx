@@ -161,6 +161,7 @@ export function CallsChart({
   const recentLines =
     ready && Array.isArray(ready.recent.lines) ? ready.recent.lines : null;
   const note = ready?.note ?? null;
+  const phoneOpenTail = series === "phone" ? 2 : 0;
 
   return (
     <div className="flex flex-col gap-6">
@@ -194,6 +195,7 @@ export function CallsChart({
         note={note}
         countLabel={countLabel}
         message={dayOrigin || !ready ? message : UNAVAILABLE}
+        openTail={phoneOpenTail}
       />
       <ConcurrencyChart
         title={twoHourTitle(series)}
@@ -215,6 +217,7 @@ export function CallsChart({
         note={note}
         countLabel={countLabel}
         message={recent || !ready ? message : UNAVAILABLE}
+        openTail={phoneOpenTail}
       />
     </div>
   );
@@ -235,6 +238,7 @@ function ConcurrencyChart({
   note,
   countLabel,
   message,
+  openTail,
 }: {
   title: string;
   minutes: number[] | null;
@@ -250,6 +254,7 @@ function ConcurrencyChart({
   note: string | null;
   countLabel: (count: number) => string;
   message: string;
+  openTail: number;
 }) {
   const [hover, setHover] = useState<number | null>(null);
   const caption =
@@ -289,6 +294,7 @@ function ConcurrencyChart({
                   provisionalFrom={provisionalFrom}
                   events={events}
                   shadeZero={series === "phone"}
+                  openTail={openTail}
                   hover={hover}
                   onHover={setHover}
                   label={
@@ -347,6 +353,7 @@ function CallsPlot({
   provisionalFrom,
   events,
   shadeZero,
+  openTail,
   hover,
   onHover,
   label,
@@ -358,6 +365,7 @@ function CallsPlot({
   provisionalFrom: number;
   events: boolean;
   shadeZero: boolean;
+  openTail: number;
   hover: number | null;
   onHover: (minute: number | null) => void;
   label: string;
@@ -410,7 +418,7 @@ function CallsPlot({
       })}
       {shadeZero ? (
         <ChartGapBands
-          missing={missingMinutes([{ minutes }], minutes.length, true)}
+          missing={missingMinutes([{ minutes }], minutes.length, true, openTail)}
         />
       ) : null}
       {windowMarks.map((mark) => (

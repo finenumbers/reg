@@ -103,6 +103,22 @@ describe("chart gaps", () => {
     ).toEqual([true, false]);
     expect(missingMinutes([{ minutes: [null, 0] }], 2, true)).toEqual([true, true]);
   });
+
+  it("leaves the last open minutes unpainted while a CDR file can still arrive", () => {
+    expect(missingMinutes([{ minutes: [0, 0, 0, 5] }], 4, true, 2)).toEqual([
+      true,
+      true,
+      false,
+      false,
+    ]);
+    expect(missingMinutes([{ minutes: [0, 0] }], 2, true, 0)).toEqual([true, true]);
+    expect(missingMinutes([{ minutes: [0] }], 1, true, 2)).toEqual([false]);
+    expect(missingMinutes([{ minutes: [0, 0] }], 2, true, Number.NaN)).toEqual([
+      true,
+      true,
+    ]);
+    expect(missingMinutes([{ minutes: [0, 0] }], 2, true, -2)).toEqual([true, true]);
+  });
 });
 
 describe("answer and delay lines", () => {

@@ -93,21 +93,29 @@ export function lineSegments(
  * An empty line list is not a hole. An index past `count` is outside the
  * series and is not returned. `zeroIsGap` counts a measured zero as empty;
  * the phone-traffic charts use it, and the other charts keep zero as a value.
+ * `openTail` clears that many minutes at the end of the series. A late CDR
+ * file can still fill them, so a zero there is not painted.
  */
 export function missingMinutes(
   lines: readonly { minutes: readonly (number | null)[] }[],
   count: number,
   zeroIsGap = false,
+  openTail = 0,
 ): boolean[] {
   if (!Number.isFinite(count)) return [];
   const length = Math.max(0, Math.trunc(count));
   if (lines.length === 0) return new Array<boolean>(length).fill(false);
-  return Array.from({ length }, (_, index) =>
+  const missing = Array.from({ length }, (_, index) =>
     lines.every((line) => {
       const value = line.minutes[index];
       return value == null || (zeroIsGap && value === 0);
     }),
   );
+  const tail = Number.isFinite(openTail) ? Math.max(0, Math.trunc(openTail)) : 0;
+  for (let index = Math.max(0, length - tail); index < length; index += 1) {
+    missing[index] = false;
+  }
+  return missing;
 }
 
 /** Contiguous holes. Each run is `[from, to)`. */
