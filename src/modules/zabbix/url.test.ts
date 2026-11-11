@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { parseZabbixApiUrl } from "@/modules/zabbix/url";
 import { zabbixAuthKind, zabbixSessionToken } from "@/modules/zabbix/version";
 import { zabbixHeaders, zabbixRpcBody } from "@/modules/zabbix/transport";
+import { zabbixGraphHeading } from "@/modules/zabbix/types";
 
 describe("Zabbix API URL", () => {
   it("appends api_jsonrpc.php and keeps an address that already has it", () => {
@@ -63,5 +64,17 @@ describe("Zabbix session auth", () => {
     );
     expect(host.auth).toBe(token);
     expect(host.params.password).toBeUndefined();
+  });
+});
+
+describe("Zabbix dashboard heading", () => {
+  it("uses the saved title and otherwise the Zabbix graph name", () => {
+    expect(zabbixGraphHeading("  Канал MTS  ", "Interface MTS (): Network traffic")).toBe(
+      "Канал MTS",
+    );
+    expect(zabbixGraphHeading("   ", "Interface MTS (): Network traffic")).toBe(
+      "Interface MTS (): Network traffic",
+    );
+    expect(zabbixGraphHeading(null, "SIP")).toBe("SIP");
   });
 });

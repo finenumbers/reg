@@ -1,7 +1,13 @@
-# Current Phase — production (v1.253.0)
+# Current Phase — production (v1.254.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-11
+
+## v1.254.0 — Dashboard headings for the two Zabbix graphs
+
+The migrator adds `zabbixGraph1Title` and `zabbixGraph2Title` on `app_settings`. It does not rewrite phone, tariff, CDR, or PSTN rows. Do not stop `smg-syslog`. Keep a single `app` replica. Replace the `app` container after migrate. Refresh the browser. There is no new environment variable.
+
+«Настройки» can give each Zabbix graph a heading for the home page. The host and the Zabbix graph name still select the graph. An empty heading keeps that Zabbix name on the chart. The heading is not sent to Zabbix. Nothing is written to the switch. RTU activation is unchanged.
 
 ## v1.253.0 — Zabbix graphs and a plain VATS number table
 

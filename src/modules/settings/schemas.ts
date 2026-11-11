@@ -150,8 +150,10 @@ export const settingsUpdateSchema = z.object({
   zabbixUser: z.string().max(128).optional(),
   zabbixGraph1Host: z.string().max(128).optional(),
   zabbixGraph1Name: z.string().max(128).optional(),
+  zabbixGraph1Title: z.string().max(128).optional(),
   zabbixGraph2Host: z.string().max(128).optional(),
   zabbixGraph2Name: z.string().max(128).optional(),
+  zabbixGraph2Title: z.string().max(128).optional(),
 }).superRefine((value, ctx) => {
   zabbixSlotPair(value.zabbixGraph1Host, value.zabbixGraph1Name, "1", ctx);
   zabbixSlotPair(value.zabbixGraph2Host, value.zabbixGraph2Name, "2", ctx);
@@ -272,8 +274,10 @@ export type SettingsView = {
   hasZabbixPassword: boolean;
   zabbixGraph1Host: string | null;
   zabbixGraph1Name: string | null;
+  zabbixGraph1Title: string | null;
   zabbixGraph2Host: string | null;
   zabbixGraph2Name: string | null;
+  zabbixGraph2Title: string | null;
 };
 
 export type SettingsUpdateResult = {

@@ -58,6 +58,8 @@ export type ZabbixSlotRequest = {
   slot: 1 | 2;
   host: string;
   name: string;
+  /** Dashboard heading. Empty keeps the Zabbix graph name. */
+  title?: string;
 };
 
 export type ZabbixLineRead = {

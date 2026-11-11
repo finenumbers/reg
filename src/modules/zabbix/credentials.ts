@@ -18,12 +18,13 @@ export type ZabbixRuntime = {
 function slot(
   host: string | null | undefined,
   name: string | null | undefined,
+  title: string | null | undefined,
   index: 1 | 2,
 ): ZabbixSlotRequest | null {
   const hostText = host?.trim() ?? "";
   const nameText = name?.trim() ?? "";
   if (!hostText || !nameText) return null;
-  return { slot: index, host: hostText, name: nameText };
+  return { slot: index, host: hostText, name: nameText, title: title?.trim() ?? "" };
 }
 
 export async function loadZabbixRuntime(): Promise<ZabbixRuntime> {
@@ -43,8 +44,8 @@ export async function loadZabbixRuntime(): Promise<ZabbixRuntime> {
     }
   }
   const slots = [
-    slot(settings?.zabbixGraph1Host, settings?.zabbixGraph1Name, 1),
-    slot(settings?.zabbixGraph2Host, settings?.zabbixGraph2Name, 2),
+    slot(settings?.zabbixGraph1Host, settings?.zabbixGraph1Name, settings?.zabbixGraph1Title, 1),
+    slot(settings?.zabbixGraph2Host, settings?.zabbixGraph2Name, settings?.zabbixGraph2Title, 2),
   ].filter((item): item is ZabbixSlotRequest => item != null);
   return { url, user, password, broken, slots };
 }

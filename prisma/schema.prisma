@@ -174,8 +174,12 @@ model AppSetting {
   zabbixPasswordCiphertext        String?
   zabbixGraph1Host                String?
   zabbixGraph1Name                String?
+  /// Heading on the home page. Empty keeps the Zabbix graph name.
+  zabbixGraph1Title               String?
   zabbixGraph2Host                String?
   zabbixGraph2Name                String?
+  /// Heading on the home page. Empty keeps the Zabbix graph name.
+  zabbixGraph2Title               String?
   updatedAt             DateTime    @updatedAt
 
   @@map("app_settings")

@@ -146,11 +146,17 @@ export function SettingsForm({ initial, parkingKey }: Props) {
   const [zabbixGraph1Name, setZabbixGraph1Name] = useState(
     initial.zabbixGraph1Name ?? "",
   );
+  const [zabbixGraph1Title, setZabbixGraph1Title] = useState(
+    initial.zabbixGraph1Title ?? "",
+  );
   const [zabbixGraph2Host, setZabbixGraph2Host] = useState(
     initial.zabbixGraph2Host ?? "",
   );
   const [zabbixGraph2Name, setZabbixGraph2Name] = useState(
     initial.zabbixGraph2Name ?? "",
+  );
+  const [zabbixGraph2Title, setZabbixGraph2Title] = useState(
+    initial.zabbixGraph2Title ?? "",
   );
   const [zabbixTestResult, setZabbixTestResult] = useState<TestResultView | null>(
     null,
@@ -240,8 +246,10 @@ export function SettingsForm({ initial, parkingKey }: Props) {
     setZabbixUser(next.zabbixUser ?? "");
     setZabbixGraph1Host(next.zabbixGraph1Host ?? "");
     setZabbixGraph1Name(next.zabbixGraph1Name ?? "");
+    setZabbixGraph1Title(next.zabbixGraph1Title ?? "");
     setZabbixGraph2Host(next.zabbixGraph2Host ?? "");
     setZabbixGraph2Name(next.zabbixGraph2Name ?? "");
+    setZabbixGraph2Title(next.zabbixGraph2Title ?? "");
     setRtuSoapBaseUrl(next.rtuSoapBaseUrl ?? "");
     setRtuSoapLogin(next.rtuSoapLogin ?? "");
     setDisplayTimezone(next.displayTimezone);
@@ -811,8 +819,10 @@ export function SettingsForm({ initial, parkingKey }: Props) {
             zabbixUser: zabbixUser.trim(),
             zabbixGraph1Host: zabbixGraph1Host.trim(),
             zabbixGraph1Name: zabbixGraph1Name.trim(),
+            zabbixGraph1Title: zabbixGraph1Title.trim(),
             zabbixGraph2Host: zabbixGraph2Host.trim(),
             zabbixGraph2Name: zabbixGraph2Name.trim(),
+            zabbixGraph2Title: zabbixGraph2Title.trim(),
           }),
         });
         const data = await res.json();
@@ -1983,8 +1993,10 @@ export function SettingsForm({ initial, parkingKey }: Props) {
         <h2 className="text-base font-semibold">Zabbix</h2>
         <p className="text-sm text-muted-foreground">
           Два графика на главной, под графиками телефонного трафика, за последние
-          два часа. Пароль хранится зашифрованным и в UI не показывается. Адрес
-          только https, Zabbix 6.0 или новее, учётная запись без MFA.
+          два часа. Имя в Zabbix — синяя строка из списка графиков. Название на
+          главной можно задать отдельно. Пароль хранится зашифрованным и в UI не
+          показывается. Адрес только https, Zabbix 6.0 или новее, учётная запись
+          без MFA.
         </p>
         <div className="grid gap-4">
           <div className="space-y-2">
@@ -2032,11 +2044,21 @@ export function SettingsForm({ initial, parkingKey }: Props) {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="zabbix-graph1-name">График 1, название</Label>
+              <Label htmlFor="zabbix-graph1-name">График 1, имя в Zabbix</Label>
               <Input
                 id="zabbix-graph1-name"
                 value={zabbixGraph1Name}
                 onChange={(e) => setZabbixGraph1Name(e.target.value)}
+                autoComplete="off"
+              />
+            </div>
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="zabbix-graph1-title">График 1, название на главной</Label>
+              <Input
+                id="zabbix-graph1-title"
+                value={zabbixGraph1Title}
+                onChange={(e) => setZabbixGraph1Title(e.target.value)}
+                placeholder="Если пусто, на главной будет имя из Zabbix"
                 autoComplete="off"
               />
             </div>
@@ -2050,11 +2072,21 @@ export function SettingsForm({ initial, parkingKey }: Props) {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="zabbix-graph2-name">График 2, название</Label>
+              <Label htmlFor="zabbix-graph2-name">График 2, имя в Zabbix</Label>
               <Input
                 id="zabbix-graph2-name"
                 value={zabbixGraph2Name}
                 onChange={(e) => setZabbixGraph2Name(e.target.value)}
+                autoComplete="off"
+              />
+            </div>
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="zabbix-graph2-title">График 2, название на главной</Label>
+              <Input
+                id="zabbix-graph2-title"
+                value={zabbixGraph2Title}
+                onChange={(e) => setZabbixGraph2Title(e.target.value)}
+                placeholder="Если пусто, на главной будет имя из Zabbix"
                 autoComplete="off"
               />
             </div>

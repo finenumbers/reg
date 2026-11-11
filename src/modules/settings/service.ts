@@ -132,8 +132,10 @@ function toSettingsView(
     hasZabbixPassword: Boolean(settings.zabbixPasswordCiphertext),
     zabbixGraph1Host: settings.zabbixGraph1Host ?? null,
     zabbixGraph1Name: settings.zabbixGraph1Name ?? null,
+    zabbixGraph1Title: settings.zabbixGraph1Title ?? null,
     zabbixGraph2Host: settings.zabbixGraph2Host ?? null,
     zabbixGraph2Name: settings.zabbixGraph2Name ?? null,
+    zabbixGraph2Title: settings.zabbixGraph2Title ?? null,
   };
 }
 
@@ -251,8 +253,10 @@ export async function updateSettings(
     zabbixUser?: string | null;
     zabbixGraph1Host?: string | null;
     zabbixGraph1Name?: string | null;
+    zabbixGraph1Title?: string | null;
     zabbixGraph2Host?: string | null;
     zabbixGraph2Name?: string | null;
+    zabbixGraph2Title?: string | null;
   } = {};
 
   if (parsed.regsPollEnabled !== undefined) {
@@ -364,11 +368,17 @@ export async function updateSettings(
   if (parsed.zabbixGraph1Name !== undefined) {
     settingsData.zabbixGraph1Name = parsed.zabbixGraph1Name.trim() || null;
   }
+  if (parsed.zabbixGraph1Title !== undefined) {
+    settingsData.zabbixGraph1Title = parsed.zabbixGraph1Title.trim() || null;
+  }
   if (parsed.zabbixGraph2Host !== undefined) {
     settingsData.zabbixGraph2Host = parsed.zabbixGraph2Host.trim() || null;
   }
   if (parsed.zabbixGraph2Name !== undefined) {
     settingsData.zabbixGraph2Name = parsed.zabbixGraph2Name.trim() || null;
+  }
+  if (parsed.zabbixGraph2Title !== undefined) {
+    settingsData.zabbixGraph2Title = parsed.zabbixGraph2Title.trim() || null;
   }
 
   const zabbixChanged =
@@ -376,8 +386,10 @@ export async function updateSettings(
     parsed.zabbixUser !== undefined ||
     parsed.zabbixGraph1Host !== undefined ||
     parsed.zabbixGraph1Name !== undefined ||
+    parsed.zabbixGraph1Title !== undefined ||
     parsed.zabbixGraph2Host !== undefined ||
-    parsed.zabbixGraph2Name !== undefined;
+    parsed.zabbixGraph2Name !== undefined ||
+    parsed.zabbixGraph2Title !== undefined;
 
   const ftpChanged =
     parsed.ftpEnabled !== undefined ||
@@ -459,8 +471,10 @@ export async function updateSettings(
       hasZabbixPassword: view.hasZabbixPassword,
       zabbixGraph1Host: view.zabbixGraph1Host,
       zabbixGraph1Name: view.zabbixGraph1Name,
+      zabbixGraph1Title: view.zabbixGraph1Title,
       zabbixGraph2Host: view.zabbixGraph2Host,
       zabbixGraph2Name: view.zabbixGraph2Name,
+      zabbixGraph2Title: view.zabbixGraph2Title,
     },
   });
 

@@ -13,14 +13,23 @@ import {
   ZABBIX_UNAVAILABLE,
   zabbixElementCount,
 } from "@/modules/zabbix/messages";
-import { readZabbixSession, type ZabbixCaller, type ZabbixMethod } from "@/modules/zabbix/session";
+import {
+  readZabbixSession,
+  type ZabbixCaller,
+  type ZabbixMethod,
+  type ZabbixSlotRequest,
+} from "@/modules/zabbix/session";
 import {
   zabbixFailureText,
   zabbixHeaders,
   zabbixPost,
   zabbixRpcBody,
 } from "@/modules/zabbix/transport";
-import type { ZabbixDashboardBody, ZabbixGraphView } from "@/modules/zabbix/types";
+import {
+  zabbixGraphHeading,
+  type ZabbixDashboardBody,
+  type ZabbixGraphView,
+} from "@/modules/zabbix/types";
 
 const METHODS = new Set<ZabbixMethod>([
   "apiinfo.version",
@@ -77,10 +86,14 @@ async function talk<T>(
 
 function toGraphs(
   session: Extract<Awaited<ReturnType<typeof readZabbixSession>>, { ok: true }>,
+  saved: readonly ZabbixSlotRequest[],
 ): ZabbixGraphView[] {
   return session.slots.map((slot) => ({
     slot: slot.slot,
-    title: slot.name,
+    title: zabbixGraphHeading(
+      saved.find((item) => item.slot === slot.slot)?.title,
+      slot.name,
+    ),
     host: slot.host,
     message: slot.message,
     note: slot.note,
@@ -96,7 +109,7 @@ async function loadDashboard(runtime: ZabbixRuntime): Promise<ZabbixDashboardBod
     false,
     (session) => {
       if (!session.ok) return { status: "unavailable", message: ZABBIX_UNAVAILABLE };
-      return { status: "ready", origin: session.origin, graphs: toGraphs(session) };
+      return { status: "ready", origin: session.origin, graphs: toGraphs(session, runtime.slots) };
     },
     () => ({ status: "unavailable", message: ZABBIX_UNAVAILABLE }),
   );

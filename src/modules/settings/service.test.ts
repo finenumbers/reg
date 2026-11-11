@@ -206,6 +206,12 @@ describe("settings schemas and masked view contract", () => {
     expect(() =>
       settingsUpdateSchema.parse({ zabbixGraph1Host: "gw", zabbixGraph1Name: "" }),
     ).toThrow();
+    expect(settingsUpdateSchema.parse({ zabbixGraph1Title: "  MTS  " })).toMatchObject({
+      zabbixGraph1Title: "  MTS  ",
+    });
+    expect(() =>
+      settingsUpdateSchema.parse({ zabbixGraph1Title: "x".repeat(129) }),
+    ).toThrow();
     expect(settingsUpdateSchema.parse({})).toEqual({});
   });
 
@@ -267,8 +273,10 @@ describe("settings schemas and masked view contract", () => {
       hasZabbixPassword: false,
       zabbixGraph1Host: null,
       zabbixGraph1Name: null,
+      zabbixGraph1Title: null,
       zabbixGraph2Host: null,
       zabbixGraph2Name: null,
+      zabbixGraph2Title: null,
     };
     assertMaskedSettings(view);
   });
