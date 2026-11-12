@@ -53,6 +53,10 @@ type DbRow = {
   region: string;
   abc: string;
   telephone: string;
+  mask: string;
+  mask_type: string;
+  purchase: string;
+  premium: string;
   operator: string;
   geography: string;
   city_alert: boolean | null;
@@ -93,6 +97,10 @@ function mapRow(row: DbRow): RtuItem {
     number: row.number ?? "",
     client: row.client ?? "",
     capacity: row.capacity ?? "",
+    mask: row.mask ?? "",
+    maskType: row.mask_type ?? "",
+    purchase: row.purchase ?? "",
+    premium: row.premium ?? "",
     operator: row.operator ?? "",
     geography: row.geography ?? "",
     title: row.title ?? "",

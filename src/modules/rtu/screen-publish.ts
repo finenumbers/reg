@@ -25,6 +25,7 @@ export type ScreenStamps = {
   didHash: string;
   didGeneration: number;
   tariffGeneration: number;
+  maskGeneration: number;
 };
 
 export type ScreenPublishResult = {
@@ -39,6 +40,8 @@ export type StampRow = {
   published_did_hash: string | null;
   published_phones_synced_at: Date | null;
   published_tariff_generation: number;
+  mask_generation: number;
+  published_mask_generation: number;
   published: boolean;
   needs_publish: boolean;
   catalog_revision: number;
@@ -64,7 +67,8 @@ export function screenStampsMatch(published: ScreenStamps, live: ScreenStamps): 
     sameTime(published.phonesSyncedAt, live.phonesSyncedAt) &&
     published.supplierRevision === live.supplierRevision &&
     published.didHash === live.didHash &&
-    published.tariffGeneration === live.tariffGeneration
+    published.tariffGeneration === live.tariffGeneration &&
+    published.maskGeneration === live.maskGeneration
   );
 }
 
@@ -74,7 +78,8 @@ export function screenSwapFresh(observed: ScreenStamps, current: ScreenStamps): 
     sameTime(observed.phonesSyncedAt, current.phonesSyncedAt) &&
     observed.supplierRevision === current.supplierRevision &&
     observed.didGeneration === current.didGeneration &&
-    observed.tariffGeneration === current.tariffGeneration
+    observed.tariffGeneration === current.tariffGeneration &&
+    observed.maskGeneration === current.maskGeneration
   );
 }
 
@@ -97,6 +102,7 @@ export function liveScreenStamps(row: StampRow): ScreenStamps {
     didHash: row.did_hash ?? "",
     didGeneration: Number(row.did_generation) || 0,
     tariffGeneration: Number(row.tariff_generation) || 0,
+    maskGeneration: Number(row.mask_generation) || 0,
   };
 }
 
@@ -107,6 +113,7 @@ export function publishedScreenStamps(row: StampRow): ScreenStamps {
     didHash: row.published_did_hash ?? "",
     didGeneration: Number(row.did_generation) || 0,
     tariffGeneration: Number(row.published_tariff_generation) || 0,
+    maskGeneration: Number(row.published_mask_generation) || 0,
   };
 }
 
@@ -141,7 +148,9 @@ export type ScreenPublishDeps = {
   token: () => string;
 };
 
-export async function runScreenPublish(deps: ScreenPublishDeps): Promise<ScreenPublishResult> {
+export async function runScreenPublish(
+  deps: ScreenPublishDeps,
+): Promise<ScreenPublishResult> {
   try {
     return await publishAttempts(deps);
   } catch (error) {
@@ -270,10 +279,15 @@ async function swapScreen(token: string, observed: ScreenStamps): Promise<void> 
             "publishedSupplierRevision" = ${observed.supplierRevision},
             "didHash" = ${observed.didHash},
             "tariffGeneration" = ${observed.tariffGeneration},
+            "maskGeneration" = ${observed.maskGeneration},
             "catalogRevision" = "catalogRevision" + 1,
             "publishedAt" = NOW()
         WHERE id = 1
           AND "supplierRevision" = ${observed.supplierRevision}
+          AND COALESCE(
+            (SELECT generation FROM number_mask_import_state WHERE id = 1),
+            0
+          ) = ${observed.maskGeneration}
       `;
       if (Number(updated) !== 1) throw new ScreenStaleError();
     },
@@ -313,7 +327,9 @@ export function resetRtuScreenPublishForTests(): void {
 }
 
 /** Queue one publish. The caller waits for a pass that starts after earlier ones. */
-export function enqueueScreenPublish(deps: ScreenPublishDeps): Promise<ScreenPublishResult> {
+export function enqueueScreenPublish(
+  deps: ScreenPublishDeps,
+): Promise<ScreenPublishResult> {
   const run = tail.then(
     () => runScreenPublish(deps),
     () => runScreenPublish(deps),

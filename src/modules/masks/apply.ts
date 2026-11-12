@@ -50,14 +50,20 @@ export async function applyMaskSnapshot(
         rowCount: rows.length,
         filename,
         loadedAt,
+        generation: 1,
       },
       update: {
         rowCount: rows.length,
         filename,
         loadedAt,
+        generation: { increment: 1 },
       },
     });
   }, APPLY_TX);
+
+  void import("@/modules/rtu/screen-publish")
+    .then(({ requestRtuScreenPublish }) => requestRtuScreenPublish())
+    .catch(() => undefined);
 
   return { rowCount: rows.length, loadedAt };
 }

@@ -30,6 +30,10 @@ export type RtuItem = {
   number: string;
   client: string;
   capacity: string;
+  mask: string;
+  maskType: string;
+  purchase: string;
+  premium: string;
   operator: string;
   geography: string;
   title: string;

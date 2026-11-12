@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   enqueueScreenPublish,
@@ -23,6 +25,8 @@ function stamp(over: Partial<StampRow> = {}): StampRow {
     published_did_hash: "hash",
     published_phones_synced_at: synced,
     published_tariff_generation: 3,
+    mask_generation: 4,
+    published_mask_generation: 4,
     published: true,
     needs_publish: false,
     catalog_revision: 4,
@@ -68,18 +72,32 @@ describe("screen stamps", () => {
     didHash: "hash",
     didGeneration: 2,
     tariffGeneration: 3,
+    maskGeneration: 4,
   };
 
   it("matches the stored content hash and ignores a new DID generation", () => {
     const row = stamp();
-    expect(screenStampsMatch(publishedScreenStamps(row), liveScreenStamps(row))).toBe(true);
+    expect(screenStampsMatch(publishedScreenStamps(row), liveScreenStamps(row))).toBe(
+      true,
+    );
     expect(screenStampsMatch(live, { ...live, didGeneration: 9 })).toBe(true);
-    expect(
-      screenStampsMatch(live, { ...live, didHash: "other", didGeneration: 9 }),
-    ).toBe(false);
+    expect(screenStampsMatch(live, { ...live, didHash: "other", didGeneration: 9 })).toBe(
+      false,
+    );
     expect(screenSwapFresh(live, { ...live, didHash: "", didGeneration: 2 })).toBe(true);
     expect(screenSwapFresh(live, { ...live, didGeneration: 3 })).toBe(false);
     expect(screenSwapFresh(live, { ...live, supplierRevision: 2 })).toBe(false);
+    expect(screenStampsMatch(live, { ...live, maskGeneration: 5 })).toBe(false);
+    expect(screenSwapFresh(live, { ...live, maskGeneration: 5 })).toBe(false);
+  });
+
+  it("writes the mask generation seen at the start of the build", () => {
+    const source = readFileSync(
+      path.join(process.cwd(), "src/modules/rtu/screen-publish.ts"),
+      "utf8",
+    );
+    expect(source).toContain('"maskGeneration" = ${observed.maskGeneration}');
+    expect(source).toContain("FROM number_mask_import_state WHERE id = 1");
   });
 });
 

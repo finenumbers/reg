@@ -24,6 +24,7 @@ export const LABEL_FREE_MIGRATIONS = new Set([
   "20261107190000_geography_did_source",
   "20261109120000_number_masks",
   "20261113003000_number_masks_column_order",
+  "20261113043000_rtu_screen_masks",
 ]);
 
 /**

@@ -122,6 +122,14 @@ function columnRef(column: RtuColumn): Prisma.Sql {
       return Prisma.sql`client`;
     case "capacity":
       return Prisma.sql`capacity`;
+    case "mask":
+      return Prisma.sql`mask`;
+    case "maskType":
+      return Prisma.sql`"maskType"`;
+    case "purchase":
+      return Prisma.sql`purchase`;
+    case "premium":
+      return Prisma.sql`premium`;
     case "operator":
       return Prisma.sql`operator`;
     case "geography":
@@ -695,7 +703,11 @@ export function screenBuildInsertSql(token: string): Prisma.Sql {
       "abc",
       "telephone",
       "cityAlert",
-      "pstnKey"
+      "pstnKey",
+      "mask",
+      "maskType",
+      "purchase",
+      "premium"
     )
     WITH ${baseCte},
     keyed AS (
@@ -734,24 +746,53 @@ export function screenBuildInsertSql(token: string): Prisma.Sql {
       LEFT JOIN LATERAL cdr_tariff_geo(k.number) AS geo ON TRUE
     )
     SELECT
-      id,
-      number,
-      client,
-      capacity,
-      supplier,
-      category,
-      activation,
-      title,
-      source,
-      missing,
-      ${cityLabelSql(Prisma.sql`direction`)} AS city,
-      COALESCE(matched_region, '') AS region,
-      split.abc AS abc,
-      split.telephone AS telephone,
-      ${cityAlertSql(Prisma.sql`direction`)} AS "cityAlert",
-      pstn_key AS "pstnKey"
-    FROM tariffed
-    CROSS JOIN LATERAL geography_digit_split(matched_abc, matched_numbering, number) AS split
+      shaped.id,
+      shaped.number,
+      shaped.client,
+      shaped.capacity,
+      shaped.supplier,
+      shaped.category,
+      shaped.activation,
+      shaped.title,
+      shaped.source,
+      shaped.missing,
+      shaped.city,
+      shaped.region,
+      shaped.abc,
+      shaped.telephone,
+      shaped."cityAlert",
+      shaped."pstnKey",
+      COALESCE(hit.mask, '') AS mask,
+      COALESCE(hit.mask_type, '') AS "maskType",
+      COALESCE(hit.purchase, '') AS purchase,
+      COALESCE(hit.premium, '') AS premium
+    FROM (
+      SELECT
+        id,
+        number,
+        client,
+        capacity,
+        supplier,
+        category,
+        activation,
+        title,
+        source,
+        missing,
+        ${cityLabelSql(Prisma.sql`direction`)} AS city,
+        COALESCE(matched_region, '') AS region,
+        split.abc AS abc,
+        split.telephone AS telephone,
+        ${cityAlertSql(Prisma.sql`direction`)} AS "cityAlert",
+        pstn_key AS "pstnKey"
+      FROM tariffed
+      CROSS JOIN LATERAL geography_digit_split(matched_abc, matched_numbering, number) AS split
+    ) AS shaped
+    LEFT JOIN LATERAL rtu_mask_lookup(
+      shaped.city,
+      shaped."cityAlert",
+      shaped.abc,
+      shaped.telephone
+    ) AS hit ON TRUE
   `;
 }
 
@@ -777,6 +818,10 @@ function screenJoinRaw(source: Prisma.Sql): Prisma.Sql {
       src.region,
       src.abc,
       src.telephone,
+      src.mask,
+      src."maskType" AS mask_type,
+      src.purchase,
+      src.premium,
       src."cityAlert" AS city_alert,
       src."pstnKey" AS pstn_key,
       (r.phone IS NOT NULL) AS unregistered,
@@ -811,6 +856,10 @@ function screenLabeledFrom(raw: Prisma.Sql): Prisma.Sql {
       region,
       abc,
       telephone,
+      mask,
+      mask_type,
+      purchase,
+      premium,
       city_alert,
       ${pstnStatusSql()} AS pstn_status,
       ${operatorLabelSql()} AS operator,
@@ -864,6 +913,10 @@ const screenRowSelect = Prisma.sql`
   visible.region,
   visible.abc,
   visible.telephone,
+  visible.mask,
+  visible.mask_type,
+  visible.purchase,
+  visible.premium,
   visible.city_alert,
   visible.pstn_status,
   visible.operator,
@@ -996,6 +1049,8 @@ export function screenStampsSql(forUpdate: boolean): Prisma.Sql {
       st."didHash" AS published_did_hash,
       st."phonesSyncedAt" AS published_phones_synced_at,
       st."tariffGeneration"::int AS published_tariff_generation,
+      COALESCE(ms.generation, 0)::int AS mask_generation,
+      st."maskGeneration"::int AS published_mask_generation,
       st.published AS published,
       st."needsPublish" AS needs_publish,
       st."catalogRevision"::int AS catalog_revision,
@@ -1004,6 +1059,7 @@ export function screenStampsSql(forUpdate: boolean): Prisma.Sql {
     FROM rtu_screen_state st
     LEFT JOIN phone_import_state p ON p.id = 1
     LEFT JOIN tariff_import_state t ON t.id = 1
+    LEFT JOIN number_mask_import_state ms ON ms.id = 1
     WHERE st.id = 1
     ${lock}
   `;

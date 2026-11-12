@@ -13,6 +13,10 @@ export const RTU_COLUMNS = [
   "telephone",
   "client",
   "capacity",
+  "mask",
+  "maskType",
+  "purchase",
+  "premium",
   "operator",
   "geography",
   "title",
@@ -31,6 +35,10 @@ export const RTU_HEADERS: Record<RtuColumn, string> = {
   source: "Источник",
   client: "Клиент",
   capacity: "Канальность",
+  mask: "Маска",
+  maskType: "Тип",
+  purchase: "Покупка",
+  premium: "Премиум",
   operator: "Оператор связи",
   geography: "География",
   title: "Название",
@@ -49,7 +57,8 @@ export function isRtuColumn(value: string): value is RtuColumn {
 
 /**
  * Operator and geography are read from the PSTN cache at request time.
- * City, region, ABC, and the local number are stored on the screen snapshot.
+ * City, region, ABC, the local number, and the four mask cells are stored
+ * on the screen snapshot.
  */
 export const EXPENSIVE_COLUMNS = new Set<RtuColumn>(["operator", "geography"]);
 

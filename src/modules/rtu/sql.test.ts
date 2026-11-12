@@ -158,6 +158,18 @@ describe("geography columns", () => {
     expect(RTU_HEADERS.region).toBe("Регион");
     expect(RTU_HEADERS.abc).toBe("ABC");
     expect(RTU_HEADERS.telephone).toBe("Номер");
+    const capacityIndex = RTU_COLUMNS.indexOf("capacity");
+    expect(RTU_COLUMNS.slice(capacityIndex, capacityIndex + 5)).toEqual([
+      "capacity",
+      "mask",
+      "maskType",
+      "purchase",
+      "premium",
+    ]);
+    expect(RTU_HEADERS.mask).toBe("Маска");
+    expect(RTU_HEADERS.maskType).toBe("Тип");
+    expect(RTU_HEADERS.purchase).toBe("Покупка");
+    expect(RTU_HEADERS.premium).toBe("Премиум");
     expect(geographyDigitAlign("abc")).toBe("left");
     expect(geographyDigitAlign("telephone")).toBe("right");
   });
@@ -288,7 +300,13 @@ describe("city sql phrase", () => {
     expect(listProjection({ abc: ["7383"] })).toBe("page");
     expect(listProjection({ telephone: ["480882"] })).toBe("page");
     expect(listProjection({ region: ["Приморский край"] })).toBe("page");
+    expect(listProjection({ mask: ["00000"] })).toBe("page");
+    expect(listProjection({ maskType: ["Золотой"] })).toBe("page");
+    expect(listProjection({ purchase: ["1"] })).toBe("page");
+    expect(listProjection({ premium: ["10"] })).toBe("page");
     expect(listProjection({})).toBe("page");
+    expect(facetProjection("mask", {})).toBe("page");
+    expect(facetProjection("premium", {})).toBe("page");
   });
 });
 
@@ -325,6 +343,7 @@ describe("screen snapshot sql", () => {
     expect(built.text).toContain('"rtu_screen_build_ab12cd34"');
     expect(built.text).toContain("cdr_tariff_geo");
     expect(built.text).toContain("geography_digit_split");
+    expect(built.text).toContain("rtu_mask_lookup");
     expect(built.text).not.toContain("Регистрационный пароль");
   });
 
@@ -339,7 +358,12 @@ describe("screen snapshot sql", () => {
     );
     expect(page.text).toContain("rtu_screen");
     expect(page.text).not.toContain("cdr_tariff_geo");
-    expect(page.text.indexOf("LIMIT")).toBeLessThan(page.text.indexOf("pstn_phone_cache"));
+    expect(page.text).not.toContain("rtu_mask_lookup");
+    expect(page.text).toContain("mask_type");
+    expect(page.text).toContain('"maskType"');
+    expect(page.text.indexOf("LIMIT")).toBeLessThan(
+      page.text.indexOf("pstn_phone_cache"),
+    );
     const joined = flattenSql(
       screenListSql({
         joined: true,
@@ -348,7 +372,10 @@ describe("screen snapshot sql", () => {
         offset: 0,
       }),
     );
-    expect(joined.text.indexOf("pstn_phone_cache")).toBeLessThan(joined.text.indexOf("LIMIT"));
+    expect(joined.text.indexOf("pstn_phone_cache")).toBeLessThan(
+      joined.text.indexOf("LIMIT"),
+    );
+    expect(joined.text).not.toContain("rtu_mask_lookup");
   });
 
   it("binds the cursor and hashes DID only outside the swap lock", () => {
@@ -372,6 +399,12 @@ describe("screen snapshot sql", () => {
     const open = flattenSql(screenStampsSql(false));
     expect(open.text).toContain("string_agg");
     expect(open.text).toContain("did_generation");
+    expect(open.text).toContain("number_mask_import_state");
+    expect(open.text).toContain("mask_generation");
+    expect(locked.text).toContain("mask_generation");
     expect(open.text).not.toContain("FOR UPDATE");
+    const maskType = flattenSql(filterMatchSql("maskType", ["Золотой"]));
+    expect(maskType.text).toContain('"maskType"');
+    expect(maskType.values).toContain("Золотой");
   });
 });

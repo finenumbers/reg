@@ -446,6 +446,14 @@ model RtuScreen {
   telephone  String
   cityAlert  Boolean
   pstnKey    String?
+  /// «Маска». Empty when the build found no catalog row.
+  mask       String  @default("")
+  /// «Тип». Empty when the catalog cell is empty.
+  maskType   String  @default("")
+  /// «Покупка». Empty when the catalog cell is empty.
+  purchase   String  @default("")
+  /// «Премиум». Empty when the catalog cell is empty.
+  premium    String  @default("")
 
   @@index([number, id], map: "rtu_screen_number_id_idx")
   @@index([activation], map: "rtu_screen_activation_idx")
@@ -463,6 +471,8 @@ model RtuScreenState {
   publishedSupplierRevision Int       @default(0)
   didHash                   String    @default("")
   tariffGeneration          Int       @default(0)
+  /// number_mask_import_state.generation at the build that wrote this screen.
+  maskGeneration            Int       @default(0)
   catalogRevision           Int       @default(0)
   publishedAt               DateTime?
 
@@ -591,6 +601,7 @@ model DialException {
 
 /// Mask and type snapshot from an uploaded XLSX. Each import replaces every row.
 /// Rating, geography, and phone sync do not read this table.
+/// The RTU screen reads it only while that screen is built.
 model NumberMask {
   id          String  @id @default(cuid())
   /// Order in the uploaded file (empty rows omitted).
@@ -615,8 +626,10 @@ model NumberMask {
 
 model NumberMaskImportState {
   id        Int       @id @default(1)
-  rowCount  Int       @default(0)
-  filename  String?
+  rowCount    Int       @default(0)
+  /// Incremented in the same transaction as a successful snapshot replace.
+  generation  Int       @default(0)
+  filename    String?
   loadedAt  DateTime?
   updatedAt DateTime  @updatedAt
 

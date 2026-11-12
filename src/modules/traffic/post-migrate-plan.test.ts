@@ -85,12 +85,21 @@ describe("planPostMigrate", () => {
     ).toEqual({ callClass: false, tariff: false });
   });
 
+  it("does not scan the journal when the RTU screen stores mask cells", () => {
+    expect(
+      planPostMigrate("Applying migration `20261113043000_rtu_screen_masks`\n", {
+        rateGeneration: 4,
+        ratedGeneration: 4,
+      }),
+    ).toEqual({ callClass: false, tariff: false });
+  });
+
   it("does not scan the journal when mask columns are reordered", () => {
     expect(
-      planPostMigrate(
-        "Applying migration `20261113003000_number_masks_column_order`\n",
-        { rateGeneration: 4, ratedGeneration: 4 },
-      ),
+      planPostMigrate("Applying migration `20261113003000_number_masks_column_order`\n", {
+        rateGeneration: 4,
+        ratedGeneration: 4,
+      }),
     ).toEqual({ callClass: false, tariff: false });
   });
 

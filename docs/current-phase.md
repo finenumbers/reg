@@ -1,7 +1,13 @@
-# Current Phase — production (v1.259.0)
+# Current Phase — production (v1.260.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-13
+
+## v1.260.0 — RTU screen stores mask, type, purchase, and premium
+
+The migrator adds `mask`, `maskType`, `purchase`, and `premium` on `rtu_screen`, `maskGeneration` on `rtu_screen_state`, and `generation` on `number_mask_import_state`. When a mask file is already loaded it sets that generation to 1, so the first start rebuilds the screen once. It does not rewrite phone, tariff, CDR, or PSTN rows. The migration is label-free, so startup does not rescan the CDR journal. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app, let migrate finish, then start one new app. Refresh the browser.
+
+«Управление РТУ» shows «Маска», «Тип», «Покупка», and «Премиум» after «Канальность». The screen build writes them from the mask catalog and the number already split by the numbering length. «Мобильные РФ» is category «Мобильный». «Бесплатный вызов» is «Бесплатный вызов». A city name is «Городской». A number without one local length of 5, 6, or 7 stays blank in all four cells. A new mask file rebuilds the screen after the import returns. Nothing is written to the switch. RTU activation is unchanged.
 
 ## v1.259.0 — Mask columns put purchase before premium
 
