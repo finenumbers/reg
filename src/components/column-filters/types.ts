@@ -134,7 +134,11 @@ export function cellToFilterToken(raw: string | null | undefined): string {
  */
 export function aggregateFacetItems(
   values: Iterable<string | null | undefined>,
-  opts: { q?: string; limit?: number } = {},
+  opts: {
+    q?: string;
+    limit?: number;
+    matches?: (value: string, query: string) => boolean;
+  } = {},
 ): FacetResponse {
   const limit = Math.min(500, Math.max(1, opts.limit ?? 200));
   const q = opts.q?.trim().toLowerCase() ?? "";
@@ -149,15 +153,14 @@ export function aggregateFacetItems(
     .map(([value, count]) => ({ value, count }))
     .sort((a, b) => {
       if (b.count !== a.count) return b.count - a.count;
-      return displayFacetValue(a.value).localeCompare(
-        displayFacetValue(b.value),
-        "ru",
-      );
+      return displayFacetValue(a.value).localeCompare(displayFacetValue(b.value), "ru");
     });
 
   if (q) {
     items = items.filter((item) =>
-      displayFacetValue(item.value).toLowerCase().includes(q),
+      opts.matches
+        ? opts.matches(item.value, q)
+        : displayFacetValue(item.value).toLowerCase().includes(q),
     );
   }
 

@@ -9,6 +9,7 @@ import {
   type ColumnFilters,
   type FacetResponse,
 } from "@/components/column-filters/types";
+import { amountFacetQueryHits } from "@/lib/amount-format";
 import type { MaskListItem } from "@/modules/masks/service";
 
 export const MASK_COLUMN_ORDER = [
@@ -110,8 +111,13 @@ export function maskFacets(
     filters: opts.filters,
     excludeColumn: opts.column,
   });
+  const amount = opts.column === "purchase" || opts.column === "premium";
   return aggregateFacetItems(
     filtered.map((row) => maskCellText(row, opts.column)),
-    { q: opts.q, limit: opts.limit },
+    {
+      q: opts.q,
+      limit: opts.limit,
+      matches: amount ? amountFacetQueryHits : undefined,
+    },
   );
 }

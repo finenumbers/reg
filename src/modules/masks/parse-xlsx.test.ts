@@ -89,7 +89,9 @@ describe("parseMaskXlsx", () => {
     row.getCell(1).value = 5;
     row.getCell(2).value = "Городской";
     row.getCell(4).value = 0;
-    const numericResult = await parseMaskXlsx(Buffer.from(await numeric.xlsx.writeBuffer()));
+    const numericResult = await parseMaskXlsx(
+      Buffer.from(await numeric.xlsx.writeBuffer()),
+    );
     expect(numericResult.ok).toBe(false);
     if (numericResult.ok) return;
     expect(numericResult.details[0]).toMatch(/текстом/);
@@ -107,6 +109,33 @@ describe("parseMaskXlsx", () => {
     expect(bad.details[0]).toMatch(/длина равна/);
     expect(bad.details[1]).toMatch(/длина равна/);
     expect(bad.details[2]).toMatch(/Разрядность/);
+  });
+
+  it("keeps a hyphen and ignores it in the length", async () => {
+    const ok = await parseMaskXlsx(
+      await workbook([header, ["5", "Городской", "", "00-000", "", "200000", ""]]),
+    );
+    expect(ok.ok).toBe(true);
+    if (!ok.ok) return;
+    expect(ok.rows[0]).toMatchObject({
+      digitLength: 5,
+      mask: "00-000",
+      purchase: "200000",
+    });
+
+    const bad = await parseMaskXlsx(
+      await workbook([
+        header,
+        ["6", "Городской", "", "00-000", "", "", ""],
+        ["5", "Городской", "", "-----", "", "", ""],
+        ["5", "Городской", "", "00–000", "", "", ""],
+        ["5", "Городской", "", `${"0-".repeat(16)}0`, "", "", ""],
+      ]),
+    );
+    expect(bad.ok).toBe(false);
+    if (bad.ok) return;
+    expect(bad.details).toHaveLength(4);
+    expect(bad.details.every((line) => /длина равна/.test(line))).toBe(true);
   });
 
   it("rejects a date in premium and a file with no data rows", async () => {
@@ -133,7 +162,10 @@ describe("parseMaskXlsx", () => {
 
   it("rejects an extra column", async () => {
     const result = await parseMaskXlsx(
-      await workbook([[...header, "Лишнее"], ["5", "Городской", "", "00000", "", "", "", "x"]]),
+      await workbook([
+        [...header, "Лишнее"],
+        ["5", "Городской", "", "00000", "", "", "", "x"],
+      ]),
     );
     expect(result.ok).toBe(false);
   });

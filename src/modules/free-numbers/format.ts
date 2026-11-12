@@ -8,10 +8,7 @@ import {
   type FacetItem,
   type FacetResponse,
 } from "@/components/column-filters/types";
-import {
-  PRICE_COLUMNS,
-  type FreeNumberColumn,
-} from "@/modules/free-numbers/columns";
+import { PRICE_COLUMNS, type FreeNumberColumn } from "@/modules/free-numbers/columns";
 import { escapeIlike } from "@/modules/did/types";
 
 const PROVIDER_LABELS: Record<string, string> = {
@@ -81,6 +78,9 @@ export function facetSearchQuery(column: string, query: string): string | null {
 export function displayFreeNumberFacet(column: string, value: string): string {
   if (value === "" || value === "__empty__") return "(пусто)";
   if (column === "provider_code") return displayProviderCode(value);
+  if (column === "mask_purchase" || column === "premium") {
+    return formatDidPrice(value) || value;
+  }
   return value;
 }
 
@@ -146,12 +146,7 @@ export type FreeNumberRow = {
   premium: string;
 };
 
-const HIDDEN_KEYS = [
-  "client",
-  "rtu_connected",
-  "msisdn",
-  "provider_number_key",
-] as const;
+const HIDDEN_KEYS = ["client", "rtu_connected", "msisdn", "provider_number_key"] as const;
 
 export function mapFreeNumberRow(raw: unknown): FreeNumberRow | null {
   if (!raw || typeof raw !== "object") return null;

@@ -24,6 +24,7 @@ type Props<T extends { id: string }, C extends string> = {
   onOpenColumnChange: (column: string | null) => void;
   onColumnFilterChange: (column: string, values: string[]) => void;
   numberColumn: C;
+  rightColumns?: readonly C[];
   cellText: (row: T, column: C) => string;
   formatValue: (column: string, value: string) => string;
   buildFacetsUrl: (opts: {
@@ -48,6 +49,7 @@ export function CatalogNumbersTable<T extends { id: string }, C extends string>(
   onOpenColumnChange,
   onColumnFilterChange,
   numberColumn,
+  rightColumns,
   cellText,
   formatValue,
   buildFacetsUrl,
@@ -56,6 +58,7 @@ export function CatalogNumbersTable<T extends { id: string }, C extends string>(
 }: Props<T, C>) {
   const showEmpty = !loading && data.length === 0;
   const colCount = columns.length;
+  const right = new Set<C>(rightColumns ?? []);
 
   return (
     <Table>
@@ -64,7 +67,10 @@ export function CatalogNumbersTable<T extends { id: string }, C extends string>(
           {columns.map((column) => (
             <TableHead
               key={column}
-              className={cn("font-medium", column === numberColumn && "text-right")}
+              className={cn(
+                "font-medium",
+                (column === numberColumn || right.has(column)) && "text-right",
+              )}
             >
               <ColumnFilterDropdown
                 column={column}
@@ -111,6 +117,7 @@ export function CatalogNumbersTable<T extends { id: string }, C extends string>(
                   className={cn(
                     column === numberColumn &&
                       "text-right font-bold text-black dark:text-white",
+                    right.has(column) && "text-right tabular-nums",
                     cellClassName?.(row, column),
                   )}
                 >

@@ -9,13 +9,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ColumnFilterDropdown, type ColumnFilters } from "@/components/column-filters";
+import { formatAmountCell, formatStoredAmount } from "@/lib/amount-format";
 import { cn } from "@/lib/utils";
 import { geographyDigitMarks, type DigitMark } from "@/modules/rtu/abc-display";
 import { buildRtuFacetsUrl } from "@/modules/rtu/api-client";
 import {
-  geographyDigitAlign,
   RTU_COLUMNS,
   RTU_HEADERS,
+  rtuCellAlign,
   type RtuColumn,
 } from "@/modules/rtu/columns";
 import { geographyRowTone, type GeographyRowTone } from "@/modules/rtu/row-tone";
@@ -49,7 +50,9 @@ const ROW_TONE_CLASS: Record<GeographyRowTone, string> = {
 };
 
 function cellText(row: RtuItem, column: RtuColumn): string {
-  return row[column] ?? "";
+  const raw = row[column] ?? "";
+  if (column === "purchase" || column === "premium") return formatAmountCell(raw);
+  return raw;
 }
 
 function MarkedDigits({ marks }: { marks: DigitMark[] }) {
@@ -91,13 +94,24 @@ export function RtuTable({
       <TableHeader>
         <TableRow>
           {RTU_COLUMNS.map((column) => (
-            <TableHead key={column} className="font-medium">
+            <TableHead
+              key={column}
+              className={cn(
+                "font-medium",
+                (column === "purchase" || column === "premium") && "text-right",
+              )}
+            >
               <ColumnFilterDropdown
                 column={column}
                 header={RTU_HEADERS[column]}
                 open={openColumn === column}
                 selected={filters[column] ?? []}
                 filters={filters}
+                formatValue={
+                  column === "purchase" || column === "premium"
+                    ? formatStoredAmount
+                    : undefined
+                }
                 buildFacetsUrl={({ column: col, filters: next, q }) =>
                   buildRtuFacetsUrl({
                     column: col,
@@ -140,7 +154,7 @@ export function RtuTable({
             return (
               <TableRow key={row.id} className={ROW_TONE_CLASS[tone]}>
                 {RTU_COLUMNS.map((column) => {
-                  const align = geographyDigitAlign(column);
+                  const align = rtuCellAlign(column);
                   const bold = column === "abc" || column === "telephone";
                   return (
                     <TableCell

@@ -68,3 +68,9 @@ export function geographyDigitAlign(column: RtuColumn): "left" | "right" | null 
   if (column === "telephone") return "right";
   return null;
 }
+
+/** Cell alignment. Purchase and premium sit on the right with the local number. */
+export function rtuCellAlign(column: RtuColumn): "left" | "right" | null {
+  if (column === "purchase" || column === "premium") return "right";
+  return geographyDigitAlign(column);
+}

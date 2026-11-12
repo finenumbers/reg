@@ -1,7 +1,13 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { maskFits, matchNumberMask, type MaskCandidate } from "@/modules/masks/match";
+import {
+  maskFits,
+  maskLiterals,
+  maskRepeats,
+  matchNumberMask,
+  type MaskCandidate,
+} from "@/modules/masks/match";
 import { FREE_CALL_DIRECTION, MOBILE_RF_DIRECTION } from "@/modules/rtu/columns";
 
 function row(
@@ -35,6 +41,15 @@ describe("maskFits", () => {
     expect(maskFits("ABAB", "1213")).toBe(false);
     expect(maskFits("XXXXX", "11111")).toBe(true);
     expect(maskFits("XXXXX", "11112")).toBe(false);
+    expect(maskFits("00-000", "00000")).toBe(true);
+    expect(maskFits("00-000", "00001")).toBe(false);
+    expect(maskFits("A-ABB", "1122")).toBe(true);
+    expect(maskFits("A--A", "11")).toBe(true);
+    expect(maskFits("-----", "00000")).toBe(false);
+    expect(maskFits("00–000", "00000")).toBe(false);
+    expect(maskLiterals("00-000")).toBe(5);
+    expect(maskRepeats("A--A")).toBe(2);
+    expect(maskRepeats("AABB")).toBe(4);
   });
 });
 
@@ -165,6 +180,29 @@ describe("matchNumberMask", () => {
         catalog,
       ),
     ).toBeNull();
+  });
+});
+
+describe("rtu_mask_fits hyphen sql", () => {
+  const sql = readFileSync(
+    path.join(
+      process.cwd(),
+      "prisma/migrations/20261113120000_mask_hyphen/migration.sql",
+    ),
+    "utf8",
+  );
+
+  it("strips a hyphen before the length check and does not rewrite stored rows", () => {
+    expect(sql).toContain("CREATE OR REPLACE FUNCTION rtu_mask_fits");
+    expect(sql).toContain("regexp_replace(mask, '-', '', 'g')");
+    expect(sql).toContain("substring(significant FROM i FOR 1)");
+    expect(sql).not.toContain("substring(mask FROM i FOR 1)");
+    expect(sql).toContain("mask !~ '^[0-9A-DX-Z-]+$'");
+    expect(sql).toContain("length(significant) <> length(telephone)");
+    expect(sql).toContain("Does not scan cdr_records");
+    expect(sql).not.toMatch(/from\s+cdr_records/i);
+    expect(sql).not.toMatch(/ALTER TABLE/i);
+    expect(sql).not.toMatch(/UPDATE /);
   });
 });
 

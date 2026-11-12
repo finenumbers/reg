@@ -36,6 +36,9 @@ describe("free-number display", () => {
     expect(displayFreeNumberFacet("provider_code", "mcn")).toBe("MCN Telecom");
     expect(displayFreeNumberFacet("city_name", "")).toBe("(пусто)");
     expect(displayFreeNumberFacet("city_name", "__empty__")).toBe("(пусто)");
+    expect(displayFreeNumberFacet("mask_purchase", "200000")).toBe("200 000");
+    expect(displayFreeNumberFacet("premium", "1500.5")).toBe("1 501");
+    expect(displayFreeNumberFacet("buy_price", "200000")).toBe("200000");
   });
 
   it("drops hidden DID fields and keeps the visible row", () => {

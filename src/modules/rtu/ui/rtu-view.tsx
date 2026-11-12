@@ -15,6 +15,8 @@ import {
   setColumnFilterValues,
   type ColumnFilters,
 } from "@/components/column-filters";
+import { displayFacetValue } from "@/components/column-filters/types";
+import { formatStoredAmount } from "@/lib/amount-format";
 import { TableCountFooter, TableInfiniteBody } from "@/components/table-infinite-body";
 import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
 import {
@@ -779,6 +781,11 @@ export function RtuView({ initial, canRequest, canActivate }: Props) {
       <ActiveFiltersBar
         filters={filters}
         headers={RTU_HEADERS}
+        formatValue={(field, value) =>
+          field === "purchase" || field === "premium"
+            ? formatStoredAmount(value)
+            : displayFacetValue(value)
+        }
         phoneQuery={phoneQ}
         onClearPhoneQuery={onClearPhoneQuery}
         onRemoveFacet={onRemoveFacet}
@@ -821,7 +828,11 @@ export function RtuView({ initial, canRequest, canActivate }: Props) {
           shown={items.length}
           total={total}
           note={
-            preparing ? "Каталог готовится" : loading || loadingMore ? "Загрузка…" : undefined
+            preparing
+              ? "Каталог готовится"
+              : loading || loadingMore
+                ? "Загрузка…"
+                : undefined
           }
         />
       </div>

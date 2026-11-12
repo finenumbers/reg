@@ -85,6 +85,15 @@ describe("planPostMigrate", () => {
     ).toEqual({ callClass: false, tariff: false });
   });
 
+  it("does not scan the journal when a mask hyphen is ignored", () => {
+    expect(
+      planPostMigrate("Applying migration `20261113120000_mask_hyphen`\n", {
+        rateGeneration: 4,
+        ratedGeneration: 4,
+      }),
+    ).toEqual({ callClass: false, tariff: false });
+  });
+
   it("does not scan the journal when the RTU screen stores mask cells", () => {
     expect(
       planPostMigrate("Applying migration `20261113043000_rtu_screen_masks`\n", {

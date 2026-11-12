@@ -1,7 +1,15 @@
-# Current Phase — production (v1.260.0)
+# Current Phase — production (v1.261.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-13
+
+## v1.261.0 — Grouped purchase and premium, hyphen in a mask
+
+The migrator replaces `rtu_mask_fits`. It does not rewrite phone, tariff, CDR, PSTN, or screen rows. The migration is label-free, so startup does not rescan the CDR journal. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app, let migrate finish, then start one new app. Refresh the browser.
+
+«Покупка» and «Премиум» on «Маски и типы», «Управление РТУ», and «Свободные номера» sit on the right. A whole number is shown with a space every three digits, so 200000 is «200 000» and 1500000 is «1 500 000». A fraction stays, and text that is not a number stays. The stored value and the mask file stay as imported. The RTU workbook uses the same grouped text.
+
+A mask may contain `-`. The sign stays on the screen and is not part of the length. `00-000` with length 5 matches a five-digit number the same way as `00000`. A mask already loaded is unchanged until the next import, and that import rebuilds the RTU screen. Nothing is written to the switch. RTU activation is unchanged.
 
 ## v1.260.0 — RTU screen stores mask, type, purchase, and premium
 

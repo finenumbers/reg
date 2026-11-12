@@ -1,7 +1,7 @@
 /**
  * Parse a mask XLSX snapshot.
  * The header row must be MASK_HEADERS, in that order.
- * Digit length is 5, 6, or 7 and equals the mask length.
+ * Digit length is 5, 6, or 7 and equals the mask without hyphens.
  * The mask is text: a numeric cell would drop leading zeros.
  * Category is required text. ABC, type, premium, and purchase may be empty.
  */
@@ -24,8 +24,14 @@ export const MASK_MAX_ROWS = 50_000;
 export const MASK_MAX_ERRORS = 30;
 const MAX_TEXT = 200;
 const MAX_ABC = 15;
-const MASK_TEXT = /^[0-9A-DX-Z]+$/;
+const MASK_BODY = /^[0-9A-DX-Z]+$/;
+const MASK_TEXT = /^[0-9A-DX-Z-]+$/;
+const MASK_MAX_RAW = 32;
 const DIGIT_LENGTHS = new Set([5, 6, 7]);
+
+function maskSignificant(text: string): string {
+  return text.replace(/-/g, "");
+}
 
 export type MaskParsedRow = {
   sortIndex: number;
@@ -152,16 +158,21 @@ function parseDigitLength(value: unknown): LengthParse {
   return { ok: true, value: Number(text) };
 }
 
-type MaskCellParse =
-  { ok: true; value: string } | { ok: false; numeric: boolean };
+type MaskCellParse = { ok: true; value: string } | { ok: false; numeric: boolean };
 
 function parseMask(value: unknown, digitLength: number | null): MaskCellParse {
   const raw = unwrap(value);
   if (typeof raw === "number") return { ok: false, numeric: true };
   if (typeof raw !== "string") return { ok: false, numeric: false };
   const text = raw.trim();
-  if (!text || !MASK_TEXT.test(text)) return { ok: false, numeric: false };
-  if (digitLength != null && text.length !== digitLength) return { ok: false, numeric: false };
+  if (!text || text.length > MASK_MAX_RAW || !MASK_TEXT.test(text)) {
+    return { ok: false, numeric: false };
+  }
+  const significant = maskSignificant(text);
+  if (!MASK_BODY.test(significant)) return { ok: false, numeric: false };
+  if (digitLength != null && significant.length !== digitLength) {
+    return { ok: false, numeric: false };
+  }
   return { ok: true, value: text };
 }
 
@@ -293,7 +304,7 @@ export async function parseMaskXlsx(
       push(
         mask.numeric
           ? `Строка ${rowNumber}: «Маска» должна быть текстом, иначе нули в начале пропадают`
-          : `Строка ${rowNumber}: «Маска» — цифры и буквы A–D и X–Z, длина равна «Разрядности»`,
+          : `Строка ${rowNumber}: «Маска» — цифры и буквы A–D и X–Z, дефис длину не увеличивает, длина равна «Разрядности»`,
       );
     }
     for (const [title, parsed] of [

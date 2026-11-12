@@ -8,8 +8,9 @@ import {
   formatExportTimestamp,
   workbookToBuffer,
 } from "@/lib/xlsx-export";
+import { formatAmountCell } from "@/lib/amount-format";
 import { geographyAbcText } from "@/modules/rtu/abc-display";
-import { geographyDigitAlign, RTU_COLUMNS, RTU_HEADERS } from "@/modules/rtu/columns";
+import { RTU_COLUMNS, RTU_HEADERS, rtuCellAlign } from "@/modules/rtu/columns";
 import { geographyRowTone, type GeographyRowTone } from "@/modules/rtu/row-tone";
 import { listAllRtu } from "@/modules/rtu/service";
 import { getDisplayTimezone } from "@/modules/settings";
@@ -45,7 +46,9 @@ export async function buildRtuExportXlsx(): Promise<RtuExportResult> {
       guardExcelText(
         column === "abc"
           ? geographyAbcText(item.number, item.abc, item.telephone)
-          : item[column],
+          : column === "purchase" || column === "premium"
+            ? formatAmountCell(item[column])
+            : item[column],
       ),
     ),
   );
@@ -55,7 +58,7 @@ export async function buildRtuExportXlsx(): Promise<RtuExportResult> {
     rows,
     styleCell: ({ rowIndex, colIndex, cell }) => {
       if (rowIndex < 0) return;
-      const align = geographyDigitAlign(RTU_COLUMNS[colIndex] ?? "category");
+      const align = rtuCellAlign(RTU_COLUMNS[colIndex] ?? "category");
       if (align) {
         cell.numFmt = "@";
         cell.alignment = { horizontal: align, vertical: "middle" };

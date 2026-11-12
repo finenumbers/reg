@@ -10,6 +10,9 @@ import {
   setColumnFilterValues,
   type ColumnFilters,
 } from "@/components/column-filters";
+import { displayFacetValue } from "@/components/column-filters/types";
+import { formatAmountCell, formatStoredAmount } from "@/lib/amount-format";
+import { cn } from "@/lib/utils";
 import { useDisplayTimezone } from "@/components/display-timezone-provider";
 import { EXPORT_XLSX_BUTTON_CLASS } from "@/components/export-xlsx-button-class";
 import { FILTER_TOOLBAR_TEXT } from "@/components/filter-toolbar";
@@ -44,6 +47,18 @@ import type { ListMasksResult, MaskListItem } from "@/modules/masks/service";
 const PAGE_SIZE = TABLE_PAGE_SIZE;
 
 type ImportError = { error: string; details: string[] };
+
+function shownMaskCell(row: MaskListItem, id: MaskColumnId): string {
+  const raw = maskCellText(row, id);
+  if (id === "purchase" || id === "premium") return formatAmountCell(raw);
+  return raw;
+}
+
+function maskCellClass(id: MaskColumnId): string | undefined {
+  if (id === "mask") return "text-right font-mono";
+  if (id === "purchase" || id === "premium") return "text-right tabular-nums";
+  return undefined;
+}
 
 function formatLoadedLine(
   loadedAt: string | null,
@@ -267,6 +282,11 @@ export function MasksView({ initial }: { initial: ListMasksResult }) {
       <ActiveFiltersBar
         filters={filters}
         headers={MASK_COLUMN_HEADERS}
+        formatValue={(field, value) =>
+          field === "purchase" || field === "premium"
+            ? formatStoredAmount(value)
+            : displayFacetValue(value)
+        }
         onRemoveFacet={(field, value) =>
           applyFilters(removeFacetValue(filtersRef.current, field, value), {
             closeDropdown: true,
@@ -318,11 +338,8 @@ export function MasksView({ initial }: { initial: ListMasksResult }) {
                 items.map((row) => (
                   <TableRow key={row.id}>
                     {MASK_COLUMN_ORDER.map((id) => (
-                      <TableCell
-                        key={id}
-                        className={id === "mask" ? "text-right font-mono" : undefined}
-                      >
-                        {maskCellText(row, id)}
+                      <TableCell key={id} className={maskCellClass(id)}>
+                        {shownMaskCell(row, id)}
                       </TableCell>
                     ))}
                   </TableRow>
@@ -351,13 +368,21 @@ function MaskColumnHead({
   onColumnFilterChange: (column: string, values: string[]) => void;
 }) {
   return (
-    <TableHead className={id === "mask" ? "text-right font-medium" : "font-medium"}>
+    <TableHead
+      className={cn(
+        "font-medium",
+        (id === "mask" || id === "purchase" || id === "premium") && "text-right",
+      )}
+    >
       <ColumnFilterDropdown
         column={id}
         header={MASK_COLUMN_HEADERS[id]}
         open={openColumn === id}
         selected={filters[id] ?? []}
         filters={filters}
+        formatValue={
+          id === "purchase" || id === "premium" ? formatStoredAmount : undefined
+        }
         buildFacetsUrl={({ column, filters: nextFilters, q }) =>
           buildMasksFacetsUrl({ column, filters: nextFilters, q })
         }

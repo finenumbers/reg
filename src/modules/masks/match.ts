@@ -2,8 +2,9 @@
  * One mask row for a screen number.
  * The same rules are in rtu_mask_lookup. A letter is a digit class:
  * one letter is one digit, two letters are two digits. A letter may
- * equal a digit written in the same mask. The row with more literal
- * digits wins. An earlier file row does not win by itself.
+ * equal a digit written in the same mask. A hyphen is stored and shown,
+ * and it is not a digit or a letter. The row with more literal digits
+ * wins. An earlier file row does not win by itself.
  */
 
 import { FREE_CALL_DIRECTION, MOBILE_RF_DIRECTION } from "@/modules/rtu/columns";
@@ -12,8 +13,18 @@ export const MASK_CATEGORY_MOBILE = "Мобильный";
 export const MASK_CATEGORY_FREE = "Бесплатный вызов";
 export const MASK_CATEGORY_CITY = "Городской";
 
-const MASK_ALPHABET = /^[0-9A-DX-Z]+$/;
+const MASK_BODY = /^[0-9A-DX-Z]+$/;
+const MASK_TEXT = /^[0-9A-DX-Z-]+$/;
 const DIGITS = /^\d+$/;
+
+/** Letters and digits of a mask. A hyphen is not one of them. */
+export function maskSignificant(mask: string): string {
+  return mask.replace(/-/g, "");
+}
+
+function isMaskLetter(symbol: string): boolean {
+  return (symbol >= "A" && symbol <= "D") || (symbol >= "X" && symbol <= "Z");
+}
 
 export type MaskCandidate = {
   sortIndex: number;
@@ -66,11 +77,13 @@ export function maskAbcRank(
 
 /** True when the local number is an instance of the mask. */
 export function maskFits(mask: string, telephone: string): boolean {
-  if (mask.length !== telephone.length) return false;
-  if (!DIGITS.test(telephone) || !MASK_ALPHABET.test(mask)) return false;
+  if (!DIGITS.test(telephone) || !MASK_TEXT.test(mask)) return false;
+  const significant = maskSignificant(mask);
+  if (significant.length !== telephone.length || !MASK_BODY.test(significant))
+    return false;
   const letterDigit = new Map<string, string>();
-  for (let i = 0; i < mask.length; i++) {
-    const symbol = mask[i]!;
+  for (let i = 0; i < significant.length; i++) {
+    const symbol = significant[i]!;
     const digit = telephone[i]!;
     if (symbol >= "0" && symbol <= "9") {
       if (symbol !== digit) return false;
@@ -97,11 +110,11 @@ export function maskLiterals(mask: string): number {
   return count;
 }
 
-/** Positions whose letter occurs more than once. */
+/** Positions whose letter occurs more than once. A hyphen is not a letter. */
 export function maskRepeats(mask: string): number {
   const counts = new Map<string, number>();
   for (const symbol of mask) {
-    if (symbol >= "0" && symbol <= "9") continue;
+    if (!isMaskLetter(symbol)) continue;
     counts.set(symbol, (counts.get(symbol) ?? 0) + 1);
   }
   let count = 0;

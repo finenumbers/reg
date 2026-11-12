@@ -5,6 +5,7 @@ import { MISSING_PSTN_LABEL } from "@/modules/enrich/types";
 import {
   FREE_CALL_DIRECTION,
   geographyDigitAlign,
+  rtuCellAlign,
   isRtuColumn,
   MOBILE_RF_DIRECTION,
   RTU_COLUMNS,
@@ -172,6 +173,12 @@ describe("geography columns", () => {
     expect(RTU_HEADERS.premium).toBe("Премиум");
     expect(geographyDigitAlign("abc")).toBe("left");
     expect(geographyDigitAlign("telephone")).toBe("right");
+    expect(geographyDigitAlign("purchase")).toBeNull();
+    expect(rtuCellAlign("abc")).toBe("left");
+    expect(rtuCellAlign("telephone")).toBe("right");
+    expect(rtuCellAlign("purchase")).toBe("right");
+    expect(rtuCellAlign("premium")).toBe("right");
+    expect(rtuCellAlign("mask")).toBeNull();
   });
 
   it("keeps the activation column on the cheap path and out of the export filter", () => {

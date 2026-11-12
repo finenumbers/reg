@@ -10,6 +10,7 @@ import {
   type FacetResponse,
 } from "@/components/column-filters/types";
 import { Prisma } from "@/generated/prisma/client";
+import { amountFacetQueryHits } from "@/lib/amount-format";
 import { prisma } from "@/lib/db";
 import { kickGeographyDidRefresh } from "@/modules/rtu/did-snapshot";
 import { EXCEL_MAX_ROWS } from "@/modules/enrich/types";
@@ -115,7 +116,11 @@ function mapRow(row: DbRow): RtuItem {
 
 function facetsFromGroups(
   rows: FacetRow[],
-  opts: { q?: string; limit?: number },
+  opts: {
+    q?: string;
+    limit?: number;
+    matches?: (value: string, query: string) => boolean;
+  },
 ): FacetResponse {
   const limit = Math.min(500, Math.max(1, opts.limit ?? 200));
   const q = opts.q?.trim().toLowerCase() ?? "";
@@ -131,7 +136,9 @@ function facetsFromGroups(
   });
   if (q) {
     items = items.filter((item) =>
-      displayFacetValue(item.value).toLowerCase().includes(q),
+      opts.matches
+        ? opts.matches(item.value, q)
+        : displayFacetValue(item.value).toLowerCase().includes(q),
     );
   }
   const truncated = items.length > limit;
@@ -312,7 +319,12 @@ export async function listRtuFacets(opts: {
   const rows = await prisma.$queryRaw<FacetRow[]>(
     screenFacetSql(column, screenWhere(joined, filters, column, phoneQ, flags), joined),
   );
-  return facetsFromGroups(rows, { q: opts.q, limit: opts.limit });
+  const amount = column === "purchase" || column === "premium";
+  return facetsFromGroups(rows, {
+    q: opts.q,
+    limit: opts.limit,
+    matches: amount ? amountFacetQueryHits : undefined,
+  });
 }
 
 export type { RtuColumn };

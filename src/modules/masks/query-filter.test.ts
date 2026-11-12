@@ -1,12 +1,10 @@
 import { describe, expect, it } from "vitest";
-import {
-  applyMaskQuery,
-  maskCellText,
-  maskFacets,
-} from "@/modules/masks/query-filter";
+import { applyMaskQuery, maskCellText, maskFacets } from "@/modules/masks/query-filter";
 import type { MaskListItem } from "@/modules/masks/service";
 
-function row(partial: Partial<MaskListItem> & Pick<MaskListItem, "id" | "mask">): MaskListItem {
+function row(
+  partial: Partial<MaskListItem> & Pick<MaskListItem, "id" | "mask">,
+): MaskListItem {
   return {
     digitLength: partial.mask.length,
     category: "Городской",
@@ -21,7 +19,13 @@ function row(partial: Partial<MaskListItem> & Pick<MaskListItem, "id" | "mask">)
 const rows: MaskListItem[] = [
   row({ id: "1", mask: "00000", category: "Городской", abc: "495" }),
   row({ id: "2", mask: "00000", category: "Мобильный", abc: null }),
-  row({ id: "3", mask: "ABCDE", category: "Бесплатный вызов", abc: "812", maskType: "A" }),
+  row({
+    id: "3",
+    mask: "ABCDE",
+    category: "Бесплатный вызов",
+    abc: "812",
+    maskType: "A",
+  }),
 ];
 
 describe("applyMaskQuery", () => {
@@ -75,6 +79,30 @@ describe("applyMaskQuery", () => {
       "Городской",
       "Мобильный",
     ]);
+  });
+
+  it("finds a grouped purchase without changing the stored token", () => {
+    const priced = [
+      row({ id: "1", mask: "00000", purchase: "200000" }),
+      row({ id: "2", mask: "00000", purchase: "премиум" }),
+      row({ id: "3", mask: "0000X", purchase: null }),
+    ];
+    expect(maskCellText(priced[0]!, "purchase")).toBe("200000");
+    expect(
+      maskFacets(priced, { column: "purchase", q: "200 000" }).items.map(
+        (item) => item.value,
+      ),
+    ).toEqual(["200000"]);
+    expect(
+      maskFacets(priced, { column: "purchase", q: "пусто" }).items.map(
+        (item) => item.value,
+      ),
+    ).toEqual(["__empty__"]);
+    expect(
+      applyMaskQuery(priced, { filters: { purchase: ["200000"] } }).map(
+        (item) => item.id,
+      ),
+    ).toEqual(["1"]);
   });
 
   it("finds an empty cell by the label (пусто)", () => {

@@ -35,6 +35,7 @@ export function FreeNumbersTable(props: Props) {
       columns={FREE_NUMBER_COLUMNS}
       headers={FREE_NUMBER_HEADERS}
       numberColumn="number_local"
+      rightColumns={["mask_purchase", "premium"]}
       cellText={cellText}
       formatValue={displayFreeNumberFacet}
       buildFacetsUrl={buildFreeNumbersFacetsUrl}
