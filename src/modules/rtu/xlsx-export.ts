@@ -1,5 +1,6 @@
 /**
- * Full «Управление РТУ» workbook. Same columns as the screen, thin borders.
+ * Full «Управление РТУ» workbook. Thin borders.
+ * The column set is always RTU_COLUMNS. The «Маски и типы» toggle does not change it.
  */
 
 import { guardExcelText } from "@/modules/enrich/formula-guard";

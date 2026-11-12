@@ -25,6 +25,24 @@ export const RTU_COLUMNS = [
 
 export type RtuColumn = (typeof RTU_COLUMNS)[number];
 
+/** Hidden together by the «Маски и типы» switch. The data contract keeps them. */
+const RTU_MASK_COLUMN_LIST = ["mask", "maskType", "purchase", "premium"] as const;
+
+export const RTU_MASK_COLUMNS: ReadonlySet<RtuColumn> = new Set(RTU_MASK_COLUMN_LIST);
+
+export const RTU_COLUMNS_WITHOUT_MASKS: readonly RtuColumn[] = RTU_COLUMNS.filter(
+  (column) => !RTU_MASK_COLUMNS.has(column),
+);
+
+export function isRtuMaskColumn(column: string): boolean {
+  return (RTU_MASK_COLUMNS as ReadonlySet<string>).has(column);
+}
+
+/** Screen columns. `true` is the full contract, the same array, not a copy. */
+export function visibleRtuColumns(showMaskColumns: boolean): readonly RtuColumn[] {
+  return showMaskColumns ? RTU_COLUMNS : RTU_COLUMNS_WITHOUT_MASKS;
+}
+
 export const RTU_HEADERS: Record<RtuColumn, string> = {
   category: "Категория",
   city: "Город",

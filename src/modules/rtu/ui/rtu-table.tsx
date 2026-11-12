@@ -14,9 +14,9 @@ import { cn } from "@/lib/utils";
 import { geographyDigitMarks, type DigitMark } from "@/modules/rtu/abc-display";
 import { buildRtuFacetsUrl } from "@/modules/rtu/api-client";
 import {
-  RTU_COLUMNS,
   RTU_HEADERS,
   rtuCellAlign,
+  visibleRtuColumns,
   type RtuColumn,
 } from "@/modules/rtu/columns";
 import { geographyRowTone, type GeographyRowTone } from "@/modules/rtu/row-tone";
@@ -37,6 +37,7 @@ type Props = {
   onOpenColumnChange: (column: string | null) => void;
   onColumnFilterChange: (column: string, values: string[]) => void;
   onActivation?: (row: RtuItem) => void;
+  showMaskColumns: boolean;
 };
 
 const ROW_TONE_CLASS: Record<GeographyRowTone, string> = {
@@ -85,15 +86,17 @@ export function RtuTable({
   onOpenColumnChange,
   onColumnFilterChange,
   onActivation,
+  showMaskColumns,
 }: Props) {
   const showEmpty = !loading && data.length === 0;
-  const colCount = RTU_COLUMNS.length;
+  const columns = visibleRtuColumns(showMaskColumns);
+  const colCount = columns.length;
 
   return (
     <Table>
       <TableHeader>
         <TableRow>
-          {RTU_COLUMNS.map((column) => (
+          {columns.map((column) => (
             <TableHead
               key={column}
               className={cn(
@@ -153,7 +156,7 @@ export function RtuTable({
             const marks = geographyDigitMarks(row.number, row.abc, row.telephone, phoneQ);
             return (
               <TableRow key={row.id} className={ROW_TONE_CLASS[tone]}>
-                {RTU_COLUMNS.map((column) => {
+                {columns.map((column) => {
                   const align = rtuCellAlign(column);
                   const bold = column === "abc" || column === "telephone";
                   return (

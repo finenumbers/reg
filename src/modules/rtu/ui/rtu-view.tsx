@@ -8,6 +8,7 @@ import { RowColorMark } from "@/components/row-color-legend";
 import { EXPORT_XLSX_BUTTON_CLASS } from "@/components/export-xlsx-button-class";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   ActiveFiltersBar,
   hasActiveFilters,
@@ -26,7 +27,7 @@ import {
 } from "@/lib/format-count";
 import { TABLE_PAGE_SIZE } from "@/lib/table-pagination";
 import { fetchRtuList, fetchRtuPstnFill } from "@/modules/rtu/api-client";
-import { RTU_HEADERS } from "@/modules/rtu/columns";
+import { RTU_HEADERS, isRtuMaskColumn } from "@/modules/rtu/columns";
 import { geographyAppendAllowed, refreshIntervalMs } from "@/modules/rtu/paging";
 import { PSTN_FILL_MAX_IDS } from "@/modules/rtu/pstn-fill-contract";
 import { blankPstnRowIds, mergePstnLabels } from "@/modules/rtu/pstn-fill-rows";
@@ -56,6 +57,7 @@ export function RtuView({ initial, canRequest, canActivate }: Props) {
   const [blockedOnly, setBlockedOnly] = useState(false);
   const [unregisteredOnly, setUnregisteredOnly] = useState(false);
   const [missingOnly, setMissingOnly] = useState(false);
+  const [showMaskColumns, setShowMaskColumns] = useState(true);
   const [blockedCount, setBlockedCount] = useState(initial.blockedCount);
   const [unregisteredCount, setUnregisteredCount] = useState(initial.unregisteredCount);
   const [missingCount, setMissingCount] = useState(initial.missingCount);
@@ -529,6 +531,13 @@ export function RtuView({ initial, canRequest, canActivate }: Props) {
     void loadList({ blockedOnly: checked, page: 1, replace: true });
   }
 
+  function onShowMaskColumnsChange(checked: boolean) {
+    setShowMaskColumns(checked);
+    if (!checked && openColumn != null && isRtuMaskColumn(openColumn)) {
+      setOpenColumn(null);
+    }
+  }
+
   async function onExport() {
     if (exporting || uploading) return;
     setExporting(true);
@@ -711,64 +720,79 @@ export function RtuView({ initial, canRequest, canActivate }: Props) {
       </div>
 
       <div className="flex shrink-0 flex-wrap items-center gap-3">
-        <PhoneSearchInput
-          id="rtu-phone-search"
-          value={phoneInput}
-          busy={loading || loadingMore}
-          onChange={onPhoneInputChange}
-          onKeyDown={onPhoneKeyDown}
-        />
-        <div className="flex items-center gap-2">
-          <input
-            id="rtu-unregistered-only"
-            type="checkbox"
-            className="size-4 rounded border"
-            checked={unregisteredOnly}
-            onChange={(e) => onUnregisteredOnlyChange(e.target.checked)}
+        <div className="flex flex-wrap items-center gap-3">
+          <PhoneSearchInput
+            id="rtu-phone-search"
+            value={phoneInput}
+            busy={loading || loadingMore}
+            onChange={onPhoneInputChange}
+            onKeyDown={onPhoneKeyDown}
           />
-          <Label htmlFor="rtu-unregistered-only">
-            <RowColorMark tone="unregistered">
-              {formatUnregisteredOnlyLabel(unregisteredCount)}
-            </RowColorMark>
-          </Label>
+          <div className="flex items-center gap-2">
+            <input
+              id="rtu-unregistered-only"
+              type="checkbox"
+              className="size-4 rounded border"
+              checked={unregisteredOnly}
+              onChange={(e) => onUnregisteredOnlyChange(e.target.checked)}
+            />
+            <Label htmlFor="rtu-unregistered-only">
+              <RowColorMark tone="unregistered">
+                {formatUnregisteredOnlyLabel(unregisteredCount)}
+              </RowColorMark>
+            </Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              id="rtu-blocked-only"
+              type="checkbox"
+              className="size-4 rounded border"
+              checked={blockedOnly}
+              onChange={(e) => onBlockedOnlyChange(e.target.checked)}
+            />
+            <Label htmlFor="rtu-blocked-only">
+              <RowColorMark tone="blocked">
+                {formatBlockedOnlyLabel(blockedCount)}
+              </RowColorMark>
+            </Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              id="rtu-missing-only"
+              type="checkbox"
+              className="size-4 rounded border"
+              checked={missingOnly}
+              onChange={(e) => onMissingOnlyChange(e.target.checked)}
+            />
+            <Label htmlFor="rtu-missing-only">
+              <RowColorMark tone="missing">
+                {formatMissingRtuLabel(missingCount)}
+              </RowColorMark>
+            </Label>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            className={FILTER_TOOLBAR_TEXT}
+            disabled={!filtersActive}
+            onClick={onResetFilters}
+          >
+            Сбросить фильтры
+          </Button>
         </div>
-        <div className="flex items-center gap-2">
-          <input
-            id="rtu-blocked-only"
-            type="checkbox"
-            className="size-4 rounded border"
-            checked={blockedOnly}
-            onChange={(e) => onBlockedOnlyChange(e.target.checked)}
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+          <Label
+            htmlFor="rtu-mask-columns"
+            className={`${FILTER_TOOLBAR_TEXT} whitespace-nowrap`}
+          >
+            Маски и типы
+          </Label>
+          <Switch
+            id="rtu-mask-columns"
+            checked={showMaskColumns}
+            onCheckedChange={onShowMaskColumnsChange}
           />
-          <Label htmlFor="rtu-blocked-only">
-            <RowColorMark tone="blocked">
-              {formatBlockedOnlyLabel(blockedCount)}
-            </RowColorMark>
-          </Label>
         </div>
-        <div className="flex items-center gap-2">
-          <input
-            id="rtu-missing-only"
-            type="checkbox"
-            className="size-4 rounded border"
-            checked={missingOnly}
-            onChange={(e) => onMissingOnlyChange(e.target.checked)}
-          />
-          <Label htmlFor="rtu-missing-only">
-            <RowColorMark tone="missing">
-              {formatMissingRtuLabel(missingCount)}
-            </RowColorMark>
-          </Label>
-        </div>
-        <Button
-          type="button"
-          variant="outline"
-          className={FILTER_TOOLBAR_TEXT}
-          disabled={!filtersActive}
-          onClick={onResetFilters}
-        >
-          Сбросить фильтры
-        </Button>
       </div>
 
       {actionError ? (
@@ -822,6 +846,7 @@ export function RtuView({ initial, canRequest, canActivate }: Props) {
             onOpenColumnChange={setOpenColumn}
             onColumnFilterChange={onColumnChange}
             onActivation={canActivate ? openActivation : undefined}
+            showMaskColumns={showMaskColumns}
           />
         </TableInfiniteBody>
         <TableCountFooter
