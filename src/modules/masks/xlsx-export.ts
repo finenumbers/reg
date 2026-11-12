@@ -32,8 +32,8 @@ export function maskExportCells(row: MaskExportSource): string[] {
     row.abc ?? "",
     row.mask,
     guardExcelText(row.maskType ?? ""),
-    guardExcelText(row.premium ?? ""),
     guardExcelText(row.purchase ?? ""),
+    guardExcelText(row.premium ?? ""),
   ];
 }
 

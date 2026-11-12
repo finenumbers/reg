@@ -28,7 +28,7 @@ describe("parseMaskXlsx", () => {
       header,
       ["5", " Городской ", "0495", "00000", "", "", ""],
       [],
-      [6, "Служебный", "", "00000X", "", 10, ""],
+      [6, "Служебный", "", "00000X", "", "", 10],
     ]);
     const result = await parseMaskXlsx(buf);
     expect(result.ok).toBe(true);
@@ -57,21 +57,26 @@ describe("parseMaskXlsx", () => {
     ]);
   });
 
-  it("accepts columns in any order", async () => {
-    const buf = await workbook([
-      ["Покупка", "Маска", "Премиум", "Тип", "ABC", "Категория", "Разрядность"],
-      ["", "XYZZZZZ", "", "Золотой", 495, "Мобильный", "7"],
-    ]);
-    const result = await parseMaskXlsx(buf);
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.rows[0]).toMatchObject({
-      digitLength: 7,
-      category: "Мобильный",
-      abc: "495",
-      mask: "XYZZZZZ",
-      maskType: "Золотой",
-    });
+  it("rejects a header row that is not in file order", async () => {
+    const scrambled = await parseMaskXlsx(
+      await workbook([
+        ["Покупка", "Маска", "Премиум", "Тип", "ABC", "Категория", "Разрядность"],
+        ["", "XYZZZZZ", "", "Золотой", 495, "Мобильный", "7"],
+      ]),
+    );
+    expect(scrambled.ok).toBe(false);
+    if (scrambled.ok) return;
+    expect(scrambled.details[0]).toMatch(/в этом порядке/);
+
+    const previous = await parseMaskXlsx(
+      await workbook([
+        ["Разрядность", "Категория", "ABC", "Маска", "Тип", "Премиум", "Покупка"],
+        ["5", "Городской", "", "00000", "", "премиум", "покупка"],
+      ]),
+    );
+    expect(previous.ok).toBe(false);
+    if (previous.ok) return;
+    expect(previous.details[0]).toMatch(/в этом порядке/);
   });
 
   it("rejects a numeric mask, a short mask, and a lowercase letter", async () => {
@@ -114,7 +119,7 @@ describe("parseMaskXlsx", () => {
     row.getCell(1).value = "5";
     row.getCell(2).value = "Городской";
     row.getCell(4).value = "00000";
-    row.getCell(6).value = new Date(Date.UTC(2024, 0, 2));
+    row.getCell(header.indexOf("Премиум") + 1).value = new Date(Date.UTC(2024, 0, 2));
     const dateResult = await parseMaskXlsx(Buffer.from(await dated.xlsx.writeBuffer()));
     expect(dateResult.ok).toBe(false);
     if (dateResult.ok) return;

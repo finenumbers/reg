@@ -1,7 +1,13 @@
-# Current Phase — production (v1.258.0)
+# Current Phase — production (v1.259.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, cloud PBX domains and numbers, Zabbix graphs.  
-**Date:** 2026-11-11
+**Date:** 2026-11-13
+
+## v1.259.0 — Mask columns put purchase before premium
+
+The migrator recreates `number_masks` and copies every row. `purchase` sits before `premium`. It does not rewrite phone, tariff, CDR, or PSTN rows and does not touch `number_mask_import_state`. The migration is label-free, so startup does not rescan the CDR journal. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app, let migrate finish, then start one new app. Refresh the browser.
+
+«Маски и типы» shows «Покупка» and then «Премиум» after «Тип». Import and export use that same header order. A file with the old order is rejected and the stored snapshot stays. A successful import still replaces every mask row. Nothing is written to the switch. RTU activation is unchanged.
 
 ## v1.258.0 — A 50M line on the second Zabbix graph
 

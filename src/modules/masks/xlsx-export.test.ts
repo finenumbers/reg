@@ -1,7 +1,8 @@
 import ExcelJS from "exceljs";
 import { describe, expect, it } from "vitest";
 import { workbookToBuffer } from "@/lib/xlsx-export";
-import { parseMaskXlsx } from "@/modules/masks/parse-xlsx";
+import { MASK_HEADERS, parseMaskXlsx } from "@/modules/masks/parse-xlsx";
+import { MASK_COLUMN_HEADERS, MASK_COLUMN_ORDER } from "@/modules/masks/query-filter";
 import { buildMaskExportWorkbook, maskExportCells } from "@/modules/masks/xlsx-export";
 
 describe("mask XLSX export", () => {
@@ -48,6 +49,27 @@ describe("mask XLSX export", () => {
         purchase: null,
       })[1],
     ).toBe("'=cmd");
+  });
+
+  it("writes purchase before premium in the same order as the screen", () => {
+    expect(MASK_COLUMN_ORDER.map((id) => MASK_COLUMN_HEADERS[id])).toEqual([...MASK_HEADERS]);
+    const workbook = buildMaskExportWorkbook([
+      {
+        digitLength: 7,
+        category: "Мобильный",
+        abc: null,
+        mask: "XYZZZZZ",
+        maskType: "=тип",
+        purchase: "=покупка",
+        premium: "=премиум",
+      },
+    ]);
+    const sheet = workbook.getWorksheet("Маски");
+    const headers = MASK_HEADERS.map((_, index) => sheet?.getRow(1).getCell(index + 1).value);
+    expect(headers).toEqual([...MASK_HEADERS]);
+    expect(sheet?.getRow(2).getCell(5).value).toBe("'=тип");
+    expect(sheet?.getRow(2).getCell(6).value).toBe("'=покупка");
+    expect(sheet?.getRow(2).getCell(7).value).toBe("'=премиум");
   });
 });
 

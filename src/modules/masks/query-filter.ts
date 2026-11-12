@@ -17,8 +17,8 @@ export const MASK_COLUMN_ORDER = [
   "abc",
   "mask",
   "maskType",
-  "premium",
   "purchase",
+  "premium",
 ] as const;
 
 export type MaskColumnId = (typeof MASK_COLUMN_ORDER)[number];

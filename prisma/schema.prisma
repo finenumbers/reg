@@ -604,10 +604,10 @@ model NumberMask {
   mask        String
   /// «Тип». Null when the cell is empty.
   maskType    String?
-  /// «Премиум». Null when the cell is empty. Stored as text.
-  premium     String?
   /// «Покупка». Null when the cell is empty. Stored as text.
   purchase    String?
+  /// «Премиум». Null when the cell is empty. Stored as text.
+  premium     String?
 
   @@unique([sortIndex])
   @@map("number_masks")

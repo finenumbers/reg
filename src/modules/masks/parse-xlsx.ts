@@ -1,5 +1,6 @@
 /**
  * Parse a mask XLSX snapshot.
+ * The header row must be MASK_HEADERS, in that order.
  * Digit length is 5, 6, or 7 and equals the mask length.
  * The mask is text: a numeric cell would drop leading zeros.
  * Category is required text. ABC, type, premium, and purchase may be empty.
@@ -13,11 +14,11 @@ export const MASK_HEADERS = [
   "ABC",
   "Маска",
   "Тип",
-  "Премиум",
   "Покупка",
+  "Премиум",
 ] as const;
 
-const MASK_HEADER_ERROR = `В первой строке должны быть столбцы ${MASK_HEADERS.map((name) => `«${name}»`).join(", ")} и больше ничего`;
+const MASK_HEADER_ERROR = `В первой строке должны быть столбцы ${MASK_HEADERS.map((name) => `«${name}»`).join(", ")} в этом порядке и больше ничего`;
 
 export const MASK_MAX_ROWS = 50_000;
 export const MASK_MAX_ERRORS = 30;
@@ -96,9 +97,7 @@ function readHeaderBlock(ws: ExcelJS.Worksheet): string[] | null {
 
 function headersMatch(block: string[]): boolean {
   if (block.length !== MASK_HEADERS.length) return false;
-  const expected = new Set<string>(MASK_HEADERS);
-  if (new Set(block).size !== block.length) return false;
-  return block.every((name) => expected.has(name));
+  return block.every((name, index) => name === MASK_HEADERS[index]);
 }
 
 function numberToPlain(n: number): string | null {

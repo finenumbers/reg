@@ -2,7 +2,7 @@
 
 Internal telecom ops platform. Phone numbers, groups, registrations, and live calls are read from the RTU API.
 
-**Repository:** [github.com/finenumbers/reg](https://github.com/finenumbers/reg) · **Release:** [v1.258.0](https://github.com/finenumbers/reg/releases/tag/v1.258.0)
+**Repository:** [github.com/finenumbers/reg](https://github.com/finenumbers/reg) · **Release:** [v1.259.0](https://github.com/finenumbers/reg/releases/tag/v1.259.0)
 
 ## Stack (approved)
 
@@ -167,7 +167,7 @@ Session only (`phones:read`). API keys are rejected. The catalog is not used to 
 
 - `GET /api/masks` — current snapshot, paging. `filters` selects from the whole snapshot, then the page is sliced
 - `GET /api/masks/facets` — one column's values over that same filtered snapshot
-- `POST /api/masks/import` — replace the snapshot from an XLSX (`Разрядность`, `Категория`, `ABC`, `Маска`, `Тип`, `Премиум`, `Покупка`)
+- `POST /api/masks/import` — replace the snapshot from an XLSX. The header row must be `Разрядность`, `Категория`, `ABC`, `Маска`, `Тип`, `Покупка`, `Премиум`, in that order
 - `GET /api/masks/export` — the whole snapshot as XLSX. Filters are not applied
 
 UI (`/masks`): table, column filters, **Импорт XLSX**, and **Экспорт XLSX**. «Маска» is right-aligned. A failed file leaves the previous snapshot in place. The nav block sits above Settings and also contains Tariffs.
