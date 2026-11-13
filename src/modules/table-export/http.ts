@@ -31,6 +31,7 @@ const PRIVATE = { "Cache-Control": "private, no-store" };
 
 const FILE_PREFIX: Record<TableExportKind, string> = {
   free: "free-numbers",
+  purchased: "purchased-numbers",
   numbering: "numbering-resource",
 };
 

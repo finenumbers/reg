@@ -91,20 +91,28 @@ describe("FEATURE_MODULES nav groups", () => {
     }
   });
 
-  it("keeps catalog links internal, with numbering resource after free numbers", () => {
+  it("keeps catalog links internal, in screen order", () => {
     const featureIds = FEATURE_MODULES.map((module) => module.id as string);
     expect(featureIds).toContain("free-numbers");
-    expect(featureIds).not.toContain("purchased-numbers");
+    expect(featureIds).toContain("purchased-numbers");
     expect(featureIds).toContain("numbering-resource");
+    expect(featureIds).toContain("numbering-load");
     expect(featureIds).not.toContain("did-free-numbers");
     expect(featureIds).not.toContain("pstn-numbering");
   });
 
-  it("keeps Свободные номера as an internal link before numbering resource", () => {
+  it("keeps the numbering links in catalog order", () => {
     const free = FEATURE_MODULES.find((module) => module.id === "free-numbers");
     expect(free).toMatchObject({
       title: "Свободные номера",
       href: "/free-numbers",
+      navPermission: "phones:read",
+      navGroup: "links",
+    });
+    const purchased = FEATURE_MODULES.find((module) => module.id === "purchased-numbers");
+    expect(purchased).toMatchObject({
+      title: "Купленные номера",
+      href: "/purchased-numbers",
       navPermission: "phones:read",
       navGroup: "links",
     });
@@ -117,10 +125,23 @@ describe("FEATURE_MODULES nav groups", () => {
       navPermission: "phones:read",
       navGroup: "links",
     });
+    const load = FEATURE_MODULES.find((module) => module.id === "numbering-load");
+    expect(load).toMatchObject({
+      title: "Загрузка нумерации",
+      href: "/numbering-load",
+      navPermission: "settings:write",
+      navGroup: "links",
+    });
     const freeIndex = FEATURE_MODULES.findIndex((module) => module.id === "free-numbers");
+    const purchasedIndex = FEATURE_MODULES.findIndex(
+      (module) => module.id === "purchased-numbers",
+    );
     const numberingIndex = FEATURE_MODULES.findIndex(
       (module) => module.id === "numbering-resource",
     );
-    expect(numberingIndex).toBe(freeIndex + 1);
+    const loadIndex = FEATURE_MODULES.findIndex((module) => module.id === "numbering-load");
+    expect(purchasedIndex).toBe(freeIndex + 1);
+    expect(numberingIndex).toBe(purchasedIndex + 1);
+    expect(loadIndex).toBe(numberingIndex + 1);
   });
 });

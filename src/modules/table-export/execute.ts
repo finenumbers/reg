@@ -16,6 +16,17 @@ import {
 } from "@/modules/free-numbers/service";
 import type { FreeNumberCursor } from "@/modules/free-numbers/sql";
 import {
+  AMOUNT_COLUMNS as PURCHASED_AMOUNT_COLUMNS,
+  PURCHASED_NUMBER_COLUMNS,
+  PURCHASED_NUMBER_HEADERS,
+} from "@/modules/purchased-numbers/columns";
+import { PURCHASED_NUMBERS_EXPORT_BATCH } from "@/modules/purchased-numbers/query";
+import {
+  countPurchasedNumbers,
+  listPurchasedNumbersExportBatch,
+} from "@/modules/purchased-numbers/service";
+import type { PurchasedNumberCursor } from "@/modules/purchased-numbers/sql";
+import {
   NUMBERING_COLUMNS,
   NUMBERING_HEADERS,
   type NumberingColumn,
@@ -138,6 +149,66 @@ async function writeFree(
   }
 }
 
+function purchasedColumns(): StreamColumn[] {
+  return PURCHASED_NUMBER_COLUMNS.map((column) => ({
+    header: PURCHASED_NUMBER_HEADERS[column],
+    text: true,
+    align: column === "number" || PURCHASED_AMOUNT_COLUMNS.has(column) ? "right" : undefined,
+  }));
+}
+
+async function writePurchased(
+  ctx: TableExportRunContext,
+  request: Extract<TableExportRequest, { kind: "purchased" }>,
+): Promise<void> {
+  const book = openStreamingWorkbook({
+    filePath: ctx.filePath,
+    sheetName: "Купленные номера",
+    columns: purchasedColumns(),
+    signal: ctx.signal,
+    onRows: ctx.setWritten,
+  });
+  try {
+    ctx.setTotal(await countPurchasedNumbers(request.filters, request.phoneQ));
+    let cursor: PurchasedNumberCursor | null = null;
+    for (;;) {
+      if (ctx.signal.aborted) throw new TableExportCancelled();
+      const items = await listPurchasedNumbersExportBatch({
+        filters: request.filters,
+        phoneQ: request.phoneQ,
+        cursor,
+        limit: PURCHASED_NUMBERS_EXPORT_BATCH,
+      });
+      if (items.length === 0) break;
+      for (const row of items) {
+        await book.writeRow(
+          PURCHASED_NUMBER_COLUMNS.map((column) =>
+            PURCHASED_AMOUNT_COLUMNS.has(column) ? formatAmountCell(row[column]) : row[column],
+          ),
+        );
+      }
+      if (items.length < PURCHASED_NUMBERS_EXPORT_BATCH) break;
+      const last = items[items.length - 1];
+      if (!last) break;
+      const next = { abc: last.abc, number: last.number, id: last.id };
+      if (
+        cursor &&
+        cursor.abc === next.abc &&
+        cursor.number === next.number &&
+        cursor.id === next.id
+      ) {
+        break;
+      }
+      cursor = next;
+      await yieldEventLoop();
+    }
+    await book.finish();
+  } catch (error) {
+    book.abort();
+    throw error;
+  }
+}
+
 async function writeNumbering(
   ctx: TableExportRunContext,
   filters: NumberingFilters,
@@ -199,6 +270,10 @@ async function writeNumbering(
 export async function executeTableExport(ctx: TableExportRunContext): Promise<void> {
   if (ctx.request.kind === "numbering") {
     await writeNumbering(ctx, ctx.request.filters);
+    return;
+  }
+  if (ctx.request.kind === "purchased") {
+    await writePurchased(ctx, ctx.request);
     return;
   }
   await writeFree(ctx, ctx.request);

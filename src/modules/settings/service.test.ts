@@ -19,6 +19,8 @@ function assertMaskedSettings(view: SettingsView) {
   expect(json).not.toMatch(/geoipApiKeyCiphertext/i);
   expect(json).not.toMatch(/pstnApiKeyCiphertext/i);
   expect(json).not.toMatch(/didApiTokenCiphertext/i);
+  expect(json).not.toMatch(/freeNumbersSourceTokenCiphertext/i);
+  expect(json).not.toMatch(/purchasedNumbersSourceTokenCiphertext/i);
   expect(json).not.toMatch(/"apiToken"/i);
   expect(json).not.toMatch(/ftpPasswordCiphertext/i);
   expect(json).not.toMatch(/smgFtp/i);

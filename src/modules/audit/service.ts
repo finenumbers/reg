@@ -76,6 +76,8 @@ export const AUDIT_ACTIONS = {
   CDR_TARIFF_RATE_START: "cdr.tariff.rate_start",
   CDR_TARIFF_RATE_FINISH: "cdr.tariff.rate_finish",
   VATS_SETTINGS_UPDATE: "vats.settings_update",
+  NUMBERING_LOAD_FREE_SAVE: "numbering_load.free_save",
+  NUMBERING_LOAD_PURCHASED_SAVE: "numbering_load.purchased_save",
   VATS_DOMAIN_UPDATE: "vats.domain_update",
   VATS_DOMAIN_OPEN: "vats.domain_open",
   ZABBIX_PASSWORD_REPLACE: "zabbix.password_replace",

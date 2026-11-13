@@ -1,7 +1,15 @@
-# Current Phase — production (v1.277.0)
+# Current Phase — production (v1.278.0)
 
-**Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
+**Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, purchased numbers, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-14
+
+## v1.278.0 — Purchased numbers and numbering-source access
+
+The migration `20261114020000_purchased_numbers` creates empty `purchased_numbers` and four nullable columns on `app_settings`. It does not rewrite phone, tariff, CDR, PSTN, RTU screen, or free-number rows. The migration is label-free, so startup does not rescan the CDR journal. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app, let migrate finish, then start one new app. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged.
+
+«Купленные номера» is `/purchased-numbers`, directly after «Свободные номера», with `phones:read`. The table is empty. The columns are «Провайдер», «ABC», «Номер», «Категория», «Город», «Регион», «Клиент», «Маска», «Тип», «Покупка», «Премиум», «Оператор связи», and «География». «Покупка» and «Премиум» sit on the right and group a whole number with a space. A fraction and other text stay as stored. «Клиент» stays as stored. Search looks for a substring of «Номер». The XLSX exports the filtered set. This page does not read DID.
+
+«Загрузка нумерации» is `/numbering-load`, directly after «Ресурс нумерации». It is visible with `settings:write`. Each of «Свободные номера» and «Купленные номера» stores an http(s) origin and an optional API token. The token is ciphertext at rest and is not returned. An empty token field leaves the stored token. A path, a query, a hash, or userinfo is rejected. Saving does not call the origin. Settings → DID is unchanged.
 
 ## v1.277.0 — Local free-number catalog
 

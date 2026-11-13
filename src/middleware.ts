@@ -51,7 +51,9 @@ export function middleware(request: NextRequest) {
     pathname.startsWith("/groups") ||
     pathname.startsWith("/rtu") ||
     pathname.startsWith("/free-numbers") ||
+    pathname.startsWith("/purchased-numbers") ||
     pathname.startsWith("/numbering-resource") ||
+    pathname.startsWith("/numbering-load") ||
     pathname.startsWith("/raw") ||
     pathname.startsWith("/live-calls") ||
     pathname.startsWith("/oprs") ||

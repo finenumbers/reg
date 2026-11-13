@@ -16,10 +16,11 @@ export const TABLE_EXPORT_DIR_PREFIX = "reg-table-xlsx-";
 const KEEP_MS = 15 * 60 * 1000;
 const KEY = "__reg_table_xlsx_jobs__";
 
-export type TableExportKind = "free" | "numbering";
+export type TableExportKind = "free" | "purchased" | "numbering";
 
 export type TableExportRequest =
   | { kind: "free"; filters: ColumnFilters; phoneQ: string }
+  | { kind: "purchased"; filters: ColumnFilters; phoneQ: string }
   | { kind: "numbering"; filters: NumberingFilters };
 
 export type TableExportStatus = "running" | "completed" | "failed" | "cancelled";
@@ -57,7 +58,7 @@ type Job = TableExportJobView & {
 type Store = { jobs: Record<TableExportKind, Job | null> };
 
 function emptyStore(): Store {
-  return { jobs: { free: null, numbering: null } };
+  return { jobs: { free: null, purchased: null, numbering: null } };
 }
 
 function store(): Store {
@@ -68,7 +69,7 @@ function store(): Store {
 
 export function resetTableExportJobsForTests(): void {
   const current = store();
-  for (const kind of ["free", "numbering"] as const) {
+  for (const kind of ["free", "purchased", "numbering"] as const) {
     const job = current.jobs[kind];
     if (job) {
       job.abort.abort();

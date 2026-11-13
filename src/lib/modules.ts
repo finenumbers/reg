@@ -16,7 +16,9 @@ export type FeatureModuleId =
   | "groups"
   | "rtu"
   | "free-numbers"
+  | "purchased-numbers"
   | "numbering-resource"
+  | "numbering-load"
   | "raw"
   | "live-calls"
   | "oprs"
@@ -98,11 +100,27 @@ export const FEATURE_MODULES: FeatureModuleDefinition[] = [
     navGroup: "links",
   },
   {
+    id: "purchased-numbers",
+    title: "Купленные номера",
+    description: "Каталог купленных номеров",
+    href: "/purchased-numbers",
+    navPermission: "phones:read",
+    navGroup: "links",
+  },
+  {
     id: "numbering-resource",
     title: "Ресурс нумерации",
     description: "Текущий ресурс нумерации PSTN",
     href: "/numbering-resource",
     navPermission: "phones:read",
+    navGroup: "links",
+  },
+  {
+    id: "numbering-load",
+    title: "Загрузка нумерации",
+    description: "Адрес и токен источников нумерации",
+    href: "/numbering-load",
+    navPermission: "settings:write",
     navGroup: "links",
   },
   {

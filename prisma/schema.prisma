@@ -180,6 +180,14 @@ model AppSetting {
   zabbixGraph2Name                String?
   /// Heading on the home page. Empty keeps the Zabbix graph name.
   zabbixGraph2Title               String?
+  /// Origin of the free-number source. http(s) host only. Null means unset.
+  freeNumbersSourceBaseUrl        String?
+  /// AES-256-GCM ciphertext of the free-number source token. Never plaintext.
+  freeNumbersSourceTokenCiphertext String?
+  /// Origin of the purchased-number source. http(s) host only. Null means unset.
+  purchasedNumbersSourceBaseUrl   String?
+  /// AES-256-GCM ciphertext of the purchased-number source token. Never plaintext.
+  purchasedNumbersSourceTokenCiphertext String?
   updatedAt             DateTime    @updatedAt
 
   @@map("app_settings")
@@ -635,6 +643,41 @@ model FreeNumber {
 
   @@index([abc, number, id], map: "free_numbers_order_idx")
   @@map("free_numbers")
+}
+
+/// Rows of «Купленные номера». The screen and its XLSX read this table.
+/// This release does not write rows. The GIN trigram index on number is created in SQL.
+model PurchasedNumber {
+  id        String @id @default(cuid())
+  /// «Провайдер».
+  provider  String @default("")
+  /// «ABC». Text so a leading zero survives.
+  abc       String @default("")
+  /// «Номер». Text so a leading zero survives.
+  number    String @default("")
+  /// «Категория».
+  category  String @default("")
+  /// «Город».
+  city      String @default("")
+  /// «Регион».
+  region    String @default("")
+  /// «Клиент».
+  client    String @default("")
+  /// «Маска».
+  mask      String @default("")
+  /// «Тип».
+  maskType  String @default("")
+  /// «Покупка». Stored as text. A fraction is not rounded.
+  purchase  String @default("")
+  /// «Премиум». Stored as text. A fraction is not rounded.
+  premium   String @default("")
+  /// «Оператор связи».
+  operator  String @default("")
+  /// «География».
+  geography String @default("")
+
+  @@index([abc, number, id], map: "purchased_numbers_order_idx")
+  @@map("purchased_numbers")
 }
 
 /// Mask and type snapshot from an uploaded XLSX. Each import replaces every row.

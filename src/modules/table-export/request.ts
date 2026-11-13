@@ -9,6 +9,11 @@ import {
   FreeNumbersQueryError,
 } from "@/modules/free-numbers/query";
 import {
+  allowPurchasedNumberFilters,
+  PURCHASED_NUMBERS_MAX_QUERY_CHARS,
+  PurchasedNumbersQueryError,
+} from "@/modules/purchased-numbers/query";
+import {
   filtersFromColumnState,
   type NumberingFilters,
 } from "@/modules/numbering-resource/filters";
@@ -58,6 +63,13 @@ export function parseTableExportRequest(
         phoneQ: readPhone(record.phoneQ, FREE_NUMBERS_MAX_QUERY_CHARS),
       };
     }
+    if (kind === "purchased") {
+      return {
+        kind,
+        filters: allowPurchasedNumberFilters(filters),
+        phoneQ: readPhone(record.phoneQ, PURCHASED_NUMBERS_MAX_QUERY_CHARS),
+      };
+    }
     const numbering: NumberingFilters = filtersFromColumnState(
       filters,
       typeof record.phoneQ === "string" ? record.phoneQ : "",
@@ -66,6 +78,7 @@ export function parseTableExportRequest(
   } catch (error) {
     if (
       error instanceof FreeNumbersQueryError ||
+      error instanceof PurchasedNumbersQueryError ||
       error instanceof NumberingQueryError ||
       error instanceof TableExportRequestError
     ) {
