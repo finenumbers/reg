@@ -54,7 +54,9 @@ async function readToneMap(): Promise<OprsOperatorToneMap> {
     yellow: 0,
     gray: 0,
   };
-  for (const tone of Object.values(report.map)) counts[tone] += 1;
+  for (const tone of Object.values(report.map)) {
+    if (tone) counts[tone] += 1;
+  }
   logger.info("oprs.operator_tone.loaded", { counts });
   return report.map;
 }
