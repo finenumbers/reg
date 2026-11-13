@@ -1,7 +1,13 @@
-# Current Phase — production (v1.275.0)
+# Current Phase — production (v1.276.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-13
+
+## v1.276.0 — Equal marking statistic network columns
+
+There is no migration. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. Keep a single `app` replica. Stop the old app before the new one starts, then recreate only the `app` container. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged.
+
+«Статистика маркировки» gives «МТС», «Мегафон», «Билайн», «Т2», and «Внешние сети» one width: the measured width of the phrase «Внешние сети», including the cell padding. «Итого» stays 88 pixels. «Клиент» and «Количество номеров» stay as they are. The column paints and the sort are unchanged.
 
 ## v1.275.0 — Painted marking statistic columns
 

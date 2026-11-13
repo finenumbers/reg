@@ -139,8 +139,7 @@ export function MarkingStatsTable({
   const tableWidth =
     clientColPx +
     numbersColPx +
-    BRAND_SORTS.length * brandColPx +
-    NETWORK_COL_PX +
+    MARKING_STATS_NETWORK_SORTS.length * brandColPx +
     TOTAL_COL_PX;
 
   return (
@@ -170,10 +169,9 @@ export function MarkingStatsTable({
         <colgroup>
           <col style={{ width: clientColPx }} />
           <col style={{ width: numbersColPx }} />
-          {BRAND_SORTS.map((key) => (
+          {MARKING_STATS_NETWORK_SORTS.map((key) => (
             <col key={key} style={{ width: brandColPx }} />
           ))}
-          <col style={{ width: NETWORK_COL_PX }} />
           <col style={{ width: TOTAL_COL_PX }} />
         </colgroup>
         <TableHeader>
