@@ -12,6 +12,7 @@ import {
 import { formatBytes } from "@/modules/storage/format-bytes";
 import { CDR_VACUUM_BUSY_MESSAGE } from "@/modules/storage/vacuum/gate";
 import { isPurgeHoldError, purgeHoldReleased } from "@/modules/traffic/poison";
+import { PURGE_MONTH_BUSY_MESSAGE } from "@/modules/traffic/purge/target";
 import type {
   DashboardAlert,
   DashboardBadge,
@@ -310,7 +311,7 @@ export function buildDashboard(facts: DashboardFacts): {
     alerts.push({
       id: "purge",
       tone: "info",
-      text: "Идёт удаление месяца.",
+      text: PURGE_MONTH_BUSY_MESSAGE,
       href: null,
     });
   }

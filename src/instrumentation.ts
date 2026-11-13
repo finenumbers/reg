@@ -71,7 +71,9 @@ export async function register() {
       continueMonth = prepared.month;
       if (continueMonth) {
         const { setPurgeTargetMonth } = await import("@/modules/traffic/purge/target");
+        const { forgetMarkingStatsMonth } = await import("@/modules/marking/stats");
         setPurgeTargetMonth(continueMonth);
+        forgetMarkingStatsMonth(continueMonth);
       }
       const { clearPurgeHoldsExcept } = await import("@/modules/traffic/poison");
       const released = clearPurgeHoldsExcept(continueMonth);

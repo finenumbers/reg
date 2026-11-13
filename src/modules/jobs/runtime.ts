@@ -21,6 +21,7 @@ import { requestVoipmonitorMatch } from "@/modules/voipmonitor/enqueue";
 import { processVoipmonitorMatch } from "@/modules/voipmonitor/processor";
 import { processCdrSidesRefresh } from "@/modules/traffic/sides-refresh/processor";
 import { requestCdrSidesRefresh } from "@/modules/traffic/sides-refresh/enqueue";
+import { forgetMarkingStatsMonth } from "@/modules/marking/stats";
 import { parseMonthKey } from "@/modules/traffic/cdr-month";
 import { processCdrPurgeMonth } from "@/modules/traffic/purge/processor";
 import { setPurgeTargetMonth } from "@/modules/traffic/purge/target";
@@ -179,7 +180,10 @@ export class PQueueJobRuntime implements JobRuntime {
     }
     if (input.actionCode === "cdr.purge.month") {
       const month = parseMonthKey(input.month);
-      if (month) setPurgeTargetMonth(month.key);
+      if (month) {
+        setPurgeTargetMonth(month.key);
+        forgetMarkingStatsMonth(month.key);
+      }
     }
 
     const runPromise = this.queue.add(async () => {

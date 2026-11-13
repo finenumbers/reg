@@ -20,6 +20,7 @@ import {
   mergeStorageMonths,
   type MonthTrafficStats,
 } from "@/modules/storage/months";
+import { forgetMarkingStatsMonth } from "@/modules/marking/stats";
 import {
   invalidateCdrMonthCountCache,
   queryMonthCallCounts,
@@ -507,6 +508,7 @@ export async function processCdrPurgeMonth(
       }
 
       setPurgeTargetMonth(target.key);
+      forgetMarkingStatsMonth(target.key);
       await assertPurgeFkIndexes();
       const callsLeft = await prisma.cdrRecord.count({
         where: { cdrDate: { startsWith: `${target.key}-` } },
@@ -562,6 +564,7 @@ export async function processCdrPurgeMonth(
       deletedAudit = remainder.audit;
 
       invalidateCdrMonthCountCache();
+      forgetMarkingStatsMonth(target.key);
       await finish(jobRun.id, startedAt, input, {
         status: "success",
         deleted: priorCalls,
@@ -645,6 +648,7 @@ export async function processCdrPurgeMonth(
     }
 
     setPurgeTargetMonth(target.key);
+    forgetMarkingStatsMonth(target.key);
     await assertPurgeFkIndexes();
     const cardKeys = await collectMonthTraceKeys(target.year, target.month);
     const [
@@ -717,6 +721,7 @@ export async function processCdrPurgeMonth(
     deletedAudit = remainder.audit;
 
     invalidateCdrMonthCountCache();
+    forgetMarkingStatsMonth(target.key);
     await finish(jobRun.id, startedAt, input, {
       status: "success",
       deleted,
@@ -742,6 +747,7 @@ export async function processCdrPurgeMonth(
       error: errorMessage,
     });
     invalidateCdrMonthCountCache();
+    if (target) forgetMarkingStatsMonth(target.key);
     await finish(jobRun.id, startedAt, input, {
       status: "failed",
       deleted,

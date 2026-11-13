@@ -27,6 +27,10 @@ import { readRtuScreenGate, requestRtuScreenPublish } from "@/modules/rtu/screen
 import { markingStatsSql } from "@/modules/marking/stats-sql";
 import type { MarkingStatsRow } from "@/modules/marking/stats-sort";
 import { withOprsTimeout } from "@/modules/oprs/timeout";
+import {
+  getPurgeTargetMonth,
+  PURGE_MONTH_BUSY_MESSAGE,
+} from "@/modules/traffic/purge/target";
 
 export type { MarkingStatsRow };
 
@@ -139,6 +143,48 @@ function cacheStore(): Store {
   return g[STORE_KEY];
 }
 
+/** Drop one month's aggregate. An in-flight read still finishes for its caller. */
+export function forgetMarkingStatsMonth(monthKey: string): void {
+  cacheStore().slots.delete(monthKey);
+}
+
+/** Test helper. */
+export function resetMarkingStatsForTests(): void {
+  const store = cacheStore();
+  store.slots.clear();
+  store.inflight.clear();
+}
+
+/**
+ * A month with no CDR rows is not a statistics month. The current UTC month
+ * stays, including when it has no calls yet.
+ */
+export function markingStatsMonthOnRecord(
+  requested: CdrMonth,
+  listed: readonly CdrMonth[],
+  now = new Date(),
+): CdrMonth {
+  if (listed.some((item) => item.key === requested.key)) return requested;
+  return currentUtcMonth(now);
+}
+
+function monthStillListed(month: CdrMonth, months: readonly CdrMonth[]): boolean {
+  return months.some((item) => item.key === month.key);
+}
+
+function fallbackMonth(months: readonly CdrMonth[], now: Date): CdrMonth {
+  const current = currentUtcMonth(now);
+  return months.find((item) => item.key === current.key) ?? months[0] ?? current;
+}
+
+function purgeHolds(monthKey: string): boolean {
+  return getPurgeTargetMonth() === monthKey;
+}
+
+function purgeBusy(): MarkingStatsError {
+  return new MarkingStatsError(503, PURGE_MONTH_BUSY_MESSAGE);
+}
+
 function monthsWithoutCounts(months: readonly CdrMonth[]): CdrMonth[] {
   return months.map(({ year, month, key }) => ({ year, month, key }));
 }
@@ -195,8 +241,21 @@ async function readSnapshot(
   blocked: { stamp: string; index: BlockedNumberIndex },
   generationAtStart: number,
   revisionAtStart: number,
+  now: Date,
 ): Promise<MarkingStatsSnapshot> {
   const months = monthsWithoutCounts(await listCachedMonthCounts());
+  if (purgeHolds(month.key)) throw purgeBusy();
+  if (!monthStillListed(month, months)) {
+    const fallback = fallbackMonth(months, now);
+    return {
+      month: fallback.key,
+      months,
+      rows: [],
+      preparing: false,
+      loadedAt: null,
+      rowCount: 0,
+    };
+  }
   const queried = await withOprsTimeout((tx) =>
     tx.$queryRaw<QueryRow[]>(
       markingStatsSql({
@@ -210,7 +269,7 @@ async function readSnapshot(
   const mapped = mapQuery(queried);
   const snapshot: MarkingStatsSnapshot = {
     month: month.key,
-    months: months.some((item) => item.key === month.key) ? months : [month, ...months],
+    months,
     rows: mapped.rows,
     preparing: false,
     loadedAt: mapped.loadedAt,
@@ -221,6 +280,7 @@ async function readSnapshot(
   const accepted =
     after != null &&
     mapped.catalogRevision === revisionAtStart &&
+    !purgeHolds(month.key) &&
     statsCacheAccepted({
       generationAtStart,
       generationAtEnd,
@@ -258,12 +318,15 @@ export async function listMarkingStats(
   if (isDatabaseVacuumActive()) {
     throw new MarkingStatsError(503, CDR_VACUUM_BUSY_MESSAGE);
   }
-  const month = markingStatsMonth(monthRaw, now);
+  const requested = markingStatsMonth(monthRaw, now);
+  if (purgeHolds(requested.key)) throw purgeBusy();
   const gate = await readRtuScreenGate();
   if (!gate?.published || gate.needsPublish) {
     void requestRtuScreenPublish();
   }
   const months = monthsWithoutCounts(await listCachedMonthCounts());
+  const month = markingStatsMonthOnRecord(requested, months, now);
+  if (purgeHolds(month.key)) throw purgeBusy();
   if (!gate?.published) return preparingSnapshot(month, months);
 
   const tone = await loadOprsToneReport(now.getTime(), { wait: true });
@@ -275,6 +338,7 @@ export async function listMarkingStats(
   } catch {
     throw new MarkingStatsError(503, BLOCKED_ERROR);
   }
+  if (purgeHolds(month.key)) throw purgeBusy();
 
   const generation = cdrDataGeneration();
   const key = statsKey(month.key, generation, gate.catalogRevision, tone, blocked);
@@ -290,6 +354,7 @@ export async function listMarkingStats(
     blocked,
     generation,
     gate.catalogRevision,
+    now,
   ).finally(() => {
     if (store.inflight.get(key) === promise) store.inflight.delete(key);
   });

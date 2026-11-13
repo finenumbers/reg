@@ -1,5 +1,7 @@
 import { Prisma } from "@/generated/prisma/client";
 import { describe, expect, it } from "vitest";
+import { cdrMonthPrefix } from "@/lib/month-window";
+import { cdrMonthDayRange } from "@/modules/traffic/cdr-month";
 import { emptyBlockedNumberIndex } from "@/modules/phones/blocked-numbers";
 import { MISSING_PSTN_LABEL } from "@/modules/enrich/types";
 import { OPRS_EXTERNAL_NETWORK } from "@/modules/oprs/derived";
@@ -55,5 +57,31 @@ describe("marking stats sql", () => {
     expect(flat.values).toContain(PARKING_DST);
     expect(flat.values).toContain(MISSING_PSTN_LABEL);
     expect(flat.text).not.toContain("unnest");
+  });
+
+  it("uses the same civil month the purge deletes", () => {
+    function covered(cdrDate: string, year: number, month: number) {
+      const bounds = cdrMonthDayRange(year, month);
+      return {
+        like: cdrDate.startsWith(cdrMonthPrefix(year, month)),
+        range: cdrDate >= bounds.start && cdrDate < bounds.end,
+      };
+    }
+    expect(covered("2026-11-13 04:05:06", 2026, 11)).toEqual({
+      like: true,
+      range: true,
+    });
+    expect(covered("2026-12-31T23:59:59", 2026, 12)).toEqual({
+      like: true,
+      range: true,
+    });
+    expect(covered("2026-12-01 00:00:00", 2026, 11)).toEqual({
+      like: false,
+      range: false,
+    });
+    expect(covered("2026-11-00 00:00:00", 2026, 11)).toEqual({
+      like: true,
+      range: false,
+    });
   });
 });

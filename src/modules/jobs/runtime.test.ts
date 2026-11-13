@@ -33,6 +33,12 @@ vi.mock("@/modules/traffic/purge/processor", () => ({
   processCdrPurgeMonth: (...args: unknown[]) => processCdrPurgeMonth(...args),
 }));
 
+const forgetMarkingStatsMonth = vi.fn();
+
+vi.mock("@/modules/marking/stats", () => ({
+  forgetMarkingStatsMonth: (...args: unknown[]) => forgetMarkingStatsMonth(...args),
+}));
+
 vi.mock("@/modules/traffic/tariff-rate/processor", () => ({
   processCdrTariffRate: vi.fn(),
 }));
@@ -404,6 +410,7 @@ describe("PQueueJobRuntime anti-overlap", () => {
     expect(purgeResult.accepted).toBe(false);
     expect(purgeResult.reason).toMatch(/cdr.import/);
     expect(processCdrPurgeMonth).not.toHaveBeenCalled();
+    expect(forgetMarkingStatsMonth).not.toHaveBeenCalled();
     expect(getPurgeTargetMonth()).toBeNull();
     await new Promise((r) => setTimeout(r, 100));
   });
@@ -457,6 +464,7 @@ describe("PQueueJobRuntime anti-overlap", () => {
       month: "2026-07",
     });
     expect(getPurgeTargetMonth()).toBe("2026-07");
+    expect(forgetMarkingStatsMonth).toHaveBeenCalledWith("2026-07");
     await accepted;
     resetPurgeTargetForTests();
   });

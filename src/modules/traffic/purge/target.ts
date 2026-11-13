@@ -2,6 +2,9 @@
  * In-process month currently being purged — import skips these rows.
  */
 
+/** Same sentence as the dashboard purge alert. */
+export const PURGE_MONTH_BUSY_MESSAGE = "Идёт удаление месяца.";
+
 const KEY = "__reg_cdr_purge_target__";
 
 type Slot = { month: string | null; committed: boolean };

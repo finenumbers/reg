@@ -94,6 +94,12 @@ vi.mock("@/modules/traffic/cdr-month-stats", () => ({
   queryMonthCallCounts: (...args: unknown[]) => queryMonthCallCounts(...args),
 }));
 
+const forgetMarkingStatsMonth = vi.fn();
+
+vi.mock("@/modules/marking/stats", () => ({
+  forgetMarkingStatsMonth: (...args: unknown[]) => forgetMarkingStatsMonth(...args),
+}));
+
 import { requestCdrImportDrain } from "@/modules/traffic/enqueue";
 import { clearPurgeHolds } from "@/modules/traffic/poison";
 import {
@@ -182,6 +188,7 @@ describe("processCdrPurgeMonth historyOnly", () => {
     });
     expect(result.status).toBe("failed");
     expect(result.errorMessage).toContain("ещё есть звонки");
+    expect(forgetMarkingStatsMonth).toHaveBeenCalledWith("2026-08");
     expect(executeRaw).not.toHaveBeenCalled();
     expect(clearPurgeHolds).toHaveBeenCalledWith("2026-08");
     expect(getPurgeTargetMonth()).toBeNull();
@@ -286,6 +293,7 @@ describe("processCdrPurgeMonth historyOnly", () => {
       deletedCalls: 10,
     });
     expect(result.status).toBe("success");
+    expect(forgetMarkingStatsMonth).toHaveBeenCalledWith("2026-08");
     expect(clearPurgeHolds).toHaveBeenCalledWith("2026-08");
     expect(getPurgeTargetMonth()).toBeNull();
     expect(purgeDeleteCommitted()).toBe(false);
@@ -368,6 +376,7 @@ describe("processCdrPurgeMonth resumeCalls", () => {
     });
     expect(result.status).toBe("success");
     expect(result.phonesParsed).toBe(3);
+    expect(forgetMarkingStatsMonth).toHaveBeenCalledWith("2026-08");
     expect(queryMonthCallCounts).not.toHaveBeenCalled();
     expect(jobRunUpdate).toHaveBeenCalledWith({
       where: { id: "src-1" },

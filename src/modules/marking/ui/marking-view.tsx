@@ -61,7 +61,7 @@ import {
   type MarkingStatsNetworkSort,
 } from "@/modules/marking/stats-sort";
 import { MarkingStatsTable } from "@/modules/marking/ui/marking-stats-table";
-import { parseMonthKey } from "@/modules/traffic/cdr-month";
+import { markingStatsFailureClearsRows } from "@/modules/marking/stats-hold";
 import { formatMonthOption } from "@/modules/traffic/month-labels";
 
 const PAGE_SIZE = TABLE_PAGE_SIZE;
@@ -146,11 +146,7 @@ export function MarkingView({
     };
   }, []);
 
-  const monthOptions = useMemo(() => {
-    if (stats.months.some((item) => item.key === stats.month)) return stats.months;
-    const extra = parseMonthKey(stats.month);
-    return extra ? [extra, ...stats.months] : stats.months;
-  }, [stats.month, stats.months]);
+  const monthOptions = stats.months;
 
   const monthSelectOptions = useMemo(
     () =>
@@ -176,6 +172,9 @@ export function MarkingView({
     statsStaleRef.current = false;
     if (!result.ok) {
       setStatsError(result.message);
+      if (markingStatsFailureClearsRows(result.message)) {
+        setStats((current) => ({ ...current, rows: [], rowCount: 0 }));
+      }
       return;
     }
     setStatsError(null);
@@ -257,6 +256,16 @@ export function MarkingView({
     loadListRef.current = loadList;
     loadStatsRef.current = loadStats;
   });
+
+  useEffect(() => {
+    if (!statsOn) return;
+    function onVisibility() {
+      if (document.visibilityState !== "visible") return;
+      void loadStatsRef.current(statsRef.current.month);
+    }
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, [statsOn]);
 
   const onLoadMore = useCallback(() => {
     if (!hasMore || loading || loadingMoreRef.current) return;
