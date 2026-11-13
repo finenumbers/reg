@@ -11,7 +11,14 @@ import { cdrHasBlockedNumber } from "@/modules/traffic/blocked-number";
 import type { CdrMonth } from "@/modules/traffic/cdr-month";
 import type { TrafficRowFlags } from "@/modules/traffic/row-flags";
 import { trafficListOrderBy, type TimeSort } from "@/modules/traffic/traffic-sort";
+import {
+  countOprsSlice,
+  fetchOprsSlice,
+  loadOprsReadContext,
+} from "@/modules/oprs/computed-read";
 import { attachOprsDerived } from "@/modules/oprs/derived";
+import { oprsNeedsComputedSql } from "@/modules/oprs/filter-sql";
+import { loadOprsOperatorToneMap } from "@/modules/oprs/operator-tone-load";
 import { OPRS_LIST_SELECT, oprsRowData, type OprsListRow } from "@/modules/oprs/row";
 import {
   assertOprsExportRowCount,
@@ -47,15 +54,21 @@ export async function writeOprsExport(input: {
     snapshot: input.snapshot,
     timeSort: input.timeSort,
   };
-  const total = await withOprsTimeout((tx) =>
-    tx.cdrRecord.count({
-      where: buildOprsWhere({ ...base, cursor: null }),
-    }),
-  );
+  const computed = oprsNeedsComputedSql(input.filters);
+  const ctx = computed ? await loadOprsReadContext(input.filters) : null;
+  const total =
+    computed && ctx
+      ? await withOprsTimeout((tx) => countOprsSlice(tx, { ...base, cursor: null }, ctx))
+      : await withOprsTimeout((tx) =>
+          tx.cdrRecord.count({
+            where: buildOprsWhere({ ...base, cursor: null }),
+          }),
+        );
   assertOprsExportRowCount(total);
-  const [guiUrl, blockedNumbers] = await Promise.all([
+  const [guiUrl, blockedNumbers, tones] = await Promise.all([
     readGuiUrl(),
-    loadBlockedNumbers(),
+    ctx ? Promise.resolve(ctx.blocked) : loadBlockedNumbers(),
+    ctx ? Promise.resolve(ctx.tones) : loadOprsOperatorToneMap(),
   ]);
   const orderBy = trafficListOrderBy(input.timeSort);
   return writeOprsSheet({
@@ -63,14 +76,19 @@ export async function writeOprsExport(input: {
     eachRow: async (visit) => {
       let cursor: OprsCursor | null = null;
       for (;;) {
-        const rows: OprsListRow[] = await withOprsTimeout((tx) =>
-          tx.cdrRecord.findMany({
-            where: buildOprsWhere({ ...base, cursor }),
-            orderBy,
-            take: OPRS_EXPORT_PAGE_SIZE,
-            select: OPRS_LIST_SELECT,
-          }),
-        );
+        const rows: OprsListRow[] =
+          computed && ctx
+            ? await withOprsTimeout((tx) =>
+                fetchOprsSlice(tx, { ...base, cursor }, ctx, OPRS_EXPORT_PAGE_SIZE),
+              )
+            : await withOprsTimeout((tx) =>
+                tx.cdrRecord.findMany({
+                  where: buildOprsWhere({ ...base, cursor }),
+                  orderBy,
+                  take: OPRS_EXPORT_PAGE_SIZE,
+                  select: OPRS_LIST_SELECT,
+                }),
+              );
         if (rows.length === 0) break;
         const links = await prisma.cdrVoipmonitorLink.findMany({
           where: { cdrRecordId: { in: rows.map((row) => row.id) } },
@@ -81,7 +99,10 @@ export async function writeOprsExport(input: {
           blocked: cdrHasBlockedNumber(blockedNumbers, row),
           data: oprsRowData(row, linkById.get(row.id), guiUrl),
         }));
-        await attachOprsDerived(items);
+        await attachOprsDerived(items, {
+          tones,
+          ...(ctx?.marking ? { labels: ctx.marking } : {}),
+        });
         for (const item of items) await visit(item.data);
         const last = rows[rows.length - 1]!;
         cursor = { cdrDate: last.cdrDate, cdrId: last.cdrId };

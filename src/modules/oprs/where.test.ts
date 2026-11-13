@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { MISSING_PSTN_LABEL } from "@/modules/enrich/types";
 import { CALL_CATEGORY } from "@/modules/traffic/call-class";
 import { MOBILE_RF_DIRECTION } from "@/modules/rtu/columns";
 import { PARKING_DST } from "@/modules/stats/classify";
@@ -18,6 +19,7 @@ describe("oprs predicate", () => {
       callCategory: CALL_CATEGORY.outgoing,
       tariffDirection: MOBILE_RF_DIRECTION,
       dstName: { not: PARKING_DST },
+      operatorB: { not: MISSING_PSTN_LABEL },
     });
     expect(PARKING_DST).toBe("Service_Parking");
     expect(MOBILE_RF_DIRECTION).toBe("Мобильные РФ");
@@ -84,6 +86,7 @@ describe("oprs where", () => {
     expect(text).toContain("Service_Parking_1");
     expect(text).not.toContain("Входящий");
     expect(text).not.toContain("Москва");
+    expect(text).toContain(MISSING_PSTN_LABEL);
     expect(text).not.toContain("МТС");
     expect(text).not.toContain("skip");
   });

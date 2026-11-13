@@ -5,6 +5,7 @@ import { CALL_STATUS } from "@/modules/traffic/call-class";
 import {
   OPRS_OPERATOR_INNS,
   oprsFailedTail,
+  oprsNamesByTone,
   oprsOperatorTone,
   oprsStampedTone,
   oprsToneMap,
@@ -25,8 +26,8 @@ function innChecksumOk(inn: string): boolean {
 
 describe("oprs operator inns", () => {
   it("keeps the previous inns and adds the new ones under the color cap", () => {
-    expect(OPRS_OPERATOR_INNS.green).toEqual(["7812014560", "7701725181"]);
-    expect(OPRS_OPERATOR_INNS.red).toEqual(["7740000076"]);
+    expect(OPRS_OPERATOR_INNS.green).toEqual(["7812014560", "7701725181", "7740000020"]);
+    expect(OPRS_OPERATOR_INNS.red).toEqual(["7740000076", "7705017253"]);
     expect(OPRS_OPERATOR_INNS.yellow).toEqual(["7713076301", "9725152215"]);
     expect(OPRS_OPERATOR_INNS.gray).toEqual([
       "7743895280",
@@ -66,6 +67,12 @@ describe("oprs operator tone map", () => {
     expect(oprsOperatorTone("МегаФон", map)).toBeNull();
     expect(oprsOperatorTone("Билайн", map)).toBeNull();
     expect(oprsOperatorTone("   ", map)).toBeNull();
+    expect(oprsNamesByTone({ "ПАО МТС": "red", Мега: "green" })).toEqual({
+      green: ["Мега"],
+      red: ["ПАО МТС"],
+      yellow: [],
+      gray: [],
+    });
   });
 
   it("keeps two names of one color and reports a shared name", () => {

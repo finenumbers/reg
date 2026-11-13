@@ -9,8 +9,8 @@ import { CALL_STATUS } from "@/modules/traffic/call-class";
 import { OPRS_FAILED_TAIL_COLUMN } from "@/modules/traffic/columns";
 
 export const OPRS_OPERATOR_INNS = {
-  green: ["7812014560", "7701725181"],
-  red: ["7740000076"],
+  green: ["7812014560", "7701725181", "7740000020"],
+  red: ["7740000076", "7705017253"],
   yellow: ["7713076301", "9725152215"],
   gray: [
     "7743895280",
@@ -103,6 +103,23 @@ export function oprsToneReport(groups: readonly OprsOperatorNameGroup[]): {
 export function oprsStampedTone(value: string | undefined): OprsOperatorTone | null {
   if (value && TONE_SET.has(value)) return value as OprsOperatorTone;
   return null;
+}
+
+/** Names the paint map actually colors, split by tone. A conflict is already absent. */
+export function oprsNamesByTone(
+  map: OprsOperatorToneMap,
+): Record<OprsOperatorTone, string[]> {
+  const names: Record<OprsOperatorTone, string[]> = {
+    green: [],
+    red: [],
+    yellow: [],
+    gray: [],
+  };
+  for (const [name, tone] of Object.entries(map)) {
+    if (!tone || !name) continue;
+    names[tone].push(name);
+  }
+  return names;
 }
 
 export function oprsOperatorTone(

@@ -1,7 +1,17 @@
-# Current Phase — production (v1.269.1)
+# Current Phase — production (v1.270.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-13
+
+## v1.270.0 — OPRS column search
+
+There is no migration. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. Keep a single `app` replica. Stop the old app before the new one starts, then recreate only the `app` container. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged.
+
+«Звонки в ОПРС» also paints red for the current registry name of INN 7705017253, and green for 7740000020. Red still includes 7740000076. Green still includes 7812014560 and 7701725181. Yellow and gray INNs are unchanged. A name shared by two colors, or a truncated registry list, still does not paint.
+
+A row whose «ОПРС (Реестр Минцифры)» is exactly «Нет в реестре МинЦифры» is absent from the table, the column menus, the count, and the XLSX file. An empty operator stays. A saved link that filters only that label shows an empty list. That label is no longer a BDPN button because the row is not shown. Any other non-empty operator cell stays a button.
+
+Every column header has the same search menu. «Время» still sorts by the full timestamp with its own button. Other traffic screens are unchanged. A filter matches any chosen value in that column and every chosen column at once. The open menu still lists the other values. «Сеть», «Маркировка», «МАВ», and the Calltrace columns match the text in the cell. A blocked number stays black, is not in a colored network, and has empty marking and MAV. Calltrace search is the id on the screen, or «открыть» when the id is empty. The XLSX cell remains the URL.
 
 ## v1.269.1 — OPRS tone log typecheck
 

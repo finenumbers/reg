@@ -26,7 +26,7 @@ import {
   OPRS_NETWORK_COLUMN,
 } from "@/modules/traffic/columns";
 
-const NETWORK_LABEL: Record<OprsOperatorTone, string> = {
+export const OPRS_NETWORK_LABEL: Record<OprsOperatorTone, string> = {
   red: "МТС",
   green: "Мегафон",
   yellow: "Билайн",
@@ -45,7 +45,7 @@ export type OprsCatalogLabels = {
 };
 
 export function oprsNetworkLabel(tone: OprsOperatorTone | null): string {
-  return tone ? NETWORK_LABEL[tone] : "";
+  return tone ? OPRS_NETWORK_LABEL[tone] : "";
 }
 
 export function oprsCatalogCells(
@@ -118,19 +118,28 @@ async function readMarkingLabels(
 
 export async function attachOprsDerived(
   items: readonly { blocked?: boolean; data: Record<string, string> }[],
+  context?: {
+    tones?: OprsOperatorToneMap;
+    /** When set, including an empty map, the catalog is not read again. */
+    labels?: ReadonlyMap<string, OprsCatalogLabels>;
+  },
 ): Promise<void> {
   if (items.length === 0) return;
-  const tones = await loadOprsOperatorToneMap();
+  const tones = context?.tones ?? (await loadOprsOperatorToneMap());
   const phones = new Set<string>();
-  for (const item of items) {
-    if (item.blocked) continue;
-    const tone = oprsOperatorTone(item.data.operator_b ?? "", tones);
-    if (!tone) continue;
-    const phone = (item.data.bill_ani ?? "").trim();
-    if (phone) phones.add(phone);
+  if (!context?.labels) {
+    for (const item of items) {
+      if (item.blocked) continue;
+      const tone = oprsOperatorTone(item.data.operator_b ?? "", tones);
+      if (!tone) continue;
+      const phone = (item.data.bill_ani ?? "").trim();
+      if (phone) phones.add(phone);
+    }
   }
   let labels = new Map<string, OprsCatalogLabels>();
-  if (phones.size > 0) {
+  if (context?.labels) {
+    labels = new Map(context.labels);
+  } else if (phones.size > 0) {
     try {
       labels = await readMarkingLabels([...phones]);
     } catch (error: unknown) {

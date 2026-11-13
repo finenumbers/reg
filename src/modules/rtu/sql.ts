@@ -347,7 +347,7 @@ const baseCte = Prisma.sql`
   )
 `;
 
-function pstnKeyFromDigits(digits: Prisma.Sql): Prisma.Sql {
+export function pstnKeyFromDigits(digits: Prisma.Sql): Prisma.Sql {
   return Prisma.sql`(
     CASE
       WHEN ${digits} ~ ${PSTN_ELEVEN_DIGIT} THEN substring(${digits} FROM 2)

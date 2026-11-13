@@ -25,6 +25,7 @@ import {
   oprsFailedTail,
   oprsStampedTone,
 } from "@/modules/oprs/operator-tone";
+import { trafficColumnHeaderMode } from "@/modules/traffic/header-mode";
 import { cdrRowTone } from "@/modules/traffic/row-tone";
 import { cn } from "@/lib/utils";
 import {
@@ -109,22 +110,22 @@ export function TrafficTable({
     <Table>
       <TableHeader>
         <TableRow>
-          {headers.map((h) => (
-            <TableHead key={h} className="font-medium">
-              {h === "cdr_time" && onTimeSortChange ? (
-                <TimeSortHeader
-                  header={headerLabels?.[h] ?? h}
-                  timeSort={timeSort}
-                  onChange={onTimeSortChange}
-                />
-              ) : VOIPMONITOR_COLUMN_SET.has(h) ||
+          {headers.map((h) => {
+            const header = headerLabels?.[h] ?? h;
+            const mode = trafficColumnHeaderMode({
+              column: h,
+              oprs: oprsPaint,
+              timeSortable: onTimeSortChange != null,
+              plain:
+                VOIPMONITOR_COLUMN_SET.has(h) ||
                 h === BILLING_MINUTES_COLUMN ||
-                plainSet.has(h) ? (
-                (headerLabels?.[h] ?? h)
-              ) : (
+                plainSet.has(h),
+            });
+            const filter =
+              mode === "filter" || mode === "sort-and-filter" ? (
                 <ColumnFilterDropdown
                   column={h}
-                  header={headerLabels?.[h] ?? h}
+                  header={header}
                   open={openColumn === h}
                   selected={filters[h] ?? []}
                   filters={filters}
@@ -150,9 +151,28 @@ export function TrafficTable({
                   onChange={(values) => onColumnFilterChange(h, values)}
                   onClear={() => onColumnFilterChange(h, [])}
                 />
-              )}
-            </TableHead>
-          ))}
+              ) : null;
+            const sort =
+              (mode === "sort" || mode === "sort-and-filter") && onTimeSortChange ? (
+                <TimeSortHeader
+                  header={mode === "sort" ? header : ""}
+                  timeSort={timeSort}
+                  onChange={onTimeSortChange}
+                />
+              ) : null;
+            return (
+              <TableHead key={h} className="font-medium">
+                {mode === "sort-and-filter" ? (
+                  <div className="flex items-center gap-1">
+                    {filter}
+                    {sort}
+                  </div>
+                ) : (
+                  (filter ?? sort ?? header)
+                )}
+              </TableHead>
+            );
+          })}
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -298,7 +318,7 @@ function TimeSortHeader({
         aria-pressed={active}
         onClick={() => onChange(nextTimeSort(timeSort))}
       >
-        <span className="col-header-label">{header}</span>
+        {header ? <span className="col-header-label">{header}</span> : null}
         <span className="col-filter-chevron" aria-hidden>
           {timeSortChevron(timeSort)}
         </span>

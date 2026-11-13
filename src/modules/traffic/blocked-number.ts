@@ -4,7 +4,7 @@ import {
 } from "@/modules/phones/blocked-numbers";
 
 /** Calling, called, billing, original, external, and authenticated numbers. */
-const CDR_BLOCKED_FIELDS = [
+export const CDR_BLOCKED_FIELDS = [
   "inAni",
   "inDnis",
   "outAni",

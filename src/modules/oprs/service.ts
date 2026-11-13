@@ -31,14 +31,19 @@ import {
   trafficListOrderBy,
 } from "@/modules/traffic/traffic-sort";
 import type { OprsListInput } from "@/modules/oprs/query";
+import {
+  countOprsSlice,
+  fetchOprsSlice,
+  loadOprsReadContext,
+  readOprsComputedFacets,
+} from "@/modules/oprs/computed-read";
 import { attachOprsDerived } from "@/modules/oprs/derived";
+import { oprsNeedsComputedSql } from "@/modules/oprs/filter-sql";
 import { OPRS_LIST_SELECT, oprsRowData, type OprsListRow } from "@/modules/oprs/row";
 import { withOprsTimeout } from "@/modules/oprs/timeout";
 import { buildOprsWhere, resolveOprsSnapshot } from "@/modules/oprs/where";
 
-const FACET_COLUMNS = new Set<string>(
-  OPRS_COLUMNS.filter((column) => isTrafficColumn(column)),
-);
+const FACET_COLUMNS = new Set<string>(OPRS_COLUMNS);
 
 export type OprsListResult = ListTrafficResult & {
   /** False on a keyset page: the client keeps the snapshot total. */
@@ -60,7 +65,14 @@ async function readGuiUrl(): Promise<string> {
   return setting?.voipmonitorGuiUrl?.trim() ?? "";
 }
 
-async function mapRows(rows: OprsListRow[]): Promise<TrafficListItem[]> {
+async function mapRows(
+  rows: OprsListRow[],
+  paint?: {
+    tones?: Awaited<ReturnType<typeof loadOprsReadContext>>["tones"];
+    blocked?: Awaited<ReturnType<typeof loadBlockedNumbers>>;
+    labels?: Awaited<ReturnType<typeof loadOprsReadContext>>["marking"];
+  },
+): Promise<TrafficListItem[]> {
   if (rows.length === 0) return [];
   const [links, guiUrl, blockedNumbers] = await Promise.all([
     prisma.cdrVoipmonitorLink.findMany({
@@ -68,7 +80,7 @@ async function mapRows(rows: OprsListRow[]): Promise<TrafficListItem[]> {
       select: { cdrRecordId: true, voipmonitorLegs: true },
     }),
     readGuiUrl(),
-    loadBlockedNumbers(),
+    paint?.blocked ? Promise.resolve(paint.blocked) : loadBlockedNumbers(),
   ]);
   const linkById = new Map(links.map((link) => [link.cdrRecordId, link]));
   const items = rows.map((row) => ({
@@ -77,7 +89,10 @@ async function mapRows(rows: OprsListRow[]): Promise<TrafficListItem[]> {
     data: oprsRowData(row, linkById.get(row.id), guiUrl),
     ...(cdrHasBlockedNumber(blockedNumbers, row) ? { blocked: true as const } : {}),
   }));
-  await attachOprsDerived(items);
+  await attachOprsDerived(items, {
+    tones: paint?.tones,
+    ...(paint?.labels ? { labels: paint.labels } : {}),
+  });
   return items;
 }
 
@@ -105,7 +120,8 @@ export async function listOprs(
   const pageSize = Math.min(200, Math.max(1, input.pageSize));
   const month = resolveMonthKey(input.month, now);
   const snapshot = input.cursor ? resolveOprsSnapshot(input.snapshotRaw, now) : now;
-  const where = buildOprsWhere({
+  const counted = input.cursor == null;
+  const base = {
     year: month.year,
     month: month.month,
     filters: input.filters,
@@ -114,24 +130,40 @@ export async function listOprs(
     snapshot,
     cursor: input.cursor,
     timeSort: input.timeSort,
-  });
+  };
+  const computed = oprsNeedsComputedSql(input.filters);
+  const ctx = computed ? await loadOprsReadContext(input.filters) : null;
   const orderBy = trafficListOrderBy(input.timeSort);
-  const counted = input.cursor == null;
-  const page = counted
-    ? await readSnapshotPage(where, orderBy, pageSize)
-    : {
-        total: 0,
-        rows: await withOprsTimeout((tx) =>
-          tx.cdrRecord.findMany({
-            where,
-            orderBy,
-            take: pageSize,
-            select: OPRS_LIST_SELECT,
-          }),
-        ),
-      };
+  const page =
+    computed && ctx
+      ? await withOprsTimeout(
+          async (tx) => {
+            const total = counted ? await countOprsSlice(tx, base, ctx) : 0;
+            const rows = await fetchOprsSlice(tx, base, ctx, pageSize);
+            return { total, rows };
+          },
+          counted ? Prisma.TransactionIsolationLevel.RepeatableRead : undefined,
+        )
+      : counted
+        ? await readSnapshotPage(buildOprsWhere(base), orderBy, pageSize)
+        : {
+            total: 0,
+            rows: await withOprsTimeout((tx) =>
+              tx.cdrRecord.findMany({
+                where: buildOprsWhere(base),
+                orderBy,
+                take: pageSize,
+                select: OPRS_LIST_SELECT,
+              }),
+            ),
+          };
   const [items, months] = await Promise.all([
-    mapRows(page.rows),
+    mapRows(
+      page.rows,
+      ctx
+        ? { tones: ctx.tones, blocked: ctx.blocked, labels: ctx.marking }
+        : undefined,
+    ),
     counted
       ? listCachedMonthCounts(now.getTime()).then(monthsWithoutCounts)
       : Promise.resolve(undefined),
@@ -201,6 +233,29 @@ export async function listOprsFacets(
   const snapshot = resolveOprsSnapshot(input.snapshotRaw, now);
   const month = resolveMonthKey(input.month, now);
   const limit = Math.min(500, Math.max(1, input.limit));
+  if (oprsNeedsComputedSql(input.filters, column)) {
+    const ctx = await loadOprsReadContext(input.filters, column);
+    return withOprsTimeout((tx) =>
+      readOprsComputedFacets(
+        tx,
+        {
+          year: month.year,
+          month: month.month,
+          filters: input.filters,
+          phoneQ: input.phoneQ,
+          flags: input.flags,
+          snapshot,
+          cursor: null,
+          timeSort: null,
+          column,
+          q: input.q,
+          limit,
+        },
+        ctx,
+      ),
+    );
+  }
+  if (!isTrafficColumn(column)) return { items: [], truncated: false };
   const field = csvHeaderToCamel(column);
   const where = buildOprsWhere({
     year: month.year,

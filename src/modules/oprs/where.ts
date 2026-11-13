@@ -5,6 +5,7 @@
 
 import type { Prisma } from "@/generated/prisma/client";
 import type { ColumnFilters } from "@/components/column-filters/types";
+import { MISSING_PSTN_LABEL } from "@/modules/enrich/types";
 import { PARKING_DST } from "@/modules/stats/classify";
 import { MOBILE_RF_DIRECTION } from "@/modules/rtu/columns";
 import { CALL_CATEGORY } from "@/modules/traffic/call-class";
@@ -40,12 +41,17 @@ export function oprsScreenFilters(filters: ColumnFilters): ColumnFilters {
   return out;
 }
 
-/** Outgoing mobile RF, excluding the exact parking terminator. */
+/**
+ * Outgoing mobile RF, excluding the exact parking terminator and the
+ * ministry-registry miss. The operator column is NOT NULL, so an empty
+ * operator stays. The comparison is the exact cell text.
+ */
 export function oprsPredicate(): Prisma.CdrRecordWhereInput {
   return {
     callCategory: CALL_CATEGORY.outgoing,
     tariffDirection: MOBILE_RF_DIRECTION,
     dstName: { not: PARKING_DST },
+    operatorB: { not: MISSING_PSTN_LABEL },
   };
 }
 

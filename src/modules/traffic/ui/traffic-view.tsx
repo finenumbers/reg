@@ -28,7 +28,6 @@ import { buildOprsFacetsUrl, fetchOprsBdpn, fetchOprsList } from "@/modules/oprs
 import { BdpnDialog, type BdpnDialogState } from "@/modules/oprs/ui/bdpn-dialog";
 import { acceptOprsPage, appendOprsItems } from "@/modules/oprs/page-state";
 import { OprsExportButton } from "@/modules/oprs/ui/export-button";
-import { OPRS_STATIC_COLUMNS } from "@/modules/traffic/columns";
 import {
   IDLE_SYNC_STATE,
   isSyncInFlight,
@@ -931,7 +930,6 @@ export function TrafficView({
             onColumnFilterChange={onColumnChange}
             timeSort={timeSort}
             onTimeSortChange={onTimeSortChange}
-            plainColumns={oprs ? OPRS_STATIC_COLUMNS : undefined}
             oprs={oprs}
             onBdpnCheck={oprs ? onBdpnCheck : undefined}
             facetUrl={

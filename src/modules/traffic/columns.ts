@@ -224,9 +224,9 @@ export const TRAFFIC_SUMMARY_LABELS: Record<
 /** Display-only traffic column. Not a CDR field and not filterable. */
 export const BILLING_MINUTES_COLUMN = "billable_minutes";
 
-/** Brand word for the row color. Not a CDR field and not filterable. */
+/** Brand word for the row color. Not a CDR field. OPRS filters the painted word. */
 export const OPRS_NETWORK_COLUMN = "oprs_network";
-/** Marking and MAV cells copied from the catalog for that brand. Not stored on the CDR and not filterable. */
+/** Marking and MAV cells copied from the catalog for that brand. Not stored on the CDR. OPRS filters the painted text. */
 export const OPRS_MARKING_COLUMN = "oprs_marking";
 export const OPRS_MAV_COLUMN = "oprs_mav";
 /** Black tail of a «Неуспешный» OPRS row starts at «Секунды». */

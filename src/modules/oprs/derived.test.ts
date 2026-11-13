@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { OPRS_TONE_FIELD } from "@/modules/oprs/operator-tone";
 import {
+  attachOprsDerived,
   oprsCatalogCells,
   oprsNetworkLabel,
   stampOprsRow,
@@ -103,5 +104,29 @@ describe("oprs network and catalog cells", () => {
     expect(blank.oprs_network).toBe("");
     expect(blank.oprs_marking).toBe("");
     expect(blank.oprs_mav).toBe("");
+  });
+
+  it("paints from the supplied catalog and does not read it again", async () => {
+    const painted = row();
+    const blocked = row();
+    await attachOprsDerived(
+      [
+        { data: painted },
+        { blocked: true, data: blocked },
+      ],
+      { tones: { "ПАО МТС": "red" }, labels: catalog },
+    );
+    expect(painted.oprs_network).toBe("МТС");
+    expect(painted.oprs_marking).toBe("мтс-метка");
+    expect(blocked.oprs_network).toBe("");
+    expect(blocked.oprs_marking).toBe("");
+
+    const cold = row();
+    await attachOprsDerived([{ data: cold }], {
+      tones: { "ПАО МТС": "red" },
+      labels: new Map(),
+    });
+    expect(cold.oprs_network).toBe("МТС");
+    expect(cold.oprs_marking).toBe("");
   });
 });
