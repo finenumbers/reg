@@ -188,6 +188,8 @@ model AppSetting {
   purchasedNumbersSourceBaseUrl   String?
   /// AES-256-GCM ciphertext of the purchased-number source token. Never plaintext.
   purchasedNumbersSourceTokenCiphertext String?
+  /// AES-256-GCM ciphertext of the SipOut userapi key. Never plaintext.
+  sipoutApiKeyCiphertext String?
   updatedAt             DateTime    @updatedAt
 
   @@map("app_settings")
@@ -609,11 +611,14 @@ model DialException {
 }
 
 /// Rows of «Свободные номера». The screen and its XLSX read this table.
-/// This release does not write rows. The GIN trigram index on number is created in SQL.
+/// SipOut sync replaces rows whose provider is SipOut. The GIN trigram indexes
+/// on number and e164, and the partial unique (provider, e164), are created in SQL.
 model FreeNumber {
   id               String @id @default(cuid())
   /// «Провайдер».
   provider         String @default("")
+  /// National digits, no plus. Empty until a numbering source writes the row.
+  e164             String @default("")
   /// «ABC». Text so a leading zero survives.
   abc              String @default("")
   /// «Номер». Text so a leading zero survives.
@@ -642,15 +647,19 @@ model FreeNumber {
   geography        String @default("")
 
   @@index([abc, number, id], map: "free_numbers_order_idx")
+  @@index([provider], map: "free_numbers_provider_idx")
   @@map("free_numbers")
 }
 
 /// Rows of «Купленные номера». The screen and its XLSX read this table.
-/// This release does not write rows. The GIN trigram index on number is created in SQL.
+/// SipOut sync replaces rows whose provider is SipOut. The GIN trigram indexes
+/// on number and e164, and the partial unique (provider, e164), are created in SQL.
 model PurchasedNumber {
   id        String @id @default(cuid())
   /// «Провайдер».
   provider  String @default("")
+  /// National digits, no plus. Empty until a numbering source writes the row.
+  e164      String @default("")
   /// «ABC». Text so a leading zero survives.
   abc       String @default("")
   /// «Номер». Text so a leading zero survives.
@@ -677,7 +686,37 @@ model PurchasedNumber {
   geography String @default("")
 
   @@index([abc, number, id], map: "purchased_numbers_order_idx")
+  @@index([provider], map: "purchased_numbers_provider_idx")
   @@map("purchased_numbers")
+}
+
+/// One SipOut walk. A fresh heartbeat keeps the lease.
+model NumberingSyncState {
+  id             Int       @id @default(1)
+  runId          String?   @map("run_id")
+  catalog        String?
+  phase          String    @default("")
+  citiesDone     Int       @default(0) @map("cities_done")
+  citiesTotal    Int       @default(0) @map("cities_total")
+  error          String?
+  heartbeatAt    DateTime? @map("heartbeat_at")
+  startedAt      DateTime? @map("started_at")
+  lastCatalog    String?   @map("last_catalog")
+  lastError      String?   @map("last_error")
+  lastWritten    Int?      @map("last_written")
+  lastFinishedAt DateTime? @map("last_finished_at")
+
+  @@map("numbering_sync_state")
+}
+
+/// Numbers accepted from one SipOut response, before the catalog replace.
+model NumberingSyncStage {
+  runId   String @map("run_id")
+  catalog String
+  e164    String
+
+  @@id([runId, catalog, e164])
+  @@map("numbering_sync_stage")
 }
 
 /// Mask and type snapshot from an uploaded XLSX. Each import replaces every row.

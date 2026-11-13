@@ -115,6 +115,13 @@ describe("middleware protected routes", () => {
     expect(res.headers.get("location")).toContain("next=%2Fnumbering-resource");
   });
 
+  it("redirects anonymous users from /numbering-sync to /login", () => {
+    const res = middleware(makeRequest("/numbering-sync"));
+    expect(res.status).toBe(307);
+    expect(res.headers.get("location")).toContain("/login");
+    expect(res.headers.get("location")).toContain("next=%2Fnumbering-sync");
+  });
+
   it("redirects anonymous users from /numbering-load to /login", () => {
     const res = middleware(makeRequest("/numbering-load"));
     expect(res.status).toBe(307);

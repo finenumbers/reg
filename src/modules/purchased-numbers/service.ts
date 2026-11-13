@@ -44,6 +44,7 @@ function toRow(row: DbRow): PurchasedNumberRow {
     premium: row.premium ?? "",
     operator: row.operator ?? "",
     geography: row.geography ?? "",
+    e164: row.e164 ?? "",
   };
 }
 

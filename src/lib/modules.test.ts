@@ -96,6 +96,7 @@ describe("FEATURE_MODULES nav groups", () => {
     expect(featureIds).toContain("free-numbers");
     expect(featureIds).toContain("purchased-numbers");
     expect(featureIds).toContain("numbering-resource");
+    expect(featureIds).toContain("numbering-sync");
     expect(featureIds).toContain("numbering-load");
     expect(featureIds).not.toContain("did-free-numbers");
     expect(featureIds).not.toContain("pstn-numbering");
@@ -125,6 +126,13 @@ describe("FEATURE_MODULES nav groups", () => {
       navPermission: "phones:read",
       navGroup: "links",
     });
+    const sync = FEATURE_MODULES.find((module) => module.id === "numbering-sync");
+    expect(sync).toMatchObject({
+      title: "Синхронизация",
+      href: "/numbering-sync",
+      navPermission: "settings:write",
+      navGroup: "links",
+    });
     const load = FEATURE_MODULES.find((module) => module.id === "numbering-load");
     expect(load).toMatchObject({
       title: "Загрузка нумерации",
@@ -139,9 +147,11 @@ describe("FEATURE_MODULES nav groups", () => {
     const numberingIndex = FEATURE_MODULES.findIndex(
       (module) => module.id === "numbering-resource",
     );
+    const syncIndex = FEATURE_MODULES.findIndex((module) => module.id === "numbering-sync");
     const loadIndex = FEATURE_MODULES.findIndex((module) => module.id === "numbering-load");
     expect(purchasedIndex).toBe(freeIndex + 1);
     expect(numberingIndex).toBe(purchasedIndex + 1);
-    expect(loadIndex).toBe(numberingIndex + 1);
+    expect(syncIndex).toBe(numberingIndex + 1);
+    expect(loadIndex).toBe(syncIndex + 1);
   });
 });

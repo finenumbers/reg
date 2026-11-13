@@ -63,5 +63,9 @@ export async function applyTariffSnapshot(
     .then(({ requestRtuScreenPublish }) => requestRtuScreenPublish())
     .catch(() => undefined);
 
+  void import("@/modules/numbering-sync/recompute")
+    .then(({ requestNumberingResplit }) => requestNumberingResplit())
+    .catch(() => undefined);
+
   return { rowCount: rows.length, loadedAt };
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import {
   Table,
   TableBody,
@@ -35,6 +36,7 @@ type Props<T extends { id: string }, C extends string> = {
   }) => string;
   rowClassName?: (row: T) => string;
   cellClassName?: (row: T, column: C) => string | undefined;
+  renderCell?: (row: T, column: C) => ReactNode;
 };
 
 export function CatalogNumbersTable<T extends { id: string }, C extends string>({
@@ -55,6 +57,7 @@ export function CatalogNumbersTable<T extends { id: string }, C extends string>(
   buildFacetsUrl,
   rowClassName,
   cellClassName,
+  renderCell,
 }: Props<T, C>) {
   const showEmpty = !loading && data.length === 0;
   const colCount = columns.length;
@@ -121,7 +124,9 @@ export function CatalogNumbersTable<T extends { id: string }, C extends string>(
                     cellClassName?.(row, column),
                   )}
                 >
-                  {column === numberColumn ? (
+                  {renderCell ? (
+                    renderCell(row, column)
+                  ) : column === numberColumn ? (
                     <HighlightText text={cellText(row, column)} query={phoneQ} />
                   ) : (
                     cellText(row, column)

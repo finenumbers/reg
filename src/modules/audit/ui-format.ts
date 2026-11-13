@@ -78,6 +78,10 @@ const ACTION_LABELS: Record<string, string> = {
   "vats.domain_open": "Вход в кабинет домена",
   "zabbix.password_replace": "Замена пароля Zabbix",
   "zabbix.test": "Проверка доступа Zabbix",
+  "numbering_sync.key_save": "Сохранение ключа SipOut",
+  "numbering_sync.test": "Проверка доступа SipOut",
+  "numbering_sync.free": "Загрузка свободных номеров SipOut",
+  "numbering_sync.purchased": "Загрузка купленных номеров SipOut",
 };
 
 export function formatAuditTimestamp(

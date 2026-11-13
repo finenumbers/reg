@@ -18,6 +18,7 @@ export type FeatureModuleId =
   | "free-numbers"
   | "purchased-numbers"
   | "numbering-resource"
+  | "numbering-sync"
   | "numbering-load"
   | "raw"
   | "live-calls"
@@ -37,14 +38,7 @@ export type FeatureModuleId =
   | "vats-settings";
 
 export type FeatureNavGroup =
-  | "primary"
-  | "cdr"
-  | "smg"
-  | "vats"
-  | "analytics"
-  | "links"
-  | "catalog"
-  | "admin";
+  "primary" | "cdr" | "smg" | "vats" | "analytics" | "links" | "catalog" | "admin";
 
 type FeatureModuleDefinition = {
   id: FeatureModuleId;
@@ -113,6 +107,14 @@ export const FEATURE_MODULES: FeatureModuleDefinition[] = [
     description: "Текущий ресурс нумерации PSTN",
     href: "/numbering-resource",
     navPermission: "phones:read",
+    navGroup: "links",
+  },
+  {
+    id: "numbering-sync",
+    title: "Синхронизация",
+    description: "Загрузка свободных и купленных номеров из источника",
+    href: "/numbering-sync",
+    navPermission: "settings:write",
     navGroup: "links",
   },
   {

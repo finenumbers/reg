@@ -26,6 +26,8 @@ export type FreeNumberRow = {
   premium: string;
   operator: string;
   geography: string;
+  /** National digits. Empty rows stay plain text. */
+  e164: string;
 };
 
 export type ListFreeNumbersResult = {

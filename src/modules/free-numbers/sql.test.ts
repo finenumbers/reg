@@ -45,8 +45,9 @@ describe("free-number SQL", () => {
     expect(flat.text).not.toContain("Секрет");
     expect(flat.text).toContain("region IN");
     expect(flat.text).toContain(`"number" = ''`);
+    expect(flat.text).toContain(`e164 ILIKE ? ESCAPE '\\'`);
     expect(flat.text).toContain(`"number" ILIKE ? ESCAPE '\\'`);
-    expect(flat.values).toEqual(["0495", "Москва", "%12\\%3\\_a%"]);
+    expect(flat.values).toEqual(["0495", "Москва", "%12\\%3\\_a%", "%12\\%3\\_a%"]);
   });
 
   it("leaves the open column out of a facet and matches a compact amount", () => {

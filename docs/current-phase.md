@@ -1,7 +1,13 @@
-# Current Phase — production (v1.278.0)
+# Current Phase — production (v1.279.0)
 
-**Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, purchased numbers, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
+**Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, purchased numbers, numbering sync, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-14
+
+## v1.279.0 — SipOut numbering sync
+
+The migration `20261114040000_sipout_sync` adds `e164` on `free_numbers` and `purchased_numbers`, `sipoutApiKeyCiphertext` on `app_settings`, and the SipOut lease tables. Existing catalog rows keep an empty `e164`. It does not rewrite phone, tariff, CDR, PSTN, or RTU screen rows. The migration is label-free, so startup does not rescan the CDR journal. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app, let migrate finish, then start one new app. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged.
+
+«Синхронизация» is `/numbering-sync`, directly above «Загрузка нумерации», with `settings:write`. The host is `https://lk.sipout.net` and is not editable. The API key is ciphertext at rest and is not returned. An empty key field leaves the stored key. Saving does not call SipOut. «Проверить доступ» is one `get_cities` and does not write catalogs. «Свободные номера» reads `free_list` once per city from that list. «Купленные номера» is one `connected_list`. A list is kept only when `cnt` equals `list.length`. A bad `did`, a bad city id, or a failed page leaves the previous SipOut rows. The replace is one transaction and touches only `provider` `SipOut`. `e164` stores the national digits. «ABC», «Номер», «Город», and «Регион» are filled with the same tariff split as «Управление РТУ». A later tariff file recomputes those four cells and does not call SipOut. The screen shows «ABC» as `7 (495)`. Search uses the national digits. An API key cannot call these routes. «Загрузка нумерации» is unchanged and still does not call its origins.
 
 ## v1.278.0 — Purchased numbers and numbering-source access
 

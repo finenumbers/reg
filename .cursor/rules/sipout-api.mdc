@@ -1,0 +1,20 @@
+---
+description: SipOut userapi is a local gitignored reference; only three DID reads are allowed
+alwaysApply: true
+---
+
+# SipOut numbering source
+
+The handbook lives only in `docs/vendor/sipout/SipOut.pdf` on the developer machine. That directory is gitignored and dockerignored. Do not commit the PDF or long quotations. The GitHub repository is public.
+
+Read that PDF before any SipOut change. Do not invent methods, actions, or parameters.
+
+The host is the literal `https://lk.sipout.net`. The path is `/userapi/`. The key is the `key` query parameter and is ciphertext at rest. Do not log the key, the query, or the URL. Do not follow redirects. HTTPS only. No custom certificate. Timeout 30s. Body cap 20 MB. No POST.
+
+This release may send only:
+
+- `GET` `method=did&action=get_cities` for the access check and for the free-number walk
+- `GET` `method=did&action=free_list&city_id=<digits from get_cities>` with no `mask`
+- `GET` `method=did&action=connected_list` with no extra parameters
+
+`city_id` is required on `free_list` and comes only from `get_cities`. A list is complete only when `cnt` equals `list.length`. Anything else does not publish. Do not add paging, `method=balance`, or any other action.

@@ -1,6 +1,7 @@
 "use client";
 
 import type { ColumnFilters } from "@/components/column-filters";
+import { CatalogDigitCell } from "@/modules/did-catalog/ui/catalog-digit-cell";
 import { CatalogNumbersTable } from "@/modules/did-catalog/ui/catalog-numbers-table";
 import { buildFreeNumbersFacetsUrl } from "@/modules/free-numbers/api-client";
 import {
@@ -41,6 +42,24 @@ export function FreeNumbersTable(props: Props) {
       cellText={cellText}
       formatValue={displayFreeNumberFacet}
       buildFacetsUrl={buildFreeNumbersFacetsUrl}
+      cellClassName={(row, column) =>
+        column === "abc" && row.e164
+          ? "text-left font-bold tabular-nums text-black dark:text-white"
+          : undefined
+      }
+      renderCell={(row, column) =>
+        column === "abc" || column === "number" ? (
+          <CatalogDigitCell
+            e164={row.e164}
+            abc={row.abc}
+            number={row.number}
+            column={column}
+            phoneQ={props.phoneQ}
+          />
+        ) : (
+          cellText(row, column)
+        )
+      }
     />
   );
 }

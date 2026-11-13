@@ -4,6 +4,7 @@
  */
 
 import { formatAmountCell } from "@/lib/amount-format";
+import { catalogAbcExport } from "@/modules/did-catalog/abc-text";
 import {
   AMOUNT_COLUMNS,
   FREE_NUMBER_COLUMNS,
@@ -93,7 +94,12 @@ function freeColumns(): StreamColumn[] {
   return FREE_NUMBER_COLUMNS.map((column) => ({
     header: FREE_NUMBER_HEADERS[column],
     text: true,
-    align: column === "number" || AMOUNT_COLUMNS.has(column) ? "right" : undefined,
+    align:
+      column === "abc"
+        ? "left"
+        : column === "number" || AMOUNT_COLUMNS.has(column)
+          ? "right"
+          : undefined,
   }));
 }
 
@@ -123,7 +129,11 @@ async function writeFree(
       for (const row of items) {
         await book.writeRow(
           FREE_NUMBER_COLUMNS.map((column) =>
-            AMOUNT_COLUMNS.has(column) ? formatAmountCell(row[column]) : row[column],
+            column === "abc"
+              ? catalogAbcExport(row.e164, row.abc, row.number)
+              : AMOUNT_COLUMNS.has(column)
+                ? formatAmountCell(row[column])
+                : row[column],
           ),
         );
       }
@@ -153,7 +163,12 @@ function purchasedColumns(): StreamColumn[] {
   return PURCHASED_NUMBER_COLUMNS.map((column) => ({
     header: PURCHASED_NUMBER_HEADERS[column],
     text: true,
-    align: column === "number" || PURCHASED_AMOUNT_COLUMNS.has(column) ? "right" : undefined,
+    align:
+      column === "abc"
+        ? "left"
+        : column === "number" || PURCHASED_AMOUNT_COLUMNS.has(column)
+          ? "right"
+          : undefined,
   }));
 }
 
@@ -183,7 +198,11 @@ async function writePurchased(
       for (const row of items) {
         await book.writeRow(
           PURCHASED_NUMBER_COLUMNS.map((column) =>
-            PURCHASED_AMOUNT_COLUMNS.has(column) ? formatAmountCell(row[column]) : row[column],
+            column === "abc"
+              ? catalogAbcExport(row.e164, row.abc, row.number)
+              : PURCHASED_AMOUNT_COLUMNS.has(column)
+                ? formatAmountCell(row[column])
+                : row[column],
           ),
         );
       }

@@ -73,6 +73,15 @@ export function filterMatchSql(column: FreeNumberColumn, values: string[]): Pris
   return Prisma.sql`(${Prisma.join(parts, " OR ")})`;
 }
 
+/** Full national digits when a source stored them, otherwise the local number. */
+function phoneSearchSql(phone: string): Prisma.Sql {
+  const pattern = likePattern(phone);
+  return Prisma.sql`(
+    (e164 <> '' AND e164 ILIKE ${pattern} ESCAPE '\\')
+    OR (e164 = '' AND "number" ILIKE ${pattern} ESCAPE '\\')
+  )`;
+}
+
 function andWhere(clauses: Prisma.Sql[]): Prisma.Sql {
   if (clauses.length === 0) return Prisma.sql`TRUE`;
   if (clauses.length === 1) return clauses[0]!;
@@ -93,9 +102,7 @@ export function freeNumberWhere(
     clauses.push(filterMatchSql(column, values));
   }
   const phone = phoneQ?.trim() ?? "";
-  if (phone) {
-    clauses.push(Prisma.sql`"number" ILIKE ${likePattern(phone)} ESCAPE '\\'`);
-  }
+  if (phone) clauses.push(phoneSearchSql(phone));
   return andWhere(clauses);
 }
 
@@ -136,7 +143,8 @@ const ROW_SELECT = Prisma.sql`
   purchase,
   premium,
   operator,
-  geography
+  geography,
+  e164
 `;
 
 export function freeNumberListSql(

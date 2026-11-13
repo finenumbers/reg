@@ -41,6 +41,7 @@ function toRow(row: DbRow): FreeNumberRow {
     premium: row.premium ?? "",
     operator: row.operator ?? "",
     geography: row.geography ?? "",
+    e164: row.e164 ?? "",
   };
 }
 

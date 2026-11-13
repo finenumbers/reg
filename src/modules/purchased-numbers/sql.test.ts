@@ -48,8 +48,9 @@ describe("purchased-number SQL", () => {
     expect(flat.text).not.toContain("free_numbers");
     expect(flat.text).toContain("region IN");
     expect(flat.text).toContain(`"number" = ''`);
+    expect(flat.text).toContain(`e164 ILIKE ? ESCAPE '\\'`);
     expect(flat.text).toContain(`"number" ILIKE ? ESCAPE '\\'`);
-    expect(flat.values).toEqual(["0495", "Москва", "Секрет", "%12\\%3\\_a%"]);
+    expect(flat.values).toEqual(["0495", "Москва", "Секрет", "%12\\%3\\_a%", "%12\\%3\\_a%"]);
   });
 
   it("reads purchased_numbers and leaves a client search ungrouped", () => {

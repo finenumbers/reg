@@ -53,6 +53,7 @@ export function middleware(request: NextRequest) {
     pathname.startsWith("/free-numbers") ||
     pathname.startsWith("/purchased-numbers") ||
     pathname.startsWith("/numbering-resource") ||
+    pathname.startsWith("/numbering-sync") ||
     pathname.startsWith("/numbering-load") ||
     pathname.startsWith("/raw") ||
     pathname.startsWith("/live-calls") ||
