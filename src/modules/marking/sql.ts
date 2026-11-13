@@ -2,7 +2,8 @@
  * One working set for the marking list, the export, and the import guard.
  * A number stays when it is on the switch and its operator is not the
  * ministry-registry miss. An empty operator stays. The phone is the trimmed
- * screen number. Several screen rows with that number keep one client.
+ * screen number. Several screen rows with that number keep one client
+ * and the supplier on that same card.
  */
 
 import { Prisma } from "@/generated/prisma/client";
@@ -29,6 +30,8 @@ export function markingValueSql(column: MarkingColumnId): Prisma.Sql {
   switch (column) {
     case "client":
       return Prisma.sql`client`;
+    case "supplier":
+      return Prisma.sql`supplier`;
     case "phoneNumber":
       return Prisma.sql`number`;
     case "labelMts":
@@ -78,6 +81,7 @@ export function markingWorkingCte(): Prisma.Sql {
       SELECT DISTINCT ON (btrim(number))
         btrim(number) AS number,
         btrim(client) AS client,
+        btrim(supplier) AS supplier,
         "pstnKey" AS pstn_key
       FROM rtu_screen
       WHERE NOT missing
@@ -89,6 +93,7 @@ export function markingWorkingCte(): Prisma.Sql {
       SELECT
         s.number,
         s.client,
+        s.supplier,
         c.phone AS pstn_phone,
         c.found AS pstn_found,
         c.operator AS pstn_operator
@@ -100,11 +105,12 @@ export function markingWorkingCte(): Prisma.Sql {
       SELECT
         number,
         client,
+        supplier,
         ${operatorLabelSql()} AS operator
       FROM joined
     ),
     working AS (
-      SELECT number, client
+      SELECT number, client, supplier
       FROM labeled
       WHERE operator <> ${MISSING_PSTN_LABEL}
     )
@@ -117,6 +123,7 @@ function markedCte(): Prisma.Sql {
       SELECT
         w.number,
         w.client,
+        w.supplier,
         m."labelMts" AS label_mts,
         m."labelMegafon" AS label_megafon,
         m."labelBeeline" AS label_beeline,
@@ -178,6 +185,7 @@ export function markingListSql(opts: {
     SELECT
       page.number,
       page.client,
+      page.supplier,
       page.label_mts,
       page.label_megafon,
       page.label_beeline,
@@ -221,6 +229,7 @@ export function markingExportSql(limit: number): Prisma.Sql {
     SELECT
       number,
       client,
+      supplier,
       label_mts,
       label_megafon,
       label_beeline,
@@ -312,6 +321,7 @@ export function markingApplySql(
         id,
         "sortIndex",
         client,
+        supplier,
         "phoneNumber",
         "labelMts",
         "labelMegafon",
@@ -326,6 +336,7 @@ export function markingApplySql(
         gen_random_uuid()::text,
         0,
         '',
+        w.supplier,
         i.phone,
         NULLIF(i."labelMts", ''),
         NULLIF(i."labelMegafon", ''),
@@ -336,8 +347,10 @@ export function markingApplySql(
         NULLIF(i."mavBeeline", ''),
         NULLIF(i."mavT2", '')
       FROM incoming i
+      INNER JOIN working w ON w.number = i.phone
       WHERE ${guard}
       ON CONFLICT ("phoneNumber") DO UPDATE SET
+        supplier = EXCLUDED.supplier,
         "labelMts" = EXCLUDED."labelMts",
         "labelMegafon" = EXCLUDED."labelMegafon",
         "labelBeeline" = EXCLUDED."labelBeeline",
@@ -390,4 +403,19 @@ export function markingApplySql(
 
 export function markingLockSql(): Prisma.Sql {
   return Prisma.sql`SELECT pg_advisory_xact_lock(4815162342003::bigint)`;
+}
+
+/**
+ * Copy the live card supplier onto marking rows that are in the working set.
+ * A number that has left the set keeps the copy it already has.
+ */
+export function markingSupplierSyncSql(): Prisma.Sql {
+  return Prisma.sql`
+    WITH ${markingWorkingCte()}
+    UPDATE marking_rows AS m
+    SET supplier = working.supplier
+    FROM working
+    WHERE m."phoneNumber" = working.number
+      AND m.supplier IS DISTINCT FROM working.supplier
+  `;
 }

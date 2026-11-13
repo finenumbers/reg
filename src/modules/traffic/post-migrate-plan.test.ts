@@ -94,6 +94,24 @@ describe("planPostMigrate", () => {
     ).toEqual({ callClass: false, tariff: false });
   });
 
+  it("does not scan the journal when the marking working set is indexed", () => {
+    expect(
+      planPostMigrate("Applying migration `20261113170000_marking_working_set`\n", {
+        rateGeneration: 4,
+        ratedGeneration: 4,
+      }),
+    ).toEqual({ callClass: false, tariff: false });
+  });
+
+  it("does not scan the journal when marking supplier is copied", () => {
+    expect(
+      planPostMigrate("Applying migration `20261113193000_marking_supplier`\n", {
+        rateGeneration: 4,
+        ratedGeneration: 4,
+      }),
+    ).toEqual({ callClass: false, tariff: false });
+  });
+
   it("does not scan the journal when a mask hyphen is ignored", () => {
     expect(
       planPostMigrate("Applying migration `20261113120000_mask_hyphen`\n", {

@@ -646,6 +646,8 @@ model MarkingRow {
   sortIndex    Int
   /// Unused for display. New rows store an empty string.
   client       String
+  /// «Поставщик» copied from the RTU card for this number. The list reads the screen.
+  supplier     String  @default("")
   /// Full RTU number, stored as text.
   phoneNumber  String
   /// «Маркировка МТС». Null when the cell is empty.

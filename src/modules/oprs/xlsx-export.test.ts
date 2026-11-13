@@ -32,15 +32,17 @@ function row(patch: Record<string, string> = {}): Record<string, string> {
 }
 
 describe("OPRS xlsx cells", () => {
-  it("formats minutes and cost the way the table does and leaves marking blank", () => {
+  it("formats the day the way the table does and leaves marking blank", () => {
     const data = row();
     expect(oprsDisplayCell("cdr_day", data)).toBe("13.11.2026");
-    expect(oprsDisplayCell("billable_minutes", data)).toBe("2");
-    expect(oprsDisplayCell("tariff_charge", data)).toBe("1.50");
     expect(oprsDisplayCell("oprs_marking", data)).toBe("");
     expect(oprsDisplayCell("oprs_mav", data)).toBe("");
     expect(oprsDisplayCell("voipmonitor_url_in", data)).toBe("https://voip.example/call/1");
     expect(oprsExportFilename("2026-11")).toBe("Звонки в ОПРС 2026-11.xlsx");
+    expect(OPRS_COLUMNS).not.toContain("side_b");
+    expect(OPRS_COLUMNS).not.toContain("billable_minutes");
+    expect(OPRS_COLUMNS).not.toContain("tariff_charge");
+    expect(OPRS_LABELS.oprs_mav).toBe("МАВ");
   });
 });
 

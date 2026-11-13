@@ -19,7 +19,7 @@ import {
 export const OPRS_SHEET_NAME = "Звонки в ОПРС";
 export const OPRS_EXPORT_PAGE_SIZE = 2000;
 
-const BOLD = new Set<string>(["bill_ani", "bill_dnis", "tariff_charge"]);
+const BOLD = new Set<string>(["bill_ani", "bill_dnis"]);
 
 export class OprsExportTooLargeError extends Error {
   constructor(total: number) {

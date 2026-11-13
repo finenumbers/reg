@@ -1,7 +1,15 @@
-# Current Phase — production (v1.266.0)
+# Current Phase — production (v1.267.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-13
+
+## v1.267.0 — OPRS colors and marking supplier
+
+The migrator adds `marking_rows.supplier` and rebuilds `rtu_screen_on_switch_idx` so the index includes `supplier`. The copy comes from the same RTU card the marking list uses for the client. A number outside that set keeps an empty supplier. Phone, tariff, CDR, and PSTN rows are not rewritten. `20261113170000_marking_working_set` and this migration are label-free, so startup does not rescan the CDR journal. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app, let migrate finish, then start one new app. Refresh the browser.
+
+«Звонки в ОПРС» no longer shows «Сторона B», «Минуты», or «Стоимость». The empty column is «МАВ». Only the «Неуспешный» checkbox remains. A row is green when «ОПРС (Реестр Минцифры)» is the current registry name for INN 7812014560, red for 7740000076, yellow for 7713076301, and gray for 7743895280. A missing name, «Нет в реестре», or a name shared by two of those INNs stays uncolored. A blocked number stays black with white text on the whole row. When «Статус» is «Неуспешный», cells from «Маркировка» to the right are black with white text. The XLSX file has these columns and no fill. Other traffic screens are unchanged.
+
+«Маркировка и МАВ» shows «Поставщик» after «Клиент». The cell is the supplier on that number's RTU card. An empty supplier on the card stays empty. Import requires «Поставщик» immediately after «Клиент». The cell is checked and not stored. An old file is rejected and the eight labels stay unchanged. Export writes the screen supplier. Nothing is written to the switch. RTU activation is unchanged.
 
 ## v1.266.0 — Marking numbers from RTU
 

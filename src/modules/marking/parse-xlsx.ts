@@ -2,7 +2,8 @@
  * Parse a marking XLSX snapshot.
  * The header row must be MARKING_HEADERS, in that order.
  * The phone number is digits stored as text. A safe Excel integer is accepted.
- * Client may be empty. The phone is the exact screen text, up to 200 characters.
+ * Client and supplier may be empty. The supplier cell is checked and not stored.
+ * The phone is the exact screen text, up to 200 characters.
  * Operator marking and MAV cells may be empty.
  */
 
@@ -11,6 +12,7 @@ import { EXCEL_SHEET_MAX_DATA_ROWS } from "@/modules/table-export/xlsx-stream";
 
 export const MARKING_HEADERS = [
   "Клиент",
+  "Поставщик",
   "Номер",
   "Маркировка МТС",
   "Маркировка Мегафон",
@@ -219,6 +221,7 @@ export async function parseMarkingXlsx(
     }
 
     const client = parseOptionalText(cells.get("Клиент"));
+    const supplier = parseOptionalText(cells.get("Поставщик"));
     const phone = parsePhone(cells.get("Номер"));
     const optional = OPTIONAL_FIELDS.map(
       ([title, field]) => [field, title, parseOptionalText(cells.get(title))] as const,
@@ -229,6 +232,13 @@ export async function parseMarkingXlsx(
         client.date
           ? `Строка ${rowNumber}: «Клиент» — текстовый формат, иначе значение становится датой`
           : `Строка ${rowNumber}: «Клиент» — текст до ${MAX_TEXT} символов или пусто`,
+      );
+    }
+    if (!supplier.ok) {
+      push(
+        supplier.date
+          ? `Строка ${rowNumber}: «Поставщик» — текстовый формат, иначе значение становится датой`
+          : `Строка ${rowNumber}: «Поставщик» — текст до ${MAX_TEXT} символов или пусто`,
       );
     }
     if (!phone.ok) {
@@ -248,7 +258,7 @@ export async function parseMarkingXlsx(
     }
 
     const optionalOk = optional.every(([, , parsed]) => parsed.ok);
-    if (!client.ok || !phone.ok || !optionalOk) return;
+    if (!client.ok || !supplier.ok || !phone.ok || !optionalOk) return;
 
     const first = seenPhone.get(phone.value);
     if (first != null) {

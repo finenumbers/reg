@@ -25,6 +25,7 @@ import {
   postTrafficRetry,
 } from "@/modules/traffic/api-client";
 import { buildOprsFacetsUrl, fetchOprsList } from "@/modules/oprs/api";
+import type { OprsOperatorToneMap } from "@/modules/oprs/operator-tone";
 import { acceptOprsPage, appendOprsItems } from "@/modules/oprs/page-state";
 import { OprsExportButton } from "@/modules/oprs/ui/export-button";
 import { OPRS_STATIC_COLUMNS } from "@/modules/traffic/columns";
@@ -84,6 +85,7 @@ type Props = {
   emptyUnfiltered: string;
   showMonthExport?: boolean;
   source?: "traffic" | "oprs";
+  operatorTones?: OprsOperatorToneMap;
   initialSnapshot?: string | null;
   initial: ListTrafficResult;
   initialListError?: string | null;
@@ -102,6 +104,7 @@ export function TrafficView({
   emptyUnfiltered,
   showMonthExport = false,
   source = "traffic",
+  operatorTones,
   initialSnapshot = null,
   initial,
   initialListError = null,
@@ -745,54 +748,58 @@ export function TrafficView({
             value={phoneInput}
             onChange={setPhoneInput}
           />
-          <div className="flex items-center gap-2">
-            <input
-              id={`${searchInputId}-phantom`}
-              type="checkbox"
-              className="size-4 rounded border"
-              checked={phantom}
-              onChange={(e) => onPhantomChange(e.target.checked)}
-            />
-            <Label htmlFor={`${searchInputId}-phantom`}>
-              <RowColorMark tone="phantom">Фантомный</RowColorMark>
-            </Label>
-          </div>
-          <div className="flex items-center gap-2">
-            <input
-              id={`${searchInputId}-call-errors`}
-              type="checkbox"
-              className="size-4 rounded border"
-              checked={callErrors}
-              onChange={(e) => onCallErrorsChange(e.target.checked)}
-            />
-            <Label htmlFor={`${searchInputId}-call-errors`}>
-              <RowColorMark tone="call_error">Ошибки звонков</RowColorMark>
-            </Label>
-          </div>
-          <div className="flex items-center gap-2">
-            <input
-              id={`${searchInputId}-parking`}
-              type="checkbox"
-              className="size-4 rounded border"
-              checked={parking}
-              onChange={(e) => onParkingChange(e.target.checked)}
-            />
-            <Label htmlFor={`${searchInputId}-parking`}>
-              <RowColorMark tone="parking_known">Паркинг</RowColorMark>
-            </Label>
-          </div>
-          <div className="flex items-center gap-2">
-            <input
-              id={`${searchInputId}-check`}
-              type="checkbox"
-              className="size-4 rounded border"
-              checked={check}
-              onChange={(e) => onCheckChange(e.target.checked)}
-            />
-            <Label htmlFor={`${searchInputId}-check`}>
-              <RowColorMark tone="check">Проверка</RowColorMark>
-            </Label>
-          </div>
+          {oprs ? null : (
+            <>
+              <div className="flex items-center gap-2">
+                <input
+                  id={`${searchInputId}-phantom`}
+                  type="checkbox"
+                  className="size-4 rounded border"
+                  checked={phantom}
+                  onChange={(e) => onPhantomChange(e.target.checked)}
+                />
+                <Label htmlFor={`${searchInputId}-phantom`}>
+                  <RowColorMark tone="phantom">Фантомный</RowColorMark>
+                </Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  id={`${searchInputId}-call-errors`}
+                  type="checkbox"
+                  className="size-4 rounded border"
+                  checked={callErrors}
+                  onChange={(e) => onCallErrorsChange(e.target.checked)}
+                />
+                <Label htmlFor={`${searchInputId}-call-errors`}>
+                  <RowColorMark tone="call_error">Ошибки звонков</RowColorMark>
+                </Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  id={`${searchInputId}-parking`}
+                  type="checkbox"
+                  className="size-4 rounded border"
+                  checked={parking}
+                  onChange={(e) => onParkingChange(e.target.checked)}
+                />
+                <Label htmlFor={`${searchInputId}-parking`}>
+                  <RowColorMark tone="parking_known">Паркинг</RowColorMark>
+                </Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  id={`${searchInputId}-check`}
+                  type="checkbox"
+                  className="size-4 rounded border"
+                  checked={check}
+                  onChange={(e) => onCheckChange(e.target.checked)}
+                />
+                <Label htmlFor={`${searchInputId}-check`}>
+                  <RowColorMark tone="check">Проверка</RowColorMark>
+                </Label>
+              </div>
+            </>
+          )}
           <div className="flex items-center gap-2">
             <input
               id={`${searchInputId}-failed`}
@@ -802,21 +809,27 @@ export function TrafficView({
               onChange={(e) => onFailedChange(e.target.checked)}
             />
             <Label htmlFor={`${searchInputId}-failed`}>
-              <RowColorMark tone="failed">Неуспешный</RowColorMark>
+              {oprs ? (
+                <span className={FILTER_TOOLBAR_TEXT}>Неуспешный</span>
+              ) : (
+                <RowColorMark tone="failed">Неуспешный</RowColorMark>
+              )}
             </Label>
           </div>
-          <div className="flex items-center gap-2">
-            <input
-              id={`${searchInputId}-success`}
-              type="checkbox"
-              className="size-4 rounded border"
-              checked={success}
-              onChange={(e) => onSuccessChange(e.target.checked)}
-            />
-            <Label htmlFor={`${searchInputId}-success`} className={FILTER_TOOLBAR_TEXT}>
-              Успешные
-            </Label>
-          </div>
+          {oprs ? null : (
+            <div className="flex items-center gap-2">
+              <input
+                id={`${searchInputId}-success`}
+                type="checkbox"
+                className="size-4 rounded border"
+                checked={success}
+                onChange={(e) => onSuccessChange(e.target.checked)}
+              />
+              <Label htmlFor={`${searchInputId}-success`} className={FILTER_TOOLBAR_TEXT}>
+                Успешные
+              </Label>
+            </div>
+          )}
           <Button
             type="button"
             variant="outline"
@@ -875,6 +888,7 @@ export function TrafficView({
             timeSort={timeSort}
             onTimeSortChange={onTimeSortChange}
             plainColumns={oprs ? OPRS_STATIC_COLUMNS : undefined}
+            operatorTones={oprs ? operatorTones : undefined}
             facetUrl={
               oprs
                 ? ({ column, filters: nextFilters, q }) =>

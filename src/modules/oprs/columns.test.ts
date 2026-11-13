@@ -15,11 +15,8 @@ describe("OPRS columns", () => {
       "bill_ani",
       "side_a",
       "bill_dnis",
-      "side_b",
       "out_orig_dnis",
       "elapsed_time",
-      "billable_minutes",
-      "tariff_charge",
       "operator_b",
       "geography_b",
       "oprs_marking",
@@ -36,7 +33,7 @@ describe("OPRS columns", () => {
     expect(OPRS_LABELS.bill_ani).toBe("А-номер");
     expect(OPRS_LABELS.dst_name).toBe("Терминирующее устройство");
     expect(OPRS_LABELS.oprs_marking).toBe("Маркировка");
-    expect(OPRS_LABELS.oprs_mav).toBe("Метка МАВ");
+    expect(OPRS_LABELS.oprs_mav).toBe("МАВ");
     for (const column of OPRS_STATIC_COLUMNS) {
       expect(isTrafficColumn(column)).toBe(false);
     }

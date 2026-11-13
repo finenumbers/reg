@@ -27,6 +27,8 @@ export const LABEL_FREE_MIGRATIONS = new Set([
   "20261113043000_rtu_screen_masks",
   "20261113120000_mask_hyphen",
   "20261113143000_marking_labels",
+  "20261113170000_marking_working_set",
+  "20261113193000_marking_supplier",
 ]);
 
 /**

@@ -27,6 +27,7 @@ const EXPORT_LIMIT = EXCEL_SHEET_MAX_DATA_ROWS + 1;
 
 export type MarkingExportSource = {
   client: string;
+  supplier: string;
   phoneNumber: string;
   labelMts: string | null;
   labelMegafon: string | null;
@@ -45,6 +46,7 @@ const STREAM_COLUMNS: StreamColumn[] = MARKING_HEADERS.map((header) =>
 export function markingExportCells(row: MarkingExportSource): string[] {
   return [
     guardExcelText(row.client),
+    guardExcelText(row.supplier),
     row.phoneNumber,
     guardExcelText(row.labelMts ?? ""),
     guardExcelText(row.labelMegafon ?? ""),
@@ -75,6 +77,7 @@ export function buildMarkingExportWorkbook(
 type ExportQueryRow = {
   number: string;
   client: string | null;
+  supplier: string | null;
   label_mts: string | null;
   label_megafon: string | null;
   label_beeline: string | null;
@@ -101,6 +104,7 @@ export async function readMarkingExportRows(): Promise<MarkingExportSource[]> {
   }
   return rows.map((row) => ({
     client: row.client ?? "",
+    supplier: row.supplier ?? "",
     phoneNumber: row.number,
     labelMts: row.label_mts,
     labelMegafon: row.label_megafon,
@@ -127,6 +131,7 @@ export async function spoolMarkingWorkbook(
     for (const row of rows) {
       await book.writeRow([
         row.client,
+        row.supplier,
         row.phoneNumber,
         row.labelMts ?? "",
         row.labelMegafon ?? "",

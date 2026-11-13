@@ -9,6 +9,7 @@ import {
   markingExportSql,
   markingFilterSql,
   markingListSql,
+  markingSupplierSyncSql,
 } from "@/modules/marking/sql";
 import { STATUS_NOT_IN_RTU } from "@/modules/rtu/types";
 
@@ -70,8 +71,15 @@ describe("marking working set", () => {
     );
     expect(update).toContain('"labelMts"');
     expect(update).toContain('"mavT2"');
+    expect(update).toContain("supplier = EXCLUDED.supplier");
     expect(update).not.toContain("client");
     expect(update).not.toContain("sortIndex");
+    expect(applied.text).toContain("w.supplier");
+    expect(applied.text).toContain("INNER JOIN working w");
+    const synced = flattenSql(markingSupplierSyncSql());
+    expect(synced.text).toContain("UPDATE marking_rows");
+    expect(synced.text).toContain("IS DISTINCT FROM working.supplier");
+    expect(synced.text).not.toContain("jsonb_to_recordset");
   });
 
   it("binds a phone filter and keeps an empty label as an empty cell", () => {

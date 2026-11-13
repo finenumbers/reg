@@ -10,6 +10,7 @@ import { randomBytes } from "node:crypto";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
 import { logger } from "@/lib/logger";
+import { markingLockSql, markingSupplierSyncSql } from "@/modules/marking/sql";
 import {
   screenBuildInsertSql,
   screenBuildTable,
@@ -257,7 +258,7 @@ async function buildScreen(token: string): Promise<void> {
     `CREATE INDEX "rtu_screen_b_${token}_number_trgm_idx" ON "${table}" USING gin ("number" gin_trgm_ops)`,
   );
   await prisma.$executeRawUnsafe(
-    `CREATE INDEX "rtu_screen_b_${token}_on_switch_idx" ON "${table}" ("number", "id") INCLUDE ("client", "pstnKey") WHERE NOT missing`,
+    `CREATE INDEX "rtu_screen_b_${token}_on_switch_idx" ON "${table}" ("number", "id") INCLUDE ("client", "supplier", "pstnKey") WHERE NOT missing`,
   );
 }
 
@@ -298,6 +299,20 @@ async function swapScreen(token: string, observed: ScreenStamps): Promise<void> 
     },
     { maxWait: 5_000, timeout: 30_000 },
   );
+  try {
+    await prisma.$transaction(
+      async (tx) => {
+        await tx.$queryRaw`SELECT set_config('lock_timeout', '4s', true)`;
+        await tx.$executeRaw(markingLockSql());
+        await tx.$executeRaw(markingSupplierSyncSql());
+      },
+      { maxWait: 5_000, timeout: 20_000 },
+    );
+  } catch (error) {
+    logger.warn("rtu.screen.marking_supplier_sync_failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
   try {
     await prisma.$executeRawUnsafe(`DROP TABLE IF EXISTS "${oldScreenTable(token)}"`);
   } catch (error) {
@@ -367,12 +382,13 @@ export async function readRtuScreenGate(): Promise<ScreenGate | null> {
   };
 }
 
-/** Same transaction as the supplier write. Locks the state row before the screen update. */
+/** Same transaction as the supplier write. The marking lock is taken before the screen update. */
 export async function patchRtuScreenSuppliers(
   tx: Prisma.TransactionClient,
   rows: readonly { id: string; supplier: string; category: string }[],
 ): Promise<void> {
   if (rows.length === 0) return;
+  await tx.$executeRaw(markingLockSql());
   await tx.$executeRaw`SELECT 1 FROM rtu_screen_state WHERE id = 1 FOR UPDATE`;
   for (const row of rows) {
     await tx.$executeRaw`
@@ -391,4 +407,5 @@ export async function patchRtuScreenSuppliers(
         "catalogRevision" = "catalogRevision" + 1
     WHERE id = 1
   `;
+  await tx.$executeRaw(markingSupplierSyncSql());
 }

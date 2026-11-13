@@ -11,6 +11,7 @@ function row(
 ): MarkingListItem {
   return {
     client: "Клиент А",
+    supplier: "",
     labelMts: null,
     labelMegafon: null,
     labelBeeline: null,

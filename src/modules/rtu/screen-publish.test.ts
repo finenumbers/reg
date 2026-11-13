@@ -97,13 +97,17 @@ describe("screen stamps", () => {
       "utf8",
     );
     expect(source).toContain(
-      'CREATE INDEX "rtu_screen_b_${token}_on_switch_idx" ON "${table}" ("number", "id") INCLUDE ("client", "pstnKey") WHERE NOT missing',
+      'CREATE INDEX "rtu_screen_b_${token}_on_switch_idx" ON "${table}" ("number", "id") INCLUDE ("client", "supplier", "pstnKey") WHERE NOT missing',
     );
     expect(source).toContain(
       'rename("rtu_screen_on_switch_idx", `rtu_screen_on_switch_idx_${safe}`)',
     );
     expect(source).toContain(
       'rename(`rtu_screen_b_${safe}_on_switch_idx`, "rtu_screen_on_switch_idx")',
+    );
+    expect(source).toContain("rtu.screen.marking_supplier_sync_failed");
+    expect(source.indexOf("markingSupplierSyncSql()")).toBeGreaterThan(
+      source.indexOf("ALTER TABLE"),
     );
   });
 

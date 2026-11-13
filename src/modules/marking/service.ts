@@ -20,6 +20,7 @@ import { readRtuScreenGate, requestRtuScreenPublish } from "@/modules/rtu/screen
 export type MarkingListItem = {
   id: string;
   client: string;
+  supplier: string;
   phoneNumber: string;
   labelMts: string | null;
   labelMegafon: string | null;
@@ -50,6 +51,7 @@ const MAX_PAGE = 200;
 type ListQueryRow = {
   number: string | null;
   client: string | null;
+  supplier: string | null;
   label_mts: string | null;
   label_megafon: string | null;
   label_beeline: string | null;
@@ -185,6 +187,7 @@ function mapItem(row: ListQueryRow): MarkingListItem {
   return {
     id: phone,
     client: row.client ?? "",
+    supplier: row.supplier ?? "",
     phoneNumber: phone,
     labelMts: row.label_mts,
     labelMegafon: row.label_megafon,

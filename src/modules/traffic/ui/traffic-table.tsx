@@ -20,6 +20,11 @@ import {
 } from "@/modules/traffic/columns";
 import { buildTrafficFacetsUrl } from "@/modules/traffic/api-client";
 import type { TrafficListItem } from "@/modules/traffic/service";
+import {
+  oprsFailedTail,
+  oprsOperatorTone,
+  type OprsOperatorToneMap,
+} from "@/modules/oprs/operator-tone";
 import { cdrRowTone } from "@/modules/traffic/row-tone";
 import { cn } from "@/lib/utils";
 import {
@@ -60,6 +65,8 @@ type Props = {
   onTimeSortChange?: (next: TimeSort | null) => void;
   plainColumns?: readonly string[];
   facetUrl?: (input: { column: string; filters: ColumnFilters; q?: string }) => string;
+  /** OPRS replaces the shared CDR palette. A blocked number stays black. */
+  operatorTones?: OprsOperatorToneMap;
 };
 
 export function TrafficTable({
@@ -86,12 +93,14 @@ export function TrafficTable({
   onTimeSortChange,
   plainColumns,
   facetUrl,
+  operatorTones,
 }: Props) {
   const boldSet = new Set<string>(boldColumns ?? TRAFFIC_BOLD_COLUMNS);
   const plainSet = new Set<string>(plainColumns ?? []);
   const showEmpty = !loading && data.length === 0;
   const colCount = Math.max(headers.length, 1);
   const highlightSet = highlightColumns ? new Set(highlightColumns) : DEFAULT_HIGHLIGHT;
+  const oprsPaint = operatorTones != null;
 
   return (
     <Table>
@@ -159,22 +168,35 @@ export function TrafficTable({
         ) : (
           data.map((row) => {
             const blocked = row.blocked === true;
-            const tone = blocked
+            const tone = blocked ? null : cdrRowTone(row.data.call_category ?? "", row.data.call_status ?? "");
+            const oprsTone = blocked || !oprsPaint
               ? null
-              : cdrRowTone(row.data.call_category ?? "", row.data.call_status ?? "");
+              : oprsOperatorTone(row.data.operator_b ?? "", operatorTones ?? {});
             return (
               <TableRow
                 key={row.id}
                 className={cn(
                   blocked && BLOCKED_ROW_CLASS,
-                  tone === "phantom" &&
+                  !oprsPaint &&
+                    tone === "phantom" &&
                     "bg-green-200 hover:bg-green-300/90 dark:bg-green-950 dark:hover:bg-green-900",
-                  tone === "call_error" && "bg-destructive/25 hover:bg-destructive/35",
-                  tone === "parking" &&
+                  !oprsPaint && tone === "call_error" && "bg-destructive/25 hover:bg-destructive/35",
+                  !oprsPaint &&
+                    tone === "parking" &&
                     "bg-blue-200 hover:bg-blue-300/90 dark:bg-blue-950 dark:hover:bg-blue-900",
-                  tone === "check" &&
+                  !oprsPaint &&
+                    tone === "check" &&
                     "bg-yellow-200 hover:bg-yellow-300/90 dark:bg-yellow-950 dark:hover:bg-yellow-900",
-                  tone === "failed" &&
+                  !oprsPaint &&
+                    tone === "failed" &&
+                    "bg-gray-200 hover:bg-gray-300/90 dark:bg-gray-950 dark:hover:bg-gray-900",
+                  oprsTone === "green" &&
+                    "bg-green-200 hover:bg-green-300/90 dark:bg-green-950 dark:hover:bg-green-900",
+                  oprsTone === "red" &&
+                    "bg-red-200 hover:bg-red-300/90 dark:bg-red-950 dark:hover:bg-red-900",
+                  oprsTone === "yellow" &&
+                    "bg-yellow-200 hover:bg-yellow-300/90 dark:bg-yellow-950 dark:hover:bg-yellow-900",
+                  oprsTone === "gray" &&
                     "bg-gray-200 hover:bg-gray-300/90 dark:bg-gray-950 dark:hover:bg-gray-900",
                 )}
               >
@@ -184,13 +206,19 @@ export function TrafficTable({
                     h === BILLING_MINUTES_COLUMN
                       ? formatBillableMinutesCell(row.data.elapsed_time ?? "")
                       : formatTrafficCell(h, raw);
+                  const failedTail =
+                    oprsPaint &&
+                    !blocked &&
+                    oprsFailedTail(h, headers, row.data.call_status ?? "");
                   return (
                     <TableCell
                       key={h}
                       className={cn(
                         "whitespace-nowrap",
                         boldSet.has(h) && "font-bold",
-                        !blocked && trafficMissingLabelClass(h, shown),
+                        !blocked && !failedTail && trafficMissingLabelClass(h, shown),
+                        failedTail &&
+                          "bg-black text-white hover:bg-black hover:text-white",
                       )}
                     >
                       {VOIPMONITOR_COLUMN_SET.has(h) ? (
@@ -201,7 +229,7 @@ export function TrafficTable({
                             rel="noopener noreferrer"
                             className={cn(
                               "underline-offset-2 hover:underline",
-                              blocked ? "text-white" : "text-primary",
+                              blocked || failedTail ? "text-white" : "text-primary",
                             )}
                           >
                             {row.data[

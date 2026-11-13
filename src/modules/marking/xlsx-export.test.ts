@@ -14,6 +14,7 @@ import {
 
 const sample = {
   client: "Клиент А",
+  supplier: "Ростелеком",
   phoneNumber: "070000000001",
   labelMts: "AO Client",
   labelMegafon: null,
@@ -29,11 +30,25 @@ describe("marking XLSX export", () => {
   it("round-trips a text phone and blank operator cells", async () => {
     const workbook = buildMarkingExportWorkbook([sample]);
     const sheet = workbook.getWorksheet("Маркировка и МАВ");
-    expect(sheet?.getRow(2).getCell(2).numFmt).toBe("@");
+    expect(sheet?.getRow(2).getCell(3).numFmt).toBe("@");
     const parsed = await parseMarkingXlsx(await workbookToBuffer(workbook));
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) return;
-    expect(parsed.rows).toEqual([{ sortIndex: 0, ...sample }]);
+    expect(parsed.rows).toEqual([
+      {
+        sortIndex: 0,
+        client: sample.client,
+        phoneNumber: sample.phoneNumber,
+        labelMts: sample.labelMts,
+        labelMegafon: sample.labelMegafon,
+        labelBeeline: sample.labelBeeline,
+        labelT2: sample.labelT2,
+        mavMts: sample.mavMts,
+        mavMegafon: sample.mavMegafon,
+        mavBeeline: sample.mavBeeline,
+        mavT2: sample.mavT2,
+      },
+    ]);
   });
 
   it("rejects a header-only workbook", async () => {
@@ -53,7 +68,7 @@ describe("marking XLSX export", () => {
         labelMts: "+name",
         phoneNumber: "70000000001",
       }),
-    ).toEqual(["'=cmd", "70000000001", "'+name", "", "", "", "", "", "", ""]);
+    ).toEqual(["'=cmd", "Ростелеком", "70000000001", "'+name", "", "", "", "", "", "", ""]);
   });
 
   it("writes the screen columns in file order", () => {
@@ -74,6 +89,7 @@ describe("marking streamed export", () => {
     const buffer = await spoolMarkingWorkbook([
       {
         client: "",
+        supplier: "",
         phoneNumber: "0123",
         labelMts: null,
         labelMegafon: "=name",
@@ -101,7 +117,7 @@ describe("marking export cell types survive ExcelJS reload", () => {
     const workbook = buildMarkingExportWorkbook([sample]);
     const again = new ExcelJS.Workbook();
     await again.xlsx.load((await workbookToBuffer(workbook)) as never);
-    const phone = again.getWorksheet("Маркировка и МАВ")?.getRow(2).getCell(2).value;
+    const phone = again.getWorksheet("Маркировка и МАВ")?.getRow(2).getCell(3).value;
     expect(phone).toBe("070000000001");
   });
 });

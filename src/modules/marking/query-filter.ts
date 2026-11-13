@@ -14,6 +14,7 @@ import type { MarkingListItem } from "@/modules/marking/service";
 
 export const MARKING_COLUMN_ORDER = [
   "client",
+  "supplier",
   "phoneNumber",
   "labelMts",
   "labelMegafon",
@@ -29,6 +30,7 @@ export type MarkingColumnId = (typeof MARKING_COLUMN_ORDER)[number];
 
 export const MARKING_COLUMN_HEADERS: Record<MarkingColumnId, string> = {
   client: "Клиент",
+  supplier: "Поставщик",
   phoneNumber: "Номер",
   labelMts: "Маркировка МТС",
   labelMegafon: "Маркировка Мегафон",
@@ -51,6 +53,8 @@ export function markingCellText(row: MarkingListItem, column: string): string {
   switch (column) {
     case "client":
       return row.client;
+    case "supplier":
+      return row.supplier;
     case "phoneNumber":
       return row.phoneNumber;
     case "labelMts":

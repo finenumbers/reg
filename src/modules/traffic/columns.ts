@@ -227,7 +227,7 @@ export const TRAFFIC_SUMMARY_LABELS: Record<
 /** Display-only traffic column. Not a CDR field and not filterable. */
 export const BILLING_MINUTES_COLUMN = "billable_minutes";
 
-/** Empty until a later release fills marking and MAV. Not stored and not filterable. */
+/** Empty until a later release fills marking and MAV. Not stored and not filterable. The MAV header is «МАВ». */
 export const OPRS_MARKING_COLUMN = "oprs_marking";
 export const OPRS_MAV_COLUMN = "oprs_mav";
 export const OPRS_STATIC_COLUMNS = [OPRS_MARKING_COLUMN, OPRS_MAV_COLUMN] as const;
@@ -240,11 +240,8 @@ export const OPRS_COLUMNS = [
   "bill_ani",
   "side_a",
   "bill_dnis",
-  "side_b",
   "out_orig_dnis",
   "elapsed_time",
-  "billable_minutes",
-  "tariff_charge",
   "operator_b",
   "geography_b",
   OPRS_MARKING_COLUMN,
@@ -263,15 +260,12 @@ export const OPRS_LABELS: Record<(typeof OPRS_COLUMNS)[number], string> = {
   bill_ani: "А-номер",
   side_a: "Сторона A",
   bill_dnis: "В-номер",
-  side_b: "Сторона B",
   out_orig_dnis: "Переадресация",
   elapsed_time: "Секунды",
-  billable_minutes: "Минуты",
-  tariff_charge: CDR_TARIFF_LABELS.tariff_charge,
   operator_b: "ОПРС (Реестр Минцифры)",
   geography_b: "География",
   oprs_marking: "Маркировка",
-  oprs_mav: "Метка МАВ",
+  oprs_mav: "МАВ",
   src_name: "Инициирующее устройство",
   dst_name: "Терминирующее устройство",
   dp_name: "Объект набора",

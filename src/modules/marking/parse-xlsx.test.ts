@@ -32,9 +32,10 @@ describe("parseMarkingXlsx", () => {
     });
     const row = sheet.getRow(2);
     row.getCell(1).value = " Клиент А ";
-    row.getCell(2).value = 70000000001;
-    row.getCell(3).value = "AO Client";
-    row.getCell(4).value = "Клиент";
+    row.getCell(2).value = "Ростелеком";
+    row.getCell(3).value = 70000000001;
+    row.getCell(4).value = "AO Client";
+    row.getCell(5).value = "Клиент";
     sheet.getRow(3).getCell(1).value = "";
     const result = await parseMarkingXlsx(Buffer.from(await numeric.xlsx.writeBuffer()));
     expect(result.ok).toBe(true);
@@ -60,7 +61,7 @@ describe("parseMarkingXlsx", () => {
     const result = await parseMarkingXlsx(
       await workbook([
         header,
-        ["Клиент А", "070000000001", "", "", "", "", 10, ...emptyTail.slice(1)],
+        ["Клиент А", "", "070000000001", "", "", "", "", 10, ...emptyTail.slice(1)],
         [],
       ]),
     );
@@ -84,7 +85,7 @@ describe("parseMarkingXlsx", () => {
     const extra = await parseMarkingXlsx(
       await workbook([
         [...header, "Лишнее"],
-        ["Клиент А", "70000000001", ...emptyTail, "x"],
+        ["Клиент А", "", "70000000001", ...emptyTail, "x"],
       ]),
     );
     expect(extra.ok).toBe(false);
@@ -94,8 +95,8 @@ describe("parseMarkingXlsx", () => {
     const result = await parseMarkingXlsx(
       await workbook([
         header,
-        ["", "123", ...emptyTail],
-        ["Клиент А", "7 000 000 0001", ...emptyTail],
+        ["", "", "123", ...emptyTail],
+        ["Клиент А", "", "7 000 000 0001", ...emptyTail],
       ]),
     );
     expect(result.ok).toBe(true);
@@ -106,7 +107,7 @@ describe("parseMarkingXlsx", () => {
 
   it("rejects a fraction phone", async () => {
     const bad = await parseMarkingXlsx(
-      await workbook([header, ["Клиент А", 70000000001.5, ...emptyTail]]),
+      await workbook([header, ["Клиент А", "", 70000000001.5, ...emptyTail]]),
     );
     expect(bad.ok).toBe(false);
     if (bad.ok) return;
@@ -117,8 +118,8 @@ describe("parseMarkingXlsx", () => {
     const result = await parseMarkingXlsx(
       await workbook([
         header,
-        ["Клиент А", "70000000001", ...emptyTail],
-        ["Клиент Б", "70000000001", ...emptyTail],
+        ["Клиент А", "", "70000000001", ...emptyTail],
+        ["Клиент Б", "", "70000000001", ...emptyTail],
       ]),
     );
     expect(result.ok).toBe(false);
@@ -134,8 +135,9 @@ describe("parseMarkingXlsx", () => {
     });
     const row = sheet.getRow(2);
     row.getCell(1).value = "Клиент А";
-    row.getCell(2).value = "70000000001";
-    row.getCell(3).value = new Date(Date.UTC(2024, 0, 2));
+    row.getCell(2).value = "";
+    row.getCell(3).value = "70000000001";
+    row.getCell(4).value = new Date(Date.UTC(2024, 0, 2));
     const dateResult = await parseMarkingXlsx(
       Buffer.from(await dated.xlsx.writeBuffer()),
     );
@@ -144,19 +146,19 @@ describe("parseMarkingXlsx", () => {
     expect(dateResult.details[0]).toMatch(/Маркировка МТС/);
 
     const exponent = await parseMarkingXlsx(
-      await workbook([header, ["Клиент А", "7.0000000001E10", ...emptyTail]]),
+      await workbook([header, ["Клиент А", "", "7.0000000001E10", ...emptyTail]]),
     );
     expect(exponent.ok).toBe(true);
     if (!exponent.ok) return;
     expect(exponent.rows[0]?.phoneNumber).toBe("7.0000000001E10");
 
     const unsafe = await parseMarkingXlsx(
-      await workbook([header, ["Клиент А", 1e21, ...emptyTail]]),
+      await workbook([header, ["Клиент А", "", 1e21, ...emptyTail]]),
     );
     expect(unsafe.ok).toBe(false);
 
     const long = await parseMarkingXlsx(
-      await workbook([header, ["К".repeat(201), "70000000001", ...emptyTail]]),
+      await workbook([header, ["К".repeat(201), "", "70000000001", ...emptyTail]]),
     );
     expect(long.ok).toBe(false);
     if (long.ok) return;
@@ -170,7 +172,7 @@ describe("parseMarkingXlsx", () => {
 
   it("stops after 30 errors", async () => {
     const rows: unknown[][] = [header];
-    for (let i = 0; i < 40; i++) rows.push(["Клиент", "1".repeat(201), ...emptyTail]);
+    for (let i = 0; i < 40; i++) rows.push(["Клиент", "", "1".repeat(201), ...emptyTail]);
     const result = await parseMarkingXlsx(await workbook(rows));
     expect(result.ok).toBe(false);
     if (result.ok) return;
