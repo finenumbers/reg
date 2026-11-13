@@ -21,6 +21,8 @@ import {
 const SORT_BTN =
   "inline-flex h-7 max-h-7 w-full items-center justify-end bg-transparent px-0 text-inherit";
 const SORT_ACTIVE = "text-blue-600";
+/** Readable on the pastel column fill. `text-blue-600` falls short of 4.5:1 there. */
+const SORT_ACTIVE_ON_FILL = "text-blue-800";
 const COUNT_CELL = "text-right tabular-nums";
 const TOTAL_CELL = "text-right font-bold text-black tabular-nums dark:text-white";
 const CLIENT_COL_MIN_PX = 250;
@@ -46,23 +48,49 @@ const NETWORK_HEADERS: Record<MarkingStatsNetworkSort, string> = {
   external: BRAND_WIDTH_HEADER,
 };
 
+/**
+ * Light resting fill of the matching «Звонки в ОПРС» row.
+ * The dark `*-950` fills stay off: this app has no dark theme, and `dark:`
+ * follows the OS, which would put near-black text on a near-black cell.
+ */
+const NETWORK_FILL = {
+  mts: "bg-red-200",
+  megafon: "bg-green-200",
+  beeline: "bg-yellow-200",
+  t2: "bg-gray-200",
+} as const satisfies Record<(typeof BRAND_SORTS)[number], string>;
+
+function networkFill(key: MarkingStatsNetworkSort): string | undefined {
+  switch (key) {
+    case "mts":
+    case "megafon":
+    case "beeline":
+    case "t2":
+      return NETWORK_FILL[key];
+    case "external":
+      return undefined;
+  }
+}
+
 function SortHeader({
   label,
   active,
   onClick,
+  fill,
 }: {
   label: string;
   active: boolean;
   onClick: () => void;
+  fill?: string;
 }) {
   return (
     <TableHead
-      className="text-right font-medium whitespace-nowrap"
+      className={cn("text-right font-medium whitespace-nowrap", fill)}
       aria-sort={active ? "descending" : "none"}
     >
       <button
         type="button"
-        className={cn(SORT_BTN, active && SORT_ACTIVE)}
+        className={cn(SORT_BTN, active && (fill ? SORT_ACTIVE_ON_FILL : SORT_ACTIVE))}
         aria-pressed={active}
         onClick={onClick}
       >
@@ -160,6 +188,7 @@ export function MarkingStatsTable({
                 label={NETWORK_HEADERS[key]}
                 active={sortKey === key}
                 onClick={() => onSort(key)}
+                fill={NETWORK_FILL[key]}
               />
             ))}
             <SortHeader
@@ -189,7 +218,7 @@ export function MarkingStatsTable({
                 <TableCell>{row.client}</TableCell>
                 <TableCell className={COUNT_CELL}>{formatCount(row.numbers)}</TableCell>
                 {MARKING_STATS_NETWORK_SORTS.map((key) => (
-                  <TableCell key={key} className={COUNT_CELL}>
+                  <TableCell key={key} className={cn(COUNT_CELL, networkFill(key))}>
                     {formatCount(row[key])}
                   </TableCell>
                 ))}

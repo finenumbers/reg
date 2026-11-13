@@ -1,7 +1,13 @@
-# Current Phase — production (v1.274.0)
+# Current Phase — production (v1.275.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-13
+
+## v1.275.0 — Painted marking statistic columns
+
+There is no migration. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. Keep a single `app` replica. Stop the old app before the new one starts, then recreate only the `app` container. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged.
+
+«Статистика маркировки» paints «МТС» red, «Мегафон» green, «Билайн» yellow, and «Т2» gray. The header and the counts use the same light shade as a «Звонки в ОПРС» row of that operator. «Клиент», «Количество номеров», «Внешние сети», «Итого», and the empty row stay unpainted. A zero stays painted with its column. The active sort on a painted header is a darker blue. «Внешние сети» and «Итого» keep the previous blue. Row colors on «Звонки в ОПРС» stay as they are.
 
 ## v1.274.0 — OPRS menus and marking statistics
 
