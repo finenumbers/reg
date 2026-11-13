@@ -58,6 +58,8 @@ type Props = {
   onColumnFilterChange: (column: string, values: string[]) => void;
   timeSort?: TimeSort | null;
   onTimeSortChange?: (next: TimeSort | null) => void;
+  plainColumns?: readonly string[];
+  facetUrl?: (input: { column: string; filters: ColumnFilters; q?: string }) => string;
 };
 
 export function TrafficTable({
@@ -82,8 +84,11 @@ export function TrafficTable({
   onColumnFilterChange,
   timeSort = null,
   onTimeSortChange,
+  plainColumns,
+  facetUrl,
 }: Props) {
   const boldSet = new Set<string>(boldColumns ?? TRAFFIC_BOLD_COLUMNS);
+  const plainSet = new Set<string>(plainColumns ?? []);
   const showEmpty = !loading && data.length === 0;
   const colCount = Math.max(headers.length, 1);
   const highlightSet = highlightColumns ? new Set(highlightColumns) : DEFAULT_HIGHLIGHT;
@@ -100,7 +105,9 @@ export function TrafficTable({
                   timeSort={timeSort}
                   onChange={onTimeSortChange}
                 />
-              ) : VOIPMONITOR_COLUMN_SET.has(h) || h === BILLING_MINUTES_COLUMN ? (
+              ) : VOIPMONITOR_COLUMN_SET.has(h) ||
+                h === BILLING_MINUTES_COLUMN ||
+                plainSet.has(h) ? (
                 (headerLabels?.[h] ?? h)
               ) : (
                 <ColumnFilterDropdown
@@ -110,19 +117,21 @@ export function TrafficTable({
                   selected={filters[h] ?? []}
                   filters={filters}
                   buildFacetsUrl={({ column, filters: f, q }) =>
-                    buildTrafficFacetsUrl({
-                      column,
-                      filters: f,
-                      phoneQ,
-                      month,
-                      phantom,
-                      callErrors,
-                      parking,
-                      failed,
-                      check,
-                      success,
-                      q,
-                    })
+                    facetUrl
+                      ? facetUrl({ column, filters: f, q })
+                      : buildTrafficFacetsUrl({
+                          column,
+                          filters: f,
+                          phoneQ,
+                          month,
+                          phantom,
+                          callErrors,
+                          parking,
+                          failed,
+                          check,
+                          success,
+                          q,
+                        })
                   }
                   formatValue={(value) => displayTrafficFacet(h, value)}
                   onToggle={() => onOpenColumnChange(openColumn === h ? null : h)}

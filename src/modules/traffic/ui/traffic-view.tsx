@@ -24,6 +24,10 @@ import {
   fetchTrafficStatus,
   postTrafficRetry,
 } from "@/modules/traffic/api-client";
+import { buildOprsFacetsUrl, fetchOprsList } from "@/modules/oprs/api";
+import { acceptOprsPage, appendOprsItems } from "@/modules/oprs/page-state";
+import { OprsExportButton } from "@/modules/oprs/ui/export-button";
+import { OPRS_STATIC_COLUMNS } from "@/modules/traffic/columns";
 import {
   IDLE_SYNC_STATE,
   isSyncInFlight,
@@ -61,6 +65,7 @@ type LoadListOpts = {
   check?: boolean;
   success?: boolean;
   timeSort?: TimeSort | null;
+  cursor?: { cdrDate: string; cdrId: string } | null;
 };
 
 const FILTERED_EMPTY =
@@ -78,6 +83,8 @@ type Props = {
   canRetry: boolean;
   emptyUnfiltered: string;
   showMonthExport?: boolean;
+  source?: "traffic" | "oprs";
+  initialSnapshot?: string | null;
   initial: ListTrafficResult;
   initialListError?: string | null;
 };
@@ -94,9 +101,12 @@ export function TrafficView({
   canRetry,
   emptyUnfiltered,
   showMonthExport = false,
+  source = "traffic",
+  initialSnapshot = null,
   initial,
   initialListError = null,
 }: Props) {
+  const oprs = source === "oprs";
   const [filters, setFilters] = useState<ColumnFilters>({});
   const [phoneInput, setPhoneInput] = useState("");
   const [phoneQ, setPhoneQ] = useState("");
@@ -114,7 +124,16 @@ export function TrafficView({
   const [openColumn, setOpenColumn] = useState<string | null>(null);
   const [page, setPage] = useState(initial.page);
   const [items, setItems] = useState<TrafficListItem[]>(initial.items);
+  const itemsRef = useRef(items);
   const [total, setTotal] = useState(initial.total);
+  const snapshotRef = useRef<string | null>(initialSnapshot);
+  const [snapshot, setSnapshot] = useState<string | null>(initialSnapshot);
+  const [oprsHasMore, setOprsHasMore] = useState(
+    oprs && initial.items.length === initial.pageSize,
+  );
+  useEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [listError, setListError] = useState<string | null>(initialListError);
@@ -174,7 +193,7 @@ export function TrafficView({
     success ||
     timeSort != null ||
     month !== defaultMonthKey;
-  const hasMore = items.length < total;
+  const hasMore = oprs ? oprsHasMore : items.length < total;
   const monthOptions = useMemo(() => {
     if (months.some((item) => item.key === month)) return months;
     const extra = parseMonthKey(month);
@@ -216,7 +235,7 @@ export function TrafficView({
       listErrorRef.current = null;
       setListError(null);
 
-      const result = await fetchTrafficList({
+      const shared = {
         filters: nextFilters,
         phoneQ: nextPhoneQ,
         month: nextMonth,
@@ -227,8 +246,54 @@ export function TrafficView({
         check: nextCheck,
         success: nextSuccess,
         timeSort: nextTimeSort,
-        page: nextPage,
         pageSize: PAGE_SIZE,
+      };
+      if (oprs) {
+        const result = await fetchOprsList({
+          ...shared,
+          snapshot: replace ? null : snapshotRef.current,
+          cursor: replace ? null : (opts.cursor ?? null),
+        });
+        if (seq !== refreshSeq.current) return;
+        if (!result.ok) {
+          listErrorRef.current = result.message;
+          setListError(result.message);
+          setLoading(false);
+          setLoadingMore(false);
+          loadingMoreRef.current = false;
+          return;
+        }
+        const incoming = result.data.snapshot;
+        if (!acceptOprsPage(replace, snapshotRef.current, incoming)) {
+          setLoading(false);
+          setLoadingMore(false);
+          loadingMoreRef.current = false;
+          return;
+        }
+        const prev = itemsRef.current;
+        const nextItems = replace
+          ? result.data.items
+          : appendOprsItems(prev, result.data.items);
+        const grew = nextItems.length > prev.length;
+        itemsRef.current = nextItems;
+        setItems(nextItems);
+        if (result.data.counted) setTotal(result.data.total);
+        if (replace) {
+          snapshotRef.current = incoming;
+          setSnapshot(incoming);
+        }
+        setOprsHasMore(result.data.full && (replace || grew));
+        setPage(result.data.page);
+        if (result.data.months) setMonths(result.data.months);
+        setLoading(false);
+        setLoadingMore(false);
+        loadingMoreRef.current = false;
+        return;
+      }
+
+      const result = await fetchTrafficList({
+        ...shared,
+        page: nextPage,
       });
       if (seq !== refreshSeq.current) return;
 
@@ -249,7 +314,7 @@ export function TrafficView({
       setLoadingMore(false);
       loadingMoreRef.current = false;
     },
-    [page],
+    [oprs, page],
   );
   loadListRef.current = loadList;
 
@@ -357,8 +422,16 @@ export function TrafficView({
 
   const onLoadMore = useCallback(() => {
     if (!hasMore || loading || loadingMoreRef.current) return;
+    if (oprs) {
+      const last = itemsRef.current.at(-1);
+      const cdrDate = last?.data.cdr_date;
+      const cdrId = last?.data.cdr_id;
+      if (!last || cdrDate == null || cdrId == null || !snapshotRef.current) return;
+      void loadList({ replace: false, cursor: { cdrDate, cdrId } });
+      return;
+    }
     void loadList({ page: page + 1, replace: false });
-  }, [hasMore, loading, loadList, page]);
+  }, [hasMore, loading, loadList, oprs, page]);
 
   const sentinelRef = useInfiniteScroll({
     enabled: hasMore && !loading && !loadingMore && !listError,
@@ -577,6 +650,21 @@ export function TrafficView({
             />
           ) : null}
           {showMonthExport ? <MonthExportButtons month={month} /> : null}
+          {oprs ? (
+            <OprsExportButton
+              month={month}
+              snapshot={snapshot}
+              filters={filters}
+              phoneQ={phoneQ}
+              phantom={phantom}
+              callErrors={callErrors}
+              parking={parking}
+              failed={failed}
+              check={check}
+              success={success}
+              timeSort={timeSort}
+            />
+          ) : null}
           {showRetry ? (
             <Button type="button" onClick={() => void onRetry()} disabled={pending}>
               {pending ? "Импорт…" : "Повторить импорт"}
@@ -786,6 +874,26 @@ export function TrafficView({
             onColumnFilterChange={onColumnChange}
             timeSort={timeSort}
             onTimeSortChange={onTimeSortChange}
+            plainColumns={oprs ? OPRS_STATIC_COLUMNS : undefined}
+            facetUrl={
+              oprs
+                ? ({ column, filters: nextFilters, q }) =>
+                    buildOprsFacetsUrl({
+                      column,
+                      filters: nextFilters,
+                      phoneQ,
+                      month,
+                      phantom,
+                      callErrors,
+                      parking,
+                      failed,
+                      check,
+                      success,
+                      q,
+                      snapshot,
+                    })
+                : undefined
+            }
           />
         </TableInfiniteBody>
         <TableCountFooter shown={items.length} total={total} />

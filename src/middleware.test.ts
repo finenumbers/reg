@@ -46,6 +46,13 @@ describe("middleware protected routes", () => {
     expect(res.headers.get("location")).toContain("next=%2Fraw");
   });
 
+  it("redirects anonymous users from /oprs to /login", () => {
+    const res = middleware(makeRequest("/oprs"));
+    expect(res.status).toBe(307);
+    expect(res.headers.get("location")).toContain("/login");
+    expect(res.headers.get("location")).toContain("next=%2Foprs");
+  });
+
   it("redirects anonymous users from /geography to /login", () => {
     const res = middleware(makeRequest("/geography"));
     expect(res.status).toBe(307);

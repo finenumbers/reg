@@ -42,6 +42,7 @@ describe("FEATURE_MODULES nav groups", () => {
   it("keeps CDR without Детализация", () => {
     expect(idsInGroup("cdr")).toEqual([
       "live-calls",
+      "oprs",
       "traffic",
       "operators",
       "geography",

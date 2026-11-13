@@ -54,6 +54,7 @@ export function middleware(request: NextRequest) {
     pathname.startsWith("/numbering-resource") ||
     pathname.startsWith("/raw") ||
     pathname.startsWith("/live-calls") ||
+    pathname.startsWith("/oprs") ||
     pathname.startsWith("/detail") ||
     pathname.startsWith("/traffic") ||
     pathname.startsWith("/geography") ||

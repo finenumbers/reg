@@ -19,6 +19,7 @@ export type FeatureModuleId =
   | "numbering-resource"
   | "raw"
   | "live-calls"
+  | "oprs"
   | "traffic"
   | "geography"
   | "operators"
@@ -109,6 +110,14 @@ export const FEATURE_MODULES: FeatureModuleDefinition[] = [
     title: "Текущие звонки",
     description: "Снимок текущих транзитных вызовов РТУ",
     href: "/live-calls",
+    navPermission: "phones:read",
+    navGroup: "cdr",
+  },
+  {
+    id: "oprs",
+    title: "Звонки в ОПРС",
+    description: "Исходящие на мобильные РФ, кроме Service_Parking",
+    href: "/oprs",
     navPermission: "phones:read",
     navGroup: "cdr",
   },

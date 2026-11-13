@@ -1,7 +1,13 @@
-# Current Phase — production (v1.264.0)
+# Current Phase — production (v1.265.0)
 
-**Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, cloud PBX domains and numbers, Zabbix graphs.  
+**Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-13
+
+## v1.265.0 — OPRS calls
+
+There is no migration. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. Keep a single `app` replica. Stop the old app before the new one starts, then recreate only the `app` container. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged.
+
+«Звонки в ОПРС» sits in the CDR group, directly under «Текущие звонки», at `/oprs`, with `phones:read`. The table is outgoing calls whose tariff direction is «Мобильные РФ», excluding the terminating device `Service_Parking`. «ОПРС (Реестр Минцифры)» is the stored B-number operator, and «География» is the stored B-number territory. «Маркировка» and «Метка МАВ» stay empty. The open list is one `importedAt` snapshot, walked by keyset. A later import appears after that import finishes. «Экспорт XLSX» downloads that same open snapshot. «Телефонный трафик» is unchanged.
 
 ## v1.264.0 — Marking and MAV catalog
 

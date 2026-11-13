@@ -227,6 +227,59 @@ export const TRAFFIC_SUMMARY_LABELS: Record<
 /** Display-only traffic column. Not a CDR field and not filterable. */
 export const BILLING_MINUTES_COLUMN = "billable_minutes";
 
+/** Empty until a later release fills marking and MAV. Not stored and not filterable. */
+export const OPRS_MARKING_COLUMN = "oprs_marking";
+export const OPRS_MAV_COLUMN = "oprs_mav";
+export const OPRS_STATIC_COLUMNS = [OPRS_MARKING_COLUMN, OPRS_MAV_COLUMN] as const;
+export const OPRS_STATIC_COLUMN_SET = new Set<string>(OPRS_STATIC_COLUMNS);
+
+export const OPRS_COLUMNS = [
+  "cdr_day",
+  "cdr_time",
+  "call_status",
+  "bill_ani",
+  "side_a",
+  "bill_dnis",
+  "side_b",
+  "out_orig_dnis",
+  "elapsed_time",
+  "billable_minutes",
+  "tariff_charge",
+  "operator_b",
+  "geography_b",
+  OPRS_MARKING_COLUMN,
+  OPRS_MAV_COLUMN,
+  "src_name",
+  "dst_name",
+  "dp_name",
+  "disconnect_code_string",
+  ...VOIPMONITOR_COLUMNS,
+] as const;
+
+export const OPRS_LABELS: Record<(typeof OPRS_COLUMNS)[number], string> = {
+  cdr_day: "Дата",
+  cdr_time: "Время",
+  call_status: "Статус",
+  bill_ani: "А-номер",
+  side_a: "Сторона A",
+  bill_dnis: "В-номер",
+  side_b: "Сторона B",
+  out_orig_dnis: "Переадресация",
+  elapsed_time: "Секунды",
+  billable_minutes: "Минуты",
+  tariff_charge: CDR_TARIFF_LABELS.tariff_charge,
+  operator_b: "ОПРС (Реестр Минцифры)",
+  geography_b: "География",
+  oprs_marking: "Маркировка",
+  oprs_mav: "Метка МАВ",
+  src_name: "Инициирующее устройство",
+  dst_name: "Терминирующее устройство",
+  dp_name: "Объект набора",
+  disconnect_code_string: "Код завершения",
+  voipmonitor_url_in: VOIPMONITOR_TRAFFIC_LABELS.voipmonitor_url_in,
+  voipmonitor_url_out: VOIPMONITOR_TRAFFIC_LABELS.voipmonitor_url_out,
+};
+
 export const TRAFFIC_GEOGRAPHY_COLUMNS = [
   "cdr_day",
   "cdr_time",
