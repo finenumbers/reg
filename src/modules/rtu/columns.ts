@@ -25,22 +25,45 @@ export const RTU_COLUMNS = [
 
 export type RtuColumn = (typeof RTU_COLUMNS)[number];
 
-/** Hidden together by the «Маски и типы» switch. The data contract keeps them. */
+/** Hidden together when the «Маски и типы» switch is off. The data contract keeps them. */
 const RTU_MASK_COLUMN_LIST = ["mask", "maskType", "purchase", "premium"] as const;
 
 export const RTU_MASK_COLUMNS: ReadonlySet<RtuColumn> = new Set(RTU_MASK_COLUMN_LIST);
 
+/** Hidden together when the «Маски и типы» switch is on. The data contract keeps them. */
+const RTU_MASK_ON_HIDDEN_LIST = ["category", "supplier", "source"] as const;
+
+const RTU_MASK_ON_HIDDEN: ReadonlySet<RtuColumn> = new Set(RTU_MASK_ON_HIDDEN_LIST);
+
 export const RTU_COLUMNS_WITHOUT_MASKS: readonly RtuColumn[] = RTU_COLUMNS.filter(
   (column) => !RTU_MASK_COLUMNS.has(column),
+);
+
+/** Screen columns while «Маски и типы» is on. Not the data contract. */
+export const RTU_COLUMNS_WITH_MASKS: readonly RtuColumn[] = RTU_COLUMNS.filter(
+  (column) => !RTU_MASK_ON_HIDDEN.has(column),
 );
 
 export function isRtuMaskColumn(column: string): boolean {
   return (RTU_MASK_COLUMNS as ReadonlySet<string>).has(column);
 }
 
-/** Screen columns. `true` is the full contract, the same array, not a copy. */
+function isRtuMaskOnHiddenColumn(column: string): boolean {
+  return (RTU_MASK_ON_HIDDEN as ReadonlySet<string>).has(column);
+}
+
+/**
+ * A header menu closes when this switch position removes its column.
+ * Shared columns, including «Город», stay open.
+ */
+export function rtuFilterColumnStaysOpen(column: string, showMaskColumns: boolean): boolean {
+  if (showMaskColumns) return !isRtuMaskOnHiddenColumn(column);
+  return !isRtuMaskColumn(column);
+}
+
+/** Screen columns. The full contract is `RTU_COLUMNS`. Both results are stable arrays. */
 export function visibleRtuColumns(showMaskColumns: boolean): readonly RtuColumn[] {
-  return showMaskColumns ? RTU_COLUMNS : RTU_COLUMNS_WITHOUT_MASKS;
+  return showMaskColumns ? RTU_COLUMNS_WITH_MASKS : RTU_COLUMNS_WITHOUT_MASKS;
 }
 
 export const RTU_HEADERS: Record<RtuColumn, string> = {

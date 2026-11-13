@@ -27,7 +27,7 @@ import {
 } from "@/lib/format-count";
 import { TABLE_PAGE_SIZE } from "@/lib/table-pagination";
 import { fetchRtuList, fetchRtuPstnFill } from "@/modules/rtu/api-client";
-import { RTU_HEADERS, isRtuMaskColumn } from "@/modules/rtu/columns";
+import { RTU_HEADERS, rtuFilterColumnStaysOpen } from "@/modules/rtu/columns";
 import { geographyAppendAllowed, refreshIntervalMs } from "@/modules/rtu/paging";
 import { PSTN_FILL_MAX_IDS } from "@/modules/rtu/pstn-fill-contract";
 import { blankPstnRowIds, mergePstnLabels } from "@/modules/rtu/pstn-fill-rows";
@@ -533,7 +533,7 @@ export function RtuView({ initial, canRequest, canActivate }: Props) {
 
   function onShowMaskColumnsChange(checked: boolean) {
     setShowMaskColumns(checked);
-    if (!checked && openColumn != null && isRtuMaskColumn(openColumn)) {
+    if (openColumn != null && !rtuFilterColumnStaysOpen(openColumn, checked)) {
       setOpenColumn(null);
     }
   }

@@ -1,7 +1,13 @@
-# Current Phase — production (v1.262.0)
+# Current Phase — production (v1.263.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-13
+
+## v1.263.0 — Hide category, supplier, and source while RTU masks are on
+
+There is no migration. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. Keep a single `app` replica. Stop the old app before the new one starts, then recreate only the `app` container. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged.
+
+«Управление РТУ» keeps the «Маски и типы» switch at the right of the search row. It starts on. While it is on, the table hides «Категория», «Поставщик», and «Источник». Turning it off hides «Маска», «Тип», «Покупка», and «Премиум» and shows those three columns again. The list, the filters, and the XLSX file stay complete. A filter on a hidden column stays, and its chip still removes it. «Сбросить фильтры» does not change the switch.
 
 ## v1.262.0 — Hide mask columns on RTU management
 
