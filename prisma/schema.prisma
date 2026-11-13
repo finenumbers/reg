@@ -180,14 +180,6 @@ model AppSetting {
   zabbixGraph2Name                String?
   /// Heading on the home page. Empty keeps the Zabbix graph name.
   zabbixGraph2Title               String?
-  /// Origin of the free-number source. http(s) host only. Null means unset.
-  freeNumbersSourceBaseUrl        String?
-  /// AES-256-GCM ciphertext of the free-number source token. Never plaintext.
-  freeNumbersSourceTokenCiphertext String?
-  /// Origin of the purchased-number source. http(s) host only. Null means unset.
-  purchasedNumbersSourceBaseUrl   String?
-  /// AES-256-GCM ciphertext of the purchased-number source token. Never plaintext.
-  purchasedNumbersSourceTokenCiphertext String?
   /// AES-256-GCM ciphertext of the SipOut userapi key. Never plaintext.
   sipoutApiKeyCiphertext String?
   updatedAt             DateTime    @updatedAt
@@ -703,17 +695,26 @@ model NumberingSyncState {
   startedAt      DateTime? @map("started_at")
   lastCatalog    String?   @map("last_catalog")
   lastError      String?   @map("last_error")
-  lastWritten    Int?      @map("last_written")
+  /// Free numbers inserted by the last committed SipOut stage.
+  lastFreeWritten Int?     @map("last_free_written")
+  /// Purchased numbers inserted by the last committed SipOut stage.
+  lastPurchasedWritten Int? @map("last_purchased_written")
   lastFinishedAt DateTime? @map("last_finished_at")
 
   @@map("numbering_sync_state")
 }
 
 /// Numbers accepted from one SipOut response, before the catalog replace.
+/// Tariff cells are filled here so the catalog transaction only copies rows.
 model NumberingSyncStage {
-  runId   String @map("run_id")
+  runId   String  @map("run_id")
   catalog String
   e164    String
+  abc     String  @default("")
+  number  String  @default("")
+  city    String  @default("")
+  region  String  @default("")
+  ready   Boolean @default(false)
 
   @@id([runId, catalog, e164])
   @@map("numbering_sync_stage")

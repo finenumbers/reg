@@ -49,6 +49,7 @@ next-env.d.ts
 
 # Ephemeral CDR enrich artifacts
 /data/traffic-export/
+/data/numbering-sync/
 
 # SATEL RTU manuals. Local reference only. The public repo must not contain them.
 /docs/vendor/

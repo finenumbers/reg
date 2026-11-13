@@ -8,10 +8,19 @@ import { type SipoutRead, sipoutUrl } from "@/modules/sipout/url";
 const TIMEOUT_MS = 30_000;
 const BODY_CAP = 20 * 1024 * 1024;
 
-export type SipoutPage = { ok: true; data: unknown } | { ok: false; error: string };
+export type SipoutMeta = {
+  status: number;
+  attempts: number;
+  durationMs: number;
+};
+
+export type SipoutPage =
+  | { ok: true; data: unknown; meta: SipoutMeta }
+  | { ok: false; error: string; meta: SipoutMeta };
 
 type Attempt =
-  { ok: true; data: unknown } | { ok: false; error: string; retryable: boolean };
+  | { ok: true; data: unknown; status: number; durationMs: number }
+  | { ok: false; error: string; retryable: boolean; status: number; durationMs: number };
 
 export type SipoutDeps = {
   fetchImpl?: typeof fetch;
@@ -63,8 +72,17 @@ async function once(
   read: SipoutRead,
   deps: SipoutDeps | undefined,
 ): Promise<Attempt> {
+  const started = Date.now();
   const href = sipoutUrl(key, read);
-  if (!href) return { ok: false, error: "Недопустимый запрос.", retryable: false };
+  if (!href) {
+    return {
+      ok: false,
+      error: "Недопустимый запрос.",
+      retryable: false,
+      status: 0,
+      durationMs: 0,
+    };
+  }
   const fetchImpl = deps?.fetchImpl ?? fetch;
   let response: Response;
   try {
@@ -77,40 +95,102 @@ async function once(
     });
   } catch {
     logger.info("sipout.request", { action: read.action, status: 0 });
-    return { ok: false, error: "Площадка не ответила.", retryable: true };
+    return {
+      ok: false,
+      error: "Площадка не ответила.",
+      retryable: true,
+      status: 0,
+      durationMs: Date.now() - started,
+    };
   }
   logger.info("sipout.request", { action: read.action, status: response.status });
+  const durationMs = Date.now() - started;
   if (response.status >= 500) {
     await response.body?.cancel();
-    return { ok: false, error: "Площадка не ответила.", retryable: true };
+    return {
+      ok: false,
+      error: "Площадка не ответила.",
+      retryable: true,
+      status: response.status,
+      durationMs,
+    };
   }
   if (response.status !== 200) {
     await response.body?.cancel();
-    return { ok: false, error: "Площадка отклонила запрос.", retryable: false };
+    return {
+      ok: false,
+      error: "Площадка отклонила запрос.",
+      retryable: false,
+      status: response.status,
+      durationMs,
+    };
   }
   const text = await readCapped(response);
-  if (text == null)
-    return { ok: false, error: "Ответ площадки слишком большой.", retryable: false };
-  if (!text) return { ok: false, error: "Ответ площадки обрезан.", retryable: false };
+  if (text == null) {
+    return {
+      ok: false,
+      error: "Ответ площадки слишком большой.",
+      retryable: false,
+      status: response.status,
+      durationMs,
+    };
+  }
+  if (!text) {
+    return {
+      ok: false,
+      error: "Ответ площадки обрезан.",
+      retryable: false,
+      status: response.status,
+      durationMs,
+    };
+  }
   let body: unknown;
   try {
     body = JSON.parse(text) as unknown;
   } catch {
-    return { ok: false, error: "Ответ площадки обрезан.", retryable: false };
+    return {
+      ok: false,
+      error: "Ответ площадки обрезан.",
+      retryable: false,
+      status: response.status,
+      durationMs,
+    };
   }
   if (!body || typeof body !== "object") {
-    return { ok: false, error: "Ответ площадки обрезан.", retryable: false };
+    return {
+      ok: false,
+      error: "Ответ площадки обрезан.",
+      retryable: false,
+      status: response.status,
+      durationMs,
+    };
   }
   const result = (body as { result?: unknown }).result;
-  if (result === "ok") return { ok: true, data: (body as { data?: unknown }).data };
+  if (result === "ok") {
+    return { ok: true, data: (body as { data?: unknown }).data, status: response.status, durationMs };
+  }
   if (result === "bad") {
     return {
       ok: false,
       error: publicError((body as { err_text?: unknown }).err_text, key),
       retryable: false,
+      status: response.status,
+      durationMs,
     };
   }
-  return { ok: false, error: "Ответ площадки обрезан.", retryable: false };
+  return {
+    ok: false,
+    error: "Ответ площадки обрезан.",
+    retryable: false,
+    status: response.status,
+    durationMs,
+  };
+}
+
+function pageFrom(attempt: Attempt, attempts: number, durationMs: number): SipoutPage {
+  const meta = { status: attempt.status, attempts, durationMs };
+  if (attempt.ok) return { ok: true, data: attempt.data, meta };
+  return { ok: false, error: attempt.error, meta };
 }
 
 /** One retry after a transport failure, a timeout, or a 5xx. */
@@ -119,9 +199,9 @@ export async function sipoutGet(
   read: SipoutRead,
   deps?: SipoutDeps,
 ): Promise<SipoutPage> {
+  const started = Date.now();
   const first = await once(key, read, deps);
-  if (first.ok || !first.retryable)
-    return first.ok ? first : { ok: false, error: first.error };
+  if (first.ok || !first.retryable) return pageFrom(first, 1, Date.now() - started);
   const second = await once(key, read, deps);
-  return second.ok ? second : { ok: false, error: second.error };
+  return pageFrom(second, 2, Date.now() - started);
 }

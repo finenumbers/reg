@@ -31,6 +31,8 @@ export const LABEL_FREE_MIGRATIONS = new Set([
   "20261113193000_marking_supplier",
   "20261114001000_free_numbers",
   "20261114020000_purchased_numbers",
+  "20261114040000_sipout_sync",
+  "20261114053000_sipout_source_stage",
 ]);
 
 /**

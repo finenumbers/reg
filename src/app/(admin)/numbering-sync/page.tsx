@@ -14,8 +14,8 @@ export default async function NumberingSyncPage() {
           Синхронизация
         </h1>
         <p className="text-muted-foreground text-sm">
-          Ключ SipOut хранится в зашифрованном виде и на экране не показывается. Загрузка
-          заменяет только номера этого источника.
+          Одна стадия читает свободные и купленные номера источника и заменяет прежние номера
+          этого источника.
         </p>
       </div>
       <NumberingSyncForm initial={initial} />

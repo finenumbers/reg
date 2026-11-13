@@ -4,6 +4,7 @@
  */
 
 import { formatAmountCell } from "@/lib/amount-format";
+import { guardCatalogGeneration } from "@/modules/numbering-sync/lease";
 import { catalogAbcExport } from "@/modules/did-catalog/abc-text";
 import {
   AMOUNT_COLUMNS,
@@ -114,10 +115,13 @@ async function writeFree(
     signal: ctx.signal,
     onRows: ctx.setWritten,
   });
+  const generation = guardCatalogGeneration();
   try {
+    guardCatalogGeneration(generation);
     ctx.setTotal(await countFreeNumbers(request.filters, request.phoneQ));
     let cursor: FreeNumberCursor | null = null;
     for (;;) {
+      guardCatalogGeneration(generation);
       if (ctx.signal.aborted) throw new TableExportCancelled();
       const items = await listFreeNumbersExportBatch({
         filters: request.filters,
@@ -183,10 +187,13 @@ async function writePurchased(
     signal: ctx.signal,
     onRows: ctx.setWritten,
   });
+  const generation = guardCatalogGeneration();
   try {
+    guardCatalogGeneration(generation);
     ctx.setTotal(await countPurchasedNumbers(request.filters, request.phoneQ));
     let cursor: PurchasedNumberCursor | null = null;
     for (;;) {
+      guardCatalogGeneration(generation);
       if (ctx.signal.aborted) throw new TableExportCancelled();
       const items = await listPurchasedNumbersExportBatch({
         filters: request.filters,

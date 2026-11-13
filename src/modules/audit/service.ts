@@ -82,6 +82,7 @@ export const AUDIT_ACTIONS = {
   NUMBERING_SYNC_TEST: "numbering_sync.test",
   NUMBERING_SYNC_FREE: "numbering_sync.free",
   NUMBERING_SYNC_PURCHASED: "numbering_sync.purchased",
+  NUMBERING_SYNC_SOURCE: "numbering_sync.sipout",
   VATS_DOMAIN_UPDATE: "vats.domain_update",
   VATS_DOMAIN_OPEN: "vats.domain_open",
   ZABBIX_PASSWORD_REPLACE: "zabbix.password_replace",

@@ -48,7 +48,9 @@ COPY --from=builder /app/scripts/docker-entrypoint.sh ./docker-entrypoint.sh
 COPY --from=builder /app/dist/smg-syslog-receiver.cjs ./smg-syslog-receiver.cjs
 COPY --from=builder --chown=nextjs:nodejs /app/ops/templates ./ops/templates
 RUN mkdir -p /app/data/cdr-inbox /app/data/traffic-export /app/data/smg-syslog \
-  && chown nextjs:nodejs /app/data/cdr-inbox /app/data/traffic-export /app/data/smg-syslog
+    /app/data/numbering-sync \
+  && chown nextjs:nodejs /app/data/cdr-inbox /app/data/traffic-export /app/data/smg-syslog \
+    /app/data/numbering-sync
 COPY --from=builder /app/scripts/copy-module-tree.js /tmp/copy-module-tree.js
 COPY --from=deps /app/node_modules /tmp/all_modules
 RUN node /tmp/copy-module-tree.js /tmp/all_modules /app/node_modules exceljs ftp-srv pg \

@@ -3,7 +3,6 @@
  */
 
 import { NextResponse } from "next/server";
-import { ZodError } from "zod";
 import { assertSameOrigin } from "@/lib/csrf";
 import { getRequestIp } from "@/lib/request-ip";
 import { requireApiPermission } from "@/modules/auth/guards";
@@ -39,13 +38,6 @@ export async function numberingSyncActor(
 
 export function numberingSyncJson(body: unknown, status = 200): NextResponse {
   return NextResponse.json(body, { status, headers: PRIVATE });
-}
-
-export function numberingSyncError(error: unknown): NextResponse {
-  if (error instanceof ZodError) {
-    return numberingSyncJson({ error: "Проверьте ключ." }, 400);
-  }
-  return numberingSyncJson({ error: "Не удалось сохранить настройки." }, 500);
 }
 
 export type { NumberingSyncView };

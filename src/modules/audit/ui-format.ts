@@ -82,6 +82,7 @@ const ACTION_LABELS: Record<string, string> = {
   "numbering_sync.test": "Проверка доступа SipOut",
   "numbering_sync.free": "Загрузка свободных номеров SipOut",
   "numbering_sync.purchased": "Загрузка купленных номеров SipOut",
+  "numbering_sync.sipout": "Загрузка нумерации SipOut",
 };
 
 export function formatAuditTimestamp(

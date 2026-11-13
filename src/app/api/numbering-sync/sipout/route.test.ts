@@ -33,9 +33,9 @@ vi.mock("@/modules/numbering-sync/service", () => ({
   getNumberingSyncView: (...args: unknown[]) => getNumberingSyncView(...args),
 }));
 
-import { POST } from "@/app/api/numbering-sync/free/route";
+import { POST } from "@/app/api/numbering-sync/sipout/route";
 
-describe("POST /api/numbering-sync/free", () => {
+describe("POST /api/numbering-sync/sipout", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getNumberingSyncView.mockResolvedValue({
@@ -44,28 +44,34 @@ describe("POST /api/numbering-sync/free", () => {
     });
   });
 
-  it("rejects an API key before the walk starts", async () => {
+  it("rejects an API key before the stage starts", async () => {
     requireApiPermission.mockResolvedValue({
       ok: true,
       ctx: { authKind: "apiKey" },
     });
     const response = await POST(
-      new Request("http://localhost/api/numbering-sync/free", { method: "POST" }),
+      new Request("http://localhost/api/numbering-sync/sipout", {
+        method: "POST",
+        body: JSON.stringify({ catalog: "free" }),
+      }),
     );
     expect(response.status).toBe(403);
     expect(startSipoutSync).not.toHaveBeenCalled();
   });
 
-  it("starts the walk for a session", async () => {
+  it("starts one SipOut stage for a session", async () => {
     requireApiPermission.mockResolvedValue({
       ok: true,
       ctx: { authKind: "session", session: { user: { id: "user-1" } } },
     });
     startSipoutSync.mockResolvedValue({ ok: true });
     const response = await POST(
-      new Request("http://localhost/api/numbering-sync/free", { method: "POST" }),
+      new Request("http://localhost/api/numbering-sync/sipout", {
+        method: "POST",
+        body: "{}",
+      }),
     );
     expect(response.status).toBe(200);
-    expect(startSipoutSync).toHaveBeenCalledWith("free", { userId: "user-1", ip: null });
+    expect(startSipoutSync).toHaveBeenCalledWith({ userId: "user-1", ip: null });
   });
 });

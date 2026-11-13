@@ -1,7 +1,13 @@
-# Current Phase — production (v1.279.0)
+# Current Phase — production (v1.280.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, purchased numbers, numbering sync, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-14
+
+## v1.280.0 — One SipOut numbering stage
+
+The migration `20261114053000_sipout_source_stage` drops the unused free and purchased origin columns, stores both catalog counts on the SipOut lease, and adds tariff cells on the draft. It does not rewrite phone, tariff, CDR, PSTN, RTU screen, or catalog rows. `20261114040000_sipout_sync` and this migration are label-free, so startup does not rescan the CDR journal. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app, let migrate finish, then start one new app. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged.
+
+«Загрузка нумерации» stores the SipOut host `https://lk.sipout.net` and the API key. The key is ciphertext at rest and is not returned. An empty key field leaves the stored key. Saving confirms the host and whether the key changes, and does not call SipOut. «Проверить доступ» is one `get_cities`. It does not write catalogs and does not rewrite the stage log. «Синхронизация» has one SipOut stage. «Загрузить» confirms that both lists will be reread and that every previous SipOut row in both tables will be deleted, including when the new list is shorter or empty. Cancel, close, and Enter do not send. The walk reads cities, then `free_list` for each city, then one `connected_list`. A complete empty list replaces that SipOut slice. A failed page, a cancel, a lost lease, or zero cities leaves both catalogs. The next run reads every city again. «ABC», «Номер», «Город», and «Регион» are filled before the catalog locks, with the same split as «Управление РТУ». The stage log is `sipout.txt`. The next run of that stage overwrites it. The log has no key, query, or URL. An API key cannot call these routes. DID is unchanged.
 
 ## v1.279.0 — SipOut numbering sync
 

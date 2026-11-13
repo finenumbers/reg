@@ -31,7 +31,12 @@ describe("sipout client", () => {
         }),
       );
     const retried = await sipoutGet(KEY, { action: "get_cities" }, { fetchImpl });
-    expect(retried).toEqual({ ok: true, data: { cities: [] } });
+    expect(retried.ok).toBe(true);
+    if (retried.ok) {
+      expect(retried.data).toEqual({ cities: [] });
+      expect(retried.meta.attempts).toBe(2);
+      expect(retried.meta.status).toBe(200);
+    }
     expect(fetchImpl).toHaveBeenCalledTimes(2);
 
     const rejected = vi.fn(
@@ -47,7 +52,10 @@ describe("sipout client", () => {
       { fetchImpl: rejected },
     );
     expect(bad.ok).toBe(false);
-    if (!bad.ok) expect(bad.error).not.toContain(KEY);
+    if (!bad.ok) {
+      expect(bad.error).not.toContain(KEY);
+      expect(bad.meta.attempts).toBe(1);
+    }
     expect(rejected).toHaveBeenCalledTimes(1);
   });
 
@@ -57,7 +65,11 @@ describe("sipout client", () => {
         new Response("[]", { status: 200, headers: { "content-length": "999999999" } }),
     );
     const result = await sipoutGet(KEY, { action: "get_cities" }, { fetchImpl });
-    expect(result).toEqual({ ok: false, error: "Ответ площадки слишком большой." });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toBe("Ответ площадки слишком большой.");
+      expect(result.meta.attempts).toBe(1);
+    }
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 });

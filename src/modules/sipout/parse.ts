@@ -8,7 +8,9 @@ const CITY_ID = /^\d{1,12}$/;
 
 export type ParsedCities = { ok: true; ids: string[] } | { ok: false; error: string };
 
-export type ParsedDids = { ok: true; dids: string[] } | { ok: false; error: string };
+export type ParsedDids =
+  | { ok: true; dids: string[] }
+  | { ok: false; error: string; index: number | null };
 
 const INCOMPLETE = "Ответ площадки обрезан.";
 const BAD_NUMBER = "В ответе есть номер, который нельзя записать в E.164.";
@@ -48,19 +50,20 @@ export function parseCityIds(data: unknown): ParsedCities {
 
 /** Digit strings. cnt must match the array, and every did must be admissible. */
 export function parseDidList(data: unknown): ParsedDids {
-  if (!data || typeof data !== "object") return { ok: false, error: INCOMPLETE };
+  if (!data || typeof data !== "object") return { ok: false, error: INCOMPLETE, index: null };
   const record = data as { cnt?: unknown; list?: unknown };
   const cnt = parseCnt(record.cnt);
   if (cnt == null || !Array.isArray(record.list) || record.list.length !== cnt) {
-    return { ok: false, error: INCOMPLETE };
+    return { ok: false, error: INCOMPLETE, index: null };
   }
   const dids: string[] = [];
-  for (const item of record.list) {
-    if (!item || typeof item !== "object") return { ok: false, error: BAD_NUMBER };
+  for (let index = 0; index < record.list.length; index += 1) {
+    const item = record.list[index];
+    if (!item || typeof item !== "object") return { ok: false, error: BAD_NUMBER, index };
     const did = (item as { did?: unknown }).did;
-    if (typeof did !== "string") return { ok: false, error: BAD_NUMBER };
+    if (typeof did !== "string") return { ok: false, error: BAD_NUMBER, index };
     const digits = sipoutDidDigits(did);
-    if (!digits) return { ok: false, error: BAD_NUMBER };
+    if (!digits) return { ok: false, error: BAD_NUMBER, index };
     dids.push(digits);
   }
   return { ok: true, dids };

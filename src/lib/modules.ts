@@ -112,7 +112,7 @@ export const FEATURE_MODULES: FeatureModuleDefinition[] = [
   {
     id: "numbering-sync",
     title: "Синхронизация",
-    description: "Загрузка свободных и купленных номеров из источника",
+    description: "Стадии загрузки нумерации по источникам",
     href: "/numbering-sync",
     navPermission: "settings:write",
     navGroup: "links",
@@ -120,7 +120,7 @@ export const FEATURE_MODULES: FeatureModuleDefinition[] = [
   {
     id: "numbering-load",
     title: "Загрузка нумерации",
-    description: "Адрес и токен источников нумерации",
+    description: "Доступ к API источников нумерации",
     href: "/numbering-load",
     navPermission: "settings:write",
     navGroup: "links",

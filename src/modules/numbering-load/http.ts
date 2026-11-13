@@ -1,5 +1,5 @@
 /**
- * Session-only save for one numbering source. The caller picks the save function.
+ * Session-only SipOut access routes. An API key cannot call them.
  */
 
 import { NextResponse } from "next/server";
@@ -8,74 +8,57 @@ import { assertSameOrigin } from "@/lib/csrf";
 import { getRequestIp } from "@/lib/request-ip";
 import { requireApiPermission } from "@/modules/auth/guards";
 import { requireSessionUserId } from "@/modules/auth/session";
-import { NumberingLoadError } from "@/modules/numbering-load/service";
-import {
-  numberingSourceSaveSchema,
-  type NumberingLoadView,
-  type NumberingSourceSaveInput,
-} from "@/modules/numbering-load/schemas";
+import { sipoutKeySaveSchema } from "@/modules/numbering-load/schemas";
+import { saveSipoutKey } from "@/modules/numbering-load/service";
 
 const PRIVATE = { "Cache-Control": "private, no-store" };
 
-export async function putNumberingSource(
-  request: Request,
-  save: (
-    input: NumberingSourceSaveInput,
-    actor: { userId: string; ip?: string | null },
-  ) => Promise<NumberingLoadView>,
-): Promise<NextResponse> {
+export async function numberingLoadActor(request: Request): Promise<
+  | { ok: true; userId: string; ip: string | null }
+  | { ok: false; response: NextResponse }
+> {
   const origin = assertSameOrigin(request);
-  if (!origin.ok) return origin.response;
-
+  if (!origin.ok) return origin;
   const gate = await requireApiPermission("settings:write");
-  if (!gate.ok) return gate.response;
-
-  let userId: string;
+  if (!gate.ok) return gate;
   try {
-    userId = requireSessionUserId(gate.ctx);
+    const userId = requireSessionUserId(gate.ctx);
+    return { ok: true, userId, ip: await getRequestIp() };
   } catch {
-    return NextResponse.json(
-      { error: "Forbidden", code: "FORBIDDEN" },
-      { status: 403, headers: PRIVATE },
-    );
+    return {
+      ok: false,
+      response: NextResponse.json(
+        { error: "Forbidden", code: "FORBIDDEN" },
+        { status: 403, headers: PRIVATE },
+      ),
+    };
   }
+}
 
+export function numberingLoadJson(body: unknown, status = 200): NextResponse {
+  return NextResponse.json(body, { status, headers: PRIVATE });
+}
+
+/** PUT /api/numbering-load — replace the SipOut key. */
+export async function putSipoutKey(request: Request): Promise<NextResponse> {
+  const actor = await numberingLoadActor(request);
+  if (!actor.ok) return actor.response;
   let body: unknown;
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json(
-      { error: "Некорректный запрос." },
-      { status: 400, headers: PRIVATE },
-    );
+    return numberingLoadJson({ error: "Некорректный запрос." }, 400);
   }
-
-  let input: NumberingSourceSaveInput;
   try {
-    input = numberingSourceSaveSchema.parse(body);
+    const input = sipoutKeySaveSchema.parse(body);
+    const saved = await saveSipoutKey(input.token, {
+      userId: actor.userId,
+      ip: actor.ip,
+    });
+    if (!saved.ok) return numberingLoadJson({ error: saved.error }, 409);
+    return numberingLoadJson({ settings: saved.settings });
   } catch (error) {
-    if (error instanceof ZodError) {
-      return NextResponse.json(
-        { error: "Проверьте адрес и токен." },
-        { status: 400, headers: PRIVATE },
-      );
-    }
-    throw error;
-  }
-
-  try {
-    const settings = await save(input, { userId, ip: await getRequestIp() });
-    return NextResponse.json({ settings }, { headers: PRIVATE });
-  } catch (error) {
-    if (error instanceof NumberingLoadError) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: 400, headers: PRIVATE },
-      );
-    }
-    return NextResponse.json(
-      { error: "Не удалось сохранить настройки." },
-      { status: 500, headers: PRIVATE },
-    );
+    if (error instanceof ZodError) return numberingLoadJson({ error: "Проверьте ключ." }, 400);
+    return numberingLoadJson({ error: "Не удалось сохранить настройки." }, 500);
   }
 }

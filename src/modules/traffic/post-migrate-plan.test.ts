@@ -121,6 +121,24 @@ describe("planPostMigrate", () => {
     ).toEqual({ callClass: false, tariff: false });
   });
 
+  it("does not scan the journal when the SipOut lease is created", () => {
+    expect(
+      planPostMigrate("Applying migration `20261114040000_sipout_sync`\n", {
+        rateGeneration: 4,
+        ratedGeneration: 4,
+      }),
+    ).toEqual({ callClass: false, tariff: false });
+  });
+
+  it("does not scan the journal when a SipOut stage stores both catalogs", () => {
+    expect(
+      planPostMigrate("Applying migration `20261114053000_sipout_source_stage`\n", {
+        rateGeneration: 4,
+        ratedGeneration: 4,
+      }),
+    ).toEqual({ callClass: false, tariff: false });
+  });
+
   it("does not scan the journal when marking supplier is copied", () => {
     expect(
       planPostMigrate("Applying migration `20261113193000_marking_supplier`\n", {

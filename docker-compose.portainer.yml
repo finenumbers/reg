@@ -83,6 +83,7 @@ services:
       - reg_smg_cdr_inbox:/app/data/smg-cdr-inbox
       - reg_traffic_export:/app/data/traffic-export
       - reg_smg_syslog:/app/data/smg-syslog
+      - reg_numbering_sync_logs:/app/data/numbering-sync
     # Softswitch uses active FTP to the host IP:2121.
     # SMG uses the same listener (path /smg) and passive data ports 50100–50109.
     ports:
@@ -128,6 +129,7 @@ volumes:
   reg_smg_cdr_inbox:
   reg_traffic_export:
   reg_smg_syslog:
+  reg_numbering_sync_logs:
 
 networks:
   internal:

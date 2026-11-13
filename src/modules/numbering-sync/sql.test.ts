@@ -1,6 +1,13 @@
 import { Prisma } from "@/generated/prisma/client";
 import { describe, expect, it } from "vitest";
-import { publishInsertSql, recomputeSql } from "@/modules/numbering-sync/sql";
+import { RECLAIM_STAGE_SQL, RECLAIM_STATE_SQL } from "@/modules/numbering-sync/reclaim";
+import {
+  FREE_COPY_SQL,
+  PURCHASED_COPY_SQL,
+  decidePublish,
+  fillSplitSql,
+  recomputeSql,
+} from "@/modules/numbering-sync/sql";
 
 function flattenSql(sql: Prisma.Sql): string {
   const text: string[] = [];
@@ -16,19 +23,50 @@ function flattenSql(sql: Prisma.Sql): string {
 }
 
 describe("sipout publish sql", () => {
-  it("splits with the RTU tariff functions and keeps one digit per source", () => {
-    const free = flattenSql(publishInsertSql("free", "run"));
-    expect(free).toContain("cdr_tariff_geo");
-    expect(free).toContain("geography_digit_split");
-    expect(free).toContain("starts_with");
-    expect(free).toContain("SELECT DISTINCT e164");
-    expect(free).toContain("INSERT INTO free_numbers");
-    expect(free).not.toContain("purchased_numbers");
+  it("fills the draft with the RTU tariff functions and copies without them", () => {
+    const split = flattenSql(fillSplitSql("run", 2000));
+    expect(split).toContain("cdr_tariff_geo");
+    expect(split).toContain("geography_digit_split");
+    expect(split).toContain("starts_with");
+    expect(split).toContain("numbering_sync_stage");
+    expect(split).not.toContain("INSERT INTO free_numbers");
 
-    const purchased = flattenSql(publishInsertSql("purchased", "run"));
-    expect(purchased).toContain("INSERT INTO purchased_numbers");
-    expect(purchased).toContain("geography_digit_split");
-    expect(purchased).toContain("starts_with");
+    expect(FREE_COPY_SQL).toContain("INSERT INTO free_numbers");
+    expect(FREE_COPY_SQL).toContain("ready = true");
+    expect(FREE_COPY_SQL).not.toContain("cdr_tariff_geo");
+    expect(FREE_COPY_SQL).not.toContain("geography_digit_split");
+    expect(PURCHASED_COPY_SQL).toContain("INSERT INTO purchased_numbers");
+    expect(PURCHASED_COPY_SQL).not.toContain("cdr_tariff_geo");
+  });
+
+  it("rolls back when the inserted count does not match the draft", () => {
+    expect(
+      decidePublish({
+        held: true,
+        stagedFree: 2,
+        insertedFree: 2,
+        stagedPurchased: 0,
+        insertedPurchased: 0,
+      }),
+    ).toBe("commit");
+    expect(
+      decidePublish({
+        held: true,
+        stagedFree: 2,
+        insertedFree: 1,
+        stagedPurchased: 1,
+        insertedPurchased: 1,
+      }),
+    ).toBe("rollback");
+    expect(
+      decidePublish({
+        held: false,
+        stagedFree: 0,
+        insertedFree: 0,
+        stagedPurchased: 0,
+        insertedPurchased: 0,
+      }),
+    ).toBe("rollback");
   });
 
   it("recomputes both catalogs from the stored digits", () => {
@@ -39,5 +77,13 @@ describe("sipout publish sql", () => {
     expect(free).toContain("geography_digit_split");
     expect(purchased).toContain("UPDATE purchased_numbers");
     expect(purchased).not.toContain("free_numbers");
+  });
+
+  it("drops the lease and the draft without touching the catalogs", () => {
+    const text = `${RECLAIM_STATE_SQL}\n${RECLAIM_STAGE_SQL}`;
+    expect(text).not.toContain("free_numbers");
+    expect(text).not.toContain("purchased_numbers");
+    expect(RECLAIM_STAGE_SQL).toContain("DELETE FROM numbering_sync_stage");
+    expect(RECLAIM_STATE_SQL).toContain("phase IN ('running', 'publishing')");
   });
 });
