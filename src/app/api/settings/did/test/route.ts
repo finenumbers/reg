@@ -8,8 +8,8 @@ import { runDidConnectionTest } from "@/modules/did/test-connection";
 import { requireSessionUserId } from "@/modules/auth/session";
 
 /**
- * POST /api/settings/did/test — probe the free-number list (settings:write).
- * The probe counts the catalog. It does not write anything in DID.
+ * POST /api/settings/did/test — one purchased-catalog row (settings:write).
+ * The probe does not write anything in DID and does not start the geography snapshot.
  */
 export async function POST(request: Request) {
   const origin = assertSameOrigin(request);

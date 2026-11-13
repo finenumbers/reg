@@ -29,6 +29,7 @@ export const LABEL_FREE_MIGRATIONS = new Set([
   "20261113143000_marking_labels",
   "20261113170000_marking_working_set",
   "20261113193000_marking_supplier",
+  "20261114001000_free_numbers",
 ]);
 
 /**

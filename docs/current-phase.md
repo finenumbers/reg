@@ -1,7 +1,13 @@
-# Current Phase — production (v1.276.0)
+# Current Phase — production (v1.277.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
-**Date:** 2026-11-13
+**Date:** 2026-11-14
+
+## v1.277.0 — Local free-number catalog
+
+The migration creates empty `free_numbers`. It does not rewrite phone, tariff, CDR, PSTN, or RTU screen rows. The migration is label-free, so startup does not rescan the CDR journal. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app, let migrate finish, then start one new app. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged.
+
+«Свободные номера» reads that table. The table is empty. The columns are «Провайдер», «ABC», «Номер», «Категория», «Город», «Регион», «Маска», «Тип», «Покупка (входящая)», «Абонплата (входящая)», «Покупка», «Премиум», «Оператор связи», and «География». «Покупка (входящая)», «Абонплата (входящая)», «Покупка», and «Премиум» sit on the right. A whole number is grouped with a space every three digits. A fraction stays, and text that is not a number stays. The stored value stays the filter token. Search looks for a substring of «Номер». DID stays GET-only. The remaining path is `/numbers/purchased`. Settings → DID reads one row of that catalog and does not count free numbers. A missing DID token does not block this page.
 
 ## v1.276.0 — Equal marking statistic network columns
 

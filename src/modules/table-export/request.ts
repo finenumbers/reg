@@ -3,7 +3,6 @@
  */
 
 import type { ColumnFilters } from "@/components/column-filters/types";
-import { DidClientError } from "@/modules/did/client";
 import {
   allowFreeNumberFilters,
   FREE_NUMBERS_MAX_QUERY_CHARS,
@@ -68,8 +67,7 @@ export function parseTableExportRequest(
     if (
       error instanceof FreeNumbersQueryError ||
       error instanceof NumberingQueryError ||
-      error instanceof TableExportRequestError ||
-      error instanceof DidClientError
+      error instanceof TableExportRequestError
     ) {
       throw new TableExportRequestError(error.message);
     }

@@ -600,6 +600,43 @@ model DialException {
   @@map("dial_exceptions")
 }
 
+/// Rows of «Свободные номера». The screen and its XLSX read this table.
+/// This release does not write rows. The GIN trigram index on number is created in SQL.
+model FreeNumber {
+  id               String @id @default(cuid())
+  /// «Провайдер».
+  provider         String @default("")
+  /// «ABC». Text so a leading zero survives.
+  abc              String @default("")
+  /// «Номер». Text so a leading zero survives.
+  number           String @default("")
+  /// «Категория».
+  category         String @default("")
+  /// «Город».
+  city             String @default("")
+  /// «Регион».
+  region           String @default("")
+  /// «Маска».
+  mask             String @default("")
+  /// «Тип».
+  maskType         String @default("")
+  /// «Покупка (входящая)». Stored as text. A fraction is not rounded.
+  incomingPurchase String @default("")
+  /// «Абонплата (входящая)». Stored as text. A fraction is not rounded.
+  incomingPeriod   String @default("")
+  /// «Покупка». Stored as text. A fraction is not rounded.
+  purchase         String @default("")
+  /// «Премиум». Stored as text. A fraction is not rounded.
+  premium          String @default("")
+  /// «Оператор связи».
+  operator         String @default("")
+  /// «География».
+  geography        String @default("")
+
+  @@index([abc, number, id], map: "free_numbers_order_idx")
+  @@map("free_numbers")
+}
+
 /// Mask and type snapshot from an uploaded XLSX. Each import replaces every row.
 /// Rating, geography, and phone sync do not read this table.
 /// The RTU screen reads it only while that screen is built.

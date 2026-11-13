@@ -1,4 +1,4 @@
-import { listDidFreeNumbers, DidClientError } from "@/modules/did/client";
+import { listDidPurchasedNumbers, DidClientError } from "@/modules/did/client";
 import { loadDidCredentials } from "@/modules/did/credentials";
 import {
   DID_NOT_CONFIGURED_MESSAGE,
@@ -11,6 +11,7 @@ export type DidTestResultView = {
   durationMs: number;
 };
 
+/** One purchased row. This does not start the geography snapshot. */
 export async function runDidConnectionTest(): Promise<DidTestResultView> {
   const started = Date.now();
   const creds = await loadDidCredentials();
@@ -23,14 +24,10 @@ export async function runDidConnectionTest(): Promise<DidTestResultView> {
   }
 
   try {
-    const page = await listDidFreeNumbers(
-      { page: 1, pageSize: 1, filters: {}, phoneQ: "" },
-      creds,
-      DID_TEST_TIMEOUT_MS,
-    );
+    await listDidPurchasedNumbers(1, 1, creds, DID_TEST_TIMEOUT_MS);
     return {
       result: "success",
-      detail: `Каталог отвечает, свободных номеров: ${page.total}`,
+      detail: "Каталог купленных номеров отвечает",
       durationMs: Date.now() - started,
     };
   } catch (error) {

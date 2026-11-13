@@ -103,6 +103,15 @@ describe("planPostMigrate", () => {
     ).toEqual({ callClass: false, tariff: false });
   });
 
+  it("does not scan the journal when the free-number catalog is added", () => {
+    expect(
+      planPostMigrate("Applying migration `20261114001000_free_numbers`\n", {
+        rateGeneration: 4,
+        ratedGeneration: 4,
+      }),
+    ).toEqual({ callClass: false, tariff: false });
+  });
+
   it("does not scan the journal when marking supplier is copied", () => {
     expect(
       planPostMigrate("Applying migration `20261113193000_marking_supplier`\n", {

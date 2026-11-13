@@ -3,7 +3,6 @@ import {
   FREE_NUMBERS_MAX_FILTERS_CHARS,
   FREE_NUMBERS_MAX_QUERY_CHARS,
   allowFreeNumberFilters,
-  emptyCountFilters,
   parseFreeNumbersFacetQuery,
   parseFreeNumbersListQuery,
 } from "@/modules/free-numbers/query";
@@ -17,8 +16,8 @@ describe("free-number query allowlist", () => {
       filters: JSON.stringify({
         client: ["Секрет"],
         msisdn: ["7"],
-        region_name: ["Москва"],
-        provider_code: ["aurora"],
+        region: ["Москва"],
+        provider: ["aurora"],
       }),
     });
     expect(parseFreeNumbersListQuery(params)).toEqual({
@@ -26,8 +25,8 @@ describe("free-number query allowlist", () => {
       pageSize: 100,
       phoneQ: "495",
       filters: {
-        region_name: ["Москва"],
-        provider_code: ["aurora"],
+        region: ["Москва"],
+        provider: ["aurora"],
       },
     });
   });
@@ -38,6 +37,9 @@ describe("free-number query allowlist", () => {
     ).toThrow(/столбец/);
     expect(() =>
       parseFreeNumbersFacetQuery(new URLSearchParams({ column: "msisdn" })),
+    ).toThrow(/столбец/);
+    expect(() =>
+      parseFreeNumbersFacetQuery(new URLSearchParams({ column: "buy_price" })),
     ).toThrow(/столбец/);
     const huge = new URLSearchParams({
       filters: "x".repeat(FREE_NUMBERS_MAX_FILTERS_CHARS + 1),
@@ -50,26 +52,25 @@ describe("free-number query allowlist", () => {
     ).toThrow(/поисковый/);
   });
 
-  it("counts blanks for the open column without keeping its other picks", () => {
+  it("keeps a visible column and drops a hidden one", () => {
     expect(
       allowFreeNumberFilters({
-        city_name: ["Казань"],
+        city: ["Казань"],
         client: ["скрыто"],
       }),
-    ).toEqual({ city_name: ["Казань"] });
-    expect(
-      emptyCountFilters({ city_name: ["Казань"], number_local: ["123"] }, "number_local"),
-    ).toEqual({
-      city_name: ["Казань"],
-      number_local: ["__empty__"],
-    });
+    ).toEqual({ city: ["Казань"] });
   });
 
   it("accepts a visible facet column", () => {
     expect(
       parseFreeNumbersFacetQuery(
-        new URLSearchParams({ column: "number_local", q: "пусто", limit: "5000" }),
+        new URLSearchParams({ column: "number", q: "пусто", limit: "5000" }),
       ),
-    ).toMatchObject({ column: "number_local", q: "пусто", limit: 1000 });
+    ).toMatchObject({ column: "number", q: "пусто", limit: 1000 });
+    expect(
+      parseFreeNumbersFacetQuery(
+        new URLSearchParams({ column: "incomingPurchase" }),
+      ).column,
+    ).toBe("incomingPurchase");
   });
 });

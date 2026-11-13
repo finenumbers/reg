@@ -4,11 +4,13 @@ import type { ColumnFilters } from "@/components/column-filters";
 import { CatalogNumbersTable } from "@/modules/did-catalog/ui/catalog-numbers-table";
 import { buildFreeNumbersFacetsUrl } from "@/modules/free-numbers/api-client";
 import {
+  AMOUNT_COLUMNS,
   FREE_NUMBER_COLUMNS,
   FREE_NUMBER_HEADERS,
   type FreeNumberColumn,
 } from "@/modules/free-numbers/columns";
 import {
+  displayFreeNumberCell,
   displayFreeNumberFacet,
   type FreeNumberRow,
 } from "@/modules/free-numbers/format";
@@ -25,7 +27,7 @@ type Props = {
 };
 
 function cellText(row: FreeNumberRow, column: FreeNumberColumn): string {
-  return row[column] ?? "";
+  return displayFreeNumberCell(column, row[column] ?? "");
 }
 
 export function FreeNumbersTable(props: Props) {
@@ -34,8 +36,8 @@ export function FreeNumbersTable(props: Props) {
       {...props}
       columns={FREE_NUMBER_COLUMNS}
       headers={FREE_NUMBER_HEADERS}
-      numberColumn="number_local"
-      rightColumns={["mask_purchase", "premium"]}
+      numberColumn="number"
+      rightColumns={[...AMOUNT_COLUMNS]}
       cellText={cellText}
       formatValue={displayFreeNumberFacet}
       buildFacetsUrl={buildFreeNumbersFacetsUrl}

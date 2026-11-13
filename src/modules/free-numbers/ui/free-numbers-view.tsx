@@ -18,7 +18,7 @@ export function FreeNumbersView({ initial, initialError }: Props) {
   return (
     <CatalogNumbersView
       title="Свободные номера"
-      description="Каталог DID. Поиск номера и фильтры столбцов применяются вместе."
+      description="Поиск номера и фильтры столбцов применяются вместе."
       phoneInputId="free-numbers-phone-search"
       headers={FREE_NUMBER_HEADERS}
       formatValue={displayFreeNumberFacet}

@@ -23,22 +23,32 @@ describe("DID origin", () => {
     );
   });
 
-  it("builds the allowed catalog paths and leaves the token out of the URL", () => {
+  it("builds the purchased path and leaves the token out of the URL", () => {
     const params = new URLSearchParams({ page: "1", page_size: "1" });
-    const url = didApiUrl("https://did.finenumbers.com/ignored", "/numbers/free", params);
+    const url = didApiUrl(
+      "https://did.finenumbers.com/ignored",
+      "/numbers/purchased",
+      params,
+    );
     expect(url).toBe(
-      "https://did.finenumbers.com/api/backend/api/v1/numbers/free?page=1&page_size=1",
+      "https://did.finenumbers.com/api/backend/api/v1/numbers/purchased?page=1&page_size=1",
     );
     expect(url).not.toContain("secret");
     expect(
-      didApiUrl(SAME_HOST_DID_BASE_URL, "/numbers/free/facets", new URLSearchParams()),
-    ).toBe("http://did-frontend:3000/api/backend/api/v1/numbers/free/facets");
-    expect(
       didApiUrl(SAME_HOST_DID_BASE_URL, "/numbers/purchased", new URLSearchParams()),
     ).toBe("http://did-frontend:3000/api/backend/api/v1/numbers/purchased");
-    for (const path of ["/numbers/purchased/facets", "/numbers/free/export-jobs"]) {
+    for (const path of [
+      "/numbers/free",
+      "/numbers/free/facets",
+      "/numbers/purchased/facets",
+      "/numbers/free/export-jobs",
+    ]) {
       expect(() =>
-        didApiUrl(SAME_HOST_DID_BASE_URL, path as "/numbers/free", new URLSearchParams()),
+        didApiUrl(
+          SAME_HOST_DID_BASE_URL,
+          path as "/numbers/purchased",
+          new URLSearchParams(),
+        ),
       ).toThrow(/not allowed/);
     }
   });

@@ -92,7 +92,7 @@ export const FEATURE_MODULES: FeatureModuleDefinition[] = [
   {
     id: "free-numbers",
     title: "Свободные номера",
-    description: "Каталог свободных номеров DID",
+    description: "Каталог свободных номеров",
     href: "/free-numbers",
     navPermission: "phones:read",
     navGroup: "links",

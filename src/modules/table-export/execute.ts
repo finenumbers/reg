@@ -1,13 +1,20 @@
 /**
- * Build one catalog workbook from the same GET the screen already uses.
+ * Build one catalog workbook from the same rows the screen already shows.
  * Rows are written as each page arrives.
  */
 
-import { loadDidCredentials } from "@/modules/did/credentials";
-import { didNotConfigured, listDidNumbers } from "@/modules/did/client";
-import { DID_LIST_TIMEOUT_MS } from "@/modules/did/types";
-import { FREE_NUMBER_COLUMNS, FREE_NUMBER_HEADERS } from "@/modules/free-numbers/columns";
-import { mapFreeNumberRow } from "@/modules/free-numbers/format";
+import { formatAmountCell } from "@/lib/amount-format";
+import {
+  AMOUNT_COLUMNS,
+  FREE_NUMBER_COLUMNS,
+  FREE_NUMBER_HEADERS,
+} from "@/modules/free-numbers/columns";
+import { FREE_NUMBERS_EXPORT_BATCH } from "@/modules/free-numbers/query";
+import {
+  countFreeNumbers,
+  listFreeNumbersExportBatch,
+} from "@/modules/free-numbers/service";
+import type { FreeNumberCursor } from "@/modules/free-numbers/sql";
 import {
   NUMBERING_COLUMNS,
   NUMBERING_HEADERS,
@@ -26,20 +33,16 @@ import type {
   TableExportRequest,
   TableExportRunContext,
 } from "@/modules/table-export/job";
+import { loadNumberingExportPage } from "@/modules/table-export/page-size";
 import {
-  CATALOG_EXPORT_PAGE_SIZE,
-  loadCatalogPage,
-  loadNumberingExportPage,
-} from "@/modules/table-export/page-size";
-import {
-  didRetryDelayMs,
   drainCursorPages,
-  drainOffsetPages,
   isTableExportCancel,
   pstnRetryDelayMs,
+  yieldEventLoop,
 } from "@/modules/table-export/pages";
 import {
   openStreamingWorkbook,
+  TableExportCancelled,
   type StreamCell,
   type StreamColumn,
 } from "@/modules/table-export/xlsx-stream";
@@ -55,21 +58,6 @@ const NUMBERING_STREAM: Record<NumberingColumn, StreamColumn> = {
   inn: { header: NUMBERING_HEADERS.inn, text: true, align: "right" },
   uvrAntifraud: { header: NUMBERING_HEADERS.uvrAntifraud, align: "right" },
 };
-
-function textColumns(
-  columns: readonly string[],
-  headers: Record<string, string>,
-): StreamColumn[] {
-  return columns.map((column) => ({ header: headers[column] ?? column, text: true }));
-}
-
-function catalogCells(columns: readonly string[], row: object): StreamCell[] {
-  const record = row as Record<string, unknown>;
-  return columns.map((column) => {
-    const value = record[column];
-    return typeof value === "string" ? value : "";
-  });
-}
 
 function numberingCells(row: NumberingRow): StreamCell[] {
   return NUMBERING_COLUMNS.map((column) => {
@@ -90,58 +78,59 @@ function numberingHasFilter(filters: NumberingFilters): boolean {
   );
 }
 
+function freeColumns(): StreamColumn[] {
+  return FREE_NUMBER_COLUMNS.map((column) => ({
+    header: FREE_NUMBER_HEADERS[column],
+    text: true,
+    align: column === "number" || AMOUNT_COLUMNS.has(column) ? "right" : undefined,
+  }));
+}
+
 async function writeFree(
   ctx: TableExportRunContext,
   request: Extract<TableExportRequest, { kind: "free" }>,
 ): Promise<void> {
-  const creds = await loadDidCredentials();
-  if (!creds) throw didNotConfigured();
   const book = openStreamingWorkbook({
     filePath: ctx.filePath,
     sheetName: "Свободные номера",
-    columns: textColumns(FREE_NUMBER_COLUMNS, FREE_NUMBER_HEADERS),
+    columns: freeColumns(),
     signal: ctx.signal,
     onRows: ctx.setWritten,
   });
-  let pageSize = CATALOG_EXPORT_PAGE_SIZE;
   try {
-    await drainOffsetPages({
-      signal: ctx.signal,
-      pageSize: CATALOG_EXPORT_PAGE_SIZE,
-      retryDelayMs: didRetryDelayMs,
-      onTotal: (total) => ctx.setTotal(total >= 0 ? total : null),
-      load: async (page) => {
-        const loaded = await loadCatalogPage({
-          page,
-          pageSize,
-          load: (size) =>
-            listDidNumbers(
-              {
-                page,
-                pageSize: size,
-                filters: request.filters,
-                phoneQ: request.phoneQ,
-              },
-              creds,
-              DID_LIST_TIMEOUT_MS,
-              ctx.signal,
-            ),
-        });
-        pageSize = loaded.pageSize;
-        return {
-          items: loaded.value.items,
-          total: loaded.value.total,
-          pageSize: loaded.pageSize,
-        };
-      },
-      onPage: async (items) => {
-        for (const raw of items) {
-          const row = mapFreeNumberRow(raw);
-          if (!row) continue;
-          await book.writeRow(catalogCells(FREE_NUMBER_COLUMNS, row));
-        }
-      },
-    });
+    ctx.setTotal(await countFreeNumbers(request.filters, request.phoneQ));
+    let cursor: FreeNumberCursor | null = null;
+    for (;;) {
+      if (ctx.signal.aborted) throw new TableExportCancelled();
+      const items = await listFreeNumbersExportBatch({
+        filters: request.filters,
+        phoneQ: request.phoneQ,
+        cursor,
+        limit: FREE_NUMBERS_EXPORT_BATCH,
+      });
+      if (items.length === 0) break;
+      for (const row of items) {
+        await book.writeRow(
+          FREE_NUMBER_COLUMNS.map((column) =>
+            AMOUNT_COLUMNS.has(column) ? formatAmountCell(row[column]) : row[column],
+          ),
+        );
+      }
+      if (items.length < FREE_NUMBERS_EXPORT_BATCH) break;
+      const last = items[items.length - 1];
+      if (!last) break;
+      const next = { abc: last.abc, number: last.number, id: last.id };
+      if (
+        cursor &&
+        cursor.abc === next.abc &&
+        cursor.number === next.number &&
+        cursor.id === next.id
+      ) {
+        break;
+      }
+      cursor = next;
+      await yieldEventLoop();
+    }
     await book.finish();
   } catch (error) {
     book.abort();

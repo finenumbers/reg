@@ -7,7 +7,7 @@ import { listFreeNumbers } from "@/modules/free-numbers/service";
 export const dynamic = "force-dynamic";
 
 /**
- * GET /api/free-numbers — DID free catalog. Session or phones:read key.
+ * GET /api/free-numbers — local free-number catalog. Session or phones:read key.
  * Optional: filters, phoneQ, page, pageSize.
  */
 export async function GET(request: Request) {

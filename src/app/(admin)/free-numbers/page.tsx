@@ -1,5 +1,4 @@
 import { requirePagePermission } from "@/modules/auth/guards";
-import { DidClientError } from "@/modules/did/client";
 import { TABLE_PAGE_SIZE } from "@/lib/table-pagination";
 import type { ListFreeNumbersResult } from "@/modules/free-numbers/format";
 import { listFreeNumbers } from "@/modules/free-numbers/service";
@@ -24,11 +23,8 @@ export default async function FreeNumbersPage() {
       filters: {},
       phoneQ: "",
     });
-  } catch (error) {
-    initialError =
-      error instanceof DidClientError
-        ? error.message
-        : "Не удалось загрузить свободные номера";
+  } catch {
+    initialError = "Не удалось загрузить свободные номера";
   }
 
   return <FreeNumbersView initial={initial} initialError={initialError} />;
