@@ -14,7 +14,9 @@ import {
 const dirs: string[] = [];
 
 afterEach(async () => {
-  await Promise.all(dirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
+  await Promise.all(
+    dirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })),
+  );
 });
 
 function row(patch: Record<string, string> = {}): Record<string, string> {
@@ -25,19 +27,25 @@ function row(patch: Record<string, string> = {}): Record<string, string> {
     tariff_charge: "1.5",
     bill_ani: "0123456789",
     operator_b: "=МТС",
-    geography_b: "г. Москва",
+    oprs_network: "МТС",
+    oprs_marking: "=метка",
+    oprs_mav: "mav",
     voipmonitor_url_in: "https://voip.example/call/1",
     ...patch,
   };
 }
 
 describe("OPRS xlsx cells", () => {
-  it("formats the day the way the table does and leaves marking blank", () => {
+  it("formats the day the way the table does and keeps the stamped cells", () => {
     const data = row();
     expect(oprsDisplayCell("cdr_day", data)).toBe("13.11.2026");
-    expect(oprsDisplayCell("oprs_marking", data)).toBe("");
-    expect(oprsDisplayCell("oprs_mav", data)).toBe("");
-    expect(oprsDisplayCell("voipmonitor_url_in", data)).toBe("https://voip.example/call/1");
+    expect(oprsDisplayCell("oprs_network", data)).toBe("МТС");
+    expect(oprsDisplayCell("oprs_marking", data)).toBe("=метка");
+    expect(oprsDisplayCell("oprs_mav", data)).toBe("mav");
+    expect(OPRS_COLUMNS).not.toContain("geography_b");
+    expect(oprsDisplayCell("voipmonitor_url_in", data)).toBe(
+      "https://voip.example/call/1",
+    );
     expect(oprsExportFilename("2026-11")).toBe("Звонки в ОПРС 2026-11.xlsx");
     expect(OPRS_COLUMNS).not.toContain("side_b");
     expect(OPRS_COLUMNS).not.toContain("billable_minutes");
@@ -72,6 +80,6 @@ describe("OPRS xlsx file", () => {
     expect(typeof phone?.value).toBe("string");
     expect(phone?.numFmt).toBe("@");
     expect(sheet?.getRow(2).getCell(operatorIndex).value).toBe("'=МТС");
-    expect(sheet?.getRow(2).getCell(markingIndex).value ?? "").toBe("");
+    expect(sheet?.getRow(2).getCell(markingIndex).value).toBe("'=метка");
   });
 });

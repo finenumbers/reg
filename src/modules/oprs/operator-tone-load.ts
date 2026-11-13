@@ -1,5 +1,5 @@
 /**
- * One process cache of registry operator names for the four OPRS INNs.
+ * One process cache of registry operator names for the OPRS color INNs.
  * The CDR list does not wait on a cold registry: a slow read keeps the
  * previous map, or none, and fills the cache when it returns.
  */
@@ -9,7 +9,7 @@ import { EMPTY_NUMBERING_FILTERS } from "@/modules/numbering-resource/filters";
 import { listNumberingFacets } from "@/modules/numbering-resource/service";
 import {
   OPRS_OPERATOR_INNS,
-  oprsToneMap,
+  oprsToneReport,
   type OprsOperatorTone,
   type OprsOperatorToneMap,
 } from "@/modules/oprs/operator-tone";
@@ -27,7 +27,7 @@ async function readGroup(tone: OprsOperatorTone) {
     {
       column: "operator",
       q: "",
-      filters: { ...EMPTY_NUMBERING_FILTERS, inn: [OPRS_OPERATOR_INNS[tone]] },
+      filters: { ...EMPTY_NUMBERING_FILTERS, inn: [...OPRS_OPERATOR_INNS[tone]] },
     },
     { timeoutMs: BUDGET_MS },
   );
@@ -41,7 +41,22 @@ async function readGroup(tone: OprsOperatorTone) {
 async function readToneMap(): Promise<OprsOperatorToneMap> {
   const tones = Object.keys(OPRS_OPERATOR_INNS) as OprsOperatorTone[];
   const groups = await Promise.all(tones.map((tone) => readGroup(tone)));
-  return oprsToneMap(groups);
+  const report = oprsToneReport(groups);
+  if (report.truncated.length > 0) {
+    logger.warn("oprs.operator_tone.truncated", { tones: report.truncated });
+  }
+  if (report.conflicts.length > 0) {
+    logger.warn("oprs.operator_tone.conflict", { names: report.conflicts });
+  }
+  const counts: Record<OprsOperatorTone, number> = {
+    green: 0,
+    red: 0,
+    yellow: 0,
+    gray: 0,
+  };
+  for (const tone of Object.values(report.map)) counts[tone] += 1;
+  logger.info("oprs.operator_tone.loaded", { counts });
+  return report.map;
 }
 
 export function resetOprsOperatorToneCache(): void {
@@ -50,7 +65,9 @@ export function resetOprsOperatorToneCache(): void {
 }
 
 /** Fresh cache, else the map that arrives within the budget, else the last map. */
-export async function loadOprsOperatorToneMap(now = Date.now()): Promise<OprsOperatorToneMap> {
+export async function loadOprsOperatorToneMap(
+  now = Date.now(),
+): Promise<OprsOperatorToneMap> {
   if (cache && now - cache.at < TTL_MS) return cache.map;
   if (!pending) {
     pending = readToneMap()

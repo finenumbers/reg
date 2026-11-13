@@ -9,6 +9,7 @@ import { PARKING_DST } from "@/modules/stats/classify";
 import { MOBILE_RF_DIRECTION } from "@/modules/rtu/columns";
 import { CALL_CATEGORY } from "@/modules/traffic/call-class";
 import { applyMonthFilter } from "@/modules/traffic/cdr-month";
+import { isTrafficColumn, OPRS_COLUMNS } from "@/modules/traffic/columns";
 import { applyColumnFilters, applyPhoneQ } from "@/modules/traffic/service";
 import { trafficFlagWhere, type TrafficRowFlags } from "@/modules/traffic/row-flags";
 import type { TimeSort } from "@/modules/traffic/traffic-sort";
@@ -24,6 +25,20 @@ export type OprsCursor = {
   cdrDate: string;
   cdrId: string;
 };
+
+const OPRS_FILTER_COLUMNS = new Set<string>(
+  OPRS_COLUMNS.filter((column) => isTrafficColumn(column)),
+);
+
+/** Drop a filter whose column is not on this screen, so a removed column cannot hide rows. */
+export function oprsScreenFilters(filters: ColumnFilters): ColumnFilters {
+  const out: ColumnFilters = {};
+  for (const [column, values] of Object.entries(filters)) {
+    if (!values?.length || !OPRS_FILTER_COLUMNS.has(column)) continue;
+    out[column] = values;
+  }
+  return out;
+}
 
 /** Outgoing mobile RF, excluding the exact parking terminator. */
 export function oprsPredicate(): Prisma.CdrRecordWhereInput {
@@ -78,9 +93,11 @@ export function buildOprsWhere(input: {
 }): Prisma.CdrRecordWhereInput {
   const parts: Prisma.CdrRecordWhereInput[] = [
     applyPhoneQ(
-      applyColumnFilters(applyMonthFilter(input.year, input.month), input.filters, {
-        excludeColumn: input.excludeColumn,
-      }),
+      applyColumnFilters(
+        applyMonthFilter(input.year, input.month),
+        oprsScreenFilters(input.filters),
+        { excludeColumn: input.excludeColumn },
+      ),
       input.phoneQ,
     ),
     oprsPredicate(),

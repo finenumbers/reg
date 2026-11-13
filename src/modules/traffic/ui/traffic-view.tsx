@@ -26,7 +26,6 @@ import {
 } from "@/modules/traffic/api-client";
 import { buildOprsFacetsUrl, fetchOprsBdpn, fetchOprsList } from "@/modules/oprs/api";
 import { BdpnDialog, type BdpnDialogState } from "@/modules/oprs/ui/bdpn-dialog";
-import type { OprsOperatorToneMap } from "@/modules/oprs/operator-tone";
 import { acceptOprsPage, appendOprsItems } from "@/modules/oprs/page-state";
 import { OprsExportButton } from "@/modules/oprs/ui/export-button";
 import { OPRS_STATIC_COLUMNS } from "@/modules/traffic/columns";
@@ -86,7 +85,6 @@ type Props = {
   emptyUnfiltered: string;
   showMonthExport?: boolean;
   source?: "traffic" | "oprs";
-  operatorTones?: OprsOperatorToneMap;
   initialSnapshot?: string | null;
   initial: ListTrafficResult;
   initialListError?: string | null;
@@ -105,7 +103,6 @@ export function TrafficView({
   emptyUnfiltered,
   showMonthExport = false,
   source = "traffic",
-  operatorTones,
   initialSnapshot = null,
   initial,
   initialListError = null,
@@ -935,7 +932,7 @@ export function TrafficView({
             timeSort={timeSort}
             onTimeSortChange={onTimeSortChange}
             plainColumns={oprs ? OPRS_STATIC_COLUMNS : undefined}
-            operatorTones={oprs ? operatorTones : undefined}
+            oprs={oprs}
             onBdpnCheck={oprs ? onBdpnCheck : undefined}
             facetUrl={
               oprs

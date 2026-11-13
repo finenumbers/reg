@@ -1,7 +1,13 @@
-# Current Phase — production (v1.268.0)
+# Current Phase — production (v1.269.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-13
+
+## v1.269.0 — OPRS network and marking cells
+
+There is no migration. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. Keep a single `app` replica. Stop the old app before the new one starts, then recreate only the `app` container. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged.
+
+«Звонки в ОПРС» drops «География». «Сеть» sits between «Переадресация» and «ОПРС (Реестр Минцифры)». A row is green for the current registry name of INN 7812014560 or 7701725181, red for 7740000076, yellow for 7713076301 or 9725152215, and gray for 7743895280, 7707049388, 9705121882, 7727443720, 9722028932, 6163225548, 7451318173, 7727842771, 7709362765, 7727752084, 6670019135, 7721634013, 3808084952, or 9710027740. A name shared by two colors stays uncolored. «Сеть» is «Мегафон», «МТС», «Билайн», or «Т2» for that color, including when the registry company is not that brand. «Маркировка» and «МАВ» are the matching cells from «Маркировка и МАВ» for the exact «А-номер» while that number is on the marking screen. A blocked row stays black and those three cells stay empty. A failed call still paints from «Секунды» to the right black with white text. The XLSX file uses this column order, writes the same three texts, and has no fill. Other traffic screens are unchanged.
 
 ## v1.268.0 — OPRS seconds and a BDPN check
 

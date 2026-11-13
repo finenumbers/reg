@@ -21,9 +21,9 @@ import {
 import { buildTrafficFacetsUrl } from "@/modules/traffic/api-client";
 import type { TrafficListItem } from "@/modules/traffic/service";
 import {
+  OPRS_TONE_FIELD,
   oprsFailedTail,
-  oprsOperatorTone,
-  type OprsOperatorToneMap,
+  oprsStampedTone,
 } from "@/modules/oprs/operator-tone";
 import { cdrRowTone } from "@/modules/traffic/row-tone";
 import { cn } from "@/lib/utils";
@@ -65,8 +65,8 @@ type Props = {
   onTimeSortChange?: (next: TimeSort | null) => void;
   plainColumns?: readonly string[];
   facetUrl?: (input: { column: string; filters: ColumnFilters; q?: string }) => string;
-  /** OPRS replaces the shared CDR palette. A blocked number stays black. */
-  operatorTones?: OprsOperatorToneMap;
+  /** OPRS replaces the shared CDR palette. Color comes from the stamped tone. */
+  oprs?: boolean;
   /** OPRS only. A non-empty operator cell checks that row's B-number. */
   onBdpnCheck?: (billDnis: string) => void;
 };
@@ -95,7 +95,7 @@ export function TrafficTable({
   onTimeSortChange,
   plainColumns,
   facetUrl,
-  operatorTones,
+  oprs = false,
   onBdpnCheck,
 }: Props) {
   const boldSet = new Set<string>(boldColumns ?? TRAFFIC_BOLD_COLUMNS);
@@ -103,7 +103,7 @@ export function TrafficTable({
   const showEmpty = !loading && data.length === 0;
   const colCount = Math.max(headers.length, 1);
   const highlightSet = highlightColumns ? new Set(highlightColumns) : DEFAULT_HIGHLIGHT;
-  const oprsPaint = operatorTones != null;
+  const oprsPaint = oprs;
 
   return (
     <Table>
@@ -175,9 +175,7 @@ export function TrafficTable({
               ? null
               : cdrRowTone(row.data.call_category ?? "", row.data.call_status ?? "");
             const oprsTone =
-              blocked || !oprsPaint
-                ? null
-                : oprsOperatorTone(row.data.operator_b ?? "", operatorTones ?? {});
+              blocked || !oprsPaint ? null : oprsStampedTone(row.data[OPRS_TONE_FIELD]);
             return (
               <TableRow
                 key={row.id}

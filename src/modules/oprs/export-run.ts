@@ -1,12 +1,17 @@
 /**
- * Walk the open OPRS snapshot into an xlsx. Keyset, no OFFSET, no PSTN lookup.
+ * Walk the open OPRS snapshot into an xlsx. Keyset, no OFFSET.
+ * Tone names come from the numbering cache. Marking cells come from the
+ * current marking screen. A blocked number clears «Сеть», «Маркировка», and «МАВ».
  */
 
 import type { ColumnFilters } from "@/components/column-filters/types";
 import { prisma } from "@/lib/db";
+import { loadBlockedNumbers } from "@/modules/phones/blocked-numbers";
+import { cdrHasBlockedNumber } from "@/modules/traffic/blocked-number";
 import type { CdrMonth } from "@/modules/traffic/cdr-month";
 import type { TrafficRowFlags } from "@/modules/traffic/row-flags";
 import { trafficListOrderBy, type TimeSort } from "@/modules/traffic/traffic-sort";
+import { attachOprsDerived } from "@/modules/oprs/derived";
 import { OPRS_LIST_SELECT, oprsRowData, type OprsListRow } from "@/modules/oprs/row";
 import {
   assertOprsExportRowCount,
@@ -48,7 +53,10 @@ export async function writeOprsExport(input: {
     }),
   );
   assertOprsExportRowCount(total);
-  const guiUrl = await readGuiUrl();
+  const [guiUrl, blockedNumbers] = await Promise.all([
+    readGuiUrl(),
+    loadBlockedNumbers(),
+  ]);
   const orderBy = trafficListOrderBy(input.timeSort);
   return writeOprsSheet({
     filePath: input.filePath,
@@ -69,9 +77,12 @@ export async function writeOprsExport(input: {
           select: { cdrRecordId: true, voipmonitorLegs: true },
         });
         const linkById = new Map(links.map((link) => [link.cdrRecordId, link]));
-        for (const row of rows) {
-          await visit(oprsRowData(row, linkById.get(row.id), guiUrl));
-        }
+        const items = rows.map((row) => ({
+          blocked: cdrHasBlockedNumber(blockedNumbers, row),
+          data: oprsRowData(row, linkById.get(row.id), guiUrl),
+        }));
+        await attachOprsDerived(items);
+        for (const item of items) await visit(item.data);
         const last = rows[rows.length - 1]!;
         cursor = { cdrDate: last.cdrDate, cdrId: last.cdrId };
         if (rows.length < OPRS_EXPORT_PAGE_SIZE) break;

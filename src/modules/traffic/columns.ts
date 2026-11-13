@@ -224,12 +224,18 @@ export const TRAFFIC_SUMMARY_LABELS: Record<
 /** Display-only traffic column. Not a CDR field and not filterable. */
 export const BILLING_MINUTES_COLUMN = "billable_minutes";
 
-/** Empty until a later release fills marking and MAV. Not stored and not filterable. The MAV header is «МАВ». */
+/** Brand word for the row color. Not a CDR field and not filterable. */
+export const OPRS_NETWORK_COLUMN = "oprs_network";
+/** Marking and MAV cells copied from the catalog for that brand. Not stored on the CDR and not filterable. */
 export const OPRS_MARKING_COLUMN = "oprs_marking";
 export const OPRS_MAV_COLUMN = "oprs_mav";
 /** Black tail of a «Неуспешный» OPRS row starts at «Секунды». */
 export const OPRS_FAILED_TAIL_COLUMN = "elapsed_time";
-export const OPRS_STATIC_COLUMNS = [OPRS_MARKING_COLUMN, OPRS_MAV_COLUMN] as const;
+export const OPRS_STATIC_COLUMNS = [
+  OPRS_NETWORK_COLUMN,
+  OPRS_MARKING_COLUMN,
+  OPRS_MAV_COLUMN,
+] as const;
 export const OPRS_STATIC_COLUMN_SET = new Set<string>(OPRS_STATIC_COLUMNS);
 
 export const OPRS_COLUMNS = [
@@ -240,8 +246,8 @@ export const OPRS_COLUMNS = [
   "side_a",
   "bill_dnis",
   "out_orig_dnis",
+  OPRS_NETWORK_COLUMN,
   "operator_b",
-  "geography_b",
   OPRS_MARKING_COLUMN,
   OPRS_MAV_COLUMN,
   "elapsed_time",
@@ -261,8 +267,8 @@ export const OPRS_LABELS: Record<(typeof OPRS_COLUMNS)[number], string> = {
   bill_dnis: "В-номер",
   out_orig_dnis: "Переадресация",
   elapsed_time: "Секунды",
+  oprs_network: "Сеть",
   operator_b: "ОПРС (Реестр Минцифры)",
-  geography_b: "География",
   oprs_marking: "Маркировка",
   oprs_mav: "МАВ",
   src_name: "Инициирующее устройство",

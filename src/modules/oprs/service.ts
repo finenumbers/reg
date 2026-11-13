@@ -3,10 +3,7 @@
  */
 
 import { Prisma } from "@/generated/prisma/client";
-import {
-  toFilterToken,
-  type FacetResponse,
-} from "@/components/column-filters/types";
+import { toFilterToken, type FacetResponse } from "@/components/column-filters/types";
 import { prisma } from "@/lib/db";
 import { TABLE_PAGE_SIZE } from "@/lib/table-pagination";
 import { cdrHasBlockedNumber } from "@/modules/traffic/blocked-number";
@@ -34,6 +31,7 @@ import {
   trafficListOrderBy,
 } from "@/modules/traffic/traffic-sort";
 import type { OprsListInput } from "@/modules/oprs/query";
+import { attachOprsDerived } from "@/modules/oprs/derived";
 import { OPRS_LIST_SELECT, oprsRowData, type OprsListRow } from "@/modules/oprs/row";
 import { withOprsTimeout } from "@/modules/oprs/timeout";
 import { buildOprsWhere, resolveOprsSnapshot } from "@/modules/oprs/where";
@@ -73,12 +71,14 @@ async function mapRows(rows: OprsListRow[]): Promise<TrafficListItem[]> {
     loadBlockedNumbers(),
   ]);
   const linkById = new Map(links.map((link) => [link.cdrRecordId, link]));
-  return rows.map((row) => ({
+  const items = rows.map((row) => ({
     id: row.id,
     cdrAt: row.cdrAt?.toISOString() ?? null,
     data: oprsRowData(row, linkById.get(row.id), guiUrl),
-    ...(cdrHasBlockedNumber(blockedNumbers, row) ? { blocked: true } : {}),
+    ...(cdrHasBlockedNumber(blockedNumbers, row) ? { blocked: true as const } : {}),
   }));
+  await attachOprsDerived(items);
+  return items;
 }
 
 async function readSnapshotPage(
@@ -104,9 +104,7 @@ export async function listOprs(
 ): Promise<OprsListResult> {
   const pageSize = Math.min(200, Math.max(1, input.pageSize));
   const month = resolveMonthKey(input.month, now);
-  const snapshot = input.cursor
-    ? resolveOprsSnapshot(input.snapshotRaw, now)
-    : now;
+  const snapshot = input.cursor ? resolveOprsSnapshot(input.snapshotRaw, now) : now;
   const where = buildOprsWhere({
     year: month.year,
     month: month.month,

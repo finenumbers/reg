@@ -65,7 +65,12 @@ describe("oprs where", () => {
     const where = buildOprsWhere({
       year: 2026,
       month: 11,
-      filters: { call_category: ["Входящий"], dst_name: ["Service_Parking_1"] },
+      filters: {
+        dst_name: ["Service_Parking_1"],
+        geography_b: ["Москва"],
+        oprs_network: ["МТС"],
+        call_category: ["Входящий"],
+      },
       phoneQ: "",
       flags: {},
       snapshot,
@@ -73,14 +78,13 @@ describe("oprs where", () => {
       timeSort: null,
     });
     expect(where.AND).toEqual(
-      expect.arrayContaining([
-        oprsPredicate(),
-        { importedAt: { lte: snapshot } },
-      ]),
+      expect.arrayContaining([oprsPredicate(), { importedAt: { lte: snapshot } }]),
     );
     const text = JSON.stringify(where);
-    expect(text).toContain("Входящий");
     expect(text).toContain("Service_Parking_1");
+    expect(text).not.toContain("Входящий");
+    expect(text).not.toContain("Москва");
+    expect(text).not.toContain("МТС");
     expect(text).not.toContain("skip");
   });
 

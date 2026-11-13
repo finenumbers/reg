@@ -9,7 +9,6 @@ import {
   BILLING_MINUTES_COLUMN,
   OPRS_COLUMNS,
   OPRS_LABELS,
-  OPRS_STATIC_COLUMN_SET,
 } from "@/modules/traffic/columns";
 import {
   formatBillableMinutesCell,
@@ -23,9 +22,7 @@ const BOLD = new Set<string>(["bill_ani", "bill_dnis"]);
 
 export class OprsExportTooLargeError extends Error {
   constructor(total: number) {
-    super(
-      `Слишком много строк (${total}). Максимум листа Excel — ${EXCEL_MAX_ROWS}`,
-    );
+    super(`Слишком много строк (${total}). Максимум листа Excel — ${EXCEL_MAX_ROWS}`);
     this.name = "OprsExportTooLargeError";
   }
 }
@@ -40,7 +37,6 @@ export function oprsExportFilename(monthKey: string): string {
 
 /** Same text the table paints. Calltrace is the safe URL already stored on the row. */
 export function oprsDisplayCell(column: string, data: Record<string, string>): string {
-  if (OPRS_STATIC_COLUMN_SET.has(column)) return "";
   if (column === BILLING_MINUTES_COLUMN) {
     return formatBillableMinutesCell(data.elapsed_time ?? "");
   }

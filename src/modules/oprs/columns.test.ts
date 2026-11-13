@@ -16,8 +16,8 @@ describe("OPRS columns", () => {
       "side_a",
       "bill_dnis",
       "out_orig_dnis",
+      "oprs_network",
       "operator_b",
-      "geography_b",
       "oprs_marking",
       "oprs_mav",
       "elapsed_time",
@@ -29,7 +29,8 @@ describe("OPRS columns", () => {
       "voipmonitor_url_out",
     ]);
     expect(OPRS_LABELS.operator_b).toBe("ОПРС (Реестр Минцифры)");
-    expect(OPRS_LABELS.geography_b).toBe("География");
+    expect(OPRS_LABELS.oprs_network).toBe("Сеть");
+    expect(OPRS_COLUMNS).not.toContain("geography_b");
     expect(OPRS_LABELS.bill_ani).toBe("А-номер");
     expect(OPRS_LABELS.dst_name).toBe("Терминирующее устройство");
     expect(OPRS_LABELS.oprs_marking).toBe("Маркировка");
@@ -39,5 +40,6 @@ describe("OPRS columns", () => {
     }
     expect(isTrafficColumn("operator_b")).toBe(true);
     expect(isTrafficColumn("geography_b")).toBe(true);
+    expect(isTrafficColumn("oprs_network")).toBe(false);
   });
 });

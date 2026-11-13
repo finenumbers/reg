@@ -12,10 +12,7 @@ import {
   type ColumnFilters,
 } from "@/components/column-filters/types";
 import { MISSING_PSTN_LABEL } from "@/modules/enrich/types";
-import {
-  isMarkingColumn,
-  type MarkingColumnId,
-} from "@/modules/marking/query-filter";
+import { isMarkingColumn, type MarkingColumnId } from "@/modules/marking/query-filter";
 import { operatorLabelSql } from "@/modules/rtu/sql";
 import { STATUS_NOT_IN_RTU } from "@/modules/rtu/types";
 
@@ -73,8 +70,17 @@ export function markingFilterSql(
   return andWhere(clauses);
 }
 
-/** On-switch numbers. An empty operator stays. The registry-miss label does not. */
-export function markingWorkingCte(): Prisma.Sql {
+/**
+ * On-switch numbers. An empty operator stays. The registry-miss label does not.
+ * `phones` limits the screen rows by the stored number. Callers pass already
+ * trimmed values so the predicate can use the number index. Omitting the list
+ * keeps the statement the marking list, export, and import already send.
+ */
+export function markingWorkingCte(phones?: readonly string[]): Prisma.Sql {
+  const phoneSql =
+    phones && phones.length > 0
+      ? Prisma.sql`AND number IN (${Prisma.join(phones)})`
+      : Prisma.empty;
   return Prisma.sql`
     /* marking-working-set */
     on_switch AS (
@@ -87,6 +93,7 @@ export function markingWorkingCte(): Prisma.Sql {
       WHERE NOT missing
         AND btrim(number) <> ''
         AND activation <> ${STATUS_NOT_IN_RTU}
+        ${phoneSql}
       ORDER BY btrim(number), (btrim(client) = ''), id
     ),
     joined AS (
@@ -117,6 +124,41 @@ export function markingWorkingCte(): Prisma.Sql {
   `;
 }
 
+export type MarkingPhoneLabelRow = {
+  number: string;
+  label_mts: string;
+  label_megafon: string;
+  label_beeline: string;
+  label_t2: string;
+  mav_mts: string;
+  mav_megafon: string;
+  mav_beeline: string;
+  mav_t2: string;
+};
+
+/** Labels for phones that are on the marking screen right now. */
+export function markingLabelsForPhonesSql(phones: readonly string[]): Prisma.Sql {
+  if (phones.length === 0) {
+    throw new Error("markingLabelsForPhonesSql requires a phone");
+  }
+  return Prisma.sql`
+    WITH ${markingWorkingCte(phones)}
+    SELECT
+      w.number,
+      COALESCE(m."labelMts", '') AS label_mts,
+      COALESCE(m."labelMegafon", '') AS label_megafon,
+      COALESCE(m."labelBeeline", '') AS label_beeline,
+      COALESCE(m."labelT2", '') AS label_t2,
+      COALESCE(m."mavMts", '') AS mav_mts,
+      COALESCE(m."mavMegafon", '') AS mav_megafon,
+      COALESCE(m."mavBeeline", '') AS mav_beeline,
+      COALESCE(m."mavT2", '') AS mav_t2
+    FROM working w
+    LEFT JOIN marking_rows m
+      ON m."phoneNumber" = w.number
+  `;
+}
+
 function markedCte(): Prisma.Sql {
   return Prisma.sql`
     marked AS (
@@ -144,9 +186,7 @@ export function markingListSql(opts: {
   cursor: string | null;
   limit: number;
 }): Prisma.Sql {
-  const cursor = opts.cursor
-    ? Prisma.sql`number > ${opts.cursor}`
-    : Prisma.sql`TRUE`;
+  const cursor = opts.cursor ? Prisma.sql`number > ${opts.cursor}` : Prisma.sql`TRUE`;
   return Prisma.sql`
     WITH ${markingWorkingCte()},
     ${markedCte()},

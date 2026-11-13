@@ -8,8 +8,10 @@ import {
   markingApplySql,
   markingExportSql,
   markingFilterSql,
+  markingLabelsForPhonesSql,
   markingListSql,
   markingSupplierSyncSql,
+  markingWorkingCte,
 } from "@/modules/marking/sql";
 import { STATUS_NOT_IN_RTU } from "@/modules/rtu/types";
 
@@ -53,7 +55,9 @@ describe("marking working set", () => {
     const where = markingFilterSql(undefined);
     const list = flattenSql(markingListSql({ where, cursor: null, limit: 100 }));
     const exported = flattenSql(markingExportSql(10));
-    const applied = flattenSql(markingApplySql("[]", "a.xlsx", new Date("2026-11-13T00:00:00.000Z")));
+    const applied = flattenSql(
+      markingApplySql("[]", "a.xlsx", new Date("2026-11-13T00:00:00.000Z")),
+    );
     for (const sql of [list, exported, applied]) {
       expect(sql.text).toContain("/* marking-working-set */");
       expect(sql.text).toContain("NOT missing");
@@ -156,5 +160,29 @@ describe("marking import payload", () => {
         unknown: [],
       }),
     ).toEqual(["Повтор номера. Снимок не изменён."]);
+  });
+});
+
+describe("marking labels for OPRS phones", () => {
+  it("keeps the working set and adds a number list only when phones are passed", () => {
+    const open = flattenSql(markingWorkingCte());
+    expect(open.text).toContain("/* marking-working-set */");
+    expect(open.text).not.toContain("number IN");
+    const limited = flattenSql(markingLabelsForPhonesSql(["74951234567", "74950000001"]));
+    expect(limited.text).toContain("/* marking-working-set */");
+    expect(limited.text).toContain("NOT missing");
+    expect(limited.text).toContain("number IN");
+    expect(limited.text).toContain('m."phoneNumber" = w.number');
+    expect(limited.text).toContain('COALESCE(m."labelMts"');
+    expect(limited.text).toContain('COALESCE(m."mavT2"');
+    expect(limited.values).toEqual(
+      expect.arrayContaining([
+        "74951234567",
+        "74950000001",
+        STATUS_NOT_IN_RTU,
+        MISSING_PSTN_LABEL,
+      ]),
+    );
+    expect(() => markingLabelsForPhonesSql([])).toThrow(/phone/);
   });
 });
