@@ -72,13 +72,74 @@ function errorMessage(body: unknown, fallback: string): string {
   return fallback;
 }
 
+export type OprsBdpnHit = {
+  found: true;
+  number: string;
+  operator: string;
+  territory: string;
+  inn: string;
+};
+
+export type OprsBdpnResult =
+  OprsBdpnHit | { found: false; number: string } | { aborted: true } | { error: string };
+
+export async function fetchOprsBdpn(
+  number: string,
+  signal: AbortSignal,
+): Promise<OprsBdpnResult> {
+  let res: Response;
+  try {
+    res = await fetch("/api/oprs/bdpn", {
+      method: "POST",
+      cache: "no-store",
+      signal,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ number }),
+    });
+  } catch (error) {
+    if (signal.aborted || (error instanceof Error && error.name === "AbortError")) {
+      return { aborted: true };
+    }
+    return { error: "БДПН: нет соединения с сервисом." };
+  }
+  const body = await readJson(res);
+  if (signal.aborted) return { aborted: true };
+  if (!res.ok) return { error: errorMessage(body, "БДПН: неожиданный ответ сервиса.") };
+  if (!body || typeof body !== "object") {
+    return { error: "БДПН: неожиданный ответ сервиса." };
+  }
+  const record = body as Record<string, unknown>;
+  if (record.found === false && typeof record.number === "string") {
+    return { found: false, number: record.number };
+  }
+  if (
+    record.found === true &&
+    typeof record.number === "string" &&
+    typeof record.operator === "string" &&
+    typeof record.territory === "string" &&
+    typeof record.inn === "string"
+  ) {
+    return {
+      found: true,
+      number: record.number,
+      operator: record.operator,
+      territory: record.territory,
+      inn: record.inn,
+    };
+  }
+  return { error: "БДПН: неожиданный ответ сервиса." };
+}
+
 export async function fetchOprsList(
   opts: OprsListQuery,
 ): Promise<{ ok: true; data: OprsListResult } | { ok: false; message: string }> {
   const res = await fetch(buildOprsListUrl(opts), { cache: "no-store" });
   const body = await readJson(res);
   if (!res.ok) {
-    return { ok: false, message: errorMessage(body, "Не удалось загрузить звонки в ОПРС") };
+    return {
+      ok: false,
+      message: errorMessage(body, "Не удалось загрузить звонки в ОПРС"),
+    };
   }
   return { ok: true, data: body as OprsListResult };
 }

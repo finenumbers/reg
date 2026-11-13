@@ -167,10 +167,7 @@ export const CDR_DATETIME_SPLIT_COLUMNS = ["cdr_day", "cdr_time"] as const;
 
 export const CALL_CLASS_COLUMNS = ["call_category", "call_type", "call_status"] as const;
 
-export const CALL_CLASS_LABELS: Record<
-  (typeof CALL_CLASS_COLUMNS)[number],
-  string
-> = {
+export const CALL_CLASS_LABELS: Record<(typeof CALL_CLASS_COLUMNS)[number], string> = {
   call_category: "Категория",
   call_type: "Тип",
   call_status: "Статус",
@@ -230,6 +227,8 @@ export const BILLING_MINUTES_COLUMN = "billable_minutes";
 /** Empty until a later release fills marking and MAV. Not stored and not filterable. The MAV header is «МАВ». */
 export const OPRS_MARKING_COLUMN = "oprs_marking";
 export const OPRS_MAV_COLUMN = "oprs_mav";
+/** Black tail of a «Неуспешный» OPRS row starts at «Секунды». */
+export const OPRS_FAILED_TAIL_COLUMN = "elapsed_time";
 export const OPRS_STATIC_COLUMNS = [OPRS_MARKING_COLUMN, OPRS_MAV_COLUMN] as const;
 export const OPRS_STATIC_COLUMN_SET = new Set<string>(OPRS_STATIC_COLUMNS);
 
@@ -241,11 +240,11 @@ export const OPRS_COLUMNS = [
   "side_a",
   "bill_dnis",
   "out_orig_dnis",
-  "elapsed_time",
   "operator_b",
   "geography_b",
   OPRS_MARKING_COLUMN,
   OPRS_MAV_COLUMN,
+  "elapsed_time",
   "src_name",
   "dst_name",
   "dp_name",

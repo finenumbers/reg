@@ -24,7 +24,8 @@ import {
   fetchTrafficStatus,
   postTrafficRetry,
 } from "@/modules/traffic/api-client";
-import { buildOprsFacetsUrl, fetchOprsList } from "@/modules/oprs/api";
+import { buildOprsFacetsUrl, fetchOprsBdpn, fetchOprsList } from "@/modules/oprs/api";
+import { BdpnDialog, type BdpnDialogState } from "@/modules/oprs/ui/bdpn-dialog";
 import type { OprsOperatorToneMap } from "@/modules/oprs/operator-tone";
 import { acceptOprsPage, appendOprsItems } from "@/modules/oprs/page-state";
 import { OprsExportButton } from "@/modules/oprs/ui/export-button";
@@ -140,6 +141,11 @@ export function TrafficView({
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [listError, setListError] = useState<string | null>(initialListError);
+  const [bdpn, setBdpn] = useState<BdpnDialogState | null>(null);
+  const bdpnBill = useRef<string | null>(null);
+  const bdpnLoading = useRef(false);
+  const bdpnAbort = useRef<AbortController | null>(null);
+  const bdpnGen = useRef(0);
   const listErrorRef = useRef(initialListError);
   const [bannerError, setBannerError] = useState<string | null>(null);
   const [poisonFiles, setPoisonFiles] = useState<
@@ -626,6 +632,47 @@ export function TrafficView({
     }
   }
 
+  const closeBdpn = useCallback(() => {
+    bdpnGen.current += 1;
+    bdpnLoading.current = false;
+    bdpnAbort.current?.abort();
+    bdpnAbort.current = null;
+    bdpnBill.current = null;
+    setBdpn(null);
+  }, []);
+
+  const onBdpnCheck = useCallback((billDnis: string) => {
+    if (bdpnLoading.current && bdpnBill.current === billDnis) return;
+    bdpnAbort.current?.abort();
+    const generation = ++bdpnGen.current;
+    const controller = new AbortController();
+    bdpnAbort.current = controller;
+    bdpnBill.current = billDnis;
+    bdpnLoading.current = true;
+    setBdpn({ phase: "loading" });
+    void fetchOprsBdpn(billDnis, controller.signal).then((result) => {
+      if (generation !== bdpnGen.current) return;
+      bdpnLoading.current = false;
+      if ("aborted" in result) return;
+      if ("error" in result) {
+        setBdpn({ phase: "error", message: result.error });
+        return;
+      }
+      if (result.found) {
+        setBdpn({ phase: "hit", hit: result });
+        return;
+      }
+      setBdpn({ phase: "miss", number: result.number });
+    });
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      bdpnGen.current += 1;
+      bdpnAbort.current?.abort();
+    };
+  }, []);
+
   const pending = isSyncInFlight(syncState);
   const showRetry = showOps && canRetry;
   const showSyncBanner =
@@ -889,6 +936,7 @@ export function TrafficView({
             onTimeSortChange={onTimeSortChange}
             plainColumns={oprs ? OPRS_STATIC_COLUMNS : undefined}
             operatorTones={oprs ? operatorTones : undefined}
+            onBdpnCheck={oprs ? onBdpnCheck : undefined}
             facetUrl={
               oprs
                 ? ({ column, filters: nextFilters, q }) =>
@@ -912,6 +960,7 @@ export function TrafficView({
         </TableInfiniteBody>
         <TableCountFooter shown={items.length} total={total} />
       </div>
+      {oprs ? <BdpnDialog state={bdpn} onClose={closeBdpn} /> : null}
     </div>
   );
 }

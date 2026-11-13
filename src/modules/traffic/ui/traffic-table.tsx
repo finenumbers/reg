@@ -67,6 +67,8 @@ type Props = {
   facetUrl?: (input: { column: string; filters: ColumnFilters; q?: string }) => string;
   /** OPRS replaces the shared CDR palette. A blocked number stays black. */
   operatorTones?: OprsOperatorToneMap;
+  /** OPRS only. A non-empty operator cell checks that row's B-number. */
+  onBdpnCheck?: (billDnis: string) => void;
 };
 
 export function TrafficTable({
@@ -94,6 +96,7 @@ export function TrafficTable({
   plainColumns,
   facetUrl,
   operatorTones,
+  onBdpnCheck,
 }: Props) {
   const boldSet = new Set<string>(boldColumns ?? TRAFFIC_BOLD_COLUMNS);
   const plainSet = new Set<string>(plainColumns ?? []);
@@ -168,10 +171,13 @@ export function TrafficTable({
         ) : (
           data.map((row) => {
             const blocked = row.blocked === true;
-            const tone = blocked ? null : cdrRowTone(row.data.call_category ?? "", row.data.call_status ?? "");
-            const oprsTone = blocked || !oprsPaint
+            const tone = blocked
               ? null
-              : oprsOperatorTone(row.data.operator_b ?? "", operatorTones ?? {});
+              : cdrRowTone(row.data.call_category ?? "", row.data.call_status ?? "");
+            const oprsTone =
+              blocked || !oprsPaint
+                ? null
+                : oprsOperatorTone(row.data.operator_b ?? "", operatorTones ?? {});
             return (
               <TableRow
                 key={row.id}
@@ -180,7 +186,9 @@ export function TrafficTable({
                   !oprsPaint &&
                     tone === "phantom" &&
                     "bg-green-200 hover:bg-green-300/90 dark:bg-green-950 dark:hover:bg-green-900",
-                  !oprsPaint && tone === "call_error" && "bg-destructive/25 hover:bg-destructive/35",
+                  !oprsPaint &&
+                    tone === "call_error" &&
+                    "bg-destructive/25 hover:bg-destructive/35",
                   !oprsPaint &&
                     tone === "parking" &&
                     "bg-blue-200 hover:bg-blue-300/90 dark:bg-blue-950 dark:hover:bg-blue-900",
@@ -239,6 +247,17 @@ export function TrafficTable({
                             ] || "открыть"}
                           </a>
                         ) : null
+                      ) : h === "operator_b" && onBdpnCheck && shown.trim() ? (
+                        <button
+                          type="button"
+                          className={cn(
+                            "cursor-pointer underline-offset-2 hover:underline",
+                            blocked ? "text-white" : "text-primary",
+                          )}
+                          onClick={() => onBdpnCheck(row.data.bill_dnis ?? "")}
+                        >
+                          {shown}
+                        </button>
                       ) : highlightSet.has(h) ? (
                         <HighlightText text={shown} query={phoneQ} />
                       ) : (

@@ -24,13 +24,17 @@ describe("oprs operator tone map", () => {
 });
 
 describe("oprs failed tail", () => {
-  it("starts at marking and stays off for any other status", () => {
-    expect(oprsFailedTail("oprs_marking", OPRS_COLUMNS, CALL_STATUS.failed)).toBe(true);
-    expect(oprsFailedTail("oprs_mav", OPRS_COLUMNS, CALL_STATUS.failed)).toBe(true);
-    expect(oprsFailedTail("voipmonitor_url_out", OPRS_COLUMNS, CALL_STATUS.failed)).toBe(true);
+  it("starts at seconds and stays off for any other status", () => {
+    expect(oprsFailedTail("elapsed_time", OPRS_COLUMNS, CALL_STATUS.failed)).toBe(true);
+    expect(oprsFailedTail("src_name", OPRS_COLUMNS, CALL_STATUS.failed)).toBe(true);
+    expect(oprsFailedTail("voipmonitor_url_out", OPRS_COLUMNS, CALL_STATUS.failed)).toBe(
+      true,
+    );
+    expect(oprsFailedTail("oprs_mav", OPRS_COLUMNS, CALL_STATUS.failed)).toBe(false);
+    expect(oprsFailedTail("oprs_marking", OPRS_COLUMNS, CALL_STATUS.failed)).toBe(false);
     expect(oprsFailedTail("geography_b", OPRS_COLUMNS, CALL_STATUS.failed)).toBe(false);
     expect(oprsFailedTail("operator_b", OPRS_COLUMNS, CALL_STATUS.failed)).toBe(false);
-    expect(oprsFailedTail("oprs_marking", OPRS_COLUMNS, CALL_STATUS.success)).toBe(false);
-    expect(oprsFailedTail("oprs_marking", ["cdr_day"], CALL_STATUS.failed)).toBe(false);
+    expect(oprsFailedTail("elapsed_time", OPRS_COLUMNS, CALL_STATUS.success)).toBe(false);
+    expect(oprsFailedTail("elapsed_time", ["cdr_day"], CALL_STATUS.failed)).toBe(false);
   });
 });

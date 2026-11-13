@@ -6,7 +6,7 @@
  */
 
 import { CALL_STATUS } from "@/modules/traffic/call-class";
-import { OPRS_MARKING_COLUMN } from "@/modules/traffic/columns";
+import { OPRS_FAILED_TAIL_COLUMN } from "@/modules/traffic/columns";
 
 export const OPRS_OPERATOR_INNS = {
   green: "7812014560",
@@ -26,7 +26,9 @@ export type OprsOperatorNameGroup = {
 };
 
 /** Names from a truncated facet are dropped. A name on two tones is dropped. */
-export function oprsToneMap(groups: readonly OprsOperatorNameGroup[]): OprsOperatorToneMap {
+export function oprsToneMap(
+  groups: readonly OprsOperatorNameGroup[],
+): OprsOperatorToneMap {
   const found = new Map<string, OprsOperatorTone | "conflict">();
   for (const group of groups) {
     if (group.truncated) continue;
@@ -54,14 +56,14 @@ export function oprsOperatorTone(
   return map[name] ?? null;
 }
 
-/** True for «Маркировка» and every column to its right when the call failed. */
+/** True for «Секунды» and every column to its right when the call failed. */
 export function oprsFailedTail(
   column: string,
   columns: readonly string[],
   status: string,
 ): boolean {
   if (status !== CALL_STATUS.failed) return false;
-  const start = columns.indexOf(OPRS_MARKING_COLUMN);
+  const start = columns.indexOf(OPRS_FAILED_TAIL_COLUMN);
   if (start < 0) return false;
   const index = columns.indexOf(column);
   return index >= start;

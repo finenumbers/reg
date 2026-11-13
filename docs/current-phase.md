@@ -1,7 +1,15 @@
-# Current Phase — production (v1.267.0)
+# Current Phase — production (v1.268.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-13
+
+## v1.268.0 — OPRS seconds and a BDPN check
+
+There is no migration. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. Keep a single `app` replica. Stop the old app before the new one starts, then recreate only the `app` container. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged.
+
+«Звонки в ОПРС» shows «Секунды» between «МАВ» and «Инициирующее устройство». The XLSX file uses the same order and still has no fill. When «Статус» is «Неуспешный», cells from «Секунды» to the right are black with white text. «Маркировка» and «МАВ» stay on the row color.
+
+A non-empty «ОПРС (Реестр Минцифры)» cell is a button, including «Нет в реестре МинЦифры». It checks that row's «В-номер» on the public BDPN form. The dialog shows the ten-digit number, operator, territory, and INN, or that BDPN has no record. Closing the dialog stops the check. An empty cell stays text. A blocked row keeps white text on that button. An API key cannot call the check. The number is not written to the audit log.
 
 ## v1.267.0 — OPRS colors and marking supplier
 
