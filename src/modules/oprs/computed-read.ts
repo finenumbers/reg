@@ -22,7 +22,7 @@ import {
 } from "@/modules/oprs/filter-sql";
 import { loadOprsMarkingSnapshot } from "@/modules/oprs/marking-snapshot";
 import type { OprsOperatorToneMap } from "@/modules/oprs/operator-tone";
-import { loadOprsOperatorToneMap } from "@/modules/oprs/operator-tone-load";
+import { loadOprsToneReport } from "@/modules/oprs/operator-tone-load";
 import type { OprsListRow } from "@/modules/oprs/row";
 import { OprsQueryError } from "@/modules/oprs/where";
 
@@ -148,13 +148,19 @@ export async function loadOprsReadContext(
 ): Promise<OprsReadContext> {
   const marking = oprsUsesMarking(filters, facetColumn);
   const calltrace = oprsUsesCalltrace(filters, facetColumn);
-  const [tones, blocked, labels, guiHost] = await Promise.all([
-    loadOprsOperatorToneMap(),
+  const [tone, blocked, labels, guiHost] = await Promise.all([
+    loadOprsToneReport(),
     loadBlockedNumbers(),
     marking ? loadOprsMarkingSnapshot() : Promise.resolve(null),
     calltrace ? readGuiHost() : Promise.resolve(""),
   ]);
-  return { tones, blocked, marking: labels, guiHost };
+  return {
+    tones: tone.map,
+    labelUnpainted: tone.labelUnpainted,
+    blocked,
+    marking: labels,
+    guiHost,
+  };
 }
 
 export async function countOprsSlice(
@@ -199,9 +205,8 @@ export async function readOprsComputedFacets(
 ): Promise<FacetResponse> {
   const take = Math.min(500, Math.max(1, input.limit));
   const query = buildOprsFacetSql(input, ctx, input.column, input.q, take);
-  const grouped = await tx.$queryRaw<Array<{ value: string | null; count: unknown }>>(
-    query,
-  );
+  const grouped =
+    await tx.$queryRaw<Array<{ value: string | null; count: unknown }>>(query);
   const items = grouped.slice(0, take).map((row) => ({
     value: toFilterToken(row.value == null ? "" : String(row.value)),
     count: asCount(row.count),

@@ -18,7 +18,7 @@ import {
 } from "@/modules/oprs/computed-read";
 import { attachOprsDerived } from "@/modules/oprs/derived";
 import { oprsNeedsComputedSql } from "@/modules/oprs/filter-sql";
-import { loadOprsOperatorToneMap } from "@/modules/oprs/operator-tone-load";
+import { loadOprsToneReport } from "@/modules/oprs/operator-tone-load";
 import { OPRS_LIST_SELECT, oprsRowData, type OprsListRow } from "@/modules/oprs/row";
 import {
   assertOprsExportRowCount,
@@ -65,10 +65,12 @@ export async function writeOprsExport(input: {
           }),
         );
   assertOprsExportRowCount(total);
-  const [guiUrl, blockedNumbers, tones] = await Promise.all([
+  const [guiUrl, blockedNumbers, tone] = await Promise.all([
     readGuiUrl(),
     ctx ? Promise.resolve(ctx.blocked) : loadBlockedNumbers(),
-    ctx ? Promise.resolve(ctx.tones) : loadOprsOperatorToneMap(),
+    ctx
+      ? Promise.resolve({ map: ctx.tones, labelUnpainted: ctx.labelUnpainted })
+      : loadOprsToneReport(),
   ]);
   const orderBy = trafficListOrderBy(input.timeSort);
   return writeOprsSheet({
@@ -100,7 +102,8 @@ export async function writeOprsExport(input: {
           data: oprsRowData(row, linkById.get(row.id), guiUrl),
         }));
         await attachOprsDerived(items, {
-          tones,
+          tones: tone.map,
+          labelUnpainted: tone.labelUnpainted,
           ...(ctx?.marking ? { labels: ctx.marking } : {}),
         });
         for (const item of items) await visit(item.data);

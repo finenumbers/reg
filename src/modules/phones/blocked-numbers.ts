@@ -64,32 +64,46 @@ export function anyNumberBlocked(
   return false;
 }
 
+export type BlockedNumberRead = {
+  stamp: string;
+  index: BlockedNumberIndex;
+};
+
+async function queryBlockedNumberIndex(): Promise<BlockedNumberRead> {
+  const state = await prisma.phoneImportState.findUnique({
+    where: { id: 1 },
+    select: { lastSyncedAt: true },
+  });
+  const stamp = state?.lastSyncedAt?.toISOString() ?? "";
+  if (cached?.stamp === stamp) return { stamp, index: cached.index };
+  const rows = await prisma.$queryRaw<Array<{ number: string | null }>>(Prisma.sql`
+    SELECT btrim("endpointNumber") AS number
+    FROM phone_endpoints
+    WHERE btrim(COALESCE(data->>'Статус', '')) = ${STATUS_BLOCKED}
+      AND "endpointNumber" IS NOT NULL
+      AND btrim("endpointNumber") <> ''
+  `);
+  const index = buildBlockedNumberIndex(rows.map((row) => row.number ?? ""));
+  cached = { stamp, index };
+  return { stamp, index };
+}
+
 /**
  * One catalog read per phone sync per process.
  * A failed read is not cached and does not throw: the list still opens, uncolored.
  */
 export async function loadBlockedNumbers(): Promise<BlockedNumberIndex> {
   try {
-    const state = await prisma.phoneImportState.findUnique({
-      where: { id: 1 },
-      select: { lastSyncedAt: true },
-    });
-    const stamp = state?.lastSyncedAt?.toISOString() ?? "";
-    if (cached?.stamp === stamp) return cached.index;
-    const rows = await prisma.$queryRaw<Array<{ number: string | null }>>(Prisma.sql`
-      SELECT btrim("endpointNumber") AS number
-      FROM phone_endpoints
-      WHERE btrim(COALESCE(data->>'Статус', '')) = ${STATUS_BLOCKED}
-        AND "endpointNumber" IS NOT NULL
-        AND btrim("endpointNumber") <> ''
-    `);
-    const index = buildBlockedNumberIndex(rows.map((row) => row.number ?? ""));
-    cached = { stamp, index };
-    return index;
+    return (await queryBlockedNumberIndex()).index;
   } catch (error) {
     logger.warn("blocked number catalog unread", {
       name: error instanceof Error ? error.name : "Error",
     });
     return emptyBlockedNumberIndex();
   }
+}
+
+/** A failed read throws. An empty successful catalog is a real empty index. */
+export async function requireBlockedNumberIndex(): Promise<BlockedNumberRead> {
+  return queryBlockedNumberIndex();
 }

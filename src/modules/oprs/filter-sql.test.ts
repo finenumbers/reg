@@ -59,6 +59,7 @@ function input(patch: Partial<OprsSqlInput> = {}): OprsSqlInput {
 function ctx(patch: Partial<OprsSqlContext> = {}): OprsSqlContext {
   return {
     tones: {},
+    labelUnpainted: false,
     blocked: emptyBlockedNumberIndex(),
     marking: null,
     guiHost: "",
@@ -193,9 +194,9 @@ describe("oprs computed sql", () => {
     expect(flat.text).toContain("ESCAPE");
     expect(flat.values).toContain("открыть");
     expect(flat.values).toContain("gui.example");
-    expect(flat.values.some((value) => typeof value === "string" && value.includes("vip"))).toBe(
-      true,
-    );
+    expect(
+      flat.values.some((value) => typeof value === "string" && value.includes("vip")),
+    ).toBe(true);
     expect(flat.values).toContain(`%${escapeLike("%")}%`);
     expect(flat.text).toContain("ESCAPE E'\\\\'");
   });
@@ -227,7 +228,9 @@ describe("oprs computed sql", () => {
     expect(JSON.stringify(where)).toContain("9001");
 
     const day = facetSearchMatch("cdr_day", "13.11");
-    const daySql = flattenSql(oprsFacetMatchSql("cdr_day", Prisma.sql`c.cdr_day`, "13.11"));
+    const daySql = flattenSql(
+      oprsFacetMatchSql("cdr_day", Prisma.sql`c.cdr_day`, "13.11"),
+    );
     if (day.kind === "contains") {
       for (const needle of day.needles) {
         expect(daySql.values).toContain(`%${escapeLike(needle)}%`);
@@ -240,5 +243,22 @@ describe("oprs computed sql", () => {
     expect(empty.text).toContain("= ''");
     expect(empty.values).toContain(`%${escapeLike("пусто")}%`);
     expect(EMPTY_FILTER_TOKEN).toBe("__empty__");
+  });
+
+  it("names an unpainted network only when the tone map is complete", () => {
+    const open = sliceText(
+      input({ filters: { oprs_network: ["Внешние сети"] } }),
+      ctx({ tones: { "ПАО МТС": "red" }, labelUnpainted: true }),
+    );
+    expect(open.values).toContain("Внешние сети");
+    expect(open.values).toContain("МТС");
+    expect(open.text).toContain("THEN ''");
+
+    const held = sliceText(
+      input({ filters: { oprs_network: ["МТС"] } }),
+      ctx({ tones: { "ПАО МТС": "red" }, labelUnpainted: false }),
+    );
+    expect(held.values).not.toContain("Внешние сети");
+    expect(held.text).toContain("ELSE ''");
   });
 });

@@ -70,6 +70,31 @@ export function markingFilterSql(
   return andWhere(clauses);
 }
 
+function phoneLikePattern(value: string): string {
+  return `%${value.replace(/[\\%_]/g, (char) => `\\${char}`)}%`;
+}
+
+/** Substring of the trimmed screen number. A blank query matches every row. */
+export function markingPhoneSql(phoneQ: string | undefined): Prisma.Sql | null {
+  const q = phoneQ?.trim() ?? "";
+  if (!q) return null;
+  if (q.length > 200) {
+    throw new Error("Некорректный номер");
+  }
+  return Prisma.sql`number ILIKE ${phoneLikePattern(q)} ESCAPE '\\'`;
+}
+
+export function markingScreenSql(opts: {
+  filters?: ColumnFilters;
+  excludeColumn?: string;
+  phoneQ?: string;
+}): Prisma.Sql {
+  const phone = markingPhoneSql(opts.phoneQ);
+  const filters = markingFilterSql(opts.filters, opts.excludeColumn);
+  if (!phone) return filters;
+  return Prisma.sql`(${filters} AND ${phone})`;
+}
+
 /**
  * On-switch numbers. An empty operator stays. The registry-miss label does not.
  * `phones` limits the screen rows by the stored number. Callers pass already

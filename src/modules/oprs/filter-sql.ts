@@ -15,7 +15,11 @@ import {
 import { MISSING_PSTN_LABEL } from "@/modules/enrich/types";
 import type { BlockedNumberIndex } from "@/modules/phones/blocked-numbers";
 import { CDR_BLOCKED_FIELDS } from "@/modules/traffic/blocked-number";
-import { CALL_CATEGORY, CALL_STATUS, SUCCESS_CALL_TYPES } from "@/modules/traffic/call-class";
+import {
+  CALL_CATEGORY,
+  CALL_STATUS,
+  SUCCESS_CALL_TYPES,
+} from "@/modules/traffic/call-class";
 import { cdrMonthPrefix } from "@/lib/month-window";
 import {
   CDR_PHONE_COLUMNS,
@@ -31,7 +35,11 @@ import type { TimeSort } from "@/modules/traffic/traffic-sort";
 import { MOBILE_RF_DIRECTION } from "@/modules/rtu/columns";
 import { pstnKeyFromDigits } from "@/modules/rtu/sql";
 import { PARKING_DST } from "@/modules/stats/classify";
-import { OPRS_NETWORK_LABEL, type OprsCatalogLabels } from "@/modules/oprs/derived";
+import {
+  OPRS_EXTERNAL_NETWORK,
+  OPRS_NETWORK_LABEL,
+  type OprsCatalogLabels,
+} from "@/modules/oprs/derived";
 import { oprsNamesByTone, type OprsOperatorToneMap } from "@/modules/oprs/operator-tone";
 import { OprsQueryError, oprsScreenFilters, type OprsCursor } from "@/modules/oprs/where";
 
@@ -103,6 +111,8 @@ export type OprsSqlInput = {
 
 export type OprsSqlContext = {
   tones: OprsOperatorToneMap;
+  /** True only for a complete operator map. Otherwise an unpainted cell stays blank. */
+  labelUnpainted: boolean;
   blocked: BlockedNumberIndex;
   marking: ReadonlyMap<string, OprsCatalogLabels> | null;
   guiHost: string;
@@ -162,7 +172,9 @@ export function requireOprsMonthPrefix(year: number, month: number): string {
   try {
     prefix = cdrMonthPrefix(year, month);
   } catch (error: unknown) {
-    throw new OprsQueryError(error instanceof Error ? error.message : "Некорректный месяц");
+    throw new OprsQueryError(
+      error instanceof Error ? error.message : "Некорректный месяц",
+    );
   }
   if (!/^\d{4}-\d{2}-$/.test(prefix)) throw new OprsQueryError("Некорректный месяц");
   return prefix;
@@ -204,7 +216,10 @@ export function oprsMarkingJson(
   return JSON.stringify(rows);
 }
 
-export function buildOprsSliceSql(input: OprsSqlInput, ctx: OprsSqlContext): OprsSliceSql {
+export function buildOprsSliceSql(
+  input: OprsSqlInput,
+  ctx: OprsSqlContext,
+): OprsSliceSql {
   if (!(input.snapshot instanceof Date) || Number.isNaN(input.snapshot.getTime())) {
     throw new OprsQueryError("Некорректный снимок списка");
   }
@@ -218,7 +233,11 @@ export function buildOprsSliceSql(input: OprsSqlInput, ctx: OprsSqlContext): Opr
       ? blockedExists(ctx.blocked)
       : null;
   const blockedRef = blocked ? Prisma.sql`blk.blocked` : Prisma.sql`FALSE`;
-  const exprs = paintExprs(names, blockedRef, ctx.guiHost, { marking, calltrace });
+  const exprs = paintExprs(names, blockedRef, ctx.guiHost, {
+    marking,
+    calltrace,
+    labelUnpainted: ctx.labelUnpainted,
+  });
   const from = fromSql({
     blocked,
     markingJson: marking ? oprsMarkingJson(ctx.marking) : null,
@@ -266,7 +285,11 @@ export function buildOprsFacetSql(
   `;
 }
 
-export function oprsFacetMatchSql(column: string, expr: Prisma.Sql, q: string): Prisma.Sql {
+export function oprsFacetMatchSql(
+  column: string,
+  expr: Prisma.Sql,
+  q: string,
+): Prisma.Sql {
   const trimmed = q.trim();
   if (!trimmed) return Prisma.sql`TRUE`;
   if (isOprsComputedColumn(column)) return likeOrEmpty(expr, trimmed);
@@ -295,10 +318,10 @@ function paintExprs(
   names: ReturnType<typeof oprsNamesByTone>,
   blocked: Prisma.Sql,
   guiHost: string,
-  opts: { marking: boolean; calltrace: boolean },
+  opts: { marking: boolean; calltrace: boolean; labelUnpainted: boolean },
 ): Partial<Record<string, Prisma.Sql>> {
   const exprs: Partial<Record<string, Prisma.Sql>> = {
-    [OPRS_NETWORK_COLUMN]: networkExpr(names, blocked),
+    [OPRS_NETWORK_COLUMN]: oprsNetworkValueSql(names, blocked, opts.labelUnpainted),
   };
   if (opts.marking) {
     exprs[OPRS_MARKING_COLUMN] = brandExpr(names, blocked, "marking");
@@ -311,15 +334,29 @@ function paintExprs(
   return exprs;
 }
 
-function networkExpr(
+/** Same «Сеть» text the row stamp writes. A blocked row is blank. */
+export function oprsNetworkValueSql(
   names: ReturnType<typeof oprsNamesByTone>,
   blocked: Prisma.Sql,
+  labelUnpainted: boolean,
 ): Prisma.Sql {
-  const arms = (Object.keys(OPRS_NETWORK_LABEL) as Array<keyof typeof OPRS_NETWORK_LABEL>).map(
-    (tone) =>
-      Prisma.sql`WHEN ${nameIn(names[tone])} AND NOT (${blocked}) THEN ${OPRS_NETWORK_LABEL[tone]}`,
+  const arms = (
+    Object.keys(OPRS_NETWORK_LABEL) as Array<keyof typeof OPRS_NETWORK_LABEL>
+  ).map(
+    (tone) => Prisma.sql`WHEN ${nameIn(names[tone])} THEN ${OPRS_NETWORK_LABEL[tone]}`,
   );
-  return Prisma.sql`(CASE ${Prisma.join(arms, " ")} ELSE '' END)`;
+  const fallback = labelUnpainted ? Prisma.sql`${OPRS_EXTERNAL_NETWORK}` : Prisma.sql`''`;
+  return Prisma.sql`(CASE WHEN ${blocked} THEN '' ${Prisma.join(arms, " ")} ELSE ${fallback} END)`;
+}
+
+/** Null when nothing is blocked, so the caller skips the probe. */
+export function oprsBlockedProbeSql(index: BlockedNumberIndex): Prisma.Sql | null {
+  if (index.exact.size === 0 && index.pstn.size === 0) return null;
+  return blockedExists(index);
+}
+
+export function oprsRecordPredicateSql(): Prisma.Sql {
+  return predicateSql();
 }
 
 function brandExpr(
@@ -415,9 +452,7 @@ function fromSql(input: {
     ) ON lab.number = btrim(c.bill_ani)`);
   }
   if (input.calltrace) {
-    joins.push(
-      Prisma.sql`LEFT JOIN cdr_voipmonitor_links l ON l.cdr_record_id = c.id`,
-    );
+    joins.push(Prisma.sql`LEFT JOIN cdr_voipmonitor_links l ON l.cdr_record_id = c.id`);
   }
   if (joins.length === 0) return Prisma.sql`cdr_records c`;
   return Prisma.sql`cdr_records c ${Prisma.join(joins, " ")}`;

@@ -9,7 +9,7 @@ import {
   markingFacetGroups,
   type MarkingColumnId,
 } from "@/modules/marking/query-filter";
-import { markingFacetSql, markingFilterSql, markingListSql } from "@/modules/marking/sql";
+import { markingFacetSql, markingListSql, markingScreenSql } from "@/modules/marking/sql";
 import {
   MARKING_LIST_TIMEOUT,
   markingReadHttpError,
@@ -109,9 +109,25 @@ function cleanCursor(value: string | null | undefined): string | null {
   return cursor;
 }
 
+function markingWhere(
+  filters: ColumnFilters | undefined,
+  phoneQ: string | undefined,
+  excludeColumn?: string,
+): ReturnType<typeof markingScreenSql> {
+  try {
+    return markingScreenSql({ filters, excludeColumn, phoneQ });
+  } catch (error) {
+    if (error instanceof Error && error.message === "Некорректный номер") {
+      throw new MarkingQueryError(error.message);
+    }
+    throw error;
+  }
+}
+
 export async function listMarkingRows(opts: {
   pageSize?: number;
   filters?: ColumnFilters;
+  phoneQ?: string;
   cursor?: string | null;
 }): Promise<ListMarkingResult> {
   const pageSize = clampPageSize(opts.pageSize);
@@ -124,7 +140,7 @@ export async function listMarkingRows(opts: {
   const rows = await withMarkingTimeout(MARKING_LIST_TIMEOUT, LIST_TX_MS, (tx) =>
     tx.$queryRaw<ListQueryRow[]>(
       markingListSql({
-        where: markingFilterSql(opts.filters),
+        where: markingWhere(opts.filters, opts.phoneQ),
         cursor: cleanCursor(opts.cursor),
         limit: pageSize,
       }),
@@ -136,6 +152,7 @@ export async function listMarkingRows(opts: {
 export async function listMarkingFacets(opts: {
   column: string;
   filters?: ColumnFilters;
+  phoneQ?: string;
   q?: string;
   limit?: number;
 }): Promise<FacetResponse> {
@@ -148,7 +165,7 @@ export async function listMarkingFacets(opts: {
   const column: MarkingColumnId = opts.column;
   const rows = await withMarkingTimeout(MARKING_LIST_TIMEOUT, LIST_TX_MS, (tx) =>
     tx.$queryRaw<FacetQueryRow[]>(
-      markingFacetSql(column, markingFilterSql(opts.filters, column)),
+      markingFacetSql(column, markingWhere(opts.filters, opts.phoneQ, column)),
     ),
   );
   return markingFacetGroups(
@@ -157,7 +174,9 @@ export async function listMarkingFacets(opts: {
   );
 }
 
-export function mapMarkingReadError(error: unknown): { status: number; error: string } | null {
+export function mapMarkingReadError(
+  error: unknown,
+): { status: number; error: string } | null {
   if (error instanceof MarkingQueryError) {
     return { status: error.status, error: error.message };
   }

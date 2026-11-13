@@ -4,6 +4,7 @@
 
 import { encodeFilters, type ColumnFilters } from "@/components/column-filters/types";
 import type { ListMarkingResult } from "@/modules/marking/service";
+import type { MarkingStatsSnapshot } from "@/modules/marking/stats";
 
 export type FetchMarkingResult =
   { ok: true; data: ListMarkingResult } | { ok: false; status: number; message: string };
@@ -31,6 +32,7 @@ function errorMessage(body: unknown, fallback: string): string {
 export function buildMarkingFacetsUrl(opts: {
   column: string;
   filters?: ColumnFilters;
+  phoneQ?: string;
   q?: string;
   limit?: number;
 }): string {
@@ -38,6 +40,7 @@ export function buildMarkingFacetsUrl(opts: {
   params.set("column", opts.column);
   const encoded = opts.filters ? encodeFilters(opts.filters) : null;
   if (encoded) params.set("filters", encoded);
+  if (opts.phoneQ?.trim()) params.set("phoneQ", opts.phoneQ.trim());
   if (opts.q?.trim()) params.set("q", opts.q.trim());
   if (opts.limit != null) params.set("limit", String(opts.limit));
   return `/api/marking/facets?${params.toString()}`;
@@ -46,11 +49,13 @@ export function buildMarkingFacetsUrl(opts: {
 export async function fetchMarkingList(opts: {
   pageSize?: number;
   filters?: ColumnFilters;
+  phoneQ?: string;
   cursor?: string;
 }): Promise<FetchMarkingResult> {
   const params = new URLSearchParams();
   if (opts.pageSize != null) params.set("pageSize", String(opts.pageSize));
   if (opts.cursor) params.set("cursor", opts.cursor);
+  if (opts.phoneQ?.trim()) params.set("phoneQ", opts.phoneQ.trim());
   const encoded = opts.filters ? encodeFilters(opts.filters) : null;
   if (encoded) params.set("filters", encoded);
   const res = await fetch(`/api/marking?${params.toString()}`, {
@@ -66,6 +71,29 @@ export async function fetchMarkingList(opts: {
     };
   }
   return { ok: true, data: body as ListMarkingResult };
+}
+
+export async function fetchMarkingStats(
+  month: string,
+): Promise<
+  | { ok: true; data: MarkingStatsSnapshot }
+  | { ok: false; status: number; message: string }
+> {
+  const params = new URLSearchParams();
+  params.set("month", month);
+  const res = await fetch(`/api/marking/stats?${params.toString()}`, {
+    method: "GET",
+    cache: "no-store",
+  });
+  const body = await readJson(res);
+  if (!res.ok) {
+    return {
+      ok: false,
+      status: res.status,
+      message: errorMessage(body, "Не удалось загрузить статистику маркировки"),
+    };
+  }
+  return { ok: true, data: body as MarkingStatsSnapshot };
 }
 
 export async function importMarkingFile(file: File): Promise<ImportMarkingResult> {

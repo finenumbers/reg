@@ -1,9 +1,9 @@
 import { requirePagePermission } from "@/modules/auth/guards";
-import { listMarkingRows } from "@/modules/marking/service";
+import { loadMarkingStatsPageInitial } from "@/modules/marking/stats";
 import { MarkingView } from "@/modules/marking/ui/marking-view";
 
 export default async function MarkingPage() {
   await requirePagePermission("phones:read");
-  const initial = await listMarkingRows({ pageSize: 100 });
-  return <MarkingView initial={initial} />;
+  const { initial, initialError } = await loadMarkingStatsPageInitial();
+  return <MarkingView initialStats={initial} initialStatsError={initialError} />;
 }

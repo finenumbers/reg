@@ -13,7 +13,7 @@ import {
   markingLabelsForPhonesSql,
   type MarkingPhoneLabelRow,
 } from "@/modules/marking/sql";
-import { loadOprsOperatorToneMap } from "@/modules/oprs/operator-tone-load";
+import { loadOprsToneReport } from "@/modules/oprs/operator-tone-load";
 import {
   OPRS_TONE_FIELD,
   oprsOperatorTone,
@@ -32,6 +32,9 @@ export const OPRS_NETWORK_LABEL: Record<OprsOperatorTone, string> = {
   yellow: "Билайн",
   gray: "Т2",
 };
+
+/** Unpainted, unblocked row. Used only when the operator map is complete. */
+export const OPRS_EXTERNAL_NETWORK = "Внешние сети";
 
 export type OprsCatalogLabels = {
   labelMts: string;
@@ -73,16 +76,21 @@ export function stampOprsRow(
     blocked: boolean;
     tones: OprsOperatorToneMap;
     labels: ReadonlyMap<string, OprsCatalogLabels>;
+    /** False keeps an unpainted cell blank. A failed or truncated map must not say «Внешние сети». */
+    labelUnpainted: boolean;
   },
 ): void {
   const tone = input.blocked
     ? null
     : oprsOperatorTone(data.operator_b ?? "", input.tones);
-  const network = oprsNetworkLabel(tone);
+  const brand = oprsNetworkLabel(tone);
+  const network = input.blocked
+    ? ""
+    : brand || (input.labelUnpainted ? OPRS_EXTERNAL_NETWORK : "");
   const phone = (data.bill_ani ?? "").trim();
   const picked = oprsCatalogCells(
-    network,
-    network && phone ? input.labels.get(phone) : undefined,
+    brand,
+    brand && phone ? input.labels.get(phone) : undefined,
   );
   data[OPRS_TONE_FIELD] = tone ?? "";
   data[OPRS_NETWORK_COLUMN] = network;
@@ -120,12 +128,19 @@ export async function attachOprsDerived(
   items: readonly { blocked?: boolean; data: Record<string, string> }[],
   context?: {
     tones?: OprsOperatorToneMap;
+    labelUnpainted?: boolean;
     /** When set, including an empty map, the catalog is not read again. */
     labels?: ReadonlyMap<string, OprsCatalogLabels>;
   },
 ): Promise<void> {
   if (items.length === 0) return;
-  const tones = context?.tones ?? (await loadOprsOperatorToneMap());
+  let tones = context?.tones;
+  let labelUnpainted = context?.labelUnpainted === true;
+  if (!tones) {
+    const report = await loadOprsToneReport();
+    tones = report.map;
+    labelUnpainted = report.labelUnpainted;
+  }
   const phones = new Set<string>();
   if (!context?.labels) {
     for (const item of items) {
@@ -149,6 +164,11 @@ export async function attachOprsDerived(
     }
   }
   for (const item of items) {
-    stampOprsRow(item.data, { blocked: item.blocked === true, tones, labels });
+    stampOprsRow(item.data, {
+      blocked: item.blocked === true,
+      tones,
+      labels,
+      labelUnpainted,
+    });
   }
 }

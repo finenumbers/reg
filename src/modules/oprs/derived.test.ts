@@ -58,6 +58,7 @@ describe("oprs network and catalog cells", () => {
       blocked: false,
       tones: { "ПАО МТС": "red" },
       labels: catalog,
+      labelUnpainted: true,
     });
     expect(painted[OPRS_TONE_FIELD]).toBe("red");
     expect(painted.oprs_network).toBe("МТС");
@@ -69,6 +70,7 @@ describe("oprs network and catalog cells", () => {
       blocked: false,
       tones: { "ПАО МТС": "gray" },
       labels: catalog,
+      labelUnpainted: true,
     });
     expect(padded.oprs_network).toBe("Т2");
     expect(padded.oprs_marking).toBe("т2-метка");
@@ -79,6 +81,7 @@ describe("oprs network and catalog cells", () => {
       blocked: true,
       tones: { "ПАО МТС": "red" },
       labels: catalog,
+      labelUnpainted: true,
     });
     expect(blocked[OPRS_TONE_FIELD]).toBe("");
     expect(blocked.oprs_network).toBe("");
@@ -90,6 +93,7 @@ describe("oprs network and catalog cells", () => {
       blocked: false,
       tones: { "ПАО МТС": "yellow" },
       labels: catalog,
+      labelUnpainted: true,
     });
     expect(missing.oprs_network).toBe("Билайн");
     expect(missing.oprs_marking).toBe("");
@@ -100,22 +104,30 @@ describe("oprs network and catalog cells", () => {
       blocked: false,
       tones: { "ПАО МТС": "green" },
       labels: catalog,
+      labelUnpainted: true,
     });
-    expect(blank.oprs_network).toBe("");
+    expect(blank.oprs_network).toBe("Внешние сети");
     expect(blank.oprs_marking).toBe("");
     expect(blank.oprs_mav).toBe("");
+
+    const held = row({ operator_b: "Чужой оператор" });
+    stampOprsRow(held, {
+      blocked: false,
+      tones: {},
+      labels: catalog,
+      labelUnpainted: false,
+    });
+    expect(held.oprs_network).toBe("");
+    expect(held.oprs_marking).toBe("");
   });
 
   it("paints from the supplied catalog and does not read it again", async () => {
     const painted = row();
     const blocked = row();
-    await attachOprsDerived(
-      [
-        { data: painted },
-        { blocked: true, data: blocked },
-      ],
-      { tones: { "ПАО МТС": "red" }, labels: catalog },
-    );
+    await attachOprsDerived([{ data: painted }, { blocked: true, data: blocked }], {
+      tones: { "ПАО МТС": "red" },
+      labels: catalog,
+    });
     expect(painted.oprs_network).toBe("МТС");
     expect(painted.oprs_marking).toBe("мтс-метка");
     expect(blocked.oprs_network).toBe("");

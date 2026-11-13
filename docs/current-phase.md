@@ -1,7 +1,17 @@
-# Current Phase — production (v1.270.0)
+# Current Phase — production (v1.271.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-13
+
+## v1.271.0 — Marking statistics and external networks
+
+There is no migration. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. Keep a single `app` replica. Stop the old app before the new one starts, then recreate only the `app` container. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged.
+
+«Звонки в ОПРС» writes «Внешние сети» in «Сеть» when the row is not blocked, the registry color map is complete, and the operator is not one of the four colors. A blocked row stays black, and «Сеть», «Маркировка», and «МАВ» stay empty. An empty or truncated color map leaves «Сеть» empty. Row colors do not change. The column filter and the XLSX file use that same text.
+
+«Маркировка и МАВ» opens on «Статистика Маркировки». The switch is at the right of the filter row and starts on. The month control lists calendar months, without call counts, and starts on the current month. The columns are «Клиент», «Количество номеров», «МТС», «Мегафон», «Билайн», «Т2», «Внешние сети», and «Итого». «Количество номеров» is how many of that client's numbers are on the marking screen. A network column counts that client's OPRS positions for the month whose «Сеть» is that value. «Итого» is the sum of the five counts, is bold, and is not a sort key. The five network headers sort descending, then by client, and a second click does not reverse the order. A blocked call is omitted. A call whose A-number is not on the marking screen stays on «Звонки в ОПРС» and is not in this table. The sum of «Итого» is not the OPRS row count. An incomplete color map, or a blocked-number catalog that cannot be read, does not build the table. An unpublished RTU screen shows the preparing sentence and does not scan CDR.
+
+Turning the switch off shows the marking list. «Телефонный номер» filters that list and the column menus, and the match is highlighted in «Номер». «Номер» is bold. «Сбросить фильтры» clears the search and the column filters. Export stays the whole catalog. An API key cannot call the page.
 
 ## v1.270.0 — OPRS column search
 

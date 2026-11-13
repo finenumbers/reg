@@ -69,6 +69,7 @@ async function mapRows(
   rows: OprsListRow[],
   paint?: {
     tones?: Awaited<ReturnType<typeof loadOprsReadContext>>["tones"];
+    labelUnpainted?: boolean;
     blocked?: Awaited<ReturnType<typeof loadBlockedNumbers>>;
     labels?: Awaited<ReturnType<typeof loadOprsReadContext>>["marking"];
   },
@@ -91,6 +92,7 @@ async function mapRows(
   }));
   await attachOprsDerived(items, {
     tones: paint?.tones,
+    labelUnpainted: paint?.labelUnpainted,
     ...(paint?.labels ? { labels: paint.labels } : {}),
   });
   return items;
@@ -161,7 +163,12 @@ export async function listOprs(
     mapRows(
       page.rows,
       ctx
-        ? { tones: ctx.tones, blocked: ctx.blocked, labels: ctx.marking }
+        ? {
+            tones: ctx.tones,
+            labelUnpainted: ctx.labelUnpainted,
+            blocked: ctx.blocked,
+            labels: ctx.marking,
+          }
         : undefined,
     ),
     counted

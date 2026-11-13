@@ -10,6 +10,7 @@ import {
   oprsStampedTone,
   oprsToneMap,
   oprsToneReport,
+  oprsUnpaintedLabelEnabled,
   type OprsOperatorTone,
 } from "@/modules/oprs/operator-tone";
 
@@ -23,6 +24,16 @@ function innChecksumOk(inn: string): boolean {
   );
   return (sum % 11) % 10 === Number(inn[9]);
 }
+
+describe("oprs unpainted label", () => {
+  it("stays off for an empty or truncated map", () => {
+    expect(oprsUnpaintedLabelEnabled({ map: {}, truncated: [] })).toBe(false);
+    expect(oprsUnpaintedLabelEnabled({ map: { МТС: "red" }, truncated: ["gray"] })).toBe(
+      false,
+    );
+    expect(oprsUnpaintedLabelEnabled({ map: { МТС: "red" }, truncated: [] })).toBe(true);
+  });
+});
 
 describe("oprs operator inns", () => {
   it("keeps the previous inns and adds the new ones under the color cap", () => {

@@ -15,11 +15,13 @@ export async function GET(request: Request) {
   const pageSize = Number(url.searchParams.get("pageSize") ?? "100");
   const filters = parseFiltersParam(url.searchParams.get("filters"));
   const cursor = url.searchParams.get("cursor");
+  const phoneQ = url.searchParams.get("phoneQ") ?? undefined;
 
   try {
     const data = await listMarkingRows({
       pageSize: Number.isFinite(pageSize) ? pageSize : 100,
       filters,
+      phoneQ,
       cursor,
     });
     return NextResponse.json(data);

@@ -9,6 +9,8 @@ import {
   markingExportSql,
   markingFilterSql,
   markingLabelsForPhonesSql,
+  markingPhoneSql,
+  markingScreenSql,
   markingListSql,
   markingSupplierSyncSql,
   markingWorkingCte,
@@ -184,5 +186,16 @@ describe("marking labels for OPRS phones", () => {
       ]),
     );
     expect(() => markingLabelsForPhonesSql([])).toThrow(/phone/);
+  });
+});
+
+describe("marking phone search", () => {
+  it("escapes like wildcards and refuses a long query", () => {
+    expect(markingPhoneSql("  ")).toBeNull();
+    const flat = flattenSql(markingScreenSql({ phoneQ: "100%_" }));
+    expect(flat.text).toContain("ILIKE");
+    expect(flat.text).toContain("ESCAPE");
+    expect(flat.values).toContain("%100\\%\\_%");
+    expect(() => markingPhoneSql("7".repeat(201))).toThrow("Некорректный номер");
   });
 });

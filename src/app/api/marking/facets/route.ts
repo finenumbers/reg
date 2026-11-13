@@ -22,12 +22,13 @@ export async function GET(request: Request) {
   }
 
   const filters = parseFiltersParam(url.searchParams.get("filters"));
+  const phoneQ = url.searchParams.get("phoneQ") ?? undefined;
   const q = url.searchParams.get("q") ?? undefined;
   const limitRaw = Number(url.searchParams.get("limit") ?? "200");
   const limit = Number.isFinite(limitRaw) ? limitRaw : 200;
 
   try {
-    const data = await listMarkingFacets({ column, filters, q, limit });
+    const data = await listMarkingFacets({ column, filters, phoneQ, q, limit });
     return NextResponse.json(data);
   } catch (error) {
     const mapped = mapMarkingReadError(error);

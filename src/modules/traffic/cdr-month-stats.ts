@@ -35,6 +35,11 @@ function cacheStore(): CacheStore {
   return g[KEY];
 }
 
+/** Bumped when a CDR import or purge finishes. Statistics keys its cache with this. */
+export function cdrDataGeneration(): number {
+  return minutesStore().generation;
+}
+
 export function invalidateCdrMonthCountCache(): void {
   cacheStore().slot = null;
   const minutes = minutesStore();

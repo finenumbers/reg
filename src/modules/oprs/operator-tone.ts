@@ -72,7 +72,14 @@ export type OprsToneConflict = {
   tones: OprsOperatorTone[];
 };
 
-/** The paint map, plus the tones and names the loader should warn about. */
+/** A blank or truncated registry read must not relabel every unpainted row. */
+export function oprsUnpaintedLabelEnabled(input: {
+  map: OprsOperatorToneMap;
+  truncated: readonly OprsOperatorTone[];
+}): boolean {
+  return input.truncated.length === 0 && Object.keys(input.map).length > 0;
+}
+
 export function oprsToneReport(groups: readonly OprsOperatorNameGroup[]): {
   map: OprsOperatorToneMap;
   truncated: OprsOperatorTone[];
