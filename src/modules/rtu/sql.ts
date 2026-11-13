@@ -405,7 +405,8 @@ export function pstnStatusSql(): Prisma.Sql {
   )`;
 }
 
-function operatorLabelSql(): Prisma.Sql {
+/** Screen text of «Оператор связи». The surrounding query must expose pstn_phone, pstn_found, and pstn_operator. */
+export function operatorLabelSql(): Prisma.Sql {
   return Prisma.sql`(
     CASE
       WHEN pstn_phone IS NULL THEN ''

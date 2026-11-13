@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { assertSameOrigin } from "@/lib/csrf";
 import { getRequestIp } from "@/lib/request-ip";
 import { AUDIT_ACTIONS, auditService } from "@/modules/audit/service";
-import { applyMarkingSnapshot, markingApplyHttpError } from "@/modules/marking/apply";
+import { applyMarkingLabels, markingApplyHttpError } from "@/modules/marking/apply";
 import {
   MARKING_PARSE_ERROR,
   parseMarkingXlsx,
@@ -15,8 +15,8 @@ export const runtime = "nodejs";
 const MAX_BYTES = 20 * 1024 * 1024;
 
 /**
- * POST /api/marking/import — replace the marking snapshot from an XLSX file.
- * Session + phones:read. API keys cannot call this.
+ * POST /api/marking/import — replace marking and MAV cells for the live number set.
+ * The file's phones must equal that set. Session + phones:read. API keys cannot call this.
  */
 export async function POST(request: Request) {
   const origin = assertSameOrigin(request);
@@ -79,9 +79,9 @@ export async function POST(request: Request) {
   }
 
   const filename = sanitizeMarkingFilename(file.name);
-  let applied: Awaited<ReturnType<typeof applyMarkingSnapshot>>;
+  let applied: Awaited<ReturnType<typeof applyMarkingLabels>>;
   try {
-    applied = await applyMarkingSnapshot(parsed.rows, filename);
+    applied = await applyMarkingLabels(parsed.rows, filename);
   } catch (error) {
     const mapped = markingApplyHttpError(error);
     if (mapped) {

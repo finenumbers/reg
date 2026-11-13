@@ -216,10 +216,12 @@ function swapDdl(token: string): string[] {
     rename("rtu_screen_activation_idx", `rtu_screen_activation_idx_${safe}`),
     rename("rtu_screen_missing_idx", `rtu_screen_missing_idx_${safe}`),
     rename("rtu_screen_number_trgm_idx", `rtu_screen_number_trgm_idx_${safe}`),
+    rename("rtu_screen_on_switch_idx", `rtu_screen_on_switch_idx_${safe}`),
     rename(`rtu_screen_b_${safe}_number_id_idx`, "rtu_screen_number_id_idx"),
     rename(`rtu_screen_b_${safe}_activation_idx`, "rtu_screen_activation_idx"),
     rename(`rtu_screen_b_${safe}_missing_idx`, "rtu_screen_missing_idx"),
     rename(`rtu_screen_b_${safe}_number_trgm_idx`, "rtu_screen_number_trgm_idx"),
+    rename(`rtu_screen_b_${safe}_on_switch_idx`, "rtu_screen_on_switch_idx"),
     `ALTER TABLE "rtu_screen" RENAME TO "${old}"`,
     `ALTER TABLE "${build}" RENAME TO "rtu_screen"`,
   ];
@@ -253,6 +255,9 @@ async function buildScreen(token: string): Promise<void> {
   );
   await prisma.$executeRawUnsafe(
     `CREATE INDEX "rtu_screen_b_${token}_number_trgm_idx" ON "${table}" USING gin ("number" gin_trgm_ops)`,
+  );
+  await prisma.$executeRawUnsafe(
+    `CREATE INDEX "rtu_screen_b_${token}_on_switch_idx" ON "${table}" ("number", "id") INCLUDE ("client", "pstnKey") WHERE NOT missing`,
   );
 }
 

@@ -1,7 +1,13 @@
-# Current Phase — production (v1.265.0)
+# Current Phase — production (v1.266.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-13
+
+## v1.266.0 — Marking numbers from RTU
+
+The migrator drops the unique key on `marking_rows.sortIndex` and adds `rtu_screen_on_switch_idx` for numbers that are on the switch. It does not rewrite phone, tariff, CDR, or PSTN rows. The migration is label-free, so startup does not rescan the CDR journal. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app, let migrate finish, then start one new app. Refresh the browser.
+
+«Маркировка и МАВ» lists the published «Управление РТУ» numbers that are on the switch, except where «Оператор связи» is «Нет в реестре МинЦифры». An empty operator stays. «Статус» «Нет в РТУ» stays out. «Номер» is the full screen number. «Клиент» is the screen description. The eight marking and MAV cells stay on the phone. A number that leaves the set disappears from the table and keeps its labels. Export downloads that whole set, and a filtered view does not change the file. Import writes those eight cells only when every phone in the file is in the set and every phone in the set is in the file. A missing phone, an unknown phone, a bad file, or a lock timeout leaves the labels unchanged. Nothing is written to the switch. RTU activation is unchanged.
 
 ## v1.265.0 — OPRS calls
 

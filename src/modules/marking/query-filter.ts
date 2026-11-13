@@ -6,6 +6,7 @@
 import {
   aggregateFacetItems,
   cellToFilterToken,
+  displayFacetValue,
   type ColumnFilters,
   type FacetResponse,
 } from "@/components/column-filters/types";
@@ -105,6 +106,30 @@ export function applyMarkingQuery(
   return applyColumnFilters(rows, query.filters ?? {}, {
     excludeColumn: query.excludeColumn,
   });
+}
+
+/** Facets from SQL groups. Empty text and NULL share one token. */
+export function markingFacetGroups(
+  groups: readonly { value: string | null; count: number }[],
+  opts: { q?: string; limit?: number },
+): FacetResponse {
+  const limit = Math.min(500, Math.max(1, opts.limit ?? 200));
+  const q = opts.q?.trim().toLowerCase() ?? "";
+  const counts = new Map<string, number>();
+  for (const group of groups) {
+    const token = cellToFilterToken(group.value ?? "");
+    counts.set(token, (counts.get(token) ?? 0) + (Number(group.count) || 0));
+  }
+  let items = [...counts.entries()].map(([value, count]) => ({ value, count }));
+  items.sort((a, b) => {
+    if (b.count !== a.count) return b.count - a.count;
+    return displayFacetValue(a.value).localeCompare(displayFacetValue(b.value), "ru");
+  });
+  if (q) {
+    items = items.filter((item) => displayFacetValue(item.value).toLowerCase().includes(q));
+  }
+  const truncated = items.length > limit;
+  return { items: truncated ? items.slice(0, limit) : items, truncated };
 }
 
 /** Facets for one column. Search runs on the full mutual set, then the limit. */

@@ -2,10 +2,12 @@
  * Parse a marking XLSX snapshot.
  * The header row must be MARKING_HEADERS, in that order.
  * The phone number is digits stored as text. A safe Excel integer is accepted.
- * Client is required text. Operator marking and MAV cells may be empty.
+ * Client may be empty. The phone is the exact screen text, up to 200 characters.
+ * Operator marking and MAV cells may be empty.
  */
 
 import ExcelJS from "exceljs";
+import { EXCEL_SHEET_MAX_DATA_ROWS } from "@/modules/table-export/xlsx-stream";
 
 export const MARKING_HEADERS = [
   "Клиент",
@@ -34,7 +36,7 @@ const OPTIONAL_FIELDS = [
 export const MARKING_PARSE_ERROR = "Файл не подходит для маркировки и МАВ";
 const MARKING_HEADER_ERROR = `В первой строке должны быть столбцы ${MARKING_HEADERS.map((name) => `«${name}»`).join(", ")} в этом порядке и больше ничего`;
 
-export const MARKING_MAX_ROWS = 50_000;
+export const MARKING_MAX_ROWS = EXCEL_SHEET_MAX_DATA_ROWS;
 export const MARKING_MAX_ERRORS = 30;
 const MAX_TEXT = 200;
 
@@ -132,13 +134,6 @@ function parseOptionalText(value: unknown): TextParse {
   return { ok: true, value: text };
 }
 
-function parseRequiredText(value: unknown): TextParse {
-  const parsed = parseOptionalText(value);
-  if (!parsed.ok) return parsed;
-  if (!parsed.value) return { ok: false, date: false };
-  return parsed;
-}
-
 type PhoneParse = { ok: true; value: string } | { ok: false; date: boolean };
 
 function parsePhone(value: unknown): PhoneParse {
@@ -154,7 +149,8 @@ function parsePhone(value: unknown): PhoneParse {
   } else {
     return { ok: false, date: false };
   }
-  if (!text || !/^\d{10,15}$/.test(text)) return { ok: false, date: false };
+  if (!text || text.length > MAX_TEXT) return { ok: false, date: false };
+  if (/[\u0000-\u001F\u007F]/.test(text)) return { ok: false, date: false };
   return { ok: true, value: text };
 }
 
@@ -222,7 +218,7 @@ export async function parseMarkingXlsx(
       return;
     }
 
-    const client = parseRequiredText(cells.get("Клиент"));
+    const client = parseOptionalText(cells.get("Клиент"));
     const phone = parsePhone(cells.get("Номер"));
     const optional = OPTIONAL_FIELDS.map(
       ([title, field]) => [field, title, parseOptionalText(cells.get(title))] as const,
@@ -232,14 +228,14 @@ export async function parseMarkingXlsx(
       push(
         client.date
           ? `Строка ${rowNumber}: «Клиент» — текстовый формат, иначе значение становится датой`
-          : `Строка ${rowNumber}: «Клиент» — непустой текст до ${MAX_TEXT} символов`,
+          : `Строка ${rowNumber}: «Клиент» — текст до ${MAX_TEXT} символов или пусто`,
       );
     }
     if (!phone.ok) {
       push(
         phone.date
           ? `Строка ${rowNumber}: «Номер» — текстовый или числовой формат, иначе значение становится датой`
-          : `Строка ${rowNumber}: «Номер» — от 10 до 15 цифр`,
+          : `Строка ${rowNumber}: «Номер» — непустой текст до ${MAX_TEXT} символов`,
       );
     }
     for (const [, title, parsed] of optional) {
@@ -263,7 +259,7 @@ export async function parseMarkingXlsx(
 
     const record: MarkingParsedRow = {
       sortIndex: rows.length,
-      client: client.value!,
+      client: client.value ?? "",
       phoneNumber: phone.value,
       labelMts: null,
       labelMegafon: null,

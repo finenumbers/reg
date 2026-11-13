@@ -91,6 +91,22 @@ describe("screen stamps", () => {
     expect(screenSwapFresh(live, { ...live, maskGeneration: 5 })).toBe(false);
   });
 
+  it("keeps the on-switch index through the screen swap", () => {
+    const source = readFileSync(
+      path.join(process.cwd(), "src/modules/rtu/screen-publish.ts"),
+      "utf8",
+    );
+    expect(source).toContain(
+      'CREATE INDEX "rtu_screen_b_${token}_on_switch_idx" ON "${table}" ("number", "id") INCLUDE ("client", "pstnKey") WHERE NOT missing',
+    );
+    expect(source).toContain(
+      'rename("rtu_screen_on_switch_idx", `rtu_screen_on_switch_idx_${safe}`)',
+    );
+    expect(source).toContain(
+      'rename(`rtu_screen_b_${safe}_on_switch_idx`, "rtu_screen_on_switch_idx")',
+    );
+  });
+
   it("writes the mask generation seen at the start of the build", () => {
     const source = readFileSync(
       path.join(process.cwd(), "src/modules/rtu/screen-publish.ts"),

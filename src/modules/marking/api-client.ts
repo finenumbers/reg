@@ -44,13 +44,13 @@ export function buildMarkingFacetsUrl(opts: {
 }
 
 export async function fetchMarkingList(opts: {
-  page?: number;
   pageSize?: number;
   filters?: ColumnFilters;
+  cursor?: string;
 }): Promise<FetchMarkingResult> {
   const params = new URLSearchParams();
-  if (opts.page != null) params.set("page", String(opts.page));
   if (opts.pageSize != null) params.set("pageSize", String(opts.pageSize));
+  if (opts.cursor) params.set("cursor", opts.cursor);
   const encoded = opts.filters ? encodeFilters(opts.filters) : null;
   if (encoded) params.set("filters", encoded);
   const res = await fetch(`/api/marking?${params.toString()}`, {

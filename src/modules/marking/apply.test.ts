@@ -26,4 +26,28 @@ describe("markingApplyHttpError", () => {
   it("leaves an unexpected error unmapped", () => {
     expect(markingApplyHttpError(new Error("disk"))).toBeNull();
   });
+
+  it("asks to retry when the RTU screen lock times out", () => {
+    expect(
+      markingApplyHttpError(
+        Object.assign(new Error("canceling statement due to lock timeout"), {
+          code: "55P03",
+        }),
+      ),
+    ).toEqual({
+      status: 409,
+      error: "Снимок «Управление РТУ» обновляется. Повторите.",
+      details: ["Снимок «Управление РТУ» обновляется. Повторите."],
+    });
+  });
+
+  it("asks to retry when the read exceeds the statement timeout", () => {
+    expect(
+      markingApplyHttpError(new Error("canceling statement due to statement timeout")),
+    ).toEqual({
+      status: 503,
+      error: "Не удалось прочитать набор. Повторите.",
+      details: ["Не удалось прочитать набор. Повторите."],
+    });
+  });
 });

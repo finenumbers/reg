@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
 import { XLSX_CONTENT_TYPE, xlsxContentDisposition } from "@/lib/xlsx-export";
+import { markingApplyHttpError } from "@/modules/marking/apply";
+import { mapMarkingReadError } from "@/modules/marking/service";
 import { buildMarkingExportXlsx } from "@/modules/marking/xlsx-export";
 import { requireTariffSession } from "@/modules/tariffs/guard";
 
 /**
- * GET /api/marking/export — full marking snapshot as XLSX.
+ * GET /api/marking/export — the whole working set as XLSX.
  * Session + phones:read. API keys are rejected.
- * Column filters are not applied: a filtered file would replace the catalog on import.
+ * Column filters are not applied: a partial file fails the import.
  */
 export async function GET() {
   const gate = await requireTariffSession();
@@ -23,6 +25,10 @@ export async function GET() {
       },
     });
   } catch (error) {
+    const mapped = mapMarkingReadError(error) ?? markingApplyHttpError(error);
+    if (mapped) {
+      return NextResponse.json({ error: mapped.error, code: "EXPORT_FAILED" }, { status: mapped.status });
+    }
     const message =
       error instanceof Error ? error.message : "Не удалось сформировать XLSX";
     return NextResponse.json({ error: message, code: "EXPORT_FAILED" }, { status: 500 });

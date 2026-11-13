@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/table";
 import { formatCount } from "@/lib/format-count";
 import { formatDisplayTimestamp } from "@/lib/format-display-time";
+import { geographyAppendAllowed } from "@/modules/rtu/paging";
 import { TABLE_PAGE_SIZE } from "@/lib/table-pagination";
 import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
 import {
@@ -52,21 +53,25 @@ function markingCellClass(id: MarkingColumnId): string | undefined {
 }
 
 function formatLoadedLine(
+  preparing: boolean,
   loadedAt: string | null,
   rowCount: number,
   timeZone: string,
 ): string {
-  if (!loadedAt) return "Данные ещё не загружены.";
-  return `Загружено: ${formatDisplayTimestamp(loadedAt, timeZone)}. Строк: ${formatCount(rowCount)}.`;
+  if (preparing) return "Снимок «Управление РТУ» ещё не собран.";
+  const count = `Номеров: ${formatCount(rowCount)}.`;
+  if (!loadedAt) return `${count} Метки ещё не загружались.`;
+  return `${count} Метки загружены: ${formatDisplayTimestamp(loadedAt, timeZone)}.`;
 }
 
 export function MarkingView({ initial }: { initial: ListMarkingResult }) {
   const { timeZone } = useDisplayTimezone();
   const [items, setItems] = useState<MarkingListItem[]>(initial.items);
   const [total, setTotal] = useState(initial.total);
-  const [page, setPage] = useState(initial.page);
   const [loadedAt, setLoadedAt] = useState(initial.loadedAt);
   const [rowCount, setRowCount] = useState(initial.rowCount);
+  const [preparing, setPreparing] = useState(initial.preparing);
+  const catalogStampRef = useRef(initial.catalogStamp);
   const [filters, setFilters] = useState<ColumnFilters>({});
   const [openColumn, setOpenColumn] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -89,12 +94,11 @@ export function MarkingView({ initial }: { initial: ListMarkingResult }) {
   });
 
   async function loadList(opts: {
-    page?: number;
     replace?: boolean;
     filters?: ColumnFilters;
+    cursor?: string;
   }) {
     const replace = opts.replace ?? true;
-    const nextPage = opts.page ?? (replace ? 1 : page);
     const nextFilters = opts.filters ?? filtersRef.current;
     const seq = ++refreshSeq.current;
 
@@ -109,9 +113,9 @@ export function MarkingView({ initial }: { initial: ListMarkingResult }) {
     setListError(null);
 
     const result = await fetchMarkingList({
-      page: nextPage,
       pageSize: PAGE_SIZE,
       filters: nextFilters,
+      cursor: replace ? undefined : opts.cursor,
     });
     if (seq !== refreshSeq.current) return;
 
@@ -119,7 +123,6 @@ export function MarkingView({ initial }: { initial: ListMarkingResult }) {
       if (replace) {
         setItems([]);
         setTotal(0);
-        setPage(1);
       }
       setListError(result.message);
       setLoading(false);
@@ -128,10 +131,16 @@ export function MarkingView({ initial }: { initial: ListMarkingResult }) {
       return;
     }
 
+    const nextStamp = result.data.catalogStamp;
+    if (!replace && !geographyAppendAllowed(catalogStampRef.current, nextStamp)) {
+      void loadListRef.current({ replace: true, filters: nextFilters });
+      return;
+    }
+    catalogStampRef.current = nextStamp;
     setTotal(result.data.total);
-    setPage(result.data.page);
     setLoadedAt(result.data.loadedAt);
     setRowCount(result.data.rowCount);
+    setPreparing(result.data.preparing);
     setItems((prev) => (replace ? result.data.items : [...prev, ...result.data.items]));
     setLoading(false);
     setLoadingMore(false);
@@ -145,8 +154,10 @@ export function MarkingView({ initial }: { initial: ListMarkingResult }) {
 
   const onLoadMore = useCallback(() => {
     if (!hasMore || loading || loadingMoreRef.current) return;
-    void loadListRef.current({ page: page + 1, replace: false });
-  }, [hasMore, loading, page]);
+    const cursor = items[items.length - 1]?.phoneNumber;
+    if (!cursor) return;
+    void loadListRef.current({ cursor, replace: false });
+  }, [hasMore, loading, items]);
 
   const sentinelRef = useInfiniteScroll({
     enabled: hasMore && !loading && !loadingMore && !listError,
@@ -158,7 +169,7 @@ export function MarkingView({ initial }: { initial: ListMarkingResult }) {
     filtersRef.current = next;
     setFilters(next);
     if (opts.closeDropdown) setOpenColumn(null);
-    void loadList({ filters: next, page: 1, replace: true });
+    void loadList({ filters: next, replace: true });
   }
 
   function onColumnFilterChange(column: string, values: string[]) {
@@ -195,13 +206,15 @@ export function MarkingView({ initial }: { initial: ListMarkingResult }) {
       return;
     }
     toast.success(`Загружено строк: ${formatCount(result.rowCount)}`);
-    await loadList({ page: 1, replace: true });
+    await loadList({ replace: true });
   }
 
   const showEmpty = !loading && items.length === 0;
-  const emptyMessage = filtersActive
-    ? "Нет строк по текущим фильтрам."
-    : "Нет данных. Нажмите «Импорт XLSX».";
+  const emptyMessage = preparing
+    ? "Снимок «Управление РТУ» ещё не собран."
+    : filtersActive
+      ? "Нет строк по текущим фильтрам."
+      : "Нет номеров в рабочем наборе.";
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
@@ -211,7 +224,7 @@ export function MarkingView({ initial }: { initial: ListMarkingResult }) {
             Маркировка и МАВ
           </h1>
           <p className="text-muted-foreground text-sm">
-            {formatLoadedLine(loadedAt, rowCount, timeZone)}
+            {formatLoadedLine(preparing, loadedAt, rowCount, timeZone)}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">

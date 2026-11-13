@@ -90,23 +90,27 @@ describe("parseMarkingXlsx", () => {
     expect(extra.ok).toBe(false);
   });
 
-  it("rejects a short phone, spaces, a fraction, and a missing client", async () => {
-    const bad = await parseMarkingXlsx(
+  it("keeps a short phone, a spaced phone, and an empty client", async () => {
+    const result = await parseMarkingXlsx(
       await workbook([
         header,
-        ["Клиент А", "123456789", ...emptyTail],
+        ["", "123", ...emptyTail],
         ["Клиент А", "7 000 000 0001", ...emptyTail],
-        ["Клиент А", 70000000001.5, ...emptyTail],
-        ["", "70000000002", ...emptyTail],
       ]),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.rows.map((row) => row.phoneNumber)).toEqual(["123", "7 000 000 0001"]);
+    expect(result.rows[0]?.client).toBe("");
+  });
+
+  it("rejects a fraction phone", async () => {
+    const bad = await parseMarkingXlsx(
+      await workbook([header, ["Клиент А", 70000000001.5, ...emptyTail]]),
     );
     expect(bad.ok).toBe(false);
     if (bad.ok) return;
-    expect(bad.details).toHaveLength(4);
-    expect(bad.details[0]).toMatch(/от 10 до 15 цифр/);
-    expect(bad.details[1]).toMatch(/от 10 до 15 цифр/);
-    expect(bad.details[2]).toMatch(/от 10 до 15 цифр/);
-    expect(bad.details[3]).toMatch(/Клиент/);
+    expect(bad.details[0]).toMatch(/Номер/);
   });
 
   it("rejects a repeated phone before any row is kept", async () => {
@@ -122,7 +126,7 @@ describe("parseMarkingXlsx", () => {
     expect(result.details).toEqual(["Строка 3: «Номер» повторяет строку 2"]);
   });
 
-  it("rejects a date, an unsafe exponent, text past 200 characters, and an empty sheet", async () => {
+  it("rejects a date, an unsafe number, text past 200 characters, and an empty sheet", async () => {
     const dated = new ExcelJS.Workbook();
     const sheet = dated.addWorksheet("Маркировка");
     header.forEach((name, index) => {
@@ -142,7 +146,14 @@ describe("parseMarkingXlsx", () => {
     const exponent = await parseMarkingXlsx(
       await workbook([header, ["Клиент А", "7.0000000001E10", ...emptyTail]]),
     );
-    expect(exponent.ok).toBe(false);
+    expect(exponent.ok).toBe(true);
+    if (!exponent.ok) return;
+    expect(exponent.rows[0]?.phoneNumber).toBe("7.0000000001E10");
+
+    const unsafe = await parseMarkingXlsx(
+      await workbook([header, ["Клиент А", 1e21, ...emptyTail]]),
+    );
+    expect(unsafe.ok).toBe(false);
 
     const long = await parseMarkingXlsx(
       await workbook([header, ["К".repeat(201), "70000000001", ...emptyTail]]),
@@ -159,7 +170,7 @@ describe("parseMarkingXlsx", () => {
 
   it("stops after 30 errors", async () => {
     const rows: unknown[][] = [header];
-    for (let i = 0; i < 40; i++) rows.push(["Клиент", "1", ...emptyTail]);
+    for (let i = 0; i < 40; i++) rows.push(["Клиент", "1".repeat(201), ...emptyTail]);
     const result = await parseMarkingXlsx(await workbook(rows));
     expect(result.ok).toBe(false);
     if (result.ok) return;
@@ -183,8 +194,8 @@ describe.skipIf(!realFile)("parseMarkingXlsx operator workbook", () => {
     if (!result.ok) return;
     expect(result.rows.length).toBeGreaterThan(0);
     for (const row of result.rows) {
-      expect(row.client.length).toBeGreaterThan(0);
-      expect(row.phoneNumber).toMatch(/^\d{10,15}$/);
+      expect(row.phoneNumber.length).toBeGreaterThan(0);
+      expect(row.phoneNumber.length).toBeLessThanOrEqual(200);
     }
   });
 });

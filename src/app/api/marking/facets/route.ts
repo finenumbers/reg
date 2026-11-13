@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { parseFiltersParam } from "@/components/column-filters/types";
 import { isMarkingColumn } from "@/modules/marking/query-filter";
-import { listMarkingFacets } from "@/modules/marking/service";
+import { listMarkingFacets, mapMarkingReadError } from "@/modules/marking/service";
 import { requireTariffSession } from "@/modules/tariffs/guard";
 
 /**
@@ -26,6 +26,14 @@ export async function GET(request: Request) {
   const limitRaw = Number(url.searchParams.get("limit") ?? "200");
   const limit = Number.isFinite(limitRaw) ? limitRaw : 200;
 
-  const data = await listMarkingFacets({ column, filters, q, limit });
-  return NextResponse.json(data);
+  try {
+    const data = await listMarkingFacets({ column, filters, q, limit });
+    return NextResponse.json(data);
+  } catch (error) {
+    const mapped = mapMarkingReadError(error);
+    if (mapped) {
+      return NextResponse.json({ error: mapped.error }, { status: mapped.status });
+    }
+    throw error;
+  }
 }

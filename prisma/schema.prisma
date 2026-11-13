@@ -429,6 +429,7 @@ model GeographyDidState {
 
 // Published rows of «Управление РТУ». Rebuilt beside this table, then swapped.
 // The GIN trigram index on number is created in SQL (pg_trgm).
+// rtu_screen_on_switch_idx is created in SQL. Screen publish recreates it.
 model RtuScreen {
   id         String  @id
   number     String
@@ -636,15 +637,16 @@ model NumberMaskImportState {
   @@map("number_mask_import_state")
 }
 
-/// Operator marking and MAV snapshot from an uploaded XLSX. Each import replaces every row.
+/// Operator marking and MAV labels, keyed by the full RTU number.
+/// The number list is the RTU working set. Import updates only these labels.
 /// Rating, geography, phone sync, and the RTU screen do not read this table.
 model MarkingRow {
   id           String  @id @default(cuid())
-  /// Order in the uploaded file (empty rows omitted).
+  /// Unused for order. New rows store 0.
   sortIndex    Int
-  /// «Клиент». Required text.
+  /// Unused for display. New rows store an empty string.
   client       String
-  /// «Номер». Digits only, stored as text.
+  /// Full RTU number, stored as text.
   phoneNumber  String
   /// «Маркировка МТС». Null when the cell is empty.
   labelMts     String?
@@ -663,7 +665,6 @@ model MarkingRow {
   /// «МАВ Т2». Null when the cell is empty.
   mavT2        String?
 
-  @@unique([sortIndex])
   @@unique([phoneNumber])
   @@map("marking_rows")
 }
@@ -671,7 +672,7 @@ model MarkingRow {
 model MarkingImportState {
   id         Int       @id @default(1)
   rowCount   Int       @default(0)
-  /// Incremented in the same transaction as a successful snapshot replace.
+  /// Incremented in the same statement as a successful label write.
   /// No screen reads this counter.
   generation Int       @default(0)
   filename   String?

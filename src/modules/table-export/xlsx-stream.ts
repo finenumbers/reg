@@ -64,6 +64,8 @@ export type StreamColumn = {
   header: string;
   /** Keep digit-like values as text so Excel does not drop a leading zero. */
   text?: boolean;
+  /** Write the text unchanged. A formula prefix would change the stored value. */
+  plain?: boolean;
   bold?: boolean;
   align?: "left" | "right";
 };
@@ -87,7 +89,8 @@ function sheetTitle(base: string, index: number): string {
 function cellValue(column: StreamColumn, raw: StreamCell): SpoolCell {
   if (raw == null || raw === "") return "";
   if (typeof raw === "number" && Number.isFinite(raw) && !column.text) return raw;
-  return guardExcelText(String(raw));
+  const text = String(raw);
+  return column.plain ? text : guardExcelText(text);
 }
 
 function encodeBatch(rows: readonly SpoolCell[][]): string {

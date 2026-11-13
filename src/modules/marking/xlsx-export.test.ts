@@ -9,6 +9,7 @@ import {
 import {
   buildMarkingExportWorkbook,
   markingExportCells,
+  spoolMarkingWorkbook,
 } from "@/modules/marking/xlsx-export";
 
 const sample = {
@@ -65,6 +66,33 @@ describe("marking XLSX export", () => {
       (_, index) => sheet?.getRow(1).getCell(index + 1).value,
     );
     expect(headers).toEqual([...MARKING_HEADERS]);
+  });
+});
+
+describe("marking streamed export", () => {
+  it("round-trips an empty client, a short phone, and a plain number", async () => {
+    const buffer = await spoolMarkingWorkbook([
+      {
+        client: "",
+        phoneNumber: "0123",
+        labelMts: null,
+        labelMegafon: "=name",
+        labelBeeline: null,
+        labelT2: null,
+        mavMts: null,
+        mavMegafon: null,
+        mavBeeline: null,
+        mavT2: null,
+      },
+    ]);
+    const parsed = await parseMarkingXlsx(buffer);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.rows[0]).toMatchObject({
+      client: "",
+      phoneNumber: "0123",
+      labelMegafon: "'=name",
+    });
   });
 });
 
