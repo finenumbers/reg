@@ -58,7 +58,7 @@ import type { MarkingListItem } from "@/modules/marking/service";
 import type { MarkingStatsSnapshot } from "@/modules/marking/stats";
 import {
   sortMarkingStatsRows,
-  type MarkingStatsNetworkSort,
+  type MarkingStatsSortKey,
 } from "@/modules/marking/stats-sort";
 import { MarkingStatsTable } from "@/modules/marking/ui/marking-stats-table";
 import { markingStatsFailureClearsRows } from "@/modules/marking/stats-hold";
@@ -94,7 +94,7 @@ export function MarkingView({
   const [stats, setStats] = useState(initialStats);
   const [statsError, setStatsError] = useState<string | null>(initialStatsError);
   const [statsLoading, setStatsLoading] = useState(false);
-  const [sortKey, setSortKey] = useState<MarkingStatsNetworkSort | null>(null);
+  const [sortKey, setSortKey] = useState<MarkingStatsSortKey | null>(null);
   const [shown, setShown] = useState(TABLE_PAGE_SIZE);
 
   const [items, setItems] = useState<MarkingListItem[]>([]);
@@ -365,7 +365,7 @@ export function MarkingView({
     }
   }
 
-  function onSort(next: MarkingStatsNetworkSort) {
+  function onSort(next: MarkingStatsSortKey) {
     setSortKey(next);
     setShown(TABLE_PAGE_SIZE);
   }
@@ -516,7 +516,7 @@ export function MarkingView({
             htmlFor="marking-stats"
             className={`${FILTER_TOOLBAR_TEXT} whitespace-nowrap`}
           >
-            Статистика Маркировки
+            Статистика маркировки
           </Label>
           <Switch id="marking-stats" checked={statsOn} onCheckedChange={onStatsChange} />
         </div>

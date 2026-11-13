@@ -3,6 +3,11 @@
  * Display formats (civil date, duration seconds) must still find stored values.
  */
 
+import {
+  EMPTY_FILTER_TOKEN,
+  facetQueryMatchesEmptyLabel,
+} from "@/components/column-filters/types";
+
 const DURATION_COLUMNS = new Set(["elapsed_time", "term_elapsed_time"]);
 const COUNT_SEP = /[\u202F\s]/g;
 const MAX_DISPLAYED_SECONDS = 86_400;
@@ -13,8 +18,7 @@ const MONTH_YEAR = /^(\d{1,2})\.(\d{4})$/;
 const DAY_MONTH = /^(\d{1,2})\.(\d{1,2})$/;
 
 export type FacetSearchMatch =
-  | { kind: "contains"; needles: string[] }
-  | { kind: "in"; values: string[] };
+  { kind: "contains"; needles: string[] } | { kind: "in"; values: string[] };
 
 export function isDurationFacetColumn(column: string): boolean {
   return DURATION_COLUMNS.has(column);
@@ -152,6 +156,25 @@ export function facetSearchMatch(column: string, q: string): FacetSearchMatch {
   }
 
   return { kind: "contains", needles: [trimmed] };
+}
+
+/**
+ * Same group match as the facet SQL. The value is the stored token.
+ * `%` and `_` stay letters, matching the escaped ILIKE needle.
+ */
+export function facetValueMatches(column: string, value: string, q: string): boolean {
+  const query = q.trim();
+  if (!query) return true;
+  const token = value === EMPTY_FILTER_TOKEN ? "" : value;
+  const match = facetSearchMatch(column, query);
+  const empty = facetQueryMatchesEmptyLabel(query);
+  if (match.kind === "in") {
+    return match.values.includes(token) || (empty && token === "");
+  }
+  const folded = token.toLowerCase();
+  const hit = match.needles.some((needle) => folded.includes(needle.toLowerCase()));
+  if (hit) return true;
+  return empty && token === "";
 }
 
 function pad2(n: number): string {

@@ -84,4 +84,28 @@ describe("loadBlockedNumbers", () => {
     expect(numberIsBlocked(await loadBlockedNumbers(), "100")).toBe(true);
     expect(queryRaw).toHaveBeenCalledTimes(2);
   });
+
+  it("shares one catalog read while the first is still running", async () => {
+    findState.mockResolvedValue({ lastSyncedAt: STAMP });
+    let release: (rows: Array<{ number: string }>) => void = () => {};
+    let started!: () => void;
+    const queryStarted = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    queryRaw.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          release = resolve;
+          started();
+        }),
+    );
+    const first = loadBlockedNumbers();
+    const second = loadBlockedNumbers();
+    await queryStarted;
+    release([{ number: "100" }]);
+    const [a, b] = await Promise.all([first, second]);
+    expect(a).toBe(b);
+    expect(numberIsBlocked(a, "100")).toBe(true);
+    expect(queryRaw).toHaveBeenCalledTimes(1);
+  });
 });

@@ -5,15 +5,14 @@ import {
   cdrTimeSearchNeedles,
   displayDateQueryToRaw,
   facetSearchMatch,
+  facetValueMatches,
   millisecondTokensForDisplayedSeconds,
   parseDisplayedSeconds,
 } from "@/modules/traffic/facet-search";
 
 describe("displayDateQueryToRaw", () => {
   it("maps display date and time to the stored civil string", () => {
-    expect(displayDateQueryToRaw("28.12.2026, 01:23:43")).toBe(
-      "2026-12-28 01:23:43",
-    );
+    expect(displayDateQueryToRaw("28.12.2026, 01:23:43")).toBe("2026-12-28 01:23:43");
     expect(displayDateQueryToRaw("28.12.2026, 01:23")).toBe("2026-12-28 01:23");
     expect(displayDateQueryToRaw("28.12.2026")).toBe("2026-12-28");
     expect(displayDateQueryToRaw("8.2.2026")).toBe("2026-02-08");
@@ -33,10 +32,7 @@ describe("displayDateQueryToRaw", () => {
 
 describe("cdrDateSearchNeedles", () => {
   it("keeps the raw query and adds a mapped display fragment", () => {
-    expect(cdrDateSearchNeedles("28.12.2026")).toEqual([
-      "28.12.2026",
-      "2026-12-28",
-    ]);
+    expect(cdrDateSearchNeedles("28.12.2026")).toEqual(["28.12.2026", "2026-12-28"]);
     expect(cdrDateSearchNeedles("2026-12-28")).toEqual(["2026-12-28"]);
     expect(cdrDateSearchNeedles("01:23")).toEqual(["01:23"]);
   });
@@ -62,10 +58,7 @@ describe("duration display seconds", () => {
 
 describe("cdrDaySearchNeedles", () => {
   it("maps display date without keeping a time suffix", () => {
-    expect(cdrDaySearchNeedles("28.12.2026")).toEqual([
-      "28.12.2026",
-      "2026-12-28",
-    ]);
+    expect(cdrDaySearchNeedles("28.12.2026")).toEqual(["28.12.2026", "2026-12-28"]);
     expect(cdrDaySearchNeedles("28.12.2026, 01:23:43")).toEqual([
       "28.12.2026, 01:23:43",
       "2026-12-28",
@@ -132,5 +125,21 @@ describe("facetSearchMatch", () => {
       kind: "contains",
       needles: ["МТС"],
     });
+  });
+});
+
+describe("facetValueMatches", () => {
+  it("uses the same date, duration, empty, and letter rules as the server", () => {
+    expect(facetValueMatches("cdr_date", "2026-11-13 10:00:00", "13.11")).toBe(true);
+    expect(facetValueMatches("cdr_date", "2026-11-13 10:00:00", "2026-11-13")).toBe(true);
+    expect(facetValueMatches("cdr_date", "2026-11-12 10:00:00", "13.11")).toBe(false);
+    expect(facetValueMatches("elapsed_time", "9001", "10")).toBe(true);
+    expect(facetValueMatches("elapsed_time", "10000", "10")).toBe(true);
+    expect(facetValueMatches("elapsed_time", "9000", "10")).toBe(false);
+    expect(facetValueMatches("side_a", "__empty__", "пусто")).toBe(true);
+    expect(facetValueMatches("side_a", "МТС", "мтс")).toBe(true);
+    expect(facetValueMatches("side_a", "100%", "100%")).toBe(true);
+    expect(facetValueMatches("side_a", "1000", "100%")).toBe(false);
+    expect(facetValueMatches("side_a", "axb", "a_b")).toBe(false);
   });
 });

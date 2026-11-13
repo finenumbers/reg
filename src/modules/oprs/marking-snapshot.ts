@@ -6,10 +6,7 @@
 
 import { prisma } from "@/lib/db";
 import { logger } from "@/lib/logger";
-import {
-  markingWorkingCte,
-  type MarkingPhoneLabelRow,
-} from "@/modules/marking/sql";
+import { markingWorkingCte, type MarkingPhoneLabelRow } from "@/modules/marking/sql";
 import type { OprsCatalogLabels } from "@/modules/oprs/derived";
 
 function labelsFromRow(row: MarkingPhoneLabelRow): OprsCatalogLabels {
@@ -38,7 +35,9 @@ function hasText(cells: OprsCatalogLabels): boolean {
   );
 }
 
-export async function loadOprsMarkingSnapshot(): Promise<Map<string, OprsCatalogLabels>> {
+let inflight: Promise<Map<string, OprsCatalogLabels>> | null = null;
+
+async function readOprsMarkingSnapshot(): Promise<Map<string, OprsCatalogLabels>> {
   try {
     const rows = await prisma.$queryRaw<MarkingPhoneLabelRow[]>`
       WITH ${markingWorkingCte()}
@@ -69,4 +68,13 @@ export async function loadOprsMarkingSnapshot(): Promise<Map<string, OprsCatalog
     });
     return new Map();
   }
+}
+
+/** Concurrent callers share one catalog read. The result is not cached. */
+export function loadOprsMarkingSnapshot(): Promise<Map<string, OprsCatalogLabels>> {
+  if (inflight) return inflight;
+  inflight = readOprsMarkingSnapshot().finally(() => {
+    inflight = null;
+  });
+  return inflight;
 }

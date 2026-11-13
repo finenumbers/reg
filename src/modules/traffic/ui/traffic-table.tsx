@@ -19,6 +19,7 @@ import {
   VOIPMONITOR_COLUMN_SET,
 } from "@/modules/traffic/columns";
 import { buildTrafficFacetsUrl } from "@/modules/traffic/api-client";
+import { facetValueMatches } from "@/modules/traffic/facet-search";
 import type { TrafficListItem } from "@/modules/traffic/service";
 import {
   OPRS_TONE_FIELD,
@@ -147,6 +148,11 @@ export function TrafficTable({
                         })
                   }
                   formatValue={(value) => displayTrafficFacet(h, value)}
+                  matchFacet={
+                    oprs
+                      ? (value, query) => facetValueMatches(h, value, query)
+                      : undefined
+                  }
                   onToggle={() => onOpenColumnChange(openColumn === h ? null : h)}
                   onChange={(values) => onColumnFilterChange(h, values)}
                   onClear={() => onColumnFilterChange(h, [])}

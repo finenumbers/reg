@@ -1,7 +1,15 @@
-# Current Phase — production (v1.273.0)
+# Current Phase — production (v1.274.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-13
+
+## v1.274.0 — OPRS menus and marking statistics
+
+There is no migration. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. Keep a single `app` replica. Stop the old app before the new one starts, then recreate only the `app` container. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged.
+
+«Звонки в ОПРС» keeps the values already shown in an open column menu while the next list is read. A newer import snapshot does not rebuild that menu. Those counts can lag until the menu is closed or the search has to ask the server. When the server returned every group, further typing filters that list on the page. The date, duration, and «(пусто)» rules stay the same, and `%` and `_` stay letters. A list that was cut at 200 still asks the server, and only the latest text is sent. At most two of those OPRS reads run at once. Other screens keep their own search rules. Their menus also keep the loaded values and send only the latest text.
+
+The switch on «Маркировка и МАВ» reads «Статистика маркировки». «Итого» sorts descending, then by client, and a second click does not reverse the order. «Количество номеров» is as wide as its header. «МТС», «Мегафон», «Билайн», and «Т2» share the width of the phrase «Внешние сети». The «Внешние сети» column stays 132 pixels wide and «Итого» stays 88.
 
 ## v1.273.0 — Marking statistics after a finished month delete
 

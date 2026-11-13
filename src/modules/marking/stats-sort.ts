@@ -1,6 +1,6 @@
 /**
- * Client order, or one network column descending with the client as the tie break.
- * «Итого» and «Количество номеров» are not sort keys.
+ * Client order, or one count column descending with the client as the tie break.
+ * «Итого» is a sort key. «Количество номеров» is not.
  */
 
 import { compareClients } from "@/modules/detail/sort";
@@ -15,6 +15,8 @@ export const MARKING_STATS_NETWORK_SORTS = [
 
 export type MarkingStatsNetworkSort = (typeof MARKING_STATS_NETWORK_SORTS)[number];
 
+export type MarkingStatsSortKey = MarkingStatsNetworkSort | "total";
+
 export type MarkingStatsRow = {
   client: string;
   numbers: number;
@@ -28,7 +30,7 @@ export type MarkingStatsRow = {
 
 export function sortMarkingStatsRows(
   rows: readonly MarkingStatsRow[],
-  key: MarkingStatsNetworkSort | null,
+  key: MarkingStatsSortKey | null,
 ): MarkingStatsRow[] {
   const copy = rows.slice();
   if (key == null) {

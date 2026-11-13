@@ -15,6 +15,7 @@ import {
   MARKING_STATS_NETWORK_SORTS,
   type MarkingStatsNetworkSort,
   type MarkingStatsRow,
+  type MarkingStatsSortKey,
 } from "@/modules/marking/stats-sort";
 
 const SORT_BTN =
@@ -28,13 +29,48 @@ const NUMBERS_COL_PX = 168;
 const NETWORK_COL_PX = 132;
 const TOTAL_COL_PX = 88;
 
+const NUMBERS_HEADER = "Количество номеров";
+const BRAND_WIDTH_HEADER = "Внешние сети";
+const BRAND_SORTS = [
+  "mts",
+  "megafon",
+  "beeline",
+  "t2",
+] as const satisfies readonly MarkingStatsNetworkSort[];
+
 const NETWORK_HEADERS: Record<MarkingStatsNetworkSort, string> = {
   mts: "МТС",
   megafon: "Мегафон",
   beeline: "Билайн",
   t2: "Т2",
-  external: "Внешние сети",
+  external: BRAND_WIDTH_HEADER,
 };
+
+function SortHeader({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <TableHead
+      className="text-right font-medium whitespace-nowrap"
+      aria-sort={active ? "descending" : "none"}
+    >
+      <button
+        type="button"
+        className={cn(SORT_BTN, active && SORT_ACTIVE)}
+        aria-pressed={active}
+        onClick={onClick}
+      >
+        {label}
+      </button>
+    </TableHead>
+  );
+}
 
 export function MarkingStatsTable({
   rows,
@@ -43,12 +79,16 @@ export function MarkingStatsTable({
   preparing,
 }: {
   rows: readonly MarkingStatsRow[];
-  sortKey: MarkingStatsNetworkSort | null;
-  onSort: (key: MarkingStatsNetworkSort) => void;
+  sortKey: MarkingStatsSortKey | null;
+  onSort: (key: MarkingStatsSortKey) => void;
   preparing: boolean;
 }) {
   const measureRef = useRef<HTMLSpanElement>(null);
+  const numbersRef = useRef<HTMLSpanElement>(null);
+  const brandRef = useRef<HTMLSpanElement>(null);
   const [clientColPx, setClientColPx] = useState(CLIENT_COL_MIN_PX);
+  const [numbersColPx, setNumbersColPx] = useState(NUMBERS_COL_PX);
+  const [brandColPx, setBrandColPx] = useState(NETWORK_COL_PX);
   const longestClient = useMemo(() => {
     return rows.reduce(
       (best, row) => (row.client.length > best.length ? row.client : best),
@@ -61,10 +101,18 @@ export function MarkingStatsTable({
     setClientColPx(Math.max(CLIENT_COL_MIN_PX, measured + CLIENT_CELL_PAD_PX));
   }, [longestClient]);
 
+  useLayoutEffect(() => {
+    const numbers = numbersRef.current?.offsetWidth ?? 0;
+    const brand = brandRef.current?.offsetWidth ?? 0;
+    setNumbersColPx(numbers > 0 ? numbers + CLIENT_CELL_PAD_PX : NUMBERS_COL_PX);
+    setBrandColPx(brand > 0 ? brand + CLIENT_CELL_PAD_PX : NETWORK_COL_PX);
+  }, []);
+
   const tableWidth =
     clientColPx +
-    NUMBERS_COL_PX +
-    MARKING_STATS_NETWORK_SORTS.length * NETWORK_COL_PX +
+    numbersColPx +
+    BRAND_SORTS.length * brandColPx +
+    NETWORK_COL_PX +
     TOTAL_COL_PX;
 
   return (
@@ -76,40 +124,54 @@ export function MarkingStatsTable({
       >
         {longestClient}
       </span>
+      <span
+        ref={numbersRef}
+        aria-hidden
+        className="invisible absolute text-xs font-medium whitespace-nowrap"
+      >
+        {NUMBERS_HEADER}
+      </span>
+      <span
+        ref={brandRef}
+        aria-hidden
+        className="invisible absolute text-xs font-medium whitespace-nowrap"
+      >
+        {BRAND_WIDTH_HEADER}
+      </span>
       <Table className="table-fixed" style={{ width: tableWidth }}>
         <colgroup>
           <col style={{ width: clientColPx }} />
-          <col style={{ width: NUMBERS_COL_PX }} />
-          {MARKING_STATS_NETWORK_SORTS.map((key) => (
-            <col key={key} style={{ width: NETWORK_COL_PX }} />
+          <col style={{ width: numbersColPx }} />
+          {BRAND_SORTS.map((key) => (
+            <col key={key} style={{ width: brandColPx }} />
           ))}
+          <col style={{ width: NETWORK_COL_PX }} />
           <col style={{ width: TOTAL_COL_PX }} />
         </colgroup>
         <TableHeader>
           <TableRow>
             <TableHead className="font-medium">Клиент</TableHead>
             <TableHead className="text-right font-medium whitespace-nowrap">
-              Количество номеров
+              {NUMBERS_HEADER}
             </TableHead>
-            {MARKING_STATS_NETWORK_SORTS.map((key) => (
-              <TableHead
+            {BRAND_SORTS.map((key) => (
+              <SortHeader
                 key={key}
-                className="text-right font-medium whitespace-nowrap"
-                aria-sort={sortKey === key ? "descending" : "none"}
-              >
-                <button
-                  type="button"
-                  className={cn(SORT_BTN, sortKey === key && SORT_ACTIVE)}
-                  aria-pressed={sortKey === key}
-                  onClick={() => onSort(key)}
-                >
-                  {NETWORK_HEADERS[key]}
-                </button>
-              </TableHead>
+                label={NETWORK_HEADERS[key]}
+                active={sortKey === key}
+                onClick={() => onSort(key)}
+              />
             ))}
-            <TableHead className="text-right font-medium whitespace-nowrap">
-              Итого
-            </TableHead>
+            <SortHeader
+              label={NETWORK_HEADERS.external}
+              active={sortKey === "external"}
+              onClick={() => onSort("external")}
+            />
+            <SortHeader
+              label="Итого"
+              active={sortKey === "total"}
+              onClick={() => onSort("total")}
+            />
           </TableRow>
         </TableHeader>
         <TableBody>

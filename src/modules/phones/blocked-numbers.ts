@@ -21,6 +21,7 @@ type CacheEntry = {
 };
 
 let cached: CacheEntry | null = null;
+let loadInflight: Promise<BlockedNumberIndex> | null = null;
 
 export function emptyBlockedNumberIndex(): BlockedNumberIndex {
   return { exact: new Set(), pstn: new Set() };
@@ -28,6 +29,7 @@ export function emptyBlockedNumberIndex(): BlockedNumberIndex {
 
 export function resetBlockedNumberCacheForTests(): void {
   cached = null;
+  loadInflight = null;
 }
 
 export function buildBlockedNumberIndex(numbers: readonly string[]): BlockedNumberIndex {
@@ -88,11 +90,7 @@ async function queryBlockedNumberIndex(): Promise<BlockedNumberRead> {
   return { stamp, index };
 }
 
-/**
- * One catalog read per phone sync per process.
- * A failed read is not cached and does not throw: the list still opens, uncolored.
- */
-export async function loadBlockedNumbers(): Promise<BlockedNumberIndex> {
+async function readBlockedNumbers(): Promise<BlockedNumberIndex> {
   try {
     return (await queryBlockedNumberIndex()).index;
   } catch (error) {
@@ -101,6 +99,18 @@ export async function loadBlockedNumbers(): Promise<BlockedNumberIndex> {
     });
     return emptyBlockedNumberIndex();
   }
+}
+
+/**
+ * One catalog read per phone sync per process.
+ * Overlapping callers share that read. A failed read is not cached and does not throw.
+ */
+export function loadBlockedNumbers(): Promise<BlockedNumberIndex> {
+  if (loadInflight) return loadInflight;
+  loadInflight = readBlockedNumbers().finally(() => {
+    loadInflight = null;
+  });
+  return loadInflight;
 }
 
 /** A failed read throws. An empty successful catalog is a real empty index. */

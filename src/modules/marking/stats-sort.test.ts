@@ -70,6 +70,21 @@ describe("marking stats rows", () => {
       "А",
       "Б",
     ]);
+    expect(sortMarkingStatsRows(rows, "total").map((item) => item.client)).toEqual([
+      "Я",
+      "Б",
+      "А",
+    ]);
+    const tied = [
+      row({ client: "Я", total: 5 }),
+      row({ client: "А", total: 5 }),
+      row({ client: "Б", total: 1 }),
+    ];
+    expect(sortMarkingStatsRows(tied, "total").map((item) => item.client)).toEqual([
+      "А",
+      "Я",
+      "Б",
+    ]);
   });
 
   it("rejects a bad month and keeps a snapshot only while the data generation holds", () => {
