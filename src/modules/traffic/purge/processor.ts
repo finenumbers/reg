@@ -60,6 +60,8 @@ import {
   clearPurgeContinuationFlags,
 } from "@/modules/traffic/purge/resume";
 import {
+  getPurgeTargetMonth,
+  markPurgeCallsCleared,
   notePurgeBatchCommitted,
   purgeDeleteCommitted,
   setPurgeTargetMonth,
@@ -790,6 +792,8 @@ export async function processCdrPurgeMonth(
         requestCdrImportDrain("schedule");
         requestSmgImportDrain("schedule");
       }
+    } else if (succeeded && month && getPurgeTargetMonth() === month) {
+      markPurgeCallsCleared(month);
     }
     await failJobRunIfStillRunning(
       jobRun.id,

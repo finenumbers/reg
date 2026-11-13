@@ -108,6 +108,7 @@ import {
 } from "@/modules/traffic/purge/processor";
 import {
   getPurgeTargetMonth,
+  purgeCallsCleared,
   purgeDeleteCommitted,
   resetPurgeTargetForTests,
 } from "@/modules/traffic/purge/target";
@@ -283,6 +284,7 @@ describe("processCdrPurgeMonth historyOnly", () => {
     expect(clearPurgeHolds).not.toHaveBeenCalled();
     expect(requestCdrImportDrain).not.toHaveBeenCalled();
     expect(getPurgeTargetMonth()).toBe("2026-08");
+    expect(purgeCallsCleared("2026-08")).toBe(true);
   });
 
   it("releases the hold when history finishes without deleting a batch", async () => {
@@ -296,6 +298,7 @@ describe("processCdrPurgeMonth historyOnly", () => {
     expect(forgetMarkingStatsMonth).toHaveBeenCalledWith("2026-08");
     expect(clearPurgeHolds).toHaveBeenCalledWith("2026-08");
     expect(getPurgeTargetMonth()).toBeNull();
+    expect(purgeCallsCleared("2026-08")).toBe(false);
     expect(purgeDeleteCommitted()).toBe(false);
   });
 
@@ -317,6 +320,7 @@ describe("processCdrPurgeMonth historyOnly", () => {
     expect(clearPurgeHolds).not.toHaveBeenCalled();
     expect(getPurgeTargetMonth()).toBe("2026-08");
     expect(purgeDeleteCommitted()).toBe(true);
+    expect(purgeCallsCleared("2026-08")).toBe(false);
 
     queryRaw.mockResolvedValue([]);
     const second = await processCdrPurgeMonth({
@@ -388,6 +392,7 @@ describe("processCdrPurgeMonth resumeCalls", () => {
     expect(importedAt).toBeGreaterThan(clearedAt);
     expect(clearPurgeHolds).toHaveBeenCalledWith("2026-08");
     expect(getPurgeTargetMonth()).toBeNull();
+    expect(purgeCallsCleared("2026-08")).toBe(false);
   });
 
   it("keeps the hold when continuation fails before a new delete", async () => {
@@ -403,6 +408,7 @@ describe("processCdrPurgeMonth resumeCalls", () => {
     expect(queryMonthCallCounts).not.toHaveBeenCalled();
     expect(clearPurgeHolds).not.toHaveBeenCalled();
     expect(getPurgeTargetMonth()).toBe("2026-08");
+    expect(purgeCallsCleared("2026-08")).toBe(false);
   });
 
   it("keeps continueDelete when a committed call batch is followed by a failure", async () => {
@@ -433,6 +439,7 @@ describe("processCdrPurgeMonth resumeCalls", () => {
       }),
     );
     expect(clearPurgeHolds).not.toHaveBeenCalled();
+    expect(purgeCallsCleared("2026-08")).toBe(false);
   });
 
   it("retries a lock timeout and then deletes the batch", async () => {

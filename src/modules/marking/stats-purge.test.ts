@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { markingStatsFailureClearsRows } from "@/modules/marking/stats-hold";
 import {
   getPurgeTargetMonth,
+  markPurgeCallsCleared,
   PURGE_MONTH_BUSY_MESSAGE,
   resetPurgeTargetForTests,
   setPurgeTargetMonth,
@@ -57,6 +58,7 @@ import {
 
 const NOW = new Date("2026-11-13T00:00:00.000Z");
 const AUGUST = { year: 2026, month: 8, key: "2026-08" };
+const SEPTEMBER = { year: 2026, month: 9, key: "2026-09" };
 const NOVEMBER = { year: 2026, month: 11, key: "2026-11" };
 
 function countedRow() {
@@ -185,6 +187,64 @@ describe("marking stats during a month purge", () => {
     expect(snapshot.month).toBe("2026-11");
     expect(snapshot.rows).toEqual([]);
     expect(snapshot.months.map((item) => item.key)).not.toContain("2026-08");
+  });
+
+  it("does not read CDR while a held month is still being deleted", async () => {
+    setPurgeTargetMonth("2026-08");
+    await expect(listMarkingStats("2026-08", NOW)).rejects.toMatchObject({
+      status: 503,
+      message: PURGE_MONTH_BUSY_MESSAGE,
+    });
+    expect(listCachedMonthCounts).not.toHaveBeenCalled();
+    expect(queryRaw).not.toHaveBeenCalled();
+    expect(readRtuScreenGate).not.toHaveBeenCalled();
+  });
+
+  it("opens the current month after a finished purge keeps the hold", async () => {
+    listCachedMonthCounts.mockResolvedValue([NOVEMBER, AUGUST]);
+    setPurgeTargetMonth("2026-08");
+    markPurgeCallsCleared("2026-08");
+    const snapshot = await listMarkingStats("2026-08", NOW);
+    expect(snapshot.month).toBe("2026-11");
+    expect(snapshot.months.map((item) => item.key)).toEqual(["2026-11"]);
+    expect(sqlValues(queryRaw.mock.calls[0]?.[0])).toContain("2026-11-01");
+    expect(sqlValues(queryRaw.mock.calls[0]?.[0])).not.toContain("2026-08-01");
+    expect(getPurgeTargetMonth()).toBe("2026-08");
+  });
+
+  it("keeps another live month and drops the finished hold from its list", async () => {
+    listCachedMonthCounts.mockResolvedValue([NOVEMBER, SEPTEMBER, AUGUST]);
+    setPurgeTargetMonth("2026-08");
+    markPurgeCallsCleared("2026-08");
+    const snapshot = await listMarkingStats("2026-09", NOW);
+    expect(snapshot.month).toBe("2026-09");
+    expect(snapshot.months.map((item) => item.key)).toEqual(["2026-11", "2026-09"]);
+    expect(sqlValues(queryRaw.mock.calls[0]?.[0])).toContain("2026-09-01");
+    expect(sqlValues(queryRaw.mock.calls[0]?.[0])).not.toContain("2026-08-01");
+  });
+
+  it("does not rewrite the cached month list", async () => {
+    listCachedMonthCounts.mockResolvedValue([NOVEMBER, AUGUST]);
+    const first = await listMarkingStats("2026-11", NOW);
+    expect(first.months.map((item) => item.key)).toEqual(["2026-11", "2026-08"]);
+    setPurgeTargetMonth("2026-08");
+    markPurgeCallsCleared("2026-08");
+    const second = await listMarkingStats("2026-11", NOW);
+    expect(second.months.map((item) => item.key)).toEqual(["2026-11"]);
+    expect(first.months.map((item) => item.key)).toEqual(["2026-11", "2026-08"]);
+    expect(queryRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not scan when the held month is the current month", async () => {
+    setPurgeTargetMonth("2026-11");
+    markPurgeCallsCleared("2026-11");
+    await expect(listMarkingStats(null, NOW)).rejects.toMatchObject({
+      status: 503,
+      message: PURGE_MONTH_BUSY_MESSAGE,
+    });
+    expect(listCachedMonthCounts).not.toHaveBeenCalled();
+    expect(queryRaw).not.toHaveBeenCalled();
+    expect(readRtuScreenGate).not.toHaveBeenCalled();
   });
 
   it("clears the open table only for the purge answer", () => {

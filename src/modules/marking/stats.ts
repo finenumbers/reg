@@ -30,6 +30,7 @@ import { withOprsTimeout } from "@/modules/oprs/timeout";
 import {
   getPurgeTargetMonth,
   PURGE_MONTH_BUSY_MESSAGE,
+  purgeCallsCleared,
 } from "@/modules/traffic/purge/target";
 
 export type { MarkingStatsRow };
@@ -181,6 +182,22 @@ function purgeHolds(monthKey: string): boolean {
   return getPurgeTargetMonth() === monthKey;
 }
 
+/**
+ * A finished purge can keep the hold after the continuation flag fails to clear.
+ * Drop that month from the list shown to the operator. Copy the snapshot: the
+ * cached object still carries the month for a reader that started earlier.
+ */
+function withoutClearedMonth(snapshot: MarkingStatsSnapshot): MarkingStatsSnapshot {
+  const held = getPurgeTargetMonth();
+  if (!held || !purgeCallsCleared(held)) return snapshot;
+  if (snapshot.month === held) return snapshot;
+  if (!snapshot.months.some((item) => item.key === held)) return snapshot;
+  return {
+    ...snapshot,
+    months: snapshot.months.filter((item) => item.key !== held),
+  };
+}
+
 function purgeBusy(): MarkingStatsError {
   return new MarkingStatsError(503, PURGE_MONTH_BUSY_MESSAGE);
 }
@@ -318,7 +335,13 @@ export async function listMarkingStats(
   if (isDatabaseVacuumActive()) {
     throw new MarkingStatsError(503, CDR_VACUUM_BUSY_MESSAGE);
   }
-  const requested = markingStatsMonth(monthRaw, now);
+  let requested = markingStatsMonth(monthRaw, now);
+  if (purgeHolds(requested.key)) {
+    if (!purgeCallsCleared(requested.key)) throw purgeBusy();
+    const current = currentUtcMonth(now);
+    if (requested.key === current.key) throw purgeBusy();
+    requested = current;
+  }
   if (purgeHolds(requested.key)) throw purgeBusy();
   const gate = await readRtuScreenGate();
   if (!gate?.published || gate.needsPublish) {
@@ -327,7 +350,7 @@ export async function listMarkingStats(
   const months = monthsWithoutCounts(await listCachedMonthCounts());
   const month = markingStatsMonthOnRecord(requested, months, now);
   if (purgeHolds(month.key)) throw purgeBusy();
-  if (!gate?.published) return preparingSnapshot(month, months);
+  if (!gate?.published) return withoutClearedMonth(preparingSnapshot(month, months));
 
   const tone = await loadOprsToneReport(now.getTime(), { wait: true });
   if (!tone.labelUnpainted) throw new MarkingStatsError(503, TONE_ERROR);
@@ -344,9 +367,9 @@ export async function listMarkingStats(
   const key = statsKey(month.key, generation, gate.catalogRevision, tone, blocked);
   const store = cacheStore();
   const slot = store.slots.get(month.key);
-  if (slot?.key === key) return slot.snapshot;
+  if (slot?.key === key) return withoutClearedMonth(slot.snapshot);
   const inflight = store.inflight.get(key);
-  if (inflight) return inflight;
+  if (inflight) return inflight.then(withoutClearedMonth);
 
   const promise = readSnapshot(
     month,
@@ -359,7 +382,7 @@ export async function listMarkingStats(
     if (store.inflight.get(key) === promise) store.inflight.delete(key);
   });
   store.inflight.set(key, promise);
-  return promise;
+  return promise.then(withoutClearedMonth);
 }
 
 export async function loadMarkingStatsPageInitial(

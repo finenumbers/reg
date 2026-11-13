@@ -1,7 +1,13 @@
-# Current Phase — production (v1.272.0)
+# Current Phase — production (v1.273.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-13
+
+## v1.273.0 — Marking statistics after a finished month delete
+
+There is no migration. Do not stop `smg-syslog`. Phone, tariff, CDR, and PSTN rows are not rewritten. Keep a single `app` replica. Stop the old app before the new one starts, then recreate only the `app` container. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged.
+
+After a month delete has already recorded success, «Статистика Маркировки» opens the current month even when the in-process hold is still set because the continuation flag could not be cleared. That month is left out of the month list and is not scanned. While the delete has not recorded success, a request for the held month still answers «Идёт удаление месяца.» and does not scan CDR. A request for another month that still has calls is unchanged, except the finished month is left out of its list. Import of the held month stays skipped.
 
 ## v1.272.0 — Month delete drops marking statistics
 
