@@ -636,6 +636,51 @@ model NumberMaskImportState {
   @@map("number_mask_import_state")
 }
 
+/// Operator marking and MAV snapshot from an uploaded XLSX. Each import replaces every row.
+/// Rating, geography, phone sync, and the RTU screen do not read this table.
+model MarkingRow {
+  id           String  @id @default(cuid())
+  /// Order in the uploaded file (empty rows omitted).
+  sortIndex    Int
+  /// «Клиент». Required text.
+  client       String
+  /// «Номер». Digits only, stored as text.
+  phoneNumber  String
+  /// «Маркировка МТС». Null when the cell is empty.
+  labelMts     String?
+  /// «Маркировка Мегафон». Null when the cell is empty.
+  labelMegafon String?
+  /// «Маркировка Билайн». Null when the cell is empty.
+  labelBeeline String?
+  /// «Маркировка Т2». Null when the cell is empty.
+  labelT2      String?
+  /// «МАВ МТС». Null when the cell is empty.
+  mavMts       String?
+  /// «МАВ Мегафон». Null when the cell is empty.
+  mavMegafon   String?
+  /// «МАВ Билайн». Null when the cell is empty.
+  mavBeeline   String?
+  /// «МАВ Т2». Null when the cell is empty.
+  mavT2        String?
+
+  @@unique([sortIndex])
+  @@unique([phoneNumber])
+  @@map("marking_rows")
+}
+
+model MarkingImportState {
+  id         Int       @id @default(1)
+  rowCount   Int       @default(0)
+  /// Incremented in the same transaction as a successful snapshot replace.
+  /// No screen reads this counter.
+  generation Int       @default(0)
+  filename   String?
+  loadedAt   DateTime?
+  updatedAt  DateTime  @updatedAt
+
+  @@map("marking_import_state")
+}
+
 model TariffImportState {
   id              Int       @id @default(1)
   rowCount        Int       @default(0)

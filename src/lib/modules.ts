@@ -7,6 +7,7 @@ import type { PermissionCode } from "@/modules/rbac/permissions";
 export type FeatureModuleId =
   | "settings"
   | "masks"
+  | "marking"
   | "tariffs"
   | "exceptions"
   | "jobs"
@@ -57,6 +58,13 @@ export const FEATURE_MODULES: FeatureModuleDefinition[] = [
     title: "Управление РТУ",
     description: "Учётные записи оконечного оборудования софтсвитча",
     href: "/rtu",
+    navPermission: "phones:read",
+  },
+  {
+    id: "marking",
+    title: "Маркировка и МАВ",
+    description: "Клиент, номер, маркировка и МАВ операторов из XLSX",
+    href: "/marking",
     navPermission: "phones:read",
   },
   {

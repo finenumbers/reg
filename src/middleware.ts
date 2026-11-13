@@ -61,6 +61,7 @@ export function middleware(request: NextRequest) {
     pathname.startsWith("/settings") ||
     pathname.startsWith("/tariffs") ||
     pathname.startsWith("/masks") ||
+    pathname.startsWith("/marking") ||
     pathname.startsWith("/stats") ||
     pathname.startsWith("/jobs") ||
     pathname.startsWith("/audit");

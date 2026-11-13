@@ -85,6 +85,15 @@ describe("planPostMigrate", () => {
     ).toEqual({ callClass: false, tariff: false });
   });
 
+  it("does not scan the journal when marking labels are added", () => {
+    expect(
+      planPostMigrate("Applying migration `20261113143000_marking_labels`\n", {
+        rateGeneration: 4,
+        ratedGeneration: 4,
+      }),
+    ).toEqual({ callClass: false, tariff: false });
+  });
+
   it("does not scan the journal when a mask hyphen is ignored", () => {
     expect(
       planPostMigrate("Applying migration `20261113120000_mask_hyphen`\n", {

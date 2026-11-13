@@ -1,7 +1,13 @@
-# Current Phase — production (v1.263.0)
+# Current Phase — production (v1.264.0)
 
-**Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, cloud PBX domains and numbers, Zabbix graphs.  
+**Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-13
+
+## v1.264.0 — Marking and MAV catalog
+
+The migrator creates `marking_rows` and `marking_import_state`. It does not rewrite phone, tariff, CDR, PSTN, or RTU screen rows. The migration is label-free, so startup does not rescan the CDR journal. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app, let migrate finish, then start one new app. Refresh the browser.
+
+«Маркировка и МАВ» sits in the top group, directly under «Управление РТУ», at `/marking`, with `phones:read`. The table columns follow the XLSX: «Клиент», «Номер», the four operator marking columns, and the four MAV columns. The snapshot is empty until an XLSX is imported. An import replaces every row. A bad file, an empty file, a repeated number, or a failed write leaves the previous snapshot. Export downloads the whole snapshot, and a filtered view does not change that file. The catalog is not used by the RTU screen. Nothing is written to the switch. RTU activation is unchanged.
 
 ## v1.263.0 — Hide category, supplier, and source while RTU masks are on
 

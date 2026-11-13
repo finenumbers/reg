@@ -24,7 +24,14 @@ describe("FEATURE_MODULES nav groups", () => {
       href: "/rtu",
       navPermission: "phones:read",
     });
-    expect(FEATURE_MODULES[1]?.id).toBe("registrations");
+    expect(FEATURE_MODULES[1]).toMatchObject({
+      id: "marking",
+      title: "Маркировка и МАВ",
+      href: "/marking",
+      navPermission: "phones:read",
+    });
+    expect(FEATURE_MODULES[1]?.navGroup).toBeUndefined();
+    expect(FEATURE_MODULES[2]?.id).toBe("registrations");
     expect(FEATURE_MODULES.map((module) => module.id)).not.toContain("number-geography");
   });
 

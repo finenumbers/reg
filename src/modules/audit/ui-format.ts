@@ -69,6 +69,7 @@ const ACTION_LABELS: Record<string, string> = {
   "api_key.revoke": "Отзыв API-ключа",
   "tariffs.import": "Загрузка тарификации",
   "masks.import": "Загрузка масок и типов",
+  "marking.import": "Загрузка маркировки и МАВ",
   "exceptions.add": "Добавление ABC в исключения",
   "exceptions.delete": "Удаление ABC из исключений",
   "cdr.tariff.rate_start": "Старт пересчёта тарифов в журнале звонков",
