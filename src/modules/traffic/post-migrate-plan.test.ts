@@ -130,6 +130,15 @@ describe("planPostMigrate", () => {
     ).toEqual({ callClass: false, tariff: false });
   });
 
+  it("does not scan the journal when Runexis stores its free-number lease", () => {
+    expect(
+      planPostMigrate("Applying migration `20261114150000_runexis_free`\n", {
+        rateGeneration: 4,
+        ratedGeneration: 4,
+      }),
+    ).toEqual({ callClass: false, tariff: false });
+  });
+
   it("does not scan the journal when a SipOut stage stores both catalogs", () => {
     expect(
       planPostMigrate("Applying migration `20261114053000_sipout_source_stage`\n", {

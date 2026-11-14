@@ -5,14 +5,14 @@ alwaysApply: true
 
 # Numbering sources
 
-Each numbering source is a separate API and a separate process. SipOut is the only source in this release. Its reads stay in the SipOut rule. Do not invent a source, a host, or a method.
+Each numbering source is a separate API and a separate process. SipOut and Runexis are the sources in this release. SipOut reads stay in the SipOut rule. Runexis reads stay in the Runexis rule. Do not invent a source, a host, or a method.
 
-SipOut owns `numbering_sync_state` and `numbering_sync_stage`. The state row stays `id = 1` with `CHECK (id = 1)`. The next source does not insert into these tables and does not drop that check. It gets its own module, its own client, its own `globalThis` slot, its own text log, and its own lease and draft tables.
+SipOut owns `numbering_sync_state` and `numbering_sync_stage`. Runexis owns `runexis_sync_state` and `runexis_sync_stage`. Each state row stays `id = 1` with `CHECK (id = 1)`. A source does not insert into the other source's tables and does not drop the other check. Each source has its own module, its own client, its own `globalThis` slot, and its own text log.
 
-`free_numbers` and `purchased_numbers` are the shared catalogs. A publish deletes and inserts only the rows of that source's provider literal, in one transaction. Both lists are replaced together. A failed read leaves both catalogs. The provider name is a literal in the SQL. Do not accept a source name from a request, a flag, or a setting.
+`free_numbers` and `purchased_numbers` are the shared catalogs. A publish deletes and inserts only the rows of that source's provider literal, in one transaction. SipOut replaces its rows in both catalogs. Runexis replaces its rows in `free_numbers` only. A failed read leaves the catalogs. The provider name is a literal in the SQL. Do not accept a source name from a request, a flag, or a setting.
 
-The walk, the access check, and the SipOut key save share one in-memory holder. The key save does not take the database lease. Do not split that holder. `SIGTERM` sets one stop flag. A walk that sees it does not publish. Do not add a second listener for that signal.
+The SipOut walk, the SipOut access check, and the SipOut key save share one in-memory holder. The key save does not take the database lease. Do not split that holder. The Runexis walk, the Runexis access check, and the Runexis password save share a different holder. `SIGTERM` sets one stop flag. A walk that sees it does not publish. Do not add a second listener for that signal.
 
-Tariff resplit updates ABC, the local number, city, and region on every row of both catalogs. It waits for a fresh heartbeat on `numbering_sync_state` `id = 1`. It does not call the numbering source. A later source must be waited on the same way before that update, and the update still covers every row.
+Tariff resplit updates ABC, the local number, city, and region on every row of both catalogs. It locks `numbering_sync_state` `id = 1` first, then `runexis_sync_state` `id = 1`. A fresh heartbeat on either lease waits. It does not call a numbering source. A later source is waited on after these two, before that update. The update still covers every row.
 
-Do not write to a numbering-source API unless a task names that exact write. Do not log a key, a query, or a URL.
+Do not write to a numbering-source API unless a task names that exact write. Do not log a key, a password, a token, a query, or a URL.

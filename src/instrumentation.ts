@@ -96,12 +96,25 @@ export async function register() {
 
     try {
       const { armNumberingSyncStop } = await import("@/modules/numbering-sync/lease");
-      const { reclaimNumberingSyncLease } = await import("@/modules/numbering-sync/reclaim");
+      const { reclaimNumberingSyncLease } =
+        await import("@/modules/numbering-sync/reclaim");
       armNumberingSyncStop();
       await reclaimNumberingSyncLease();
       logger.info("numbering.sync.reclaim");
     } catch (error) {
       logger.error("numbering.sync.reclaim.failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    try {
+      const { armNumberingSyncStop } = await import("@/modules/numbering-sync/lease");
+      const { reclaimRunexisLease } = await import("@/modules/runexis/reclaim");
+      armNumberingSyncStop();
+      await reclaimRunexisLease();
+      logger.info("runexis.sync.reclaim");
+    } catch (error) {
+      logger.error("runexis.sync.reclaim.failed", {
         error: error instanceof Error ? error.message : String(error),
       });
     }

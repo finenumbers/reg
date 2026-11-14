@@ -83,6 +83,9 @@ const ACTION_LABELS: Record<string, string> = {
   "numbering_sync.free": "Загрузка свободных номеров SipOut",
   "numbering_sync.purchased": "Загрузка купленных номеров SipOut",
   "numbering_sync.sipout": "Загрузка нумерации SipOut",
+  "runexis.settings_save": "Сохранение доступа Runexis",
+  "runexis.test": "Проверка доступа Runexis",
+  "runexis.free": "Загрузка свободных номеров Runexis",
 };
 
 export function formatAuditTimestamp(

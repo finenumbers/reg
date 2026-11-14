@@ -182,6 +182,10 @@ model AppSetting {
   zabbixGraph2Title               String?
   /// AES-256-GCM ciphertext of the SipOut userapi key. Never plaintext.
   sipoutApiKeyCiphertext String?
+  /// Runexis login. The password stays ciphertext.
+  runexisEmail                String?
+  /// AES-256-GCM ciphertext of the Runexis password. Never plaintext.
+  runexisPasswordCiphertext   String?
   updatedAt             DateTime    @updatedAt
 
   @@map("app_settings")
@@ -718,6 +722,38 @@ model NumberingSyncStage {
 
   @@id([runId, catalog, e164])
   @@map("numbering_sync_stage")
+}
+
+/// One Runexis free-number walk. It does not share the SipOut lease.
+model RunexisSyncState {
+  id              Int       @id @default(1)
+  runId           String?   @map("run_id")
+  phase           String    @default("")
+  pageDone        Int       @default(0) @map("page_done")
+  pageTotal       Int       @default(0) @map("page_total")
+  error           String?
+  heartbeatAt     DateTime? @map("heartbeat_at")
+  startedAt       DateTime? @map("started_at")
+  lastError       String?   @map("last_error")
+  /// Free numbers inserted by the last committed Runexis stage.
+  lastFreeWritten Int?      @map("last_free_written")
+  lastFinishedAt  DateTime? @map("last_finished_at")
+
+  @@map("runexis_sync_state")
+}
+
+/// Free numbers accepted from one Runexis showcase page, before the replace.
+model RunexisSyncStage {
+  runId  String  @map("run_id")
+  e164   String
+  abc    String  @default("")
+  number String  @default("")
+  city   String  @default("")
+  region String  @default("")
+  ready  Boolean @default(false)
+
+  @@id([runId, e164])
+  @@map("runexis_sync_stage")
 }
 
 /// Mask and type snapshot from an uploaded XLSX. Each import replaces every row.

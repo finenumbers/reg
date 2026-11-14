@@ -1,0 +1,21 @@
+---
+description: Runexis DID API is read-only except login; only the free-number showcase is a catalog
+alwaysApply: true
+---
+
+# Runexis free numbers
+
+The handbook is the live page `https://didapi.runexis.ru/docs/index.html`. Read it again before any Runexis change. It can change. Do not invent methods, paths, or query fields. Do not commit a copy of that page.
+
+The host is the literal `https://didapi.runexis.ru`. HTTPS only. Do not follow redirects. Do not trust a custom certificate. Timeout 30s. Body cap 20 MB.
+
+This release may send only:
+
+- `POST /api/v1/login` with `email` and `password`, once at the start of a walk and once for the access check. It issues a Bearer token. It does not change numbers.
+- `GET /api/v1/numbers/showcase` with `page` and `limit=30` only. No `city_ids`, `region_codes`, `class_id`, or `phone_number`.
+
+Every showcase page is read until the accepted count equals `meta.total`. A short last page is the end only when that count matches. A hole, a duplicate, or a changed total does not publish. The password and the token stay out of logs and responses.
+
+Do not call `refresh`, `revoke-all`, `buy`, `book`, `allocate`, `refuse`, `management`, `GET /api/v1/numbers`, or `GET /api/v1/internal/numbers`. Do not write purchased numbers from this API.
+
+A successful walk replaces every `free_numbers` row whose provider is `Runexis`. It does not delete `purchased_numbers` or SipOut rows. The Runexis lease and draft are their own tables. Do not use `numbering_sync_state` or `numbering_sync_stage`.

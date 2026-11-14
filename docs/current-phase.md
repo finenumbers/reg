@@ -1,7 +1,13 @@
-# Current Phase — production (v1.281.0)
+# Current Phase — production (v1.282.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, purchased numbers, numbering sync, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-14
+
+## v1.282.0 — Runexis free numbers
+
+The migration `20261114150000_runexis_free` adds the Runexis email and password ciphertext on `app_settings`, plus empty `runexis_sync_state` and `runexis_sync_stage`. It does not rewrite phone, tariff, CDR, PSTN, RTU screen, or catalog rows. The migration is label-free, so startup does not rescan the CDR journal. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app, let migrate finish, then start one new app. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged. SipOut reads and catalogs stay as in v1.281.0.
+
+«Загрузка нумерации» stores the Runexis host `https://didapi.runexis.ru`, the email, and the password. The password is ciphertext at rest and is not shown again. An empty password field leaves the stored password. Saving confirms the host and the email and does not call Runexis. «Проверить доступ» is one login and one showcase page. It does not write catalogs and does not rewrite the stage log. «Синхронизация» has a separate Runexis stage. «Загрузить» confirms that only free numbers are reread and that every previous Runexis row in free numbers is replaced, including when the new list is shorter or empty. Cancel, close, and Enter do not send. The walk reads every unfiltered showcase page of 30 until the accepted count equals `meta.total`. A complete empty list replaces the Runexis free numbers. A short page, a changed total, a duplicate, a cancel, or a lost lease leaves the catalog. Purchased Runexis numbers are not read and are not written. The stage log is `runexis.txt`. The next run of that stage overwrites it. The log has no password, token, or URL. An API key cannot call these routes.
 
 ## v1.281.0 — Numbering sources stay separate processes
 
