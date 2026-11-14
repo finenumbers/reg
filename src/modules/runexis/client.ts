@@ -68,6 +68,16 @@ function rejected(status: number, durationMs: number, retryable: boolean): Attem
   };
 }
 
+function unanswered(status: number, durationMs: number): Attempt {
+  return {
+    ok: false,
+    error: "Площадка не ответила.",
+    retryable: true,
+    status,
+    durationMs,
+  };
+}
+
 async function request(
   href: string,
   init: RequestInit,
@@ -86,71 +96,67 @@ async function request(
     });
   } catch {
     logger.info("runexis.request", { action: label, status: 0 });
-    return {
-      ok: false,
-      error: "Площадка не ответила.",
-      retryable: true,
-      status: 0,
-      durationMs: Date.now() - started,
-    };
+    return unanswered(0, Date.now() - started);
   }
   logger.info("runexis.request", { action: label, status: response.status });
-  const durationMs = Date.now() - started;
-  if (response.status >= 500) {
-    await response.body?.cancel();
-    return {
-      ok: false,
-      error: "Площадка не ответила.",
-      retryable: true,
-      status: response.status,
-      durationMs,
-    };
-  }
-  if (response.status !== 200) {
-    await response.body?.cancel();
-    return rejected(response.status, durationMs, false);
-  }
-  const text = await readCapped(response);
-  if (text == null) {
-    return {
-      ok: false,
-      error: "Ответ площадки слишком большой.",
-      retryable: false,
-      status: response.status,
-      durationMs,
-    };
-  }
-  if (!text) {
-    return {
-      ok: false,
-      error: "Ответ площадки обрезан.",
-      retryable: false,
-      status: response.status,
-      durationMs,
-    };
-  }
   try {
-    return {
-      ok: true,
-      data: JSON.parse(text) as unknown,
-      status: response.status,
-      durationMs,
-    };
+    const durationMs = Date.now() - started;
+    if (response.status >= 500) {
+      await response.body?.cancel();
+      return unanswered(response.status, durationMs);
+    }
+    if (response.status !== 200) {
+      await response.body?.cancel();
+      return rejected(response.status, durationMs, false);
+    }
+    const text = await readCapped(response);
+    if (text == null) {
+      return {
+        ok: false,
+        error: "Ответ площадки слишком большой.",
+        retryable: false,
+        status: response.status,
+        durationMs,
+      };
+    }
+    if (!text) {
+      return {
+        ok: false,
+        error: "Ответ площадки обрезан.",
+        retryable: false,
+        status: response.status,
+        durationMs,
+      };
+    }
+    try {
+      return {
+        ok: true,
+        data: JSON.parse(text) as unknown,
+        status: response.status,
+        durationMs,
+      };
+    } catch {
+      return {
+        ok: false,
+        error: "Ответ площадки обрезан.",
+        retryable: false,
+        status: response.status,
+        durationMs,
+      };
+    }
   } catch {
-    return {
-      ok: false,
-      error: "Ответ площадки обрезан.",
-      retryable: false,
-      status: response.status,
-      durationMs,
-    };
+    return unanswered(response.status, Date.now() - started);
   }
 }
 
 function pageFrom(attempt: Attempt, attempts: number, durationMs: number): RunexisPage {
   const meta = { status: attempt.status, attempts, durationMs };
   if (attempt.ok) return { ok: true, data: attempt.data, meta };
-  return { ok: false, error: attempt.error, meta };
+  return {
+    ok: false,
+    error: `${attempt.error} HTTP ${attempt.status}, попыток ${attempts}, ${durationMs} мс.`,
+    meta,
+  };
 }
 
 async function onceOrTwice(

@@ -73,6 +73,7 @@ export async function runFreeWalk(deps: FreeWalkDeps): Promise<WalkResult> {
     }
     const response = await deps.showcase(page);
     if (!response.ok) {
+      await deps.log(lines(`Страница ${page}`, response, [])).catch(() => undefined);
       return stop(deps, { ok: false, reason: "error", error: response.error });
     }
     const parsed = parseShowcasePage(response.data);

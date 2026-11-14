@@ -1,7 +1,13 @@
-# Current Phase — production (v1.282.0)
+# Current Phase — production (v1.283.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, purchased numbers, numbering sync, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-14
+
+## v1.283.0 — Runexis failure status
+
+There is no migration. Do not stop `smg-syslog`. Phone, tariff, CDR, PSTN, RTU screen, and catalog rows are not rewritten. Keep a single `app` replica. Stop the old app before the new one starts, then start one new app. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged. SipOut is unchanged. The Runexis timeout stays 30 seconds with one retry.
+
+A Runexis login, access check, or showcase page that fails now shows the HTTP status, the attempt count, and the duration. Status 0 means no HTTP response. The stage log writes the same three numbers for a failed showcase page. The exception text, the URL, the token, and the body stay out of the log and the screen. A body that breaks after the headers is retried once and does not publish. The catalog replace is unchanged.
 
 ## v1.282.0 — Runexis free numbers
 

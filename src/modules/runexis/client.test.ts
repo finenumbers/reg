@@ -41,6 +41,12 @@ describe("runexis client", () => {
     const deniedPage = await runexisShowcase("tok", 1, { fetchImpl: denied });
     expect(denied).toHaveBeenCalledTimes(1);
     expect(deniedPage.ok).toBe(false);
+    if (!deniedPage.ok) {
+      expect(deniedPage.error).toContain("Площадка отклонила доступ.");
+      expect(deniedPage.error).toContain("HTTP 401");
+      expect(deniedPage.error).toContain("попыток 1");
+      expect(deniedPage.error).not.toContain("://");
+    }
 
     const failed = vi.fn(async () => new Response("down", { status: 500 }));
     await runexisShowcase("tok", 1, { fetchImpl: failed });
@@ -68,5 +74,42 @@ describe("runexis client", () => {
     expect([...url.searchParams.keys()].sort()).toEqual(["limit", "page"]);
     expect(JSON.stringify(info.mock.calls)).not.toContain("tok");
     expect(JSON.stringify(info.mock.calls)).not.toContain(href);
+  });
+
+  it("retries a dropped body and keeps the address out of the error", async () => {
+    const dropped = vi.fn(async () => {
+      throw new Error("connect https://didapi.runexis.ru/api/v1/numbers/showcase");
+    });
+    const droppedPage = await runexisShowcase("tok", 1, { fetchImpl: dropped });
+    expect(dropped).toHaveBeenCalledTimes(2);
+    expect(droppedPage.ok).toBe(false);
+    if (!droppedPage.ok) {
+      expect(droppedPage.meta).toMatchObject({ status: 0, attempts: 2 });
+      expect(droppedPage.error).toContain("HTTP 0");
+      expect(droppedPage.error).toContain("попыток 2");
+      expect(droppedPage.error).not.toContain("didapi");
+      expect(droppedPage.error).not.toContain("://");
+    }
+    expect(JSON.stringify(info.mock.calls)).not.toContain("didapi");
+
+    const broken = vi.fn(async () => {
+      const body = new ReadableStream({
+        pull() {
+          throw new Error("https://didapi.runexis.ru/secret");
+        },
+      });
+      return new Response(body, { status: 200 });
+    });
+    const brokenPage = await runexisShowcase("tok", 1, { fetchImpl: broken });
+    expect(broken).toHaveBeenCalledTimes(2);
+    expect(brokenPage.ok).toBe(false);
+    if (!brokenPage.ok) {
+      expect(brokenPage.meta.status).toBe(200);
+      expect(brokenPage.meta.attempts).toBe(2);
+      expect(brokenPage.error).toContain("Площадка не ответила.");
+      expect(brokenPage.error).toContain("HTTP 200");
+      expect(brokenPage.error).not.toContain("didapi");
+      expect(brokenPage.error).not.toContain("://");
+    }
   });
 });

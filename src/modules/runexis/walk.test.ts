@@ -141,4 +141,32 @@ describe("runexis free walk", () => {
     expect(walk.published()).toBe(0);
     expect(walk.dropped()).toBe(1);
   });
+
+  it("records a failed page and does not publish", async () => {
+    const written: string[] = [];
+    const walk = harness(
+      [
+        {
+          ok: false,
+          error: "Площадка не ответила. HTTP 0, попыток 2, 60012 мс.",
+          meta: { status: 0, attempts: 2, durationMs: 60012 },
+        },
+      ],
+      {
+        log: async (block) => {
+          written.push(block);
+        },
+      },
+    );
+    const result = await runFreeWalk(walk.deps);
+    expect(result.ok).toBe(false);
+    expect(walk.published()).toBe(0);
+    expect(walk.dropped()).toBe(1);
+    const text = written.join("\n");
+    expect(text).toContain("Страница 1");
+    expect(text).toContain("HTTP: 0");
+    expect(text).toContain("Попыток: 2");
+    expect(text).toContain("Длительность, мс: 60012");
+    expect(text).not.toContain("://");
+  });
 });
