@@ -39,6 +39,13 @@ describe("sipout publish sql", () => {
     expect(PURCHASED_COPY_SQL).not.toContain("cdr_tariff_geo");
   });
 
+  it("inserts the SipOut literal and does not delete from the copy", () => {
+    expect(FREE_COPY_SQL).toContain("'SipOut'");
+    expect(FREE_COPY_SQL).not.toContain("DELETE");
+    expect(PURCHASED_COPY_SQL).toContain("'SipOut'");
+    expect(PURCHASED_COPY_SQL).not.toContain("DELETE");
+  });
+
   it("rolls back when the inserted count does not match the draft", () => {
     expect(
       decidePublish({

@@ -1,7 +1,13 @@
-# Current Phase — production (v1.280.0)
+# Current Phase — production (v1.281.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, purchased numbers, numbering sync, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-14
+
+## v1.281.0 — Numbering sources stay separate processes
+
+There is no migration. Do not stop `app`. Do not stop `smg-syslog`. Phone, tariff, CDR, PSTN, RTU screen, and catalog rows are not rewritten. Parser version stays 9. Syslog cards are not deleted. The Parking byte cursor does not move. Nothing is written to the switch. RTU activation is unchanged.
+
+SipOut reads, the stage, and both catalogs behave as in v1.280.0. The walk, the access check, and the key save still share one in-memory holder. The lease row stays `id = 1`. A publish still replaces only `provider` `SipOut`. The next numbering source is not called and is not stored in the SipOut lease or draft.
 
 ## v1.280.0 — One SipOut numbering stage
 
