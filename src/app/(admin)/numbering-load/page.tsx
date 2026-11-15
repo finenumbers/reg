@@ -3,14 +3,17 @@ import { getNumberingLoadView } from "@/modules/numbering-load/service";
 import { NumberingLoadForm } from "@/modules/numbering-load/ui/numbering-load-form";
 import { getRunexisAccessView } from "@/modules/runexis/service";
 import { RunexisLoadForm } from "@/modules/runexis/ui/runexis-load-form";
+import { getUisAccessView } from "@/modules/uis/service";
+import { UisLoadForm } from "@/modules/uis/ui/uis-load-form";
 
 export const dynamic = "force-dynamic";
 
 export default async function NumberingLoadPage() {
   await requirePagePermission("settings:write");
-  const [initial, runexis] = await Promise.all([
+  const [initial, runexis, uis] = await Promise.all([
     getNumberingLoadView(),
     getRunexisAccessView(),
+    getUisAccessView(),
   ]);
   return (
     <div className="h-full space-y-6 overflow-y-auto">
@@ -25,6 +28,7 @@ export default async function NumberingLoadPage() {
       </div>
       <NumberingLoadForm initial={initial} />
       <RunexisLoadForm initial={runexis} />
+      <UisLoadForm initial={uis} />
     </div>
   );
 }

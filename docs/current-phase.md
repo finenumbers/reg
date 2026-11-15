@@ -1,7 +1,13 @@
-# Current Phase — production (v1.288.0)
+# Current Phase — production (v1.289.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, purchased numbers, numbering sync, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-15
+
+## v1.289.0 — UIS purchased and free numbers
+
+The migration `20261115140000_uis_source` adds the UIS key ciphertext and empty UIS lease and draft tables. It does not rewrite phone, tariff, CDR, PSTN, RTU screen, or catalog rows. The migration is label-free, so startup does not rescan the CDR journal. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app, let migrate finish, then start one new app. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged. SipOut and Runexis are unchanged.
+
+«Загрузка нумерации» stores the fixed host `https://dataapi.uiscom.ru/v2.0` and the permanent client key. The key is not shown again. Saving does not call UIS. «Проверить доступ» reads one purchased page, one purchased prefix probe, then the same pair for free numbers. It does not write catalogs. «Синхронизация» rereads purchased numbers, then free numbers, and replaces every previous UIS row in both catalogs, including when a new list is shorter or empty. A list longer than 110000 numbers is split by prefix. No request uses an offset above 100000. A failed purchased list does not read free numbers. Both lists must succeed before either catalog is replaced. A number that is in both drafts stays purchased. Run «Проверить доступ» before «Загрузить». The stage log has no key or URL. An API key cannot start the stage.
 
 ## v1.288.0 — Runexis showcase one nested code
 

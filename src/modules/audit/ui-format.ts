@@ -86,6 +86,9 @@ const ACTION_LABELS: Record<string, string> = {
   "runexis.settings_save": "Сохранение доступа Runexis",
   "runexis.test": "Проверка доступа Runexis",
   "runexis.free": "Загрузка номеров Runexis",
+  "uis.settings_save": "Сохранение доступа UIS",
+  "uis.test": "Проверка доступа UIS",
+  "uis.sync": "Загрузка номеров UIS",
 };
 
 export function formatAuditTimestamp(
