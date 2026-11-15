@@ -8,7 +8,7 @@ export async function GET(request: Request) {
   return numberingSyncJson({ settings: await getRunexisSyncView() });
 }
 
-/** POST /api/numbering-sync/runexis — one Runexis free-number stage. The body is ignored. */
+/** POST /api/numbering-sync/runexis — one Runexis stage for both catalogs. The body is ignored. */
 export async function POST(request: Request) {
   const actor = await numberingSyncActor(request);
   if (!actor.ok) return actor.response;

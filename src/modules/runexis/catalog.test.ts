@@ -3,20 +3,26 @@ import { describe, expect, it } from "vitest";
 import { RESPLIT_LOCKS } from "@/modules/numbering-sync/recompute";
 import {
   acceptShowcasePage,
+  freePrices,
   nationalDigits,
   parseAccessToken,
+  parseManagementPage,
+  parseSession,
   parseShowcasePage,
 } from "@/modules/runexis/parse";
 import { RECLAIM_STAGE_SQL, RECLAIM_STATE_SQL } from "@/modules/runexis/reclaim";
 import { sanitizeLogLine } from "@/modules/runexis/log";
 import {
   DELETE_RUNEXIS_FREE_SQL,
+  DELETE_RUNEXIS_PURCHASED_SQL,
   FREE_COPY_SQL,
+  PURCHASED_COPY_SQL,
   decidePublish,
+  dropOverlapSql,
   fillSplitSql,
-  stageInsertSql,
+  stageFreeSql,
 } from "@/modules/runexis/sql";
-import { loginUrl, showcaseUrl } from "@/modules/runexis/url";
+import { catalogUrl, loginUrl, refreshUrl, showcaseUrl } from "@/modules/runexis/url";
 
 function flattenSql(sql: Prisma.Sql): string {
   const text: string[] = [];
@@ -44,17 +50,62 @@ describe("runexis showcase", () => {
     expect(url.searchParams.get("limit")).toBe("30");
   });
 
-  it("keeps digit text and rejects a numeric code", () => {
-    expect(nationalDigits("090", "1234567")).toBe("0901234567");
-    expect(nationalDigits("901", "1234567")).toBe("9011234567");
-    expect(nationalDigits(901, "1234567")).toBeNull();
-    expect(nationalDigits("7", "123456789")).toBeNull();
+  it("stores an eleven-digit number and leaves a bad price empty", () => {
+    expect(nationalDigits("901", "1234567")).toBe("79011234567");
+    expect(nationalDigits(901, 1234567)).toBe("79011234567");
+    expect(nationalDigits("495", "74953084480")).toBe("74953084480");
+    expect(nationalDigits("090", "1234567")).toBe("70901234567");
     const page = parseShowcasePage({
       success: true,
-      data: [{ code: 901, number: "1234567" }],
-      meta: { total: 1, page: 1, limit: 30 },
+      data: [
+        { code: 901, number: "1234567", mera_price: 1000 },
+        {
+          code: "495",
+          number: "3084480",
+          installation_cost: "12.50",
+          subscription_fee: 9,
+        },
+        { code: "495", number: "3084481", installationCost: "нет", mera_price: 4 },
+      ],
+      meta: { total: 3, page: 1, limit: 30 },
     });
-    expect(page.ok).toBe(false);
+    expect(page.ok).toBe(true);
+    if (!page.ok) return;
+    expect(page.page.rows).toEqual([
+      { e164: "79011234567", incomingPurchase: "1000", incomingPeriod: "" },
+      { e164: "74953084480", incomingPurchase: "12.50", incomingPeriod: "9" },
+      { e164: "74953084481", incomingPurchase: "", incomingPeriod: "" },
+    ]);
+    expect(freePrices({ mera_price: 1, subscriptionFee: 2 })).toEqual({
+      incomingPurchase: "1",
+      incomingPeriod: "2",
+    });
+    const bought = parseManagementPage({
+      success: true,
+      data: [
+        { code: 901, number: "1234567", status: { mnemonic: "allocated" } },
+        { code: "495", number: "3084480", status: { mnemonic: " Free " } },
+      ],
+      meta: { total: 2, page: 1, limit: 30 },
+    });
+    expect(bought.ok).toBe(true);
+    if (!bought.ok) return;
+    expect(bought.page.rows).toEqual(["79011234567"]);
+    expect(bought.page.skippedFree).toBe(1);
+    expect(bought.page.read).toBe(2);
+    expect(
+      parseManagementPage({
+        success: true,
+        data: [{ code: "901", number: "1234567", status: {} }],
+        meta: { total: 1, page: 1, limit: 30 },
+      }).ok,
+    ).toBe(false);
+    expect(
+      parseSession({ success: true, data: { token: "abc", refresh_token: "def" } }),
+    ).toEqual({
+      token: "abc",
+      refreshToken: "def",
+    });
   });
 
   it("accepts a short page only when the count lands on the total", () => {
@@ -67,25 +118,58 @@ describe("runexis showcase", () => {
     expect(parseAccessToken({ success: true, data: { token: "abc" } })).toBe("abc");
   });
 
-  it("replaces only Runexis free numbers", () => {
+  it("replaces Runexis rows in both catalogs", () => {
+    expect(catalogUrl("management", 2)).toContain("/api/v1/numbers/management");
+    expect(refreshUrl()).toBe("https://didapi.runexis.ru/api/v1/refresh");
     expect(DELETE_RUNEXIS_FREE_SQL).toBe(
       "DELETE FROM free_numbers WHERE provider = 'Runexis'",
     );
-    expect(DELETE_RUNEXIS_FREE_SQL).not.toContain("purchased_numbers");
-    expect(FREE_COPY_SQL).toContain("INSERT INTO free_numbers");
-    expect(FREE_COPY_SQL).toContain("'Runexis'");
-    expect(FREE_COPY_SQL).not.toContain("DELETE");
-    expect(FREE_COPY_SQL).not.toContain("purchased_numbers");
-    expect(FREE_COPY_SQL).not.toContain("DISTINCT");
-    expect(flattenSql(stageInsertSql("run", ["9011234567"]))).not.toContain(
-      "ON CONFLICT",
+    expect(DELETE_RUNEXIS_PURCHASED_SQL).toBe(
+      "DELETE FROM purchased_numbers WHERE provider = 'Runexis'",
     );
-    expect(flattenSql(fillSplitSql("run", 2000))).toContain("LEFT JOIN");
-    expect(flattenSql(fillSplitSql("run", 2000))).toContain("runexis_sync_stage");
-    expect(flattenSql(fillSplitSql("run", 2000))).not.toContain("purchased_numbers");
-    expect(decidePublish({ held: true, staged: 0, inserted: 0 })).toBe("commit");
-    expect(decidePublish({ held: true, staged: 2, inserted: 1 })).toBe("rollback");
-    expect(decidePublish({ held: false, staged: 1, inserted: 1 })).toBe("rollback");
+    expect(FREE_COPY_SQL).toContain("incoming_purchase");
+    expect(FREE_COPY_SQL).toContain("incoming_period");
+    expect(FREE_COPY_SQL).not.toContain("DELETE");
+    expect(PURCHASED_COPY_SQL).toContain("INSERT INTO purchased_numbers");
+    expect(PURCHASED_COPY_SQL).not.toContain("incoming");
+    expect(
+      flattenSql(
+        stageFreeSql("run", [
+          { e164: "79011234567", incomingPurchase: "1", incomingPeriod: "" },
+        ]),
+      ),
+    ).toContain("incoming_purchase");
+    expect(flattenSql(dropOverlapSql("run"))).toContain("purchased");
+    expect(flattenSql(fillSplitSql("run", 2000))).toContain(
+      "stage.catalog = computed.catalog",
+    );
+    expect(
+      decidePublish({
+        held: true,
+        stagedFree: 0,
+        insertedFree: 0,
+        stagedPurchased: 0,
+        insertedPurchased: 0,
+      }),
+    ).toBe("commit");
+    expect(
+      decidePublish({
+        held: true,
+        stagedFree: 2,
+        insertedFree: 1,
+        stagedPurchased: 1,
+        insertedPurchased: 1,
+      }),
+    ).toBe("rollback");
+    expect(
+      decidePublish({
+        held: false,
+        stagedFree: 1,
+        insertedFree: 1,
+        stagedPurchased: 1,
+        insertedPurchased: 1,
+      }),
+    ).toBe("rollback");
   });
 
   it("drops the Runexis lease without touching catalogs", () => {

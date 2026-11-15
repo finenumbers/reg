@@ -1,7 +1,13 @@
-# Current Phase — production (v1.283.0)
+# Current Phase — production (v1.284.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, purchased numbers, numbering sync, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
-**Date:** 2026-11-14
+**Date:** 2026-11-15
+
+## v1.284.0 — Runexis free and purchased numbers
+
+The migration `20261115120000_runexis_catalogs` adds the current list and the purchased count on the Runexis lease, and adds the catalog and the two free-number prices on the draft. It does not rewrite phone, tariff, CDR, PSTN, RTU screen, or catalog rows. The migration is label-free, so startup does not rescan the CDR journal. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app, let migrate finish, then start one new app. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged. SipOut is unchanged.
+
+«Проверить доступ» logs in and reads the first page of the showcase and the first page of the partner list. A page that cannot be parsed is not access. It does not write catalogs and does not rewrite the stage log. «Загрузить» confirms that both catalogs are reread and that every previous Runexis row in both is deleted, including when a new list is shorter or empty. Cancel, close, and Enter do not send. The walk reads every showcase page of 30, then every partner page of 30. A number is stored as 11 digits starting with 7. A free number may fill «Покупка (входящая)» and «Абонплата (входящая)». A bad price leaves that cell empty. A partner row is purchased only when its status is present and is not `free`. A missing status fails the page. Category and class are not stored. A number that is in both drafts stays purchased. Both lists must succeed before either catalog is replaced. A complete empty list replaces that Runexis slice. A 401 refreshes once and repeats that read once. A 403 does not refresh. The stage log names the list, the page, the HTTP status, the attempts, and the duration. It has no password, token, or URL.
 
 ## v1.283.0 — Runexis failure status
 

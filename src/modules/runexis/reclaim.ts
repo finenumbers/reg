@@ -11,6 +11,7 @@ export const RECLAIM_STATE_SQL = `
   UPDATE runexis_sync_state
   SET run_id = NULL,
       phase = '',
+      list = '',
       page_done = 0,
       page_total = 0,
       error = NULL,

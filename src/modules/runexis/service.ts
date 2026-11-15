@@ -1,5 +1,5 @@
 /**
- * One Runexis free-number stage. Login and the showcase do not share SipOut's lease.
+ * One Runexis stage. Login, the showcase, and the partner list do not share SipOut's lease.
  * The token captured after login is not stored.
  */
 
@@ -17,7 +17,7 @@ import {
   CDR_VACUUM_BUSY_MESSAGE,
   isDatabaseVacuumActive,
 } from "@/modules/storage/vacuum/gate";
-import { runexisLogin, runexisShowcase } from "@/modules/runexis/client";
+import { runexisLogin, runexisRead } from "@/modules/runexis/client";
 import {
   endRunexis,
   isRunexisActive,
@@ -30,18 +30,25 @@ import {
   runexisLogExists,
   sanitizeLogLine,
 } from "@/modules/runexis/log";
-import { parseAccessToken } from "@/modules/runexis/parse";
 import {
+  parseManagementPage,
+  parseSession,
+  parseShowcasePage,
+  type RunexisSession,
+} from "@/modules/runexis/parse";
+import {
+  dropPurchasedOverlap,
   dropStage,
   fillDraftSplit,
   markPublishing,
   PublishMismatch,
-  replaceRunexisFree,
-  stageNumbers,
+  replaceRunexisCatalogs,
+  stageFreeNumbers,
+  stagePurchasedNumbers,
   SyncLost,
 } from "@/modules/runexis/publish";
-import { RUNEXIS_ORIGIN, SHOWCASE_LIMIT } from "@/modules/runexis/url";
-import { runFreeWalk, type LeaseBeat } from "@/modules/runexis/walk";
+import { RUNEXIS_ORIGIN, SHOWCASE_LIMIT, type RunexisList } from "@/modules/runexis/url";
+import { runRunexisWalk, type LeaseBeat } from "@/modules/runexis/walk";
 
 const BUSY = "Уже выполняется.";
 const STOPPING = "Сервер останавливается. Каталог не изменён.";
@@ -61,10 +68,12 @@ export type RunexisAccessView = {
 export type RunexisSyncView = RunexisAccessView & {
   busy: boolean;
   phase: string;
+  list: string;
   pageDone: number;
   pageTotal: number;
   lastError: string | null;
   lastFree: number | null;
+  lastPurchased: number | null;
   hasLog: boolean;
 };
 
@@ -72,10 +81,12 @@ type Actor = { userId: string; ip?: string | null };
 
 type StateRow = {
   phase: string;
+  list: string;
   page_done: number;
   page_total: number;
   last_error: string | null;
   last_free_written: number | null;
+  last_purchased_written: number | null;
   busy: boolean;
 };
 
@@ -84,10 +95,12 @@ function emptySync(access: RunexisAccessView, hasLog: boolean): RunexisSyncView 
     ...access,
     busy: false,
     phase: "",
+    list: "",
     pageDone: 0,
     pageTotal: 0,
     lastError: null,
     lastFree: null,
+    lastPurchased: null,
     hasLog,
   };
 }
@@ -116,7 +129,8 @@ export async function getRunexisSyncView(): Promise<RunexisSyncView> {
   const [access, rows, hasLog] = await Promise.all([
     readAccess(),
     prisma.$queryRaw<StateRow[]>`
-      SELECT phase, page_done, page_total, last_error, last_free_written,
+      SELECT phase, list, page_done, page_total, last_error,
+        last_free_written, last_purchased_written,
         (
           run_id IS NOT NULL
           AND phase IN ('running', 'publishing')
@@ -140,10 +154,12 @@ export async function getRunexisSyncView(): Promise<RunexisSyncView> {
     ...access,
     busy,
     phase: busy ? state.phase : "",
+    list: busy ? state.list : "",
     pageDone: busy ? state.page_done : 0,
     pageTotal: busy ? state.page_total : 0,
     lastError: state.last_error,
     lastFree: state.last_free_written,
+    lastPurchased: state.last_purchased_written,
     hasLog,
   };
 }
@@ -180,6 +196,7 @@ async function claim(runId: string): Promise<boolean> {
       UPDATE runexis_sync_state
       SET run_id = ${runId},
           phase = 'running',
+          list = '',
           page_done = 0,
           page_total = 0,
           error = NULL,
@@ -205,6 +222,7 @@ async function release(runId: string): Promise<void> {
     UPDATE runexis_sync_state
     SET run_id = NULL,
         phase = '',
+        list = '',
         page_done = 0,
         page_total = 0,
         heartbeat_at = NULL
@@ -217,6 +235,7 @@ async function finishError(runId: string, error: string): Promise<void> {
     UPDATE runexis_sync_state
     SET run_id = NULL,
         phase = '',
+        list = '',
         page_done = 0,
         page_total = 0,
         error = NULL,
@@ -227,13 +246,19 @@ async function finishError(runId: string, error: string): Promise<void> {
   `;
 }
 
-function beat(runId: string, page: number, total: number): Promise<LeaseBeat> {
+function beat(
+  runId: string,
+  page: number,
+  total: number,
+  list: RunexisList | "",
+): Promise<LeaseBeat> {
   const pages = total === 0 ? 1 : Math.ceil(total / SHOWCASE_LIMIT);
   return withDbRetry(() =>
     prisma.$transaction(async (tx) => {
       const updated = await tx.$queryRaw<{ phase: string }[]>`
         UPDATE runexis_sync_state
         SET heartbeat_at = CURRENT_TIMESTAMP,
+            list = ${list},
             page_done = ${page},
             page_total = ${pages}
         WHERE id = 1 AND run_id = ${runId} AND phase IN ('running', 'publishing')
@@ -300,8 +325,8 @@ export async function saveRunexisAccess(
   }
 }
 
-async function loginToken(): Promise<
-  { ok: true; token: string } | { ok: false; error: string }
+async function loginSession(): Promise<
+  { ok: true; session: RunexisSession } | { ok: false; error: string }
 > {
   let creds: { email: string; password: string };
   try {
@@ -311,12 +336,12 @@ async function loginToken(): Promise<
   }
   const page = await runexisLogin(creds.email, creds.password);
   if (!page.ok) return { ok: false, error: page.error };
-  const token = parseAccessToken(page.data);
-  if (!token) return { ok: false, error: BAD_LOGIN };
-  return { ok: true, token };
+  const session = parseSession(page.data);
+  if (!session) return { ok: false, error: BAD_LOGIN };
+  return { ok: true, session };
 }
 
-/** One login and one showcase page. Does not write the catalog or the stage log. */
+/** Login, then the first page of each catalog. Does not write a catalog or the stage log. */
 export async function testRunexisAccess(
   actor: Actor,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
@@ -330,18 +355,37 @@ export async function testRunexisAccess(
   try {
     claimed = await claim(runId);
     if (!claimed) return { ok: false, error: BUSY };
-    const session = await loginToken();
-    if (!session.ok) return session;
-    const page = await runexisShowcase(session.token, 1);
+    const opened = await loginSession();
+    if (!opened.ok) return opened;
+    const keep = async () => {
+      const state = await beat(runId, 0, 0, "");
+      if (state !== "ok") throw new Error(BUSY);
+    };
+    const showcase = await runexisRead(opened.session, "showcase", 1, { beat: keep });
+    const free = showcase.ok ? parseShowcasePage(showcase.data) : null;
+    const management = free?.ok
+      ? await runexisRead(opened.session, "management", 1, { beat: keep })
+      : null;
+    const bought = management?.ok ? parseManagementPage(management.data) : null;
+    const ok = Boolean(free?.ok && bought?.ok);
     await auditService.append({
       actorUserId: actor.userId,
       action: AUDIT_ACTIONS.RUNEXIS_TEST,
       entityType: "runexis",
       entityId: "runexis",
       ip: actor.ip,
-      meta: { source: "runexis", ok: page.ok },
+      meta: { source: "runexis", ok },
     });
-    return page.ok ? { ok: true } : { ok: false, error: page.error };
+    if (!showcase.ok) return { ok: false, error: showcase.error };
+    if (!free?.ok) return { ok: false, error: free?.error ?? BAD_LOGIN };
+    if (!management?.ok) return { ok: false, error: management?.error ?? BAD_LOGIN };
+    if (!bought?.ok) return { ok: false, error: bought?.error ?? BAD_LOGIN };
+    return { ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : BAD_LOGIN,
+    };
   } finally {
     if (claimed) await release(runId).catch(() => undefined);
     endRunexis(token);
@@ -357,10 +401,10 @@ export async function startRunexisSync(
   if (!begun.ok)
     return { ok: false, error: begun.reason === "stopping" ? STOPPING : BUSY };
   const holder = begun.token;
-  const session = await loginToken();
-  if (!session.ok) {
+  const opened = await loginSession();
+  if (!opened.ok) {
     endRunexis(holder);
-    return session;
+    return opened;
   }
   const runId = randomUUID();
   let claimed = false;
@@ -386,24 +430,51 @@ export async function startRunexisSync(
     endRunexis(holder);
     return { ok: false, error: LOG_OPEN_FAILED };
   }
-  const accessToken = session.token;
+  const session = opened.session;
+  let seenList: RunexisList = "showcase";
   let seenPage = 0;
   let seenTotal = 0;
   void (async () => {
     try {
-      const result = await runFreeWalk({
-        showcase: (page) => runexisShowcase(accessToken, page),
+      const result = await runRunexisWalk({
+        showcase: (page) =>
+          runexisRead(session, "showcase", page, {
+            beat: async () => {
+              const state = await beat(runId, seenPage, seenTotal, seenList);
+              if (state === "cancel")
+                throw new Error("Загрузка отменена. Каталог не изменён.");
+              if (state === "lost") throw new SyncLost();
+            },
+          }),
+        management: (page) =>
+          runexisRead(session, "management", page, {
+            beat: async () => {
+              const state = await beat(runId, seenPage, seenTotal, seenList);
+              if (state === "cancel")
+                throw new Error("Загрузка отменена. Каталог не изменён.");
+              if (state === "lost") throw new SyncLost();
+            },
+          }),
         stillMine: async () => {
           if (isRunexisStopping()) return "cancel";
-          return beat(runId, seenPage, seenTotal);
+          return beat(runId, seenPage, seenTotal, seenList);
         },
         stopping: isRunexisStopping,
-        stage: async (dids) => {
-          await stageNumbers(runId, dids);
+        stageFree: async (rows) => {
+          await stageFreeNumbers(runId, rows);
+        },
+        stagePurchased: async (dids) => {
+          await stagePurchasedNumbers(runId, dids);
         },
         prepare: async () => {
+          const removed = await dropPurchasedOverlap(runId);
+          if (removed > 0) {
+            await appendRunexisLog(
+              `Совпадение: ${removed} номеров убраны из свободных, они куплены.\n`,
+            ).catch(() => undefined);
+          }
           await fillDraftSplit(runId, async () => {
-            const state = await beat(runId, 0, 0);
+            const state = await beat(runId, 0, 0, "");
             if (state === "cancel")
               throw new Error("Загрузка отменена. Каталог не изменён.");
             if (state === "lost") throw new SyncLost();
@@ -418,7 +489,7 @@ export async function startRunexisSync(
           if (isRunexisStopping())
             throw new Error("Загрузка отменена. Каталог не изменён.");
           try {
-            return await replaceRunexisFree(runId);
+            return await replaceRunexisCatalogs(runId);
           } catch (error) {
             if (
               isLockTimeout(error) &&
@@ -426,20 +497,21 @@ export async function startRunexisSync(
               !(error instanceof PublishMismatch) &&
               !isStatementTimeout(error)
             ) {
-              const state = await beat(runId, seenPage, seenTotal);
+              const state = await beat(runId, seenPage, seenTotal, seenList);
               if (state !== "ok") throw new SyncLost();
               if (isRunexisStopping())
                 throw new Error("Загрузка отменена. Каталог не изменён.");
-              return replaceRunexisFree(runId);
+              return replaceRunexisCatalogs(runId);
             }
             throw error;
           }
         },
         dropStage: () => dropStage(runId),
-        progress: async (page, total) => {
+        progress: async (list, page, total) => {
+          seenList = list;
           seenPage = page;
           seenTotal = total;
-          const state = await beat(runId, page, total);
+          const state = await beat(runId, page, total, list);
           if (state === "cancel")
             throw new Error("Загрузка отменена. Каталог не изменён.");
           if (state === "lost") throw new SyncLost();
@@ -461,7 +533,7 @@ export async function startRunexisSync(
             entityId: "runexis",
             ip: actor.ip,
             meta: result.ok
-              ? { source: "runexis", free: result.inserted }
+              ? { source: "runexis", free: result.free, purchased: result.purchased }
               : { source: "runexis", failed: true },
           })
           .catch(() => undefined);

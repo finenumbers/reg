@@ -1,9 +1,9 @@
 ---
-description: Runexis DID API is read-only except login; only the free-number showcase is a catalog
+description: Runexis DIDAPI reads the free showcase and the partner list
 alwaysApply: true
 ---
 
-# Runexis free numbers
+# Runexis numbers
 
 The handbook is the live page `https://didapi.runexis.ru/docs/index.html`. Read it again before any Runexis change. It can change. Do not invent methods, paths, or query fields. Do not commit a copy of that page.
 
@@ -11,11 +11,13 @@ The host is the literal `https://didapi.runexis.ru`. HTTPS only. Do not follow r
 
 This release may send only:
 
-- `POST /api/v1/login` with `email` and `password`, once at the start of a walk and once for the access check. It issues a Bearer token. It does not change numbers.
-- `GET /api/v1/numbers/showcase` with `page` and `limit=30` only. No `city_ids`, `region_codes`, `class_id`, or `phone_number`.
+- `POST /api/v1/login` with `email` and `password`, once at the start of a walk and once for the access check. It issues a Bearer token and a refresh token. It does not change numbers.
+- `POST /api/v1/refresh` with body exactly `{token}` equal to the refresh token, once after a catalog read returns 401, then that same GET once. A 403 does not refresh. Refresh is not used on login.
+- `GET /api/v1/numbers/showcase` with `page` and `limit=30` only. The whole page is the free draft.
+- `GET /api/v1/numbers/management` with `page` and `limit=30` only. A row is purchased only when `status.mnemonic` is present and is not `free`. A missing status fails the page. A `free` row is counted and is not staged.
 
-Every showcase page is read until the accepted count equals `meta.total`. A short last page is the end only when that count matches. A hole, a duplicate, or a changed total does not publish. The password and the token stay out of logs and responses.
+No `city_ids`, `region_codes`, `class_id`, `phone_number`, or `number_status_id`. Every page of both lists is read until the accepted count equals `meta.total`. A short last page is the end only when that count matches. A hole, a duplicate, a changed total, or a failed page does not publish. Both lists must succeed before either catalog is replaced. The password, the token, and the refresh token stay out of logs, the database, and responses.
 
-Do not call `refresh`, `revoke-all`, `buy`, `book`, `allocate`, `refuse`, `management`, `GET /api/v1/numbers`, or `GET /api/v1/internal/numbers`. Do not write purchased numbers from this API.
+Do not call `revoke-all`, `buy`, `book`, `allocate`, `refuse`, `GET /api/v1/numbers`, `GET /api/v1/internal/numbers`, regions, or cities. Do not call the old Numbering API.
 
-A successful walk replaces every `free_numbers` row whose provider is `Runexis`. It does not delete `purchased_numbers` or SipOut rows. The Runexis lease and draft are their own tables. Do not use `numbering_sync_state` or `numbering_sync_stage`.
+A successful walk replaces every `free_numbers` row and every `purchased_numbers` row whose provider is `Runexis`, in one transaction. SipOut rows stay. Free-number prices may fill «Покупка (входящая)» and «Абонплата (входящая)». Purchased money columns stay empty. Category and class are not stored. The Runexis lease and draft are their own tables. Do not use `numbering_sync_state` or `numbering_sync_stage`.

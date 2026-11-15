@@ -65,12 +65,14 @@ export function RunexisSyncForm({ initial }: { initial: RunexisSyncView }) {
     }
   }
 
+  const listName =
+    view.list === "management" ? "Купленные" : view.list === "showcase" ? "Витрина" : "";
   const progress = !view.busy
     ? null
     : view.phase === "publishing"
       ? "Запись номеров"
       : view.pageTotal > 0
-        ? `Страница ${view.pageDone} из ${view.pageTotal}`
+        ? `${listName ? `${listName}, страница` : "Страница"} ${view.pageDone} из ${view.pageTotal}`
         : "Загрузка";
 
   return (
@@ -108,8 +110,8 @@ export function RunexisSyncForm({ initial }: { initial: RunexisSyncView }) {
             <br />
             Email: {view.email}
             <br />
-            Будут заново прочитаны только свободные номера. Успешная запись удалит все
-            прежние номера Runexis в свободных номерах, в том числе если новый список
+            Будут заново прочитаны свободные и купленные номера. Успешная запись удалит
+            все прежние номера Runexis в обоих каталогах, в том числе если новый список
             короче или пуст.
           </p>
           <div className="flex gap-2">
@@ -145,8 +147,13 @@ export function RunexisSyncForm({ initial }: { initial: RunexisSyncView }) {
       {!view.busy && view.lastError ? (
         <p className="text-destructive text-sm">{view.lastError}</p>
       ) : null}
-      {!view.busy && view.lastError == null && view.lastFree != null ? (
-        <p className="text-muted-foreground text-sm">Свободных: {view.lastFree}.</p>
+      {!view.busy &&
+      view.lastError == null &&
+      view.lastFree != null &&
+      view.lastPurchased != null ? (
+        <p className="text-muted-foreground text-sm">
+          Свободных: {view.lastFree}. Купленных: {view.lastPurchased}.
+        </p>
       ) : null}
       {error ? <p className="text-destructive text-sm">{error}</p> : null}
     </div>

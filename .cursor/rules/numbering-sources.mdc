@@ -9,7 +9,7 @@ Each numbering source is a separate API and a separate process. SipOut and Runex
 
 SipOut owns `numbering_sync_state` and `numbering_sync_stage`. Runexis owns `runexis_sync_state` and `runexis_sync_stage`. Each state row stays `id = 1` with `CHECK (id = 1)`. A source does not insert into the other source's tables and does not drop the other check. Each source has its own module, its own client, its own `globalThis` slot, and its own text log.
 
-`free_numbers` and `purchased_numbers` are the shared catalogs. A publish deletes and inserts only the rows of that source's provider literal, in one transaction. SipOut replaces its rows in both catalogs. Runexis replaces its rows in `free_numbers` only. A failed read leaves the catalogs. The provider name is a literal in the SQL. Do not accept a source name from a request, a flag, or a setting.
+`free_numbers` and `purchased_numbers` are the shared catalogs. A publish deletes and inserts only the rows of that source's provider literal, in one transaction. SipOut replaces its rows in both catalogs. Runexis replaces its rows in both catalogs. A failed read leaves the catalogs. The provider name is a literal in the SQL. Do not accept a source name from a request, a flag, or a setting.
 
 The SipOut walk, the SipOut access check, and the SipOut key save share one in-memory holder. The key save does not take the database lease. Do not split that holder. The Runexis walk, the Runexis access check, and the Runexis password save share a different holder. `SIGTERM` sets one stop flag. A walk that sees it does not publish. Do not add a second listener for that signal.
 

@@ -6,7 +6,7 @@ vi.mock("@/lib/logger", () => ({
   logger: { info: (...args: unknown[]) => info(...args), warn: vi.fn(), error: vi.fn() },
 }));
 
-import { runexisLogin, runexisShowcase } from "@/modules/runexis/client";
+import { runexisLogin, runexisRead, runexisShowcase } from "@/modules/runexis/client";
 
 describe("runexis client", () => {
   beforeEach(() => {
@@ -111,5 +111,64 @@ describe("runexis client", () => {
       expect(brokenPage.error).not.toContain("didapi");
       expect(brokenPage.error).not.toContain("://");
     }
+  });
+
+  it("refreshes once after 401 and does not refresh after 403", async () => {
+    const session = { token: "old", refreshToken: "refresh-secret" };
+    const calls: { href: string; method: string; body: string }[] = [];
+    const beats: number[] = [];
+    const fetchImpl: typeof fetch = async (input, init) => {
+      const href = String(input);
+      calls.push({ href, method: init?.method ?? "", body: String(init?.body ?? "") });
+      if (href.endsWith("/refresh")) {
+        return new Response(
+          JSON.stringify({
+            success: true,
+            data: { token: "new", refresh_token: "next" },
+          }),
+          { status: 200 },
+        );
+      }
+      if (href.includes("/management")) {
+        return new Response("no", { status: 403 });
+      }
+      if (calls.filter((call) => call.href.includes("/showcase")).length === 1) {
+        return new Response("no", { status: 401 });
+      }
+      const headers = new Headers(init?.headers);
+      expect(headers.get("authorization")).toBe("Bearer new");
+      return new Response(
+        JSON.stringify({
+          success: true,
+          data: [],
+          meta: { total: 0, page: 1, limit: 30 },
+        }),
+        { status: 200 },
+      );
+    };
+    const page = await runexisRead(session, "showcase", 1, {
+      fetchImpl,
+      beat: async () => {
+        beats.push(1);
+      },
+    });
+    expect(page.ok).toBe(true);
+    expect(session).toEqual({ token: "new", refreshToken: "next" });
+    expect(beats).toEqual([1, 1]);
+    expect(calls.map((call) => call.method)).toEqual(["GET", "POST", "GET"]);
+    expect(JSON.parse(calls[1]?.body ?? "")).toEqual({ token: "refresh-secret" });
+    expect(JSON.stringify(info.mock.calls)).not.toContain("refresh-secret");
+    expect(JSON.stringify(info.mock.calls)).not.toContain("new");
+
+    calls.length = 0;
+    const forbidden = await runexisRead(
+      { token: "old", refreshToken: "refresh-secret" },
+      "management",
+      1,
+      { fetchImpl },
+    );
+    expect(forbidden.ok).toBe(false);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.method).toBe("GET");
   });
 });

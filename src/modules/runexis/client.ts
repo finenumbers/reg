@@ -1,9 +1,17 @@
 /**
- * Login once, then showcase pages. The password and the token stay out of logs.
+ * Login once, then catalog pages. The password and the token stay out of logs.
+ * A 401 on a catalog read refreshes once and repeats that read once.
  */
 
 import { logger } from "@/lib/logger";
-import { loginUrl, showcaseUrl } from "@/modules/runexis/url";
+import type { RunexisSession } from "@/modules/runexis/parse";
+import { parseSession } from "@/modules/runexis/parse";
+import {
+  catalogUrl,
+  loginUrl,
+  refreshUrl,
+  type RunexisList,
+} from "@/modules/runexis/url";
 
 const TIMEOUT_MS = 30_000;
 const BODY_CAP = 20 * 1024 * 1024;
@@ -24,6 +32,7 @@ type Attempt =
 
 export type RunexisDeps = {
   fetchImpl?: typeof fetch;
+  beat?: () => Promise<void>;
 };
 
 async function readCapped(response: Response): Promise<string | null> {
@@ -190,27 +199,76 @@ export async function runexisLogin(
   );
 }
 
-/** One showcase page. Only page and limit are sent. A 4xx is not retried. */
+function denied(error: string): RunexisPage {
+  return {
+    ok: false,
+    error,
+    meta: { status: 0, attempts: 1, durationMs: 0 },
+  };
+}
+
+async function refreshOnce(
+  refreshToken: string,
+  deps: RunexisDeps | undefined,
+): Promise<RunexisPage> {
+  const started = Date.now();
+  const attempt = await request(
+    refreshUrl(),
+    {
+      method: "POST",
+      headers: { Accept: "application/json", "Content-Type": "application/json" },
+      body: JSON.stringify({ token: refreshToken }),
+    },
+    deps,
+    "refresh",
+  );
+  return pageFrom(attempt, 1, Date.now() - started);
+}
+
+/**
+ * One catalog page. Only page and limit are sent. A 5xx is retried once.
+ * A 401 refreshes once, then the same GET is sent once. A 403 does not refresh.
+ */
+export async function runexisRead(
+  session: RunexisSession,
+  list: RunexisList,
+  page: number,
+  deps?: RunexisDeps,
+): Promise<RunexisPage> {
+  const href = catalogUrl(list, page);
+  if (!href || !session.token) return denied("Недопустимый запрос.");
+  const headers = {
+    Accept: "application/json",
+    Authorization: `Bearer ${session.token}`,
+  };
+  const first = await onceOrTwice(href, { method: "GET", headers }, deps, list);
+  if (first.ok || first.meta.status !== 401 || !session.refreshToken) return first;
+  await deps?.beat?.();
+  const refreshed = await refreshOnce(session.refreshToken, deps);
+  if (!refreshed.ok) return refreshed;
+  const next = parseSession(refreshed.data);
+  if (!next) return denied("Площадка отклонила доступ.");
+  session.token = next.token;
+  session.refreshToken = next.refreshToken;
+  await deps?.beat?.();
+  const started = Date.now();
+  const attempt = await request(
+    href,
+    {
+      method: "GET",
+      headers: { Accept: "application/json", Authorization: `Bearer ${session.token}` },
+    },
+    deps,
+    list,
+  );
+  return pageFrom(attempt, 1, Date.now() - started);
+}
+
+/** One showcase page. */
 export async function runexisShowcase(
   token: string,
   page: number,
   deps?: RunexisDeps,
 ): Promise<RunexisPage> {
-  const href = showcaseUrl(page);
-  if (!href || !token) {
-    return {
-      ok: false,
-      error: "Недопустимый запрос.",
-      meta: { status: 0, attempts: 1, durationMs: 0 },
-    };
-  }
-  return onceOrTwice(
-    href,
-    {
-      method: "GET",
-      headers: { Accept: "application/json", Authorization: `Bearer ${token}` },
-    },
-    deps,
-    "showcase",
-  );
+  return runexisRead({ token, refreshToken: "" }, "showcase", page, deps);
 }

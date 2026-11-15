@@ -1,7 +1,7 @@
 import { numberingLoadActor, numberingLoadJson } from "@/modules/numbering-load/http";
 import { getRunexisAccessView, testRunexisAccess } from "@/modules/runexis/service";
 
-/** POST /api/numbering-load/runexis/test — one login and one showcase page. Session only. */
+/** POST /api/numbering-load/runexis/test — login and the first page of each catalog. Session only. */
 export async function POST(request: Request) {
   const actor = await numberingLoadActor(request);
   if (!actor.ok) return actor.response;
