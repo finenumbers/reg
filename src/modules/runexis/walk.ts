@@ -9,6 +9,7 @@ import {
   parseManagementPage,
   parseRegionCodes,
   parseShowcasePage,
+  rejectForeignCode,
   type FreeDraft,
 } from "@/modules/runexis/parse";
 import { SyncLost } from "@/modules/runexis/publish";
@@ -108,7 +109,8 @@ async function readSlice(
       };
     }
     const parsed = parseShowcasePage(response.data);
-    if (!parsed.ok || parsed.page.page !== page) {
+    const foreign = parsed.ok ? rejectForeignCode(parsed.page.rows, slice.code) : null;
+    if (!parsed.ok || parsed.page.page !== page || foreign) {
       await deps
         .log(lines(title, response, ["Итог: ответ не принят"]))
         .catch(() => undefined);
@@ -116,7 +118,7 @@ async function readSlice(
         done: await stop(deps, {
           ok: false,
           reason: "error",
-          error: parsed.ok ? SHORT : parsed.error,
+          error: foreign ?? (parsed.ok ? SHORT : parsed.error),
         }),
         draft,
       };

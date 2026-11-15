@@ -10,6 +10,7 @@ const BAD_NUMBER = "В ответе есть номер, который нель
 const BAD_STATUS = "В ответе нет статуса номера.";
 const DUPLICATE = "В ответе повторяется номер.";
 const BAD_CODES = "Справочник кодов не принят.";
+const FOREIGN_CODE = "В ответе номер другого кода.";
 
 const PURCHASE_KEYS = ["installation_cost", "installationCost", "buy_price"] as const;
 const MERA_KEYS = ["mera_price", "meraPrice"] as const;
@@ -133,6 +134,19 @@ function pageMeta(
   const limit = safeCount(body.meta.limit);
   if (total == null || page == null || page < 1 || limit !== SHOWCASE_LIMIT) return null;
   return { total, page, limit, rows: body.data };
+}
+
+/** Null when every number starts with 7 and this three-digit code. */
+export function rejectForeignCode(
+  rows: readonly { e164: string }[],
+  code: string,
+): string | null {
+  if (!/^\d{3}$/.test(code)) return FOREIGN_CODE;
+  const prefix = `7${code}`;
+  for (const row of rows) {
+    if (row.e164.length !== 11 || !row.e164.startsWith(prefix)) return FOREIGN_CODE;
+  }
+  return null;
 }
 
 export function parseShowcasePage(data: unknown): ParsedShowcase {

@@ -10,6 +10,7 @@ import {
   parseRegionCodes,
   parseSession,
   parseShowcasePage,
+  rejectForeignCode,
 } from "@/modules/runexis/parse";
 import { RECLAIM_STAGE_SQL, RECLAIM_STATE_SQL } from "@/modules/runexis/reclaim";
 import { sanitizeLogLine } from "@/modules/runexis/log";
@@ -57,17 +58,20 @@ describe("runexis showcase", () => {
     expect([...def.searchParams.keys()].sort()).toEqual([
       "limit",
       "page",
-      "region_codes[0][]",
+      "region_codes[0]",
     ]);
     expect(def.searchParams.get("page")).toBe("2");
     expect(def.searchParams.get("limit")).toBe("30");
-    expect(def.searchParams.get("region_codes[0][]")).toBe("901");
+    expect(def.searchParams.get("region_codes[0]")).toBe("901");
     expect(def.searchParams.has("class_id")).toBe(false);
     expect(def.searchParams.has("phone_number")).toBe(false);
     expect(def.searchParams.has("number_status_id")).toBe(false);
     const abc = new URL(showcaseSliceUrl(1, { code: "495", cityId: 58 }) ?? "");
     expect(abc.searchParams.get("city_ids[]")).toBe("58");
-    expect(abc.searchParams.get("region_codes[0][]")).toBe("495");
+    expect(abc.searchParams.get("region_codes[0]")).toBe("495");
+    expect(rejectForeignCode([{ e164: "79010000001" }], "901")).toBeNull();
+    expect(rejectForeignCode([], "901")).toBeNull();
+    expect(rejectForeignCode([{ e164: "74953084480" }], "901")).toContain("другого кода");
     const directory = parseRegionCodes({
       success: true,
       data: [

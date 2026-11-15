@@ -276,7 +276,7 @@ describe("runexis walk", () => {
         },
       },
       [
-        { city_id: 58, codes: ["495"] },
+        { city_id: 58, codes: ["901"] },
         { city_id: null, codes: ["901"] },
       ],
     );
@@ -284,6 +284,17 @@ describe("runexis walk", () => {
     expect(result.ok).toBe(true);
     expect(walk.askedShowcase()).toBe(2);
     expect(accepted.at(-1)).toBe(1);
+  });
+
+  it("does not publish when a showcase row belongs to another code", async () => {
+    const walk = harness([okPage([["495", "3084480"]], 1, 1)]);
+    const result = await runRunexisWalk(walk.deps);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("другого кода");
+    expect(walk.published()).toBe(0);
+    expect(walk.dropped()).toBe(1);
+    expect(walk.free).toEqual([]);
+    expect(walk.askedShowcase()).toBe(1);
   });
 
   it("rejects a repeated number on one page", async () => {

@@ -1,7 +1,13 @@
-# Current Phase — production (v1.286.0)
+# Current Phase — production (v1.287.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, purchased numbers, numbering sync, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-15
+
+## v1.287.0 — Runexis showcase code parameter
+
+There is no migration. Do not stop `smg-syslog`. Phone, tariff, CDR, PSTN, RTU screen, and catalog rows are not rewritten. Keep a single `app` replica. Stop the old app before the new one starts, then start one new app. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged. The Runexis timeout stays 30 seconds with one retry. SipOut is unchanged.
+
+Runexis «Загрузить» still reads the partner list first, then the code directory, then the showcase one three-digit code at a time. The code is sent as `region_codes[0]`. `city_ids[]` is still sent only when that directory row has an integer `city_id`. A showcase number that does not start with `7` and that code fails the page and publishes nothing. The unfiltered showcase is not called. «Проверить доступ» reads the first partner page, the code directory, and one showcase page of the first code, and applies the same code check. It does not write catalogs. Run «Проверить доступ» before «Загрузить». A failed page still leaves both catalogs. The stage log has no password, token, or URL.
 
 ## v1.286.0 — Runexis showcase by code
 

@@ -90,9 +90,9 @@ describe("runexis client", () => {
     expect([...url.searchParams.keys()].sort()).toEqual([
       "limit",
       "page",
-      "region_codes[0][]",
+      "region_codes[0]",
     ]);
-    expect(url.searchParams.get("region_codes[0][]")).toBe("901");
+    expect(url.searchParams.get("region_codes[0]")).toBe("901");
     expect(url.searchParams.has("city_ids[]")).toBe(false);
     expect(url.searchParams.has("class_id")).toBe(false);
     expect(JSON.stringify(info.mock.calls)).not.toContain("tok");
@@ -194,7 +194,8 @@ describe("runexis client", () => {
     expect(session).toEqual({ token: "new", refreshToken: "next" });
     expect(beats).toEqual([1, 1]);
     expect(calls.map((call) => call.method)).toEqual(["GET", "POST", "GET"]);
-    expect(calls[0]?.href).toContain("region_codes%5B0%5D%5B%5D=495");
+    expect(calls[0]?.href).toContain("region_codes%5B0%5D=495");
+    expect(calls[0]?.href).not.toContain("region_codes%5B0%5D%5B%5D");
     expect(calls[0]?.href).toContain("city_ids%5B%5D=58");
     expect(calls[2]?.href).toBe(calls[0]?.href);
     expect(calls[0]?.href).not.toContain("class_id");

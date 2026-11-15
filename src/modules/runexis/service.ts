@@ -41,6 +41,7 @@ import {
   parseRegionCodes,
   parseSession,
   parseShowcasePage,
+  rejectForeignCode,
   type RunexisSession,
 } from "@/modules/runexis/parse";
 import {
@@ -380,7 +381,9 @@ export async function testRunexisAccess(
       ? await runexisShowcaseSlice(opened.session, 1, first, { beat: keep })
       : null;
     const free = showcase?.ok ? parseShowcasePage(showcase.data) : null;
-    const ok = Boolean(bought?.ok && directory?.ok && free?.ok);
+    const foreign =
+      free?.ok && first ? rejectForeignCode(free.page.rows, first.code) : null;
+    const ok = Boolean(bought?.ok && directory?.ok && free?.ok && !foreign);
     await auditService.append({
       actorUserId: actor.userId,
       action: AUDIT_ACTIONS.RUNEXIS_TEST,
@@ -395,6 +398,7 @@ export async function testRunexisAccess(
     if (!directory?.ok) return { ok: false, error: directory?.error ?? BAD_LOGIN };
     if (!showcase?.ok) return { ok: false, error: showcase?.error ?? BAD_LOGIN };
     if (!free?.ok) return { ok: false, error: free?.error ?? BAD_LOGIN };
+    if (foreign) return { ok: false, error: foreign };
     return { ok: true };
   } catch (error) {
     return {
