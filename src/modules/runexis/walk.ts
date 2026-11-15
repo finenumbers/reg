@@ -1,5 +1,5 @@
 /**
- * Read every showcase page, then every partner page, then publish once.
+ * Read every partner page, then every showcase page, then publish once.
  * A failed page drops the draft and leaves both catalogs.
  */
 
@@ -224,12 +224,12 @@ async function readManagement(deps: WalkDeps): Promise<WalkResult | null> {
   }
 }
 
-/** Both lists, then one replace. A failed list leaves both catalogs. */
+/** Both lists, then one replace. A failed purchased list does not open the showcase. */
 export async function runRunexisWalk(deps: WalkDeps): Promise<WalkResult> {
-  const showcase = await readShowcase(deps);
-  if (showcase) return showcase;
   const management = await readManagement(deps);
   if (management) return management;
+  const showcase = await readShowcase(deps);
+  if (showcase) return showcase;
   const ready = await gate(deps);
   if (ready) return stop(deps, ready);
   try {

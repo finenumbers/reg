@@ -1,7 +1,13 @@
-# Current Phase — production (v1.284.0)
+# Current Phase — production (v1.285.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, purchased numbers, numbering sync, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-15
+
+## v1.285.0 — Purchased numbers before free numbers
+
+There is no migration. Do not stop `smg-syslog`. Phone, tariff, CDR, PSTN, RTU screen, and catalog rows are not rewritten. Keep a single `app` replica. Stop the old app before the new one starts, then start one new app. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged. The Runexis timeout stays 30 seconds with one retry.
+
+SipOut «Загрузить» reads `connected_list` first. `get_cities` and `free_list` start only after that list is complete. A failed purchased list does not read cities or free numbers. Runexis «Загрузить» reads every partner page, then every showcase page. A failed partner list does not open the showcase. «Проверить доступ» reads the first partner page, then the first showcase page. Both lists must still succeed before either catalog is replaced. A number that is in both drafts stays purchased.
 
 ## v1.284.0 — Runexis free and purchased numbers
 

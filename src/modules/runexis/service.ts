@@ -361,13 +361,13 @@ export async function testRunexisAccess(
       const state = await beat(runId, 0, 0, "");
       if (state !== "ok") throw new Error(BUSY);
     };
-    const showcase = await runexisRead(opened.session, "showcase", 1, { beat: keep });
-    const free = showcase.ok ? parseShowcasePage(showcase.data) : null;
-    const management = free?.ok
-      ? await runexisRead(opened.session, "management", 1, { beat: keep })
+    const management = await runexisRead(opened.session, "management", 1, { beat: keep });
+    const bought = management.ok ? parseManagementPage(management.data) : null;
+    const showcase = bought?.ok
+      ? await runexisRead(opened.session, "showcase", 1, { beat: keep })
       : null;
-    const bought = management?.ok ? parseManagementPage(management.data) : null;
-    const ok = Boolean(free?.ok && bought?.ok);
+    const free = showcase?.ok ? parseShowcasePage(showcase.data) : null;
+    const ok = Boolean(bought?.ok && free?.ok);
     await auditService.append({
       actorUserId: actor.userId,
       action: AUDIT_ACTIONS.RUNEXIS_TEST,
@@ -376,10 +376,10 @@ export async function testRunexisAccess(
       ip: actor.ip,
       meta: { source: "runexis", ok },
     });
-    if (!showcase.ok) return { ok: false, error: showcase.error };
-    if (!free?.ok) return { ok: false, error: free?.error ?? BAD_LOGIN };
-    if (!management?.ok) return { ok: false, error: management?.error ?? BAD_LOGIN };
+    if (!management.ok) return { ok: false, error: management.error };
     if (!bought?.ok) return { ok: false, error: bought?.error ?? BAD_LOGIN };
+    if (!showcase?.ok) return { ok: false, error: showcase?.error ?? BAD_LOGIN };
+    if (!free?.ok) return { ok: false, error: free?.error ?? BAD_LOGIN };
     return { ok: true };
   } catch (error) {
     return {
@@ -431,7 +431,7 @@ export async function startRunexisSync(
     return { ok: false, error: LOG_OPEN_FAILED };
   }
   const session = opened.session;
-  let seenList: RunexisList = "showcase";
+  let seenList: RunexisList = "management";
   let seenPage = 0;
   let seenTotal = 0;
   void (async () => {

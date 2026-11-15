@@ -125,7 +125,8 @@ describe("runexis walk", () => {
     expect(result.ok).toBe(false);
     expect(walk.published()).toBe(0);
     expect(walk.dropped()).toBe(1);
-    expect(walk.askedManagement()).toBe(0);
+    expect(walk.askedManagement()).toBe(1);
+    expect(walk.askedShowcase()).toBe(1);
   });
 
   it("leaves both catalogs when a status is missing", async () => {
@@ -147,6 +148,7 @@ describe("runexis walk", () => {
     expect(result.ok).toBe(false);
     expect(walk.published()).toBe(0);
     expect(walk.dropped()).toBe(1);
+    expect(walk.askedShowcase()).toBe(0);
   });
 
   it("leaves both catalogs when the total changes", async () => {
@@ -166,7 +168,7 @@ describe("runexis walk", () => {
     expect(result.ok).toBe(false);
     expect(walk.published()).toBe(0);
     expect(walk.dropped()).toBe(1);
-    expect(walk.askedManagement()).toBe(0);
+    expect(walk.askedManagement()).toBe(1);
   });
 
   it("does not publish after the stop flag", async () => {

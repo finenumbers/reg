@@ -37,12 +37,21 @@ function deps(over: Partial<WalkDeps> = {}): WalkDeps {
 }
 
 describe("sipout source walk", () => {
-  it("does not publish when connected_list fails after a free list", async () => {
+  it("does not read cities or free numbers when connected_list fails", async () => {
     let published = false;
     let dropped = false;
+    let cities = false;
+    let listed = false;
     const result = await runSourceWalk(
       deps({
-        freeList: async () => page({ cnt: "1", list: [{ did: "74953084480" }] }),
+        getCities: async () => {
+          cities = true;
+          return page({ cities: [{ id: "1" }] });
+        },
+        freeList: async () => {
+          listed = true;
+          return page({ cnt: "1", list: [{ did: "74953084480" }] });
+        },
         connectedList: async () => failed("обрыв"),
         stage: async () => 1,
         publish: async () => {
@@ -55,6 +64,8 @@ describe("sipout source walk", () => {
       }),
     );
     expect(result).toMatchObject({ ok: false, reason: "error" });
+    expect(cities).toBe(false);
+    expect(listed).toBe(false);
     expect(published).toBe(false);
     expect(dropped).toBe(true);
   });
@@ -81,7 +92,7 @@ describe("sipout source walk", () => {
     expect(published).toBe(1);
   });
 
-  it("does not call free_list when the city list is empty", async () => {
+  it("reads purchased numbers before an empty city list and does not call free_list", async () => {
     let listed = false;
     let connected = false;
     let published = false;
@@ -103,8 +114,8 @@ describe("sipout source walk", () => {
       }),
     );
     expect(result.ok).toBe(false);
+    expect(connected).toBe(true);
     expect(listed).toBe(false);
-    expect(connected).toBe(false);
     expect(published).toBe(false);
   });
 

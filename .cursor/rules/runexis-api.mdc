@@ -16,7 +16,7 @@ This release may send only:
 - `GET /api/v1/numbers/showcase` with `page` and `limit=30` only. The whole page is the free draft.
 - `GET /api/v1/numbers/management` with `page` and `limit=30` only. A row is purchased only when `status.mnemonic` is present and is not `free`. A missing status fails the page. A `free` row is counted and is not staged.
 
-No `city_ids`, `region_codes`, `class_id`, `phone_number`, or `number_status_id`. Every page of both lists is read until the accepted count equals `meta.total`. A short last page is the end only when that count matches. A hole, a duplicate, a changed total, or a failed page does not publish. Both lists must succeed before either catalog is replaced. The password, the token, and the refresh token stay out of logs, the database, and responses.
+No `city_ids`, `region_codes`, `class_id`, `phone_number`, or `number_status_id`. The load reads every management page first, then every showcase page. A failed purchased list does not open the showcase. The access check reads page 1 of management, then page 1 of the showcase. Every page of both lists is read until the accepted count equals `meta.total`. A short last page is the end only when that count matches. A hole, a duplicate, a changed total, or a failed page does not publish. Both lists must succeed before either catalog is replaced. The password, the token, and the refresh token stay out of logs, the database, and responses.
 
 Do not call `revoke-all`, `buy`, `book`, `allocate`, `refuse`, `GET /api/v1/numbers`, `GET /api/v1/internal/numbers`, regions, or cities. Do not call the old Numbering API.
 

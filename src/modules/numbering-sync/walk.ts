@@ -68,7 +68,9 @@ async function beat(deps: WalkDeps): Promise<WalkResult | null> {
 async function stop(deps: WalkDeps, result: WalkResult): Promise<WalkResult> {
   await deps.dropStage();
   if (!result.ok && result.error) {
-    await deps.log(`Итог: каталоги не изменены\nОшибка: ${result.error}\n`).catch(() => undefined);
+    await deps
+      .log(`Итог: каталоги не изменены\nОшибка: ${result.error}\n`)
+      .catch(() => undefined);
   }
   return result;
 }
@@ -105,8 +107,11 @@ async function publishOwned(deps: WalkDeps): Promise<WalkResult> {
   } catch (error) {
     await deps.dropStage();
     if (error instanceof SyncLost) return { ok: false, reason: "lost", error: "" };
-    const message = error instanceof Error && error.message ? error.message : WRITE_FAILED;
-    await deps.log(`Итог: каталоги не изменены\nОшибка: ${message}\n`).catch(() => undefined);
+    const message =
+      error instanceof Error && error.message ? error.message : WRITE_FAILED;
+    await deps
+      .log(`Итог: каталоги не изменены\nОшибка: ${message}\n`)
+      .catch(() => undefined);
     return { ok: false, reason: "error", error: message };
   }
 }
@@ -114,15 +119,58 @@ async function publishOwned(deps: WalkDeps): Promise<WalkResult> {
 export async function runSourceWalk(deps: WalkDeps): Promise<WalkResult> {
   const first = await beat(deps);
   if (first) return stop(deps, first);
+  await deps.progress("purchased", 0, 1);
+  const purchased = await deps.connectedList();
+  if (!purchased.ok) {
+    const logged = await note(
+      deps,
+      lines("--- Купленные номера ---", purchased, [`Ошибка: ${purchased.error}`]),
+    );
+    if (logged) return stop(deps, logged);
+    return stop(deps, { ok: false, reason: "error", error: purchased.error });
+  }
+  const bought = parseDidList(purchased.data);
+  if (!bought.ok) {
+    const logged = await note(
+      deps,
+      lines("--- Купленные номера ---", purchased, [
+        `Ошибка: ${bought.error}`,
+        `Индекс: ${bought.index ?? ""}`,
+      ]),
+    );
+    if (logged) return stop(deps, logged);
+    return stop(deps, { ok: false, reason: "error", error: bought.error });
+  }
+  const uniqueBought = uniqueDids(bought.dids);
+  const insertedBought =
+    uniqueBought.length > 0 ? await deps.stage("purchased", uniqueBought) : 0;
+  const purchasedNote = await note(
+    deps,
+    lines("--- Купленные номера ---", purchased, [
+      `cnt: ${bought.dids.length}`,
+      `Принято: ${uniqueBought.length}`,
+      `Повторов в ответе: ${bought.dids.length - uniqueBought.length}`,
+      `Повторов уже в черновике: ${uniqueBought.length - insertedBought}`,
+    ]),
+  );
+  if (purchasedNote) return stop(deps, purchasedNote);
+  await deps.progress("purchased", 1, 1);
+
   const cities = await deps.getCities();
   if (!cities.ok) {
-    const logged = await note(deps, lines("--- Города ---", cities, [`Ошибка: ${cities.error}`]));
+    const logged = await note(
+      deps,
+      lines("--- Города ---", cities, [`Ошибка: ${cities.error}`]),
+    );
     if (logged) return stop(deps, logged);
     return stop(deps, { ok: false, reason: "error", error: cities.error });
   }
   const ids = parseCityIds(cities.data);
   if (!ids.ok) {
-    const logged = await note(deps, lines("--- Города ---", cities, [`Ошибка: ${ids.error}`]));
+    const logged = await note(
+      deps,
+      lines("--- Города ---", cities, [`Ошибка: ${ids.error}`]),
+    );
     if (logged) return stop(deps, logged);
     return stop(deps, { ok: false, reason: "error", error: ids.error });
   }
@@ -131,7 +179,8 @@ export async function runSourceWalk(deps: WalkDeps): Promise<WalkResult> {
     lines("--- Города ---", cities, [`Городов: ${ids.ids.length}`]),
   );
   if (cityNote) return stop(deps, cityNote);
-  if (ids.ids.length === 0) return stop(deps, { ok: false, reason: "error", error: NO_CITIES });
+  if (ids.ids.length === 0)
+    return stop(deps, { ok: false, reason: "error", error: NO_CITIES });
 
   await deps.progress("free", 0, ids.ids.length);
   for (let index = 0; index < ids.ids.length; index += 1) {
@@ -179,52 +228,16 @@ export async function runSourceWalk(deps: WalkDeps): Promise<WalkResult> {
     await deps.progress("free", index + 1, ids.ids.length);
   }
 
-  const beforePurchased = await beat(deps);
-  if (beforePurchased) return stop(deps, beforePurchased);
-  await deps.progress("purchased", 0, 1);
-  const purchased = await deps.connectedList();
-  if (!purchased.ok) {
-    const logged = await note(
-      deps,
-      lines("--- Купленные номера ---", purchased, [`Ошибка: ${purchased.error}`]),
-    );
-    if (logged) return stop(deps, logged);
-    return stop(deps, { ok: false, reason: "error", error: purchased.error });
-  }
-  const bought = parseDidList(purchased.data);
-  if (!bought.ok) {
-    const logged = await note(
-      deps,
-      lines("--- Купленные номера ---", purchased, [
-        `Ошибка: ${bought.error}`,
-        `Индекс: ${bought.index ?? ""}`,
-      ]),
-    );
-    if (logged) return stop(deps, logged);
-    return stop(deps, { ok: false, reason: "error", error: bought.error });
-  }
-  const uniqueBought = uniqueDids(bought.dids);
-  const insertedBought = uniqueBought.length > 0 ? await deps.stage("purchased", uniqueBought) : 0;
-  const purchasedNote = await note(
-    deps,
-    lines("--- Купленные номера ---", purchased, [
-      `cnt: ${bought.dids.length}`,
-      `Принято: ${uniqueBought.length}`,
-      `Повторов в ответе: ${bought.dids.length - uniqueBought.length}`,
-      `Повторов уже в черновике: ${uniqueBought.length - insertedBought}`,
-    ]),
-  );
-  if (purchasedNote) return stop(deps, purchasedNote);
-  await deps.progress("purchased", 1, 1);
-
   const beforePrepare = await beat(deps);
   if (beforePrepare) return stop(deps, beforePrepare);
   await deps.progress("split", 0, 1);
   try {
     await deps.prepare();
   } catch (error) {
-    if (error instanceof SyncLost) return stop(deps, { ok: false, reason: "lost", error: "" });
-    const message = error instanceof Error && error.message ? error.message : WRITE_FAILED;
+    if (error instanceof SyncLost)
+      return stop(deps, { ok: false, reason: "lost", error: "" });
+    const message =
+      error instanceof Error && error.message ? error.message : WRITE_FAILED;
     return stop(deps, { ok: false, reason: "error", error: message });
   }
   await deps.progress("split", 1, 1);
