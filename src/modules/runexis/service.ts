@@ -17,7 +17,12 @@ import {
   CDR_VACUUM_BUSY_MESSAGE,
   isDatabaseVacuumActive,
 } from "@/modules/storage/vacuum/gate";
-import { runexisLogin, runexisRead } from "@/modules/runexis/client";
+import {
+  runexisCodes,
+  runexisLogin,
+  runexisRead,
+  runexisShowcaseSlice,
+} from "@/modules/runexis/client";
 import {
   endRunexis,
   isRunexisActive,
@@ -27,11 +32,13 @@ import {
 import {
   appendRunexisLog,
   beginRunexisLog,
+  flushRunexisLog,
   runexisLogExists,
   sanitizeLogLine,
 } from "@/modules/runexis/log";
 import {
   parseManagementPage,
+  parseRegionCodes,
   parseSession,
   parseShowcasePage,
   type RunexisSession,
@@ -251,15 +258,18 @@ function beat(
   page: number,
   total: number,
   list: RunexisList | "",
+  accepted = 0,
 ): Promise<LeaseBeat> {
-  const pages = total === 0 ? 1 : Math.ceil(total / SHOWCASE_LIMIT);
+  const pageDone = list === "showcase" ? accepted : page;
+  const pages =
+    list === "showcase" ? 0 : total === 0 ? 1 : Math.ceil(total / SHOWCASE_LIMIT);
   return withDbRetry(() =>
     prisma.$transaction(async (tx) => {
       const updated = await tx.$queryRaw<{ phase: string }[]>`
         UPDATE runexis_sync_state
         SET heartbeat_at = CURRENT_TIMESTAMP,
             list = ${list},
-            page_done = ${page},
+            page_done = ${pageDone},
             page_total = ${pages}
         WHERE id = 1 AND run_id = ${runId} AND phase IN ('running', 'publishing')
         RETURNING phase
@@ -341,7 +351,7 @@ async function loginSession(): Promise<
   return { ok: true, session };
 }
 
-/** Login, then the first page of each catalog. Does not write a catalog or the stage log. */
+/** Login, the first partner page, the code directory, and one filtered showcase page. */
 export async function testRunexisAccess(
   actor: Actor,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
@@ -363,11 +373,14 @@ export async function testRunexisAccess(
     };
     const management = await runexisRead(opened.session, "management", 1, { beat: keep });
     const bought = management.ok ? parseManagementPage(management.data) : null;
-    const showcase = bought?.ok
-      ? await runexisRead(opened.session, "showcase", 1, { beat: keep })
+    const codes = bought?.ok ? await runexisCodes(opened.session, { beat: keep }) : null;
+    const directory = codes?.ok ? parseRegionCodes(codes.data) : null;
+    const first = directory?.ok ? directory.slices[0] : undefined;
+    const showcase = first
+      ? await runexisShowcaseSlice(opened.session, 1, first, { beat: keep })
       : null;
     const free = showcase?.ok ? parseShowcasePage(showcase.data) : null;
-    const ok = Boolean(bought?.ok && free?.ok);
+    const ok = Boolean(bought?.ok && directory?.ok && free?.ok);
     await auditService.append({
       actorUserId: actor.userId,
       action: AUDIT_ACTIONS.RUNEXIS_TEST,
@@ -378,6 +391,8 @@ export async function testRunexisAccess(
     });
     if (!management.ok) return { ok: false, error: management.error };
     if (!bought?.ok) return { ok: false, error: bought?.error ?? BAD_LOGIN };
+    if (!codes?.ok) return { ok: false, error: codes?.error ?? BAD_LOGIN };
+    if (!directory?.ok) return { ok: false, error: directory?.error ?? BAD_LOGIN };
     if (!showcase?.ok) return { ok: false, error: showcase?.error ?? BAD_LOGIN };
     if (!free?.ok) return { ok: false, error: free?.error ?? BAD_LOGIN };
     return { ok: true };
@@ -434,35 +449,25 @@ export async function startRunexisSync(
   let seenList: RunexisList = "management";
   let seenPage = 0;
   let seenTotal = 0;
+  let seenAccepted = 0;
+  const keep = async () => {
+    const state = await beat(runId, seenPage, seenTotal, seenList, seenAccepted);
+    if (state === "cancel") throw new Error("Загрузка отменена. Каталог не изменён.");
+    if (state === "lost") throw new SyncLost();
+  };
   void (async () => {
     try {
       const result = await runRunexisWalk({
-        showcase: (page) =>
-          runexisRead(session, "showcase", page, {
-            beat: async () => {
-              const state = await beat(runId, seenPage, seenTotal, seenList);
-              if (state === "cancel")
-                throw new Error("Загрузка отменена. Каталог не изменён.");
-              if (state === "lost") throw new SyncLost();
-            },
-          }),
-        management: (page) =>
-          runexisRead(session, "management", page, {
-            beat: async () => {
-              const state = await beat(runId, seenPage, seenTotal, seenList);
-              if (state === "cancel")
-                throw new Error("Загрузка отменена. Каталог не изменён.");
-              if (state === "lost") throw new SyncLost();
-            },
-          }),
+        codes: () => runexisCodes(session, { beat: keep }),
+        showcase: (page, slice) =>
+          runexisShowcaseSlice(session, page, slice, { beat: keep }),
+        management: (page) => runexisRead(session, "management", page, { beat: keep }),
         stillMine: async () => {
           if (isRunexisStopping()) return "cancel";
-          return beat(runId, seenPage, seenTotal, seenList);
+          return beat(runId, seenPage, seenTotal, seenList, seenAccepted);
         },
         stopping: isRunexisStopping,
-        stageFree: async (rows) => {
-          await stageFreeNumbers(runId, rows);
-        },
+        stageFree: (rows) => stageFreeNumbers(runId, rows),
         stagePurchased: async (dids) => {
           await stagePurchasedNumbers(runId, dids);
         },
@@ -473,8 +478,15 @@ export async function startRunexisSync(
               `Совпадение: ${removed} номеров убраны из свободных, они куплены.\n`,
             ).catch(() => undefined);
           }
+          await flushRunexisLog().catch(() => undefined);
           await fillDraftSplit(runId, async () => {
-            const state = await beat(runId, 0, 0, "");
+            const state = await beat(
+              runId,
+              seenPage,
+              seenTotal,
+              "showcase",
+              seenAccepted,
+            );
             if (state === "cancel")
               throw new Error("Загрузка отменена. Каталог не изменён.");
             if (state === "lost") throw new SyncLost();
@@ -497,7 +509,13 @@ export async function startRunexisSync(
               !(error instanceof PublishMismatch) &&
               !isStatementTimeout(error)
             ) {
-              const state = await beat(runId, seenPage, seenTotal, seenList);
+              const state = await beat(
+                runId,
+                seenPage,
+                seenTotal,
+                seenList,
+                seenAccepted,
+              );
               if (state !== "ok") throw new SyncLost();
               if (isRunexisStopping())
                 throw new Error("Загрузка отменена. Каталог не изменён.");
@@ -507,16 +525,18 @@ export async function startRunexisSync(
           }
         },
         dropStage: () => dropStage(runId),
-        progress: async (list, page, total) => {
+        progress: async (list, page, total, accepted) => {
           seenList = list;
           seenPage = page;
           seenTotal = total;
-          const state = await beat(runId, page, total, list);
+          seenAccepted = accepted;
+          const state = await beat(runId, page, total, list, accepted);
           if (state === "cancel")
             throw new Error("Загрузка отменена. Каталог не изменён.");
           if (state === "lost") throw new SyncLost();
         },
         log: (block) => appendRunexisLog(block),
+        flushLog: () => flushRunexisLog(),
       });
       if (!result.ok) {
         await finishError(
@@ -546,6 +566,7 @@ export async function startRunexisSync(
       await appendRunexisLog(`Итог: каталог не изменён\nОшибка: ${message}\n`).catch(
         () => undefined,
       );
+      await flushRunexisLog().catch(() => undefined);
       await finishError(runId, message).catch(() => undefined);
     } finally {
       endRunexis(holder);

@@ -8,8 +8,11 @@ import type { RunexisSession } from "@/modules/runexis/parse";
 import { parseSession } from "@/modules/runexis/parse";
 import {
   catalogUrl,
+  codesUrl,
   loginUrl,
   refreshUrl,
+  showcaseSliceUrl,
+  type CodeSlice,
   type RunexisList,
 } from "@/modules/runexis/url";
 
@@ -226,22 +229,21 @@ async function refreshOnce(
 }
 
 /**
- * One catalog page. Only page and limit are sent. A 5xx is retried once.
+ * One authorized GET. A 5xx is retried once.
  * A 401 refreshes once, then the same GET is sent once. A 403 does not refresh.
  */
-export async function runexisRead(
+async function authorizedGet(
   session: RunexisSession,
-  list: RunexisList,
-  page: number,
+  href: string,
+  label: string,
   deps?: RunexisDeps,
 ): Promise<RunexisPage> {
-  const href = catalogUrl(list, page);
-  if (!href || !session.token) return denied("Недопустимый запрос.");
+  if (!session.token) return denied("Недопустимый запрос.");
   const headers = {
     Accept: "application/json",
     Authorization: `Bearer ${session.token}`,
   };
-  const first = await onceOrTwice(href, { method: "GET", headers }, deps, list);
+  const first = await onceOrTwice(href, { method: "GET", headers }, deps, label);
   if (first.ok || first.meta.status !== 401 || !session.refreshToken) return first;
   await deps?.beat?.();
   const refreshed = await refreshOnce(session.refreshToken, deps);
@@ -259,16 +261,40 @@ export async function runexisRead(
       headers: { Accept: "application/json", Authorization: `Bearer ${session.token}` },
     },
     deps,
-    list,
+    label,
   );
   return pageFrom(attempt, 1, Date.now() - started);
 }
 
-/** One showcase page. */
-export async function runexisShowcase(
-  token: string,
+/** Partner pages. Only page and limit are sent. */
+export async function runexisRead(
+  session: RunexisSession,
+  list: RunexisList,
   page: number,
   deps?: RunexisDeps,
 ): Promise<RunexisPage> {
-  return runexisRead({ token, refreshToken: "" }, "showcase", page, deps);
+  if (list !== "management") return denied("Недопустимый запрос.");
+  const href = catalogUrl("management", page);
+  if (!href) return denied("Недопустимый запрос.");
+  return authorizedGet(session, href, "management", deps);
+}
+
+/** The code directory. No query. */
+export async function runexisCodes(
+  session: RunexisSession,
+  deps?: RunexisDeps,
+): Promise<RunexisPage> {
+  return authorizedGet(session, codesUrl(), "codes", deps);
+}
+
+/** One showcase page of one code. */
+export async function runexisShowcaseSlice(
+  session: RunexisSession,
+  page: number,
+  slice: CodeSlice,
+  deps?: RunexisDeps,
+): Promise<RunexisPage> {
+  const href = showcaseSliceUrl(page, slice);
+  if (!href) return denied("Недопустимый запрос.");
+  return authorizedGet(session, href, "showcase", deps);
 }

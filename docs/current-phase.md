@@ -1,7 +1,13 @@
-# Current Phase — production (v1.285.0)
+# Current Phase — production (v1.286.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, purchased numbers, numbering sync, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-15
+
+## v1.286.0 — Runexis showcase by code
+
+There is no migration. Do not stop `smg-syslog`. Phone, tariff, CDR, PSTN, RTU screen, and catalog rows are not rewritten. Keep a single `app` replica. Stop the old app before the new one starts, then start one new app. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged. The Runexis timeout stays 30 seconds with one retry. SipOut is unchanged.
+
+Runexis «Загрузить» still reads the partner list first. A failed partner list does not open the free-number read. After that list, one `GET /api/v1/regions/codes` loads the code directory. Each three-digit code is then one showcase request: `page`, `limit=30`, and `region_codes[0][]` equal to that code. `city_ids[]` is sent only when the same directory row has an integer `city_id`. `class_id`, `phone_number`, and `number_status_id` are not sent. The unfiltered showcase is not called. An empty directory or a code that is not three digits publishes nothing. Each code is complete only when its own `meta.total` is reached. The same number in a later code stays one draft row. The same number twice on one page fails that page. Both catalogs are replaced in one transaction only after every code succeeds. The screen shows «Витрина, принято N» while free numbers are read. The stage log names the code and is synced at the end of a code and on failure. It has no password, token, or URL. «Проверить доступ» reads the first partner page, the code directory, and one showcase page of the first code. A page that cannot be parsed is not access.
 
 ## v1.285.0 — Purchased numbers before free numbers
 

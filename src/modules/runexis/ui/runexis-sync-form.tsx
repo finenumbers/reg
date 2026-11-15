@@ -71,9 +71,11 @@ export function RunexisSyncForm({ initial }: { initial: RunexisSyncView }) {
     ? null
     : view.phase === "publishing"
       ? "Запись номеров"
-      : view.pageTotal > 0
-        ? `${listName ? `${listName}, страница` : "Страница"} ${view.pageDone} из ${view.pageTotal}`
-        : "Загрузка";
+      : view.list === "showcase"
+        ? `Витрина, принято ${view.pageDone}`
+        : view.pageTotal > 0
+          ? `${listName ? `${listName}, страница` : "Страница"} ${view.pageDone} из ${view.pageTotal}`
+          : "Загрузка";
 
   return (
     <div className="max-w-xl space-y-4" onKeyDown={onKeyDown}>

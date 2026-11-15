@@ -7,6 +7,7 @@ import {
   nationalDigits,
   parseAccessToken,
   parseManagementPage,
+  parseRegionCodes,
   parseSession,
   parseShowcasePage,
 } from "@/modules/runexis/parse";
@@ -22,7 +23,13 @@ import {
   fillSplitSql,
   stageFreeSql,
 } from "@/modules/runexis/sql";
-import { catalogUrl, loginUrl, refreshUrl, showcaseUrl } from "@/modules/runexis/url";
+import {
+  catalogUrl,
+  codesUrl,
+  loginUrl,
+  refreshUrl,
+  showcaseSliceUrl,
+} from "@/modules/runexis/url";
 
 function flattenSql(sql: Prisma.Sql): string {
   const text: string[] = [];
@@ -38,16 +45,52 @@ function flattenSql(sql: Prisma.Sql): string {
 }
 
 describe("runexis showcase", () => {
-  it("asks only for a page of 30", () => {
+  it("asks for one code and the city only when the directory has one", () => {
     expect(loginUrl()).toBe("https://didapi.runexis.ru/api/v1/login");
-    expect(showcaseUrl(0)).toBeNull();
-    expect(showcaseUrl(1.5)).toBeNull();
-    const url = new URL(showcaseUrl(2) ?? "");
-    expect(url.origin).toBe("https://didapi.runexis.ru");
-    expect(url.pathname).toBe("/api/v1/numbers/showcase");
-    expect([...url.searchParams.keys()].sort()).toEqual(["limit", "page"]);
-    expect(url.searchParams.get("page")).toBe("2");
-    expect(url.searchParams.get("limit")).toBe("30");
+    expect(codesUrl()).toBe("https://didapi.runexis.ru/api/v1/regions/codes");
+    expect(showcaseSliceUrl(0, { code: "901", cityId: null })).toBeNull();
+    expect(showcaseSliceUrl(1, { code: "90", cityId: null })).toBeNull();
+    expect(showcaseSliceUrl(1, { code: "901", cityId: 1.5 })).toBeNull();
+    const def = new URL(showcaseSliceUrl(2, { code: "901", cityId: null }) ?? "");
+    expect(def.origin).toBe("https://didapi.runexis.ru");
+    expect(def.pathname).toBe("/api/v1/numbers/showcase");
+    expect([...def.searchParams.keys()].sort()).toEqual([
+      "limit",
+      "page",
+      "region_codes[0][]",
+    ]);
+    expect(def.searchParams.get("page")).toBe("2");
+    expect(def.searchParams.get("limit")).toBe("30");
+    expect(def.searchParams.get("region_codes[0][]")).toBe("901");
+    expect(def.searchParams.has("class_id")).toBe(false);
+    expect(def.searchParams.has("phone_number")).toBe(false);
+    expect(def.searchParams.has("number_status_id")).toBe(false);
+    const abc = new URL(showcaseSliceUrl(1, { code: "495", cityId: 58 }) ?? "");
+    expect(abc.searchParams.get("city_ids[]")).toBe("58");
+    expect(abc.searchParams.get("region_codes[0][]")).toBe("495");
+    const directory = parseRegionCodes({
+      success: true,
+      data: [
+        { city_id: 58, city_name: "Москва", codes: ["495", "499"] },
+        { city_id: null, codes: ["901", "901"] },
+        { city_id: 79, codes: [848] },
+      ],
+    });
+    expect(directory.ok).toBe(true);
+    if (!directory.ok) return;
+    expect(directory.slices).toEqual([
+      { code: "495", cityId: 58 },
+      { code: "499", cityId: 58 },
+      { code: "901", cityId: null },
+      { code: "848", cityId: 79 },
+    ]);
+    expect(parseRegionCodes({ success: true, data: [] }).ok).toBe(false);
+    expect(
+      parseRegionCodes({ success: true, data: [{ city_id: null, codes: ["9"] }] }).ok,
+    ).toBe(false);
+    expect(
+      parseRegionCodes({ success: true, data: [{ city_id: "58", codes: ["495"] }] }).ok,
+    ).toBe(false);
   });
 
   it("stores an eleven-digit number and leaves a bad price empty", () => {
@@ -94,6 +137,16 @@ describe("runexis showcase", () => {
     expect(bought.page.skippedFree).toBe(1);
     expect(bought.page.read).toBe(2);
     expect(
+      parseShowcasePage({
+        success: true,
+        data: [
+          { code: "901", number: "0000001" },
+          { code: "901", number: "0000001" },
+        ],
+        meta: { total: 2, page: 1, limit: 30 },
+      }).ok,
+    ).toBe(false);
+    expect(
       parseManagementPage({
         success: true,
         data: [{ code: "901", number: "1234567", status: {} }],
@@ -138,7 +191,7 @@ describe("runexis showcase", () => {
           { e164: "79011234567", incomingPurchase: "1", incomingPeriod: "" },
         ]),
       ),
-    ).toContain("incoming_purchase");
+    ).toContain("ON CONFLICT (run_id, catalog, e164) DO NOTHING");
     expect(flattenSql(dropOverlapSql("run"))).toContain("purchased");
     expect(flattenSql(fillSplitSql("run", 2000))).toContain(
       "stage.catalog = computed.catalog",

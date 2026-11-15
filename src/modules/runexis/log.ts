@@ -12,9 +12,11 @@ const FILE_NAME = "runexis.txt";
 
 let dirOverride: string | null = null;
 let chain: Promise<void> = Promise.resolve();
+let pending = "";
 
 export function setRunexisLogDirForTests(dir: string | null): void {
   dirOverride = dir;
+  pending = "";
   chain = Promise.resolve();
 }
 
@@ -66,19 +68,35 @@ export async function beginRunexisLog(runId: string): Promise<void> {
   const header = sanitizeLogBlock(
     [
       "Источник: Runexis",
-      "Список: свободные номера",
+      "Список: купленные, затем свободные по кодам",
       `Запуск: ${new Date().toISOString()}`,
       `Идентификатор: ${runId}`,
       "",
     ].join("\n"),
   );
-  await enqueue(() => writeHandle("w", header.endsWith("\n") ? header : `${header}\n`));
+  const body = header.endsWith("\n") ? header : `${header}\n`;
+  await enqueue(async () => {
+    pending = "";
+    await writeHandle("w", body);
+  });
 }
 
+/** Holds the page line. The file is synced at the end of a code and on failure. */
 export async function appendRunexisLog(block: string): Promise<void> {
   const text = sanitizeLogBlock(block);
   const body = text.endsWith("\n") ? text : `${text}\n`;
-  await enqueue(() => writeHandle("a", body));
+  await enqueue(async () => {
+    pending += body;
+  });
+}
+
+export async function flushRunexisLog(): Promise<void> {
+  await enqueue(async () => {
+    if (!pending) return;
+    const body = pending;
+    pending = "";
+    await writeHandle("a", body);
+  });
 }
 
 export async function runexisLogExists(): Promise<boolean> {

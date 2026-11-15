@@ -143,6 +143,7 @@ export function stageFreeSql(runId: string, rows: readonly FreeDraft[]): Prisma.
       run_id, catalog, e164, incoming_purchase, incoming_period
     )
     VALUES ${Prisma.join(values)}
+    ON CONFLICT (run_id, catalog, e164) DO NOTHING
   `;
 }
 

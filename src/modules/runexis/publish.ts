@@ -60,11 +60,18 @@ async function stage(count: number, write: () => Promise<number>): Promise<numbe
   }
 }
 
+/** A repeated e164 from another code is skipped. A real database error still fails the walk. */
 export async function stageFreeNumbers(
   runId: string,
   rows: readonly FreeDraft[],
 ): Promise<number> {
-  return stage(rows.length, () => prisma.$executeRaw(stageFreeSql(runId, rows)));
+  if (rows.length === 0) return 0;
+  try {
+    return await withDbRetry(() => prisma.$executeRaw(stageFreeSql(runId, rows)));
+  } catch (error) {
+    if (duplicateNumber(error)) throw new Error("В ответе повторяется номер.");
+    throw error;
+  }
 }
 
 export async function stagePurchasedNumbers(

@@ -6,7 +6,14 @@ vi.mock("@/lib/logger", () => ({
   logger: { info: (...args: unknown[]) => info(...args), warn: vi.fn(), error: vi.fn() },
 }));
 
-import { runexisLogin, runexisRead, runexisShowcase } from "@/modules/runexis/client";
+import {
+  runexisCodes,
+  runexisLogin,
+  runexisRead,
+  runexisShowcaseSlice,
+} from "@/modules/runexis/client";
+
+const CODE = { code: "901", cityId: null as number | null };
 
 describe("runexis client", () => {
   beforeEach(() => {
@@ -36,9 +43,14 @@ describe("runexis client", () => {
     expect(JSON.stringify(info.mock.calls)).not.toContain("tok");
   });
 
-  it("sends one showcase page and retries only a transport or 5xx", async () => {
+  it("sends one filtered showcase page and retries only a transport or 5xx", async () => {
     const denied = vi.fn(async () => new Response("no", { status: 401 }));
-    const deniedPage = await runexisShowcase("tok", 1, { fetchImpl: denied });
+    const deniedPage = await runexisShowcaseSlice(
+      { token: "tok", refreshToken: "" },
+      1,
+      CODE,
+      { fetchImpl: denied },
+    );
     expect(denied).toHaveBeenCalledTimes(1);
     expect(deniedPage.ok).toBe(false);
     if (!deniedPage.ok) {
@@ -49,7 +61,9 @@ describe("runexis client", () => {
     }
 
     const failed = vi.fn(async () => new Response("down", { status: 500 }));
-    await runexisShowcase("tok", 1, { fetchImpl: failed });
+    await runexisShowcaseSlice({ token: "tok", refreshToken: "" }, 1, CODE, {
+      fetchImpl: failed,
+    });
     expect(failed).toHaveBeenCalledTimes(2);
 
     let href = "";
@@ -68,10 +82,19 @@ describe("runexis client", () => {
         { status: 200 },
       );
     };
-    const page = await runexisShowcase("tok", 1, { fetchImpl: ok });
+    const page = await runexisShowcaseSlice({ token: "tok", refreshToken: "" }, 1, CODE, {
+      fetchImpl: ok,
+    });
     expect(page.ok).toBe(true);
     const url = new URL(href);
-    expect([...url.searchParams.keys()].sort()).toEqual(["limit", "page"]);
+    expect([...url.searchParams.keys()].sort()).toEqual([
+      "limit",
+      "page",
+      "region_codes[0][]",
+    ]);
+    expect(url.searchParams.get("region_codes[0][]")).toBe("901");
+    expect(url.searchParams.has("city_ids[]")).toBe(false);
+    expect(url.searchParams.has("class_id")).toBe(false);
     expect(JSON.stringify(info.mock.calls)).not.toContain("tok");
     expect(JSON.stringify(info.mock.calls)).not.toContain(href);
   });
@@ -80,7 +103,12 @@ describe("runexis client", () => {
     const dropped = vi.fn(async () => {
       throw new Error("connect https://didapi.runexis.ru/api/v1/numbers/showcase");
     });
-    const droppedPage = await runexisShowcase("tok", 1, { fetchImpl: dropped });
+    const droppedPage = await runexisShowcaseSlice(
+      { token: "tok", refreshToken: "" },
+      1,
+      CODE,
+      { fetchImpl: dropped },
+    );
     expect(dropped).toHaveBeenCalledTimes(2);
     expect(droppedPage.ok).toBe(false);
     if (!droppedPage.ok) {
@@ -100,7 +128,12 @@ describe("runexis client", () => {
       });
       return new Response(body, { status: 200 });
     });
-    const brokenPage = await runexisShowcase("tok", 1, { fetchImpl: broken });
+    const brokenPage = await runexisShowcaseSlice(
+      { token: "tok", refreshToken: "" },
+      1,
+      CODE,
+      { fetchImpl: broken },
+    );
     expect(broken).toHaveBeenCalledTimes(2);
     expect(brokenPage.ok).toBe(false);
     if (!brokenPage.ok) {
@@ -146,16 +179,25 @@ describe("runexis client", () => {
         { status: 200 },
       );
     };
-    const page = await runexisRead(session, "showcase", 1, {
-      fetchImpl,
-      beat: async () => {
-        beats.push(1);
+    const page = await runexisShowcaseSlice(
+      session,
+      1,
+      { code: "495", cityId: 58 },
+      {
+        fetchImpl,
+        beat: async () => {
+          beats.push(1);
+        },
       },
-    });
+    );
     expect(page.ok).toBe(true);
     expect(session).toEqual({ token: "new", refreshToken: "next" });
     expect(beats).toEqual([1, 1]);
     expect(calls.map((call) => call.method)).toEqual(["GET", "POST", "GET"]);
+    expect(calls[0]?.href).toContain("region_codes%5B0%5D%5B%5D=495");
+    expect(calls[0]?.href).toContain("city_ids%5B%5D=58");
+    expect(calls[2]?.href).toBe(calls[0]?.href);
+    expect(calls[0]?.href).not.toContain("class_id");
     expect(JSON.parse(calls[1]?.body ?? "")).toEqual({ token: "refresh-secret" });
     expect(JSON.stringify(info.mock.calls)).not.toContain("refresh-secret");
     expect(JSON.stringify(info.mock.calls)).not.toContain("new");
@@ -170,5 +212,19 @@ describe("runexis client", () => {
     expect(forbidden.ok).toBe(false);
     expect(calls).toHaveLength(1);
     expect(calls[0]?.method).toBe("GET");
+  });
+
+  it("reads the code directory with no query", async () => {
+    let href = "";
+    const fetchImpl: typeof fetch = async (input, init) => {
+      href = String(input);
+      expect(init?.method).toBe("GET");
+      const headers = new Headers(init?.headers);
+      expect(headers.get("authorization")).toBe("Bearer tok");
+      return new Response(JSON.stringify({ success: true, data: [] }), { status: 200 });
+    };
+    const codes = await runexisCodes({ token: "tok", refreshToken: "" }, { fetchImpl });
+    expect(codes.ok).toBe(true);
+    expect(href).toBe("https://didapi.runexis.ru/api/v1/regions/codes");
   });
 });

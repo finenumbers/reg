@@ -3,11 +3,13 @@
  */
 
 import { isTariffNumberAdmitted } from "@/modules/traffic/tariff-match";
-import { SHOWCASE_LIMIT } from "@/modules/runexis/url";
+import { SHOWCASE_LIMIT, type CodeSlice } from "@/modules/runexis/url";
 
 const INCOMPLETE = "Ответ площадки обрезан.";
 const BAD_NUMBER = "В ответе есть номер, который нельзя записать.";
 const BAD_STATUS = "В ответе нет статуса номера.";
+const DUPLICATE = "В ответе повторяется номер.";
+const BAD_CODES = "Справочник кодов не принят.";
 
 const PURCHASE_KEYS = ["installation_cost", "installationCost", "buy_price"] as const;
 const MERA_KEYS = ["mera_price", "meraPrice"] as const;
@@ -37,6 +39,9 @@ export type ManagementNumbers = {
 
 export type ParsedShowcase =
   { ok: true; page: ShowcaseNumbers } | { ok: false; error: string };
+
+export type ParsedCodes =
+  { ok: true; slices: CodeSlice[] } | { ok: false; error: string };
 
 export type ParsedManagement =
   { ok: true; page: ManagementNumbers } | { ok: false; error: string };
@@ -134,11 +139,14 @@ export function parseShowcasePage(data: unknown): ParsedShowcase {
   const meta = pageMeta(data);
   if (!meta) return { ok: false, error: INCOMPLETE };
   const rows: FreeDraft[] = [];
+  const seen = new Set<string>();
   for (const item of meta.rows) {
     if (!item || typeof item !== "object") return { ok: false, error: BAD_NUMBER };
     const row = item as Record<string, unknown>;
     const e164 = nationalDigits(row.code, row.number);
     if (!e164) return { ok: false, error: BAD_NUMBER };
+    if (seen.has(e164)) return { ok: false, error: DUPLICATE };
+    seen.add(e164);
     rows.push({ e164, ...freePrices(row) });
   }
   return {
@@ -197,6 +205,51 @@ export function acceptShowcasePage(input: {
   if (accepted === input.total) return "done";
   if (input.got < SHOWCASE_LIMIT) return "short";
   return "next";
+}
+
+function threeDigitCode(value: unknown): string | null {
+  const text = digitText(value);
+  if (!text || !/^\d{3}$/.test(text)) return null;
+  return text;
+}
+
+/** One slice per code. The same code and city are asked once. A bad code fails the directory. */
+export function parseRegionCodes(data: unknown): ParsedCodes {
+  if (!data || typeof data !== "object") return { ok: false, error: BAD_CODES };
+  const body = data as { success?: unknown; data?: unknown };
+  if (body.success !== true || !Array.isArray(body.data) || body.data.length === 0) {
+    return { ok: false, error: BAD_CODES };
+  }
+  const slices: CodeSlice[] = [];
+  const seen = new Set<string>();
+  for (const item of body.data) {
+    if (!item || typeof item !== "object") return { ok: false, error: BAD_CODES };
+    const row = item as { city_id?: unknown; codes?: unknown };
+    let cityId: number | null = null;
+    if (row.city_id != null) {
+      if (
+        typeof row.city_id !== "number" ||
+        !Number.isSafeInteger(row.city_id) ||
+        row.city_id < 0
+      ) {
+        return { ok: false, error: BAD_CODES };
+      }
+      cityId = row.city_id;
+    }
+    if (!Array.isArray(row.codes) || row.codes.length === 0) {
+      return { ok: false, error: BAD_CODES };
+    }
+    for (const code of row.codes) {
+      const text = threeDigitCode(code);
+      if (!text) return { ok: false, error: BAD_CODES };
+      const key = `${cityId ?? ""}:${text}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      slices.push({ code: text, cityId });
+    }
+  }
+  if (slices.length === 0) return { ok: false, error: BAD_CODES };
+  return { ok: true, slices };
 }
 
 function tokenText(value: unknown): string | null {
