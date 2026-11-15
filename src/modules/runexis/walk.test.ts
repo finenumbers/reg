@@ -97,13 +97,29 @@ function harness(
 }
 
 describe("runexis walk", () => {
-  it("publishes a complete empty pair", async () => {
-    const walk = harness([okPage([], 0, 1)]);
+  it("does not publish when no free number was staged", async () => {
+    const walk = harness(
+      [okPage([], 0, 1)],
+      [
+        {
+          ok: true,
+          data: {
+            success: true,
+            data: [{ code: 495, number: "3084480", status: { mnemonic: "allocated" } }],
+            meta: { total: 1, page: 1, limit: 30 },
+          },
+          meta: { status: 200, attempts: 1, durationMs: 1 },
+        },
+      ],
+    );
     const result = await runRunexisWalk(walk.deps);
-    expect(result).toEqual({ ok: true, free: 0, purchased: 0 });
-    expect(walk.published()).toBe(1);
-    expect(walk.dropped()).toBe(0);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("Свободных номеров нет");
+    expect(walk.published()).toBe(0);
+    expect(walk.dropped()).toBe(1);
+    expect(walk.purchased.flat()).toEqual(["74953084480"]);
     expect(walk.askedManagement()).toBe(1);
+    expect(walk.askedShowcase()).toBe(1);
   });
 
   it("publishes a short last page when the count matches", async () => {
@@ -221,6 +237,7 @@ describe("runexis walk", () => {
           written.push(block);
         },
       },
+      [{ city_id: 58, codes: ["901"] }],
     );
     const result = await runRunexisWalk(walk.deps);
     expect(result.ok).toBe(false);
@@ -228,6 +245,7 @@ describe("runexis walk", () => {
     expect(walk.dropped()).toBe(1);
     const text = written.join("\n");
     expect(text).toContain("Витрина, код 901, страница 1");
+    expect(text).not.toContain("город");
     expect(text).toContain("HTTP: 0");
     expect(text).toContain("Попыток: 2");
     expect(text).toContain("Длительность, мс: 60012");

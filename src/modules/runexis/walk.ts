@@ -45,6 +45,7 @@ export type WalkResult =
   | { ok: false; reason: "lost" | "cancelled" | "error"; error: string };
 
 const CANCELLED = "Загрузка отменена. Каталог не изменён.";
+const NO_FREE = "Свободных номеров нет. Каталог не изменён.";
 const SHORT = "Ответ площадки обрезан. Каталог не изменён.";
 const CHANGED = "Список изменился во время чтения. Каталог не изменён.";
 const LOST = "Загрузка прервана. Каталог не изменён.";
@@ -75,8 +76,7 @@ async function stop(deps: WalkDeps, result: WalkResult): Promise<WalkResult> {
 }
 
 function sliceTitle(slice: CodeSlice, page: number): string {
-  const city = slice.cityId == null ? "" : `, город ${slice.cityId}`;
-  return `Витрина, код ${slice.code}${city}, страница ${page}`;
+  return `Витрина, код ${slice.code}, страница ${page}`;
 }
 
 async function gate(deps: WalkDeps): Promise<WalkResult | null> {
@@ -214,6 +214,9 @@ async function readFreeByCode(deps: WalkDeps): Promise<WalkResult | null> {
     if (read.done) return read.done;
     draft = read.draft;
     await deps.flushLog().catch(() => undefined);
+  }
+  if (draft === 0) {
+    return stop(deps, { ok: false, reason: "error", error: NO_FREE });
   }
   return null;
 }

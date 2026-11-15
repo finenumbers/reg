@@ -80,10 +80,25 @@ function rejected(status: number, durationMs: number, retryable: boolean): Attem
   };
 }
 
-function unanswered(status: number, durationMs: number): Attempt {
+function platformNote(text: string): string | null {
+  let body: unknown;
+  try {
+    body = JSON.parse(text) as unknown;
+  } catch {
+    return null;
+  }
+  if (!body || typeof body !== "object" || Array.isArray(body)) return null;
+  const message = (body as { message?: unknown }).message;
+  if (typeof message !== "string") return null;
+  const flat = message.replace(/\s+/g, " ").trim();
+  if (!flat || /:\/\/|bearer|password|token|key=/i.test(flat)) return null;
+  return flat.slice(0, 200);
+}
+
+function unanswered(status: number, durationMs: number, note?: string | null): Attempt {
   return {
     ok: false,
-    error: "Площадка не ответила.",
+    error: note ? `Площадка не ответила. ${note}` : "Площадка не ответила.",
     retryable: true,
     status,
     durationMs,
@@ -114,8 +129,8 @@ async function request(
   try {
     const durationMs = Date.now() - started;
     if (response.status >= 500) {
-      await response.body?.cancel();
-      return unanswered(response.status, durationMs);
+      const text = await readCapped(response);
+      return unanswered(response.status, durationMs, text ? platformNote(text) : null);
     }
     if (response.status !== 200) {
       await response.body?.cancel();

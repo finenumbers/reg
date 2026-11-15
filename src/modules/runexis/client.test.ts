@@ -61,10 +61,19 @@ describe("runexis client", () => {
     }
 
     const failed = vi.fn(async () => new Response("down", { status: 500 }));
-    await runexisShowcaseSlice({ token: "tok", refreshToken: "" }, 1, CODE, {
-      fetchImpl: failed,
-    });
+    const failedPage = await runexisShowcaseSlice(
+      { token: "tok", refreshToken: "" },
+      1,
+      CODE,
+      { fetchImpl: failed },
+    );
     expect(failed).toHaveBeenCalledTimes(2);
+    expect(failedPage.ok).toBe(false);
+    if (!failedPage.ok) {
+      expect(failedPage.error).toContain("Площадка не ответила.");
+      expect(failedPage.error).toContain("HTTP 500");
+      expect(failedPage.error).not.toContain("down");
+    }
 
     let href = "";
     const ok: typeof fetch = async (input, init) => {
@@ -90,10 +99,11 @@ describe("runexis client", () => {
     expect([...url.searchParams.keys()].sort()).toEqual([
       "limit",
       "page",
-      "region_codes[0]",
+      "region_codes[0][0]",
     ]);
-    expect(url.searchParams.get("region_codes[0]")).toBe("901");
+    expect(url.searchParams.get("region_codes[0][0]")).toBe("901");
     expect(url.searchParams.has("city_ids[]")).toBe(false);
+    expect(url.searchParams.has("city_ids[0]")).toBe(false);
     expect(url.searchParams.has("class_id")).toBe(false);
     expect(JSON.stringify(info.mock.calls)).not.toContain("tok");
     expect(JSON.stringify(info.mock.calls)).not.toContain(href);
@@ -194,9 +204,10 @@ describe("runexis client", () => {
     expect(session).toEqual({ token: "new", refreshToken: "next" });
     expect(beats).toEqual([1, 1]);
     expect(calls.map((call) => call.method)).toEqual(["GET", "POST", "GET"]);
-    expect(calls[0]?.href).toContain("region_codes%5B0%5D=495");
+    expect(calls[0]?.href).toContain("region_codes%5B0%5D%5B0%5D=495");
+    expect(calls[0]?.href).not.toContain("region_codes%5B0%5D=495");
     expect(calls[0]?.href).not.toContain("region_codes%5B0%5D%5B%5D");
-    expect(calls[0]?.href).toContain("city_ids%5B%5D=58");
+    expect(calls[0]?.href).not.toContain("city_ids");
     expect(calls[2]?.href).toBe(calls[0]?.href);
     expect(calls[0]?.href).not.toContain("class_id");
     expect(JSON.parse(calls[1]?.body ?? "")).toEqual({ token: "refresh-secret" });
@@ -213,6 +224,68 @@ describe("runexis client", () => {
     expect(forbidden.ok).toBe(false);
     expect(calls).toHaveLength(1);
     expect(calls[0]?.method).toBe("GET");
+  });
+
+  it("keeps a short platform message from the last 500", async () => {
+    const bodies = [
+      JSON.stringify({
+        message: "first",
+        exception: "Illuminate\\Database\\QueryException",
+        file: "/var/www/secret.php",
+        trace: [{ url: "https://didapi.runexis.ru/secret" }],
+      }),
+      JSON.stringify({
+        success: false,
+        message: `  Server Error ${"x".repeat(250)}  `,
+        exception: "hidden",
+      }),
+    ];
+    let attempt = 0;
+    const fetchImpl: typeof fetch = async () =>
+      new Response(bodies[attempt++] ?? "", { status: 500 });
+    const page = await runexisShowcaseSlice(
+      { token: "tok", refreshToken: "" },
+      1,
+      { code: "495", cityId: 58 },
+      { fetchImpl },
+    );
+    expect(page.ok).toBe(false);
+    if (!page.ok) {
+      expect(page.error).toContain("Площадка не ответила. Server Error ");
+      expect(page.error).toContain("HTTP 500");
+      expect(page.error).toContain("попыток 2");
+      expect(page.error).not.toContain("first");
+      expect(page.error).not.toContain("Illuminate");
+      expect(page.error).not.toContain("secret");
+      expect(page.error).not.toContain("://");
+      const note = page.error.slice(
+        "Площадка не ответила. ".length,
+        page.error.indexOf(" HTTP 500"),
+      );
+      expect(note.length).toBe(200);
+    }
+    expect(JSON.stringify(info.mock.calls)).not.toContain("Server Error");
+    expect(JSON.stringify(info.mock.calls)).not.toContain("secret");
+
+    const secret = await runexisShowcaseSlice(
+      { token: "tok", refreshToken: "" },
+      1,
+      CODE,
+      {
+        fetchImpl: async () =>
+          new Response(JSON.stringify({ message: "bad token in https://host" }), {
+            status: 503,
+          }),
+      },
+    );
+    expect(secret.ok).toBe(false);
+    if (!secret.ok) {
+      expect(secret.error).toBe(
+        `Площадка не ответила. HTTP ${secret.meta.status}, попыток ${secret.meta.attempts}, ${secret.meta.durationMs} мс.`,
+      );
+      expect(secret.error).not.toContain("token");
+      expect(secret.error).not.toContain("https");
+    }
   });
 
   it("reads the code directory with no query", async () => {
