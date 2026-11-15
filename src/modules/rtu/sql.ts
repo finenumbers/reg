@@ -126,8 +126,8 @@ function columnRef(column: RtuColumn): Prisma.Sql {
       return Prisma.sql`mask`;
     case "maskType":
       return Prisma.sql`"maskType"`;
-    case "purchase":
-      return Prisma.sql`purchase`;
+    case "sale":
+      return Prisma.sql`sale`;
     case "premium":
       return Prisma.sql`premium`;
     case "operator":
@@ -707,7 +707,7 @@ export function screenBuildInsertSql(token: string): Prisma.Sql {
       "pstnKey",
       "mask",
       "maskType",
-      "purchase",
+      "sale",
       "premium"
     )
     WITH ${baseCte},
@@ -765,7 +765,7 @@ export function screenBuildInsertSql(token: string): Prisma.Sql {
       shaped."pstnKey",
       COALESCE(hit.mask, '') AS mask,
       COALESCE(hit.mask_type, '') AS "maskType",
-      COALESCE(hit.purchase, '') AS purchase,
+      COALESCE(hit.purchase, '') AS sale,
       COALESCE(hit.premium, '') AS premium
     FROM (
       SELECT
@@ -821,7 +821,7 @@ function screenJoinRaw(source: Prisma.Sql): Prisma.Sql {
       src.telephone,
       src.mask,
       src."maskType" AS mask_type,
-      src.purchase,
+      src.sale,
       src.premium,
       src."cityAlert" AS city_alert,
       src."pstnKey" AS pstn_key,
@@ -859,7 +859,7 @@ function screenLabeledFrom(raw: Prisma.Sql): Prisma.Sql {
       telephone,
       mask,
       mask_type,
-      purchase,
+      sale,
       premium,
       city_alert,
       ${pstnStatusSql()} AS pstn_status,
@@ -916,7 +916,7 @@ const screenRowSelect = Prisma.sql`
   visible.telephone,
   visible.mask,
   visible.mask_type,
-  visible.purchase,
+  visible.sale,
   visible.premium,
   visible.city_alert,
   visible.pstn_status,

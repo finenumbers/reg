@@ -32,7 +32,7 @@ export type RtuItem = {
   capacity: string;
   mask: string;
   maskType: string;
-  purchase: string;
+  sale: string;
   premium: string;
   operator: string;
   geography: string;

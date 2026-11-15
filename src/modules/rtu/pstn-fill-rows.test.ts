@@ -17,7 +17,7 @@ function row(over: Partial<RtuItem> = {}): RtuItem {
     capacity: "4",
     mask: "",
     maskType: "",
-    purchase: "",
+    sale: "",
     premium: "",
     operator: "",
     geography: "",

@@ -17,6 +17,7 @@ import {
 import type { PhoneRowData } from "@/modules/phones/types";
 import { failJobRunIfStillRunning } from "@/modules/jobs/finalize";
 import { requestRtuScreenPublish } from "@/modules/rtu/screen-publish";
+import { requestCatalogDecorate } from "@/modules/numbering-catalog/decorate";
 
 export type PhonesSyncProcessorInput = {
   trigger: JobTrigger;
@@ -262,6 +263,15 @@ export async function processPhonesSync(
       logger.warn("phones.sync.screen_pending", {
         jobRunId: jobRun.id,
         error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    try {
+      requestCatalogDecorate("client");
+    } catch (error) {
+      logger.error("phones.sync.client_decorate_failed", {
+        jobRunId: jobRun.id,
+        error: error instanceof Error ? error.name : "Error",
       });
     }
 

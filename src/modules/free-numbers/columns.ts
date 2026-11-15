@@ -10,11 +10,11 @@ export const FREE_NUMBER_COLUMNS = [
   "category",
   "city",
   "region",
+  "purchase",
+  "subscription",
   "mask",
   "maskType",
-  "incomingPurchase",
-  "incomingPeriod",
-  "purchase",
+  "sale",
   "premium",
   "operator",
   "geography",
@@ -29,11 +29,11 @@ export const FREE_NUMBER_HEADERS: Record<FreeNumberColumn, string> = {
   category: "Категория",
   city: "Город",
   region: "Регион",
+  purchase: "Покупка",
+  subscription: "Абонплата",
   mask: "Маска",
   maskType: "Тип",
-  incomingPurchase: "Покупка (входящая)",
-  incomingPeriod: "Абонплата (входящая)",
-  purchase: "Покупка",
+  sale: "Продажа",
   premium: "Премиум",
   operator: "Оператор связи",
   geography: "География",
@@ -43,9 +43,9 @@ const COLUMN_SET = new Set<string>(FREE_NUMBER_COLUMNS);
 
 /** Stored as text. The screen groups a whole number and keeps a fraction. */
 export const AMOUNT_COLUMNS = new Set<FreeNumberColumn>([
-  "incomingPurchase",
-  "incomingPeriod",
   "purchase",
+  "subscription",
+  "sale",
   "premium",
 ]);
 

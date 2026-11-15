@@ -18,6 +18,7 @@ import {
   decidePublish,
   fillSplitSql,
   stageInsertSql,
+  type StagedNumber,
   type SyncCatalog,
 } from "@/modules/numbering-sync/sql";
 
@@ -38,11 +39,11 @@ export class PublishMismatch extends Error {
 export async function stageNumbers(
   runId: string,
   catalog: SyncCatalog,
-  dids: readonly string[],
+  rows: readonly StagedNumber[],
 ): Promise<number> {
   let inserted = 0;
-  for (let index = 0; index < dids.length; index += STAGE_BATCH) {
-    const slice = dids.slice(index, index + STAGE_BATCH);
+  for (let index = 0; index < rows.length; index += STAGE_BATCH) {
+    const slice = rows.slice(index, index + STAGE_BATCH);
     if (slice.length === 0) continue;
     const count = await withDbRetry(() =>
       prisma.$executeRaw(stageInsertSql(runId, catalog, slice)),

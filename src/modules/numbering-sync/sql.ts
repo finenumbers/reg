@@ -4,6 +4,7 @@
  */
 
 import { Prisma } from "@/generated/prisma/client";
+import { fillStageSplitSql } from "@/modules/numbering-catalog/decorate";
 import { cityLabelSql } from "@/modules/rtu/sql";
 
 export const SIPOUT_PROVIDER = "SipOut";
@@ -12,6 +13,11 @@ export const STAGE_BATCH = 2000;
 export const SPLIT_BATCH = 2000;
 
 export type SyncCatalog = "free" | "purchased";
+
+export type StagedNumber = {
+  e164: string;
+  incomingPeriod: string;
+};
 
 export type PublishDecision = {
   held: boolean;
@@ -29,41 +35,9 @@ export function decidePublish(input: PublishDecision): "commit" | "rollback" {
   return "commit";
 }
 
-/** Fill tariff cells for one batch of the draft. The catalogs are not locked. */
+/** Fill tariff, mask, and client cells for one draft batch. Catalogs stay unlocked. */
 export function fillSplitSql(runId: string, limit: number): Prisma.Sql {
-  const city = cityLabelSql(Prisma.sql`geo.direction`);
-  return Prisma.sql`
-    WITH todo AS (
-      SELECT catalog, e164
-      FROM numbering_sync_stage
-      WHERE run_id = ${runId} AND ready = false
-      ORDER BY catalog, e164
-      LIMIT ${limit}
-    ),
-    computed AS (
-      SELECT
-        todo.catalog,
-        todo.e164,
-        COALESCE(split.abc, '') AS abc,
-        COALESCE(split.telephone, '') AS telephone,
-        ${city} AS city,
-        COALESCE(btrim(geo.region), '') AS region
-      FROM todo
-      LEFT JOIN LATERAL cdr_tariff_geo(todo.e164) AS geo ON TRUE
-      LEFT JOIN LATERAL geography_digit_split(geo.abc, geo.numbering, todo.e164) AS split ON TRUE
-    )
-    UPDATE numbering_sync_stage AS stage
-    SET
-      abc = computed.abc,
-      "number" = computed.telephone,
-      city = computed.city,
-      region = computed.region,
-      ready = true
-    FROM computed
-    WHERE stage.run_id = ${runId}
-      AND stage.catalog = computed.catalog
-      AND stage.e164 = computed.e164
-  `;
+  return fillStageSplitSql("numbering_sync_stage", runId, limit);
 }
 
 export const STAGED_COUNT_SQL = `
@@ -78,8 +52,8 @@ export const STAGED_COUNT_SQL = `
 export const FREE_COPY_SQL = `
   INSERT INTO free_numbers (
     id, provider, abc, "number", category, city, region,
-    mask, "maskType", "incomingPurchase", "incomingPeriod",
-    purchase, premium, operator, geography, e164
+    purchase, subscription, mask, "maskType", sale, premium,
+    operator, geography, e164
   )
   SELECT
     gen_random_uuid()::text,
@@ -90,16 +64,18 @@ export const FREE_COPY_SQL = `
     city,
     region,
     '',
-    '',
-    '',
-    '',
-    '',
-    '',
+    incoming_period,
+    mask,
+    mask_type,
+    mask_price,
+    premium,
     '',
     '',
     e164
   FROM (
-    SELECT DISTINCT ON (e164) e164, abc, "number", city, region
+    SELECT DISTINCT ON (e164)
+      e164, abc, "number", city, region, incoming_period,
+      mask, mask_type, mask_price, premium
     FROM numbering_sync_stage
     WHERE run_id = $1 AND catalog = 'free' AND ready = true
     ORDER BY e164
@@ -119,16 +95,18 @@ export const PURCHASED_COPY_SQL = `
     '',
     city,
     region,
-    '',
-    '',
-    '',
-    '',
-    '',
+    client,
+    mask,
+    mask_type,
+    mask_price,
+    premium,
     '',
     '',
     e164
   FROM (
-    SELECT DISTINCT ON (e164) e164, abc, "number", city, region
+    SELECT DISTINCT ON (e164)
+      e164, abc, "number", city, region, client,
+      mask, mask_type, mask_price, premium
     FROM numbering_sync_stage
     WHERE run_id = $1 AND catalog = 'purchased' AND ready = true
     ORDER BY e164
@@ -157,12 +135,14 @@ export function recomputeSql(table: "free_numbers" | "purchased_numbers"): Prism
 export function stageInsertSql(
   runId: string,
   catalog: SyncCatalog,
-  dids: readonly string[],
+  rows: readonly StagedNumber[],
 ): Prisma.Sql {
-  const rows = dids.map((e164) => Prisma.sql`(${runId}, ${catalog}, ${e164})`);
+  const values = rows.map(
+    (row) => Prisma.sql`(${runId}, ${catalog}, ${row.e164}, ${row.incomingPeriod})`,
+  );
   return Prisma.sql`
-    INSERT INTO numbering_sync_stage (run_id, catalog, e164)
-    VALUES ${Prisma.join(rows)}
+    INSERT INTO numbering_sync_stage (run_id, catalog, e164, incoming_period)
+    VALUES ${Prisma.join(values)}
     ON CONFLICT DO NOTHING
   `;
 }

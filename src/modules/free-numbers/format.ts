@@ -18,11 +18,11 @@ export type FreeNumberRow = {
   category: string;
   city: string;
   region: string;
+  purchase: string;
+  subscription: string;
   mask: string;
   maskType: string;
-  incomingPurchase: string;
-  incomingPeriod: string;
-  purchase: string;
+  sale: string;
   premium: string;
   operator: string;
   geography: string;

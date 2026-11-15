@@ -47,7 +47,7 @@ export async function buildRtuExportXlsx(): Promise<RtuExportResult> {
       guardExcelText(
         column === "abc"
           ? geographyAbcText(item.number, item.abc, item.telephone)
-          : column === "purchase" || column === "premium"
+          : column === "sale" || column === "premium"
             ? formatAmountCell(item[column])
             : item[column],
       ),

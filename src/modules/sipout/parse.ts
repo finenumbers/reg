@@ -12,6 +12,17 @@ export type ParsedDids =
   | { ok: true; dids: string[] }
   | { ok: false; error: string; index: number | null };
 
+export type SipoutFreeRow = {
+  e164: string;
+  incomingPeriod: string;
+};
+
+export type ParsedFree =
+  | { ok: true; rows: SipoutFreeRow[] }
+  | { ok: false; error: string; index: number | null };
+
+const PRICE = /^\d+(\.\d+)?$/;
+
 const INCOMPLETE = "Ответ площадки обрезан.";
 const BAD_NUMBER = "В ответе есть номер, который нельзя записать в E.164.";
 const BAD_CITIES = "Площадка не вернула список городов.";
@@ -27,6 +38,20 @@ export function parseCnt(value: unknown): number | null {
     if (Number.isSafeInteger(parsed)) return parsed;
   }
   return null;
+}
+
+/** Non-negative decimal. A missing or rejected price is an empty cell. */
+export function sipoutPrice(value: unknown): string {
+  if (typeof value === "number") {
+    if (!Number.isFinite(value) || value < 0) return "";
+    const text = String(value);
+    return PRICE.test(text) ? text : "";
+  }
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return PRICE.test(trimmed) ? trimmed : "";
+  }
+  return "";
 }
 
 /** City ids in first-seen order. A bad id fails the whole list. */
@@ -67,4 +92,28 @@ export function parseDidList(data: unknown): ParsedDids {
     dids.push(digits);
   }
   return { ok: true, dids };
+}
+
+/** Free-list price is the subscription. A bad price does not fail the list. */
+export function parseFreeList(data: unknown): ParsedFree {
+  if (!data || typeof data !== "object") return { ok: false, error: INCOMPLETE, index: null };
+  const record = data as { cnt?: unknown; list?: unknown };
+  const cnt = parseCnt(record.cnt);
+  if (cnt == null || !Array.isArray(record.list) || record.list.length !== cnt) {
+    return { ok: false, error: INCOMPLETE, index: null };
+  }
+  const rows: SipoutFreeRow[] = [];
+  for (let index = 0; index < record.list.length; index += 1) {
+    const item = record.list[index];
+    if (!item || typeof item !== "object") return { ok: false, error: BAD_NUMBER, index };
+    const did = (item as { did?: unknown }).did;
+    if (typeof did !== "string") return { ok: false, error: BAD_NUMBER, index };
+    const digits = sipoutDidDigits(did);
+    if (!digits) return { ok: false, error: BAD_NUMBER, index };
+    rows.push({
+      e164: digits,
+      incomingPeriod: sipoutPrice((item as { price?: unknown }).price),
+    });
+  }
+  return { ok: true, rows };
 }

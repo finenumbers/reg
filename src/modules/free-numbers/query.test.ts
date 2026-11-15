@@ -69,8 +69,8 @@ describe("free-number query allowlist", () => {
     ).toMatchObject({ column: "number", q: "пусто", limit: 1000 });
     expect(
       parseFreeNumbersFacetQuery(
-        new URLSearchParams({ column: "incomingPurchase" }),
+        new URLSearchParams({ column: "subscription" }),
       ).column,
-    ).toBe("incomingPurchase");
+    ).toBe("subscription");
   });
 });

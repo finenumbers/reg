@@ -10,7 +10,7 @@ import {
   visibleRtuColumns,
 } from "@/modules/rtu/columns";
 
-const MASK_COLUMNS = ["mask", "maskType", "purchase", "premium"] as const;
+const MASK_COLUMNS = ["mask", "maskType", "sale", "premium"] as const;
 const HIDDEN_WHEN_ON = ["category", "supplier", "source"] as const;
 
 describe("visible RTU columns", () => {
@@ -34,7 +34,7 @@ describe("visible RTU columns", () => {
       "capacity",
       "mask",
       "maskType",
-      "purchase",
+      "sale",
       "premium",
     ]);
     expect(RTU_HEADERS.category).toBe("Категория");
@@ -42,7 +42,7 @@ describe("visible RTU columns", () => {
     expect(RTU_HEADERS.source).toBe("Источник");
     expect(RTU_HEADERS.mask).toBe("Маска");
     expect(RTU_HEADERS.maskType).toBe("Тип");
-    expect(RTU_HEADERS.purchase).toBe("Покупка");
+    expect(RTU_HEADERS.sale).toBe("Продажа");
     expect(RTU_HEADERS.premium).toBe("Премиум");
   });
 

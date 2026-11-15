@@ -6,8 +6,9 @@
 import { SyncLost } from "@/modules/numbering-sync/errors";
 import type { PublishCounts } from "@/modules/numbering-sync/publish";
 import type { SyncCatalog } from "@/modules/numbering-sync/sql";
-import { parseCityIds, parseDidList } from "@/modules/sipout/parse";
+import { parseCityIds, parseDidList, parseFreeList } from "@/modules/sipout/parse";
 import type { SipoutMeta, SipoutPage } from "@/modules/sipout/client";
+import type { StagedNumber } from "@/modules/numbering-sync/sql";
 
 export type LeaseBeat = "ok" | "cancel" | "lost";
 
@@ -16,7 +17,7 @@ export type WalkDeps = {
   freeList: (cityId: string) => Promise<SipoutPage>;
   connectedList: () => Promise<SipoutPage>;
   stillMine: () => Promise<LeaseBeat>;
-  stage: (catalog: SyncCatalog, dids: string[]) => Promise<number>;
+  stage: (catalog: SyncCatalog, rows: StagedNumber[]) => Promise<number>;
   prepare: () => Promise<void>;
   publish: () => Promise<PublishCounts>;
   dropStage: () => Promise<void>;
@@ -42,6 +43,18 @@ export function uniqueDids(dids: readonly string[]): string[] {
     if (seen.has(did)) continue;
     seen.add(did);
     unique.push(did);
+  }
+  return unique;
+}
+
+/** First price wins. A later copy of the same number is dropped. */
+export function uniqueStaged(rows: readonly StagedNumber[]): StagedNumber[] {
+  const seen = new Set<string>();
+  const unique: StagedNumber[] = [];
+  for (const row of rows) {
+    if (seen.has(row.e164)) continue;
+    seen.add(row.e164);
+    unique.push(row);
   }
   return unique;
 }
@@ -141,7 +154,10 @@ export async function runSourceWalk(deps: WalkDeps): Promise<WalkResult> {
     if (logged) return stop(deps, logged);
     return stop(deps, { ok: false, reason: "error", error: bought.error });
   }
-  const uniqueBought = uniqueDids(bought.dids);
+  const uniqueBought = uniqueDids(bought.dids).map((e164) => ({
+    e164,
+    incomingPeriod: "",
+  }));
   const insertedBought =
     uniqueBought.length > 0 ? await deps.stage("purchased", uniqueBought) : 0;
   const purchasedNote = await note(
@@ -199,7 +215,7 @@ export async function runSourceWalk(deps: WalkDeps): Promise<WalkResult> {
       if (logged) return stop(deps, logged);
       return stop(deps, { ok: false, reason: "error", error: page.error });
     }
-    const dids = parseDidList(page.data);
+    const dids = parseFreeList(page.data);
     if (!dids.ok) {
       const logged = await note(
         deps,
@@ -212,15 +228,15 @@ export async function runSourceWalk(deps: WalkDeps): Promise<WalkResult> {
       if (logged) return stop(deps, logged);
       return stop(deps, { ok: false, reason: "error", error: dids.error });
     }
-    const unique = uniqueDids(dids.dids);
+    const unique = uniqueStaged(dids.rows);
     const inserted = unique.length > 0 ? await deps.stage("free", unique) : 0;
     const logged = await note(
       deps,
       lines("--- Свободные номера ---", page, [
         `Город ${index + 1} из ${ids.ids.length}, city_id=${cityId}`,
-        `cnt: ${dids.dids.length}`,
+        `cnt: ${dids.rows.length}`,
         `Принято: ${unique.length}`,
-        `Повторов в ответе: ${dids.dids.length - unique.length}`,
+        `Повторов в ответе: ${dids.rows.length - unique.length}`,
         `Повторов между городами: ${unique.length - inserted}`,
       ]),
     );

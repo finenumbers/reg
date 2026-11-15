@@ -52,7 +52,7 @@ const ROW_TONE_CLASS: Record<GeographyRowTone, string> = {
 
 function cellText(row: RtuItem, column: RtuColumn): string {
   const raw = row[column] ?? "";
-  if (column === "purchase" || column === "premium") return formatAmountCell(raw);
+  if (column === "sale" || column === "premium") return formatAmountCell(raw);
   return raw;
 }
 
@@ -101,7 +101,7 @@ export function RtuTable({
               key={column}
               className={cn(
                 "font-medium",
-                (column === "purchase" || column === "premium") && "text-right",
+                (column === "sale" || column === "premium") && "text-right",
               )}
             >
               <ColumnFilterDropdown
@@ -111,7 +111,7 @@ export function RtuTable({
                 selected={filters[column] ?? []}
                 filters={filters}
                 formatValue={
-                  column === "purchase" || column === "premium"
+                  column === "sale" || column === "premium"
                     ? formatStoredAmount
                     : undefined
                 }

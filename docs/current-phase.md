@@ -1,7 +1,15 @@
-# Current Phase — production (v1.289.0)
+# Current Phase — production (v1.290.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, purchased numbers, numbering sync, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
-**Date:** 2026-11-15
+**Date:** 2026-11-16
+
+## v1.290.0 — Catalog sale, subscription, and mask cells
+
+The migration `20261116010000_catalog_sale_columns` rebuilds `free_numbers` by name and renames `rtu_screen.purchase` to `sale`. Old `incomingPurchase` becomes `purchase`, old `incomingPeriod` becomes `subscription`, and the old mask `purchase` becomes `sale`. A drifted copy raises before the old table is dropped. `lock_timeout` is 15 seconds. The migration is label-free, so startup does not rescan the CDR journal. It does not fill mask or client cells and does not call a numbering source. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app, let migrate finish, then start one new app. If migrate stops on `lock_timeout`, an old process or vacuum still holds the database: do not start the new app. The schema change rolls back. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged.
+
+On «Свободные номера», «Покупка» is the provider one-time price and «Абонплата» is the provider subscription. They sit before «Маска». «Продажа» is the mask-catalog price. SipOut `free_list` `price` fills «Абонплата». The SipOut one-time cell stays empty. A bad price leaves that cell empty. On «Управление РТУ», the same mask price is «Продажа». On «Купленные номера», «Покупка» stays the mask-catalog price. Those two «Покупка» columns are different fields. The mask file header stays «Покупка».
+
+Operator and geography on the two catalogs stay empty. This release does not read PSTN for them. A purchased «Клиент» comes from «Описание» on «Телефонные номера». The same digits win. A 7 and an 8 fill the cell only when both descriptions agree. The first start fills mask, type, sale or purchase, premium, and client in the background. Do not reload SipOut, Runexis, or UIS for that. A crash leaves the stamp at 0 and the next start tries again. A tariff file and a mask file queue the same full pass. A phone sync queues the client only.
 
 ## v1.289.0 — UIS purchased and free numbers
 

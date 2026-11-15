@@ -120,21 +120,24 @@ describe("sipout source walk", () => {
   });
 
   it("stages one value when one response repeats a number", async () => {
-    const staged: string[][] = [];
+    const staged: { e164: string; incomingPeriod: string }[][] = [];
     await runSourceWalk(
       deps({
         freeList: async () =>
           page({
             cnt: "2",
-            list: [{ did: "74953084480" }, { did: "+74953084480" }],
+            list: [
+              { did: "74953084480", price: "222" },
+              { did: "+74953084480", price: "333" },
+            ],
           }),
-        stage: async (_catalog, dids) => {
-          staged.push([...dids]);
-          return dids.length;
+        stage: async (_catalog, rows) => {
+          staged.push([...rows]);
+          return rows.length;
         },
       }),
     );
-    expect(staged[0]).toEqual(["74953084480"]);
+    expect(staged[0]).toEqual([{ e164: "74953084480", incomingPeriod: "222" }]);
     expect(uniqueDids(["74953084480", "74953084480"])).toEqual(["74953084480"]);
   });
 

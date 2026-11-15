@@ -806,7 +806,7 @@ export function RtuView({ initial, canRequest, canActivate }: Props) {
         filters={filters}
         headers={RTU_HEADERS}
         formatValue={(field, value) =>
-          field === "purchase" || field === "premium"
+          field === "sale" || field === "premium"
             ? formatStoredAmount(value)
             : displayFacetValue(value)
         }

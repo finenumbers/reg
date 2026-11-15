@@ -27,16 +27,24 @@ describe("sipout publish sql", () => {
     const split = flattenSql(fillSplitSql("run", 2000));
     expect(split).toContain("cdr_tariff_geo");
     expect(split).toContain("geography_digit_split");
+    expect(split).toContain("rtu_mask_lookup");
+    expect(split).toContain("phone_endpoints");
     expect(split).toContain("starts_with");
     expect(split).toContain("numbering_sync_stage");
     expect(split).not.toContain("INSERT INTO free_numbers");
 
     expect(FREE_COPY_SQL).toContain("INSERT INTO free_numbers");
     expect(FREE_COPY_SQL).toContain("ready = true");
+    expect(FREE_COPY_SQL).toContain("incoming_period");
+    expect(FREE_COPY_SQL).toContain("sale");
     expect(FREE_COPY_SQL).not.toContain("cdr_tariff_geo");
     expect(FREE_COPY_SQL).not.toContain("geography_digit_split");
+    expect(FREE_COPY_SQL).not.toContain("rtu_mask_lookup");
     expect(PURCHASED_COPY_SQL).toContain("INSERT INTO purchased_numbers");
+    expect(PURCHASED_COPY_SQL).toContain("mask_price");
     expect(PURCHASED_COPY_SQL).not.toContain("cdr_tariff_geo");
+    expect(PURCHASED_COPY_SQL).not.toContain("rtu_mask_lookup");
+    expect(PURCHASED_COPY_SQL).not.toContain("incoming");
   });
 
   it("inserts the SipOut literal and does not delete from the copy", () => {
@@ -82,6 +90,7 @@ describe("sipout publish sql", () => {
     expect(free).toContain("UPDATE free_numbers");
     expect(free).toContain("cdr_tariff_geo");
     expect(free).toContain("geography_digit_split");
+    expect(free).not.toContain("rtu_mask_lookup");
     expect(purchased).toContain("UPDATE purchased_numbers");
     expect(purchased).not.toContain("free_numbers");
   });

@@ -15,7 +15,7 @@ export const RTU_COLUMNS = [
   "capacity",
   "mask",
   "maskType",
-  "purchase",
+  "sale",
   "premium",
   "operator",
   "geography",
@@ -26,7 +26,7 @@ export const RTU_COLUMNS = [
 export type RtuColumn = (typeof RTU_COLUMNS)[number];
 
 /** Hidden together when the «Маски и типы» switch is off. The data contract keeps them. */
-const RTU_MASK_COLUMN_LIST = ["mask", "maskType", "purchase", "premium"] as const;
+const RTU_MASK_COLUMN_LIST = ["mask", "maskType", "sale", "premium"] as const;
 
 export const RTU_MASK_COLUMNS: ReadonlySet<RtuColumn> = new Set(RTU_MASK_COLUMN_LIST);
 
@@ -78,7 +78,7 @@ export const RTU_HEADERS: Record<RtuColumn, string> = {
   capacity: "Канальность",
   mask: "Маска",
   maskType: "Тип",
-  purchase: "Покупка",
+  sale: "Продажа",
   premium: "Премиум",
   operator: "Оператор связи",
   geography: "География",
@@ -110,8 +110,8 @@ export function geographyDigitAlign(column: RtuColumn): "left" | "right" | null 
   return null;
 }
 
-/** Cell alignment. Purchase and premium sit on the right with the local number. */
+/** Cell alignment. Sale and premium sit on the right with the local number. */
 export function rtuCellAlign(column: RtuColumn): "left" | "right" | null {
-  if (column === "purchase" || column === "premium") return "right";
+  if (column === "sale" || column === "premium") return "right";
   return geographyDigitAlign(column);
 }

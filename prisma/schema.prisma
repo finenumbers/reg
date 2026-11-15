@@ -459,8 +459,8 @@ model RtuScreen {
   mask       String  @default("")
   /// «Тип». Empty when the catalog cell is empty.
   maskType   String  @default("")
-  /// «Покупка». Empty when the catalog cell is empty.
-  purchase   String  @default("")
+  /// «Продажа». Empty when the catalog cell is empty.
+  sale       String  @default("")
   /// «Премиум». Empty when the catalog cell is empty.
   premium    String  @default("")
 
@@ -612,37 +612,37 @@ model DialException {
 /// SipOut sync replaces rows whose provider is SipOut. The GIN trigram indexes
 /// on number and e164, and the partial unique (provider, e164), are created in SQL.
 model FreeNumber {
-  id               String @id @default(cuid())
+  id           String @id @default(cuid())
   /// «Провайдер».
-  provider         String @default("")
-  /// National digits, no plus. Empty until a numbering source writes the row.
-  e164             String @default("")
+  provider     String @default("")
   /// «ABC». Text so a leading zero survives.
-  abc              String @default("")
+  abc          String @default("")
   /// «Номер». Text so a leading zero survives.
-  number           String @default("")
+  number       String @default("")
   /// «Категория».
-  category         String @default("")
+  category     String @default("")
   /// «Город».
-  city             String @default("")
+  city         String @default("")
   /// «Регион».
-  region           String @default("")
+  region       String @default("")
+  /// «Покупка». One-time provider price. Stored as text. A fraction is not rounded.
+  purchase     String @default("")
+  /// «Абонплата». Provider subscription. Stored as text. A fraction is not rounded.
+  subscription String @default("")
   /// «Маска».
-  mask             String @default("")
+  mask         String @default("")
   /// «Тип».
-  maskType         String @default("")
-  /// «Покупка (входящая)». Stored as text. A fraction is not rounded.
-  incomingPurchase String @default("")
-  /// «Абонплата (входящая)». Stored as text. A fraction is not rounded.
-  incomingPeriod   String @default("")
-  /// «Покупка». Stored as text. A fraction is not rounded.
-  purchase         String @default("")
+  maskType     String @default("")
+  /// «Продажа». Mask-catalog price. Stored as text. A fraction is not rounded.
+  sale         String @default("")
   /// «Премиум». Stored as text. A fraction is not rounded.
-  premium          String @default("")
+  premium      String @default("")
   /// «Оператор связи».
-  operator         String @default("")
+  operator     String @default("")
   /// «География».
-  geography        String @default("")
+  geography    String @default("")
+  /// National digits, no plus. Empty until a numbering source writes the row.
+  e164         String @default("")
 
   @@index([abc, number, id], map: "free_numbers_order_idx")
   @@index([provider], map: "free_numbers_provider_idx")
@@ -713,14 +713,22 @@ model NumberingSyncState {
 /// Numbers accepted from one SipOut response, before the catalog replace.
 /// Tariff cells are filled here so the catalog transaction only copies rows.
 model NumberingSyncStage {
-  runId   String  @map("run_id")
-  catalog String
-  e164    String
-  abc     String  @default("")
-  number  String  @default("")
-  city    String  @default("")
-  region  String  @default("")
-  ready   Boolean @default(false)
+  runId          String  @map("run_id")
+  catalog        String
+  e164           String
+  abc            String  @default("")
+  number         String  @default("")
+  city           String  @default("")
+  region         String  @default("")
+  /// Free-list subscription. Purchased rows stay empty.
+  incomingPeriod String  @default("") @map("incoming_period")
+  mask           String  @default("")
+  maskType       String  @default("") @map("mask_type")
+  /// Mask-catalog price. Copied into free_numbers.sale.
+  maskPrice      String  @default("") @map("mask_price")
+  premium        String  @default("")
+  client         String  @default("")
+  ready          Boolean @default(false)
 
   @@id([runId, catalog, e164])
   @@map("numbering_sync_stage")
@@ -760,6 +768,12 @@ model RunexisSyncStage {
   region           String  @default("")
   incomingPurchase String  @default("") @map("incoming_purchase")
   incomingPeriod   String  @default("") @map("incoming_period")
+  mask             String  @default("")
+  maskType         String  @default("") @map("mask_type")
+  /// Mask-catalog price. Copied into free_numbers.sale or purchased_numbers.purchase.
+  maskPrice        String  @default("") @map("mask_price")
+  premium          String  @default("")
+  client           String  @default("")
   ready            Boolean @default(false)
 
   @@id([runId, catalog, e164])
@@ -800,10 +814,24 @@ model UisSyncStage {
   region           String  @default("")
   incomingPurchase String  @default("") @map("incoming_purchase")
   incomingPeriod   String  @default("") @map("incoming_period")
+  mask             String  @default("")
+  maskType         String  @default("") @map("mask_type")
+  /// Mask-catalog price. Copied into free_numbers.sale or purchased_numbers.purchase.
+  maskPrice        String  @default("") @map("mask_price")
+  premium          String  @default("")
+  client           String  @default("")
   ready            Boolean @default(false)
 
   @@id([runId, catalog, e164])
   @@map("uis_sync_stage")
+}
+
+/// One decorate pass after this migration. A later start leaves the catalogs.
+model NumberingCatalogState {
+  id                 Int @id @default(1)
+  decorateGeneration Int @default(0) @map("decorate_generation")
+
+  @@map("numbering_catalog_state")
 }
 
 /// Mask and type snapshot from an uploaded XLSX. Each import replaces every row.

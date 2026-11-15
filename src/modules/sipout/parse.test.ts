@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseCityIds, parseCnt, parseDidList } from "@/modules/sipout/parse";
+import { parseCityIds, parseCnt, parseDidList, parseFreeList, sipoutPrice } from "@/modules/sipout/parse";
 
 describe("sipout parse", () => {
   it("accepts a decimal cnt string and rejects a truncated list", () => {
@@ -24,6 +24,29 @@ describe("sipout parse", () => {
       ],
     });
     expect(parsed).toEqual({ ok: true, dids: ["74953084480", "74953084480"] });
+  });
+
+  it("keeps a free-list price as the subscription and drops a bad price", () => {
+    expect(sipoutPrice(" 222.50 ")).toBe("222.50");
+    expect(sipoutPrice(222)).toBe("222");
+    expect(sipoutPrice("нет")).toBe("");
+    expect(sipoutPrice("1e3")).toBe("");
+    expect(sipoutPrice(-1)).toBe("");
+    expect(sipoutPrice("222,50")).toBe("");
+    const parsed = parseFreeList({
+      cnt: "2",
+      list: [
+        { did: "74953084480", price: "222" },
+        { did: "74953084481", price: "нет" },
+      ],
+    });
+    expect(parsed).toEqual({
+      ok: true,
+      rows: [
+        { e164: "74953084480", incomingPeriod: "222" },
+        { e164: "74953084481", incomingPeriod: "" },
+      ],
+    });
   });
 
   it("rejects a city id that is not digits", () => {

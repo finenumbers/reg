@@ -139,6 +139,15 @@ describe("planPostMigrate", () => {
     ).toEqual({ callClass: false, tariff: false });
   });
 
+  it("does not scan the journal when catalog money columns are renamed", () => {
+    expect(
+      planPostMigrate("Applying migration `20261116010000_catalog_sale_columns`\n", {
+        rateGeneration: 4,
+        ratedGeneration: 4,
+      }),
+    ).toEqual({ callClass: false, tariff: false });
+  });
+
   it("does not scan the journal when Runexis stores both catalogs", () => {
     expect(
       planPostMigrate("Applying migration `20261115120000_runexis_catalogs`\n", {

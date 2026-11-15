@@ -19,6 +19,11 @@ vi.mock("@/modules/rtu/screen-publish", () => ({
   requestRtuScreenPublish: vi.fn(async () => ({ published: true })),
 }));
 
+vi.mock("@/modules/numbering-catalog/decorate", () => ({
+  requestCatalogDecorate: vi.fn(),
+  decorateCatalogsIfNeeded: vi.fn(),
+}));
+
 vi.mock("@/modules/audit", () => ({
   AUDIT_ACTIONS: {
     PHONES_SYNC_MANUAL: "phones.sync_manual",

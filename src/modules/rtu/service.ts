@@ -56,7 +56,7 @@ type DbRow = {
   telephone: string;
   mask: string;
   mask_type: string;
-  purchase: string;
+  sale: string;
   premium: string;
   operator: string;
   geography: string;
@@ -100,7 +100,7 @@ function mapRow(row: DbRow): RtuItem {
     capacity: row.capacity ?? "",
     mask: row.mask ?? "",
     maskType: row.mask_type ?? "",
-    purchase: row.purchase ?? "",
+    sale: row.sale ?? "",
     premium: row.premium ?? "",
     operator: row.operator ?? "",
     geography: row.geography ?? "",
@@ -319,7 +319,7 @@ export async function listRtuFacets(opts: {
   const rows = await prisma.$queryRaw<FacetRow[]>(
     screenFacetSql(column, screenWhere(joined, filters, column, phoneQ, flags), joined),
   );
-  const amount = column === "purchase" || column === "premium";
+  const amount = column === "sale" || column === "premium";
   return facetsFromGroups(rows, {
     q: opts.q,
     limit: opts.limit,

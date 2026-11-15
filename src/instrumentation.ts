@@ -208,6 +208,16 @@ export async function register() {
     }
 
     try {
+      const { decorateCatalogsIfNeeded } =
+        await import("@/modules/numbering-catalog/decorate");
+      decorateCatalogsIfNeeded();
+    } catch (error) {
+      logger.error("numbering.decorate.boot_failed", {
+        error: error instanceof Error ? error.name : "Error",
+      });
+    }
+
+    try {
       const { requestCdrTariffRate } =
         await import("@/modules/traffic/tariff-rate/enqueue");
       await requestCdrTariffRate("schedule");

@@ -65,5 +65,9 @@ export async function applyMaskSnapshot(
     .then(({ requestRtuScreenPublish }) => requestRtuScreenPublish())
     .catch(() => undefined);
 
+  void import("@/modules/numbering-catalog/decorate")
+    .then(({ requestCatalogDecorate }) => requestCatalogDecorate("full"))
+    .catch(() => undefined);
+
   return { rowCount: rows.length, loadedAt };
 }

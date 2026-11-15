@@ -36,6 +36,7 @@ export const LABEL_FREE_MIGRATIONS = new Set([
   "20261114150000_runexis_free",
   "20261115120000_runexis_catalogs",
   "20261115140000_uis_source",
+  "20261116010000_catalog_sale_columns",
 ]);
 
 /**

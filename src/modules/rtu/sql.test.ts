@@ -164,19 +164,19 @@ describe("geography columns", () => {
       "capacity",
       "mask",
       "maskType",
-      "purchase",
+      "sale",
       "premium",
     ]);
     expect(RTU_HEADERS.mask).toBe("Маска");
     expect(RTU_HEADERS.maskType).toBe("Тип");
-    expect(RTU_HEADERS.purchase).toBe("Покупка");
+    expect(RTU_HEADERS.sale).toBe("Продажа");
     expect(RTU_HEADERS.premium).toBe("Премиум");
     expect(geographyDigitAlign("abc")).toBe("left");
     expect(geographyDigitAlign("telephone")).toBe("right");
-    expect(geographyDigitAlign("purchase")).toBeNull();
+    expect(geographyDigitAlign("sale")).toBeNull();
     expect(rtuCellAlign("abc")).toBe("left");
     expect(rtuCellAlign("telephone")).toBe("right");
-    expect(rtuCellAlign("purchase")).toBe("right");
+    expect(rtuCellAlign("sale")).toBe("right");
     expect(rtuCellAlign("premium")).toBe("right");
     expect(rtuCellAlign("mask")).toBeNull();
   });
@@ -309,7 +309,7 @@ describe("city sql phrase", () => {
     expect(listProjection({ region: ["Приморский край"] })).toBe("page");
     expect(listProjection({ mask: ["00000"] })).toBe("page");
     expect(listProjection({ maskType: ["Золотой"] })).toBe("page");
-    expect(listProjection({ purchase: ["1"] })).toBe("page");
+    expect(listProjection({ sale: ["1"] })).toBe("page");
     expect(listProjection({ premium: ["10"] })).toBe("page");
     expect(listProjection({})).toBe("page");
     expect(facetProjection("mask", {})).toBe("page");
@@ -351,6 +351,8 @@ describe("screen snapshot sql", () => {
     expect(built.text).toContain("cdr_tariff_geo");
     expect(built.text).toContain("geography_digit_split");
     expect(built.text).toContain("rtu_mask_lookup");
+    expect(built.text).toContain("AS sale");
+    expect(built.text).not.toContain("AS purchase");
     expect(built.text).not.toContain("Регистрационный пароль");
   });
 
@@ -368,6 +370,7 @@ describe("screen snapshot sql", () => {
     expect(page.text).not.toContain("rtu_mask_lookup");
     expect(page.text).toContain("mask_type");
     expect(page.text).toContain('"maskType"');
+    expect(page.text).toContain("visible.sale");
     expect(page.text.indexOf("LIMIT")).toBeLessThan(
       page.text.indexOf("pstn_phone_cache"),
     );

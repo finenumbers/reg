@@ -4,8 +4,8 @@
  */
 
 import { Prisma } from "@/generated/prisma/client";
+import { fillStageSplitSql } from "@/modules/numbering-catalog/decorate";
 import type { UisRow } from "@/modules/uis/parse";
-import { cityLabelSql } from "@/modules/rtu/sql";
 
 export const UIS_PROVIDER = "UIS";
 export const SPLIT_BATCH = 2000;
@@ -23,8 +23,8 @@ export const STAGED_COUNT_SQL = `
 export const FREE_COPY_SQL = `
   INSERT INTO free_numbers (
     id, provider, abc, "number", category, city, region,
-    mask, "maskType", "incomingPurchase", "incomingPeriod",
-    purchase, premium, operator, geography, e164
+    purchase, subscription, mask, "maskType", sale, premium,
+    operator, geography, e164
   )
   SELECT
     gen_random_uuid()::text,
@@ -34,12 +34,12 @@ export const FREE_COPY_SQL = `
     '',
     city,
     region,
-    '',
-    '',
     incoming_purchase,
     incoming_period,
-    '',
-    '',
+    mask,
+    mask_type,
+    mask_price,
+    premium,
     '',
     '',
     e164
@@ -60,11 +60,11 @@ export const PURCHASED_COPY_SQL = `
     '',
     city,
     region,
-    '',
-    '',
-    '',
-    '',
-    '',
+    client,
+    mask,
+    mask_type,
+    mask_price,
+    premium,
     '',
     '',
     e164
@@ -98,39 +98,7 @@ export function dropOverlapSql(runId: string): Prisma.Sql {
 }
 
 export function fillSplitSql(runId: string, limit: number): Prisma.Sql {
-  const city = cityLabelSql(Prisma.sql`geo.direction`);
-  return Prisma.sql`
-    WITH todo AS (
-      SELECT catalog, e164
-      FROM uis_sync_stage
-      WHERE run_id = ${runId} AND ready = false
-      ORDER BY catalog, e164
-      LIMIT ${limit}
-    ),
-    computed AS (
-      SELECT
-        todo.catalog,
-        todo.e164,
-        COALESCE(split.abc, '') AS abc,
-        COALESCE(split.telephone, '') AS telephone,
-        ${city} AS city,
-        COALESCE(btrim(geo.region), '') AS region
-      FROM todo
-      LEFT JOIN LATERAL cdr_tariff_geo(todo.e164) AS geo ON TRUE
-      LEFT JOIN LATERAL geography_digit_split(geo.abc, geo.numbering, todo.e164) AS split ON TRUE
-    )
-    UPDATE uis_sync_stage AS stage
-    SET
-      abc = computed.abc,
-      "number" = computed.telephone,
-      city = computed.city,
-      region = computed.region,
-      ready = true
-    FROM computed
-    WHERE stage.run_id = ${runId}
-      AND stage.catalog = computed.catalog
-      AND stage.e164 = computed.e164
-  `;
+  return fillStageSplitSql("uis_sync_stage", runId, limit);
 }
 
 export function stageFreeSql(runId: string, rows: readonly UisRow[]): Prisma.Sql {

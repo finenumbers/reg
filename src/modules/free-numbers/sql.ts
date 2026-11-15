@@ -35,16 +35,16 @@ function columnRef(column: FreeNumberColumn): Prisma.Sql {
       return Prisma.sql`city`;
     case "region":
       return Prisma.sql`region`;
+    case "purchase":
+      return Prisma.sql`purchase`;
+    case "subscription":
+      return Prisma.sql`subscription`;
     case "mask":
       return Prisma.sql`mask`;
     case "maskType":
       return Prisma.sql`"maskType"`;
-    case "incomingPurchase":
-      return Prisma.sql`"incomingPurchase"`;
-    case "incomingPeriod":
-      return Prisma.sql`"incomingPeriod"`;
-    case "purchase":
-      return Prisma.sql`purchase`;
+    case "sale":
+      return Prisma.sql`sale`;
     case "premium":
       return Prisma.sql`premium`;
     case "operator":
@@ -136,11 +136,11 @@ const ROW_SELECT = Prisma.sql`
   category,
   city,
   region,
+  purchase,
+  subscription,
   mask,
   "maskType",
-  "incomingPurchase",
-  "incomingPeriod",
-  purchase,
+  sale,
   premium,
   operator,
   geography,
