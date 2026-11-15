@@ -10,6 +10,10 @@ import { withDbRetry } from "@/modules/numbering-sync/db-retry";
 import { SyncLost } from "@/modules/numbering-sync/errors";
 import { noteCatalogReplaced } from "@/modules/numbering-sync/lease";
 import {
+  SIPOUT_EPOCH_SQL,
+  requestDecorateCatchUp,
+} from "@/modules/numbering-catalog/decorate";
+import {
   FREE_COPY_SQL,
   PURCHASED_COPY_SQL,
   SPLIT_BATCH,
@@ -210,9 +214,20 @@ export async function replaceSipoutCatalogs(runId: string): Promise<PublishCount
       [runId, insertedFree, insertedPurchased],
     );
     if ((finished.rowCount ?? 0) !== 1) throw new SyncLost();
+    const epoch = await client.query(SIPOUT_EPOCH_SQL);
+    if ((epoch.rowCount ?? 0) !== 1) throw new Error("Не удалось отметить каталог.");
     await client.query("COMMIT");
     committed = true;
-    noteCatalogReplaced();
+    try {
+      noteCatalogReplaced();
+    } catch {
+      /* The catalogs are already replaced. The export generation catches up. */
+    }
+    try {
+      requestDecorateCatchUp();
+    } catch {
+      /* The epoch stays ahead. The next start fills the cells. */
+    }
     return { deletedFree, insertedFree, deletedPurchased, insertedPurchased };
   } catch (error) {
     if (!committed) await client.query("ROLLBACK").catch(() => undefined);

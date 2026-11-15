@@ -197,7 +197,7 @@ describe("runexis showcase", () => {
     expect(FREE_COPY_SQL).not.toContain("DELETE");
     expect(FREE_COPY_SQL).not.toContain("rtu_mask_lookup");
     expect(PURCHASED_COPY_SQL).toContain("INSERT INTO purchased_numbers");
-    expect(PURCHASED_COPY_SQL).toContain("mask_price");
+    expect(PURCHASED_COPY_SQL).not.toContain("mask_price");
     expect(PURCHASED_COPY_SQL).not.toContain("incoming");
     expect(PURCHASED_COPY_SQL).not.toContain("rtu_mask_lookup");
     expect(

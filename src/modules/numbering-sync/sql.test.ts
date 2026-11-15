@@ -27,8 +27,8 @@ describe("sipout publish sql", () => {
     const split = flattenSql(fillSplitSql("run", 2000));
     expect(split).toContain("cdr_tariff_geo");
     expect(split).toContain("geography_digit_split");
-    expect(split).toContain("rtu_mask_lookup");
-    expect(split).toContain("phone_endpoints");
+    expect(split).not.toContain("rtu_mask_lookup");
+    expect(split).not.toContain("phone_endpoints");
     expect(split).toContain("starts_with");
     expect(split).toContain("numbering_sync_stage");
     expect(split).not.toContain("INSERT INTO free_numbers");
@@ -37,11 +37,12 @@ describe("sipout publish sql", () => {
     expect(FREE_COPY_SQL).toContain("ready = true");
     expect(FREE_COPY_SQL).toContain("incoming_period");
     expect(FREE_COPY_SQL).toContain("sale");
+    expect(FREE_COPY_SQL).not.toContain("mask_price");
     expect(FREE_COPY_SQL).not.toContain("cdr_tariff_geo");
     expect(FREE_COPY_SQL).not.toContain("geography_digit_split");
     expect(FREE_COPY_SQL).not.toContain("rtu_mask_lookup");
     expect(PURCHASED_COPY_SQL).toContain("INSERT INTO purchased_numbers");
-    expect(PURCHASED_COPY_SQL).toContain("mask_price");
+    expect(PURCHASED_COPY_SQL).not.toContain("mask_price");
     expect(PURCHASED_COPY_SQL).not.toContain("cdr_tariff_geo");
     expect(PURCHASED_COPY_SQL).not.toContain("rtu_mask_lookup");
     expect(PURCHASED_COPY_SQL).not.toContain("incoming");

@@ -1,7 +1,13 @@
-# Current Phase — production (v1.290.0)
+# Current Phase — production (v1.291.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, purchased numbers, numbering sync, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-16
+
+## v1.291.0 — Mask and client after the catalog commit
+
+The migration `20261116020000_catalog_decorate_epoch` adds six counters on `numbering_catalog_state`. It does not rewrite catalog rows and does not scan the CDR journal. The counters start at 0, so this deploy does not fill masks again. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app, let migrate finish, then start one new app. If migrate stops on `lock_timeout`, do not start the new app. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged.
+
+A numbering load still writes the provider prices and the tariff split before it replaces that provider's rows. Mask, type, the mask price, premium, and the purchased client are empty in that replace. The same transaction increments that provider's epoch. After the commit, a background pass fills those cells for that provider only. On a long UIS list the empty cells can stay for several minutes. Numbers and prices are already on the screen. «Оператор связи» and «География» stay empty. A crash after the commit leaves the epoch ahead, and the next start finishes the pass. A file of masks and a file of tariffs still queue a full pass. A phone sync still queues the client only.
 
 ## v1.290.0 — Catalog sale, subscription, and mask cells
 

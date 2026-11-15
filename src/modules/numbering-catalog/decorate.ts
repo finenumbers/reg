@@ -1,7 +1,7 @@
 /**
- * Mask, type, sale or purchase, premium, and the purchased client.
- * The draft fill runs this before the catalog lock. A later pass updates
- * rows already stored, in short batches, and lets a live walk take the lease.
+ * Tariff split for a numbering draft, then mask and client cells on the catalogs.
+ * The draft fill does not call the mask lookup. A later pass updates stored rows
+ * in short batches and lets a live walk take the lease.
  */
 
 import { Prisma } from "@/generated/prisma/client";
@@ -24,7 +24,84 @@ const STAGE_TABLES = new Set([
   "uis_sync_stage",
 ]);
 
+const PROVIDERS = ["SipOut", "Runexis", "UIS"] as const;
+export type CatalogProvider = (typeof PROVIDERS)[number];
 export type DecorateScope = "full" | "client";
+
+export const SIPOUT_EPOCH_SQL =
+  "UPDATE numbering_catalog_state SET sipout_epoch = sipout_epoch + 1 WHERE id = 1";
+export const RUNEXIS_EPOCH_SQL =
+  "UPDATE numbering_catalog_state SET runexis_epoch = runexis_epoch + 1 WHERE id = 1";
+export const UIS_EPOCH_SQL =
+  "UPDATE numbering_catalog_state SET uis_epoch = uis_epoch + 1 WHERE id = 1";
+
+type EpochRow = {
+  sipout_epoch: number;
+  sipout_done: number;
+  runexis_epoch: number;
+  runexis_done: number;
+  uis_epoch: number;
+  uis_done: number;
+  decorate_generation: number;
+};
+
+function asCount(value: unknown): number {
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isSafeInteger(parsed) ? parsed : 0;
+}
+
+function isProvider(value: string): value is CatalogProvider {
+  return value === "SipOut" || value === "Runexis" || value === "UIS";
+}
+
+/** SQL literal for one numbering source. Anything else is rejected. */
+export function providerLiteral(provider: string): Prisma.Sql {
+  switch (provider) {
+    case "SipOut":
+      return Prisma.sql`'SipOut'`;
+    case "Runexis":
+      return Prisma.sql`'Runexis'`;
+    case "UIS":
+      return Prisma.sql`'UIS'`;
+    default:
+      throw new Error("Некорректный источник.");
+  }
+}
+
+function epochNames(provider: CatalogProvider): { epoch: string; done: string } {
+  switch (provider) {
+    case "SipOut":
+      return { epoch: "sipout_epoch", done: "sipout_done" };
+    case "Runexis":
+      return { epoch: "runexis_epoch", done: "runexis_done" };
+    case "UIS":
+      return { epoch: "uis_epoch", done: "uis_done" };
+  }
+}
+
+/** Mark one provider done only when its epoch is still the value this pass saw. */
+export function markDecorateDoneSql(provider: string, seen: number): Prisma.Sql {
+  if (!isProvider(provider)) throw new Error("Некорректный источник.");
+  const names = epochNames(provider);
+  const epoch = Prisma.raw(names.epoch);
+  const done = Prisma.raw(names.done);
+  return Prisma.sql`
+    UPDATE numbering_catalog_state
+    SET ${done} = ${seen}
+    WHERE id = 1 AND ${epoch} = ${seen}
+  `;
+}
+
+function pair(row: EpochRow, provider: CatalogProvider): { epoch: number; done: number } {
+  switch (provider) {
+    case "SipOut":
+      return { epoch: row.sipout_epoch, done: row.sipout_done };
+    case "Runexis":
+      return { epoch: row.runexis_epoch, done: row.runexis_done };
+    case "UIS":
+      return { epoch: row.uis_epoch, done: row.uis_done };
+  }
+}
 
 function clientCtes(): Prisma.Sql {
   return Prisma.sql`
@@ -69,12 +146,16 @@ function maskLookup(
   `;
 }
 
-/** Tariff split, mask cells, and the purchased client for one draft batch. */
+function providerWhere(provider: CatalogProvider | null): Prisma.Sql {
+  if (!provider) return Prisma.empty;
+  return Prisma.sql`AND provider = ${providerLiteral(provider)}`;
+}
+
+/** Tariff split for one draft batch. Mask and client stay empty until the pass. */
 export function fillStageSplitSql(table: string, runId: string, limit: number): Prisma.Sql {
   if (!STAGE_TABLES.has(table)) throw new Error("Некорректный черновик.");
   const relation = Prisma.raw(`"${table}"`);
   const city = cityLabelSql(Prisma.sql`geo.direction`);
-  const alert = cityAlertSql(Prisma.sql`geo.direction`);
   return Prisma.sql`
     WITH todo AS (
       SELECT catalog, e164
@@ -83,52 +164,17 @@ export function fillStageSplitSql(table: string, runId: string, limit: number): 
       ORDER BY catalog, e164
       LIMIT ${limit}
     ),
-    ${clientCtes()},
-    tariffed AS (
+    computed AS (
       SELECT
         todo.catalog,
         todo.e164,
         COALESCE(split.abc, '') AS abc,
         COALESCE(split.telephone, '') AS telephone,
         ${city} AS city,
-        ${alert} AS city_alert,
         COALESCE(btrim(geo.region), '') AS region
       FROM todo
       LEFT JOIN LATERAL cdr_tariff_geo(todo.e164) AS geo ON TRUE
       LEFT JOIN LATERAL geography_digit_split(geo.abc, geo.numbering, todo.e164) AS split ON TRUE
-    ),
-    computed AS (
-      SELECT
-        tariffed.catalog,
-        tariffed.e164,
-        tariffed.abc,
-        tariffed.telephone,
-        tariffed.city,
-        tariffed.region,
-        COALESCE(hit.mask, '') AS mask,
-        COALESCE(hit.mask_type, '') AS mask_type,
-        COALESCE(hit.purchase, '') AS mask_price,
-        COALESCE(hit.premium, '') AS premium,
-        CASE
-          WHEN tariffed.catalog = 'purchased'
-            THEN COALESCE(exact_client.client, national_client.client, '')
-          ELSE ''
-        END AS client
-      FROM tariffed
-      ${maskLookup(
-        Prisma.sql`tariffed.city`,
-        Prisma.sql`tariffed.city_alert`,
-        Prisma.sql`tariffed.abc`,
-        Prisma.sql`tariffed.telephone`,
-      )}
-      LEFT JOIN exact_client
-        ON tariffed.catalog = 'purchased'
-       AND exact_client.phone = tariffed.e164
-      LEFT JOIN national_client
-        ON tariffed.catalog = 'purchased'
-       AND exact_client.client IS NULL
-       AND tariffed.e164 ~ ${ELEVEN}
-       AND national_client.national = substring(tariffed.e164 FROM 2)
     )
     UPDATE ${relation} AS stage
     SET
@@ -136,11 +182,6 @@ export function fillStageSplitSql(table: string, runId: string, limit: number): 
       "number" = computed.telephone,
       city = computed.city,
       region = computed.region,
-      mask = computed.mask,
-      mask_type = computed.mask_type,
-      mask_price = computed.mask_price,
-      premium = computed.premium,
-      client = computed.client,
       ready = true
     FROM computed
     WHERE stage.run_id = ${runId}
@@ -150,14 +191,19 @@ export function fillStageSplitSql(table: string, runId: string, limit: number): 
 }
 
 /** Mask price lands in sale. Provider purchase and subscription stay. */
-export function freeMaskBatchSql(afterId: string): Prisma.Sql {
+export function freeMaskBatchSql(
+  afterId: string,
+  provider: CatalogProvider | null = null,
+): Prisma.Sql {
   const city = cityLabelSql(Prisma.sql`geo.direction`);
   const alert = cityAlertSql(Prisma.sql`geo.direction`);
+  const only = providerWhere(provider);
   return Prisma.sql`
     WITH batch AS (
       SELECT id, e164
       FROM free_numbers
       WHERE id > ${afterId}
+        ${only}
       ORDER BY id
       LIMIT ${BATCH}
     ),
@@ -194,14 +240,19 @@ export function freeMaskBatchSql(afterId: string): Prisma.Sql {
 }
 
 /** Mask price lands in purchase. Client comes from the phone description. */
-export function purchasedFullBatchSql(afterId: string): Prisma.Sql {
+export function purchasedFullBatchSql(
+  afterId: string,
+  provider: CatalogProvider | null = null,
+): Prisma.Sql {
   const city = cityLabelSql(Prisma.sql`geo.direction`);
   const alert = cityAlertSql(Prisma.sql`geo.direction`);
+  const only = providerWhere(provider);
   return Prisma.sql`
     WITH batch AS (
       SELECT id, e164
       FROM purchased_numbers
       WHERE id > ${afterId}
+        ${only}
       ORDER BY id
       LIMIT ${BATCH}
     ),
@@ -280,13 +331,21 @@ export function purchasedClientBatchSql(afterId: string): Prisma.Sql {
 
 type BatchKind = "free" | "purchased" | "client";
 
-function batchSql(kind: BatchKind, afterId: string): Prisma.Sql {
-  if (kind === "free") return freeMaskBatchSql(afterId);
-  if (kind === "purchased") return purchasedFullBatchSql(afterId);
+function batchSql(
+  kind: BatchKind,
+  afterId: string,
+  provider: CatalogProvider | null,
+): Prisma.Sql {
+  if (kind === "free") return freeMaskBatchSql(afterId, provider);
+  if (kind === "purchased") return purchasedFullBatchSql(afterId, provider);
   return purchasedClientBatchSql(afterId);
 }
 
-async function oneBatch(kind: BatchKind, afterId: string): Promise<string[]> {
+async function oneBatch(
+  kind: BatchKind,
+  afterId: string,
+  provider: CatalogProvider | null,
+): Promise<string[]> {
   try {
     return await prisma.$transaction(async (tx) => {
       for (const sql of RESPLIT_LOCKS) {
@@ -296,7 +355,7 @@ async function oneBatch(kind: BatchKind, afterId: string): Promise<string[]> {
         const row = rows[0];
         if (row?.run_id && row.fresh) throw new SyncBusy();
       }
-      const updated = await tx.$queryRaw<{ id: string }[]>(batchSql(kind, afterId));
+      const updated = await tx.$queryRaw<{ id: string }[]>(batchSql(kind, afterId, provider));
       return updated.map((row) => row.id);
     }, BATCH_TX);
   } catch (error) {
@@ -309,13 +368,13 @@ function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function drain(kind: BatchKind): Promise<boolean> {
+async function drain(kind: BatchKind, provider: CatalogProvider | null): Promise<boolean> {
   let after = "";
   const started = Date.now();
   let transientTries = 0;
   for (;;) {
     try {
-      const ids = await oneBatch(kind, after);
+      const ids = await oneBatch(kind, after, provider);
       if (ids.length === 0) return true;
       after = ids[ids.length - 1] ?? after;
       transientTries = 0;
@@ -336,13 +395,87 @@ async function drain(kind: BatchKind): Promise<boolean> {
 }
 
 /** Full pass updates masks on both catalogs and the purchased client. */
-export async function runCatalogDecorate(scope: DecorateScope): Promise<boolean> {
-  if (scope === "full") {
-    const free = await drain("free");
-    if (!free) return false;
-    return drain("purchased");
+export async function runCatalogDecorate(
+  scope: DecorateScope | CatalogProvider,
+): Promise<boolean> {
+  const provider = isProvider(scope) ? scope : null;
+  if (scope === "client") return drain("client", null);
+  const free = await drain("free", provider);
+  if (!free) return false;
+  return drain("purchased", provider);
+}
+
+async function readEpochs(): Promise<EpochRow | null> {
+  const rows = await prisma.$queryRaw<EpochRow[]>`
+    SELECT
+      sipout_epoch,
+      sipout_done,
+      runexis_epoch,
+      runexis_done,
+      uis_epoch,
+      uis_done,
+      decorate_generation
+    FROM numbering_catalog_state
+    WHERE id = 1
+  `;
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    sipout_epoch: asCount(row.sipout_epoch),
+    sipout_done: asCount(row.sipout_done),
+    runexis_epoch: asCount(row.runexis_epoch),
+    runexis_done: asCount(row.runexis_done),
+    uis_epoch: asCount(row.uis_epoch),
+    uis_done: asCount(row.uis_done),
+    decorate_generation: asCount(row.decorate_generation),
+  };
+}
+
+async function markSeen(row: EpochRow): Promise<void> {
+  for (const provider of PROVIDERS) {
+    await prisma.$executeRaw(markDecorateDoneSql(provider, pair(row, provider).epoch));
   }
-  return drain("client");
+}
+
+function stillDirty(row: EpochRow): boolean {
+  return PROVIDERS.some((provider) => {
+    const seen = pair(row, provider);
+    return seen.epoch > seen.done;
+  });
+}
+
+async function catchUpProviders(): Promise<void> {
+  for (const provider of PROVIDERS) {
+    const row = await readEpochs();
+    if (!row) return;
+    const seen = pair(row, provider);
+    if (seen.epoch <= seen.done) continue;
+    const ok = await runCatalogDecorate(provider);
+    if (!ok) {
+      enqueue(async () => {
+        await wait(RETRY_MS);
+        await catchUpProviders();
+      });
+      return;
+    }
+    await prisma.$executeRaw(markDecorateDoneSql(provider, seen.epoch));
+  }
+  const left = await readEpochs();
+  if (left && stillDirty(left)) enqueue(() => catchUpProviders());
+}
+
+async function runFullMark(): Promise<void> {
+  const before = await readEpochs();
+  const ok = await runCatalogDecorate("full");
+  if (!ok) {
+    enqueue(async () => {
+      await wait(RETRY_MS);
+      await catchUpProviders();
+    });
+    return;
+  }
+  if (before) await markSeen(before);
+  await catchUpProviders();
 }
 
 let chain: Promise<void> = Promise.resolve();
@@ -355,29 +488,48 @@ function enqueue(task: () => Promise<void>): void {
   });
 }
 
-/** Queue one pass. Passes run one after another. */
+/** Queue one full or client pass. Passes run one after another. */
 export function requestCatalogDecorate(scope: DecorateScope): void {
-  enqueue(() => runCatalogDecorate(scope).then(() => undefined));
+  enqueue(async () => {
+    if (scope === "full") {
+      await runFullMark();
+      return;
+    }
+    const ok = await runCatalogDecorate("client");
+    if (!ok) {
+      enqueue(async () => {
+        await wait(RETRY_MS);
+        await catchUpProviders();
+      });
+      return;
+    }
+    await catchUpProviders();
+  });
+}
+
+/** A committed catalog replace already incremented its epoch. Fill whatever is behind. */
+export function requestDecorateCatchUp(): void {
+  enqueue(() => catchUpProviders());
 }
 
 /**
- * The migration leaves decorate_generation at 0. One successful full pass
- * sets it. A later start does not scan the catalogs again.
+ * The first migration leaves decorate_generation at 0. One successful full pass
+ * sets it. A later start fills only a provider whose catalog was replaced.
  */
 export function decorateCatalogsIfNeeded(): void {
   enqueue(async () => {
-    const rows = await prisma.$queryRaw<{ decorate_generation: number }[]>`
-      SELECT decorate_generation
-      FROM numbering_catalog_state
-      WHERE id = 1
-    `;
-    if ((rows[0]?.decorate_generation ?? 1) !== 0) return;
-    const ok = await runCatalogDecorate("full");
-    if (!ok) return;
-    await prisma.$executeRaw`
-      UPDATE numbering_catalog_state
-      SET decorate_generation = 1
-      WHERE id = 1 AND decorate_generation = 0
-    `;
+    const row = await readEpochs();
+    if (row && row.decorate_generation === 0) {
+      const ok = await runCatalogDecorate("full");
+      if (ok) {
+        await prisma.$executeRaw`
+          UPDATE numbering_catalog_state
+          SET decorate_generation = 1
+          WHERE id = 1 AND decorate_generation = 0
+        `;
+        await markSeen(row);
+      }
+    }
+    await catchUpProviders();
   });
 }

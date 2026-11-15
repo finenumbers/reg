@@ -724,7 +724,7 @@ model NumberingSyncStage {
   incomingPeriod String  @default("") @map("incoming_period")
   mask           String  @default("")
   maskType       String  @default("") @map("mask_type")
-  /// Mask-catalog price. Copied into free_numbers.sale.
+  /// Unused. The catalog pass fills the mask price after publish.
   maskPrice      String  @default("") @map("mask_price")
   premium        String  @default("")
   client         String  @default("")
@@ -770,7 +770,7 @@ model RunexisSyncStage {
   incomingPeriod   String  @default("") @map("incoming_period")
   mask             String  @default("")
   maskType         String  @default("") @map("mask_type")
-  /// Mask-catalog price. Copied into free_numbers.sale or purchased_numbers.purchase.
+  /// Unused. The catalog pass fills the mask price after publish.
   maskPrice        String  @default("") @map("mask_price")
   premium          String  @default("")
   client           String  @default("")
@@ -816,7 +816,7 @@ model UisSyncStage {
   incomingPeriod   String  @default("") @map("incoming_period")
   mask             String  @default("")
   maskType         String  @default("") @map("mask_type")
-  /// Mask-catalog price. Copied into free_numbers.sale or purchased_numbers.purchase.
+  /// Unused. The catalog pass fills the mask price after publish.
   maskPrice        String  @default("") @map("mask_price")
   premium          String  @default("")
   client           String  @default("")
@@ -826,10 +826,17 @@ model UisSyncStage {
   @@map("uis_sync_stage")
 }
 
-/// One decorate pass after this migration. A later start leaves the catalogs.
+/// One decorate pass after the first catalog migration. A provider epoch
+/// moves ahead of its done stamp when that catalog is replaced.
 model NumberingCatalogState {
   id                 Int @id @default(1)
   decorateGeneration Int @default(0) @map("decorate_generation")
+  sipoutEpoch        Int @default(0) @map("sipout_epoch")
+  sipoutDone         Int @default(0) @map("sipout_done")
+  runexisEpoch       Int @default(0) @map("runexis_epoch")
+  runexisDone        Int @default(0) @map("runexis_done")
+  uisEpoch           Int @default(0) @map("uis_epoch")
+  uisDone            Int @default(0) @map("uis_done")
 
   @@map("numbering_catalog_state")
 }

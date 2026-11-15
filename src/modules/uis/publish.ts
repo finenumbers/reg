@@ -7,6 +7,10 @@ import pg from "pg";
 import { prisma } from "@/lib/db";
 import { withDbRetry } from "@/modules/numbering-sync/db-retry";
 import { noteCatalogReplaced } from "@/modules/numbering-sync/lease";
+import {
+  UIS_EPOCH_SQL,
+  requestDecorateCatchUp,
+} from "@/modules/numbering-catalog/decorate";
 import type { UisRow } from "@/modules/uis/parse";
 import {
   DELETE_UIS_FREE_SQL,
@@ -200,12 +204,19 @@ export async function replaceUisCatalogs(runId: string): Promise<PublishedCounts
       [runId, free, purchased],
     );
     if ((finished.rowCount ?? 0) !== 1) throw new SyncLost();
+    const epoch = await client.query(UIS_EPOCH_SQL);
+    if ((epoch.rowCount ?? 0) !== 1) throw new Error("Не удалось отметить каталог.");
     await client.query("COMMIT");
     committed = true;
     try {
       noteCatalogReplaced();
     } catch {
       /* The catalogs are already replaced. The export generation catches up. */
+    }
+    try {
+      requestDecorateCatchUp();
+    } catch {
+      /* The epoch stays ahead. The next start fills the cells. */
     }
     return { free, purchased };
   } catch (error) {

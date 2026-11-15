@@ -35,7 +35,7 @@ export function decidePublish(input: PublishDecision): "commit" | "rollback" {
   return "commit";
 }
 
-/** Fill tariff, mask, and client cells for one draft batch. Catalogs stay unlocked. */
+/** Fill the four tariff cells for one draft batch. Catalogs stay unlocked. */
 export function fillSplitSql(runId: string, limit: number): Prisma.Sql {
   return fillStageSplitSql("numbering_sync_stage", runId, limit);
 }
@@ -65,17 +65,16 @@ export const FREE_COPY_SQL = `
     region,
     '',
     incoming_period,
-    mask,
-    mask_type,
-    mask_price,
-    premium,
+    '',
+    '',
+    '',
+    '',
     '',
     '',
     e164
   FROM (
     SELECT DISTINCT ON (e164)
-      e164, abc, "number", city, region, incoming_period,
-      mask, mask_type, mask_price, premium
+      e164, abc, "number", city, region, incoming_period
     FROM numbering_sync_stage
     WHERE run_id = $1 AND catalog = 'free' AND ready = true
     ORDER BY e164
@@ -95,18 +94,17 @@ export const PURCHASED_COPY_SQL = `
     '',
     city,
     region,
-    client,
-    mask,
-    mask_type,
-    mask_price,
-    premium,
+    '',
+    '',
+    '',
+    '',
+    '',
     '',
     '',
     e164
   FROM (
     SELECT DISTINCT ON (e164)
-      e164, abc, "number", city, region, client,
-      mask, mask_type, mask_price, premium
+      e164, abc, "number", city, region
     FROM numbering_sync_stage
     WHERE run_id = $1 AND catalog = 'purchased' AND ready = true
     ORDER BY e164
