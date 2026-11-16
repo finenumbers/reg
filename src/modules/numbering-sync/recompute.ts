@@ -1,7 +1,7 @@
 /**
  * After a tariff file is committed, refresh ABC, the local number, city, and region.
  * No numbering source is called. A live walk keeps its lease; this waits and tries again.
- * SipOut is locked before Runexis, then UIS, then Aurora Telecom, then MTS Exolve, so a publish that already holds one lease cannot deadlock.
+ * SipOut is locked before Runexis, then UIS, then Aurora Telecom, then MTS Exolve, then Voximplant, so a publish that already holds one lease cannot deadlock.
  */
 
 import { Prisma } from "@/generated/prisma/client";
@@ -17,6 +17,7 @@ import {
   RESPLIT_EXOLVE_LOCK_SQL,
   RESPLIT_SIPOUT_LOCK_SQL,
   RESPLIT_UIS_LOCK_SQL,
+  RESPLIT_VOXIMPLANT_LOCK_SQL,
 } from "@/modules/numbering-sync/locks";
 
 export {
@@ -26,6 +27,7 @@ export {
   RESPLIT_RUNEXIS_LOCK_SQL,
   RESPLIT_SIPOUT_LOCK_SQL,
   RESPLIT_UIS_LOCK_SQL,
+  RESPLIT_VOXIMPLANT_LOCK_SQL,
 };
 
 const RETRY_MS = 5_000;

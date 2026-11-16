@@ -95,6 +95,9 @@ const ACTION_LABELS: Record<string, string> = {
   "exolve.settings_save": "Сохранение доступа MTS Exolve",
   "exolve.test": "Проверка доступа MTS Exolve",
   "exolve.sync": "Загрузка номеров MTS Exolve",
+  "voximplant.settings_save": "Сохранение доступа Voximplant",
+  "voximplant.test": "Проверка доступа Voximplant",
+  "voximplant.sync": "Загрузка номеров Voximplant",
 };
 
 export function formatAuditTimestamp(

@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   AURORA_EPOCH_SQL,
   EXOLVE_EPOCH_SQL,
+  VOXIMPLANT_EPOCH_SQL,
   SIPOUT_EPOCH_SQL,
   UIS_EPOCH_SQL,
   RUNEXIS_EPOCH_SQL,
@@ -20,7 +21,10 @@ import {
   FREE_COPY_SQL as RUNEXIS_FREE,
   PURCHASED_COPY_SQL as RUNEXIS_PURCHASED,
 } from "@/modules/runexis/sql";
-import { FREE_COPY_SQL as UIS_FREE, PURCHASED_COPY_SQL as UIS_PURCHASED } from "@/modules/uis/sql";
+import {
+  FREE_COPY_SQL as UIS_FREE,
+  PURCHASED_COPY_SQL as UIS_PURCHASED,
+} from "@/modules/uis/sql";
 import {
   FREE_COPY_SQL as AURORA_FREE,
   PURCHASED_COPY_SQL as AURORA_PURCHASED,
@@ -49,6 +53,10 @@ describe("catalog decorate", () => {
   it("fills the draft with the tariff only and copies empty mask cells", () => {
     const split = flattenSql(fillStageSplitSql("uis_sync_stage", "run", 2000));
     const auroraSplit = flattenSql(fillStageSplitSql("aurora_sync_stage", "run", 2000));
+    const voximplantSplit = flattenSql(
+      fillStageSplitSql("voximplant_sync_stage", "run", 2000),
+    );
+    expect(voximplantSplit).toContain("voximplant_sync_stage");
     expect(auroraSplit).toContain("cdr_tariff_geo");
     expect(auroraSplit).toContain("aurora_sync_stage");
     expect(split).toContain("cdr_tariff_geo");
@@ -99,6 +107,7 @@ describe("catalog decorate", () => {
     expect(flattenSql(providerLiteral("Runexis"))).toBe("'Runexis'");
     expect(flattenSql(providerLiteral("Aurora Telecom"))).toBe("'Aurora Telecom'");
     expect(flattenSql(providerLiteral("MTS Exolve"))).toBe("'MTS Exolve'");
+    expect(flattenSql(providerLiteral("Voximplant"))).toBe("'Voximplant'");
     expect(() => providerLiteral("mcn")).toThrow(/источник/);
 
     const purchased = flattenSql(purchasedFullBatchSql("", "UIS"));
@@ -118,6 +127,9 @@ describe("catalog decorate", () => {
     const exolveDone = flattenSql(markDecorateDoneSql("MTS Exolve", 3));
     expect(exolveDone).toContain("exolve_done");
     expect(exolveDone).toContain("exolve_epoch");
+    const voximplantDone = flattenSql(markDecorateDoneSql("Voximplant", 5));
+    expect(voximplantDone).toContain("voximplant_done");
+    expect(voximplantDone).toContain("voximplant_epoch");
     const done = flattenSql(markDecorateDoneSql("SipOut", 4));
     expect(done).toContain("sipout_done");
     expect(done).toContain("sipout_epoch");
@@ -132,6 +144,7 @@ describe("catalog decorate", () => {
       ["src/modules/uis/publish.ts", "UIS_EPOCH_SQL", UIS_EPOCH_SQL],
       ["src/modules/aurora/publish.ts", "AURORA_EPOCH_SQL", AURORA_EPOCH_SQL],
       ["src/modules/exolve/publish.ts", "EXOLVE_EPOCH_SQL", EXOLVE_EPOCH_SQL],
+      ["src/modules/voximplant/publish.ts", "VOXIMPLANT_EPOCH_SQL", VOXIMPLANT_EPOCH_SQL],
     ] as const;
     for (const [file, symbol, sql] of files) {
       const text = readFileSync(path.join(process.cwd(), file), "utf8");

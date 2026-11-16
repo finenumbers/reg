@@ -1,0 +1,33 @@
+---
+description: Voximplant Management API reads purchased and free numbers
+alwaysApply: true
+---
+
+# Voximplant numbers
+
+The handbook is the live page `https://voximplant.com/docs/references/httpapi` and the Management API reference it points at. Read it again before any Voximplant change. It can change. Do not invent methods, paths, or fields. Do not commit a copy of that page.
+
+The host is the literal `https://api.voximplant.com`. HTTPS only. Do not follow redirects. Do not trust a custom certificate. Do not use a proxy from the environment. Timeout 30s. Body cap 20 MB. POST is the transport. The body is empty. Query parameters only. `Authorization: Bearer` is sent only to that host. The token is not a query field.
+
+The saved secret is one service-account JSON object: integer `account_id`, `key_id`, and an RSA `private_key`. Extra fields stay in the ciphertext. A literal `\n` inside the PEM becomes a newline. The JWT is RS256. Header `typ` is `JWT`, `alg` is `RS256`, and `kid` is `key_id`. Payload `iss` is the account id as a JSON number, `iat` is ten seconds behind the clock, and `exp` is `iat` plus 3600. Refresh when fewer than 60 seconds remain. The whole JSON is one AES-256-GCM ciphertext. An empty field does not change it. Saving it does not call the platform.
+
+This release may send only:
+
+- `GetPhoneNumbers` for purchased numbers. `count` is 100, `offset` follows the accepted rows, `sandbox` is `false`, and `order_by` is `phone_number`. No country, status, template, child account, or mask.
+- `GetPhoneNumberCategories` with `country_code` `RU`, `sandbox` `false`, and `locale` `RU`.
+- `GetPhoneNumberRegions` with `country_code` `RU`, `phone_category_name`, `locale` `RU`, and `omit_empty` `true`.
+- `GetNewPhoneNumbers` with `country_code` `RU`, `phone_category_name`, `phone_region_id`, `count` 50, and `offset`. No mask and no `sandbox`.
+
+Do not call `GetAccountInfo`, `GetPhoneNumberCountryStates`, `GetPhoneNumbersAsync`, `GetActualPhoneNumberRegion`, attach, bind, deactivate, or any other method. The method and the path are literals in the client. Do not accept a path, a field, or a filter from a caller, a flag, or a saved catalog. One request is in flight.
+
+A category name must match `^[A-Za-z0-9_-]{1,64}$`. Anything else stops the walk. `can_list_phone_numbers` false skips that country. A missing flag does not. A country other than `RU` is not read. `country_has_states` true stops the walk. A missing `result` array stops the walk. A repeated category name or a repeated region id is not read twice. `phone_count` below 1 skips that region. A missing or non-integer `phone_count` does not. Do not compare a stale `phone_count` with the later list total.
+
+The next offset is the number of accepted rows, not the response `count`. A page longer than the requested count fails. A short page does not end the list. A missing integer `total_count` fails. An empty `result` with `total_count` 0 is an empty selection. An empty `result` with a larger total is repeated once at the same offset. The offset ceiling is 5000000. Accepted rows above `total_count` fail. The first page locks `total_count`. One different total discards that selection and reads it again from offset 0. A second shift fails the walk. After the pages, one recount uses `count` 1 and `offset` 0. Those rows are not staged. The recount total must match, and the accepted count must equal it.
+
+Purchased pages are staged as they are read. A free region is staged only after its recount matches. A later free region keeps the first price. The same number in both drafts stays purchased. No RU categories, or a region list that is missing or empty, does not publish. Regions with `phone_count` below 1 are not requested. When every region is skipped that way, or every requested region returns 0, the free slice is replaced with an empty one together with the purchased list. A failed purchased list does not open the free list. Both lists must succeed before either catalog is replaced.
+
+A number is the digit string the tariff split already accepts. Do not convert 8 to 7. A number that fails admission fails the page. Free `phone_installation_price` is «Покупка» and `phone_price` is «Абонплата». Do not add a tax reserve. A null, negative, non-decimal, or scientific price leaves that cell empty. Purchased money stays empty. City, region, ABC, and the local number come from the tariff fragment. The provider literal is `Voximplant`.
+
+Transport, timeout, an empty body, non-JSON, and HTTP 5xx retry once. HTTP 4xx and a JSON error object, including 314 and 340, do not. The key stays ciphertext. Do not log the key, the token, the URL, a phone number, or a price. The operator error is at most 200 characters and is dropped when it contains `bearer`, `token`, `password`, `private_key`, `key=`, `://`, or ten digits in a row. An API key cannot call these routes. The stage log is `data/numbering-sync/voximplant.txt`.
+
+The access check is one purchased page of `count` 1, the RU categories, the regions of the first category, and one free page of `count` 1 when a region would be read. It does not take the database lease and does not write the stage log. «Сохранить» confirms the host, the account id, and that the key will be replaced. «Загрузить» confirms that both lists are read again and that the previous Voximplant rows in both catalogs are replaced. Enter does not send.

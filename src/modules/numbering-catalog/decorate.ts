@@ -24,9 +24,17 @@ const STAGE_TABLES = new Set([
   "uis_sync_stage",
   "aurora_sync_stage",
   "exolve_sync_stage",
+  "voximplant_sync_stage",
 ]);
 
-const PROVIDERS = ["SipOut", "Runexis", "UIS", "Aurora Telecom", "MTS Exolve"] as const;
+const PROVIDERS = [
+  "SipOut",
+  "Runexis",
+  "UIS",
+  "Aurora Telecom",
+  "MTS Exolve",
+  "Voximplant",
+] as const;
 export type CatalogProvider = (typeof PROVIDERS)[number];
 export type DecorateScope = "full" | "client";
 
@@ -40,6 +48,8 @@ export const AURORA_EPOCH_SQL =
   "UPDATE numbering_catalog_state SET aurora_epoch = aurora_epoch + 1 WHERE id = 1";
 export const EXOLVE_EPOCH_SQL =
   "UPDATE numbering_catalog_state SET exolve_epoch = exolve_epoch + 1 WHERE id = 1";
+export const VOXIMPLANT_EPOCH_SQL =
+  "UPDATE numbering_catalog_state SET voximplant_epoch = voximplant_epoch + 1 WHERE id = 1";
 
 type EpochRow = {
   sipout_epoch: number;
@@ -52,6 +62,8 @@ type EpochRow = {
   aurora_done: number;
   exolve_epoch: number;
   exolve_done: number;
+  voximplant_epoch: number;
+  voximplant_done: number;
   decorate_generation: number;
 };
 
@@ -66,7 +78,8 @@ function isProvider(value: string): value is CatalogProvider {
     value === "Runexis" ||
     value === "UIS" ||
     value === "Aurora Telecom" ||
-    value === "MTS Exolve"
+    value === "MTS Exolve" ||
+    value === "Voximplant"
   );
 }
 
@@ -83,6 +96,8 @@ export function providerLiteral(provider: string): Prisma.Sql {
       return Prisma.sql`'Aurora Telecom'`;
     case "MTS Exolve":
       return Prisma.sql`'MTS Exolve'`;
+    case "Voximplant":
+      return Prisma.sql`'Voximplant'`;
     default:
       throw new Error("Некорректный источник.");
   }
@@ -100,6 +115,8 @@ function epochNames(provider: CatalogProvider): { epoch: string; done: string } 
       return { epoch: "aurora_epoch", done: "aurora_done" };
     case "MTS Exolve":
       return { epoch: "exolve_epoch", done: "exolve_done" };
+    case "Voximplant":
+      return { epoch: "voximplant_epoch", done: "voximplant_done" };
   }
 }
 
@@ -128,6 +145,8 @@ function pair(row: EpochRow, provider: CatalogProvider): { epoch: number; done: 
       return { epoch: row.aurora_epoch, done: row.aurora_done };
     case "MTS Exolve":
       return { epoch: row.exolve_epoch, done: row.exolve_done };
+    case "Voximplant":
+      return { epoch: row.voximplant_epoch, done: row.voximplant_done };
   }
 }
 
@@ -180,7 +199,11 @@ function providerWhere(provider: CatalogProvider | null): Prisma.Sql {
 }
 
 /** Tariff split for one draft batch. Mask and client stay empty until the pass. */
-export function fillStageSplitSql(table: string, runId: string, limit: number): Prisma.Sql {
+export function fillStageSplitSql(
+  table: string,
+  runId: string,
+  limit: number,
+): Prisma.Sql {
   if (!STAGE_TABLES.has(table)) throw new Error("Некорректный черновик.");
   const relation = Prisma.raw(`"${table}"`);
   const city = cityLabelSql(Prisma.sql`geo.direction`);
@@ -383,7 +406,9 @@ async function oneBatch(
         const row = rows[0];
         if (row?.run_id && row.fresh) throw new SyncBusy();
       }
-      const updated = await tx.$queryRaw<{ id: string }[]>(batchSql(kind, afterId, provider));
+      const updated = await tx.$queryRaw<{ id: string }[]>(
+        batchSql(kind, afterId, provider),
+      );
       return updated.map((row) => row.id);
     }, BATCH_TX);
   } catch (error) {
@@ -396,7 +421,10 @@ function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function drain(kind: BatchKind, provider: CatalogProvider | null): Promise<boolean> {
+async function drain(
+  kind: BatchKind,
+  provider: CatalogProvider | null,
+): Promise<boolean> {
   let after = "";
   const started = Date.now();
   let transientTries = 0;
@@ -446,6 +474,8 @@ async function readEpochs(): Promise<EpochRow | null> {
       aurora_done,
       exolve_epoch,
       exolve_done,
+      voximplant_epoch,
+      voximplant_done,
       decorate_generation
     FROM numbering_catalog_state
     WHERE id = 1
@@ -463,6 +493,8 @@ async function readEpochs(): Promise<EpochRow | null> {
     aurora_done: asCount(row.aurora_done),
     exolve_epoch: asCount(row.exolve_epoch),
     exolve_done: asCount(row.exolve_done),
+    voximplant_epoch: asCount(row.voximplant_epoch),
+    voximplant_done: asCount(row.voximplant_done),
     decorate_generation: asCount(row.decorate_generation),
   };
 }
