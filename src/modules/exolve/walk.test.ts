@@ -37,7 +37,8 @@ function did(index: number): string {
 function keyOf(filter: PurchasedFilter): string {
   if (filter.kind === "all") return "all";
   if (filter.kind === "type") return `type:${filter.typeName}`;
-  if (filter.kind === "category") return `category:${filter.typeName}:${filter.categoryId}`;
+  if (filter.kind === "category")
+    return `category:${filter.typeName}:${filter.categoryId}`;
   return `region:${filter.typeName}:${filter.categoryId}:${filter.regionId}`;
 }
 
@@ -120,7 +121,17 @@ function harness(input: {
     },
     freeOffsetMax: input.freeOffsetMax,
   };
-  return { deps, bought, prices, purchasedKeys, purchasedOffsets, regionCalls, freeCalls, dropped, recounts };
+  return {
+    deps,
+    bought,
+    prices,
+    purchasedKeys,
+    purchasedOffsets,
+    regionCalls,
+    freeCalls,
+    dropped,
+    recounts,
+  };
 }
 
 describe("Exolve walk", () => {
@@ -188,7 +199,8 @@ describe("Exolve walk", () => {
         if (filter.kind === "type" && filter.typeName === "DEF") {
           return { total: 2, rows: [did(1), did(2)] };
         }
-        if (filter.kind === "type" && filter.typeName === "KDU") return { total: 0, rows: [] };
+        if (filter.kind === "type" && filter.typeName === "KDU")
+          return { total: 0, rows: [] };
         throw new Error(keyOf(filter));
       },
       recount: () => 2,
@@ -406,6 +418,10 @@ describe("Exolve request bodies", () => {
       region_id: 10230,
     });
     expect(layered && "application_uuid" in layered).toBe(false);
+    expect(purchasedBody({ kind: "all" }, 300_000)).toEqual({
+      limit: 1000,
+      offset: 300_000,
+    });
   });
 
   it("asks GetFree for one cell in order, without a mask", () => {

@@ -1,7 +1,13 @@
-# Current Phase — production (v1.297.0)
+# Current Phase — production (v1.298.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, purchased numbers, numbering sync, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-16
+
+## v1.298.0 — MTS Exolve empty page
+
+This release does not migrate and does not rewrite catalog rows or Exolve epoch counters. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before the new one starts, then start one new app. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged. SipOut, Runexis, UIS, and Aurora Telecom are unchanged.
+
+An empty purchased list, `{}` or `total` 0, no longer stops the walk before free numbers. A purchased page with `total` greater than 0 and no `numbers` array is an empty page: the walk re-reads by type, category, and region, and publishes only when those parts sum to that total. A list without `total` does not publish. A free cell ends on a short page, including an empty object. A full page of 10 is not the end. One cell can pass several hundred thousand numbers. The offset ceiling of one free cell stays 1000000; above it the walk does not publish a short list. A failed read leaves the catalogs. The stage log has no key, no URL, no phone number, and no price.
 
 ## v1.297.0 — MTS Exolve numbers
 

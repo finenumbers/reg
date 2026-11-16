@@ -34,18 +34,14 @@ export const LOST = "Загрузка прервана. Каталог не из
 export type { Directory, ExolveFreeRow, FreeCell, PurchasedFilter };
 
 export type PurchasedRead =
-  | { ok: true; total: number; rows: string[] }
-  | { ok: false; error: string };
+  { ok: true; total: number; rows: string[] } | { ok: false; error: string };
 
 export type TotalRead = { ok: true; total: number } | { ok: false; error: string };
 
 export type DirectoryRead =
-  | { ok: true; directory: Directory }
-  | { ok: false; error: string };
+  { ok: true; directory: Directory } | { ok: false; error: string };
 
-export type FreeRead =
-  | { ok: true; rows: ExolveFreeRow[] }
-  | { ok: false; error: string };
+export type FreeRead = { ok: true; rows: ExolveFreeRow[] } | { ok: false; error: string };
 
 export type ExolveProgress = {
   list?: "" | "purchased" | "free";
@@ -63,7 +59,9 @@ export type ExolveWalkDeps = {
   free: (cell: FreeCell, offset: number) => Promise<FreeRead>;
   stagePurchased: (dids: readonly string[]) => Promise<void>;
   dropPurchased: () => Promise<void>;
-  stageFree: (rows: readonly ExolveFreeRow[]) => Promise<{ inserted: number; skipped: number }>;
+  stageFree: (
+    rows: readonly ExolveFreeRow[],
+  ) => Promise<{ inserted: number; skipped: number }>;
   log?: (line: string) => Promise<void> | void;
   /** Tests only. The service leaves this unset, so the ceiling stays 1000000. */
   freeOffsetMax?: number;
@@ -119,7 +117,11 @@ async function readPurchasedList(
     }
     if (page.rows.length === 0) {
       if (accepted === expected) {
-        return { status: "complete", total: expected, rows: mode === "buffer" ? buffered : [] };
+        return {
+          status: "complete",
+          total: expected,
+          rows: mode === "buffer" ? buffered : [],
+        };
       }
       return { status: "gap", total: expected };
     }
@@ -128,7 +130,8 @@ async function readPurchasedList(
     }
     if (mode === "buffer") {
       for (const did of page.rows) {
-        if (seen.has(did)) return { status: "fail", reason: "error", error: DUPLICATE_NUMBER };
+        if (seen.has(did))
+          return { status: "fail", reason: "error", error: DUPLICATE_NUMBER };
         seen.add(did);
         buffered.push(did);
       }
@@ -154,7 +157,11 @@ async function readPurchasedList(
       };
     }
     if (accepted === expected) {
-      return { status: "complete", total: expected, rows: mode === "buffer" ? buffered : [] };
+      return {
+        status: "complete",
+        total: expected,
+        rows: mode === "buffer" ? buffered : [],
+      };
     }
     offset += page.rows.length;
   }
@@ -179,7 +186,10 @@ async function readRegions(
   typeName: string,
   categoryId: number,
   regionIds: readonly number[],
-): Promise<{ ok: true; rows: string[]; sum: number } | { ok: false; error: string; reason: "lost" | "cancelled" | "error" }> {
+): Promise<
+  | { ok: true; rows: string[]; sum: number }
+  | { ok: false; error: string; reason: "lost" | "cancelled" | "error" }
+> {
   const rows: string[] = [];
   let sum = 0;
   for (const regionId of regionIds) {
@@ -188,8 +198,10 @@ async function readRegions(
       { kind: "region", typeName, categoryId, regionId },
       "buffer",
     );
-    if (child.status === "fail") return { ok: false, error: child.error, reason: child.reason };
-    if (child.status === "gap") return { ok: false, error: PURCHASED_GAP, reason: "error" };
+    if (child.status === "fail")
+      return { ok: false, error: child.error, reason: child.reason };
+    if (child.status === "gap")
+      return { ok: false, error: PURCHASED_GAP, reason: "error" };
     if (child.rows.length !== child.total) {
       return { ok: false, error: SUM_MISMATCH, reason: "error" };
     }
@@ -206,7 +218,10 @@ async function splitCategory(
   typeId: number,
   categoryId: number,
   parentTotal: number,
-): Promise<{ ok: true; rows: string[] } | { ok: false; error: string; reason: "lost" | "cancelled" | "error" }> {
+): Promise<
+  | { ok: true; rows: string[] }
+  | { ok: false; error: string; reason: "lost" | "cancelled" | "error" }
+> {
   if (isKduType({ typeId, typeName })) {
     if (!directory.regions.some((region) => region.regionId === RUSSIA_REGION_ID)) {
       return { ok: false, error: KDU_WITHOUT_RUSSIA, reason: "error" };
@@ -222,9 +237,14 @@ async function splitCategory(
       },
       "buffer",
     );
-    if (child.status === "fail") return { ok: false, error: child.error, reason: child.reason };
+    if (child.status === "fail")
+      return { ok: false, error: child.error, reason: child.reason };
     if (child.status !== "complete" || child.total !== parentTotal) {
-      return { ok: false, error: child.status === "gap" ? PURCHASED_GAP : SUM_MISMATCH, reason: "error" };
+      return {
+        ok: false,
+        error: child.status === "gap" ? PURCHASED_GAP : SUM_MISMATCH,
+        reason: "error",
+      };
     }
     return { ok: true, rows: child.rows };
   }
@@ -244,7 +264,8 @@ async function splitCategory(
   await deps.log?.(`purchased leaves type=${typeName} category=${categoryId}`);
   const leaf = await readRegions(deps, typeName, categoryId, leaves);
   if (!leaf.ok) return leaf;
-  if (leaf.sum !== parentTotal) return { ok: false, error: SUM_MISMATCH, reason: "error" };
+  if (leaf.sum !== parentTotal)
+    return { ok: false, error: SUM_MISMATCH, reason: "error" };
   return { ok: true, rows: leaf.rows };
 }
 
@@ -253,7 +274,10 @@ async function splitType(
   directory: Directory,
   type: Directory["types"][number],
   parentTotal: number,
-): Promise<{ ok: true; rows: string[] } | { ok: false; error: string; reason: "lost" | "cancelled" | "error" }> {
+): Promise<
+  | { ok: true; rows: string[] }
+  | { ok: false; error: string; reason: "lost" | "cancelled" | "error" }
+> {
   const rows: string[] = [];
   let sum = 0;
   for (const category of type.categories) {
@@ -262,7 +286,8 @@ async function splitType(
       { kind: "category", typeName: type.typeName, categoryId: category.categoryId },
       "buffer",
     );
-    if (child.status === "fail") return { ok: false, error: child.error, reason: child.reason };
+    if (child.status === "fail")
+      return { ok: false, error: child.error, reason: child.reason };
     let taken: string[];
     let total: number;
     if (child.status === "complete") {
@@ -281,7 +306,8 @@ async function splitType(
       taken = split.rows;
       total = child.total;
     }
-    if (taken.length !== total) return { ok: false, error: SUM_MISMATCH, reason: "error" };
+    if (taken.length !== total)
+      return { ok: false, error: SUM_MISMATCH, reason: "error" };
     rows.push(...taken);
     sum += total;
     if (sum > parentTotal) return { ok: false, error: SUM_MISMATCH, reason: "error" };
@@ -298,7 +324,11 @@ async function readByLayers(
   let sum = 0;
   for (const type of directory.types) {
     await deps.log?.(`purchased type=${type.typeName}`);
-    const child = await readPurchasedList(deps, { kind: "type", typeName: type.typeName }, "buffer");
+    const child = await readPurchasedList(
+      deps,
+      { kind: "type", typeName: type.typeName },
+      "buffer",
+    );
     if (child.status === "fail") {
       return { ok: false, reason: child.reason, error: child.error };
     }
@@ -355,7 +385,11 @@ async function readFree(
     let offset = 0;
     for (;;) {
       if (offset > ceiling) return failed(FREE_OFFSET_TOO_FAR);
-      const gate = await deps.beat({ list: "free", pageDone: done, pageTotal: cells.length });
+      const gate = await deps.beat({
+        list: "free",
+        pageDone: done,
+        pageTotal: cells.length,
+      });
       if (gate !== "run") return stopped(gate);
       const page = await deps.free(cell, offset);
       if (!page.ok) return failed(page.error);
@@ -374,7 +408,11 @@ async function readFree(
       offset = next;
     }
     done += 1;
-    const moved = await deps.beat({ list: "free", pageDone: done, pageTotal: cells.length });
+    const moved = await deps.beat({
+      list: "free",
+      pageDone: done,
+      pageTotal: cells.length,
+    });
     if (moved !== "run") return stopped(moved);
   }
   return { count: staged };
@@ -406,6 +444,7 @@ export async function runExolveWalk(deps: ExolveWalkDeps): Promise<ExolveWalkRes
   const recounted = await deps.recount();
   if (!recounted.ok) return failed(recounted.error);
   if (recounted.total !== purchased.total) return failed(PURCHASED_CHANGED);
+  await deps.log?.(`purchased total=${purchased.total}`);
 
   const loaded = await loadDirectory(deps, directory);
   if (!("directory" in loaded)) return loaded;

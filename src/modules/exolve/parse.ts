@@ -4,19 +4,22 @@
  */
 
 import { sipoutDidDigits } from "@/modules/sipout/did";
-import {
-  KDU_TYPE_ID,
-  RUSSIA_REGION_ID,
-  type FreeCell,
-} from "@/modules/exolve/url";
+import { KDU_TYPE_ID, RUSSIA_REGION_ID, type FreeCell } from "@/modules/exolve/url";
 
 export const DUPLICATE_NUMBER = "В ответе повторяется номер.";
 export const UNREADABLE = "Ответ площадки не разобран.";
+export const NO_TOTAL = "В ответе нет общего количества.";
+export const NUMBER_UNREAD = "В ответе номер не разобран.";
+export const PAGE_TOO_LONG = "Страница длиннее запрошенного лимита.";
+export const PLATFORM_REJECTED = "Площадка отклонила запрос.";
+export const PLATFORM_ERROR = "В ответе ошибка площадки.";
 export const DIRECTORY_INCOMPLETE = "Справочник не полон. Каталог не изменён.";
 export const NO_FREE_CELLS = "В справочнике нет ячеек. Каталог не изменён.";
 export const KDU_WITHOUT_RUSSIA = "Для KDU нет региона Россия. Каталог не изменён.";
 
 const TYPE_NAME = /^[A-Za-z0-9][A-Za-z0-9_-]{0,31}$/;
+const FIELD_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,32}$/;
+const LONG_DIGITS = /\d{10}/;
 
 export type ExolveFreeRow = {
   e164: string;
@@ -39,7 +42,7 @@ export type Directory = {
   regions: DirectoryRegion[];
 };
 
-type Parsed<T> = { ok: true } & T | { ok: false; error: string };
+type Parsed<T> = ({ ok: true } & T) | { ok: false; error: string };
 
 function fail(error = UNREADABLE): { ok: false; error: string } {
   return { ok: false, error };
@@ -50,9 +53,55 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function hasError(data: Record<string, unknown>): boolean {
-  if (!("error" in data) || data.error == null) return false;
-  if (typeof data.error === "string" && data.error.trim() === "") return false;
-  return true;
+  return rootError(data) != null;
+}
+
+/** A string error is shown only when it cannot carry a number or a secret. */
+function platformText(value: string): string {
+  const flat = value.replace(/[\r\n]+/g, " ").trim();
+  if (!flat || flat.length > 200 || LONG_DIGITS.test(flat)) return PLATFORM_REJECTED;
+  const lower = flat.toLowerCase();
+  if (
+    lower.includes("bearer") ||
+    lower.includes("token") ||
+    lower.includes("password") ||
+    flat.includes("://")
+  ) {
+    return PLATFORM_REJECTED;
+  }
+  return flat;
+}
+
+function rootError(data: Record<string, unknown>): string | null {
+  if (!("error" in data) || data.error == null) return null;
+  if (typeof data.error === "string") {
+    if (data.error.trim() === "") return null;
+    return platformText(data.error);
+  }
+  return PLATFORM_ERROR;
+}
+
+function withFields(message: string, data: Record<string, unknown>): string {
+  const names = Object.keys(data)
+    .filter((key) => FIELD_NAME.test(key) && !LONG_DIGITS.test(key))
+    .sort()
+    .slice(0, 8);
+  if (names.length === 0) return message;
+  const text = `${message} Поля: ${names.join(", ")}.`;
+  return text.length > 200 ? message : text;
+}
+
+type NumbersShape =
+  | { kind: "absent" }
+  | { kind: "empty" }
+  | { kind: "rows"; items: unknown[] }
+  | { kind: "bad" };
+
+function numbersShape(data: Record<string, unknown>): NumbersShape {
+  if (!("numbers" in data) || data.numbers == null) return { kind: "absent" };
+  if (!Array.isArray(data.numbers)) return { kind: "bad" };
+  if (data.numbers.length === 0) return { kind: "empty" };
+  return { kind: "rows", items: data.numbers };
 }
 
 /** uint32 from a JSON number or a decimal digit string. Leading zeros are rejected. */
@@ -111,16 +160,30 @@ export function parsePurchased(
   data: unknown,
   limit: number,
 ): Parsed<{ total: number; rows: string[] }> {
-  if (!isRecord(data) || hasError(data)) return fail();
+  if (!isRecord(data)) return fail();
+  const platform = rootError(data);
+  if (platform) return fail(platform);
+  const numbers = numbersShape(data);
+  if (numbers.kind === "bad") return fail(withFields(UNREADABLE, data));
+  const totalMissing = !("total" in data) || data.total == null;
+  if (totalMissing) {
+    if (numbers.kind === "absent" && Object.keys(data).length === 0) {
+      return { ok: true, total: 0, rows: [] };
+    }
+    return fail(withFields(NO_TOTAL, data));
+  }
   const total = readUint32(data.total);
-  if (total == null || !Array.isArray(data.numbers)) return fail();
-  if (data.numbers.length > limit) return fail();
+  if (total == null) return fail(withFields(UNREADABLE, data));
+  if (numbers.kind === "absent" || numbers.kind === "empty") {
+    return { ok: true, total, rows: [] };
+  }
+  if (numbers.items.length > limit) return fail(PAGE_TOO_LONG);
   const rows: string[] = [];
   const seen = new Set<string>();
-  for (const item of data.numbers) {
-    if (!isRecord(item)) return fail();
+  for (const item of numbers.items) {
+    if (!isRecord(item)) return fail(NUMBER_UNREAD);
     const did = readNumberField(item);
-    if (!did) return fail();
+    if (!did) return fail(withFields(NUMBER_UNREAD, item));
     if (seen.has(did)) return fail(DUPLICATE_NUMBER);
     seen.add(did);
     rows.push(did);
@@ -130,9 +193,19 @@ export function parsePurchased(
 
 /** Recount reads total only. The rows are not admitted and not staged. */
 export function parsePurchasedTotal(data: unknown): Parsed<{ total: number }> {
-  if (!isRecord(data) || hasError(data)) return fail();
+  if (!isRecord(data)) return fail();
+  const platform = rootError(data);
+  if (platform) return fail(platform);
+  const totalMissing = !("total" in data) || data.total == null;
+  if (totalMissing) {
+    if (Object.keys(data).length === 0) return { ok: true, total: 0 };
+    return fail(withFields(NO_TOTAL, data));
+  }
   const total = readUint32(data.total);
-  if (total == null || !Array.isArray(data.numbers)) return fail();
+  if (total == null) return fail(withFields(UNREADABLE, data));
+  if ("numbers" in data && data.numbers != null && !Array.isArray(data.numbers)) {
+    return fail(withFields(UNREADABLE, data));
+  }
   return { ok: true, total };
 }
 
@@ -140,15 +213,26 @@ export function parseFree(
   data: unknown,
   limit: number,
 ): Parsed<{ rows: ExolveFreeRow[] }> {
-  if (!isRecord(data) || hasError(data)) return fail();
-  if (!Array.isArray(data.numbers)) return fail();
-  if (data.numbers.length > limit) return fail();
+  if (!isRecord(data)) return fail();
+  const platform = rootError(data);
+  if (platform) return fail(platform);
+  const numbers = numbersShape(data);
+  if (numbers.kind === "bad") return fail(withFields(UNREADABLE, data));
+  if (numbers.kind === "absent") {
+    const keys = Object.keys(data);
+    if (keys.length === 0 || (keys.length === 1 && keys[0] === "numbers")) {
+      return { ok: true, rows: [] };
+    }
+    return fail(withFields(UNREADABLE, data));
+  }
+  if (numbers.kind === "empty") return { ok: true, rows: [] };
+  if (numbers.items.length > limit) return fail(PAGE_TOO_LONG);
   const rows: ExolveFreeRow[] = [];
   const seen = new Set<string>();
-  for (const item of data.numbers) {
-    if (!isRecord(item)) return fail();
+  for (const item of numbers.items) {
+    if (!isRecord(item)) return fail(NUMBER_UNREAD);
     const did = readNumberField(item);
-    if (!did) return fail();
+    if (!did) return fail(withFields(NUMBER_UNREAD, item));
     if (seen.has(did)) return fail(DUPLICATE_NUMBER);
     seen.add(did);
     rows.push({
@@ -217,7 +301,8 @@ export function parseDirectory(data: unknown): Parsed<{ directory: Directory }> 
     }
     type.categories.push({ categoryId });
   }
-  if (types.some((type) => type.categories.length === 0)) return fail(DIRECTORY_INCOMPLETE);
+  if (types.some((type) => type.categories.length === 0))
+    return fail(DIRECTORY_INCOMPLETE);
 
   const regions: DirectoryRegion[] = [];
   const regionIds = new Set<number>();
@@ -275,7 +360,7 @@ export function planFreeCells(directory: Directory): Parsed<{ cells: FreeCell[] 
 
 export function scrubExolveText(key: string, text: string): string | null {
   const flat = text.replace(/[\r\n]+/g, " ").trim();
-  if (!flat || flat.length > 200) return null;
+  if (!flat || flat.length > 200 || LONG_DIGITS.test(flat)) return null;
   const lower = flat.toLowerCase();
   if (
     (key && flat.includes(key)) ||

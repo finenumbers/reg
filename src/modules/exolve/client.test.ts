@@ -31,7 +31,10 @@ describe("Exolve client", () => {
   it("posts one free cell with random false and no mask", async () => {
     const fetchImpl = vi.fn(async () => jsonResponse({ numbers: [] }));
     const client = createExolveClient("secret-key", { fetchImpl });
-    const page = await client.free({ typeId: 1104, categoryId: 10000, regionId: 10230 }, 0);
+    const page = await client.free(
+      { typeId: 1104, categoryId: 10000, regionId: 10230 },
+      0,
+    );
     expect(page.ok).toBe(true);
     const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe(freeUrl());
@@ -84,11 +87,21 @@ describe("Exolve client", () => {
     expect(page.error).not.toContain("secret-key");
     expect(fetchImpl).toHaveBeenCalledTimes(1);
 
-    const missing = vi.fn(async () => jsonResponse({}));
-    const missingClient = createExolveClient("secret-key", { fetchImpl: missing });
-    expect((await missingClient.free({ typeId: 1, categoryId: 2, regionId: 3 }, 0)).ok).toBe(
-      false,
+    const empty = vi.fn(async () => jsonResponse({}));
+    const emptyClient = createExolveClient("secret-key", { fetchImpl: empty });
+    const emptyPage = await emptyClient.free(
+      { typeId: 1, categoryId: 2, regionId: 3 },
+      0,
     );
+    expect(emptyPage.ok).toBe(true);
+    if (emptyPage.ok) expect(emptyPage.rows).toEqual([]);
+    expect(empty).toHaveBeenCalledTimes(1);
+
+    const missing = vi.fn(async () => jsonResponse({ meta: 1 }));
+    const missingClient = createExolveClient("secret-key", { fetchImpl: missing });
+    expect(
+      (await missingClient.free({ typeId: 1, categoryId: 2, regionId: 3 }, 0)).ok,
+    ).toBe(false);
     expect(missing).toHaveBeenCalledTimes(1);
   });
 

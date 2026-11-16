@@ -4,7 +4,11 @@ import {
   DIRECTORY_INCOMPLETE,
   KDU_WITHOUT_RUSSIA,
   NO_FREE_CELLS,
-  UNREADABLE,
+  NO_TOTAL,
+  NUMBER_UNREAD,
+  PAGE_TOO_LONG,
+  PLATFORM_ERROR,
+  PLATFORM_REJECTED,
   leafRegionIds,
   parseDirectory,
   parseFree,
@@ -29,10 +33,12 @@ describe("Exolve page parse", () => {
   });
 
   it("rejects a formatted number, an unsafe integer, and a duplicate on one page", () => {
-    expect(parsePurchased({ total: 1, numbers: [{ number_name: "7 930 065 59 34" }] }, 10).ok).toBe(
-      false,
-    );
-    expect(parseFree({ numbers: [{ number_code: Number.MAX_VALUE }] }, FREE_LIMIT).ok).toBe(false);
+    expect(
+      parsePurchased({ total: 1, numbers: [{ number_name: "7 930 065 59 34" }] }, 10).ok,
+    ).toBe(false);
+    expect(
+      parseFree({ numbers: [{ number_code: Number.MAX_VALUE }] }, FREE_LIMIT).ok,
+    ).toBe(false);
     const dup = parsePurchased(
       { total: 2, numbers: [{ number_name: NUMBER }, { number_name: NUMBER }] },
       PURCHASED_LIMIT,
@@ -40,24 +46,66 @@ describe("Exolve page parse", () => {
     expect(dup).toEqual({ ok: false, error: DUPLICATE_NUMBER });
   });
 
-  it("fails a page that is longer than the limit or has no numbers array", () => {
+  it("fails a page that is longer than the limit or has no total", () => {
     const numbers = Array.from({ length: PURCHASED_LIMIT + 1 }, (_, index) => ({
       number_name: `79${String(index).padStart(9, "0")}`,
     }));
     expect(parsePurchased({ total: numbers.length, numbers }, PURCHASED_LIMIT)).toEqual({
       ok: false,
-      error: UNREADABLE,
+      error: PAGE_TOO_LONG,
     });
-    expect(parseFree({}, FREE_LIMIT)).toEqual({ ok: false, error: UNREADABLE });
-    expect(parseFree({ numbers: null }, FREE_LIMIT)).toEqual({ ok: false, error: UNREADABLE });
+    const longFree = Array.from({ length: FREE_LIMIT + 1 }, () => ({
+      number_code: NUMBER,
+    }));
+    expect(parseFree({ numbers: longFree }, FREE_LIMIT)).toEqual({
+      ok: false,
+      error: PAGE_TOO_LONG,
+    });
     expect(parsePurchased({ numbers: [] }, PURCHASED_LIMIT).ok).toBe(false);
+    const noTotal = parsePurchased(
+      { numbers: [{ number_name: NUMBER }] },
+      PURCHASED_LIMIT,
+    );
+    const wrapped = parsePurchased({ data: {} }, PURCHASED_LIMIT);
+    expect(noTotal.ok).toBe(false);
+    expect(wrapped.ok).toBe(false);
+    if (noTotal.ok || wrapped.ok) return;
+    expect(noTotal.error).toContain(NO_TOTAL);
+    expect(wrapped.error).toContain(NO_TOTAL);
   });
 
   it("treats an error body as a failure and an empty numbers array as an empty page", () => {
-    expect(parseFree({ error: "nope", numbers: [] }, FREE_LIMIT).ok).toBe(false);
-    expect(parsePurchased({ error: "nope", total: 0, numbers: [] }, PURCHASED_LIMIT).ok).toBe(
-      false,
-    );
+    expect(parseFree({ error: "nope", numbers: [] }, FREE_LIMIT)).toEqual({
+      ok: false,
+      error: "nope",
+    });
+    expect(
+      parsePurchased({ error: "nope", total: 0, numbers: [] }, PURCHASED_LIMIT),
+    ).toEqual({
+      ok: false,
+      error: "nope",
+    });
+    expect(
+      parsePurchased(
+        { error: "proto: syntax error (line 2:16): invalid value", total: 0 },
+        PURCHASED_LIMIT,
+      ),
+    ).toEqual({
+      ok: false,
+      error: "proto: syntax error (line 2:16): invalid value",
+    });
+    expect(
+      parsePurchased({ error: { message: "hidden" }, total: 0 }, PURCHASED_LIMIT),
+    ).toEqual({
+      ok: false,
+      error: PLATFORM_ERROR,
+    });
+    expect(
+      parsePurchased({ error: "number 79991234455", total: 0 }, PURCHASED_LIMIT),
+    ).toEqual({
+      ok: false,
+      error: PLATFORM_REJECTED,
+    });
     expect(parseFree({ numbers: [] }, FREE_LIMIT)).toEqual({ ok: true, rows: [] });
     expect(parsePurchased({ total: "0", numbers: [] }, PURCHASED_LIMIT)).toEqual({
       ok: true,
@@ -65,6 +113,50 @@ describe("Exolve page parse", () => {
       rows: [],
     });
     expect(parsePurchased({ total: "01", numbers: [] }, PURCHASED_LIMIT).ok).toBe(false);
+  });
+
+  it("reads a proto3 empty purchased list and a hole in a long list", () => {
+    expect(parsePurchased({}, PURCHASED_LIMIT)).toEqual({ ok: true, total: 0, rows: [] });
+    expect(parsePurchased({ total: 0 }, PURCHASED_LIMIT)).toEqual({
+      ok: true,
+      total: 0,
+      rows: [],
+    });
+    expect(parsePurchased({ total: "0" }, PURCHASED_LIMIT)).toEqual({
+      ok: true,
+      total: 0,
+      rows: [],
+    });
+    expect(parsePurchased({ total: 0, numbers: null }, PURCHASED_LIMIT)).toEqual({
+      ok: true,
+      total: 0,
+      rows: [],
+    });
+    expect(parsePurchased({ total: 300_000 }, PURCHASED_LIMIT)).toEqual({
+      ok: true,
+      total: 300_000,
+      rows: [],
+    });
+    expect(parsePurchased({ total: 300_000, numbers: null }, PURCHASED_LIMIT)).toEqual({
+      ok: true,
+      total: 300_000,
+      rows: [],
+    });
+    const missingTotal = parsePurchased({ numbers: null }, PURCHASED_LIMIT);
+    expect(missingTotal.ok).toBe(false);
+    if (!missingTotal.ok) expect(missingTotal.error).toContain(NO_TOTAL);
+    expect(parseFree({}, FREE_LIMIT)).toEqual({ ok: true, rows: [] });
+    expect(parseFree({ numbers: null }, FREE_LIMIT)).toEqual({ ok: true, rows: [] });
+    expect(parseFree({ meta: 1 }, FREE_LIMIT).ok).toBe(false);
+    const missing = parsePurchased(
+      { total: 1, numbers: [{ type_name: "DEF" }] },
+      PURCHASED_LIMIT,
+    );
+    expect(missing.ok).toBe(false);
+    if (missing.ok) return;
+    expect(missing.error).toContain(NUMBER_UNREAD);
+    expect(missing.error).toContain("type_name");
+    expect(missing.error).not.toContain(NUMBER);
   });
 
   it("keeps a decimal price and leaves a bad price empty", () => {
@@ -92,7 +184,13 @@ describe("Exolve page parse", () => {
       ok: true,
       total: 250,
     });
-    expect(parsePurchasedTotal({ total: 1 }).ok).toBe(false);
+    expect(parsePurchasedTotal({})).toEqual({ ok: true, total: 0 });
+    expect(parsePurchasedTotal({ total: 300_000 })).toEqual({ ok: true, total: 300_000 });
+    expect(parsePurchasedTotal({ total: 300_000, numbers: null })).toEqual({
+      ok: true,
+      total: 300_000,
+    });
+    expect(parsePurchasedTotal({ numbers: [] }).ok).toBe(false);
   });
 
   it("joins categories onto types and rejects an incomplete directory", () => {
@@ -105,10 +203,7 @@ describe("Exolve page parse", () => {
         { category_id: 10000, type_id: 1104, type_name: "DEF" },
         { category_id: 10002, type_id: 1106, type_name: "KDU" },
       ],
-      regions: [
-        { region_id: 10230, parent_region_id: 10084 },
-        { region_id: 10084 },
-      ],
+      regions: [{ region_id: 10230, parent_region_id: 10084 }, { region_id: 10084 }],
     });
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) return;
@@ -137,7 +232,10 @@ describe("Exolve page parse", () => {
     });
     expect(kdu.ok).toBe(true);
     if (!kdu.ok) return;
-    expect(planFreeCells(kdu.directory)).toEqual({ ok: false, error: KDU_WITHOUT_RUSSIA });
+    expect(planFreeCells(kdu.directory)).toEqual({
+      ok: false,
+      error: KDU_WITHOUT_RUSSIA,
+    });
 
     expect(
       parseDirectory({
@@ -152,5 +250,6 @@ describe("Exolve page parse", () => {
     expect(scrubExolveText("secret-key", "bad secret-key")).toBeNull();
     expect(scrubExolveText("secret-key", "see https://api.exolve.ru")).toBeNull();
     expect(scrubExolveText("secret-key", "invalid value")).toBe("invalid value");
+    expect(scrubExolveText("secret-key", "number 79991234455")).toBeNull();
   });
 });
