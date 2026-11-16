@@ -7,6 +7,7 @@ import { randomUUID } from "node:crypto";
 
 import { prisma } from "@/lib/db";
 import { AUDIT_ACTIONS, auditService } from "@/modules/audit";
+import { chainStartBlock } from "@/modules/numbering-chain/gate";
 import { createMcnClient } from "@/modules/mcn/client";
 import { endMcn, isMcnActive, isMcnStopping, tryBeginMcn } from "@/modules/mcn/lease";
 import {
@@ -67,7 +68,7 @@ export type McnSyncView = McnAccessView & {
   hasLog: boolean;
 };
 
-type Actor = { userId: string; ip?: string | null };
+type Actor = { userId: string | null; ip?: string | null };
 type ListName = "" | "purchased" | "free";
 
 type StateRow = {
@@ -342,9 +343,12 @@ export async function testMcnAccess(
 
 export async function startMcnSync(
   actor: Actor,
+  options?: { fromChain?: boolean },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   armNumberingSyncStop();
   if (isDatabaseVacuumActive()) return { ok: false, error: CDR_VACUUM_BUSY_MESSAGE };
+  const blocked = chainStartBlock(options?.fromChain);
+  if (blocked) return { ok: false, error: blocked };
   const begun = tryBeginMcn();
   if (!begun.ok) {
     return { ok: false, error: begun.reason === "stopping" ? STOPPING : BUSY };

@@ -2,6 +2,10 @@
 
 import { useCallback, useEffect, useState, type KeyboardEvent } from "react";
 import { Button } from "@/components/ui/button";
+import {
+  ChainCardNote,
+  useChainRunning,
+} from "@/modules/numbering-chain/ui/chain-context";
 import type { AuroraSyncView } from "@/modules/aurora/service";
 
 export function AuroraSyncForm({ initial }: { initial: AuroraSyncView }) {
@@ -9,6 +13,7 @@ export function AuroraSyncForm({ initial }: { initial: AuroraSyncView }) {
   const [confirm, setConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const chainRunning = useChainRunning();
 
   const refresh = useCallback(async () => {
     try {
@@ -80,7 +85,7 @@ export function AuroraSyncForm({ initial }: { initial: AuroraSyncView }) {
       <div className="flex flex-wrap gap-2">
         <Button
           type="button"
-          disabled={pending || view.busy || !view.hasFiles}
+          disabled={pending || view.busy || !view.hasFiles || chainRunning}
           onClick={() => {
             setError(null);
             setConfirm(true);
@@ -95,24 +100,38 @@ export function AuroraSyncForm({ initial }: { initial: AuroraSyncView }) {
         ) : null}
       </div>
       {confirm ? (
-        <div role="dialog" aria-label="Подтверждение загрузки" className="space-y-3 rounded-md border p-4">
+        <div
+          role="dialog"
+          aria-label="Подтверждение загрузки"
+          className="space-y-3 rounded-md border p-4"
+        >
           <p className="text-sm">
             Источник: Aurora Telecom
             <br />
-            Будут заново скачаны сохранённые ссылки. Успешная запись заменит прежние номера
-            Aurora Telecom.
+            Будут заново скачаны сохранённые ссылки. Успешная запись заменит прежние
+            номера Aurora Telecom.
           </p>
           <div className="flex gap-2">
-            <Button type="button" disabled={pending} onClick={() => void send("/api/numbering-sync/aurora")}>
+            <Button
+              type="button"
+              disabled={pending || chainRunning}
+              onClick={() => void send("/api/numbering-sync/aurora")}
+            >
               {pending ? "Запуск…" : "Загрузить"}
             </Button>
-            <Button type="button" variant="outline" disabled={pending} onClick={() => setConfirm(false)}>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={pending}
+              onClick={() => setConfirm(false)}
+            >
               Отмена
             </Button>
           </div>
         </div>
       ) : null}
       {progress ? <p className="text-sm">{progress}</p> : null}
+      <ChainCardNote source="aurora" />
       {view.busy && view.phase === "running" ? (
         <Button
           type="button"
@@ -123,8 +142,13 @@ export function AuroraSyncForm({ initial }: { initial: AuroraSyncView }) {
           Отмена
         </Button>
       ) : null}
-      {!view.busy && view.lastError ? <p className="text-destructive text-sm">{view.lastError}</p> : null}
-      {!view.busy && view.lastError == null && view.lastFree != null && view.lastPurchased != null ? (
+      {!view.busy && view.lastError ? (
+        <p className="text-destructive text-sm">{view.lastError}</p>
+      ) : null}
+      {!view.busy &&
+      view.lastError == null &&
+      view.lastFree != null &&
+      view.lastPurchased != null ? (
         <p className="text-muted-foreground text-sm">
           Свободных: {view.lastFree}. Купленных: {view.lastPurchased}.
         </p>

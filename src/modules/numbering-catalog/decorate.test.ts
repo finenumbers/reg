@@ -11,6 +11,8 @@ import {
   UIS_EPOCH_SQL,
   RUNEXIS_EPOCH_SQL,
   fillStageSplitSql,
+  MASK_BATCH,
+  MASK_BATCH_TX_MS,
   freeMaskBatchSql,
   markDecorateDoneSql,
   providerLiteral,
@@ -98,7 +100,11 @@ describe("catalog decorate", () => {
   });
 
   it("writes the mask price to sale on free numbers and to purchase on purchased numbers", () => {
-    const free = flattenSql(freeMaskBatchSql(""));
+    expect(MASK_BATCH).toBe(1000);
+    expect(MASK_BATCH_TX_MS).toBe(60_000);
+    const freeSql = freeMaskBatchSql("");
+    expect(freeSql.values).toContain(MASK_BATCH);
+    const free = flattenSql(freeSql);
     expect(free).toContain("sale = computed.mask_price");
     expect(free).toContain("rtu_mask_lookup");
     expect(free).not.toMatch(/operator\s*=/);

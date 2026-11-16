@@ -2,6 +2,10 @@
 
 import { useCallback, useEffect, useState, type KeyboardEvent } from "react";
 import { Button } from "@/components/ui/button";
+import {
+  ChainCardNote,
+  useChainRunning,
+} from "@/modules/numbering-chain/ui/chain-context";
 import type { RunexisSyncView } from "@/modules/runexis/service";
 
 export function RunexisSyncForm({ initial }: { initial: RunexisSyncView }) {
@@ -9,6 +13,7 @@ export function RunexisSyncForm({ initial }: { initial: RunexisSyncView }) {
   const [confirm, setConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const chainRunning = useChainRunning();
 
   const refresh = useCallback(async () => {
     try {
@@ -85,7 +90,9 @@ export function RunexisSyncForm({ initial }: { initial: RunexisSyncView }) {
       <div className="flex flex-wrap gap-2">
         <Button
           type="button"
-          disabled={pending || view.busy || !view.hasPassword || !view.email}
+          disabled={
+            pending || view.busy || !view.hasPassword || !view.email || chainRunning
+          }
           onClick={() => {
             setError(null);
             setConfirm(true);
@@ -119,7 +126,7 @@ export function RunexisSyncForm({ initial }: { initial: RunexisSyncView }) {
           <div className="flex gap-2">
             <Button
               type="button"
-              disabled={pending}
+              disabled={pending || chainRunning}
               onClick={() => void send("/api/numbering-sync/runexis")}
             >
               {pending ? "Запуск…" : "Загрузить"}
@@ -136,6 +143,7 @@ export function RunexisSyncForm({ initial }: { initial: RunexisSyncView }) {
         </div>
       ) : null}
       {progress ? <p className="text-sm">{progress}</p> : null}
+      <ChainCardNote source="runexis" />
       {view.busy && view.phase === "running" ? (
         <Button
           type="button"

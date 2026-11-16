@@ -1,4 +1,7 @@
 import { requirePagePermission } from "@/modules/auth/guards";
+import { ChainBar } from "@/modules/numbering-chain/ui/chain-bar";
+import { ChainProvider } from "@/modules/numbering-chain/ui/chain-context";
+import { getChainView } from "@/modules/numbering-chain/view";
 import { getNumberingSyncView } from "@/modules/numbering-sync/service";
 import { NumberingSyncForm } from "@/modules/numbering-sync/ui/numbering-sync-form";
 import { getRunexisSyncView } from "@/modules/runexis/service";
@@ -18,32 +21,37 @@ export const dynamic = "force-dynamic";
 
 export default async function NumberingSyncPage() {
   await requirePagePermission("settings:write");
-  const [initial, runexis, uis, aurora, exolve, voximplant, mcn] = await Promise.all([
-    getNumberingSyncView(),
-    getRunexisSyncView(),
-    getUisSyncView(),
-    getAuroraSyncView(),
-    getExolveSyncView(),
-    getVoximplantSyncView(),
-    getMcnSyncView(),
-  ]);
+  const [initial, runexis, uis, aurora, exolve, voximplant, mcn, chain] =
+    await Promise.all([
+      getNumberingSyncView(),
+      getRunexisSyncView(),
+      getUisSyncView(),
+      getAuroraSyncView(),
+      getExolveSyncView(),
+      getVoximplantSyncView(),
+      getMcnSyncView(),
+      Promise.resolve(getChainView()),
+    ]);
   return (
-    <div className="h-full space-y-6 overflow-y-auto">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight [text-box:trim-start_cap_alphabetic]">
-          Синхронизация
-        </h1>
-        <p className="text-muted-foreground text-sm">
-          Каждый источник читает свои номера отдельно и заменяет только свои строки.
-        </p>
+    <ChainProvider initial={chain}>
+      <div className="h-full space-y-6 overflow-y-auto">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight [text-box:trim-start_cap_alphabetic]">
+            Синхронизация
+          </h1>
+          <p className="text-muted-foreground text-sm">
+            Каждый источник читает свои номера отдельно и заменяет только свои строки.
+          </p>
+        </div>
+        <ChainBar />
+        <NumberingSyncForm initial={initial} />
+        <RunexisSyncForm initial={runexis} />
+        <UisSyncForm initial={uis} />
+        <AuroraSyncForm initial={aurora} />
+        <ExolveSyncForm initial={exolve} />
+        <VoximplantSyncForm initial={voximplant} />
+        <McnSyncForm initial={mcn} />
       </div>
-      <NumberingSyncForm initial={initial} />
-      <RunexisSyncForm initial={runexis} />
-      <UisSyncForm initial={uis} />
-      <AuroraSyncForm initial={aurora} />
-      <ExolveSyncForm initial={exolve} />
-      <VoximplantSyncForm initial={voximplant} />
-      <McnSyncForm initial={mcn} />
-    </div>
+    </ChainProvider>
   );
 }

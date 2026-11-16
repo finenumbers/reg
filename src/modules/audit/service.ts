@@ -101,6 +101,7 @@ export const AUDIT_ACTIONS = {
   MCN_SAVE: "mcn.settings_save",
   MCN_TEST: "mcn.test",
   MCN_SYNC: "mcn.sync",
+  NUMBERING_CHAIN: "numbering.chain",
   VATS_DOMAIN_UPDATE: "vats.domain_update",
   VATS_DOMAIN_OPEN: "vats.domain_open",
   ZABBIX_PASSWORD_REPLACE: "zabbix.password_replace",

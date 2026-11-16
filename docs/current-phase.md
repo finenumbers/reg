@@ -1,7 +1,13 @@
-# Current Phase — production (v1.307.0)
+# Current Phase — production (v1.308.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, purchased numbers, numbering sync, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-16
+
+## v1.308.0 — Numbering chain at 22:00 UTC
+
+This release does not migrate and does not rewrite catalog rows or epoch counters. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before the new one starts, then start one new app. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged. Runexis page rules of v1.307.0 stay. Deploy restarts an in-progress mask pass from the first free number. The chain does not run on boot. The first run is the next 22:00 UTC, or «Загрузить все» at the top of «Синхронизация».
+
+«Загрузить все» confirms the seven sources, then reads them in page order: SipOut, Runexis, UIS, Aurora Telecom, MTS Exolve, Voximplant, MCN Telecom. Each source replaces only its own rows. Masks of that source finish before the next source starts. There is no extra pause between sources. Mask batches are 1000 rows, with one second between batches and a 60-second batch transaction. The card of the source being matched shows how many free or purchased numbers remain. A source without a saved secret is skipped. One failure does not roll back a catalog already written. «Уже выполняется.» and the vacuum sentence retry the same source. Enter, cancel, and close of the confirm dialog do not send. Chain «Отмена» does not open another source after the current read. Cancel during publishing still writes that catalog, matches its masks, and continues. A second chain does not start. While the chain runs, the separate «Загрузить» buttons stay disabled. The same chain runs every day at 22:00 UTC. A process that starts at or after 22:00 waits until the next day. If a chain is already running at 22:00, another one is not queued. Restart does not resume a chain. An API key cannot start it. The lines do not show a phone number or a price.
 
 ## v1.307.0 — Runexis showcase pages of 1000
 

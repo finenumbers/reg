@@ -7,6 +7,7 @@ import { randomUUID } from "node:crypto";
 
 import { prisma } from "@/lib/db";
 import { AUDIT_ACTIONS, auditService } from "@/modules/audit";
+import { chainStartBlock } from "@/modules/numbering-chain/gate";
 import {
   isLockTimeout,
   isStatementTimeout,
@@ -91,7 +92,7 @@ export type RunexisSyncView = RunexisAccessView & {
   hasLog: boolean;
 };
 
-type Actor = { userId: string; ip?: string | null };
+type Actor = { userId: string | null; ip?: string | null };
 
 type StateRow = {
   phase: string;
@@ -342,6 +343,17 @@ export async function saveRunexisAccess(
   }
 }
 
+async function openRunexisSession(creds: {
+  email: string;
+  password: string;
+}): Promise<{ ok: true; session: RunexisSession } | { ok: false; error: string }> {
+  const page = await runexisLogin(creds.email, creds.password);
+  if (!page.ok) return { ok: false, error: page.error };
+  const session = parseSession(page.data);
+  if (!session) return { ok: false, error: BAD_LOGIN };
+  return { ok: true, session };
+}
+
 async function loginSession(): Promise<
   { ok: true; session: RunexisSession } | { ok: false; error: string }
 > {
@@ -351,11 +363,7 @@ async function loginSession(): Promise<
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : NO_PASSWORD };
   }
-  const page = await runexisLogin(creds.email, creds.password);
-  if (!page.ok) return { ok: false, error: page.error };
-  const session = parseSession(page.data);
-  if (!session) return { ok: false, error: BAD_LOGIN };
-  return { ok: true, session };
+  return openRunexisSession(creds);
 }
 
 /** Login, the first partner page, the code directory, and one filtered showcase page. */
@@ -422,18 +430,22 @@ export async function testRunexisAccess(
 
 export async function startRunexisSync(
   actor: Actor,
+  options?: { fromChain?: boolean },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   armNumberingSyncStop();
   if (isDatabaseVacuumActive()) return { ok: false, error: CDR_VACUUM_BUSY_MESSAGE };
+  const blocked = chainStartBlock(options?.fromChain);
+  if (blocked) return { ok: false, error: blocked };
+  let creds: { email: string; password: string };
+  try {
+    creds = await loadPassword();
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : NO_PASSWORD };
+  }
   const begun = tryBeginRunexis();
   if (!begun.ok)
     return { ok: false, error: begun.reason === "stopping" ? STOPPING : BUSY };
   const holder = begun.token;
-  const opened = await loginSession();
-  if (!opened.ok) {
-    endRunexis(holder);
-    return opened;
-  }
   const runId = randomUUID();
   let claimed = false;
   try {
@@ -450,6 +462,19 @@ export async function startRunexisSync(
     endRunexis(holder);
     if (isLockTimeout(error)) return { ok: false, error: BUSY };
     return { ok: false, error: START_FAILED };
+  }
+  let opened: { ok: true; session: RunexisSession } | { ok: false; error: string };
+  try {
+    opened = await openRunexisSession(creds);
+  } catch (error) {
+    await release(runId).catch(() => undefined);
+    endRunexis(holder);
+    return { ok: false, error: error instanceof Error ? error.message : BAD_LOGIN };
+  }
+  if (!opened.ok) {
+    await release(runId).catch(() => undefined);
+    endRunexis(holder);
+    return opened;
   }
   try {
     await beginRunexisLog(runId);

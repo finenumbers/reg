@@ -41,6 +41,7 @@ import {
   canEnqueueVoipmonitorMatch,
   requestVoipmonitorMatch,
 } from "@/modules/voipmonitor";
+import { msUntilNextUtcHour } from "@/modules/numbering-chain/cadence";
 import { nextVatsDelayMs, VATS_FIRST_DELAY_MS } from "@/modules/vats/cadence";
 import {
   consumeVatsRestart,
@@ -106,6 +107,7 @@ type SchedulerGlobalState = {
   rtuEpisode: LoadEpisode | null;
   smgEpisode: LoadEpisode | null;
   vatsTimer: ReturnType<typeof setTimeout> | null;
+  chainTimer: ReturnType<typeof setTimeout> | null;
 };
 
 const DEFAULT_SIDES_REFRESH_INTERVAL_SEC = 300;
@@ -205,6 +207,7 @@ function schedulerState(): SchedulerGlobalState {
       rtuEpisode: null,
       smgEpisode: null,
       vatsTimer: null,
+      chainTimer: null,
     };
   }
   return g[SCHEDULER_GLOBAL_KEY];
@@ -569,6 +572,25 @@ async function tickSides(): Promise<void> {
   }
 }
 
+function scheduleChain(delayMs: number): void {
+  const state = schedulerState();
+  if (!state.started) return;
+  if (state.chainTimer) clearTimeout(state.chainTimer);
+  state.chainTimer = setTimeout(() => {
+    state.chainTimer = null;
+    if (!schedulerState().started) return;
+    void (async () => {
+      try {
+        const { isChainRunning } = await import("@/modules/numbering-chain/gate");
+        const { startNumberingChain } = await import("@/modules/numbering-chain/run");
+        if (!isChainRunning()) await startNumberingChain({ userId: null });
+      } finally {
+        if (schedulerState().started) scheduleChain(msUntilNextUtcHour(new Date()));
+      }
+    })();
+  }, delayMs);
+}
+
 function scheduleVats(delayMs: number): void {
   const state = schedulerState();
   if (!state.started) return;
@@ -605,7 +627,8 @@ function startSchedulerLoop(runtime: SchedulerJobRuntime): void {
       "Duplicate app instances will duplicate polls. " +
       "regs.poll uses regsPollEnabled; phones.sync and groups.sync use exportSyncEnabled; " +
       "cdr.sides.refresh uses cdrSidesRefreshEnabled. " +
-      "VATS reads every 120s after the previous pass, one platform request at a time.",
+      "VATS reads every 120s after the previous pass, one platform request at a time. " +
+      "Numbering sources load in one chain at 22:00 UTC.",
   });
   // First regs/housekeeping tick after a short delay so boot is not blocked.
   state.timer = armTimer(null, 5_000, () => {
@@ -629,6 +652,7 @@ function startSchedulerLoop(runtime: SchedulerJobRuntime): void {
   })();
   registerVatsKick(() => scheduleVats(0));
   scheduleVats(VATS_FIRST_DELAY_MS);
+  scheduleChain(msUntilNextUtcHour(new Date()));
 }
 
 /**
@@ -701,6 +725,10 @@ export function stopAutoScheduler(): void {
   if (state.vatsTimer) {
     clearTimeout(state.vatsTimer);
     state.vatsTimer = null;
+  }
+  if (state.chainTimer) {
+    clearTimeout(state.chainTimer);
+    state.chainTimer = null;
   }
   clearSmgSettleTimer();
 }

@@ -13,10 +13,25 @@ import { RESPLIT_LOCKS } from "@/modules/numbering-sync/locks";
 import { cityAlertSql, cityLabelSql } from "@/modules/rtu/sql";
 
 const ELEVEN = "^[78][0-9]{10}$";
-const BATCH = 500;
+export const MASK_BATCH = 1000;
+export const MASK_BATCH_TX_MS = 60_000;
+const BATCH = MASK_BATCH;
 const PAUSE_MS = 1000;
 const RETRY_MS = 5_000;
-const BATCH_TX = { maxWait: 10_000, timeout: 30_000 } as const;
+const BATCH_TX = { maxWait: 10_000, timeout: MASK_BATCH_TX_MS } as const;
+
+export type MaskProgress = {
+  provider: CatalogProvider | null;
+  kind: "free" | "purchased" | "client";
+  done: number;
+  total: number;
+};
+
+let maskProgress: MaskProgress | null = null;
+
+export function readMaskProgress(): MaskProgress | null {
+  return maskProgress ? { ...maskProgress } : null;
+}
 
 const STAGE_TABLES = new Set([
   "numbering_sync_stage",
@@ -434,6 +449,24 @@ function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function countCatalog(
+  kind: BatchKind,
+  provider: CatalogProvider | null,
+): Promise<number> {
+  const where = provider
+    ? Prisma.sql`WHERE provider = ${providerLiteral(provider)}`
+    : Prisma.empty;
+  const rows =
+    kind === "free"
+      ? await prisma.$queryRaw<{ n: unknown }[]>`
+          SELECT count(*)::int AS n FROM free_numbers ${where}
+        `
+      : await prisma.$queryRaw<{ n: unknown }[]>`
+          SELECT count(*)::int AS n FROM purchased_numbers ${where}
+        `;
+  return asCount(rows[0]?.n);
+}
+
 async function drain(
   kind: BatchKind,
   provider: CatalogProvider | null,
@@ -441,24 +474,48 @@ async function drain(
   let after = "";
   const started = Date.now();
   let transientTries = 0;
-  for (;;) {
-    try {
-      const ids = await oneBatch(kind, after, provider);
-      if (ids.length === 0) return true;
-      after = ids[ids.length - 1] ?? after;
-      transientTries = 0;
-      await wait(PAUSE_MS);
-    } catch (error) {
-      const elapsed = Date.now() - started;
-      if (!resplitShouldWait(error, elapsed, transientTries)) {
-        if (error instanceof SyncBusy) {
-          logger.warn("numbering.decorate.gave_up", { kind, waitedMs: elapsed });
-          return false;
+  const total = await countCatalog(kind, provider);
+  if (total > 0) maskProgress = { provider, kind, done: 0, total };
+  try {
+    for (;;) {
+      try {
+        const ids = await oneBatch(kind, after, provider);
+        if (ids.length === 0) return true;
+        after = ids[ids.length - 1] ?? after;
+        if (
+          maskProgress &&
+          maskProgress.kind === kind &&
+          maskProgress.provider === provider
+        ) {
+          maskProgress = {
+            provider,
+            kind,
+            total,
+            done: maskProgress.done + ids.length,
+          };
         }
-        throw error;
+        transientTries = 0;
+        await wait(PAUSE_MS);
+      } catch (error) {
+        const elapsed = Date.now() - started;
+        if (!resplitShouldWait(error, elapsed, transientTries)) {
+          if (error instanceof SyncBusy) {
+            logger.warn("numbering.decorate.gave_up", { kind, waitedMs: elapsed });
+            return false;
+          }
+          throw error;
+        }
+        if (!(error instanceof SyncBusy)) transientTries += 1;
+        await wait(RETRY_MS);
       }
-      if (!(error instanceof SyncBusy)) transientTries += 1;
-      await wait(RETRY_MS);
+    }
+  } finally {
+    if (
+      maskProgress &&
+      maskProgress.kind === kind &&
+      maskProgress.provider === provider
+    ) {
+      maskProgress = null;
     }
   }
 }
@@ -563,14 +620,27 @@ async function runFullMark(): Promise<void> {
   await catchUpProviders();
 }
 
-let chain: Promise<void> = Promise.resolve();
+let decorateQueue: Promise<void> = Promise.resolve();
 
 function enqueue(task: () => Promise<void>): void {
-  chain = chain.then(task).catch((error: unknown) => {
+  decorateQueue = decorateQueue.then(task).catch((error: unknown) => {
     logger.warn("numbering.decorate.failed", {
       error: error instanceof Error ? error.name : "error",
     });
   });
+}
+
+/** Resolves when the mask queue, including a retry already queued, is idle. */
+export function whenDecorateIdle(): Promise<void> {
+  const watch = async (): Promise<void> => {
+    let seen = decorateQueue;
+    for (;;) {
+      await seen;
+      if (decorateQueue === seen) return;
+      seen = decorateQueue;
+    }
+  };
+  return watch();
 }
 
 /** Queue one full or client pass. Passes run one after another. */

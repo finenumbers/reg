@@ -2,6 +2,10 @@
 
 import { useCallback, useEffect, useState, type KeyboardEvent } from "react";
 import { Button } from "@/components/ui/button";
+import {
+  ChainCardNote,
+  useChainRunning,
+} from "@/modules/numbering-chain/ui/chain-context";
 import type { ExolveSyncView } from "@/modules/exolve/service";
 
 export function ExolveSyncForm({ initial }: { initial: ExolveSyncView }) {
@@ -9,6 +13,7 @@ export function ExolveSyncForm({ initial }: { initial: ExolveSyncView }) {
   const [confirm, setConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const chainRunning = useChainRunning();
 
   const refresh = useCallback(async () => {
     try {
@@ -83,7 +88,7 @@ export function ExolveSyncForm({ initial }: { initial: ExolveSyncView }) {
       <div className="flex flex-wrap gap-2">
         <Button
           type="button"
-          disabled={pending || view.busy || !view.hasKey}
+          disabled={pending || view.busy || !view.hasKey || chainRunning}
           onClick={() => {
             setError(null);
             setConfirm(true);
@@ -115,7 +120,7 @@ export function ExolveSyncForm({ initial }: { initial: ExolveSyncView }) {
           <div className="flex gap-2">
             <Button
               type="button"
-              disabled={pending}
+              disabled={pending || chainRunning}
               onClick={() => void send("/api/numbering-sync/exolve")}
             >
               {pending ? "Запуск…" : "Загрузить"}
@@ -132,6 +137,7 @@ export function ExolveSyncForm({ initial }: { initial: ExolveSyncView }) {
         </div>
       ) : null}
       {progress ? <p className="text-sm">{progress}</p> : null}
+      <ChainCardNote source="exolve" />
       {view.busy && view.phase === "running" ? (
         <Button
           type="button"

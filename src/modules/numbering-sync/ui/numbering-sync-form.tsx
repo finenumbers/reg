@@ -2,6 +2,10 @@
 
 import { useCallback, useEffect, useState, type KeyboardEvent } from "react";
 import { Button } from "@/components/ui/button";
+import {
+  ChainCardNote,
+  useChainRunning,
+} from "@/modules/numbering-chain/ui/chain-context";
 import type { NumberingSyncView } from "@/modules/numbering-sync/service";
 
 export function NumberingSyncForm({ initial }: { initial: NumberingSyncView }) {
@@ -9,6 +13,7 @@ export function NumberingSyncForm({ initial }: { initial: NumberingSyncView }) {
   const [confirm, setConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const chainRunning = useChainRunning();
 
   const refresh = useCallback(async () => {
     try {
@@ -88,7 +93,7 @@ export function NumberingSyncForm({ initial }: { initial: NumberingSyncView }) {
         <div className="flex flex-wrap gap-2">
           <Button
             type="button"
-            disabled={pending || view.busy || !view.hasKey}
+            disabled={pending || view.busy || !view.hasKey || chainRunning}
             onClick={() => {
               setError(null);
               setConfirm(true);
@@ -113,13 +118,14 @@ export function NumberingSyncForm({ initial }: { initial: NumberingSyncView }) {
               <br />
               Хост: {view.host}
               <br />
-              Будут заново прочитаны свободные и купленные номера. Успешная запись удалит все
-              прежние номера SipOut в обеих таблицах, в том числе если новый список короче или пуст.
+              Будут заново прочитаны свободные и купленные номера. Успешная запись удалит
+              все прежние номера SipOut в обеих таблицах, в том числе если новый список
+              короче или пуст.
             </p>
             <div className="flex gap-2">
               <Button
                 type="button"
-                disabled={pending}
+                disabled={pending || chainRunning}
                 onClick={() => void send("/api/numbering-sync/sipout")}
               >
                 {pending ? "Запуск…" : "Загрузить"}
@@ -136,6 +142,7 @@ export function NumberingSyncForm({ initial }: { initial: NumberingSyncView }) {
           </div>
         ) : null}
         {progress ? <p className="text-sm">{progress}</p> : null}
+        <ChainCardNote source="sipout" />
         {view.busy && view.phase === "running" ? (
           <Button
             type="button"
@@ -149,7 +156,10 @@ export function NumberingSyncForm({ initial }: { initial: NumberingSyncView }) {
         {!view.busy && view.lastError ? (
           <p className="text-destructive text-sm">{view.lastError}</p>
         ) : null}
-        {!view.busy && view.lastError == null && view.lastFree != null && view.lastPurchased != null ? (
+        {!view.busy &&
+        view.lastError == null &&
+        view.lastFree != null &&
+        view.lastPurchased != null ? (
           <p className="text-muted-foreground text-sm">
             Свободных: {view.lastFree}. Купленных: {view.lastPurchased}.
           </p>

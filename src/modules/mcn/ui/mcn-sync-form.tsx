@@ -2,6 +2,10 @@
 
 import { useCallback, useEffect, useState, type KeyboardEvent } from "react";
 import { Button } from "@/components/ui/button";
+import {
+  ChainCardNote,
+  useChainRunning,
+} from "@/modules/numbering-chain/ui/chain-context";
 import type { McnSyncView } from "@/modules/mcn/service";
 
 export function McnSyncForm({ initial }: { initial: McnSyncView }) {
@@ -9,6 +13,7 @@ export function McnSyncForm({ initial }: { initial: McnSyncView }) {
   const [confirm, setConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const chainRunning = useChainRunning();
 
   const refresh = useCallback(async () => {
     try {
@@ -84,7 +89,7 @@ export function McnSyncForm({ initial }: { initial: McnSyncView }) {
       <div className="flex flex-wrap gap-2">
         <Button
           type="button"
-          disabled={pending || view.busy || !view.hasKey}
+          disabled={pending || view.busy || !view.hasKey || chainRunning}
           onClick={() => {
             setError(null);
             setConfirm(true);
@@ -118,7 +123,7 @@ export function McnSyncForm({ initial }: { initial: McnSyncView }) {
           <div className="flex gap-2">
             <Button
               type="button"
-              disabled={pending}
+              disabled={pending || chainRunning}
               onClick={() => void send("/api/numbering-sync/mcn")}
             >
               {pending ? "Запуск…" : "Загрузить"}
@@ -135,6 +140,7 @@ export function McnSyncForm({ initial }: { initial: McnSyncView }) {
         </div>
       ) : null}
       {progress ? <p className="text-sm">{progress}</p> : null}
+      <ChainCardNote source="mcn" />
       {view.busy && view.phase === "running" ? (
         <Button
           type="button"

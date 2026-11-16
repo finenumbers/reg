@@ -6,6 +6,7 @@
 import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/db";
 import { AUDIT_ACTIONS, auditService } from "@/modules/audit";
+import { chainStartBlock } from "@/modules/numbering-chain/gate";
 import { downloadAuroraCsv, auroraInterruptedMessage } from "@/modules/aurora/fetch";
 import {
   addAuroraLink,
@@ -95,7 +96,7 @@ export type AuroraSyncView = {
   hasFiles: boolean;
 };
 
-type Actor = { userId: string; ip?: string | null };
+type Actor = { userId: string | null; ip?: string | null };
 type LeaseBeat = "ok" | "cancel" | "lost";
 
 type StateRow = {
@@ -417,9 +418,12 @@ function beat(runId: string, done: number, total: number): Promise<LeaseBeat> {
 
 export async function startAuroraSync(
   actor: Actor,
+  options?: { fromChain?: boolean },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   armNumberingSyncStop();
   if (isDatabaseVacuumActive()) return { ok: false, error: CDR_VACUUM_BUSY_MESSAGE };
+  const blocked = chainStartBlock(options?.fromChain);
+  if (blocked) return { ok: false, error: blocked };
   const begun = tryBeginAurora();
   if (!begun.ok) return { ok: false, error: heldError(begun.reason) };
   const holder = begun.token;

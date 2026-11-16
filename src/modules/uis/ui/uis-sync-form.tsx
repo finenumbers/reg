@@ -2,6 +2,10 @@
 
 import { useCallback, useEffect, useState, type KeyboardEvent } from "react";
 import { Button } from "@/components/ui/button";
+import {
+  ChainCardNote,
+  useChainRunning,
+} from "@/modules/numbering-chain/ui/chain-context";
 import type { UisSyncView } from "@/modules/uis/service";
 
 export function UisSyncForm({ initial }: { initial: UisSyncView }) {
@@ -9,6 +13,7 @@ export function UisSyncForm({ initial }: { initial: UisSyncView }) {
   const [confirm, setConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const chainRunning = useChainRunning();
 
   const refresh = useCallback(async () => {
     try {
@@ -83,7 +88,7 @@ export function UisSyncForm({ initial }: { initial: UisSyncView }) {
       <div className="flex flex-wrap gap-2">
         <Button
           type="button"
-          disabled={pending || view.busy || !view.hasKey}
+          disabled={pending || view.busy || !view.hasKey || chainRunning}
           onClick={() => {
             setError(null);
             setConfirm(true);
@@ -115,7 +120,7 @@ export function UisSyncForm({ initial }: { initial: UisSyncView }) {
           <div className="flex gap-2">
             <Button
               type="button"
-              disabled={pending}
+              disabled={pending || chainRunning}
               onClick={() => void send("/api/numbering-sync/uis")}
             >
               {pending ? "Запуск…" : "Загрузить"}
@@ -132,6 +137,7 @@ export function UisSyncForm({ initial }: { initial: UisSyncView }) {
         </div>
       ) : null}
       {progress ? <p className="text-sm">{progress}</p> : null}
+      <ChainCardNote source="uis" />
       {view.busy && view.phase === "running" ? (
         <Button
           type="button"

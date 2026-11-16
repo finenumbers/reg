@@ -7,7 +7,12 @@ import { randomUUID } from "node:crypto";
 
 import { prisma } from "@/lib/db";
 import { AUDIT_ACTIONS, auditService } from "@/modules/audit";
-import { isLockTimeout, isStatementTimeout, withDbRetry } from "@/modules/numbering-sync/db-retry";
+import { chainStartBlock } from "@/modules/numbering-chain/gate";
+import {
+  isLockTimeout,
+  isStatementTimeout,
+  withDbRetry,
+} from "@/modules/numbering-sync/db-retry";
 import { SyncLost } from "@/modules/numbering-sync/errors";
 import {
   armNumberingSyncStop,
@@ -36,7 +41,10 @@ import {
 import { runSourceWalk, type LeaseBeat } from "@/modules/numbering-sync/walk";
 import { sipoutGet } from "@/modules/sipout/client";
 import { SIPOUT_ORIGIN } from "@/modules/sipout/url";
-import { CDR_VACUUM_BUSY_MESSAGE, isDatabaseVacuumActive } from "@/modules/storage/vacuum/gate";
+import {
+  CDR_VACUUM_BUSY_MESSAGE,
+  isDatabaseVacuumActive,
+} from "@/modules/storage/vacuum/gate";
 
 const BUSY = "Уже выполняется.";
 const STOPPING = "Сервер останавливается. Каталог не изменён.";
@@ -59,7 +67,7 @@ export type NumberingSyncView = {
   hasLog: boolean;
 };
 
-type Actor = { userId: string; ip?: string | null };
+type Actor = { userId: string | null; ip?: string | null };
 
 type StateRow = {
   phase: string;
@@ -138,9 +146,8 @@ export async function loadSipoutKey(): Promise<string> {
     select: { sipoutApiKeyCiphertext: true },
   });
   if (!row?.sipoutApiKeyCiphertext) throw new Error(NO_KEY);
-  const { deserializeEncryptedSecret, getSecretEncryptionService } = await import(
-    "@/modules/ssh/secrets"
-  );
+  const { deserializeEncryptedSecret, getSecretEncryptionService } =
+    await import("@/modules/ssh/secrets");
   try {
     return getSecretEncryptionService().decrypt(
       deserializeEncryptedSecret(row.sipoutApiKeyCiphertext),
@@ -210,9 +217,15 @@ async function finishError(runId: string, error: string): Promise<void> {
   `;
 }
 
-function beat(runId: string, step: string, done: number, total: number): Promise<LeaseBeat> {
-  return withDbRetry(() => prisma.$transaction(async (tx) => {
-    const updated = await tx.$queryRaw<{ phase: string }[]>`
+function beat(
+  runId: string,
+  step: string,
+  done: number,
+  total: number,
+): Promise<LeaseBeat> {
+  return withDbRetry(() =>
+    prisma.$transaction(async (tx) => {
+      const updated = await tx.$queryRaw<{ phase: string }[]>`
       UPDATE numbering_sync_state
       SET heartbeat_at = CURRENT_TIMESTAMP,
           cities_done = ${done},
@@ -221,13 +234,14 @@ function beat(runId: string, step: string, done: number, total: number): Promise
       WHERE id = 1 AND run_id = ${runId} AND phase IN ('running', 'publishing')
       RETURNING phase
     `;
-    if (updated.length === 1) return "ok";
-    const left = await tx.$queryRaw<{ phase: string }[]>`
+      if (updated.length === 1) return "ok";
+      const left = await tx.$queryRaw<{ phase: string }[]>`
       SELECT phase FROM numbering_sync_state WHERE id = 1 AND run_id = ${runId}
     `;
-    if (left[0]?.phase === "cancel") return "cancel";
-    return "lost";
-  }));
+      if (left[0]?.phase === "cancel") return "cancel";
+      return "lost";
+    }),
+  );
 }
 
 async function publishWithRetry(
@@ -260,11 +274,15 @@ async function publishWithRetry(
 
 export async function startSipoutSync(
   actor: Actor,
+  options?: { fromChain?: boolean },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   armNumberingSyncStop();
   if (isDatabaseVacuumActive()) return { ok: false, error: CDR_VACUUM_BUSY_MESSAGE };
+  const blocked = chainStartBlock(options?.fromChain);
+  if (blocked) return { ok: false, error: blocked };
   const begun = tryBeginNumberingSync();
-  if (!begun.ok) return { ok: false, error: begun.reason === "stopping" ? STOPPING : BUSY };
+  if (!begun.ok)
+    return { ok: false, error: begun.reason === "stopping" ? STOPPING : BUSY };
   const token = begun.token;
   let key: string;
   try {
@@ -312,7 +330,8 @@ export async function startSipoutSync(
         prepare: async () => {
           await fillDraftSplit(runId, async () => {
             const state = await beat(runId, "split", done, total);
-            if (state === "cancel") throw new Error("Загрузка отменена. Каталог не изменён.");
+            if (state === "cancel")
+              throw new Error("Загрузка отменена. Каталог не изменён.");
             if (state === "lost") throw new SyncLost();
           });
           const summary = await draftSummary(runId);
@@ -387,7 +406,9 @@ export async function startSipoutSync(
   return { ok: true };
 }
 
-export async function cancelSipoutSync(): Promise<{ ok: true } | { ok: false; error: string }> {
+export async function cancelSipoutSync(): Promise<
+  { ok: true } | { ok: false; error: string }
+> {
   try {
     const rows = await prisma.$queryRaw<{ run_id: string }[]>`
       UPDATE numbering_sync_state
@@ -424,12 +445,14 @@ export async function saveSipoutKey(
   if (!trimmed) return { ok: true, settings: await getSipoutAccessView() };
   armNumberingSyncStop();
   const begun = tryBeginNumberingSync();
-  if (!begun.ok) return { ok: false, error: begun.reason === "stopping" ? STOPPING : BUSY };
+  if (!begun.ok)
+    return { ok: false, error: begun.reason === "stopping" ? STOPPING : BUSY };
   try {
-    const { getSecretEncryptionService, serializeEncryptedSecret } = await import(
-      "@/modules/ssh/secrets"
+    const { getSecretEncryptionService, serializeEncryptedSecret } =
+      await import("@/modules/ssh/secrets");
+    const ciphertext = serializeEncryptedSecret(
+      getSecretEncryptionService().encrypt(trimmed),
     );
-    const ciphertext = serializeEncryptedSecret(getSecretEncryptionService().encrypt(trimmed));
     await prisma.appSetting.upsert({
       where: { id: 1 },
       create: { id: 1, sipoutApiKeyCiphertext: ciphertext },
@@ -455,7 +478,8 @@ export async function testSipoutAccess(
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   armNumberingSyncStop();
   const begun = tryBeginNumberingSync();
-  if (!begun.ok) return { ok: false, error: begun.reason === "stopping" ? STOPPING : BUSY };
+  if (!begun.ok)
+    return { ok: false, error: begun.reason === "stopping" ? STOPPING : BUSY };
   const token = begun.token;
   let key: string;
   try {
