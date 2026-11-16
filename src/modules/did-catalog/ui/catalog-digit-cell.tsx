@@ -1,6 +1,7 @@
 "use client";
 
 import { HighlightText } from "@/components/highlight-text";
+import { catalogDigitPlain } from "@/modules/did-catalog/catalog-digit-text";
 import { geographyDigitMarks, type DigitMark } from "@/modules/rtu/abc-display";
 
 function MarkedDigits({ marks }: { marks: DigitMark[] }) {
@@ -33,8 +34,8 @@ export function CatalogDigitCell({
   column: "abc" | "number";
   phoneQ?: string;
 }) {
-  if (!e164) {
-    const plain = column === "abc" ? abc : number;
+  const plain = catalogDigitPlain(column, e164, abc, number);
+  if (plain != null) {
     if (column === "number") return <HighlightText text={plain} query={phoneQ} />;
     return <>{plain}</>;
   }

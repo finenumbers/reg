@@ -1,7 +1,13 @@
-# Current Phase — production (v1.299.0)
+# Current Phase — production (v1.300.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, purchased numbers, numbering sync, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-16
+
+## v1.300.0 — catalog number when the tariff pair is empty
+
+This release does not migrate and does not rewrite catalog rows or epoch counters. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before the new one starts, then start one new app. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged. SipOut, Runexis, UIS, Aurora Telecom, and MTS Exolve are unchanged.
+
+«Свободные номера» and «Купленные номера» show the stored digits in «Номер» when the tariff split left both «ABC» and «Номер» empty. «ABC», city, and region still come only from the tariff table. A row that already has that split is unchanged. No catalog reload is required.
 
 ## v1.299.0 — MTS Exolve directory cells
 
