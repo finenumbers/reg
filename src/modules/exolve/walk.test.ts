@@ -48,7 +48,11 @@ function harness(input: {
   purchased: (filter: PurchasedFilter, offset: number) => Page | { error: string };
   recount?: () => number;
   directory?: Directory;
-  free?: (cell: { typeId: number; regionId: number }, offset: number) => ExolveFreeRow[];
+  free?: (
+    cell: { typeId: number; regionId: number; categoryId: number },
+    offset: number,
+    randomMode: "false" | "omit",
+  ) => ExolveFreeRow[];
   freeOffsetMax?: number;
 }): {
   deps: ExolveWalkDeps;
@@ -57,7 +61,13 @@ function harness(input: {
   purchasedKeys: string[];
   purchasedOffsets: number[];
   regionCalls: string[];
-  freeCalls: { typeId: number; regionId: number; offset: number }[];
+  freeCalls: {
+    typeId: number;
+    regionId: number;
+    categoryId: number;
+    offset: number;
+    randomMode: "false" | "omit";
+  }[];
   dropped: { count: number };
   recounts: { count: number };
 } {
@@ -67,7 +77,13 @@ function harness(input: {
   const purchasedKeys: string[] = [];
   const purchasedOffsets: number[] = [];
   const regionCalls: string[] = [];
-  const freeCalls: { typeId: number; regionId: number; offset: number }[] = [];
+  const freeCalls: {
+    typeId: number;
+    regionId: number;
+    categoryId: number;
+    offset: number;
+    randomMode: "false" | "omit";
+  }[] = [];
   const dropped = { count: 0 };
   const recounts = { count: 0 };
   const deps: ExolveWalkDeps = {
@@ -85,9 +101,15 @@ function harness(input: {
       return { ok: true, total: input.recount?.() ?? 0 };
     },
     directory: async () => ({ ok: true, directory: input.directory ?? directory }),
-    free: async (cell, offset) => {
-      freeCalls.push({ typeId: cell.typeId, regionId: cell.regionId, offset });
-      const rows = input.free?.(cell, offset) ?? [];
+    free: async (cell, offset, randomMode) => {
+      freeCalls.push({
+        typeId: cell.typeId,
+        regionId: cell.regionId,
+        categoryId: cell.categoryId,
+        offset,
+        randomMode,
+      });
+      const rows = input.free?.(cell, offset, randomMode) ?? [];
       return { ok: true, rows };
     },
     stagePurchased: async (dids) => {
@@ -151,11 +173,18 @@ describe("Exolve walk", () => {
     expect(run.purchasedOffsets).toEqual([0, 2]);
     expect(run.dropped.count).toBe(0);
     expect(run.recounts.count).toBe(1);
-    expect(run.freeCalls.map((call) => [call.typeId, call.regionId])).toEqual([
-      [1104, 10084],
-      [1104, 10230],
-      [1106, 10084],
+    expect(run.freeCalls.slice(0, 2).map((call) => call.randomMode)).toEqual([
+      "false",
+      "omit",
     ]);
+    expect(
+      run.freeCalls.some((call) => call.typeId === 1104 && call.regionId === 10084),
+    ).toBe(true);
+    expect(
+      run.freeCalls.some((call) => call.typeId === 1106 && call.regionId === 10084),
+    ).toBe(true);
+    expect(run.freeCalls.some((call) => call.typeId === 1105)).toBe(true);
+    expect(run.prices.size).toBe(0);
     expect(run.bought).toEqual([did(1), did(2), did(3)]);
   });
 
@@ -171,7 +200,7 @@ describe("Exolve walk", () => {
     expect(result.ok).toBe(true);
     expect(run.purchasedKeys).toEqual(["all"]);
     expect(run.dropped.count).toBe(0);
-    expect(run.freeCalls).toHaveLength(3);
+    expect(run.freeCalls).toHaveLength(17);
   });
 
   it("does not open the directory when the purchased list fails", async () => {
@@ -311,28 +340,85 @@ describe("Exolve walk", () => {
     expect(run.bought).toEqual([did(1)]);
   });
 
-  it("ends a free cell on a short page and keeps the first price of a later cell", async () => {
+  it("continues a short free page, retries one empty page, and keeps the first price", async () => {
     const run = harness({
       purchased: () => ({ total: 0, rows: [] }),
       directory: {
-        types: [{ typeId: 1104, typeName: "DEF", categories: [{ categoryId: 10000 }] }],
+        types: [
+          { typeId: 1104, typeName: "DEF", categories: [{ categoryId: 10000 }] },
+          { typeId: 1105, typeName: "ABC", categories: [{ categoryId: 10001 }] },
+          { typeId: 1106, typeName: "KDU", categories: [{ categoryId: 10002 }] },
+        ],
         regions: [
           { regionId: 10084, parentRegionId: null },
-          { regionId: 10230, parentRegionId: null },
+          { regionId: 10230, parentRegionId: 10084 },
         ],
       },
-      free: (cell) => [
-        {
-          e164: did(1),
-          incomingPurchase: cell.regionId === 10084 ? "100" : "999",
-          incomingPeriod: "",
-        },
-      ],
+      free: (cell, offset) => {
+        if (offset > 0) return [];
+        return [
+          {
+            e164: did(1),
+            incomingPurchase: cell.regionId === 10084 ? "100" : "999",
+            incomingPeriod: "7",
+          },
+        ];
+      },
     });
     const result = await runExolveWalk(run.deps);
     expect(result).toEqual({ ok: true, free: 1, purchased: 0 });
-    expect(run.freeCalls).toHaveLength(2);
+    expect(run.freeCalls[0]).toMatchObject({
+      typeId: 1104,
+      regionId: 10230,
+      offset: 0,
+      randomMode: "false",
+    });
+    expect(run.freeCalls.filter((call) => call.randomMode === "omit")).toHaveLength(0);
     expect(run.prices.get(did(1))).toBe("100");
+    const defRussia = run.freeCalls.filter(
+      (call) => call.typeId === 1104 && call.regionId === 10084,
+    );
+    expect(defRussia.map((call) => call.offset)).toEqual([0, 1, 1]);
+  });
+
+  it("omits random only after an empty false probe and does not stage that probe", async () => {
+    let probes = 0;
+    const run = harness({
+      purchased: () => ({ total: 0, rows: [] }),
+      directory: {
+        types: [
+          { typeId: 1104, typeName: "DEF", categories: [{ categoryId: 10000 }] },
+          { typeId: 1105, typeName: "ABC", categories: [{ categoryId: 10001 }] },
+          { typeId: 1106, typeName: "KDU", categories: [{ categoryId: 10002 }] },
+        ],
+        regions: [
+          { regionId: 10084, parentRegionId: null },
+          { regionId: 10230, parentRegionId: 10084 },
+        ],
+      },
+      free: (cell, offset, mode) => {
+        if (
+          probes < 2 &&
+          cell.typeId === 1104 &&
+          cell.categoryId === 10000 &&
+          cell.regionId === 10230 &&
+          offset === 0
+        ) {
+          probes += 1;
+          if (mode === "false") return [];
+          return [{ e164: did(9), incomingPurchase: "9", incomingPeriod: "" }];
+        }
+        if (offset > 0) return [];
+        return [{ e164: did(1), incomingPurchase: "5", incomingPeriod: "" }];
+      },
+    });
+    const result = await runExolveWalk(run.deps);
+    expect(result).toEqual({ ok: true, free: 1, purchased: 0 });
+    expect(run.freeCalls[0]?.randomMode).toBe("false");
+    expect(run.freeCalls[1]?.randomMode).toBe("omit");
+    expect(run.freeCalls.slice(2).every((call) => call.randomMode === "omit")).toBe(true);
+    expect(run.prices.has(did(9))).toBe(false);
+    expect(run.prices.get(did(1))).toBe("5");
   });
 
   it("fails a repeated number inside one free cell", async () => {
@@ -367,7 +453,7 @@ describe("Exolve walk", () => {
       },
       freeOffsetMax: 20,
       free: () =>
-        Array.from({ length: FREE_LIMIT }, () => {
+        Array.from({ length: 10 }, () => {
           serial += 1;
           return { e164: did(serial), incomingPurchase: "", incomingPeriod: "" };
         }),
@@ -431,10 +517,17 @@ describe("Exolve request bodies", () => {
       region_id: 10230,
       category_id: 10000,
       random: false,
-      limit: 10,
+      limit: 500,
       offset: 10,
     });
     expect(body && "mask" in body).toBe(false);
+    const omitted = freeBody(
+      { typeId: 1104, categoryId: 10000, regionId: 10230 },
+      0,
+      "omit",
+    );
+    expect(omitted && "random" in omitted).toBe(false);
+    expect(omitted?.limit).toBe(500);
     expect(nextFreeOffset(FREE_OFFSET_MAX, 10)).toBeNull();
     expect(nextFreeOffset(FREE_OFFSET_MAX - 10, 10)).toBe(FREE_OFFSET_MAX);
   });

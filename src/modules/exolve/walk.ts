@@ -7,7 +7,6 @@
 import {
   DUPLICATE_NUMBER,
   KDU_WITHOUT_RUSSIA,
-  UNREADABLE,
   isKduType,
   leafRegionIds,
   planFreeCells,
@@ -15,11 +14,13 @@ import {
   type ExolveFreeRow,
 } from "@/modules/exolve/parse";
 import {
-  FREE_LIMIT,
+  DEF_TYPE_ID,
   FREE_OFFSET_MAX,
+  MOSCOW_REGION_ID,
   RUSSIA_REGION_ID,
   nextFreeOffset,
   type FreeCell,
+  type FreeRandomMode,
   type PurchasedFilter,
 } from "@/modules/exolve/url";
 
@@ -56,14 +57,14 @@ export type ExolveWalkDeps = {
   purchased: (filter: PurchasedFilter, offset: number) => Promise<PurchasedRead>;
   recount: () => Promise<TotalRead>;
   directory: () => Promise<DirectoryRead>;
-  free: (cell: FreeCell, offset: number) => Promise<FreeRead>;
+  free: (cell: FreeCell, offset: number, randomMode: FreeRandomMode) => Promise<FreeRead>;
   stagePurchased: (dids: readonly string[]) => Promise<void>;
   dropPurchased: () => Promise<void>;
   stageFree: (
     rows: readonly ExolveFreeRow[],
   ) => Promise<{ inserted: number; skipped: number }>;
   log?: (line: string) => Promise<void> | void;
-  /** Tests only. The service leaves this unset, so the ceiling stays 1000000. */
+  /** Tests only. The service leaves this unset, so the ceiling stays 5000000. */
   freeOffsetMax?: number;
 };
 
@@ -371,9 +372,54 @@ async function loadDirectory(
   return { ok: true, directory: page.directory };
 }
 
+function probeCategory(directory: Directory): number {
+  const def = directory.types.find((type) => type.typeId === DEF_TYPE_ID);
+  if (def && def.categories.length > 0) {
+    return [...def.categories].sort(
+      (left, right) => left.categoryId - right.categoryId,
+    )[0].categoryId;
+  }
+  return 10000;
+}
+
+/** Two Moscow reads choose the random field. Their rows are not staged. */
+async function chooseFreeRandom(
+  deps: ExolveWalkDeps,
+  directory: Directory,
+  pageTotal: number,
+): Promise<{ ok: true; mode: FreeRandomMode } | ExolveWalkResult> {
+  const moscow = directory.regions.some((region) => region.regionId === MOSCOW_REGION_ID);
+  const categoryId = probeCategory(directory);
+  if (!moscow) {
+    await deps.log?.("free random=false");
+    return { ok: true, mode: "false" };
+  }
+  const cell: FreeCell = {
+    typeId: DEF_TYPE_ID,
+    categoryId,
+    regionId: MOSCOW_REGION_ID,
+  };
+  const gate = await deps.beat({ list: "free", pageDone: 0, pageTotal });
+  if (gate !== "run") return stopped(gate);
+  const strict = await deps.free(cell, 0, "false");
+  if (!strict.ok) return failed(strict.error);
+  if (strict.rows.length > 0) {
+    await deps.log?.("free random=false");
+    return { ok: true, mode: "false" };
+  }
+  const again = await deps.beat({ list: "free", pageDone: 0, pageTotal });
+  if (again !== "run") return stopped(again);
+  const omitted = await deps.free(cell, 0, "omit");
+  if (!omitted.ok) return failed(omitted.error);
+  const mode: FreeRandomMode = omitted.rows.length > 0 ? "omit" : "false";
+  await deps.log?.(`free random=${mode === "omit" ? "omit" : "false"}`);
+  return { ok: true, mode };
+}
+
 async function readFree(
   deps: ExolveWalkDeps,
   cells: readonly FreeCell[],
+  mode: FreeRandomMode,
 ): Promise<ExolveWalkResult | { count: number }> {
   const ceiling = deps.freeOffsetMax ?? FREE_OFFSET_MAX;
   let done = 0;
@@ -383,6 +429,7 @@ async function readFree(
   for (const cell of cells) {
     const seen = new Set<string>();
     let offset = 0;
+    let emptyRetried = false;
     for (;;) {
       if (offset > ceiling) return failed(FREE_OFFSET_TOO_FAR);
       const gate = await deps.beat({
@@ -391,18 +438,22 @@ async function readFree(
         pageTotal: cells.length,
       });
       if (gate !== "run") return stopped(gate);
-      const page = await deps.free(cell, offset);
+      const page = await deps.free(cell, offset, mode);
       if (!page.ok) return failed(page.error);
-      if (page.rows.length > FREE_LIMIT) return failed(UNREADABLE);
+      if (page.rows.length === 0) {
+        if (seen.size > 0 && !emptyRetried) {
+          emptyRetried = true;
+          continue;
+        }
+        break;
+      }
+      emptyRetried = false;
       for (const row of page.rows) {
         if (seen.has(row.e164)) return failed(DUPLICATE_NUMBER);
         seen.add(row.e164);
       }
-      if (page.rows.length > 0) {
-        const wrote = await deps.stageFree(page.rows);
-        staged += wrote.inserted;
-      }
-      if (page.rows.length < FREE_LIMIT) break;
+      const wrote = await deps.stageFree(page.rows);
+      staged += wrote.inserted;
       const next = nextFreeOffset(offset, page.rows.length);
       if (next == null || next > ceiling) return failed(FREE_OFFSET_TOO_FAR);
       offset = next;
@@ -450,7 +501,9 @@ export async function runExolveWalk(deps: ExolveWalkDeps): Promise<ExolveWalkRes
   if (!("directory" in loaded)) return loaded;
   const cells = planFreeCells(loaded.directory);
   if (!cells.ok) return failed(cells.error);
-  const free = await readFree(deps, cells.cells);
+  const chosen = await chooseFreeRandom(deps, loaded.directory, cells.cells.length);
+  if (!("mode" in chosen)) return chosen;
+  const free = await readFree(deps, cells.cells, chosen.mode);
   if ("ok" in free) return free;
   return { ok: true, free: free.count, purchased: purchased.total };
 }

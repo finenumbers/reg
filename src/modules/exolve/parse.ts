@@ -4,7 +4,13 @@
  */
 
 import { sipoutDidDigits } from "@/modules/sipout/did";
-import { KDU_TYPE_ID, RUSSIA_REGION_ID, type FreeCell } from "@/modules/exolve/url";
+import {
+  ABC_TYPE_ID,
+  DEF_TYPE_ID,
+  KDU_TYPE_ID,
+  RUSSIA_REGION_ID,
+  type FreeCell,
+} from "@/modules/exolve/url";
 
 export const DUPLICATE_NUMBER = "В ответе повторяется номер.";
 export const UNREADABLE = "Ответ площадки не разобран.";
@@ -209,10 +215,7 @@ export function parsePurchasedTotal(data: unknown): Parsed<{ total: number }> {
   return { ok: true, total };
 }
 
-export function parseFree(
-  data: unknown,
-  limit: number,
-): Parsed<{ rows: ExolveFreeRow[] }> {
+export function parseFree(data: unknown): Parsed<{ rows: ExolveFreeRow[] }> {
   if (!isRecord(data)) return fail();
   const platform = rootError(data);
   if (platform) return fail(platform);
@@ -226,7 +229,6 @@ export function parseFree(
     return fail(withFields(UNREADABLE, data));
   }
   if (numbers.kind === "empty") return { ok: true, rows: [] };
-  if (numbers.items.length > limit) return fail(PAGE_TOO_LONG);
   const rows: ExolveFreeRow[] = [];
   const seen = new Set<string>();
   for (const item of numbers.items) {
@@ -260,64 +262,97 @@ export function leafRegionIds(regions: readonly DirectoryRegion[]): number[] {
     .sort((left, right) => left - right);
 }
 
+const DOC_TYPES: readonly {
+  typeId: number;
+  typeName: string;
+  categoryIds: readonly number[];
+}[] = [
+  {
+    typeId: DEF_TYPE_ID,
+    typeName: "DEF",
+    categoryIds: [10000, 10010, 10020, 10030, 10040, 10050],
+  },
+  {
+    typeId: ABC_TYPE_ID,
+    typeName: "ABC",
+    categoryIds: [10001, 10011, 10021, 10031, 10041, 10051],
+  },
+  {
+    typeId: KDU_TYPE_ID,
+    typeName: "KDU",
+    categoryIds: [10002, 10012, 10022, 10032, 10042, 10052],
+  },
+];
+
+function optionalList(data: Record<string, unknown>, key: string): unknown[] | null {
+  if (!(key in data) || data[key] == null) return [];
+  return Array.isArray(data[key]) ? data[key] : null;
+}
+
+function typeNameFor(typeId: number, raw: unknown, used: ReadonlySet<string>): string {
+  if (typeof raw === "string" && TYPE_NAME.test(raw) && !used.has(raw)) return raw;
+  const known = DOC_TYPES.find((row) => row.typeId === typeId)?.typeName;
+  if (known && !used.has(known)) return known;
+  const synthetic = `t${typeId}`;
+  return used.has(synthetic) ? `t${typeId}b` : synthetic;
+}
+
 export function parseDirectory(data: unknown): Parsed<{ directory: Directory }> {
   if (!isRecord(data) || hasError(data)) return fail();
-  if (
-    !Array.isArray(data.types) ||
-    !Array.isArray(data.categories) ||
-    !Array.isArray(data.regions)
-  ) {
-    return fail(DIRECTORY_INCOMPLETE);
-  }
+  if (!Array.isArray(data.regions)) return fail(DIRECTORY_INCOMPLETE);
+  const typeItems = optionalList(data, "types");
+  const categoryItems = optionalList(data, "categories");
+  if (!typeItems || !categoryItems) return fail(DIRECTORY_INCOMPLETE);
 
   const types: DirectoryType[] = [];
-  const typeIds = new Set<number>();
-  const typeNames = new Set<string>();
-  for (const item of data.types) {
-    if (!isRecord(item)) return fail(DIRECTORY_INCOMPLETE);
-    const typeId = readUint32(item.type_id);
-    const typeName = item.type_name;
-    if (typeId == null || typeof typeName !== "string" || !TYPE_NAME.test(typeName)) {
-      return fail(DIRECTORY_INCOMPLETE);
-    }
-    if (typeIds.has(typeId) || typeNames.has(typeName)) return fail(DIRECTORY_INCOMPLETE);
-    typeIds.add(typeId);
-    typeNames.add(typeName);
-    types.push({ typeId, typeName, categories: [] });
+  const byId = new Map<number, DirectoryType>();
+  const usedNames = new Set<string>();
+
+  function addType(typeId: number, rawName: unknown): DirectoryType {
+    const existing = byId.get(typeId);
+    if (existing) return existing;
+    const typeName = typeNameFor(typeId, rawName, usedNames);
+    usedNames.add(typeName);
+    const type = { typeId, typeName, categories: [] as DirectoryCategory[] };
+    byId.set(typeId, type);
+    types.push(type);
+    return type;
   }
 
-  const categoryIds = new Set<number>();
-  for (const item of data.categories) {
+  for (const item of typeItems) {
+    if (!isRecord(item)) return fail(DIRECTORY_INCOMPLETE);
+    const typeId = readUint32(item.type_id);
+    if (typeId == null) return fail(DIRECTORY_INCOMPLETE);
+    addType(typeId, item.type_name);
+  }
+
+  const seenCategory = new Set<string>();
+  for (const item of categoryItems) {
     if (!isRecord(item)) return fail(DIRECTORY_INCOMPLETE);
     const categoryId = readUint32(item.category_id);
     const typeId = readUint32(item.type_id);
     if (categoryId == null || typeId == null) return fail(DIRECTORY_INCOMPLETE);
-    if (categoryIds.has(categoryId)) return fail(DIRECTORY_INCOMPLETE);
-    categoryIds.add(categoryId);
-    const type = types.find((row) => row.typeId === typeId);
-    if (!type) return fail(DIRECTORY_INCOMPLETE);
-    if (typeof item.type_name === "string" && item.type_name !== type.typeName) {
-      return fail(DIRECTORY_INCOMPLETE);
-    }
-    type.categories.push({ categoryId });
+    const key = `${typeId}:${categoryId}`;
+    if (seenCategory.has(key)) continue;
+    seenCategory.add(key);
+    addType(typeId, item.type_name).categories.push({ categoryId });
   }
-  if (types.some((type) => type.categories.length === 0))
-    return fail(DIRECTORY_INCOMPLETE);
 
   const regions: DirectoryRegion[] = [];
   const regionIds = new Set<number>();
   for (const item of data.regions) {
     if (!isRecord(item)) return fail(DIRECTORY_INCOMPLETE);
     const regionId = readUint32(item.region_id);
-    if (regionId == null || regionIds.has(regionId)) return fail(DIRECTORY_INCOMPLETE);
+    if (regionId == null) return fail(DIRECTORY_INCOMPLETE);
+    if (regionIds.has(regionId)) continue;
     regionIds.add(regionId);
     let parentRegionId: number | null = null;
     if ("parent_region_id" in item && item.parent_region_id != null) {
       parentRegionId = readUint32(item.parent_region_id);
-      if (parentRegionId == null) return fail(DIRECTORY_INCOMPLETE);
     }
     regions.push({ regionId, parentRegionId });
   }
+  if (regions.length === 0) return fail(DIRECTORY_INCOMPLETE);
 
   types.sort((left, right) => left.typeId - right.typeId);
   for (const type of types) {
@@ -327,29 +362,44 @@ export function parseDirectory(data: unknown): Parsed<{ directory: Directory }> 
   return { ok: true, directory: { types, regions } };
 }
 
-/** One GetFree cell per type, its categories, and every region. KDU uses Russia only. */
+function categoryIdsFor(type: DirectoryType): number[] {
+  const doc = DOC_TYPES.find((row) => row.typeId === type.typeId);
+  if (doc && type.categories.length === 0) return [...doc.categoryIds];
+  return type.categories.map((category) => category.categoryId);
+}
+
+/** Free cells only. Purchased layers keep the directory types as they were read. */
 export function planFreeCells(directory: Directory): Parsed<{ cells: FreeCell[] }> {
-  if (directory.types.length === 0) return fail(NO_FREE_CELLS);
-  const hasKdu = directory.types.some((type) => isKduType(type));
-  const hasOther = directory.types.some((type) => !isKduType(type));
-  if (
-    hasKdu &&
-    !directory.regions.some((region) => region.regionId === RUSSIA_REGION_ID)
-  ) {
-    return fail(KDU_WITHOUT_RUSSIA);
+  const byId = new Map(directory.types.map((type) => [type.typeId, type]));
+  const types = [...directory.types];
+  for (const doc of DOC_TYPES) {
+    if (byId.has(doc.typeId)) continue;
+    const type = { typeId: doc.typeId, typeName: doc.typeName, categories: [] };
+    byId.set(doc.typeId, type);
+    types.push(type);
   }
-  if (hasOther && directory.regions.length === 0) return fail(DIRECTORY_INCOMPLETE);
+  types.sort((left, right) => left.typeId - right.typeId);
+  const hasRussia = directory.regions.some(
+    (region) => region.regionId === RUSSIA_REGION_ID,
+  );
   const cells: FreeCell[] = [];
-  for (const type of directory.types) {
-    const regionIds = isKduType(type)
-      ? [RUSSIA_REGION_ID]
-      : directory.regions.map((region) => region.regionId);
-    for (const category of type.categories) {
-      for (const regionId of regionIds) {
+  for (const type of types) {
+    const doc = DOC_TYPES.some((row) => row.typeId === type.typeId);
+    const categoryIds = categoryIdsFor(type);
+    if (!doc && categoryIds.length === 0) continue;
+    if (isKduType(type)) {
+      if (!hasRussia) continue;
+      for (const categoryId of categoryIds) {
+        cells.push({ typeId: type.typeId, categoryId, regionId: RUSSIA_REGION_ID });
+      }
+      continue;
+    }
+    for (const categoryId of categoryIds) {
+      for (const region of directory.regions) {
         cells.push({
           typeId: type.typeId,
-          categoryId: category.categoryId,
-          regionId,
+          categoryId,
+          regionId: region.regionId,
         });
       }
     }

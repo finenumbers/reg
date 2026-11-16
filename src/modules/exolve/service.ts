@@ -8,7 +8,12 @@ import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/db";
 import { AUDIT_ACTIONS, auditService } from "@/modules/audit";
 import { createExolveClient } from "@/modules/exolve/client";
-import { endExolve, isExolveActive, isExolveStopping, tryBeginExolve } from "@/modules/exolve/lease";
+import {
+  endExolve,
+  isExolveActive,
+  isExolveStopping,
+  tryBeginExolve,
+} from "@/modules/exolve/lease";
 import {
   appendExolveLog,
   beginExolveLog,
@@ -30,7 +35,12 @@ import {
   SyncLost,
 } from "@/modules/exolve/publish";
 import { EXOLVE_ORIGIN } from "@/modules/exolve/url";
-import { LOST, runExolveWalk, type ExolveProgress, type WalkBeat } from "@/modules/exolve/walk";
+import {
+  LOST,
+  runExolveWalk,
+  type ExolveProgress,
+  type WalkBeat,
+} from "@/modules/exolve/walk";
 import {
   isLockTimeout,
   isStatementTimeout,
@@ -441,7 +451,7 @@ export async function startExolveSync(
           if (!page.ok) return page;
           return { ok: true, directory: page.directory };
         },
-        free: (cell, offset) => client.free(cell, offset),
+        free: (cell, offset, mode) => client.free(cell, offset, mode),
         stagePurchased: (dids) => stagePurchasedNumbers(runId, dids, keep),
         dropPurchased: () => dropPurchasedStage(runId),
         stageFree: (rows) => stageFreeNumbers(runId, rows, keep),
@@ -511,7 +521,11 @@ export async function startExolveSync(
           entityType: "exolve",
           entityId: "exolve",
           ip: actor.ip,
-          meta: { source: "exolve", free: published.free, purchased: published.purchased },
+          meta: {
+            source: "exolve",
+            free: published.free,
+            purchased: published.purchased,
+          },
         })
         .catch(() => undefined);
     } catch (error) {
@@ -543,7 +557,9 @@ export async function startExolveSync(
   return { ok: true };
 }
 
-export async function cancelExolveSync(): Promise<{ ok: true } | { ok: false; error: string }> {
+export async function cancelExolveSync(): Promise<
+  { ok: true } | { ok: false; error: string }
+> {
   try {
     const rows = await prisma.$queryRaw<{ run_id: string }[]>`
       UPDATE exolve_sync_state

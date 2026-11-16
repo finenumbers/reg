@@ -43,7 +43,7 @@ describe("Exolve client", () => {
       region_id: 10230,
       category_id: 10000,
       random: false,
-      limit: 10,
+      limit: 500,
       offset: 0,
     });
   });

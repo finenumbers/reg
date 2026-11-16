@@ -1,7 +1,13 @@
-# Current Phase — production (v1.298.0)
+# Current Phase — production (v1.299.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, purchased numbers, numbering sync, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-16
+
+## v1.299.0 — MTS Exolve directory cells
+
+This release does not migrate and does not rewrite catalog rows or Exolve epoch counters. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before the new one starts, then start one new app. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged. SipOut, Runexis, UIS, and Aurora Telecom are unchanged.
+
+A reference list whose category belongs to a type that is not in `types`, or a type with no categories, no longer stops the load. DEF, ABC, and KDU are always read. A type with no categories uses the handbook category ids. KDU uses only region `10084`. When that region is absent, the other types are still read. Each free cell asks for 500 numbers. A shorter page is not the end. The cell ends on an empty page, and that empty page is repeated once after numbers were already received. The offset ceiling of one cell is 5000000. Above it the walk does not publish a short list. `random` stays `false` unless one Moscow probe is empty with that field and returns numbers without it. Those probe rows are not stored. The catalog still stores only the number, free «Покупка», and free «Абонплата». Purchased money stays empty. A failed read leaves the catalogs. The stage log has no key, no URL, no phone number, and no price.
 
 ## v1.298.0 — MTS Exolve empty page
 

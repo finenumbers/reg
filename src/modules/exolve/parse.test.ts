@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   DUPLICATE_NUMBER,
   DIRECTORY_INCOMPLETE,
-  KDU_WITHOUT_RUSSIA,
   NO_FREE_CELLS,
   NO_TOTAL,
   NUMBER_UNREAD,
@@ -36,9 +35,7 @@ describe("Exolve page parse", () => {
     expect(
       parsePurchased({ total: 1, numbers: [{ number_name: "7 930 065 59 34" }] }, 10).ok,
     ).toBe(false);
-    expect(
-      parseFree({ numbers: [{ number_code: Number.MAX_VALUE }] }, FREE_LIMIT).ok,
-    ).toBe(false);
+    expect(parseFree({ numbers: [{ number_code: Number.MAX_VALUE }] }).ok).toBe(false);
     const dup = parsePurchased(
       { total: 2, numbers: [{ number_name: NUMBER }, { number_name: NUMBER }] },
       PURCHASED_LIMIT,
@@ -54,13 +51,13 @@ describe("Exolve page parse", () => {
       ok: false,
       error: PAGE_TOO_LONG,
     });
-    const longFree = Array.from({ length: FREE_LIMIT + 1 }, () => ({
-      number_code: NUMBER,
+    const longFree = Array.from({ length: FREE_LIMIT + 1 }, (_, index) => ({
+      number_code: `79${String(index).padStart(9, "0")}`,
     }));
-    expect(parseFree({ numbers: longFree }, FREE_LIMIT)).toEqual({
-      ok: false,
-      error: PAGE_TOO_LONG,
-    });
+    const longPage = parseFree({ numbers: longFree });
+    expect(longPage.ok).toBe(true);
+    if (!longPage.ok) return;
+    expect(longPage.rows).toHaveLength(FREE_LIMIT + 1);
     expect(parsePurchased({ numbers: [] }, PURCHASED_LIMIT).ok).toBe(false);
     const noTotal = parsePurchased(
       { numbers: [{ number_name: NUMBER }] },
@@ -75,7 +72,7 @@ describe("Exolve page parse", () => {
   });
 
   it("treats an error body as a failure and an empty numbers array as an empty page", () => {
-    expect(parseFree({ error: "nope", numbers: [] }, FREE_LIMIT)).toEqual({
+    expect(parseFree({ error: "nope", numbers: [] })).toEqual({
       ok: false,
       error: "nope",
     });
@@ -106,7 +103,7 @@ describe("Exolve page parse", () => {
       ok: false,
       error: PLATFORM_REJECTED,
     });
-    expect(parseFree({ numbers: [] }, FREE_LIMIT)).toEqual({ ok: true, rows: [] });
+    expect(parseFree({ numbers: [] })).toEqual({ ok: true, rows: [] });
     expect(parsePurchased({ total: "0", numbers: [] }, PURCHASED_LIMIT)).toEqual({
       ok: true,
       total: 0,
@@ -145,9 +142,9 @@ describe("Exolve page parse", () => {
     const missingTotal = parsePurchased({ numbers: null }, PURCHASED_LIMIT);
     expect(missingTotal.ok).toBe(false);
     if (!missingTotal.ok) expect(missingTotal.error).toContain(NO_TOTAL);
-    expect(parseFree({}, FREE_LIMIT)).toEqual({ ok: true, rows: [] });
-    expect(parseFree({ numbers: null }, FREE_LIMIT)).toEqual({ ok: true, rows: [] });
-    expect(parseFree({ meta: 1 }, FREE_LIMIT).ok).toBe(false);
+    expect(parseFree({})).toEqual({ ok: true, rows: [] });
+    expect(parseFree({ numbers: null })).toEqual({ ok: true, rows: [] });
+    expect(parseFree({ meta: 1 }).ok).toBe(false);
     const missing = parsePurchased(
       { total: 1, numbers: [{ type_name: "DEF" }] },
       PURCHASED_LIMIT,
@@ -160,16 +157,13 @@ describe("Exolve page parse", () => {
   });
 
   it("keeps a decimal price and leaves a bad price empty", () => {
-    const page = parseFree(
-      {
-        numbers: [
-          { number_code: NUMBER, install_fee: 590, subscription_fee: "150.5" },
-          { number_code: "79300655935", install_fee: null, subscription_fee: -1 },
-          { number_code: "79300655936", install_fee: "1e2", subscription_fee: "12.5.1" },
-        ],
-      },
-      FREE_LIMIT,
-    );
+    const page = parseFree({
+      numbers: [
+        { number_code: NUMBER, install_fee: 590, subscription_fee: "150.5" },
+        { number_code: "79300655935", install_fee: null, subscription_fee: -1 },
+        { number_code: "79300655936", install_fee: "1e2", subscription_fee: "12.5.1" },
+      ],
+    });
     expect(page.ok).toBe(true);
     if (!page.ok) return;
     expect(page.rows.map((row) => [row.incomingPurchase, row.incomingPeriod])).toEqual([
@@ -193,7 +187,7 @@ describe("Exolve page parse", () => {
     expect(parsePurchasedTotal({ numbers: [] }).ok).toBe(false);
   });
 
-  it("joins categories onto types and rejects an incomplete directory", () => {
+  it("keeps a type's own categories and still reads the other handbook types", () => {
     const parsed = parseDirectory({
       types: [
         { type_id: 1106, type_name: "KDU" },
@@ -201,42 +195,81 @@ describe("Exolve page parse", () => {
       ],
       categories: [
         { category_id: 10000, type_id: 1104, type_name: "DEF" },
+        { category_id: 10000, type_id: 1104, type_name: "OTHER" },
         { category_id: 10002, type_id: 1106, type_name: "KDU" },
       ],
-      regions: [{ region_id: 10230, parent_region_id: 10084 }, { region_id: 10084 }],
+      regions: [
+        { region_id: 10230, parent_region_id: 10084 },
+        { region_id: 10230, parent_region_id: "bad" },
+        { region_id: 10084 },
+      ],
     });
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) return;
     expect(parsed.directory.types.map((type) => type.typeId)).toEqual([1104, 1106]);
+    expect(parsed.directory.types[0]?.categories).toEqual([{ categoryId: 10000 }]);
     expect(leafRegionIds(parsed.directory.regions)).toEqual([10230]);
     const cells = planFreeCells(parsed.directory);
     expect(cells.ok).toBe(true);
     if (!cells.ok) return;
-    expect(cells.cells).toEqual([
+    expect(cells.cells.filter((cell) => cell.typeId === 1104)).toEqual([
       { typeId: 1104, categoryId: 10000, regionId: 10084 },
       { typeId: 1104, categoryId: 10000, regionId: 10230 },
+    ]);
+    expect(cells.cells.filter((cell) => cell.typeId === 1106)).toEqual([
       { typeId: 1106, categoryId: 10002, regionId: 10084 },
+    ]);
+    expect(
+      cells.cells.filter((cell) => cell.typeId === 1105).map((cell) => cell.categoryId),
+    ).toEqual([
+      10001, 10001, 10011, 10011, 10021, 10021, 10031, 10031, 10041, 10041, 10051, 10051,
     ]);
   });
 
-  it("does not build free cells from an empty directory or KDU without Russia", () => {
-    const empty = parseDirectory({ types: [], categories: [], regions: [] });
-    expect(empty.ok).toBe(true);
-    if (!empty.ok) return;
-    expect(planFreeCells(empty.directory)).toEqual({ ok: false, error: NO_FREE_CELLS });
-
-    const kdu = parseDirectory({
-      types: [{ type_id: 1106, type_name: "KDU" }],
-      categories: [{ category_id: 10002, type_id: 1106 }],
-      regions: [{ region_id: 10230 }],
+  it("accepts the handbook directory and skips KDU when Russia is absent", () => {
+    const parsed = parseDirectory({
+      regions: [
+        {
+          project_id: 10008,
+          region_id: 10257,
+          parent_region_id: 10084,
+          region_code: "SLH",
+          region_name: "Salekhard",
+          description: "Салехард",
+        },
+      ],
+      types: [{ type_id: 1104, type_name: "DEF" }],
+      categories: [
+        { category_id: 10003, type_id: 1107, type_name: "CEN", category_name: "REGULAR" },
+      ],
     });
-    expect(kdu.ok).toBe(true);
-    if (!kdu.ok) return;
-    expect(planFreeCells(kdu.directory)).toEqual({
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    const def = parsed.directory.types.find((type) => type.typeId === 1104);
+    expect(def?.categories).toEqual([]);
+    expect(parsed.directory.types.some((type) => type.typeId === 1107)).toBe(true);
+    const cells = planFreeCells(parsed.directory);
+    expect(cells.ok).toBe(true);
+    if (!cells.ok) return;
+    expect(
+      cells.cells.filter((cell) => cell.typeId === 1104).map((cell) => cell.categoryId),
+    ).toEqual([10000, 10010, 10020, 10030, 10040, 10050]);
+    expect(cells.cells.filter((cell) => cell.typeId === 1107)).toEqual([
+      { typeId: 1107, categoryId: 10003, regionId: 10257 },
+    ]);
+    expect(cells.cells.some((cell) => cell.typeId === 1106)).toBe(false);
+    expect(cells.cells.every((cell) => cell.regionId === 10257)).toBe(true);
+  });
+
+  it("does not build free cells without regions", () => {
+    expect(parseDirectory({ types: [], categories: [], regions: [] })).toEqual({
       ok: false,
-      error: KDU_WITHOUT_RUSSIA,
+      error: DIRECTORY_INCOMPLETE,
     });
-
+    expect(planFreeCells({ types: [], regions: [] })).toEqual({
+      ok: false,
+      error: NO_FREE_CELLS,
+    });
     expect(
       parseDirectory({
         types: [{ type_id: 1104, type_name: "DEF" }],

@@ -15,7 +15,6 @@ import {
   type ExolveFreeRow,
 } from "@/modules/exolve/parse";
 import {
-  FREE_LIMIT,
   PURCHASED_LIMIT,
   directoryUrl,
   freeBody,
@@ -23,6 +22,7 @@ import {
   purchasedBody,
   purchasedUrl,
   type FreeCell,
+  type FreeRandomMode,
   type PurchasedFilter,
 } from "@/modules/exolve/url";
 
@@ -53,8 +53,7 @@ type Attempt =
     };
 
 type CallResult<T> =
-  | ({ ok: true; meta: ExolveMeta } & T)
-  | { ok: false; error: string; meta: ExolveMeta };
+  ({ ok: true; meta: ExolveMeta } & T) | { ok: false; error: string; meta: ExolveMeta };
 
 function keyOk(key: string): boolean {
   return key.length > 0 && key.length <= 4096 && !/[\r\n]/.test(key);
@@ -196,7 +195,12 @@ async function request(
       };
     }
     try {
-      return { ok: true, data: JSON.parse(text) as unknown, status: response.status, durationMs };
+      return {
+        ok: true,
+        data: JSON.parse(text) as unknown,
+        status: response.status,
+        durationMs,
+      };
     } catch {
       return {
         ok: false,
@@ -217,7 +221,12 @@ async function request(
   }
 }
 
-function failed(error: string, status: number, attempts: number, durationMs: number): {
+function failed(
+  error: string,
+  status: number,
+  attempts: number,
+  durationMs: number,
+): {
   ok: false;
   error: string;
   meta: ExolveMeta;
@@ -249,7 +258,7 @@ async function finish<T>(
   action: string,
   detail: string,
   posted: { attempt: Attempt; attempts: number; durationMs: number },
-  parse: (data: unknown) => { ok: true } & T | { ok: false; error: string },
+  parse: (data: unknown) => ({ ok: true } & T) | { ok: false; error: string },
 ): Promise<CallResult<T>> {
   const { attempt, attempts, durationMs } = posted;
   await deps?.note?.(
@@ -279,7 +288,7 @@ export function createExolveClient(key: string, deps?: ExolveDeps) {
     detail: string,
     url: string,
     body: string | null,
-    parse: (data: unknown) => { ok: true } & T | { ok: false; error: string },
+    parse: (data: unknown) => ({ ok: true } & T) | { ok: false; error: string },
   ): Promise<CallResult<T>> {
     if (!keyOk(key) || body == null) {
       return failed("Недопустимый запрос.", 0, 1, 0);
@@ -291,8 +300,12 @@ export function createExolveClient(key: string, deps?: ExolveDeps) {
   return {
     purchased(filter: PurchasedFilter, offset: number) {
       const body = purchasedBody(filter, offset);
-      return send("purchased", `offset=${offset}`, purchasedUrl(), body && JSON.stringify(body), (data) =>
-        parsePurchased(data, PURCHASED_LIMIT),
+      return send(
+        "purchased",
+        `offset=${offset}`,
+        purchasedUrl(),
+        body && JSON.stringify(body),
+        (data) => parsePurchased(data, PURCHASED_LIMIT),
       );
     },
     recount() {
@@ -312,14 +325,14 @@ export function createExolveClient(key: string, deps?: ExolveDeps) {
         return { ok: true as const, directory: parsed.directory };
       });
     },
-    free(cell: FreeCell, offset: number) {
-      const body = freeBody(cell, offset);
+    free(cell: FreeCell, offset: number, randomMode: FreeRandomMode = "false") {
+      const body = freeBody(cell, offset, randomMode);
       return send(
         "free",
         `type=${cell.typeId} region=${cell.regionId} category=${cell.categoryId} offset=${offset}`,
         freeUrl(),
         body && JSON.stringify(body),
-        (data) => parseFree(data, FREE_LIMIT),
+        parseFree,
       );
     },
   };
