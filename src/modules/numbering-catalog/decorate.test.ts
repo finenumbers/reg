@@ -4,6 +4,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { describe, expect, it } from "vitest";
 import {
   AURORA_EPOCH_SQL,
+  EXOLVE_EPOCH_SQL,
   SIPOUT_EPOCH_SQL,
   UIS_EPOCH_SQL,
   RUNEXIS_EPOCH_SQL,
@@ -97,6 +98,7 @@ describe("catalog decorate", () => {
     expect(scoped).toContain("provider = 'SipOut'");
     expect(flattenSql(providerLiteral("Runexis"))).toBe("'Runexis'");
     expect(flattenSql(providerLiteral("Aurora Telecom"))).toBe("'Aurora Telecom'");
+    expect(flattenSql(providerLiteral("MTS Exolve"))).toBe("'MTS Exolve'");
     expect(() => providerLiteral("mcn")).toThrow(/источник/);
 
     const purchased = flattenSql(purchasedFullBatchSql("", "UIS"));
@@ -113,6 +115,9 @@ describe("catalog decorate", () => {
     const auroraDone = flattenSql(markDecorateDoneSql("Aurora Telecom", 2));
     expect(auroraDone).toContain("aurora_done");
     expect(auroraDone).toContain("aurora_epoch");
+    const exolveDone = flattenSql(markDecorateDoneSql("MTS Exolve", 3));
+    expect(exolveDone).toContain("exolve_done");
+    expect(exolveDone).toContain("exolve_epoch");
     const done = flattenSql(markDecorateDoneSql("SipOut", 4));
     expect(done).toContain("sipout_done");
     expect(done).toContain("sipout_epoch");
@@ -126,6 +131,7 @@ describe("catalog decorate", () => {
       ["src/modules/runexis/publish.ts", "RUNEXIS_EPOCH_SQL", RUNEXIS_EPOCH_SQL],
       ["src/modules/uis/publish.ts", "UIS_EPOCH_SQL", UIS_EPOCH_SQL],
       ["src/modules/aurora/publish.ts", "AURORA_EPOCH_SQL", AURORA_EPOCH_SQL],
+      ["src/modules/exolve/publish.ts", "EXOLVE_EPOCH_SQL", EXOLVE_EPOCH_SQL],
     ] as const;
     for (const [file, symbol, sql] of files) {
       const text = readFileSync(path.join(process.cwd(), file), "utf8");

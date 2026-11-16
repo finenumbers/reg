@@ -23,9 +23,10 @@ const STAGE_TABLES = new Set([
   "runexis_sync_stage",
   "uis_sync_stage",
   "aurora_sync_stage",
+  "exolve_sync_stage",
 ]);
 
-const PROVIDERS = ["SipOut", "Runexis", "UIS", "Aurora Telecom"] as const;
+const PROVIDERS = ["SipOut", "Runexis", "UIS", "Aurora Telecom", "MTS Exolve"] as const;
 export type CatalogProvider = (typeof PROVIDERS)[number];
 export type DecorateScope = "full" | "client";
 
@@ -37,6 +38,8 @@ export const UIS_EPOCH_SQL =
   "UPDATE numbering_catalog_state SET uis_epoch = uis_epoch + 1 WHERE id = 1";
 export const AURORA_EPOCH_SQL =
   "UPDATE numbering_catalog_state SET aurora_epoch = aurora_epoch + 1 WHERE id = 1";
+export const EXOLVE_EPOCH_SQL =
+  "UPDATE numbering_catalog_state SET exolve_epoch = exolve_epoch + 1 WHERE id = 1";
 
 type EpochRow = {
   sipout_epoch: number;
@@ -47,6 +50,8 @@ type EpochRow = {
   uis_done: number;
   aurora_epoch: number;
   aurora_done: number;
+  exolve_epoch: number;
+  exolve_done: number;
   decorate_generation: number;
 };
 
@@ -56,7 +61,13 @@ function asCount(value: unknown): number {
 }
 
 function isProvider(value: string): value is CatalogProvider {
-  return value === "SipOut" || value === "Runexis" || value === "UIS" || value === "Aurora Telecom";
+  return (
+    value === "SipOut" ||
+    value === "Runexis" ||
+    value === "UIS" ||
+    value === "Aurora Telecom" ||
+    value === "MTS Exolve"
+  );
 }
 
 /** SQL literal for one numbering source. Anything else is rejected. */
@@ -70,6 +81,8 @@ export function providerLiteral(provider: string): Prisma.Sql {
       return Prisma.sql`'UIS'`;
     case "Aurora Telecom":
       return Prisma.sql`'Aurora Telecom'`;
+    case "MTS Exolve":
+      return Prisma.sql`'MTS Exolve'`;
     default:
       throw new Error("Некорректный источник.");
   }
@@ -85,6 +98,8 @@ function epochNames(provider: CatalogProvider): { epoch: string; done: string } 
       return { epoch: "uis_epoch", done: "uis_done" };
     case "Aurora Telecom":
       return { epoch: "aurora_epoch", done: "aurora_done" };
+    case "MTS Exolve":
+      return { epoch: "exolve_epoch", done: "exolve_done" };
   }
 }
 
@@ -111,6 +126,8 @@ function pair(row: EpochRow, provider: CatalogProvider): { epoch: number; done: 
       return { epoch: row.uis_epoch, done: row.uis_done };
     case "Aurora Telecom":
       return { epoch: row.aurora_epoch, done: row.aurora_done };
+    case "MTS Exolve":
+      return { epoch: row.exolve_epoch, done: row.exolve_done };
   }
 }
 
@@ -427,6 +444,8 @@ async function readEpochs(): Promise<EpochRow | null> {
       uis_done,
       aurora_epoch,
       aurora_done,
+      exolve_epoch,
+      exolve_done,
       decorate_generation
     FROM numbering_catalog_state
     WHERE id = 1
@@ -442,6 +461,8 @@ async function readEpochs(): Promise<EpochRow | null> {
     uis_done: asCount(row.uis_done),
     aurora_epoch: asCount(row.aurora_epoch),
     aurora_done: asCount(row.aurora_done),
+    exolve_epoch: asCount(row.exolve_epoch),
+    exolve_done: asCount(row.exolve_done),
     decorate_generation: asCount(row.decorate_generation),
   };
 }

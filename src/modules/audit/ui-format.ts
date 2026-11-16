@@ -92,6 +92,9 @@ const ACTION_LABELS: Record<string, string> = {
   "aurora.settings_save": "Сохранение файлов Aurora Telecom",
   "aurora.test": "Проверка файлов Aurora Telecom",
   "aurora.sync": "Загрузка номеров Aurora Telecom",
+  "exolve.settings_save": "Сохранение доступа MTS Exolve",
+  "exolve.test": "Проверка доступа MTS Exolve",
+  "exolve.sync": "Загрузка номеров MTS Exolve",
 };
 
 export function formatAuditTimestamp(

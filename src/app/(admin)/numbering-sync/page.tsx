@@ -7,16 +7,19 @@ import { getUisSyncView } from "@/modules/uis/service";
 import { UisSyncForm } from "@/modules/uis/ui/uis-sync-form";
 import { getAuroraSyncView } from "@/modules/aurora/service";
 import { AuroraSyncForm } from "@/modules/aurora/ui/aurora-sync-form";
+import { getExolveSyncView } from "@/modules/exolve/service";
+import { ExolveSyncForm } from "@/modules/exolve/ui/exolve-sync-form";
 
 export const dynamic = "force-dynamic";
 
 export default async function NumberingSyncPage() {
   await requirePagePermission("settings:write");
-  const [initial, runexis, uis, aurora] = await Promise.all([
+  const [initial, runexis, uis, aurora, exolve] = await Promise.all([
     getNumberingSyncView(),
     getRunexisSyncView(),
     getUisSyncView(),
     getAuroraSyncView(),
+    getExolveSyncView(),
   ]);
   return (
     <div className="h-full space-y-6 overflow-y-auto">
@@ -32,6 +35,7 @@ export default async function NumberingSyncPage() {
       <RunexisSyncForm initial={runexis} />
       <UisSyncForm initial={uis} />
       <AuroraSyncForm initial={aurora} />
+      <ExolveSyncForm initial={exolve} />
     </div>
   );
 }

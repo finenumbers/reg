@@ -1,7 +1,13 @@
-# Current Phase — production (v1.296.0)
+# Current Phase — production (v1.297.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, purchased numbers, numbering sync, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-16
+
+## v1.297.0 — MTS Exolve numbers
+
+The migration `20261116080000_exolve_source` adds `exolveApiKeyCiphertext` and empty `exolve_sync_state` and `exolve_sync_stage` tables, plus `exolve_epoch` and `exolve_done` on `numbering_catalog_state`. The counters start at 0, so this deploy does not fill masks again. It does not rewrite catalog rows and does not scan the CDR journal. The migration is label-free. `lock_timeout` is 15 seconds. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app, let migrate finish, then start one new app. If migrate stops on `lock_timeout`, do not start the new app. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged. SipOut, Runexis, UIS, and Aurora Telecom are unchanged.
+
+«Загрузка нумерации» stores the MTS Exolve key. Saving the key does not call the platform. «Проверить доступ» reads one purchased page, the directory, and the first free cell, and does not publish. «Загрузить» reads every purchased number, then every free cell from that directory. A successful write replaces the MTS Exolve rows in both catalogs, including a shorter or empty list. A failed read, a cancel, or a directory with no cells leaves the catalogs. Free «Покупка» is `install_fee` and «Абонплата» is `subscription_fee`. Purchased money stays empty. The key stays ciphertext. The stage log has no key, no URL, no phone number, and no price. An API key cannot start the stage.
 
 ## v1.296.0 — Aurora Telecom CSV encoding
 

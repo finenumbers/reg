@@ -7,16 +7,19 @@ import { getUisAccessView } from "@/modules/uis/service";
 import { UisLoadForm } from "@/modules/uis/ui/uis-load-form";
 import { getAuroraLoadView } from "@/modules/aurora/service";
 import { AuroraLoadForm } from "@/modules/aurora/ui/aurora-load-form";
+import { getExolveAccessView } from "@/modules/exolve/service";
+import { ExolveLoadForm } from "@/modules/exolve/ui/exolve-load-form";
 
 export const dynamic = "force-dynamic";
 
 export default async function NumberingLoadPage() {
   await requirePagePermission("settings:write");
-  const [initial, runexis, uis, aurora] = await Promise.all([
+  const [initial, runexis, uis, aurora, exolve] = await Promise.all([
     getNumberingLoadView(),
     getRunexisAccessView(),
     getUisAccessView(),
     getAuroraLoadView(),
+    getExolveAccessView(),
   ]);
   return (
     <div className="h-full space-y-6 overflow-y-auto">
@@ -33,6 +36,7 @@ export default async function NumberingLoadPage() {
       <RunexisLoadForm initial={runexis} />
       <UisLoadForm initial={uis} />
       <AuroraLoadForm initial={aurora} />
+      <ExolveLoadForm initial={exolve} />
     </div>
   );
 }

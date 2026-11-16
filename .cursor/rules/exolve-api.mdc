@@ -1,0 +1,24 @@
+---
+description: MTS Exolve Numbering API reads purchased and free numbers
+alwaysApply: true
+---
+
+# MTS Exolve numbers
+
+The handbook is the live page `https://docs.exolve.ru/docs/ru/api-reference/numbering-api/` and its child pages for the reference, free numbers, and purchased numbers. Read it again before any MTS Exolve change. It can change. Do not invent methods, paths, or fields. Do not commit a copy of that page or of the Postman collection.
+
+The host is the literal `https://api.exolve.ru`. HTTPS only. Do not follow redirects. Do not trust a custom certificate. Timeout 30s. Body cap 20 MB. `Content-Type` is `application/json`. POST is the transport. It is not a mutation. `Authorization: Bearer` is sent only to that host.
+
+This release may send only:
+
+- `POST /number/customer/v1/GetList` for purchased numbers. The unfiltered body is exactly `{limit, offset}`. `limit` is 1000. A layer may add `type_name`, then `category_id`, then `region_id`. No `application_uuid`, dates, search, or `sip_filter`.
+- `POST /number/reference/v1/GetList` with body `{}`.
+- `POST /number/v1/GetFree` for one directory cell. The body is `type_id`, `region_id`, `category_id`, `random: false`, `limit` 10, and `offset`. No mask.
+
+Do not call Lock, Unlock, Buy, Delete, GetInfo, SetCallForwarding, DeleteCallForwarding, GetAttributes, SetAmdState, SetCallRecordState, or any other method. The method and the path are literals in the client. Do not accept a path, a field, or a filter from a caller, a flag, or a saved catalog.
+
+Purchased completeness is `accepted === total`. The next offset grows by the rows received. An empty page before that total is a gap and starts the layered re-read. Child totals must sum to the parent. A purchased duplicate fails the walk. After the purchased read, one unfiltered recount compares `total` only. Free cells come from the directory: every type, its categories, and every region. KDU uses only region `10084`. A free cell ends when `numbers.length < 10`. The next free offset must not pass 1000000. A missing `numbers` array or a root `error` fails the page. The same number in a later free cell keeps the first price. The same number in both drafts stays purchased.
+
+A number is the digit string the tariff split already accepts. Do not convert 8 to 7. Free `install_fee` is «Покупка» and `subscription_fee` is «Абонплата». A null, negative, non-decimal, or scientific price leaves that cell empty. Purchased money columns stay empty. City, region, ABC, and the local number come from the tariff fragment. The provider literal is `MTS Exolve`.
+
+Transport, timeout, an empty body, non-JSON, and HTTP 5xx retry once. HTTP 4xx and a body over 20 MB do not. The key stays ciphertext. Do not log the key, the header, the body, the URL, a phone number, or a price. An API key cannot call these routes. The stage log is `data/numbering-sync/exolve.txt`.

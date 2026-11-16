@@ -144,6 +144,18 @@ export async function register() {
     }
 
     try {
+      const { armNumberingSyncStop } = await import("@/modules/numbering-sync/lease");
+      const { reclaimExolveLease } = await import("@/modules/exolve/reclaim");
+      armNumberingSyncStop();
+      await reclaimExolveLease();
+      logger.info("exolve.sync.reclaim");
+    } catch (error) {
+      logger.error("exolve.sync.reclaim.failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    try {
       const { releaseFalselyParkedMisses } =
         await import("@/modules/voipmonitor/release-parked");
       const released = await releaseFalselyParkedMisses();
