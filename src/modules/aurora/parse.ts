@@ -21,7 +21,14 @@ export type ParsedAurora =
   | { ok: false; error: string };
 
 const SHORT_HEADER = ["Column 1", "Column 2", "Column 3", "Column 4", "Column 5"];
-const FULL_HEADER = ["Column 1", "Column 2", "Column 3", "Column 4", "Column 5", "Column 6"];
+const FULL_HEADER = [
+  "Column 1",
+  "Column 2",
+  "Column 3",
+  "Column 4",
+  "Column 5",
+  "Column 6",
+];
 const NUMBER = /^7\d{10}$/;
 const PRICE = /^(\d+) Руб\.$/;
 const CONTRACT = "ДОГОВОРНАЯ";
@@ -44,12 +51,23 @@ function fail(name: string, detail: string): { ok: false; error: string } {
   return { ok: false, error: `Файл ${name}: ${detail}` };
 }
 
-function rowFail(name: string, row: number, detail: string): { ok: false; error: string } {
+function rowFail(
+  name: string,
+  row: number,
+  detail: string,
+): { ok: false; error: string } {
   return { ok: false, error: `Файл ${name}, строка ${row}: ${detail}` };
 }
 
+type Delimiter = "," | ";";
+
 /** Quoted comma-separated records. A field may contain a line break. */
 export function parseCommaCsv(text: string): string[][] | null {
+  return parseDelimited(text, ",");
+}
+
+/** Quoted records. A field may contain a line break. The delimiter is a comma or a semicolon. */
+function parseDelimited(text: string, delimiter: Delimiter): string[][] | null {
   const rows: string[][] = [];
   let row: string[] = [];
   let field = "";
@@ -73,7 +91,7 @@ export function parseCommaCsv(text: string): string[][] | null {
       quoted = true;
       continue;
     }
-    if (ch === ",") {
+    if (ch === delimiter) {
       row.push(field);
       field = "";
       continue;
@@ -121,15 +139,38 @@ function purchaseText(cell: string): string | null {
   return match ? match[1]! : null;
 }
 
-function rowsOf(name: string, text: string, format: AuroraFormat): ParsedAurora {
-  const table = parseCommaCsv(text.replace(/^\uFEFF/, ""));
-  if (!table) return fail(name, "файл не разобран.");
+function firstWidth(table: string[][] | null): number | null {
+  const row = table?.find((record) => !blank(record));
+  return row ? row.length : null;
+}
+
+function tableFor(
+  text: string,
+  format: AuroraFormat,
+): { table: string[][]; header: boolean } | null {
+  const comma = parseDelimited(text, ",");
+  const semi = parseDelimited(text, ";");
   const expected = headerOf(format);
-  const header = table[0];
-  if (!header || !sameHeader(header, expected)) return fail(name, "формат не совпал.");
+  const commaHeader = Boolean(comma?.[0] && sameHeader(comma[0], expected));
+  const semiHeader = Boolean(semi?.[0] && sameHeader(semi[0], expected));
+  if (commaHeader && comma) return { table: comma, header: true };
+  if (semiHeader && semi) return { table: semi, header: true };
+  const want = expected.length;
+  const commaFit = firstWidth(comma) === want;
+  const semiFit = firstWidth(semi) === want;
+  if (commaFit && !semiFit && comma) return { table: comma, header: false };
+  if (semiFit && !commaFit && semi) return { table: semi, header: false };
+  return null;
+}
+
+function rowsOf(name: string, text: string, format: AuroraFormat): ParsedAurora {
+  const chosen = tableFor(text.replace(/^\uFEFF/, ""), format);
+  if (!chosen) return fail(name, "формат не совпал.");
+  const { table, header } = chosen;
+  const expected = headerOf(format);
   const rows: AuroraRow[] = [];
   const priceAt = format === "short" ? 2 : 3;
-  for (let index = 1; index < table.length; index += 1) {
+  for (let index = header ? 1 : 0; index < table.length; index += 1) {
     const record = table[index] ?? [];
     if (blank(record)) continue;
     const line = index + 1;
@@ -168,14 +209,21 @@ export function combineAuroraFiles(files: readonly AuroraFileText[]): ParsedAuro
   return { ok: true, rows, read, dropped };
 }
 
+function utf16(bytes: Uint8Array): boolean {
+  if (bytes.length < 2) return false;
+  const first = bytes[0];
+  const second = bytes[1];
+  return (first === 0xff && second === 0xfe) || (first === 0xfe && second === 0xff);
+}
+
 export function decodeAuroraCsv(
   name: string,
   bytes: Uint8Array,
 ): { ok: true; text: string } | { ok: false; error: string } {
+  if (utf16(bytes)) return fail(name, "кодировка не UTF-8.");
   try {
-    const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
-    return { ok: true, text };
+    return { ok: true, text: new TextDecoder("utf-8", { fatal: true }).decode(bytes) };
   } catch {
-    return fail(name, "кодировка не UTF-8.");
+    return { ok: true, text: new TextDecoder("windows-1251").decode(bytes) };
   }
 }

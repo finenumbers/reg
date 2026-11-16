@@ -1,7 +1,13 @@
-# Current Phase — production (v1.295.0)
+# Current Phase — production (v1.296.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, purchased numbers, numbering sync, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-16
+
+## v1.296.0 — Aurora Telecom CSV encoding
+
+This release does not migrate and does not rewrite catalog rows or Aurora epoch counters. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before the new one starts, then start one new app. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged. SipOut, Runexis, and UIS are unchanged.
+
+An Aurora Telecom file may be UTF-8 or windows-1251. Fields may be separated by a comma or a semicolon. A `Column 1` header is skipped. A file without that header is data. The operator still chooses «Сокращённый» or «Полный». The billing export is the full layout: six columns, the number in the first, «Покупка» in the fourth, and `СВОБОДЕН` in the second. A UTF-16 file, a row that does not match the chosen layout, or an empty set does not publish. Already saved links stay.
 
 ## v1.295.0 — Aurora Telecom http links
 
