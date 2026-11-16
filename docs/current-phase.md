@@ -1,7 +1,13 @@
-# Current Phase — production (v1.305.0)
+# Current Phase — production (v1.306.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, purchased numbers, numbering sync, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-16
+
+## v1.306.0 — Runexis flat showcase code
+
+This release does not migrate and does not rewrite catalog rows or epoch counters. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before the new one starts, then start one new app. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged. SipOut, UIS, Aurora Telecom, MTS Exolve, Voximplant, and MCN Telecom are unchanged.
+
+Runexis «Загрузить» still reads the partner list first, then the code directory, then the showcase one three-digit code at a time. The code is sent as `region_codes[0]`. `city_ids` is not sent. A showcase number that does not start with `7` and that code fails the page and publishes nothing. A walk that stages no free number does not publish either catalog. The unfiltered showcase is not called. «Проверить доступ» is on «Загрузка нумерации». It reads the first partner page, the code directory, and one showcase page of the first code, and applies the same code check. It does not write catalogs or the stage log. Run «Проверить доступ» before «Загрузить». A check that returns in a moment can be followed by «Загрузить». A check that waits about a minute and then says the platform did not answer means the flat code still does not narrow the list: do not start «Загрузить». A failed page still leaves both catalogs. A JSON `message` from an HTTP 400 or an HTTP 500 may be shown, at most 200 characters, and is dropped when it contains a URL or a secret word. HTTP 400 is one attempt. The stage log has no password, token, or URL. The red line on the sync card changes only when the next «Загрузить» finishes.
 
 ## v1.305.0 — MCN Telecom free page
 

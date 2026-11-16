@@ -99,9 +99,11 @@ describe("runexis client", () => {
     expect([...url.searchParams.keys()].sort()).toEqual([
       "limit",
       "page",
-      "region_codes[0][0]",
+      "region_codes[0]",
     ]);
-    expect(url.searchParams.get("region_codes[0][0]")).toBe("901");
+    expect(url.searchParams.get("region_codes[0]")).toBe("901");
+    expect(url.searchParams.has("region_codes[0][0]")).toBe(false);
+    expect(url.searchParams.has("region_codes[]")).toBe(false);
     expect(url.searchParams.has("city_ids[]")).toBe(false);
     expect(url.searchParams.has("city_ids[0]")).toBe(false);
     expect(url.searchParams.has("class_id")).toBe(false);
@@ -204,9 +206,9 @@ describe("runexis client", () => {
     expect(session).toEqual({ token: "new", refreshToken: "next" });
     expect(beats).toEqual([1, 1]);
     expect(calls.map((call) => call.method)).toEqual(["GET", "POST", "GET"]);
-    expect(calls[0]?.href).toContain("region_codes%5B0%5D%5B0%5D=495");
-    expect(calls[0]?.href).not.toContain("region_codes%5B0%5D=495");
-    expect(calls[0]?.href).not.toContain("region_codes%5B0%5D%5B%5D");
+    expect(calls[0]?.href).toContain("region_codes%5B0%5D=495");
+    expect(calls[0]?.href).not.toContain("region_codes%5B0%5D%5B0%5D");
+    expect(calls[0]?.href).not.toContain("region_codes%5B%5D");
     expect(calls[0]?.href).not.toContain("city_ids");
     expect(calls[2]?.href).toBe(calls[0]?.href);
     expect(calls[0]?.href).not.toContain("class_id");
@@ -224,6 +226,94 @@ describe("runexis client", () => {
     expect(forbidden.ok).toBe(false);
     expect(calls).toHaveLength(1);
     expect(calls[0]?.method).toBe("GET");
+  });
+
+  it("keeps a short platform message from one 400 and does not retry", async () => {
+    const fetchImpl = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            code: 400,
+            message: "  The region codes.0 field must be a string.  ",
+            request_id: "abc",
+            exception: "hidden",
+            errors: { "region_codes.0": ["nope"] },
+          }),
+          { status: 400 },
+        ),
+    );
+    const page = await runexisShowcaseSlice(
+      { token: "tok", refreshToken: "" },
+      1,
+      { code: "495", cityId: 58 },
+      { fetchImpl },
+    );
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(page.ok).toBe(false);
+    if (!page.ok) {
+      expect(page.meta).toMatchObject({ status: 400, attempts: 1 });
+      expect(page.error).toContain(
+        "Площадка отклонила запрос. The region codes.0 field must be a string.",
+      );
+      expect(page.error).toContain("HTTP 400");
+      expect(page.error).toContain("попыток 1");
+      expect(page.error).not.toContain("request_id");
+      expect(page.error).not.toContain("abc");
+      expect(page.error).not.toContain("hidden");
+      expect(page.error).not.toContain("nope");
+    }
+    expect(JSON.stringify(info.mock.calls)).not.toContain("must be a string");
+    expect(JSON.stringify(info.mock.calls)).not.toContain("request_id");
+
+    const secretFetch = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ message: "bad token in https://host" }), {
+          status: 400,
+        }),
+    );
+    const secret = await runexisShowcaseSlice(
+      { token: "tok", refreshToken: "" },
+      1,
+      CODE,
+      {
+        fetchImpl: secretFetch,
+      },
+    );
+    expect(secretFetch).toHaveBeenCalledTimes(1);
+    expect(secret.ok).toBe(false);
+    if (!secret.ok) {
+      expect(secret.meta.attempts).toBe(1);
+      expect(secret.error).toBe(
+        `Площадка отклонила запрос. HTTP ${secret.meta.status}, попыток ${secret.meta.attempts}, ${secret.meta.durationMs} мс.`,
+      );
+      expect(secret.error).not.toContain("token");
+      expect(secret.error).not.toContain("https");
+    }
+
+    const broken = vi.fn(async () => {
+      const body = new ReadableStream({
+        pull() {
+          throw new Error("https://didapi.runexis.ru/secret");
+        },
+      });
+      return new Response(body, { status: 400 });
+    });
+    const brokenPage = await runexisShowcaseSlice(
+      { token: "tok", refreshToken: "" },
+      1,
+      CODE,
+      { fetchImpl: broken },
+    );
+    expect(broken).toHaveBeenCalledTimes(1);
+    expect(brokenPage.ok).toBe(false);
+    if (!brokenPage.ok) {
+      expect(brokenPage.meta).toMatchObject({ status: 400, attempts: 1 });
+      expect(brokenPage.error).toContain("Площадка отклонила запрос.");
+      expect(brokenPage.error).toContain("HTTP 400");
+      expect(brokenPage.error).not.toContain("не ответила");
+      expect(brokenPage.error).not.toContain("didapi");
+      expect(brokenPage.error).not.toContain("://");
+    }
   });
 
   it("keeps a short platform message from the last 500", async () => {

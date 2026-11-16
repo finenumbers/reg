@@ -46,7 +46,7 @@ function flattenSql(sql: Prisma.Sql): string {
 }
 
 describe("runexis showcase", () => {
-  it("asks for one nested code and does not send the city", () => {
+  it("asks for one flat code and does not send the city", () => {
     expect(loginUrl()).toBe("https://didapi.runexis.ru/api/v1/login");
     expect(codesUrl()).toBe("https://didapi.runexis.ru/api/v1/regions/codes");
     expect(showcaseSliceUrl(0, { code: "901", cityId: null })).toBeNull();
@@ -58,11 +58,13 @@ describe("runexis showcase", () => {
     expect([...def.searchParams.keys()].sort()).toEqual([
       "limit",
       "page",
-      "region_codes[0][0]",
+      "region_codes[0]",
     ]);
     expect(def.searchParams.get("page")).toBe("2");
     expect(def.searchParams.get("limit")).toBe("30");
-    expect(def.searchParams.get("region_codes[0][0]")).toBe("901");
+    expect(def.searchParams.get("region_codes[0]")).toBe("901");
+    expect(def.searchParams.has("region_codes[0][0]")).toBe(false);
+    expect(def.searchParams.has("region_codes[]")).toBe(false);
     expect(def.searchParams.has("city_ids[]")).toBe(false);
     expect(def.searchParams.has("city_ids[0]")).toBe(false);
     expect(def.searchParams.has("class_id")).toBe(false);
@@ -72,9 +74,11 @@ describe("runexis showcase", () => {
     expect([...abc.searchParams.keys()].sort()).toEqual([
       "limit",
       "page",
-      "region_codes[0][0]",
+      "region_codes[0]",
     ]);
-    expect(abc.searchParams.get("region_codes[0][0]")).toBe("495");
+    expect(abc.searchParams.get("region_codes[0]")).toBe("495");
+    expect(abc.searchParams.has("region_codes[0][0]")).toBe(false);
+    expect(abc.searchParams.has("region_codes[]")).toBe(false);
     expect(abc.searchParams.has("city_ids[]")).toBe(false);
     expect(abc.searchParams.has("city_ids[0]")).toBe(false);
     expect(rejectForeignCode([{ e164: "79010000001" }], "901")).toBeNull();

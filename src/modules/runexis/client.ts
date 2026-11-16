@@ -70,10 +70,17 @@ async function readCapped(response: Response): Promise<string | null> {
   return new TextDecoder().decode(bytes);
 }
 
-function rejected(status: number, durationMs: number, retryable: boolean): Attempt {
+function rejected(
+  status: number,
+  durationMs: number,
+  retryable: boolean,
+  note?: string | null,
+): Attempt {
+  const base =
+    status === 401 ? "Площадка отклонила доступ." : "Площадка отклонила запрос.";
   return {
     ok: false,
-    error: status === 401 ? "Площадка отклонила доступ." : "Площадка отклонила запрос.",
+    error: note ? `${base} ${note}` : base,
     retryable,
     status,
     durationMs,
@@ -93,6 +100,16 @@ function platformNote(text: string): string | null {
   const flat = message.replace(/\s+/g, " ").trim();
   if (!flat || /:\/\/|bearer|password|token|key=/i.test(flat)) return null;
   return flat.slice(0, 200);
+}
+
+/** A read failure stays a single rejection. It must not fall through to the retry. */
+async function clientNote(response: Response): Promise<string | null> {
+  try {
+    const text = await readCapped(response);
+    return text ? platformNote(text) : null;
+  } catch {
+    return null;
+  }
 }
 
 function unanswered(status: number, durationMs: number, note?: string | null): Attempt {
@@ -131,6 +148,9 @@ async function request(
     if (response.status >= 500) {
       const text = await readCapped(response);
       return unanswered(response.status, durationMs, text ? platformNote(text) : null);
+    }
+    if (response.status === 400) {
+      return rejected(response.status, durationMs, false, await clientNote(response));
     }
     if (response.status !== 200) {
       await response.body?.cancel();
