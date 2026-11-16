@@ -89,6 +89,9 @@ const ACTION_LABELS: Record<string, string> = {
   "uis.settings_save": "Сохранение доступа UIS",
   "uis.test": "Проверка доступа UIS",
   "uis.sync": "Загрузка номеров UIS",
+  "aurora.settings_save": "Сохранение файлов Aurora Telecom",
+  "aurora.test": "Проверка файлов Aurora Telecom",
+  "aurora.sync": "Загрузка номеров Aurora Telecom",
 };
 
 export function formatAuditTimestamp(

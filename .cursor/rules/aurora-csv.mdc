@@ -1,0 +1,20 @@
+---
+description: Aurora Telecom numbers come from operator CSV files, not from an HTTP API
+alwaysApply: true
+---
+
+# Aurora Telecom CSV
+
+Aurora Telecom is a numbering source. It has no host, no key, and no remote request. Do not invent a download, a method, or a path. Do not log a CSV body or a phone number.
+
+The operator chooses the layout for each file. The stored format is the literal `short` or `full`. Do not infer the layout from the file name or from the width. A file whose header or width does not match the chosen layout fails the whole set.
+
+A short file has the header `Column 1` through `Column 5`. Column 1 is the number. Column 3 is «Покупка». A full file has the header `Column 1` through `Column 6`. Column 1 is the number. Column 4 is «Покупка». Column 2 must be exactly `СВОБОДЕН`. Category, city text, and mask text are not stored.
+
+Decode UTF-8 and fail the file on any other encoding. Accept a BOM and CRLF. Parse quoted commas. Strip every non-digit from the number and keep only `^7\d{10}$`. Do not turn a leading 8 into 7. A number outside that shape fails the file. After trim, and after a NBSP becomes a space, a price is `^(\d+) Руб.$` stored as those digits, or exactly `ДОГОВОРНАЯ`, which leaves «Покупка» empty and keeps the number. Any other price fails the file. «Абонплата» stays empty. ABC, the local number, city, and region come from the tariff fragment. A missing tariff leaves city and region empty and the number still publishes.
+
+Scan every saved file together, in list order. The first number and its price stay. A later copy is dropped and does not fail the set. An empty accepted set does not publish and does not delete the files.
+
+Files are saved on «Загрузка нумерации» and do not change the catalog. One request stores one file, at most 20 MB, and the inbox holds at most 20 files. The stored name is a UUID with the `.csv` suffix. Do not open a browser path. «Проверить файлы» parses and does not publish. «Загрузить» on «Синхронизация» reads the current files again. Delete a file only after that catalog transaction commits. A failed parse, an empty set, a cancel, or a crash before commit leaves the catalog and the files. Startup reclaim does not delete the inbox. If unlink fails after commit, leave that row and do not roll back the catalog.
+
+The provider literal is `Aurora Telecom`. One transaction replaces the free rows from the parse and clears the purchased Aurora Telecom rows. Other providers stay. The walk, the file save, and the file check share one holder. The save and the check do not take the database lease. An API key cannot call these routes.

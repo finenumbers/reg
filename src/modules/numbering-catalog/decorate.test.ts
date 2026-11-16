@@ -3,6 +3,7 @@ import path from "node:path";
 import { Prisma } from "@/generated/prisma/client";
 import { describe, expect, it } from "vitest";
 import {
+  AURORA_EPOCH_SQL,
   SIPOUT_EPOCH_SQL,
   UIS_EPOCH_SQL,
   RUNEXIS_EPOCH_SQL,
@@ -19,6 +20,10 @@ import {
   PURCHASED_COPY_SQL as RUNEXIS_PURCHASED,
 } from "@/modules/runexis/sql";
 import { FREE_COPY_SQL as UIS_FREE, PURCHASED_COPY_SQL as UIS_PURCHASED } from "@/modules/uis/sql";
+import {
+  FREE_COPY_SQL as AURORA_FREE,
+  PURCHASED_COPY_SQL as AURORA_PURCHASED,
+} from "@/modules/aurora/sql";
 
 function flattenSql(sql: Prisma.Sql): string {
   const text: string[] = [];
@@ -42,6 +47,9 @@ function fieldCount(sql: string, start: string, end: string): number {
 describe("catalog decorate", () => {
   it("fills the draft with the tariff only and copies empty mask cells", () => {
     const split = flattenSql(fillStageSplitSql("uis_sync_stage", "run", 2000));
+    const auroraSplit = flattenSql(fillStageSplitSql("aurora_sync_stage", "run", 2000));
+    expect(auroraSplit).toContain("cdr_tariff_geo");
+    expect(auroraSplit).toContain("aurora_sync_stage");
     expect(split).toContain("cdr_tariff_geo");
     expect(split).not.toContain("rtu_mask_lookup");
     expect(split).not.toContain("phone_endpoints");
@@ -55,6 +63,8 @@ describe("catalog decorate", () => {
       RUNEXIS_PURCHASED,
       UIS_FREE,
       UIS_PURCHASED,
+      AURORA_FREE,
+      AURORA_PURCHASED,
     ];
     for (const copy of copies) {
       expect(copy).not.toContain("rtu_mask_lookup");
@@ -86,6 +96,7 @@ describe("catalog decorate", () => {
     const scoped = flattenSql(freeMaskBatchSql("", "SipOut"));
     expect(scoped).toContain("provider = 'SipOut'");
     expect(flattenSql(providerLiteral("Runexis"))).toBe("'Runexis'");
+    expect(flattenSql(providerLiteral("Aurora Telecom"))).toBe("'Aurora Telecom'");
     expect(() => providerLiteral("mcn")).toThrow(/источник/);
 
     const purchased = flattenSql(purchasedFullBatchSql("", "UIS"));
@@ -99,6 +110,9 @@ describe("catalog decorate", () => {
     expect(client).not.toContain("rtu_mask_lookup");
     expect(client).not.toContain("sipout_done");
 
+    const auroraDone = flattenSql(markDecorateDoneSql("Aurora Telecom", 2));
+    expect(auroraDone).toContain("aurora_done");
+    expect(auroraDone).toContain("aurora_epoch");
     const done = flattenSql(markDecorateDoneSql("SipOut", 4));
     expect(done).toContain("sipout_done");
     expect(done).toContain("sipout_epoch");
@@ -111,6 +125,7 @@ describe("catalog decorate", () => {
       ["src/modules/numbering-sync/publish.ts", "SIPOUT_EPOCH_SQL", SIPOUT_EPOCH_SQL],
       ["src/modules/runexis/publish.ts", "RUNEXIS_EPOCH_SQL", RUNEXIS_EPOCH_SQL],
       ["src/modules/uis/publish.ts", "UIS_EPOCH_SQL", UIS_EPOCH_SQL],
+      ["src/modules/aurora/publish.ts", "AURORA_EPOCH_SQL", AURORA_EPOCH_SQL],
     ] as const;
     for (const [file, symbol, sql] of files) {
       const text = readFileSync(path.join(process.cwd(), file), "utf8");

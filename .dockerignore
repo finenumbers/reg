@@ -17,6 +17,9 @@ tsconfig.tsbuildinfo
 npm-debug.log*
 .DS_Store
 
+# Local inbox files. The image creates the directories itself.
+data
+
 # Vendor manuals are local-only. A laptop build must not send them into the context.
 docs/vendor
 *.pdf

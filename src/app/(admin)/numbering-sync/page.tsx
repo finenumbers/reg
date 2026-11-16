@@ -5,15 +5,18 @@ import { getRunexisSyncView } from "@/modules/runexis/service";
 import { RunexisSyncForm } from "@/modules/runexis/ui/runexis-sync-form";
 import { getUisSyncView } from "@/modules/uis/service";
 import { UisSyncForm } from "@/modules/uis/ui/uis-sync-form";
+import { getAuroraSyncView } from "@/modules/aurora/service";
+import { AuroraSyncForm } from "@/modules/aurora/ui/aurora-sync-form";
 
 export const dynamic = "force-dynamic";
 
 export default async function NumberingSyncPage() {
   await requirePagePermission("settings:write");
-  const [initial, runexis, uis] = await Promise.all([
+  const [initial, runexis, uis, aurora] = await Promise.all([
     getNumberingSyncView(),
     getRunexisSyncView(),
     getUisSyncView(),
+    getAuroraSyncView(),
   ]);
   return (
     <div className="h-full space-y-6 overflow-y-auto">
@@ -28,6 +31,7 @@ export default async function NumberingSyncPage() {
       <NumberingSyncForm initial={initial} />
       <RunexisSyncForm initial={runexis} />
       <UisSyncForm initial={uis} />
+      <AuroraSyncForm initial={aurora} />
     </div>
   );
 }

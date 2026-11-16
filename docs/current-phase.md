@@ -1,7 +1,13 @@
-# Current Phase — production (v1.292.0)
+# Current Phase — production (v1.293.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, purchased numbers, numbering sync, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-16
+
+## v1.293.0 — Aurora Telecom CSV
+
+The migration `20261116060000_aurora_source` adds `aurora_epoch` and `aurora_done` on `numbering_catalog_state`, plus the Aurora Telecom lease, draft, and file list. The counters start at 0, so this deploy does not fill masks again. It does not rewrite catalog rows and does not scan the CDR journal. The migration is label-free. `lock_timeout` is 15 seconds. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app, let migrate finish, then start one new app. The app needs the volume `/app/data/aurora`. If migrate stops on `lock_timeout`, do not start the new app. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged. SipOut, Runexis, and UIS are unchanged.
+
+«Загрузка нумерации» stores CSV files for Aurora Telecom. Each file has an explicit format, «Сокращённый» or «Полный». Saving a file does not change the catalogs. «Проверить файлы» parses the saved set and does not publish. «Загрузить» on «Синхронизация» reads those files again. A successful write replaces the free Aurora Telecom rows, clears the purchased Aurora Telecom rows, and then deletes the files. An empty set, a failed file, or a cancel leaves the catalogs and the files. A repeated number keeps the first price. «Покупка» on free numbers is the one-time price from the file. «Абонплата» stays empty. Category stays empty. City and region come from the tariff split. An API key cannot start the stage.
 
 ## v1.292.0 — ABC menu shows the cell text
 

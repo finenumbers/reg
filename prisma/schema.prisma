@@ -826,6 +826,56 @@ model UisSyncStage {
   @@map("uis_sync_stage")
 }
 
+/// One Aurora file walk. It does not share the other source leases.
+model AuroraSyncState {
+  id                   Int       @id @default(1)
+  runId                String?   @map("run_id")
+  phase                String    @default("")
+  /// free while a walk is reading. Empty otherwise.
+  list                 String    @default("")
+  pageDone             Int       @default(0) @map("page_done")
+  pageTotal            Int       @default(0) @map("page_total")
+  error                String?
+  heartbeatAt          DateTime? @map("heartbeat_at")
+  startedAt            DateTime? @map("started_at")
+  lastError            String?   @map("last_error")
+  lastFreeWritten      Int?      @map("last_free_written")
+  lastPurchasedWritten Int?      @map("last_purchased_written")
+  lastFinishedAt       DateTime? @map("last_finished_at")
+
+  @@map("aurora_sync_state")
+}
+
+/// Numbers accepted from one Aurora file set, before the replace.
+model AuroraSyncStage {
+  runId            String  @map("run_id")
+  /// free or purchased.
+  catalog          String
+  e164             String
+  abc              String  @default("")
+  number           String  @default("")
+  city             String  @default("")
+  region           String  @default("")
+  incomingPurchase String  @default("") @map("incoming_purchase")
+  incomingPeriod   String  @default("") @map("incoming_period")
+  ready            Boolean @default(false)
+
+  @@id([runId, catalog, e164])
+  @@map("aurora_sync_stage")
+}
+
+/// CSV files waiting for one Aurora load. The load deletes them after commit.
+model AuroraFile {
+  id          String @id
+  sortIndex   Int    @unique @map("sort_index")
+  displayName String @map("display_name")
+  storedName  String @unique @map("stored_name")
+  /// short or full. The parser does not infer this from the file.
+  format      String
+
+  @@map("aurora_files")
+}
+
 /// One decorate pass after the first catalog migration. A provider epoch
 /// moves ahead of its done stamp when that catalog is replaced.
 model NumberingCatalogState {
@@ -837,6 +887,8 @@ model NumberingCatalogState {
   runexisDone        Int @default(0) @map("runexis_done")
   uisEpoch           Int @default(0) @map("uis_epoch")
   uisDone            Int @default(0) @map("uis_done")
+  auroraEpoch        Int @default(0) @map("aurora_epoch")
+  auroraDone         Int @default(0) @map("aurora_done")
 
   @@map("numbering_catalog_state")
 }

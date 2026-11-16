@@ -22,9 +22,10 @@ const STAGE_TABLES = new Set([
   "numbering_sync_stage",
   "runexis_sync_stage",
   "uis_sync_stage",
+  "aurora_sync_stage",
 ]);
 
-const PROVIDERS = ["SipOut", "Runexis", "UIS"] as const;
+const PROVIDERS = ["SipOut", "Runexis", "UIS", "Aurora Telecom"] as const;
 export type CatalogProvider = (typeof PROVIDERS)[number];
 export type DecorateScope = "full" | "client";
 
@@ -34,6 +35,8 @@ export const RUNEXIS_EPOCH_SQL =
   "UPDATE numbering_catalog_state SET runexis_epoch = runexis_epoch + 1 WHERE id = 1";
 export const UIS_EPOCH_SQL =
   "UPDATE numbering_catalog_state SET uis_epoch = uis_epoch + 1 WHERE id = 1";
+export const AURORA_EPOCH_SQL =
+  "UPDATE numbering_catalog_state SET aurora_epoch = aurora_epoch + 1 WHERE id = 1";
 
 type EpochRow = {
   sipout_epoch: number;
@@ -42,6 +45,8 @@ type EpochRow = {
   runexis_done: number;
   uis_epoch: number;
   uis_done: number;
+  aurora_epoch: number;
+  aurora_done: number;
   decorate_generation: number;
 };
 
@@ -51,7 +56,7 @@ function asCount(value: unknown): number {
 }
 
 function isProvider(value: string): value is CatalogProvider {
-  return value === "SipOut" || value === "Runexis" || value === "UIS";
+  return value === "SipOut" || value === "Runexis" || value === "UIS" || value === "Aurora Telecom";
 }
 
 /** SQL literal for one numbering source. Anything else is rejected. */
@@ -63,6 +68,8 @@ export function providerLiteral(provider: string): Prisma.Sql {
       return Prisma.sql`'Runexis'`;
     case "UIS":
       return Prisma.sql`'UIS'`;
+    case "Aurora Telecom":
+      return Prisma.sql`'Aurora Telecom'`;
     default:
       throw new Error("Некорректный источник.");
   }
@@ -76,6 +83,8 @@ function epochNames(provider: CatalogProvider): { epoch: string; done: string } 
       return { epoch: "runexis_epoch", done: "runexis_done" };
     case "UIS":
       return { epoch: "uis_epoch", done: "uis_done" };
+    case "Aurora Telecom":
+      return { epoch: "aurora_epoch", done: "aurora_done" };
   }
 }
 
@@ -100,6 +109,8 @@ function pair(row: EpochRow, provider: CatalogProvider): { epoch: number; done: 
       return { epoch: row.runexis_epoch, done: row.runexis_done };
     case "UIS":
       return { epoch: row.uis_epoch, done: row.uis_done };
+    case "Aurora Telecom":
+      return { epoch: row.aurora_epoch, done: row.aurora_done };
   }
 }
 
@@ -414,6 +425,8 @@ async function readEpochs(): Promise<EpochRow | null> {
       runexis_done,
       uis_epoch,
       uis_done,
+      aurora_epoch,
+      aurora_done,
       decorate_generation
     FROM numbering_catalog_state
     WHERE id = 1
@@ -427,6 +440,8 @@ async function readEpochs(): Promise<EpochRow | null> {
     runexis_done: asCount(row.runexis_done),
     uis_epoch: asCount(row.uis_epoch),
     uis_done: asCount(row.uis_done),
+    aurora_epoch: asCount(row.aurora_epoch),
+    aurora_done: asCount(row.aurora_done),
     decorate_generation: asCount(row.decorate_generation),
   };
 }
