@@ -279,6 +279,84 @@ describe("Voximplant walk", () => {
     expect(JSON.stringify(log.mock.calls)).toContain("offset=2 total=9 rows=1");
   });
 
+  it("raises the locked total when the free tail rows equal that larger total", async () => {
+    const third = "74950000001";
+    const fourth = "74950000002";
+    const { result, stageFree } = await run({
+      categories: async () => ({
+        ok: true,
+        categories: [{ name: "GEO_CATEGORY2" }],
+        meta: meta(),
+      }),
+      regions: async () => ({
+        ok: true,
+        regions: [{ id: 129, phoneCount: 4 }],
+        meta: meta(),
+      }),
+      freePage: async (_category, _region, offset) => {
+        if (offset === 0) return free([row(A), row(B)], 4);
+        return free([row(C), row(third), row(fourth)], 5);
+      },
+      freeRecount: async () => total(4),
+    });
+    expect(result).toEqual({ ok: true });
+    expect(stageFree).toHaveBeenCalledTimes(1);
+    expect(stageFree).toHaveBeenCalledWith([
+      row(A),
+      row(B),
+      row(C),
+      row(third),
+      row(fourth),
+    ]);
+  });
+
+  it("does not raise the locked total when the larger total is not the row sum", async () => {
+    const offsets: number[] = [];
+    const { result, stageFree } = await run({
+      categories: async () => ({
+        ok: true,
+        categories: [{ name: "GEO_CATEGORY2" }],
+        meta: meta(),
+      }),
+      regions: async () => ({
+        ok: true,
+        regions: [{ id: 129, phoneCount: 4 }],
+        meta: meta(),
+      }),
+      freePage: async (_category, _region, offset) => {
+        offsets.push(offset);
+        if (offset === 0) return free([row(A), row(B)], 4);
+        return free([row(C)], 9);
+      },
+      freeRecount: async () => total(4),
+    });
+    expect(result).toEqual({ ok: false, error: TOTAL_MOVED, reason: "fail" });
+    expect(offsets).toEqual([0, 2, 0, 2]);
+    expect(stageFree).not.toHaveBeenCalled();
+  });
+
+  it("does not publish a raised free total when the recount matches neither total", async () => {
+    const { result, stageFree } = await run({
+      categories: async () => ({
+        ok: true,
+        categories: [{ name: "GEO_CATEGORY2" }],
+        meta: meta(),
+      }),
+      regions: async () => ({
+        ok: true,
+        regions: [{ id: 129, phoneCount: 4 }],
+        meta: meta(),
+      }),
+      freePage: async (_category, _region, offset) => {
+        if (offset === 0) return free([row(A), row(B)], 4);
+        return free([row(C), row("74950000001"), row("74950000002")], 5);
+      },
+      freeRecount: async () => total(8),
+    });
+    expect(result).toEqual({ ok: false, error: TOTAL_MOVED, reason: "fail" });
+    expect(stageFree).not.toHaveBeenCalled();
+  });
+
   it("does not keep a free page that passes or falls short of the locked total", async () => {
     const longer = await run({
       categories: async () => ({
@@ -364,7 +442,8 @@ describe("Voximplant walk", () => {
     expect(stageFree).not.toHaveBeenCalled();
   });
 
-  it("rejects a repeated number on a free tail that would fill the locked total", async () => {
+  it("reads a repeated free number once more and then stops", async () => {
+    let calls = 0;
     const { result, stageFree } = await run({
       categories: async () => ({
         ok: true,
@@ -376,10 +455,13 @@ describe("Voximplant walk", () => {
         regions: [{ id: 129, phoneCount: 2 }],
         meta: meta(),
       }),
-      freePage: async (_category, _region, offset) =>
-        offset === 0 ? free([row(A)], 2) : free([row(A)], 9),
+      freePage: async (_category, _region, offset) => {
+        calls += 1;
+        return offset === 0 ? free([row(A)], 2) : free([row(A)], 9);
+      },
       freeRecount: async () => total(2),
     });
+    expect(calls).toBe(4);
     expect(result).toEqual({ ok: false, error: DUPLICATE_NUMBER, reason: "fail" });
     expect(stageFree).not.toHaveBeenCalled();
   });

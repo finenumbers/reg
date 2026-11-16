@@ -1,7 +1,8 @@
 /**
  * Purchased numbers, then every RU region. One request at a time.
  * A moved total is read again once. A free page that fills the locked total
- * is kept, and that total stays. The second move does not publish.
+ * is kept. A free page that equals its own larger total raises the lock.
+ * The second move does not publish.
  * The next offset is the number of accepted rows, not the response `count`.
  */
 
@@ -38,7 +39,7 @@ export type TotalPage =
 
 export type WalkResult = { ok: true } | { ok: false; error: string; reason: FailReason };
 
-type ReadOk<T> = { kind: "ok"; total: number; rows: T[] };
+type ReadOk<T> = { kind: "ok"; total: number; firstTotal: number; rows: T[] };
 type ReadShift = { kind: "shift" };
 type ReadFail = { kind: "fail"; error: string; reason: FailReason };
 type ReadResult<T> = ReadOk<T> | ReadShift | ReadFail;
@@ -65,13 +66,17 @@ type Selection<T> = {
   drop: () => Promise<void>;
   beat: (done: number, total: number) => Promise<Gate>;
   log: (text: string) => Promise<void>;
-  /** A free page may fill the locked total while reporting another total. */
+  /**
+   * A free page may fill the locked total, or raise it when the rows equal
+   * that page's own larger total.
+   */
   completeLockedTotal?: boolean;
 };
 
 async function readPages<T>(input: Selection<T>): Promise<ReadResult<T>> {
   let offset = 0;
   let locked: number | null = null;
+  let firstTotal: number | null = null;
   let accepted = 0;
   let emptyRetries = 0;
   const seen = new Set<string>();
@@ -91,11 +96,18 @@ async function readPages<T>(input: Selection<T>): Promise<ReadResult<T>> {
     if (page.rows.length > input.limit) {
       return { kind: "fail", error: PAGE_TOO_LONG, reason: "fail" };
     }
+    const pageRows = accepted + page.rows.length;
     const fillsLockedTotal =
+      input.completeLockedTotal === true && locked != null && pageRows === locked;
+    const raisesTotal =
       input.completeLockedTotal === true &&
       locked != null &&
-      accepted + page.rows.length === locked;
-    if (locked == null) locked = page.total;
+      page.total > locked &&
+      pageRows === page.total;
+    if (locked == null) {
+      locked = page.total;
+      firstTotal = page.total;
+    } else if (raisesTotal) locked = page.total;
     else if (page.total !== locked && !fillsLockedTotal) return { kind: "shift" };
     if (page.rows.length === 0) {
       if (locked === 0) break;
@@ -117,10 +129,10 @@ async function readPages<T>(input: Selection<T>): Promise<ReadResult<T>> {
     accepted += page.rows.length;
     offset = accepted;
   }
-  if (locked == null || accepted !== locked) {
+  if (locked == null || firstTotal == null || accepted !== locked) {
     return { kind: "fail", error: SHORT_LIST, reason: "fail" };
   }
-  return { kind: "ok", total: locked, rows: collected };
+  return { kind: "ok", total: locked, firstTotal, rows: collected };
 }
 
 async function readStable<T>(input: Selection<T>): Promise<ReadResult<T>> {
@@ -128,6 +140,13 @@ async function readStable<T>(input: Selection<T>): Promise<ReadResult<T>> {
     if (attempt > 0) await input.drop();
     const read = await readPages(input);
     if (read.kind === "fail") {
+      if (
+        attempt === 0 &&
+        input.completeLockedTotal === true &&
+        read.error === DUPLICATE_NUMBER
+      ) {
+        continue;
+      }
       await input.drop();
       return read;
     }
@@ -143,7 +162,12 @@ async function readStable<T>(input: Selection<T>): Promise<ReadResult<T>> {
       await input.drop();
       return { kind: "fail", error: recount.error, reason: "fail" };
     }
-    if (recount.total !== read.total) continue;
+    const recountMatches =
+      recount.total === read.total ||
+      (input.completeLockedTotal === true &&
+        read.total > read.firstTotal &&
+        recount.total === read.firstTotal);
+    if (!recountMatches) continue;
     return read;
   }
   await input.drop();
