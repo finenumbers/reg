@@ -11,18 +11,21 @@ import { getExolveAccessView } from "@/modules/exolve/service";
 import { ExolveLoadForm } from "@/modules/exolve/ui/exolve-load-form";
 import { getVoximplantAccessView } from "@/modules/voximplant/service";
 import { VoximplantLoadForm } from "@/modules/voximplant/ui/voximplant-load-form";
+import { getMcnAccessView } from "@/modules/mcn/service";
+import { McnLoadForm } from "@/modules/mcn/ui/mcn-load-form";
 
 export const dynamic = "force-dynamic";
 
 export default async function NumberingLoadPage() {
   await requirePagePermission("settings:write");
-  const [initial, runexis, uis, aurora, exolve, voximplant] = await Promise.all([
+  const [initial, runexis, uis, aurora, exolve, voximplant, mcn] = await Promise.all([
     getNumberingLoadView(),
     getRunexisAccessView(),
     getUisAccessView(),
     getAuroraLoadView(),
     getExolveAccessView(),
     getVoximplantAccessView(),
+    getMcnAccessView(),
   ]);
   return (
     <div className="h-full space-y-6 overflow-y-auto">
@@ -41,6 +44,7 @@ export default async function NumberingLoadPage() {
       <AuroraLoadForm initial={aurora} />
       <ExolveLoadForm initial={exolve} />
       <VoximplantLoadForm initial={voximplant} />
+      <McnLoadForm initial={mcn} />
     </div>
   );
 }

@@ -98,6 +98,9 @@ const ACTION_LABELS: Record<string, string> = {
   "voximplant.settings_save": "Сохранение доступа Voximplant",
   "voximplant.test": "Проверка доступа Voximplant",
   "voximplant.sync": "Загрузка номеров Voximplant",
+  "mcn.settings_save": "Сохранение доступа MCN Telecom",
+  "mcn.test": "Проверка доступа MCN Telecom",
+  "mcn.sync": "Загрузка номеров MCN Telecom",
 };
 
 export function formatAuditTimestamp(

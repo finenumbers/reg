@@ -168,6 +168,18 @@ export async function register() {
     }
 
     try {
+      const { armNumberingSyncStop } = await import("@/modules/numbering-sync/lease");
+      const { reclaimMcnLease } = await import("@/modules/mcn/reclaim");
+      armNumberingSyncStop();
+      await reclaimMcnLease();
+      logger.info("mcn.sync.reclaim");
+    } catch (error) {
+      logger.error("mcn.sync.reclaim.failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    try {
       const { releaseFalselyParkedMisses } =
         await import("@/modules/voipmonitor/release-parked");
       const released = await releaseFalselyParkedMisses();

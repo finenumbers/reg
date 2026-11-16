@@ -25,6 +25,7 @@ const STAGE_TABLES = new Set([
   "aurora_sync_stage",
   "exolve_sync_stage",
   "voximplant_sync_stage",
+  "mcn_sync_stage",
 ]);
 
 const PROVIDERS = [
@@ -34,6 +35,7 @@ const PROVIDERS = [
   "Aurora Telecom",
   "MTS Exolve",
   "Voximplant",
+  "MCN Telecom",
 ] as const;
 export type CatalogProvider = (typeof PROVIDERS)[number];
 export type DecorateScope = "full" | "client";
@@ -50,6 +52,8 @@ export const EXOLVE_EPOCH_SQL =
   "UPDATE numbering_catalog_state SET exolve_epoch = exolve_epoch + 1 WHERE id = 1";
 export const VOXIMPLANT_EPOCH_SQL =
   "UPDATE numbering_catalog_state SET voximplant_epoch = voximplant_epoch + 1 WHERE id = 1";
+export const MCN_EPOCH_SQL =
+  "UPDATE numbering_catalog_state SET mcn_epoch = mcn_epoch + 1 WHERE id = 1";
 
 type EpochRow = {
   sipout_epoch: number;
@@ -64,6 +68,8 @@ type EpochRow = {
   exolve_done: number;
   voximplant_epoch: number;
   voximplant_done: number;
+  mcn_epoch: number;
+  mcn_done: number;
   decorate_generation: number;
 };
 
@@ -79,7 +85,8 @@ function isProvider(value: string): value is CatalogProvider {
     value === "UIS" ||
     value === "Aurora Telecom" ||
     value === "MTS Exolve" ||
-    value === "Voximplant"
+    value === "Voximplant" ||
+    value === "MCN Telecom"
   );
 }
 
@@ -98,6 +105,8 @@ export function providerLiteral(provider: string): Prisma.Sql {
       return Prisma.sql`'MTS Exolve'`;
     case "Voximplant":
       return Prisma.sql`'Voximplant'`;
+    case "MCN Telecom":
+      return Prisma.sql`'MCN Telecom'`;
     default:
       throw new Error("Некорректный источник.");
   }
@@ -117,6 +126,8 @@ function epochNames(provider: CatalogProvider): { epoch: string; done: string } 
       return { epoch: "exolve_epoch", done: "exolve_done" };
     case "Voximplant":
       return { epoch: "voximplant_epoch", done: "voximplant_done" };
+    case "MCN Telecom":
+      return { epoch: "mcn_epoch", done: "mcn_done" };
   }
 }
 
@@ -147,6 +158,8 @@ function pair(row: EpochRow, provider: CatalogProvider): { epoch: number; done: 
       return { epoch: row.exolve_epoch, done: row.exolve_done };
     case "Voximplant":
       return { epoch: row.voximplant_epoch, done: row.voximplant_done };
+    case "MCN Telecom":
+      return { epoch: row.mcn_epoch, done: row.mcn_done };
   }
 }
 
@@ -476,6 +489,8 @@ async function readEpochs(): Promise<EpochRow | null> {
       exolve_done,
       voximplant_epoch,
       voximplant_done,
+      mcn_epoch,
+      mcn_done,
       decorate_generation
     FROM numbering_catalog_state
     WHERE id = 1
@@ -495,6 +510,8 @@ async function readEpochs(): Promise<EpochRow | null> {
     exolve_done: asCount(row.exolve_done),
     voximplant_epoch: asCount(row.voximplant_epoch),
     voximplant_done: asCount(row.voximplant_done),
+    mcn_epoch: asCount(row.mcn_epoch),
+    mcn_done: asCount(row.mcn_done),
     decorate_generation: asCount(row.decorate_generation),
   };
 }

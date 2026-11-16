@@ -192,6 +192,8 @@ model AppSetting {
   exolveApiKeyCiphertext      String?
   /// AES-256-GCM ciphertext of the Voximplant service-account JSON. Never plaintext.
   voximplantCredentialsCiphertext String?
+  /// AES-256-GCM ciphertext of the MCN Telecom token. Never plaintext.
+  mcnApiKeyCiphertext             String?
   updatedAt             DateTime    @updatedAt
 
   @@map("app_settings")
@@ -955,6 +957,44 @@ model VoximplantSyncStage {
   @@map("voximplant_sync_stage")
 }
 
+/// One MCN Telecom walk. It does not share the other source leases.
+model McnSyncState {
+  id                   Int       @id @default(1)
+  runId                String?   @map("run_id")
+  phase                String    @default("")
+  /// purchased or free while a walk is reading. Empty otherwise.
+  list                 String    @default("")
+  pageDone             Int       @default(0) @map("page_done")
+  pageTotal            Int       @default(0) @map("page_total")
+  error                String?
+  heartbeatAt          DateTime? @map("heartbeat_at")
+  startedAt            DateTime? @map("started_at")
+  lastError            String?   @map("last_error")
+  lastFreeWritten      Int?      @map("last_free_written")
+  lastPurchasedWritten Int?      @map("last_purchased_written")
+  lastFinishedAt       DateTime? @map("last_finished_at")
+
+  @@map("mcn_sync_state")
+}
+
+/// Numbers accepted from one MCN Telecom selection, before the replace.
+model McnSyncStage {
+  runId            String  @map("run_id")
+  /// free or purchased.
+  catalog          String
+  e164             String
+  abc              String  @default("")
+  number           String  @default("")
+  city             String  @default("")
+  region           String  @default("")
+  incomingPurchase String  @default("") @map("incoming_purchase")
+  incomingPeriod   String  @default("") @map("incoming_period")
+  ready            Boolean @default(false)
+
+  @@id([runId, catalog, e164])
+  @@map("mcn_sync_stage")
+}
+
 /// One decorate pass after the first catalog migration. A provider epoch
 /// moves ahead of its done stamp when that catalog is replaced.
 model NumberingCatalogState {
@@ -972,6 +1012,8 @@ model NumberingCatalogState {
   exolveDone         Int @default(0) @map("exolve_done")
   voximplantEpoch    Int @default(0) @map("voximplant_epoch")
   voximplantDone     Int @default(0) @map("voximplant_done")
+  mcnEpoch           Int @default(0) @map("mcn_epoch")
+  mcnDone            Int @default(0) @map("mcn_done")
 
   @@map("numbering_catalog_state")
 }

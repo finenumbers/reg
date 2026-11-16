@@ -1,0 +1,34 @@
+---
+description: MCN Telecom numbering reads are three GETs on two pinned hosts
+alwaysApply: true
+---
+
+# MCN Telecom numbers
+
+The handbooks are the live pages for «Витрина» and «Виртуальная АТС» under `https://apidocs.mcn.ru/docs/methodsApi/`. Read them again before any MCN Telecom change. They can change. Do not invent methods, paths, or fields. Do not commit a copy of those pages. «Информация о номерах» is NNP and is not a catalog. Do not call it.
+
+The hosts are the literals `https://shop.mcn.ru` and `https://vpbx.mcn.ru`. HTTPS only. Do not follow redirects. Do not trust a custom certificate. Do not use a proxy from the environment. Timeout 30s. Body cap 20 MB. GET only. `Authorization: Bearer` is sent only to the host of that request. The token is not a query field. One request is in flight.
+
+The saved secret is one token, trimmed, length 1 to 4096, with no CR or LF. The whole token is one AES-256-GCM ciphertext. An empty field does not change it and does not write. Saving it does not call the platform.
+
+This release may send only:
+
+- `GET /api/protected/phone/composite-dids` on `vpbx.mcn.ru` for purchased numbers. The query is only `limit`, `offset`, and `type=common`. `limit` is 100 on a walk page and 1 on the access check and the recount. Do not send `filter`, `orderBy`, `sortBy`, `fields`, or `isShowAllConnectedContractPhones`. Do not request `alias` or `geoOnMobile`.
+- `GET /api/protected/showcase/countries` on `shop.mcn.ru` with no query.
+- `GET /api/protected/showcase/numbers` on `shop.mcn.ru`. The query is only `countryCode`, `limitPerPage=25`, and `pageNumber`. Do not send cities, ndcType, beautyLvl, minCost, maxCost, filterType, filterMode, number, or excludeNdcs.
+
+Do not call checkout, cart, tariffs, or any composite-did mutation. Do not call the interactive authorization methods. The paths and the query names are literals in the client. Do not accept a path, a field, or a filter from a caller, a flag, or a saved catalog.
+
+Purchased paging uses `offset`. The response `offset` must equal the request. `totalCount` is locked on the first page. A non-empty short page is kept, and the next offset grows by the rows received. An empty page before the total is repeated once at the same offset. A page longer than the requested limit fails. A duplicate `did` fails the page. A changed `totalCount` discards the selection and reads it once more from offset 0. The second change does not publish. After the pages, one recount uses `limit` 1 and `offset` 0 and compares `totalCount` only. Those rows are not staged. An offset above 5000000 while the list is incomplete does not publish. `totalCount` 0 is an empty purchased slice, and the free read still runs. A failed purchased page does not call countries or numbers.
+
+Countries come only from the countries payload. A missing `countries` array, a row that is not an object, a `country_code` or `country_prefix` that is not a non-negative integer, or a repeated `country_code` fails the directory. Only `country_prefix` 7 is requested. No such country does not publish. Other prefixes are not requested.
+
+Free paging uses `pageNumber`, starting at 1. `limitPerPage` stays 25. `totalNumbers` is locked on the first page. A page longer than 25 fails. A non-empty full page advances `pageNumber` by 1. A non-empty short page before the accepted rows equal the locked total is not kept and does not advance; it is repeated once at the same `pageNumber`, and the second short page fails that country. A short page that completes the locked total is kept. An empty `numbers` array with `totalNumbers` 0 is an empty country. An empty page after rows were accepted is repeated once, then fails. A changed total discards that country and reads it once more. The second change does not publish. The ceiling is `(pageNumber - 1) * 25` above 5000000 while the country is incomplete. After the pages, one recount uses `pageNumber` 1 and compares `totalNumbers` only. Those rows are not staged.
+
+One country, or the purchased list, is held until its recount matches, then inserted in chunks of 500. The same number in a later country keeps the first price. The same number in both drafts stays purchased. When every requested country returns 0, the free slice is replaced with an empty one together with the purchased list. A failed purchased list does not open the free list. Both lists must succeed before either catalog is replaced.
+
+A number is the digit string the tariff split already accepts. A leading plus is removed. Do not convert 8 to 7. A number that fails admission fails the page. The free field is `number`. Do not store `voip_number`. Free `default_tariff.price_setup` is «Покупка» and `default_tariff.price_per_period` is «Абонплата». A missing tariff, null, negative, non-decimal, scientific, or fractional part longer than 4 digits leaves that cell empty and the number stays. Zero is valid. Purchased money stays empty. `did` null fails that purchased page. City, region, ABC, and the local number come from the tariff fragment. The provider literal is `MCN Telecom`.
+
+Transport, timeout, an empty body, non-JSON, and HTTP 5xx retry once. HTTP 3xx, HTTP 4xx, and a body over 20 MB do not. The key stays ciphertext. Do not log the key, the header, the URL, a phone number, or a price. The operator error and the stage log are at most 200 characters and are dropped when they contain `bearer`, `token`, `password`, `private_key`, `key=`, `://`, or ten digits in a row. An API key cannot call these routes. The stage log is `data/numbering-sync/mcn.txt`.
+
+The access check is one purchased page of `limit` 1 and `type=common`, the countries, and one free page of the first prefix-7 country. It does not take the database lease and does not write the stage log. An empty successful page is access. No prefix-7 country is not access. «Сохранить» confirms both hosts and whether the token will be replaced. An empty field says the token stays. «Загрузить» confirms that both lists are read again and that the previous MCN Telecom rows in both catalogs are replaced. Enter, cancel, and close do not send.

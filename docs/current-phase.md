@@ -1,7 +1,13 @@
-# Current Phase — production (v1.303.0)
+# Current Phase — production (v1.304.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, purchased numbers, numbering sync, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-16
+
+## v1.304.0 — MCN Telecom numbers
+
+The migration `20261116191000_mcn_source` adds `mcnApiKeyCiphertext` and empty `mcn_sync_state` and `mcn_sync_stage` tables, plus `mcn_epoch` and `mcn_done` on `numbering_catalog_state`. The counters start at 0, so this deploy does not fill masks again. It does not rewrite catalog rows and does not scan the CDR journal. The migration is label-free. `lock_timeout` is 15 seconds. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app, let migrate finish, then start one new app. If migrate stops on `lock_timeout`, do not start the new app. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged. SipOut, Runexis, UIS, Aurora Telecom, MTS Exolve, and Voximplant are unchanged.
+
+«Загрузка нумерации» stores one MCN Telecom token. Saving it does not call the platform. «Проверить доступ» reads one purchased page of type `common`, the country directory, and one free page of the first country whose prefix is 7. It does not publish. «Загрузить» reads purchased numbers of type `common`, then free numbers for every country whose prefix is 7. A successful write replaces the MCN Telecom rows in both catalogs, including a shorter or empty list. A failed read, a cancel, or a directory with no prefix 7 leaves the catalogs. A short free page is not kept and does not advance. Free «Покупка» is `price_setup` and «Абонплата» is `price_per_period`. Purchased money stays empty. The token stays ciphertext. The stage log has no token, no URL, no phone number, and no price. An API key cannot start the stage. The first production load should compare `totalNumbers` with the expected stock. The free page size stays 25 until the live spec names another ceiling. A 429 leaves the previous catalog.
 
 ## v1.303.0 — Voximplant raised free total
 

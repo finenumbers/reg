@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   AURORA_EPOCH_SQL,
   EXOLVE_EPOCH_SQL,
+  MCN_EPOCH_SQL,
   VOXIMPLANT_EPOCH_SQL,
   SIPOUT_EPOCH_SQL,
   UIS_EPOCH_SQL,
@@ -56,7 +57,9 @@ describe("catalog decorate", () => {
     const voximplantSplit = flattenSql(
       fillStageSplitSql("voximplant_sync_stage", "run", 2000),
     );
+    const mcnSplit = flattenSql(fillStageSplitSql("mcn_sync_stage", "run", 2000));
     expect(voximplantSplit).toContain("voximplant_sync_stage");
+    expect(mcnSplit).toContain("mcn_sync_stage");
     expect(auroraSplit).toContain("cdr_tariff_geo");
     expect(auroraSplit).toContain("aurora_sync_stage");
     expect(split).toContain("cdr_tariff_geo");
@@ -108,6 +111,7 @@ describe("catalog decorate", () => {
     expect(flattenSql(providerLiteral("Aurora Telecom"))).toBe("'Aurora Telecom'");
     expect(flattenSql(providerLiteral("MTS Exolve"))).toBe("'MTS Exolve'");
     expect(flattenSql(providerLiteral("Voximplant"))).toBe("'Voximplant'");
+    expect(flattenSql(providerLiteral("MCN Telecom"))).toBe("'MCN Telecom'");
     expect(() => providerLiteral("mcn")).toThrow(/источник/);
 
     const purchased = flattenSql(purchasedFullBatchSql("", "UIS"));
@@ -130,6 +134,9 @@ describe("catalog decorate", () => {
     const voximplantDone = flattenSql(markDecorateDoneSql("Voximplant", 5));
     expect(voximplantDone).toContain("voximplant_done");
     expect(voximplantDone).toContain("voximplant_epoch");
+    const mcnDone = flattenSql(markDecorateDoneSql("MCN Telecom", 6));
+    expect(mcnDone).toContain("mcn_done");
+    expect(mcnDone).toContain("mcn_epoch");
     const done = flattenSql(markDecorateDoneSql("SipOut", 4));
     expect(done).toContain("sipout_done");
     expect(done).toContain("sipout_epoch");
@@ -145,6 +152,7 @@ describe("catalog decorate", () => {
       ["src/modules/aurora/publish.ts", "AURORA_EPOCH_SQL", AURORA_EPOCH_SQL],
       ["src/modules/exolve/publish.ts", "EXOLVE_EPOCH_SQL", EXOLVE_EPOCH_SQL],
       ["src/modules/voximplant/publish.ts", "VOXIMPLANT_EPOCH_SQL", VOXIMPLANT_EPOCH_SQL],
+      ["src/modules/mcn/publish.ts", "MCN_EPOCH_SQL", MCN_EPOCH_SQL],
     ] as const;
     for (const [file, symbol, sql] of files) {
       const text = readFileSync(path.join(process.cwd(), file), "utf8");
