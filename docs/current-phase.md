@@ -1,7 +1,13 @@
-# Current Phase — production (v1.306.0)
+# Current Phase — production (v1.307.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, purchased numbers, numbering sync, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-16
+
+## v1.307.0 — Runexis showcase pages of 1000
+
+This release does not migrate and does not rewrite catalog rows or epoch counters. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before the new one starts, then start one new app. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged. SipOut, UIS, Aurora Telecom, MTS Exolve, Voximplant, and MCN Telecom are unchanged.
+
+Runexis «Загрузить» still reads the partner list first (`limit=30`), then the code directory, then each showcase code. A showcase page asks for `limit=1000` and `region_codes[0]`. `city_ids` is not sent. A code is stored only when one pass has as many unique numbers as the `meta.total` locked on its first page. A changed total, a repeated number, a short page, or a number from another code discards that pass and reads the code again from page 1, up to three times. The third failure leaves both catalogs. A timeout, an HTTP error, or a page whose `meta.limit` is not 1000 stops the walk on that request. A number that appears in two codes stays one row. A purchased number stays purchased. The screen «Витрина, принято» counts stored codes plus the unique numbers of the current pass, and drops back when that pass is discarded. «Проверить доступ» is access only when the first showcase page holds `min(meta.total, 1000)` numbers of that code. An empty total is access. Run «Проверить доступ» before «Загрузить». Do not start «Загрузить» when the check is HTTP 400, a short page, a wrong page size, or waits about a minute. A failed read leaves the catalogs. The stage log names the code, the page, the attempt, and both totals when the total changes. It has no password, token, URL, or phone number.
 
 ## v1.306.0 — Runexis flat showcase code
 

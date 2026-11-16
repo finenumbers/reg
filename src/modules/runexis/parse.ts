@@ -3,14 +3,16 @@
  */
 
 import { isTariffNumberAdmitted } from "@/modules/traffic/tariff-match";
-import { SHOWCASE_LIMIT, type CodeSlice } from "@/modules/runexis/url";
+import { MANAGEMENT_LIMIT, SHOWCASE_LIMIT, type CodeSlice } from "@/modules/runexis/url";
 
 const INCOMPLETE = "Ответ площадки обрезан.";
 const BAD_NUMBER = "В ответе есть номер, который нельзя записать.";
 const BAD_STATUS = "В ответе нет статуса номера.";
-const DUPLICATE = "В ответе повторяется номер.";
+export const DUPLICATE = "В ответе повторяется номер.";
 const BAD_CODES = "Справочник кодов не принят.";
-const FOREIGN_CODE = "В ответе номер другого кода.";
+export const FOREIGN_CODE = "В ответе номер другого кода.";
+export const WRONG_LIMIT = "Площадка отдала другой размер страницы.";
+export const SHORT_PAGE = "Страница витрины короче запрошенной.";
 
 const PURCHASE_KEYS = ["installation_cost", "installationCost", "buy_price"] as const;
 const MERA_KEYS = ["mera_price", "meraPrice"] as const;
@@ -121,19 +123,33 @@ export function freePrices(row: Record<string, unknown>): {
 
 function pageMeta(
   data: unknown,
-): { total: number; page: number; limit: number; rows: unknown[] } | null {
-  if (!data || typeof data !== "object") return null;
+  expectedLimit: number,
+):
+  | { ok: true; total: number; page: number; limit: number; rows: unknown[] }
+  | { ok: false; error: string } {
+  if (!data || typeof data !== "object") return { ok: false, error: INCOMPLETE };
   const body = data as {
     success?: unknown;
     data?: unknown;
     meta?: { total?: unknown; page?: unknown; limit?: unknown };
   };
-  if (body.success !== true || !Array.isArray(body.data) || !body.meta) return null;
+  if (body.success !== true || !Array.isArray(body.data) || !body.meta) {
+    return { ok: false, error: INCOMPLETE };
+  }
   const total = safeCount(body.meta.total);
   const page = safeCount(body.meta.page);
   const limit = safeCount(body.meta.limit);
-  if (total == null || page == null || page < 1 || limit !== SHOWCASE_LIMIT) return null;
-  return { total, page, limit, rows: body.data };
+  if (total == null || page == null || page < 1 || limit == null) {
+    return { ok: false, error: INCOMPLETE };
+  }
+  if (limit !== expectedLimit) return { ok: false, error: WRONG_LIMIT };
+  return { ok: true, total, page, limit, rows: body.data };
+}
+
+/** A first showcase page is complete when it holds every number or a full limit. */
+export function showcasePageIsFull(total: number, got: number): boolean {
+  if (total === 0) return got === 0;
+  return got === Math.min(total, SHOWCASE_LIMIT);
 }
 
 /** Null when every number starts with 7 and this three-digit code. */
@@ -150,8 +166,8 @@ export function rejectForeignCode(
 }
 
 export function parseShowcasePage(data: unknown): ParsedShowcase {
-  const meta = pageMeta(data);
-  if (!meta) return { ok: false, error: INCOMPLETE };
+  const meta = pageMeta(data, SHOWCASE_LIMIT);
+  if (!meta.ok) return meta;
   const rows: FreeDraft[] = [];
   const seen = new Set<string>();
   for (const item of meta.rows) {
@@ -170,8 +186,8 @@ export function parseShowcasePage(data: unknown): ParsedShowcase {
 }
 
 export function parseManagementPage(data: unknown): ParsedManagement {
-  const meta = pageMeta(data);
-  if (!meta) return { ok: false, error: INCOMPLETE };
+  const meta = pageMeta(data, MANAGEMENT_LIMIT);
+  if (!meta.ok) return meta;
   const rows: string[] = [];
   let skippedFree = 0;
   for (const item of meta.rows) {
@@ -212,12 +228,13 @@ export function acceptShowcasePage(input: {
   total: number;
   got: number;
   acceptedBefore: number;
+  limit: number;
 }): PageStep {
-  if (input.got > SHOWCASE_LIMIT) return "over";
+  if (input.got > input.limit) return "over";
   const accepted = input.acceptedBefore + input.got;
   if (accepted > input.total) return "over";
   if (accepted === input.total) return "done";
-  if (input.got < SHOWCASE_LIMIT) return "short";
+  if (input.got < input.limit) return "short";
   return "next";
 }
 

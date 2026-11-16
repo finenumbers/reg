@@ -42,6 +42,8 @@ import {
   parseSession,
   parseShowcasePage,
   rejectForeignCode,
+  SHORT_PAGE,
+  showcasePageIsFull,
   type RunexisSession,
 } from "@/modules/runexis/parse";
 import {
@@ -55,7 +57,11 @@ import {
   stagePurchasedNumbers,
   SyncLost,
 } from "@/modules/runexis/publish";
-import { RUNEXIS_ORIGIN, SHOWCASE_LIMIT, type RunexisList } from "@/modules/runexis/url";
+import {
+  MANAGEMENT_LIMIT,
+  RUNEXIS_ORIGIN,
+  type RunexisList,
+} from "@/modules/runexis/url";
 import { runRunexisWalk, type LeaseBeat } from "@/modules/runexis/walk";
 
 const BUSY = "Уже выполняется.";
@@ -263,7 +269,7 @@ function beat(
 ): Promise<LeaseBeat> {
   const pageDone = list === "showcase" ? accepted : page;
   const pages =
-    list === "showcase" ? 0 : total === 0 ? 1 : Math.ceil(total / SHOWCASE_LIMIT);
+    list === "showcase" ? 0 : total === 0 ? 1 : Math.ceil(total / MANAGEMENT_LIMIT);
   return withDbRetry(() =>
     prisma.$transaction(async (tx) => {
       const updated = await tx.$queryRaw<{ phase: string }[]>`
@@ -383,7 +389,9 @@ export async function testRunexisAccess(
     const free = showcase?.ok ? parseShowcasePage(showcase.data) : null;
     const foreign =
       free?.ok && first ? rejectForeignCode(free.page.rows, first.code) : null;
-    const ok = Boolean(bought?.ok && directory?.ok && free?.ok && !foreign);
+    const full =
+      free?.ok === true && showcasePageIsFull(free.page.total, free.page.rows.length);
+    const ok = Boolean(bought?.ok && directory?.ok && free?.ok && !foreign && full);
     await auditService.append({
       actorUserId: actor.userId,
       action: AUDIT_ACTIONS.RUNEXIS_TEST,
@@ -399,6 +407,7 @@ export async function testRunexisAccess(
     if (!showcase?.ok) return { ok: false, error: showcase?.error ?? BAD_LOGIN };
     if (!free?.ok) return { ok: false, error: free?.error ?? BAD_LOGIN };
     if (foreign) return { ok: false, error: foreign };
+    if (!full) return { ok: false, error: SHORT_PAGE };
     return { ok: true };
   } catch (error) {
     return {

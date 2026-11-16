@@ -6,6 +6,7 @@
 import type { RunexisMeta, RunexisPage } from "@/modules/runexis/client";
 import {
   acceptShowcasePage,
+  DUPLICATE,
   parseManagementPage,
   parseRegionCodes,
   parseShowcasePage,
@@ -13,7 +14,12 @@ import {
   type FreeDraft,
 } from "@/modules/runexis/parse";
 import { SyncLost } from "@/modules/runexis/publish";
-import type { CodeSlice, RunexisList } from "@/modules/runexis/url";
+import {
+  MANAGEMENT_LIMIT,
+  SHOWCASE_LIMIT,
+  type CodeSlice,
+  type RunexisList,
+} from "@/modules/runexis/url";
 
 export type LeaseBeat = "ok" | "cancel" | "lost";
 
@@ -49,6 +55,12 @@ const NO_FREE = "Свободных номеров нет. Каталог не �
 const SHORT = "Ответ площадки обрезан. Каталог не изменён.";
 const CHANGED = "Список изменился во время чтения. Каталог не изменён.";
 const LOST = "Загрузка прервана. Каталог не изменён.";
+const CODE_READS = 3;
+const STAGE_CHUNK = 500;
+
+function changedError(previous: number, next: number): string {
+  return `Список изменился во время чтения. Было ${previous}, стало ${next}. Каталог не изменён.`;
+}
 
 const EMPTY_META: RunexisMeta = { status: 0, attempts: 1, durationMs: 0 };
 
@@ -75,10 +87,6 @@ async function stop(deps: WalkDeps, result: WalkResult): Promise<WalkResult> {
   return result;
 }
 
-function sliceTitle(slice: CodeSlice, page: number): string {
-  return `Витрина, код ${slice.code}, страница ${page}`;
-}
-
 async function gate(deps: WalkDeps): Promise<WalkResult | null> {
   if (deps.stopping()) return { ok: false, reason: "cancelled", error: CANCELLED };
   const beat = await deps.stillMine();
@@ -87,53 +95,76 @@ async function gate(deps: WalkDeps): Promise<WalkResult | null> {
   return null;
 }
 
-async function readSlice(
+type PassResult =
+  | { kind: "done"; rows: FreeDraft[] }
+  | { kind: "again"; error: string }
+  | { kind: "halt"; reason: "lost" | "cancelled" | "error"; error: string };
+
+async function readPass(
   deps: WalkDeps,
   slice: CodeSlice,
   draftBefore: number,
-): Promise<{ done: WalkResult | null; draft: number }> {
+  attempt: number,
+): Promise<PassResult> {
+  const seen = new Set<string>();
+  const buffered: FreeDraft[] = [];
   let total: number | null = null;
-  let accepted = 0;
-  let draft = draftBefore;
   let page = 1;
   for (;;) {
     const blocked = await gate(deps);
-    if (blocked) return { done: await stop(deps, blocked), draft };
+    if (blocked && !blocked.ok) {
+      return { kind: "halt", reason: blocked.reason, error: blocked.error };
+    }
     const response = await deps.showcase(page, slice);
-    const title = sliceTitle(slice, page);
+    const title = `Витрина, код ${slice.code}, страница ${page}, попытка ${attempt}`;
     if (!response.ok) {
       await deps.log(lines(title, response, [])).catch(() => undefined);
-      return {
-        done: await stop(deps, { ok: false, reason: "error", error: response.error }),
-        draft,
-      };
+      return { kind: "halt", reason: "error", error: response.error };
     }
     const parsed = parseShowcasePage(response.data);
-    const foreign = parsed.ok ? rejectForeignCode(parsed.page.rows, slice.code) : null;
-    if (!parsed.ok || parsed.page.page !== page || foreign) {
+    if (!parsed.ok) {
       await deps
         .log(lines(title, response, ["Итог: ответ не принят"]))
         .catch(() => undefined);
-      return {
-        done: await stop(deps, {
-          ok: false,
-          reason: "error",
-          error: foreign ?? (parsed.ok ? SHORT : parsed.error),
-        }),
-        draft,
-      };
+      if (parsed.error === DUPLICATE) return { kind: "again", error: parsed.error };
+      return { kind: "halt", reason: "error", error: parsed.error };
+    }
+    if (parsed.page.page !== page) {
+      await deps
+        .log(lines(title, response, ["Итог: ответ не принят"]))
+        .catch(() => undefined);
+      return { kind: "halt", reason: "error", error: SHORT };
+    }
+    const foreign = rejectForeignCode(parsed.page.rows, slice.code);
+    if (foreign) {
+      await deps
+        .log(lines(title, response, ["Итог: ответ не принят"]))
+        .catch(() => undefined);
+      return { kind: "again", error: foreign };
     }
     if (total == null) total = parsed.page.total;
     else if (parsed.page.total !== total) {
-      return {
-        done: await stop(deps, { ok: false, reason: "error", error: CHANGED }),
-        draft,
-      };
+      await deps
+        .log(
+          lines(title, response, [
+            `Всего было: ${total}`,
+            `Всего стало: ${parsed.page.total}`,
+          ]),
+        )
+        .catch(() => undefined);
+      return { kind: "again", error: changedError(total, parsed.page.total) };
+    }
+    if (parsed.page.rows.some((row) => seen.has(row.e164))) {
+      await deps
+        .log(lines(title, response, ["Итог: ответ не принят"]))
+        .catch(() => undefined);
+      return { kind: "again", error: DUPLICATE };
     }
     const step = acceptShowcasePage({
       total,
       got: parsed.page.rows.length,
-      acceptedBefore: accepted,
+      acceptedBefore: seen.size,
+      limit: SHOWCASE_LIMIT,
     });
     if (step === "short" || step === "over") {
       await deps
@@ -144,19 +175,43 @@ async function readSlice(
           ]),
         )
         .catch(() => undefined);
-      return {
-        done: await stop(deps, {
-          ok: false,
-          reason: "error",
-          error: step === "short" ? SHORT : CHANGED,
-        }),
-        draft,
-      };
+      return { kind: "again", error: step === "short" ? SHORT : CHANGED };
     }
+    for (const row of parsed.page.rows) {
+      seen.add(row.e164);
+      buffered.push(row);
+    }
+    await deps.progress("showcase", page, total, draftBefore + seen.size);
+    await deps
+      .log(
+        lines(title, response, [
+          `Получено: ${parsed.page.rows.length}`,
+          `Принято: ${seen.size}`,
+          `Всего: ${total}`,
+          `В черновике: ${draftBefore + seen.size}`,
+        ]),
+      )
+      .catch(() => undefined);
+    if (step === "done") return { kind: "done", rows: buffered };
+    page += 1;
+    if (page > Math.ceil(total / SHOWCASE_LIMIT) + 1) {
+      return { kind: "again", error: SHORT };
+    }
+  }
+}
+
+async function stageChunks(
+  deps: WalkDeps,
+  rows: FreeDraft[],
+  draftBefore: number,
+): Promise<{ done: WalkResult | null; draft: number }> {
+  let draft = draftBefore;
+  for (let offset = 0; offset < rows.length; offset += STAGE_CHUNK) {
+    const blocked = await gate(deps);
+    if (blocked) return { done: await stop(deps, blocked), draft };
+    const chunk = rows.slice(offset, offset + STAGE_CHUNK);
     try {
-      const inserted =
-        parsed.page.rows.length > 0 ? await deps.stageFree(parsed.page.rows) : 0;
-      draft += inserted;
+      draft += await deps.stageFree(chunk);
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Не удалось записать номера.";
@@ -165,27 +220,46 @@ async function readSlice(
         draft,
       };
     }
-    accepted += parsed.page.rows.length;
-    await deps.progress("showcase", page, total, draft);
-    await deps
-      .log(
-        lines(title, response, [
-          `Получено: ${parsed.page.rows.length}`,
-          `Принято: ${accepted}`,
-          `Всего: ${total}`,
-          `В черновике: ${draft}`,
-        ]),
-      )
-      .catch(() => undefined);
-    if (step === "done") return { done: null, draft };
-    page += 1;
-    if (page > Math.ceil(total / 30) + 1) {
+    await deps.progress("showcase", 0, rows.length, draft);
+  }
+  return { done: null, draft };
+}
+
+async function readSlice(
+  deps: WalkDeps,
+  slice: CodeSlice,
+  draftBefore: number,
+): Promise<{ done: WalkResult | null; draft: number }> {
+  let draft = draftBefore;
+  for (let attempt = 1; attempt <= CODE_READS; attempt += 1) {
+    if (attempt > 1) await deps.progress("showcase", 0, 0, draft);
+    const pass = await readPass(deps, slice, draft, attempt);
+    if (pass.kind === "halt") {
       return {
-        done: await stop(deps, { ok: false, reason: "error", error: SHORT }),
+        done: await stop(deps, {
+          ok: false,
+          reason: pass.reason,
+          error: pass.error,
+        }),
+        draft,
+      };
+    }
+    if (pass.kind === "done") return stageChunks(deps, pass.rows, draft);
+    await deps
+      .log(`Витрина, код ${slice.code}, попытка ${attempt}\n${pass.error}\n`)
+      .catch(() => undefined);
+    await deps.flushLog().catch(() => undefined);
+    if (attempt === CODE_READS) {
+      return {
+        done: await stop(deps, { ok: false, reason: "error", error: pass.error }),
         draft,
       };
     }
   }
+  return {
+    done: await stop(deps, { ok: false, reason: "error", error: SHORT }),
+    draft,
+  };
 }
 
 async function readFreeByCode(deps: WalkDeps): Promise<WalkResult | null> {
@@ -254,6 +328,7 @@ async function readManagement(deps: WalkDeps): Promise<WalkResult | null> {
       total,
       got: parsed.page.read,
       acceptedBefore: accepted,
+      limit: MANAGEMENT_LIMIT,
     });
     if (step === "short" || step === "over") {
       await deps
@@ -292,7 +367,7 @@ async function readManagement(deps: WalkDeps): Promise<WalkResult | null> {
       .catch(() => undefined);
     if (step === "done") return null;
     page += 1;
-    if (page > Math.ceil(total / 30) + 1) {
+    if (page > Math.ceil(total / MANAGEMENT_LIMIT) + 1) {
       return stop(deps, { ok: false, reason: "error", error: SHORT });
     }
   }

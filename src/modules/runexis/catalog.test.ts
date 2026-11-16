@@ -11,6 +11,7 @@ import {
   parseSession,
   parseShowcasePage,
   rejectForeignCode,
+  showcasePageIsFull,
 } from "@/modules/runexis/parse";
 import { RECLAIM_STAGE_SQL, RECLAIM_STATE_SQL } from "@/modules/runexis/reclaim";
 import { sanitizeLogLine } from "@/modules/runexis/log";
@@ -61,7 +62,7 @@ describe("runexis showcase", () => {
       "region_codes[0]",
     ]);
     expect(def.searchParams.get("page")).toBe("2");
-    expect(def.searchParams.get("limit")).toBe("30");
+    expect(def.searchParams.get("limit")).toBe("1000");
     expect(def.searchParams.get("region_codes[0]")).toBe("901");
     expect(def.searchParams.has("region_codes[0][0]")).toBe(false);
     expect(def.searchParams.has("region_codes[]")).toBe(false);
@@ -126,7 +127,7 @@ describe("runexis showcase", () => {
         },
         { code: "495", number: "3084481", installationCost: "нет", mera_price: 4 },
       ],
-      meta: { total: 3, page: 1, limit: 30 },
+      meta: { total: 3, page: 1, limit: 1000 },
     });
     expect(page.ok).toBe(true);
     if (!page.ok) return;
@@ -159,7 +160,7 @@ describe("runexis showcase", () => {
           { code: "901", number: "0000001" },
           { code: "901", number: "0000001" },
         ],
-        meta: { total: 2, page: 1, limit: 30 },
+        meta: { total: 2, page: 1, limit: 1000 },
       }).ok,
     ).toBe(false);
     expect(
@@ -178,17 +179,50 @@ describe("runexis showcase", () => {
   });
 
   it("accepts a short page only when the count lands on the total", () => {
-    expect(acceptShowcasePage({ total: 0, got: 0, acceptedBefore: 0 })).toBe("done");
-    expect(acceptShowcasePage({ total: 31, got: 1, acceptedBefore: 30 })).toBe("done");
-    expect(acceptShowcasePage({ total: 40, got: 10, acceptedBefore: 0 })).toBe("short");
-    expect(acceptShowcasePage({ total: 10, got: 30, acceptedBefore: 0 })).toBe("over");
-    expect(acceptShowcasePage({ total: 60, got: 30, acceptedBefore: 0 })).toBe("next");
+    expect(acceptShowcasePage({ total: 0, got: 0, acceptedBefore: 0, limit: 30 })).toBe(
+      "done",
+    );
+    expect(acceptShowcasePage({ total: 31, got: 1, acceptedBefore: 30, limit: 30 })).toBe(
+      "done",
+    );
+    expect(acceptShowcasePage({ total: 40, got: 10, acceptedBefore: 0, limit: 30 })).toBe(
+      "short",
+    );
+    expect(acceptShowcasePage({ total: 10, got: 30, acceptedBefore: 0, limit: 30 })).toBe(
+      "over",
+    );
+    expect(acceptShowcasePage({ total: 60, got: 30, acceptedBefore: 0, limit: 30 })).toBe(
+      "next",
+    );
+    expect(
+      acceptShowcasePage({ total: 2000, got: 1000, acceptedBefore: 0, limit: 1000 }),
+    ).toBe("next");
+    expect(
+      acceptShowcasePage({ total: 1001, got: 1, acceptedBefore: 1000, limit: 1000 }),
+    ).toBe("done");
+    expect(
+      acceptShowcasePage({ total: 40, got: 30, acceptedBefore: 0, limit: 1000 }),
+    ).toBe("short");
+    const wrongLimit = parseShowcasePage({
+      success: true,
+      data: [{ code: "901", number: "0000001" }],
+      meta: { total: 1, page: 1, limit: 30 },
+    });
+    expect(wrongLimit.ok).toBe(false);
+    if (!wrongLimit.ok) expect(wrongLimit.error).toContain("другой размер");
+    expect(showcasePageIsFull(0, 0)).toBe(true);
+    expect(showcasePageIsFull(1107, 1000)).toBe(true);
+    expect(showcasePageIsFull(5, 5)).toBe(true);
+    expect(showcasePageIsFull(1107, 30)).toBe(false);
+    expect(showcasePageIsFull(5, 4)).toBe(false);
+    expect(showcasePageIsFull(0, 1)).toBe(false);
     expect(parseAccessToken({ success: true, data: { token: "abc def" } })).toBeNull();
     expect(parseAccessToken({ success: true, data: { token: "abc" } })).toBe("abc");
   });
 
   it("replaces Runexis rows in both catalogs", () => {
     expect(catalogUrl("management", 2)).toContain("/api/v1/numbers/management");
+    expect(catalogUrl("management", 2)).toContain("limit=30");
     expect(refreshUrl()).toBe("https://didapi.runexis.ru/api/v1/refresh");
     expect(DELETE_RUNEXIS_FREE_SQL).toBe(
       "DELETE FROM free_numbers WHERE provider = 'Runexis'",

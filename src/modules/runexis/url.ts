@@ -4,7 +4,8 @@
  */
 
 export const RUNEXIS_ORIGIN = "https://didapi.runexis.ru";
-export const SHOWCASE_LIMIT = 30;
+export const MANAGEMENT_LIMIT = 30;
+export const SHOWCASE_LIMIT = 1000;
 
 export type RunexisList = "showcase" | "management";
 
@@ -31,7 +32,7 @@ export function catalogUrl(list: "management", page: number): string | null {
   if (!Number.isSafeInteger(page) || page < 1) return null;
   const url = new URL("/api/v1/numbers/management", RUNEXIS_ORIGIN);
   url.searchParams.set("page", String(page));
-  url.searchParams.set("limit", String(SHOWCASE_LIMIT));
+  url.searchParams.set("limit", String(MANAGEMENT_LIMIT));
   return url.toString();
 }
 

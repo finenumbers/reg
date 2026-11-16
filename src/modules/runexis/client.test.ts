@@ -101,6 +101,7 @@ describe("runexis client", () => {
       "page",
       "region_codes[0]",
     ]);
+    expect(url.searchParams.get("limit")).toBe("1000");
     expect(url.searchParams.get("region_codes[0]")).toBe("901");
     expect(url.searchParams.has("region_codes[0][0]")).toBe(false);
     expect(url.searchParams.has("region_codes[]")).toBe(false);
@@ -206,6 +207,7 @@ describe("runexis client", () => {
     expect(session).toEqual({ token: "new", refreshToken: "next" });
     expect(beats).toEqual([1, 1]);
     expect(calls.map((call) => call.method)).toEqual(["GET", "POST", "GET"]);
+    expect(calls[0]?.href).toContain("limit=1000");
     expect(calls[0]?.href).toContain("region_codes%5B0%5D=495");
     expect(calls[0]?.href).not.toContain("region_codes%5B0%5D%5B0%5D");
     expect(calls[0]?.href).not.toContain("region_codes%5B%5D");
