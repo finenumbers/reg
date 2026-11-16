@@ -16,7 +16,7 @@ const FORMAT_LABEL: Record<Format, string> = {
 export function AuroraLoadForm({ initial }: { initial: AuroraLoadView }) {
   const [view, setView] = useState(initial);
   const [format, setFormat] = useState<Format | "">("");
-  const [file, setFile] = useState<File | null>(null);
+  const [url, setUrl] = useState("");
   const [confirm, setConfirm] = useState(false);
   const [removeId, setRemoveId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -24,8 +24,9 @@ export function AuroraLoadForm({ initial }: { initial: AuroraLoadView }) {
   const [pending, setPending] = useState(false);
 
   const remove = view.files.find((item) => item.id === removeId) ?? null;
+  const trimmed = url.trim();
 
-  async function send(path: string, body: BodyInit | undefined, json: boolean) {
+  async function send(path: string, body: string) {
     if (pending) return;
     setPending(true);
     setError(null);
@@ -33,7 +34,7 @@ export function AuroraLoadForm({ initial }: { initial: AuroraLoadView }) {
     try {
       const response = await fetch(path, {
         method: "POST",
-        headers: json ? { "Content-Type": "application/json" } : undefined,
+        headers: { "Content-Type": "application/json" },
         body,
       });
       const payload = (await response.json().catch(() => null)) as {
@@ -41,7 +42,6 @@ export function AuroraLoadForm({ initial }: { initial: AuroraLoadView }) {
         settings?: AuroraLoadView;
         dropped?: number;
         kept?: number;
-        ok?: boolean;
       } | null;
       if (payload?.settings) setView(payload.settings);
       if (!response.ok) {
@@ -50,14 +50,12 @@ export function AuroraLoadForm({ initial }: { initial: AuroraLoadView }) {
       }
       setConfirm(false);
       setRemoveId(null);
-      setFile(null);
+      setUrl("");
       setFormat("");
       if (typeof payload?.kept === "number") {
         setNote(
           `Номеров: ${payload.kept}. Повторов будет отброшено: ${payload.dropped ?? 0}.`,
         );
-      } else if (typeof payload?.dropped === "number") {
-        setNote(`Повторов будет отброшено: ${payload.dropped}.`);
       }
     } catch {
       setError("Не удалось выполнить запрос.");
@@ -79,15 +77,17 @@ export function AuroraLoadForm({ initial }: { initial: AuroraLoadView }) {
     <div className="max-w-xl space-y-4" onKeyDown={onKeyDown}>
       <h2 className="text-base font-semibold">Aurora Telecom</h2>
       <p className="text-muted-foreground text-sm">
-        У каждого файла укажите формат. Сохранение не записывает номера. «Загрузить» на
-        странице синхронизации читает этот набор и после записи удаляет файлы.
+        У каждой ссылки укажите формат. Сохранение ничего не скачивает. «Загрузить» на
+        странице синхронизации каждый раз скачивает этот список заново.
       </p>
       {view.files.length > 0 ? (
         <ul className="space-y-2">
           {view.files.map((item, index) => (
             <li key={item.id} className="flex flex-wrap items-center gap-2 text-sm">
-              <span className="min-w-0 flex-1 truncate">{item.name}</span>
-              <span>{FORMAT_LABEL[item.format]}</span>
+              <span className="min-w-0 flex-1 truncate" title={item.unreadable ? undefined : item.url}>
+                {item.unreadable ? "Ссылка не читается" : item.url}
+              </span>
+              <span>{item.unreadable ? "" : FORMAT_LABEL[item.format]}</span>
               <Button
                 type="button"
                 variant="outline"
@@ -96,7 +96,6 @@ export function AuroraLoadForm({ initial }: { initial: AuroraLoadView }) {
                   void send(
                     "/api/numbering-load/aurora/files/move",
                     JSON.stringify({ id: item.id, direction: "up" }),
-                    true,
                   )
                 }
               >
@@ -110,7 +109,6 @@ export function AuroraLoadForm({ initial }: { initial: AuroraLoadView }) {
                   void send(
                     "/api/numbering-load/aurora/files/move",
                     JSON.stringify({ id: item.id, direction: "down" }),
-                    true,
                   )
                 }
               >
@@ -132,7 +130,7 @@ export function AuroraLoadForm({ initial }: { initial: AuroraLoadView }) {
           ))}
         </ul>
       ) : (
-        <p className="text-sm">Файлы ещё не указаны.</p>
+        <p className="text-sm">Ссылки ещё не указаны.</p>
       )}
       <div className="space-y-2">
         <Label htmlFor="aurora-format">Формат</Label>
@@ -151,18 +149,20 @@ export function AuroraLoadForm({ initial }: { initial: AuroraLoadView }) {
         </select>
       </div>
       <div className="space-y-2">
-        <Label htmlFor="aurora-file">Файл CSV</Label>
+        <Label htmlFor="aurora-url">Ссылка</Label>
         <Input
-          id="aurora-file"
-          type="file"
-          accept=".csv,text/csv"
-          onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+          id="aurora-url"
+          type="url"
+          value={url}
+          autoComplete="off"
+          spellCheck={false}
+          onChange={(event) => setUrl(event.target.value)}
         />
       </div>
       <div className="flex gap-2">
         <Button
           type="button"
-          disabled={pending || !file || format === ""}
+          disabled={pending || trimmed === "" || format === ""}
           onClick={() => {
             setError(null);
             setNote(null);
@@ -175,17 +175,17 @@ export function AuroraLoadForm({ initial }: { initial: AuroraLoadView }) {
           type="button"
           variant="outline"
           disabled={pending || view.files.length === 0}
-          onClick={() => void send("/api/numbering-load/aurora/test", "{}", true)}
+          onClick={() => void send("/api/numbering-load/aurora/test", "{}")}
         >
-          Проверить файлы
+          Проверить
         </Button>
       </div>
-      {confirm && file && format ? (
+      {confirm && trimmed && format ? (
         <div role="dialog" aria-label="Подтверждение сохранения" className="space-y-3 rounded-md border p-4">
-          <p className="text-sm">
+          <p className="text-sm break-all">
             Aurora Telecom
             <br />
-            Файл: {file.name}
+            Ссылка: {trimmed}
             <br />
             Формат: {FORMAT_LABEL[format]}
           </p>
@@ -193,12 +193,12 @@ export function AuroraLoadForm({ initial }: { initial: AuroraLoadView }) {
             <Button
               type="button"
               disabled={pending}
-              onClick={() => {
-                const body = new FormData();
-                body.set("file", file);
-                body.set("format", format);
-                void send("/api/numbering-load/aurora/files", body, false);
-              }}
+              onClick={() =>
+                void send(
+                  "/api/numbering-load/aurora/files",
+                  JSON.stringify({ url: trimmed, format }),
+                )
+              }
             >
               {pending ? "Сохранение…" : "Сохранить"}
             </Button>
@@ -210,10 +210,10 @@ export function AuroraLoadForm({ initial }: { initial: AuroraLoadView }) {
       ) : null}
       {remove ? (
         <div role="dialog" aria-label="Подтверждение удаления" className="space-y-3 rounded-md border p-4">
-          <p className="text-sm">
-            Удалить {remove.name}
+          <p className="text-sm break-all">
+            Удалить {remove.unreadable ? "нечитаемую ссылку" : remove.url}
             <br />
-            Формат: {FORMAT_LABEL[remove.format]}
+            {remove.unreadable ? null : <>Формат: {FORMAT_LABEL[remove.format]}</>}
           </p>
           <div className="flex gap-2">
             <Button
@@ -223,7 +223,6 @@ export function AuroraLoadForm({ initial }: { initial: AuroraLoadView }) {
                 void send(
                   "/api/numbering-load/aurora/files/remove",
                   JSON.stringify({ id: remove.id }),
-                  true,
                 )
               }
             >

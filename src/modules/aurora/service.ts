@@ -1,20 +1,20 @@
 /**
- * Aurora file save, the file check, and the walk share one holder.
- * Saving a file does not take the database lease and does not publish.
+ * Aurora link save, the link check, and the walk share one holder.
+ * Saving a link does not download and does not take the database lease.
  */
 
 import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/db";
 import { AUDIT_ACTIONS, auditService } from "@/modules/audit";
+import { downloadAuroraCsv, auroraInterruptedMessage } from "@/modules/aurora/fetch";
 import {
-  addAuroraFile,
-  displayFileName,
-  dropCommittedInbox,
-  listAuroraFiles,
-  moveAuroraFile,
-  parseAuroraSet,
-  removeAuroraFile,
-  type AuroraFileRow,
+  addAuroraLink,
+  countAuroraLinks,
+  listAuroraLinks,
+  moveAuroraLink,
+  removeAuroraLink,
+  unreadableAuroraLink,
+  type AuroraLinkRow,
 } from "@/modules/aurora/files";
 import { endAurora, isAuroraActive, isAuroraStopping, tryBeginAurora } from "@/modules/aurora/lease";
 import {
@@ -24,7 +24,16 @@ import {
   flushAuroraLog,
   sanitizeLogLine,
 } from "@/modules/aurora/log";
-import { auroraFormatLabel, shouldPublishAurora } from "@/modules/aurora/parse";
+import {
+  auroraFormatLabel,
+  combineAuroraFiles,
+  decodeAuroraCsv,
+  shouldPublishAurora,
+  type AuroraFileText,
+  type AuroraFormat,
+  type ParsedAurora,
+} from "@/modules/aurora/parse";
+import { auroraOperatorError, canonicalizeAuroraUrl } from "@/modules/aurora/url";
 import {
   dropStage,
   fillDraftSplit,
@@ -47,14 +56,21 @@ import {
 
 const BUSY = "Уже выполняется.";
 const STOPPING = "Сервер останавливается. Каталог не изменён.";
-const NO_FILES = "Файлы ещё не указаны.";
-const EMPTY = "В файлах нет номеров. Каталог не изменён.";
+const NO_LINKS = "Ссылки ещё не указаны.";
+const EMPTY = "В ссылках нет номеров. Каталог не изменён.";
 const LOG_OPEN_FAILED = "Не удалось открыть журнал стадии.";
 const START_FAILED = "Не удалось начать загрузку.";
 const CANCELLED = "Загрузка отменена. Каталог не изменён.";
 
+export type AuroraLoadFile = {
+  id: string;
+  url: string;
+  format: AuroraFormat;
+  unreadable: boolean;
+};
+
 export type AuroraLoadView = {
-  files: AuroraFileRow[];
+  files: AuroraLoadFile[];
   busy: boolean;
 };
 
@@ -88,12 +104,20 @@ function heldError(reason: "busy" | "stopping"): string {
 }
 
 export async function getAuroraLoadView(): Promise<AuroraLoadView> {
-  const files = await listAuroraFiles();
-  return { files, busy: isAuroraActive() };
+  const links = await listAuroraLinks();
+  return {
+    files: links.map((link) => ({
+      id: link.id,
+      url: link.unreadable ? "" : link.url,
+      format: link.format,
+      unreadable: link.unreadable,
+    })),
+    busy: isAuroraActive(),
+  };
 }
 
 export async function getAuroraSyncView(): Promise<AuroraSyncView> {
-  const [rows, hasLog, files] = await Promise.all([
+  const [rows, hasLog, linkCount] = await Promise.all([
     prisma.$queryRaw<StateRow[]>`
       SELECT phase, page_done, page_total, last_error,
         last_free_written, last_purchased_written,
@@ -112,7 +136,7 @@ export async function getAuroraSyncView(): Promise<AuroraSyncView> {
       WHERE id = 1
     `,
     auroraLogExists(),
-    listAuroraFiles(),
+    countAuroraLinks(),
   ]);
   const state = rows[0];
   const busy = Boolean(state?.busy) || isAuroraActive();
@@ -125,7 +149,7 @@ export async function getAuroraSyncView(): Promise<AuroraSyncView> {
     lastFree: state?.last_free_written ?? null,
     lastPurchased: state?.last_purchased_written ?? null,
     hasLog,
-    hasFiles: files.length > 0,
+    hasFiles: linkCount > 0,
   };
 }
 
@@ -142,35 +166,89 @@ async function withHolder<T extends { ok: boolean }>(
   }
 }
 
-export async function saveAuroraFile(
-  input: { bytes: Uint8Array; displayName: string; format: string },
+function watchStop(parent: AbortSignal): { signal: AbortSignal; close: () => void } {
+  const controller = new AbortController();
+  const timer = setInterval(() => {
+    if (isAuroraStopping()) controller.abort();
+  }, 250);
+  if (parent.aborted || isAuroraStopping()) controller.abort();
+  parent.addEventListener("abort", () => controller.abort(), { once: true });
+  return {
+    signal: AbortSignal.any([parent, controller.signal]),
+    close: () => clearInterval(timer),
+  };
+}
+
+async function downloadAuroraSet(
+  links: readonly AuroraLinkRow[],
+  parent: AbortSignal,
+  beat: (done: number, total: number) => Promise<void>,
+  log: ((index: number, link: AuroraLinkRow) => Promise<void>) | null,
+): Promise<ParsedAurora> {
+  if (links.some((link) => link.unreadable || !link.url)) {
+    return { ok: false, error: unreadableAuroraLink() };
+  }
+  const watched = watchStop(parent);
+  try {
+    const texts: AuroraFileText[] = [];
+    for (let index = 0; index < links.length; index += 1) {
+      const link = links[index];
+      if (!link) return { ok: false, error: unreadableAuroraLink() };
+      await beat(index, links.length);
+      if (log) await log(index, link);
+      const downloaded = await downloadAuroraCsv(
+        { href: link.url, host: link.host },
+        watched.signal,
+      );
+      if (!downloaded.ok) {
+        if (downloaded.interrupted || watched.signal.aborted) {
+          return { ok: false, error: auroraInterruptedMessage() };
+        }
+        return { ok: false, error: auroraOperatorError(index, link.host, downloaded.error) };
+      }
+      const decoded = decodeAuroraCsv(`Ссылка ${index + 1}`, downloaded.bytes);
+      if (!decoded.ok) {
+        return { ok: false, error: auroraOperatorError(index, link.host, decoded.error) };
+      }
+      texts.push({ name: `Ссылка ${index + 1}`, format: link.format, text: decoded.text });
+    }
+    await beat(links.length, links.length);
+    const parsed = combineAuroraFiles(texts);
+    if (parsed.ok) return parsed;
+    const match = /Ссылка (\d+)/.exec(parsed.error);
+    const index = match ? Number(match[1]) - 1 : 0;
+    return {
+      ok: false,
+      error: auroraOperatorError(index, links[index]?.host ?? "", parsed.error),
+    };
+  } finally {
+    watched.close();
+  }
+}
+
+export async function saveAuroraLink(
+  input: { url: string; format: string },
   actor: Actor,
-): Promise<
-  { ok: true; settings: AuroraLoadView; dropped?: number } | { ok: false; error: string }
-> {
-  const saved = await withHolder(() => addAuroraFile(input));
+): Promise<{ ok: true; settings: AuroraLoadView } | { ok: false; error: string }> {
+  const saved = await withHolder(() => addAuroraLink(input));
   if (!saved.ok) return saved;
-  const parsed = await parseAuroraSet();
+  const parsed = canonicalizeAuroraUrl(input.url);
   await auditService.append({
     actorUserId: actor.userId,
     action: AUDIT_ACTIONS.AURORA_SAVE,
     entityType: "aurora_files",
     entityId: "aurora",
     ip: actor.ip,
-    meta: { name: displayFileName(input.displayName) ?? "", format: input.format },
+    meta: { host: parsed.ok ? parsed.host : "", format: input.format },
   });
-  return {
-    ok: true,
-    settings: await getAuroraLoadView(),
-    ...(parsed.ok ? { dropped: parsed.dropped } : {}),
-  };
+  return { ok: true, settings: await getAuroraLoadView() };
 }
 
-export async function deleteAuroraFile(
+export async function deleteAuroraLink(
   id: string,
   actor: Actor,
 ): Promise<{ ok: true; settings: AuroraLoadView } | { ok: false; error: string }> {
-  const removed = await withHolder(() => removeAuroraFile(id));
+  const removed = await withHolder(() => removeAuroraLink(id));
   if (!removed.ok) return removed;
   await auditService.append({
     actorUserId: actor.userId,
@@ -183,23 +261,31 @@ export async function deleteAuroraFile(
   return { ok: true, settings: await getAuroraLoadView() };
 }
 
-export async function reorderAuroraFile(
+export async function reorderAuroraLink(
   id: string,
   direction: "up" | "down",
 ): Promise<{ ok: true; settings: AuroraLoadView } | { ok: false; error: string }> {
-  const moved = await withHolder(() => moveAuroraFile(id, direction));
+  const moved = await withHolder(() => moveAuroraLink(id, direction));
   if (!moved.ok) return moved;
   return { ok: true, settings: await getAuroraLoadView() };
 }
 
-export async function checkAuroraFiles(
+export async function checkAuroraLinks(
   actor: Actor,
+  signal: AbortSignal,
 ): Promise<
   { ok: true; read: number; kept: number; dropped: number } | { ok: false; error: string }
 > {
   const checked = await withHolder(async () => {
-    const parsed = await parseAuroraSet();
-    if (!parsed.ok) return parsed;
+    const links = await listAuroraLinks();
+    if (links.length === 0) return { ok: false as const, error: NO_LINKS };
+    const parsed = await downloadAuroraSet(links, signal, async () => undefined, null);
+    if (!parsed.ok) {
+      if (parsed.error === auroraInterruptedMessage()) {
+        return { ok: false as const, error: "Проверка прервана." };
+      }
+      return parsed;
+    }
     return {
       ok: true as const,
       read: parsed.read,
@@ -303,11 +389,24 @@ export async function startAuroraSync(
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   armNumberingSyncStop();
   if (isDatabaseVacuumActive()) return { ok: false, error: CDR_VACUUM_BUSY_MESSAGE };
-  const files = await listAuroraFiles();
-  if (files.length === 0) return { ok: false, error: NO_FILES };
   const begun = tryBeginAurora();
   if (!begun.ok) return { ok: false, error: heldError(begun.reason) };
   const holder = begun.token;
+  let snapshot: AuroraLinkRow[];
+  try {
+    const links = await listAuroraLinks();
+    if (links.length === 0 || links.some((link) => link.unreadable)) {
+      endAurora(holder);
+      return {
+        ok: false,
+        error: links.length === 0 ? NO_LINKS : unreadableAuroraLink(),
+      };
+    }
+    snapshot = links.map((link) => ({ ...link }));
+  } catch {
+    endAurora(holder);
+    return { ok: false, error: START_FAILED };
+  }
   const runId = randomUUID();
   let claimed = false;
   try {
@@ -331,7 +430,7 @@ export async function startAuroraSync(
     return { ok: false, error: LOG_OPEN_FAILED };
   }
   let seenDone = 0;
-  let seenTotal = files.length;
+  let seenTotal = snapshot.length;
   void (async () => {
     try {
       const guard = async () => {
@@ -340,20 +439,30 @@ export async function startAuroraSync(
         if (state === "cancel") throw new Error(CANCELLED);
         if (state === "lost") throw new SyncLost();
       };
-      const parsed = await parseAuroraSet();
-      if (!parsed.ok) throw new Error(parsed.error);
-      const listed = await listAuroraFiles();
-      seenTotal = listed.length;
-      seenDone = listed.length;
-      await guard();
-      for (const file of listed) {
-        await appendAuroraLog(
-          [
-            `Файл: ${file.name}`,
-            `Формат: ${auroraFormatLabel(file.format)}`,
-            "",
-          ].join("\n"),
-        );
+      const parsed = await downloadAuroraSet(
+        snapshot,
+        new AbortController().signal,
+        async (done, total) => {
+          seenDone = done;
+          seenTotal = total;
+          await guard();
+        },
+        async (index, link) => {
+          await appendAuroraLog(
+            [
+              `Ссылка: ${index + 1}`,
+              `Формат: ${auroraFormatLabel(link.format)}`,
+              `Узел: ${link.host}`,
+              "",
+            ].join("\n"),
+          );
+        },
+      );
+      if (!parsed.ok) {
+        if (parsed.error === auroraInterruptedMessage() || isAuroraStopping()) {
+          throw new Error(CANCELLED);
+        }
+        throw new Error(parsed.error);
       }
       await appendAuroraLog(
         `Прочитано: ${parsed.read}\nОставлено: ${parsed.rows.length}\nПовторов отброшено: ${parsed.dropped}\n`,
@@ -388,12 +497,6 @@ export async function startAuroraSync(
         `Итог: записано свободных ${counts.free}, купленных ${counts.purchased}\n`,
       );
       await flushAuroraLog();
-      try {
-        await dropCommittedInbox();
-      } catch {
-        await appendAuroraLog("Файлы остались. Повторите загрузку.\n");
-        await flushAuroraLog();
-      }
       await auditService
         .append({
           actorUserId: actor.userId,

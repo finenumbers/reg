@@ -51,19 +51,19 @@ describe("Aurora catalog copy", () => {
     ).toBe("rollback");
   });
 
-  it("deletes the inbox only after the catalog commit", () => {
+  it("publishes only after every link has been read", () => {
     const service = readFileSync(
       path.join(process.cwd(), "src/modules/aurora/service.ts"),
       "utf8",
     );
-    const publish = service.indexOf("await replaceAuroraCatalogs");
-    const drop = service.indexOf("await dropCommittedInbox");
-    const empty = service.indexOf("shouldPublishAurora");
+    const download = service.indexOf("await downloadAuroraSet");
     const stage = service.indexOf("await stageFreeNumbers");
-    expect(publish).toBeGreaterThan(0);
-    expect(drop).toBeGreaterThan(publish);
-    expect(empty).toBeGreaterThan(0);
-    expect(empty).toBeLessThan(stage);
+    const publish = service.indexOf("await replaceAuroraCatalogs");
+    expect(download).toBeGreaterThan(0);
+    expect(download).toBeLessThan(stage);
+    expect(stage).toBeLessThan(publish);
+    expect(service.indexOf("shouldPublishAurora")).toBeLessThan(stage);
+    expect(service).not.toContain("dropCommittedInbox");
   });
 
   it("reclaims the lease and leaves the inbox", () => {

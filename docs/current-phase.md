@@ -1,7 +1,13 @@
-# Current Phase — production (v1.293.0)
+# Current Phase — production (v1.294.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, purchased numbers, numbering sync, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-16
+
+## v1.294.0 — Aurora Telecom links
+
+The migration `20261116070000_aurora_file_links` clears `aurora_files` and replaces the stored file name with `url_ciphertext`. It does not rewrite catalog rows, does not change the Aurora epoch counters, and does not scan the CDR journal. The migration is label-free. `lock_timeout` is 15 seconds. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app, let migrate finish, then start one new app. The `/app/data/aurora` volume is no longer used. If migrate stops on `lock_timeout`, do not start the new app. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged. SipOut, Runexis, and UIS are unchanged.
+
+Links saved as local CSV files in v1.293.0 are not converted. Enter the HTTPS links again. Numbers already published stay until the next successful Aurora Telecom load. «Загрузка нумерации» stores each link with an explicit format, «Сокращённый» or «Полный». Saving a link does not download. «Проверить» downloads the list and does not publish. «Загрузить» downloads the same list again. A successful write replaces the free Aurora Telecom rows and clears the purchased Aurora Telecom rows. An empty set, a failed link, or a cancel leaves the catalogs. The address stays ciphertext. The stage log has the host, the format, and the counts. It has no URL and no CSV body. An API key cannot start the stage.
 
 ## v1.293.0 — Aurora Telecom CSV
 

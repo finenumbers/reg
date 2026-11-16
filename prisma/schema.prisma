@@ -864,14 +864,13 @@ model AuroraSyncStage {
   @@map("aurora_sync_stage")
 }
 
-/// CSV files waiting for one Aurora load. The load deletes them after commit.
+/// HTTPS links for one Aurora load. The address is ciphertext. The load does not delete them.
 model AuroraFile {
-  id          String @id
-  sortIndex   Int    @unique @map("sort_index")
-  displayName String @map("display_name")
-  storedName  String @unique @map("stored_name")
+  id            String @id
+  sortIndex     Int    @unique @map("sort_index")
+  urlCiphertext String @map("url_ciphertext")
   /// short or full. The parser does not infer this from the file.
-  format      String
+  format        String
 
   @@map("aurora_files")
 }

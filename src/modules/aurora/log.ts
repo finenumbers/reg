@@ -68,7 +68,7 @@ export async function beginAuroraLog(runId: string): Promise<void> {
   const header = sanitizeBlock(
     [
       "Источник: Aurora Telecom",
-      "Список: свободные номера из CSV",
+      "Список: свободные номера по ссылкам",
       `Запуск: ${new Date().toISOString()}`,
       `Идентификатор: ${runId}`,
       "",

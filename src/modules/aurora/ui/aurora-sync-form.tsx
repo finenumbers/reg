@@ -70,7 +70,7 @@ export function AuroraSyncForm({ initial }: { initial: AuroraSyncView }) {
     : view.phase === "publishing"
       ? "Запись номеров"
       : view.pageTotal > 0
-        ? `Файлы: ${view.pageDone} из ${view.pageTotal}`
+        ? `Ссылки: ${view.pageDone} из ${view.pageTotal}`
         : "Загрузка";
 
   return (
@@ -99,8 +99,8 @@ export function AuroraSyncForm({ initial }: { initial: AuroraSyncView }) {
           <p className="text-sm">
             Источник: Aurora Telecom
             <br />
-            Будут заново прочитаны сохранённые CSV. Успешная запись заменит прежние номера
-            Aurora Telecom и удалит эти файлы.
+            Будут заново скачаны сохранённые ссылки. Успешная запись заменит прежние номера
+            Aurora Telecom.
           </p>
           <div className="flex gap-2">
             <Button type="button" disabled={pending} onClick={() => void send("/api/numbering-sync/aurora")}>

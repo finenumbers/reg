@@ -23,3 +23,21 @@ describe("Aurora source migration", () => {
     expect(sql).toContain("INSERT INTO \"aurora_sync_state\" (\"id\") VALUES (1)");
   });
 });
+
+describe("Aurora link migration", () => {
+  const links = readFileSync(
+    path.join(process.cwd(), "prisma/migrations/20261116070000_aurora_file_links/migration.sql"),
+    "utf8",
+  );
+
+  it("stores ciphertext and does not rewrite the catalogs or the epochs", () => {
+    expect(links).toContain("SET LOCAL lock_timeout = '15s'");
+    expect(links).toContain('DELETE FROM "aurora_files"');
+    expect(links).toContain('"url_ciphertext" TEXT NOT NULL');
+    expect(links).not.toContain("free_numbers");
+    expect(links).not.toContain("purchased_numbers");
+    expect(links).not.toContain("decorate_generation");
+    expect(links).not.toContain("aurora_epoch");
+    expect(links.replace(/--.*$/gm, "")).not.toContain("cdr_records");
+  });
+});

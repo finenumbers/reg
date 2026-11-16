@@ -1,50 +1,48 @@
 import { numberingLoadActor, numberingLoadJson } from "@/modules/numbering-load/http";
+import { AURORA_URL_LIMIT } from "@/modules/aurora/url";
 import { isAuroraFormat } from "@/modules/aurora/parse";
-import { displayFileName } from "@/modules/aurora/files";
-import { getAuroraLoadView, saveAuroraFile } from "@/modules/aurora/service";
+import { getAuroraLoadView, saveAuroraLink } from "@/modules/aurora/service";
 
 export const runtime = "nodejs";
 
-const MAX_BYTES = 20 * 1024 * 1024;
-
-/** POST /api/numbering-load/aurora/files — store one CSV. Session only. */
+/** POST /api/numbering-load/aurora/files — store one link. Session only. The body is not fetched. */
 export async function POST(request: Request) {
   const actor = await numberingLoadActor(request);
   if (!actor.ok) return actor.response;
-  let form: FormData;
+  let body: unknown;
   try {
-    form = await request.formData();
+    body = await request.json();
   } catch {
-    return numberingLoadJson({ error: "Не удалось прочитать файл." }, 400);
+    return numberingLoadJson({ error: "Некорректный запрос." }, 400);
   }
-  const format = form.get("format");
-  const file = form.get("file");
+  const record = body && typeof body === "object" ? body : null;
+  const url = record && "url" in record ? record.url : null;
+  const format = record && "format" in record ? record.format : null;
   if (typeof format !== "string" || !isAuroraFormat(format)) {
-    return numberingLoadJson({ error: "Укажите формат файла.", settings: await getAuroraLoadView() }, 400);
-  }
-  if (!(file instanceof File)) {
-    return numberingLoadJson({ error: "Нужен файл CSV.", settings: await getAuroraLoadView() }, 400);
-  }
-  if (!displayFileName(file.name)) {
-    return numberingLoadJson({ error: "Нужен файл CSV.", settings: await getAuroraLoadView() }, 400);
-  }
-  if (file.size > MAX_BYTES) {
-    return numberingLoadJson({ error: "Файл больше 20 МБ.", settings: await getAuroraLoadView() }, 400);
-  }
-  const bytes = new Uint8Array(await file.arrayBuffer());
-  try {
-    const saved = await saveAuroraFile(
-      { bytes, displayName: file.name, format },
-      { userId: actor.userId, ip: actor.ip },
+    return numberingLoadJson(
+      { error: "Укажите формат файла.", settings: await getAuroraLoadView() },
+      400,
     );
+  }
+  if (typeof url !== "string" || url.length > AURORA_URL_LIMIT) {
+    return numberingLoadJson(
+      { error: "Укажите ссылку https.", settings: await getAuroraLoadView() },
+      400,
+    );
+  }
+  try {
+    const saved = await saveAuroraLink({ url, format }, { userId: actor.userId, ip: actor.ip });
     if (!saved.ok) {
       return numberingLoadJson(
         { error: saved.error, settings: await getAuroraLoadView() },
         400,
       );
     }
-    return numberingLoadJson({ settings: saved.settings, dropped: saved.dropped });
+    return numberingLoadJson({ settings: saved.settings });
   } catch {
-    return numberingLoadJson({ error: "Не удалось сохранить файл.", settings: await getAuroraLoadView() }, 500);
+    return numberingLoadJson(
+      { error: "Не удалось сохранить ссылку.", settings: await getAuroraLoadView() },
+      500,
+    );
   }
 }

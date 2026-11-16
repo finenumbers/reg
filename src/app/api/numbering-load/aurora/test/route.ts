@@ -1,5 +1,5 @@
 import { numberingLoadActor, numberingLoadJson } from "@/modules/numbering-load/http";
-import { checkAuroraFiles } from "@/modules/aurora/service";
+import { checkAuroraLinks } from "@/modules/aurora/service";
 
 export const runtime = "nodejs";
 
@@ -8,7 +8,10 @@ export async function POST(request: Request) {
   const actor = await numberingLoadActor(request);
   if (!actor.ok) return actor.response;
   try {
-    const checked = await checkAuroraFiles({ userId: actor.userId, ip: actor.ip });
+    const checked = await checkAuroraLinks(
+      { userId: actor.userId, ip: actor.ip },
+      request.signal,
+    );
     if (!checked.ok) return numberingLoadJson({ error: checked.error }, 400);
     return numberingLoadJson(checked);
   } catch {

@@ -1,5 +1,5 @@
 import { numberingLoadActor, numberingLoadJson } from "@/modules/numbering-load/http";
-import { getAuroraLoadView, reorderAuroraFile } from "@/modules/aurora/service";
+import { getAuroraLoadView, reorderAuroraLink } from "@/modules/aurora/service";
 
 export const runtime = "nodejs";
 
@@ -20,7 +20,7 @@ export async function POST(request: Request) {
     return numberingLoadJson({ error: "Некорректный запрос." }, 400);
   }
   try {
-    const moved = await reorderAuroraFile(id, direction);
+    const moved = await reorderAuroraLink(id, direction);
     if (!moved.ok) {
       return numberingLoadJson(
         { error: moved.error, settings: await getAuroraLoadView() },

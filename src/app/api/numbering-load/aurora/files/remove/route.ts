@@ -1,5 +1,5 @@
 import { numberingLoadActor, numberingLoadJson } from "@/modules/numbering-load/http";
-import { deleteAuroraFile, getAuroraLoadView } from "@/modules/aurora/service";
+import { deleteAuroraLink, getAuroraLoadView } from "@/modules/aurora/service";
 
 export const runtime = "nodejs";
 
@@ -18,7 +18,7 @@ export async function POST(request: Request) {
     return numberingLoadJson({ error: "Файл уже удалён." }, 400);
   }
   try {
-    const removed = await deleteAuroraFile(id, { userId: actor.userId, ip: actor.ip });
+    const removed = await deleteAuroraLink(id, { userId: actor.userId, ip: actor.ip });
     if (!removed.ok) {
       return numberingLoadJson(
         { error: removed.error, settings: await getAuroraLoadView() },
