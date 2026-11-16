@@ -1,7 +1,13 @@
-# Current Phase — production (v1.291.0)
+# Current Phase — production (v1.292.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, purchased numbers, numbering sync, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-16
+
+## v1.292.0 — ABC menu shows the cell text
+
+The migration `20261116040000_geography_abc_text` adds `geography_abc_text` and three indexes on `free_numbers`, `purchased_numbers`, and `rtu_screen`. It does not rewrite rows. The migration is label-free, so startup does not rescan the CDR journal. Building the indexes blocks writes on those three tables until migrate finishes. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app, let migrate finish, then start one new app. If migrate stops on `lock_timeout`, do not start the new app. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged.
+
+On «Управление РТУ», «Свободные номера», and «Купленные номера», the ABC column menu shows the same text as the cell, such as `7 (383)` and `7 (3012)`. The number beside a line is the count of rows whose cell has that text. Typing in the menu searches that text. Choosing a line keeps those rows. «Номер» is unchanged.
 
 ## v1.291.0 — Mask and client after the catalog commit
 

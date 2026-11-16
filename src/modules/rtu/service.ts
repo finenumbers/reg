@@ -319,6 +319,7 @@ export async function listRtuFacets(opts: {
   const rows = await prisma.$queryRaw<FacetRow[]>(
     screenFacetSql(column, screenWhere(joined, filters, column, phoneQ, flags), joined),
   );
+  // ABC values are already the screen text. q drops other groups and keeps each count.
   const amount = column === "sale" || column === "premium";
   return facetsFromGroups(rows, {
     q: opts.q,

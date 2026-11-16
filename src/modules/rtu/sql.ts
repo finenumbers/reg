@@ -141,15 +141,27 @@ function columnRef(column: RtuColumn): Prisma.Sql {
   }
 }
 
+/** Screen ABC. The same call is indexed by rtu_screen_abc_text_order_idx. */
+function abcScreenSql(): Prisma.Sql {
+  return Prisma.sql`geography_abc_text(number, abc, telephone)`;
+}
+
 /** Bound IN-list plus an empty-cell disjunct. Values never enter the SQL text. */
 export function filterMatchSql(column: RtuColumn, values: string[]): Prisma.Sql {
   const wantsEmpty = values.includes(EMPTY_FILTER_TOKEN);
   const texts = values.filter((value) => value !== EMPTY_FILTER_TOKEN);
-  const expr = columnRef(column);
   const parts: Prisma.Sql[] = [];
-  if (wantsEmpty) parts.push(Prisma.sql`${expr} = ''`);
-  if (texts.length > 0) {
-    parts.push(Prisma.sql`${expr} IN (${Prisma.join(texts)})`);
+  if (column === "abc") {
+    if (wantsEmpty) parts.push(Prisma.sql`abc = ''`);
+    if (texts.length > 0) {
+      parts.push(Prisma.sql`${abcScreenSql()} IN (${Prisma.join(texts)})`);
+    }
+  } else {
+    const expr = columnRef(column);
+    if (wantsEmpty) parts.push(Prisma.sql`${expr} = ''`);
+    if (texts.length > 0) {
+      parts.push(Prisma.sql`${expr} IN (${Prisma.join(texts)})`);
+    }
   }
   if (parts.length === 0) return Prisma.sql`TRUE`;
   if (parts.length === 1) return parts[0]!;
@@ -996,12 +1008,16 @@ export function screenListSql(opts: ScreenReadOpts): Prisma.Sql {
   `;
 }
 
+/**
+ * One grouped column. ABC groups by the screen text.
+ * The menu search runs after this count, so the number stays the whole group.
+ */
 export function screenFacetSql(
   column: RtuColumn,
   where: Prisma.Sql,
   joined: boolean,
 ): Prisma.Sql {
-  const expr = columnRef(column);
+  const expr = column === "abc" ? abcScreenSql() : columnRef(column);
   if (!joined) {
     return Prisma.sql`
       SELECT ${expr} AS value, count(*)::int AS count

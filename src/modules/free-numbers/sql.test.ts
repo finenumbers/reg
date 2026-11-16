@@ -51,7 +51,11 @@ describe("free-number SQL", () => {
   });
 
   it("leaves the open column out of a facet and matches a compact amount", () => {
-    const where = freeNumberWhere({ purchase: ["100"], city: ["Казань"] }, "", "purchase");
+    const where = freeNumberWhere(
+      { purchase: ["100"], city: ["Казань"] },
+      "",
+      "purchase",
+    );
     const flat = flattenSql(freeNumberFacetSql("purchase", where, "1 500", 201));
     expect(flat.text).not.toContain("purchase IN");
     expect(flat.text).toContain("city IN");
@@ -82,5 +86,55 @@ describe("free-number SQL", () => {
     expect(next.text).toContain(`"number" > ?`);
     expect(next.text).toContain("id > ?");
     expect(next.values).toEqual(["495", "495", "100", "495", "100", "row", 500]);
+  });
+
+  it("filters and searches ABC by the screen text", () => {
+    const screen = 'geography_abc_text(e164, abc, "number")';
+    const where = flattenSql(
+      freeNumberWhere({ abc: ["7 (383)", EMPTY_FILTER_TOKEN], city: ["Казань"] }, ""),
+    );
+    expect(where.text).toContain(`${screen} IN`);
+    expect(where.text).toContain("abc = ''");
+    expect(where.text).toContain("city IN");
+    expect(where.text).not.toContain("abc IN");
+    expect(where.text).not.toContain("abc ILIKE");
+    expect(where.values).toEqual(["7 (383)", "Казань"]);
+
+    const facet = flattenSql(
+      freeNumberFacetSql(
+        "abc",
+        freeNumberWhere({ city: ["Казань"] }, "495", "abc"),
+        "7 (383)",
+        201,
+      ),
+    );
+    expect(facet.text).toContain(`SELECT ${screen} AS value, count(*)::int AS count`);
+    expect(facet.text).toContain(`${screen} ILIKE ?`);
+    expect(facet.text).toContain("GROUP BY 1");
+    expect(facet.text).toContain("city IN");
+    expect(facet.text).not.toContain("abc ILIKE");
+    expect(facet.text).not.toContain("abc IN");
+    expect(facet.values).toEqual(["Казань", "%495%", "%495%", "%7 (383)%", 201]);
+
+    const empty = flattenSql(
+      freeNumberFacetSql("abc", freeNumberWhere({}, "", "abc"), "пусто", 201),
+    );
+    expect(empty.text).toContain(`${screen} ILIKE ?`);
+    expect(empty.text).toContain("abc = ''");
+    expect(empty.text).not.toContain("abc ILIKE");
+    expect(empty.values).toEqual(["%пусто%", 201]);
+
+    const city = flattenSql(
+      freeNumberFacetSql("city", freeNumberWhere({}, "", "city"), "Ка", 10),
+    );
+    expect(city.text).not.toContain("geography_abc_text");
+    expect(city.text).toContain("city ILIKE");
+
+    const list = flattenSql(
+      freeNumberListSql(freeNumberWhere({ abc: ["7 (383)"] }, ""), 10, 0),
+    );
+    expect(list.text).toContain("\n  abc,\n");
+    expect(list.text).not.toMatch(/SELECT\s+geography_abc_text/);
+    expect(list.text).toContain(`${screen} IN`);
   });
 });

@@ -58,15 +58,27 @@ function likePattern(value: string): string {
   return `%${value.replace(/[\\%_]/g, (char) => `\\${char}`)}%`;
 }
 
+/** Screen ABC. The same call is indexed by free_numbers_abc_text_order_idx. */
+function abcScreenSql(): Prisma.Sql {
+  return Prisma.sql`geography_abc_text(e164, abc, "number")`;
+}
+
 /** Bound IN-list plus an empty-cell disjunct. Values never enter the SQL text. */
 export function filterMatchSql(column: FreeNumberColumn, values: string[]): Prisma.Sql {
   const wantsEmpty = values.includes(EMPTY_FILTER_TOKEN);
   const texts = values.filter((value) => value !== EMPTY_FILTER_TOKEN);
-  const expr = columnRef(column);
   const parts: Prisma.Sql[] = [];
-  if (wantsEmpty) parts.push(Prisma.sql`${expr} = ''`);
-  if (texts.length > 0) {
-    parts.push(Prisma.sql`${expr} IN (${Prisma.join(texts)})`);
+  if (column === "abc") {
+    if (wantsEmpty) parts.push(Prisma.sql`abc = ''`);
+    if (texts.length > 0) {
+      parts.push(Prisma.sql`${abcScreenSql()} IN (${Prisma.join(texts)})`);
+    }
+  } else {
+    const expr = columnRef(column);
+    if (wantsEmpty) parts.push(Prisma.sql`${expr} = ''`);
+    if (texts.length > 0) {
+      parts.push(Prisma.sql`${expr} IN (${Prisma.join(texts)})`);
+    }
   }
   if (parts.length === 0) return Prisma.sql`TRUE`;
   if (parts.length === 1) return parts[0]!;
@@ -106,9 +118,21 @@ export function freeNumberWhere(
   return andWhere(clauses);
 }
 
+function abcFacetWhere(trimmed: string): Prisma.Sql {
+  const parts: Prisma.Sql[] = [
+    Prisma.sql`${abcScreenSql()} ILIKE ${likePattern(trimmed)} ESCAPE '\\'`,
+  ];
+  if (facetQueryMatchesEmptyLabel(trimmed)) {
+    parts.push(Prisma.sql`abc = ''`);
+  }
+  if (parts.length === 1) return parts[0]!;
+  return Prisma.sql`(${Prisma.join(parts, " OR ")})`;
+}
+
 function facetValueWhere(column: FreeNumberColumn, q: string): Prisma.Sql | null {
   const trimmed = q.trim();
   if (!trimmed) return null;
+  if (column === "abc") return abcFacetWhere(trimmed);
   const expr = columnRef(column);
   const parts: Prisma.Sql[] = [
     Prisma.sql`${expr} ILIKE ${likePattern(trimmed)} ESCAPE '\\'`,
@@ -199,7 +223,7 @@ export function freeNumberFacetSql(
   q: string,
   limit: number,
 ): Prisma.Sql {
-  const expr = columnRef(column);
+  const expr = column === "abc" ? abcScreenSql() : columnRef(column);
   const match = facetValueWhere(column, q);
   const valueWhere = match ? Prisma.sql`AND ${match}` : Prisma.empty;
   return Prisma.sql`

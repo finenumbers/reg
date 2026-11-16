@@ -29,6 +29,7 @@ import {
   pstnLabelsByIdsSql,
   pstnLabelsForNumbersSql,
   screenBuildInsertSql,
+  screenFacetSql,
   screenListSql,
   screenStampsSql,
 } from "@/modules/rtu/sql";
@@ -416,5 +417,45 @@ describe("screen snapshot sql", () => {
     const maskType = flattenSql(filterMatchSql("maskType", ["Золотой"]));
     expect(maskType.text).toContain('"maskType"');
     expect(maskType.values).toContain("Золотой");
+  });
+
+  it("filters ABC by the screen text and counts that text", () => {
+    const screen = "geography_abc_text(number, abc, telephone)";
+    const selected = flattenSql(filterMatchSql("abc", ["7 (383)", EMPTY_FILTER_TOKEN]));
+    expect(selected.text).toContain(`${screen} IN`);
+    expect(selected.text).toContain("abc = ''");
+    expect(selected.text).not.toContain("abc IN");
+    expect(selected.text).not.toContain("abc ILIKE");
+    expect(selected.values).toEqual(["7 (383)"]);
+
+    const blank = flattenSql(filterMatchSql("abc", [EMPTY_FILTER_TOKEN]));
+    expect(blank.text).toBe("abc = ''");
+    expect(blank.text).not.toContain("geography_abc_text");
+
+    const page = flattenSql(screenFacetSql("abc", Prisma.sql`TRUE`, false));
+    expect(page.text).toContain(`SELECT ${screen} AS value, count(*)::int AS count`);
+    expect(page.text).toContain("FROM rtu_screen");
+    expect(page.text).toContain("GROUP BY 1");
+    expect(page.text).not.toContain("ILIKE");
+
+    const joined = flattenSql(screenFacetSql("abc", Prisma.sql`TRUE`, true));
+    expect(joined.text).toContain(screen);
+    expect(joined.text).toContain("FROM labeled");
+    expect(joined.text).not.toContain("ILIKE");
+
+    const city = flattenSql(screenFacetSql("city", Prisma.sql`TRUE`, false));
+    expect(city.text).toContain("SELECT city AS value");
+    expect(city.text).not.toContain("geography_abc_text");
+
+    const list = flattenSql(
+      screenListSql({
+        joined: false,
+        where: Prisma.sql`TRUE`,
+        limit: 10,
+        offset: 0,
+      }),
+    );
+    expect(list.text).toContain("visible.abc");
+    expect(list.text).not.toContain("geography_abc_text");
   });
 });

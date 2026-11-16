@@ -50,7 +50,13 @@ describe("purchased-number SQL", () => {
     expect(flat.text).toContain(`"number" = ''`);
     expect(flat.text).toContain(`e164 ILIKE ? ESCAPE '\\'`);
     expect(flat.text).toContain(`"number" ILIKE ? ESCAPE '\\'`);
-    expect(flat.values).toEqual(["0495", "Москва", "Секрет", "%12\\%3\\_a%", "%12\\%3\\_a%"]);
+    expect(flat.values).toEqual([
+      "0495",
+      "Москва",
+      "Секрет",
+      "%12\\%3\\_a%",
+      "%12\\%3\\_a%",
+    ]);
   });
 
   it("reads purchased_numbers and leaves a client search ungrouped", () => {
@@ -90,5 +96,39 @@ describe("purchased-number SQL", () => {
     expect(next.text).toContain(`"number" > ?`);
     expect(next.text).toContain("id > ?");
     expect(next.values).toEqual(["495", "495", "100", "495", "100", "row", 500]);
+  });
+
+  it("filters and searches ABC by the screen text", () => {
+    const screen = 'geography_abc_text(e164, abc, "number")';
+    const where = flattenSql(
+      purchasedNumberWhere({ abc: ["7 (3012)"], client: ["Секрет"] }, ""),
+    );
+    expect(where.text).toContain(`${screen} IN`);
+    expect(where.text).toContain("client IN");
+    expect(where.text).not.toContain("abc IN");
+    expect(where.text).not.toContain("abc ILIKE");
+    expect(where.values).toEqual(["7 (3012)", "Секрет"]);
+
+    const facet = flattenSql(
+      purchasedNumberFacetSql(
+        "abc",
+        purchasedNumberWhere({ client: ["Секрет"] }, "", "abc"),
+        "3012",
+        201,
+      ),
+    );
+    expect(facet.text).toContain("FROM purchased_numbers");
+    expect(facet.text).toContain(`SELECT ${screen} AS value, count(*)::int AS count`);
+    expect(facet.text).toContain(`${screen} ILIKE ?`);
+    expect(facet.text).toContain("client IN");
+    expect(facet.text).not.toContain("abc ILIKE");
+    expect(facet.text).not.toContain("abc IN");
+    expect(facet.values).toEqual(["Секрет", "%3012%", 201]);
+
+    const list = flattenSql(
+      purchasedNumberListSql(purchasedNumberWhere({ abc: ["7 (3012)"] }, ""), 10, 0),
+    );
+    expect(list.text).toContain("\n  abc,\n");
+    expect(list.text).not.toMatch(/SELECT\s+geography_abc_text/);
   });
 });
