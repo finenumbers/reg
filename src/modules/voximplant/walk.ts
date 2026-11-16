@@ -198,6 +198,7 @@ export async function runVoximplantWalk(deps: {
   dropPurchased: () => Promise<void>;
   stageFree: (rows: readonly FreeRow[]) => Promise<void>;
   log: (text: string) => Promise<void>;
+  addDuplicates?: (count: number) => void;
 }): Promise<WalkResult> {
   const purchased = await readStable({
     method: "GetPhoneNumbers",
@@ -265,6 +266,8 @@ export async function runVoximplantWalk(deps: {
         freeSeen.add(row.e164);
         return true;
       });
+      const skipped = read.rows.length - fresh.length;
+      if (skipped > 0) deps.addDuplicates?.(skipped);
       if (fresh.length > 0) await deps.stageFree(fresh);
     }
   }

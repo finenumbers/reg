@@ -5,6 +5,7 @@
 
 import pg from "pg";
 import { prisma } from "@/lib/db";
+import { safeDropped } from "@/modules/numbering-sync/card-numbers";
 import { withDbRetry } from "@/modules/numbering-sync/db-retry";
 import { noteCatalogReplaced } from "@/modules/numbering-sync/lease";
 import {
@@ -144,7 +145,10 @@ function stagedCount(
 }
 
 /** One transaction. Deletes and inserts only provider Runexis in both catalogs. */
-export async function replaceRunexisCatalogs(runId: string): Promise<PublishedCounts> {
+export async function replaceRunexisCatalogs(
+  runId: string,
+  duplicates: number,
+): Promise<PublishedCounts> {
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) throw new Error("DATABASE_URL is required");
   const client = new pg.Client({ connectionString });
@@ -192,9 +196,11 @@ export async function replaceRunexisCatalogs(runId: string): Promise<PublishedCo
            last_error = NULL,
            last_free_written = $2,
            last_purchased_written = $3,
-           last_finished_at = CURRENT_TIMESTAMP
+           duplicates_dropped = $4,
+           last_finished_at = CURRENT_TIMESTAMP,
+           loaded_at = CURRENT_TIMESTAMP
        WHERE id = 1 AND run_id = $1 AND phase = 'publishing'`,
-      [runId, free, purchased],
+      [runId, free, purchased, safeDropped(duplicates)],
     );
     if ((finished.rowCount ?? 0) !== 1) throw new SyncLost();
     const epoch = await client.query(RUNEXIS_EPOCH_SQL);

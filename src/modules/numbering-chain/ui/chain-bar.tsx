@@ -3,12 +3,14 @@
 import { useState, type KeyboardEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { CHAIN_SOURCES, type ChainView } from "@/modules/numbering-chain/order";
-import { useChainView } from "@/modules/numbering-chain/ui/chain-context";
+import { useChainView, useNextRunLabel } from "@/modules/numbering-chain/ui/chain-context";
+import { loadButtonClass } from "@/modules/numbering-sync/ui/source-card";
 
 const NAMES = CHAIN_SOURCES.map((source) => source.label).join(", ");
 
 export function ChainBar() {
   const view = useChainView();
+  const nextRunLabel = useNextRunLabel();
   const [confirm, setConfirm] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,9 +51,13 @@ export function ChainBar() {
 
   return (
     <div className="max-w-xl space-y-4" onKeyDown={onKeyDown}>
+      <p className="text-sm">
+        Следующая автозагрузка: <span className="font-semibold">{nextRunLabel}</span>
+      </p>
       <div className="flex flex-wrap gap-2">
         <Button
           type="button"
+          className={loadButtonClass}
           disabled={pending || view.running}
           onClick={() => {
             setError(null);
@@ -89,6 +95,7 @@ export function ChainBar() {
           <div className="flex gap-2">
             <Button
               type="button"
+              className={loadButtonClass}
               disabled={pending}
               onClick={() => void send("/api/numbering-sync/chain")}
             >

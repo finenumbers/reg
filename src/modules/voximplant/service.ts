@@ -6,6 +6,8 @@
 import { randomUUID } from "node:crypto";
 
 import { prisma } from "@/lib/db";
+import { cardLabels } from "@/modules/numbering-sync/card-numbers";
+import { getDisplayTimezone } from "@/modules/settings/service";
 import { AUDIT_ACTIONS, auditService } from "@/modules/audit";
 import { chainStartBlock } from "@/modules/numbering-chain/gate";
 import {
@@ -74,6 +76,10 @@ export type VoximplantSyncView = VoximplantAccessView & {
   lastError: string | null;
   lastFree: number | null;
   lastPurchased: number | null;
+  freeShown: number | null;
+  purchasedShown: number | null;
+  duplicates: number;
+  loadedAtLabel: string;
   hasLog: boolean;
 };
 
@@ -88,6 +94,10 @@ type StateRow = {
   last_error: string | null;
   last_free_written: number | null;
   last_purchased_written: number | null;
+  duplicates_dropped: number;
+  loaded_at: Date | null;
+  staged_free: number;
+  staged_purchased: number;
   busy: boolean;
 };
 
@@ -102,6 +112,10 @@ function emptySync(access: VoximplantAccessView, hasLog: boolean): VoximplantSyn
     lastError: null,
     lastFree: null,
     lastPurchased: null,
+    freeShown: null,
+    purchasedShown: null,
+    duplicates: 0,
+    loadedAtLabel: "—",
     hasLog,
   };
 }
@@ -120,11 +134,22 @@ export async function getVoximplantAccessView(): Promise<VoximplantAccessView> {
 }
 
 export async function getVoximplantSyncView(): Promise<VoximplantSyncView> {
-  const [access, rows, hasLog] = await Promise.all([
+  const [access, rows, hasLog, timeZone] = await Promise.all([
     readAccess(),
     prisma.$queryRaw<StateRow[]>`
       SELECT phase, list, page_done, page_total, last_error,
         last_free_written, last_purchased_written,
+        duplicates_dropped, loaded_at,
+        (
+          SELECT count(*)::int FROM voximplant_sync_stage AS stage
+          WHERE stage.run_id = voximplant_sync_state.run_id
+            AND stage.catalog = 'free'
+        ) AS staged_free,
+        (
+          SELECT count(*)::int FROM voximplant_sync_stage AS stage
+          WHERE stage.run_id = voximplant_sync_state.run_id
+            AND stage.catalog = 'purchased'
+        ) AS staged_purchased,
         (
           run_id IS NOT NULL
           AND phase IN ('running', 'publishing')
@@ -140,6 +165,7 @@ export async function getVoximplantSyncView(): Promise<VoximplantSyncView> {
       WHERE id = 1
     `,
     voximplantLogExists(),
+    getDisplayTimezone(),
   ]);
   const state = rows[0];
   if (!state) return emptySync(access, hasLog);
@@ -154,6 +180,20 @@ export async function getVoximplantSyncView(): Promise<VoximplantSyncView> {
     lastError: state.last_error,
     lastFree: state.last_free_written,
     lastPurchased: state.last_purchased_written,
+    ...cardLabels({
+      kind: "list",
+      busy,
+      step: null,
+      list: busy ? state.list : "",
+      phase: busy ? state.phase : "",
+      lastFree: state.last_free_written,
+      lastPurchased: state.last_purchased_written,
+      stagedFree: state.staged_free,
+      stagedPurchased: state.staged_purchased,
+      duplicates: state.duplicates_dropped,
+      loadedAt: state.loaded_at,
+      timeZone,
+    }),
     hasLog,
   };
 }
@@ -412,6 +452,7 @@ export async function startVoximplantSync(
   };
   const client = createVoximplantClient(creds);
 
+  let duplicates = 0;
   void (async () => {
     try {
       const result = await runVoximplantWalk({
@@ -426,7 +467,11 @@ export async function startVoximplantSync(
         stagePurchased: (dids) => stagePurchasedNumbers(runId, dids, keep),
         dropPurchased: () => dropPurchasedStage(runId),
         stageFree: async (rows) => {
-          await stageFreeNumbers(runId, rows, keep);
+          const wrote = await stageFreeNumbers(runId, rows, keep);
+          duplicates += wrote.skipped;
+        },
+        addDuplicates: (count) => {
+          duplicates += count;
         },
         log: (text) => appendVoximplantLog(`${text}\n`),
       });
@@ -455,6 +500,7 @@ export async function startVoximplantSync(
       }
 
       const removed = await dropPurchasedOverlap(runId);
+      duplicates += removed;
       if (removed > 0) {
         await appendVoximplantLog(
           `Совпадение: ${removed} номеров убраны из свободных, они куплены.\n`,
@@ -469,7 +515,7 @@ export async function startVoximplantSync(
       if (isVoximplantStopping()) throw new Error(CANCELLED);
       let published: { free: number; purchased: number };
       try {
-        published = await replaceVoximplantCatalogs(runId);
+        published = await replaceVoximplantCatalogs(runId, duplicates);
       } catch (error) {
         if (
           isLockTimeout(error) &&
@@ -479,7 +525,7 @@ export async function startVoximplantSync(
         ) {
           await keep();
           if (isVoximplantStopping()) throw new Error(CANCELLED);
-          published = await replaceVoximplantCatalogs(runId);
+          published = await replaceVoximplantCatalogs(runId, duplicates);
         } else {
           throw error;
         }

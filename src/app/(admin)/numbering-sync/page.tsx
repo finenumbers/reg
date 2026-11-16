@@ -1,7 +1,7 @@
 import { requirePagePermission } from "@/modules/auth/guards";
 import { ChainBar } from "@/modules/numbering-chain/ui/chain-bar";
+import { readSyncScreen } from "@/modules/numbering-chain/screen";
 import { ChainProvider } from "@/modules/numbering-chain/ui/chain-context";
-import { getChainView } from "@/modules/numbering-chain/view";
 import { getNumberingSyncView } from "@/modules/numbering-sync/service";
 import { NumberingSyncForm } from "@/modules/numbering-sync/ui/numbering-sync-form";
 import { getRunexisSyncView } from "@/modules/runexis/service";
@@ -21,7 +21,7 @@ export const dynamic = "force-dynamic";
 
 export default async function NumberingSyncPage() {
   await requirePagePermission("settings:write");
-  const [initial, runexis, uis, aurora, exolve, voximplant, mcn, chain] =
+  const [initial, runexis, uis, aurora, exolve, voximplant, mcn, screen] =
     await Promise.all([
       getNumberingSyncView(),
       getRunexisSyncView(),
@@ -30,10 +30,10 @@ export default async function NumberingSyncPage() {
       getExolveSyncView(),
       getVoximplantSyncView(),
       getMcnSyncView(),
-      Promise.resolve(getChainView()),
+      readSyncScreen(),
     ]);
   return (
-    <ChainProvider initial={chain}>
+    <ChainProvider initial={screen}>
       <div className="h-full space-y-6 overflow-y-auto">
         <div>
           <h1 className="text-xl font-semibold tracking-tight [text-box:trim-start_cap_alphabetic]">
@@ -44,12 +44,19 @@ export default async function NumberingSyncPage() {
           </p>
         </div>
         <ChainBar />
+        <hr className="border-border" />
         <NumberingSyncForm initial={initial} />
+        <hr className="border-border" />
         <RunexisSyncForm initial={runexis} />
+        <hr className="border-border" />
         <UisSyncForm initial={uis} />
+        <hr className="border-border" />
         <AuroraSyncForm initial={aurora} />
+        <hr className="border-border" />
         <ExolveSyncForm initial={exolve} />
+        <hr className="border-border" />
         <VoximplantSyncForm initial={voximplant} />
+        <hr className="border-border" />
         <McnSyncForm initial={mcn} />
       </div>
     </ChainProvider>

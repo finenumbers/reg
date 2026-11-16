@@ -6,6 +6,8 @@
 import { randomUUID } from "node:crypto";
 
 import { prisma } from "@/lib/db";
+import { cardLabels } from "@/modules/numbering-sync/card-numbers";
+import { getDisplayTimezone } from "@/modules/settings/service";
 import { AUDIT_ACTIONS, auditService } from "@/modules/audit";
 import { chainStartBlock } from "@/modules/numbering-chain/gate";
 import {
@@ -64,6 +66,10 @@ export type NumberingSyncView = {
   lastError: string | null;
   lastFree: number | null;
   lastPurchased: number | null;
+  freeShown: number | null;
+  purchasedShown: number | null;
+  duplicates: number;
+  loadedAtLabel: string;
   hasLog: boolean;
 };
 
@@ -77,6 +83,10 @@ type StateRow = {
   last_error: string | null;
   last_free_written: number | null;
   last_purchased_written: number | null;
+  duplicates_dropped: number;
+  loaded_at: Date | null;
+  staged_free: number;
+  staged_purchased: number;
   busy: boolean;
 };
 
@@ -92,12 +102,16 @@ function emptyView(hasKey: boolean, hasLog: boolean): NumberingSyncView {
     lastError: null,
     lastFree: null,
     lastPurchased: null,
+    freeShown: null,
+    purchasedShown: null,
+    duplicates: 0,
+    loadedAtLabel: "—",
     hasLog,
   };
 }
 
 export async function getNumberingSyncView(): Promise<NumberingSyncView> {
-  const [settings, rows, hasLog] = await Promise.all([
+  const [settings, rows, hasLog, timeZone] = await Promise.all([
     prisma.appSetting.findUnique({
       where: { id: 1 },
       select: { sipoutApiKeyCiphertext: true },
@@ -105,6 +119,17 @@ export async function getNumberingSyncView(): Promise<NumberingSyncView> {
     prisma.$queryRaw<StateRow[]>`
       SELECT phase, catalog, cities_done, cities_total, last_error,
         last_free_written, last_purchased_written,
+        duplicates_dropped, loaded_at,
+        (
+          SELECT count(*)::int FROM numbering_sync_stage AS stage
+          WHERE stage.run_id = numbering_sync_state.run_id
+            AND stage.catalog = 'free'
+        ) AS staged_free,
+        (
+          SELECT count(*)::int FROM numbering_sync_stage AS stage
+          WHERE stage.run_id = numbering_sync_state.run_id
+            AND stage.catalog = 'purchased'
+        ) AS staged_purchased,
         (
           run_id IS NOT NULL
           AND phase IN ('running', 'publishing')
@@ -120,22 +145,39 @@ export async function getNumberingSyncView(): Promise<NumberingSyncView> {
       WHERE id = 1
     `,
     sipoutLogExists(),
+    getDisplayTimezone(),
   ]);
   const state = rows[0];
   const hasKey = Boolean(settings?.sipoutApiKeyCiphertext);
   if (!state) return emptyView(hasKey, hasLog);
   const busy = Boolean(state.busy) || isNumberingSyncActive();
+  const phase = busy ? state.phase : "";
+  const step = busy ? state.catalog : null;
   return {
     host: SIPOUT_ORIGIN,
     hasKey,
     busy,
-    phase: busy ? state.phase : "",
-    step: busy ? state.catalog : null,
+    phase,
+    step,
     citiesDone: busy ? state.cities_done : 0,
     citiesTotal: busy ? state.cities_total : 0,
     lastError: state.last_error,
     lastFree: state.last_free_written,
     lastPurchased: state.last_purchased_written,
+    ...cardLabels({
+      kind: "sipout",
+      busy,
+      step,
+      list: "",
+      phase,
+      lastFree: state.last_free_written,
+      lastPurchased: state.last_purchased_written,
+      stagedFree: state.staged_free,
+      stagedPurchased: state.staged_purchased,
+      duplicates: state.duplicates_dropped,
+      loadedAt: state.loaded_at,
+      timeZone,
+    }),
     hasLog,
   };
 }
@@ -248,6 +290,7 @@ async function publishWithRetry(
   runId: string,
   done: number,
   total: number,
+  duplicates: number,
 ): Promise<PublishCounts> {
   if (isDatabaseVacuumActive()) throw new Error(CDR_VACUUM_BUSY_MESSAGE);
   const marked = await markPublishing(runId);
@@ -255,7 +298,7 @@ async function publishWithRetry(
   let last: unknown;
   for (let attempt = 1; attempt <= 3; attempt += 1) {
     try {
-      return await replaceSipoutCatalogs(runId);
+      return await replaceSipoutCatalogs(runId, duplicates);
     } catch (error) {
       last = error;
       const retry =
@@ -317,6 +360,7 @@ export async function startSipoutSync(
   let total = 0;
   let step = "cities";
   void (async () => {
+    let duplicates = 0;
     try {
       const result = await runSourceWalk({
         getCities: () => sipoutGet(key, { action: "get_cities" }),
@@ -345,7 +389,10 @@ export async function startSipoutSync(
             ].join("\n"),
           );
         },
-        publish: () => publishWithRetry(runId, done, total),
+        publish: () => publishWithRetry(runId, done, total, duplicates),
+        addDuplicates: (count) => {
+          duplicates += count;
+        },
         dropStage: () => dropStage(runId),
         progress: async (nextStep, nextDone, nextTotal) => {
           step = nextStep;

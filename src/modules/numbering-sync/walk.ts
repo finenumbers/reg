@@ -3,6 +3,7 @@
  * A failed page drops the draft and leaves both catalogs.
  */
 
+import { droppedCopies } from "@/modules/numbering-sync/card-numbers";
 import { SyncLost } from "@/modules/numbering-sync/errors";
 import type { PublishCounts } from "@/modules/numbering-sync/publish";
 import type { SyncCatalog } from "@/modules/numbering-sync/sql";
@@ -23,6 +24,7 @@ export type WalkDeps = {
   dropStage: () => Promise<void>;
   progress: (step: string, done: number, total: number) => Promise<void>;
   log: (block: string) => Promise<void>;
+  addDuplicates?: (count: number) => void;
 };
 
 export type WalkResult =
@@ -170,6 +172,9 @@ export async function runSourceWalk(deps: WalkDeps): Promise<WalkResult> {
     ]),
   );
   if (purchasedNote) return stop(deps, purchasedNote);
+  deps.addDuplicates?.(
+    droppedCopies(bought.dids.length, uniqueBought.length, insertedBought),
+  );
   await deps.progress("purchased", 1, 1);
 
   const cities = await deps.getCities();
@@ -241,6 +246,7 @@ export async function runSourceWalk(deps: WalkDeps): Promise<WalkResult> {
       ]),
     );
     if (logged) return stop(deps, logged);
+    deps.addDuplicates?.(droppedCopies(dids.rows.length, unique.length, inserted));
     await deps.progress("free", index + 1, ids.ids.length);
   }
 

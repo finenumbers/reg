@@ -712,6 +712,10 @@ model NumberingSyncState {
   /// Purchased numbers inserted by the last committed SipOut stage.
   lastPurchasedWritten Int? @map("last_purchased_written")
   lastFinishedAt DateTime? @map("last_finished_at")
+  /// Copies dropped because a number was already kept. Written only on a successful publish.
+  duplicatesDropped Int @default(0) @map("duplicates_dropped")
+  /// Wall time of the last successful publish. A failed walk does not change it.
+  loadedAt DateTime? @map("loaded_at")
 
   @@map("numbering_sync_state")
 }
@@ -758,6 +762,8 @@ model RunexisSyncState {
   /// Purchased numbers inserted by the last committed Runexis stage.
   lastPurchasedWritten Int?      @map("last_purchased_written")
   lastFinishedAt       DateTime? @map("last_finished_at")
+  duplicatesDropped    Int       @default(0) @map("duplicates_dropped")
+  loadedAt             DateTime? @map("loaded_at")
 
   @@map("runexis_sync_state")
 }
@@ -804,6 +810,8 @@ model UisSyncState {
   /// Purchased numbers inserted by the last committed UIS stage.
   lastPurchasedWritten Int?      @map("last_purchased_written")
   lastFinishedAt       DateTime? @map("last_finished_at")
+  duplicatesDropped    Int       @default(0) @map("duplicates_dropped")
+  loadedAt             DateTime? @map("loaded_at")
 
   @@map("uis_sync_state")
 }
@@ -848,6 +856,8 @@ model AuroraSyncState {
   lastFreeWritten      Int?      @map("last_free_written")
   lastPurchasedWritten Int?      @map("last_purchased_written")
   lastFinishedAt       DateTime? @map("last_finished_at")
+  duplicatesDropped    Int       @default(0) @map("duplicates_dropped")
+  loadedAt             DateTime? @map("loaded_at")
 
   @@map("aurora_sync_state")
 }
@@ -897,6 +907,8 @@ model ExolveSyncState {
   lastFreeWritten      Int?      @map("last_free_written")
   lastPurchasedWritten Int?      @map("last_purchased_written")
   lastFinishedAt       DateTime? @map("last_finished_at")
+  duplicatesDropped    Int       @default(0) @map("duplicates_dropped")
+  loadedAt             DateTime? @map("loaded_at")
 
   @@map("exolve_sync_state")
 }
@@ -935,6 +947,8 @@ model VoximplantSyncState {
   lastFreeWritten      Int?      @map("last_free_written")
   lastPurchasedWritten Int?      @map("last_purchased_written")
   lastFinishedAt       DateTime? @map("last_finished_at")
+  duplicatesDropped    Int       @default(0) @map("duplicates_dropped")
+  loadedAt             DateTime? @map("loaded_at")
 
   @@map("voximplant_sync_state")
 }
@@ -973,6 +987,8 @@ model McnSyncState {
   lastFreeWritten      Int?      @map("last_free_written")
   lastPurchasedWritten Int?      @map("last_purchased_written")
   lastFinishedAt       DateTime? @map("last_finished_at")
+  duplicatesDropped    Int       @default(0) @map("duplicates_dropped")
+  loadedAt             DateTime? @map("loaded_at")
 
   @@map("mcn_sync_state")
 }
@@ -1033,6 +1049,16 @@ model NumberingCatalogState {
   cursorEpoch        Int    @default(0) @map("cursor_epoch")
   /// Provider literal for a provider phase. Empty for a full pass.
   cursorProvider     String @default("") @map("cursor_provider")
+  /// Rows whose mask update committed in the current mask or provider pass.
+  sipoutParsed       Int    @default(0) @map("sipout_parsed")
+  runexisParsed      Int    @default(0) @map("runexis_parsed")
+  uisParsed          Int    @default(0) @map("uis_parsed")
+  auroraParsed       Int    @default(0) @map("aurora_parsed")
+  exolveParsed       Int    @default(0) @map("exolve_parsed")
+  voximplantParsed   Int    @default(0) @map("voximplant_parsed")
+  mcnParsed          Int    @default(0) @map("mcn_parsed")
+  /// `mask:<epoch>` or `provider:<name>:<epoch>`. A different pass replaces instead of adding.
+  parsedPass         String @default("") @map("parsed_pass")
 
   @@map("numbering_catalog_state")
 }

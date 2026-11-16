@@ -184,6 +184,7 @@ export async function runMcnWalk(deps: {
   stagePurchased: (rows: readonly string[]) => Promise<void>;
   stageFree: (rows: readonly FreeRow[]) => Promise<void>;
   log: (text: string) => Promise<void>;
+  addDuplicates?: (count: number) => void;
 }): Promise<WalkResult> {
   const purchased = await readStable(
     {
@@ -245,6 +246,8 @@ export async function runMcnWalk(deps: {
       );
     }
     const fresh = read.rows.filter((row) => !freeSeen.has(row.e164));
+    const skipped = read.rows.length - fresh.length;
+    if (skipped > 0) deps.addDuplicates?.(skipped);
     if (fresh.length > 0) await deps.stageFree(fresh);
     for (const row of fresh) freeSeen.add(row.e164);
   }

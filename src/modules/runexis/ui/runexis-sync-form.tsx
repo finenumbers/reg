@@ -5,8 +5,10 @@ import { Button } from "@/components/ui/button";
 import {
   ChainCardNote,
   useChainRunning,
+  useParsedCount,
 } from "@/modules/numbering-chain/ui/chain-context";
 import type { RunexisSyncView } from "@/modules/runexis/service";
+import { loadButtonClass, SourceCard } from "@/modules/numbering-sync/ui/source-card";
 
 export function RunexisSyncForm({ initial }: { initial: RunexisSyncView }) {
   const [view, setView] = useState(initial);
@@ -14,6 +16,7 @@ export function RunexisSyncForm({ initial }: { initial: RunexisSyncView }) {
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const chainRunning = useChainRunning();
+  const parsed = useParsedCount("runexis", view.lastFree, view.lastPurchased);
 
   const refresh = useCallback(async () => {
     try {
@@ -28,12 +31,13 @@ export function RunexisSyncForm({ initial }: { initial: RunexisSyncView }) {
   }, []);
 
   useEffect(() => {
-    if (!view.busy) return;
+    if (!view.busy && !chainRunning) return;
+    void refresh();
     const timer = setInterval(() => {
       void refresh();
     }, 2000);
     return () => clearInterval(timer);
-  }, [refresh, view.busy]);
+  }, [chainRunning, refresh, view.busy]);
 
   async function send(path: string) {
     if (pending) return;
@@ -83,29 +87,24 @@ export function RunexisSyncForm({ initial }: { initial: RunexisSyncView }) {
           : "Загрузка";
 
   return (
-    <div className="max-w-xl space-y-4" onKeyDown={onKeyDown}>
-      <h2 className="text-base font-semibold">Runexis</h2>
-      <p className="text-sm">Источник: Runexis</p>
-      <p className="text-sm">Хост: {view.host}</p>
-      <div className="flex flex-wrap gap-2">
-        <Button
-          type="button"
-          disabled={
-            pending || view.busy || !view.hasPassword || !view.email || chainRunning
-          }
-          onClick={() => {
-            setError(null);
-            setConfirm(true);
-          }}
-        >
-          Загрузить
-        </Button>
-        {view.hasLog ? (
-          <Button type="button" variant="outline" asChild>
-            <a href="/api/numbering-sync/runexis/log">Скачать лог</a>
-          </Button>
-        ) : null}
-      </div>
+    <SourceCard
+      name="Runexis"
+      loadedAtLabel={view.loadedAtLabel}
+      rows={[
+        { label: "Купленные", value: view.purchasedShown },
+        { label: "Свободные", value: view.freeShown },
+        { label: "Дубликаты", value: view.duplicates },
+        { label: "Разобрано", value: parsed },
+      ]}
+      loadDisabled={pending || view.busy || !view.hasPassword || !view.email || chainRunning}
+      onLoad={() => {
+        setError(null);
+        setConfirm(true);
+      }}
+      hasLog={view.hasLog}
+      logHref="/api/numbering-sync/runexis/log"
+      onKeyDown={onKeyDown}
+    >
       {confirm ? (
         <div
           role="dialog"
@@ -126,6 +125,7 @@ export function RunexisSyncForm({ initial }: { initial: RunexisSyncView }) {
           <div className="flex gap-2">
             <Button
               type="button"
+              className={loadButtonClass}
               disabled={pending || chainRunning}
               onClick={() => void send("/api/numbering-sync/runexis")}
             >
@@ -157,15 +157,7 @@ export function RunexisSyncForm({ initial }: { initial: RunexisSyncView }) {
       {!view.busy && view.lastError ? (
         <p className="text-destructive text-sm">{view.lastError}</p>
       ) : null}
-      {!view.busy &&
-      view.lastError == null &&
-      view.lastFree != null &&
-      view.lastPurchased != null ? (
-        <p className="text-muted-foreground text-sm">
-          Свободных: {view.lastFree}. Купленных: {view.lastPurchased}.
-        </p>
-      ) : null}
       {error ? <p className="text-destructive text-sm">{error}</p> : null}
-    </div>
+    </SourceCard>
   );
 }

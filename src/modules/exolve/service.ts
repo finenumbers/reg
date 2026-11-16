@@ -6,6 +6,8 @@
 import { randomUUID } from "node:crypto";
 
 import { prisma } from "@/lib/db";
+import { cardLabels } from "@/modules/numbering-sync/card-numbers";
+import { getDisplayTimezone } from "@/modules/settings/service";
 import { AUDIT_ACTIONS, auditService } from "@/modules/audit";
 import { chainStartBlock } from "@/modules/numbering-chain/gate";
 import { createExolveClient } from "@/modules/exolve/client";
@@ -75,6 +77,10 @@ export type ExolveSyncView = ExolveAccessView & {
   lastError: string | null;
   lastFree: number | null;
   lastPurchased: number | null;
+  freeShown: number | null;
+  purchasedShown: number | null;
+  duplicates: number;
+  loadedAtLabel: string;
   hasLog: boolean;
 };
 
@@ -89,6 +95,10 @@ type StateRow = {
   last_error: string | null;
   last_free_written: number | null;
   last_purchased_written: number | null;
+  duplicates_dropped: number;
+  loaded_at: Date | null;
+  staged_free: number;
+  staged_purchased: number;
   busy: boolean;
 };
 
@@ -103,6 +113,10 @@ function emptySync(access: ExolveAccessView, hasLog: boolean): ExolveSyncView {
     lastError: null,
     lastFree: null,
     lastPurchased: null,
+    freeShown: null,
+    purchasedShown: null,
+    duplicates: 0,
+    loadedAtLabel: "—",
     hasLog,
   };
 }
@@ -121,11 +135,22 @@ export async function getExolveAccessView(): Promise<ExolveAccessView> {
 }
 
 export async function getExolveSyncView(): Promise<ExolveSyncView> {
-  const [access, rows, hasLog] = await Promise.all([
+  const [access, rows, hasLog, timeZone] = await Promise.all([
     readAccess(),
     prisma.$queryRaw<StateRow[]>`
       SELECT phase, list, page_done, page_total, last_error,
         last_free_written, last_purchased_written,
+        duplicates_dropped, loaded_at,
+        (
+          SELECT count(*)::int FROM exolve_sync_stage AS stage
+          WHERE stage.run_id = exolve_sync_state.run_id
+            AND stage.catalog = 'free'
+        ) AS staged_free,
+        (
+          SELECT count(*)::int FROM exolve_sync_stage AS stage
+          WHERE stage.run_id = exolve_sync_state.run_id
+            AND stage.catalog = 'purchased'
+        ) AS staged_purchased,
         (
           run_id IS NOT NULL
           AND phase IN ('running', 'publishing')
@@ -141,6 +166,7 @@ export async function getExolveSyncView(): Promise<ExolveSyncView> {
       WHERE id = 1
     `,
     exolveLogExists(),
+    getDisplayTimezone(),
   ]);
   const state = rows[0];
   if (!state) return emptySync(access, hasLog);
@@ -155,6 +181,20 @@ export async function getExolveSyncView(): Promise<ExolveSyncView> {
     lastError: state.last_error,
     lastFree: state.last_free_written,
     lastPurchased: state.last_purchased_written,
+    ...cardLabels({
+      kind: "list",
+      busy,
+      step: null,
+      list: busy ? state.list : "",
+      phase: busy ? state.phase : "",
+      lastFree: state.last_free_written,
+      lastPurchased: state.last_purchased_written,
+      stagedFree: state.staged_free,
+      stagedPurchased: state.staged_purchased,
+      duplicates: state.duplicates_dropped,
+      loadedAt: state.loaded_at,
+      timeZone,
+    }),
     hasLog,
   };
 }
@@ -444,6 +484,7 @@ export async function startExolveSync(
     note: (line) => appendExolveLog(`${line}\n`),
   });
 
+  let duplicates = 0;
   void (async () => {
     try {
       const result = await runExolveWalk({
@@ -458,7 +499,11 @@ export async function startExolveSync(
         free: (cell, offset, mode) => client.free(cell, offset, mode),
         stagePurchased: (dids) => stagePurchasedNumbers(runId, dids, keep),
         dropPurchased: () => dropPurchasedStage(runId),
-        stageFree: (rows) => stageFreeNumbers(runId, rows, keep),
+        stageFree: async (rows) => {
+          const wrote = await stageFreeNumbers(runId, rows, keep);
+          duplicates += wrote.skipped;
+          return wrote;
+        },
         log: (line) => appendExolveLog(`${line}\n`),
       });
       if (!result.ok) {
@@ -485,6 +530,7 @@ export async function startExolveSync(
       }
 
       const removed = await dropPurchasedOverlap(runId);
+      duplicates += removed;
       if (removed > 0) {
         await appendExolveLog(
           `Совпадение: ${removed} номеров убраны из свободных, они куплены.\n`,
@@ -499,7 +545,7 @@ export async function startExolveSync(
       if (isExolveStopping()) throw new Error(CANCELLED);
       let published: { free: number; purchased: number };
       try {
-        published = await replaceExolveCatalogs(runId);
+        published = await replaceExolveCatalogs(runId, duplicates);
       } catch (error) {
         if (
           isLockTimeout(error) &&
@@ -509,7 +555,7 @@ export async function startExolveSync(
         ) {
           await keep();
           if (isExolveStopping()) throw new Error(CANCELLED);
-          published = await replaceExolveCatalogs(runId);
+          published = await replaceExolveCatalogs(runId, duplicates);
         } else {
           throw error;
         }

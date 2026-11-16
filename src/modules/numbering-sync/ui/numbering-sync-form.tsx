@@ -5,8 +5,10 @@ import { Button } from "@/components/ui/button";
 import {
   ChainCardNote,
   useChainRunning,
+  useParsedCount,
 } from "@/modules/numbering-chain/ui/chain-context";
 import type { NumberingSyncView } from "@/modules/numbering-sync/service";
+import { loadButtonClass, SourceCard } from "@/modules/numbering-sync/ui/source-card";
 
 export function NumberingSyncForm({ initial }: { initial: NumberingSyncView }) {
   const [view, setView] = useState(initial);
@@ -14,6 +16,7 @@ export function NumberingSyncForm({ initial }: { initial: NumberingSyncView }) {
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const chainRunning = useChainRunning();
+  const parsed = useParsedCount("sipout", view.lastFree, view.lastPurchased);
 
   const refresh = useCallback(async () => {
     try {
@@ -28,12 +31,13 @@ export function NumberingSyncForm({ initial }: { initial: NumberingSyncView }) {
   }, []);
 
   useEffect(() => {
-    if (!view.busy) return;
+    if (!view.busy && !chainRunning) return;
+    void refresh();
     const timer = setInterval(() => {
       void refresh();
     }, 2000);
     return () => clearInterval(timer);
-  }, [refresh, view.busy]);
+  }, [chainRunning, refresh, view.busy]);
 
   async function send(path: string) {
     if (pending) return;
@@ -85,87 +89,75 @@ export function NumberingSyncForm({ initial }: { initial: NumberingSyncView }) {
               : "Загрузка";
 
   return (
-    <div className="max-w-xl space-y-8" onKeyDown={onKeyDown}>
-      <section className="space-y-4">
-        <h2 className="text-base font-semibold">SipOut</h2>
-        <p className="text-sm">Источник: SipOut</p>
-        <p className="text-sm">Хост: {view.host}</p>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            disabled={pending || view.busy || !view.hasKey || chainRunning}
-            onClick={() => {
-              setError(null);
-              setConfirm(true);
-            }}
-          >
-            Загрузить
-          </Button>
-          {view.hasLog ? (
-            <Button type="button" variant="outline" asChild>
-              <a href="/api/numbering-sync/sipout/log">Скачать лог</a>
-            </Button>
-          ) : null}
-        </div>
-        {confirm ? (
-          <div
-            role="dialog"
-            aria-label="Подтверждение загрузки"
-            className="space-y-3 rounded-md border p-4"
-          >
-            <p className="text-sm">
-              Источник: SipOut
-              <br />
-              Хост: {view.host}
-              <br />
-              Будут заново прочитаны свободные и купленные номера. Успешная запись удалит
-              все прежние номера SipOut в обеих таблицах, в том числе если новый список
-              короче или пуст.
-            </p>
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                disabled={pending || chainRunning}
-                onClick={() => void send("/api/numbering-sync/sipout")}
-              >
-                {pending ? "Запуск…" : "Загрузить"}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={pending}
-                onClick={() => setConfirm(false)}
-              >
-                Отмена
-              </Button>
-            </div>
-          </div>
-        ) : null}
-        {progress ? <p className="text-sm">{progress}</p> : null}
-        <ChainCardNote source="sipout" />
-        {view.busy && view.phase === "running" ? (
-          <Button
-            type="button"
-            variant="outline"
-            disabled={pending}
-            onClick={() => void send("/api/numbering-sync/cancel")}
-          >
-            Отмена
-          </Button>
-        ) : null}
-        {!view.busy && view.lastError ? (
-          <p className="text-destructive text-sm">{view.lastError}</p>
-        ) : null}
-        {!view.busy &&
-        view.lastError == null &&
-        view.lastFree != null &&
-        view.lastPurchased != null ? (
-          <p className="text-muted-foreground text-sm">
-            Свободных: {view.lastFree}. Купленных: {view.lastPurchased}.
+    <SourceCard
+      name="SipOut"
+      loadedAtLabel={view.loadedAtLabel}
+      rows={[
+        { label: "Купленные", value: view.purchasedShown },
+        { label: "Свободные", value: view.freeShown },
+        { label: "Дубликаты", value: view.duplicates },
+        { label: "Разобрано", value: parsed },
+      ]}
+      loadDisabled={pending || view.busy || !view.hasKey || chainRunning}
+      onLoad={() => {
+        setError(null);
+        setConfirm(true);
+      }}
+      hasLog={view.hasLog}
+      logHref="/api/numbering-sync/sipout/log"
+      onKeyDown={onKeyDown}
+    >
+      {confirm ? (
+        <div
+          role="dialog"
+          aria-label="Подтверждение загрузки"
+          className="space-y-3 rounded-md border p-4"
+        >
+          <p className="text-sm">
+            Источник: SipOut
+            <br />
+            Хост: {view.host}
+            <br />
+            Будут заново прочитаны свободные и купленные номера. Успешная запись удалит
+            все прежние номера SipOut в обеих таблицах, в том числе если новый список
+            короче или пуст.
           </p>
-        ) : null}
-      </section>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              className={loadButtonClass}
+              disabled={pending || chainRunning}
+              onClick={() => void send("/api/numbering-sync/sipout")}
+            >
+              {pending ? "Запуск…" : "Загрузить"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={pending}
+              onClick={() => setConfirm(false)}
+            >
+              Отмена
+            </Button>
+          </div>
+        </div>
+      ) : null}
+      {progress ? <p className="text-sm">{progress}</p> : null}
+      <ChainCardNote source="sipout" />
+      {view.busy && view.phase === "running" ? (
+        <Button
+          type="button"
+          variant="outline"
+          disabled={pending}
+          onClick={() => void send("/api/numbering-sync/cancel")}
+        >
+          Отмена
+        </Button>
+      ) : null}
+      {!view.busy && view.lastError ? (
+        <p className="text-destructive text-sm">{view.lastError}</p>
+      ) : null}
       {error ? <p className="text-destructive text-sm">{error}</p> : null}
-    </div>
+    </SourceCard>
   );
 }

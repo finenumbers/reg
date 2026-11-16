@@ -56,19 +56,19 @@ export type CatalogProvider = (typeof PROVIDERS)[number];
 export type DecorateScope = "full" | "client";
 
 export const SIPOUT_EPOCH_SQL =
-  "UPDATE numbering_catalog_state SET sipout_epoch = sipout_epoch + 1 WHERE id = 1";
+  "UPDATE numbering_catalog_state SET sipout_epoch = sipout_epoch + 1, sipout_parsed = 0 WHERE id = 1";
 export const RUNEXIS_EPOCH_SQL =
-  "UPDATE numbering_catalog_state SET runexis_epoch = runexis_epoch + 1 WHERE id = 1";
+  "UPDATE numbering_catalog_state SET runexis_epoch = runexis_epoch + 1, runexis_parsed = 0 WHERE id = 1";
 export const UIS_EPOCH_SQL =
-  "UPDATE numbering_catalog_state SET uis_epoch = uis_epoch + 1 WHERE id = 1";
+  "UPDATE numbering_catalog_state SET uis_epoch = uis_epoch + 1, uis_parsed = 0 WHERE id = 1";
 export const AURORA_EPOCH_SQL =
-  "UPDATE numbering_catalog_state SET aurora_epoch = aurora_epoch + 1 WHERE id = 1";
+  "UPDATE numbering_catalog_state SET aurora_epoch = aurora_epoch + 1, aurora_parsed = 0 WHERE id = 1";
 export const EXOLVE_EPOCH_SQL =
-  "UPDATE numbering_catalog_state SET exolve_epoch = exolve_epoch + 1 WHERE id = 1";
+  "UPDATE numbering_catalog_state SET exolve_epoch = exolve_epoch + 1, exolve_parsed = 0 WHERE id = 1";
 export const VOXIMPLANT_EPOCH_SQL =
-  "UPDATE numbering_catalog_state SET voximplant_epoch = voximplant_epoch + 1 WHERE id = 1";
+  "UPDATE numbering_catalog_state SET voximplant_epoch = voximplant_epoch + 1, voximplant_parsed = 0 WHERE id = 1";
 export const MCN_EPOCH_SQL =
-  "UPDATE numbering_catalog_state SET mcn_epoch = mcn_epoch + 1 WHERE id = 1";
+  "UPDATE numbering_catalog_state SET mcn_epoch = mcn_epoch + 1, mcn_parsed = 0 WHERE id = 1";
 
 type EpochRow = {
   sipout_epoch: number;
@@ -146,6 +146,27 @@ function epochNames(provider: CatalogProvider): { epoch: string; done: string } 
   }
 }
 
+const PARSED_COLUMN: Record<CatalogProvider, string> = {
+  SipOut: "sipout_parsed",
+  Runexis: "runexis_parsed",
+  UIS: "uis_parsed",
+  "Aurora Telecom": "aurora_parsed",
+  "MTS Exolve": "exolve_parsed",
+  Voximplant: "voximplant_parsed",
+  "MCN Telecom": "mcn_parsed",
+};
+
+const CLEAR_PARSED_SQL = Prisma.sql`
+  sipout_parsed = 0,
+  runexis_parsed = 0,
+  uis_parsed = 0,
+  aurora_parsed = 0,
+  exolve_parsed = 0,
+  voximplant_parsed = 0,
+  mcn_parsed = 0,
+  parsed_pass = ''
+`;
+
 const TARIFF_CURSOR_PHASES = [
   "resplit-free",
   "resplit-purchased",
@@ -181,6 +202,7 @@ export function bumpTariffDebtSql(): Prisma.Sql {
     UPDATE numbering_catalog_state
     SET resplit_epoch = resplit_epoch + 1,
         mask_epoch = mask_epoch + 1,
+        ${CLEAR_PARSED_SQL},
         ${clearCursorSql(TARIFF_CURSOR_PHASES)}
     WHERE id = 1
   `;
@@ -191,6 +213,7 @@ export function bumpMaskDebtSql(): Prisma.Sql {
   return Prisma.sql`
     UPDATE numbering_catalog_state
     SET mask_epoch = mask_epoch + 1,
+        ${CLEAR_PARSED_SQL},
         ${clearCursorSql(MASK_CURSOR_PHASES)}
     WHERE id = 1
   `;
@@ -424,9 +447,9 @@ export function freeMaskBatchSql(
         premium = computed.premium
       FROM computed
       WHERE n.id = computed.id
-      RETURNING n.id
+      RETURNING n.id, n.provider
     )
-    SELECT id FROM updated ORDER BY id
+    SELECT id, provider FROM updated ORDER BY id
   `;
 }
 
@@ -481,9 +504,9 @@ export function purchasedFullBatchSql(
         client = computed.client
       FROM computed
       WHERE n.id = computed.id
-      RETURNING n.id
+      RETURNING n.id, n.provider
     )
-    SELECT id FROM updated ORDER BY id
+    SELECT id, provider FROM updated ORDER BY id
   `;
 }
 
@@ -638,12 +661,44 @@ function cursorGuard(phase: string, epoch: number, provider: string): Prisma.Sql
   throw new Error("Некорректная фаза.");
 }
 
+function counterAssign(column: string, pass: string, add: number): Prisma.Sql {
+  const name = Prisma.raw(column);
+  return Prisma.sql`${name} = CASE WHEN parsed_pass = ${pass} THEN ${name} + ${add} ELSE ${add} END`;
+}
+
+/**
+ * Mask and provider passes count committed rows.
+ * Resplit, client, and bootstrap leave the counters alone.
+ * A new pass name replaces that pass's counters. The same name adds.
+ */
+function parsedCursorSql(
+  phase: string,
+  epoch: number,
+  provider: string,
+  adds: Partial<Record<CatalogProvider, number>>,
+): Prisma.Sql {
+  if (phase === "free" || phase === "purchased") {
+    const pass = `mask:${epoch}`;
+    const assigns = PROVIDERS.map((name) =>
+      counterAssign(PARSED_COLUMN[name], pass, adds[name] ?? 0),
+    );
+    return Prisma.sql`, ${Prisma.join(assigns, ", ")}, parsed_pass = ${pass}`;
+  }
+  if (phase === "provider-free" || phase === "provider-purchased") {
+    if (!isProvider(provider)) throw new Error("Некорректный источник.");
+    const pass = `provider:${provider}:${epoch}`;
+    return Prisma.sql`, ${counterAssign(PARSED_COLUMN[provider], pass, adds[provider] ?? 0)}, parsed_pass = ${pass}`;
+  }
+  return Prisma.empty;
+}
+
 /** Cursor write. The row update and this statement share one transaction. */
 export function saveCursorSql(
   phase: string,
   epoch: number,
   provider: string,
   afterId: string,
+  adds: Partial<Record<CatalogProvider, number>> = {},
 ): Prisma.Sql {
   return Prisma.sql`
     UPDATE numbering_catalog_state
@@ -651,6 +706,7 @@ export function saveCursorSql(
         cursor_after = ${afterId},
         cursor_epoch = ${epoch},
         cursor_provider = ${provider}
+        ${parsedCursorSql(phase, epoch, provider, adds)}
     WHERE id = 1
       ${cursorGuard(phase, epoch, provider)}
   `;
@@ -679,9 +735,21 @@ async function saveCursor(
   epoch: number,
   provider: string,
   afterId: string,
+  adds: Partial<Record<CatalogProvider, number>>,
 ): Promise<void> {
-  const saved = await tx.$executeRaw(saveCursorSql(phase, epoch, provider, afterId));
+  const saved = await tx.$executeRaw(saveCursorSql(phase, epoch, provider, afterId, adds));
   if (Number(saved) !== 1) throw new EpochMoved();
+}
+
+function parsedAdds(
+  rows: readonly { provider?: string | null }[],
+): Partial<Record<CatalogProvider, number>> {
+  const adds: Partial<Record<CatalogProvider, number>> = {};
+  for (const row of rows) {
+    if (!row.provider || !isProvider(row.provider)) continue;
+    adds[row.provider] = (adds[row.provider] ?? 0) + 1;
+  }
+  return adds;
 }
 
 async function runWorkBatch(
@@ -699,12 +767,19 @@ async function runWorkBatch(
         const row = locked[0];
         if (row?.run_id && row.fresh) throw new SyncBusy();
       }
-      const rows = await tx.$queryRaw<{ id: string }[]>(
+      const rows = await tx.$queryRaw<{ id: string; provider?: string | null }[]>(
         workSql(phase, afterId, provider),
       );
       const next = rows.map((row) => row.id);
       if (next.length > 0) {
-        await saveCursor(tx, phase, epoch, provider ?? "", next[next.length - 1] ?? "");
+        await saveCursor(
+          tx,
+          phase,
+          epoch,
+          provider ?? "",
+          next[next.length - 1] ?? "",
+          parsedAdds(rows),
+        );
       }
       return next;
     }, BATCH_TX);

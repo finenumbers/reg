@@ -1,7 +1,15 @@
-# Current Phase — production (v1.309.0)
+# Current Phase — production (v1.310.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, purchased numbers, numbering sync, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-17
+
+## v1.310.0 — Sync page counts
+
+The migration `20261117020000_sync_card_counts` adds `loaded_at` and `duplicates_dropped` on the seven source state rows, and seven parsed counters plus `parsed_pass` on `numbering_catalog_state`. It does not rewrite catalog rows and does not scan the CDR journal. The migration is label-free. `lock_timeout` is 15 seconds. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app, let migrate finish, then start one new app. If migrate stops on `lock_timeout`, do not start the new app. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged.
+
+«Синхронизация» shows the next 22:00 UTC in the display zone as `HH:mm, dd.MM.yyyy`, then each source with its last successful load time and a borderless count table. «Загрузить все» and «Загрузить» are black. «Скачать лог» is white and stays in the row when there is no log. The host stays in the confirm dialog. Enter, cancel, and close do not send. While the chain runs, the separate «Загрузить» buttons stay disabled. The chain still uses `last_finished_at` to see that a source finished. The card time is `loaded_at`, written only when that publish commits. A failed load does not change it. `loaded_at` is copied from `last_finished_at` only where `last_error` is null. A card with an error shows «—» until the next successful load.
+
+«Купленные» and «Свободные» follow the current draft only after that side has started. An empty draft before the first staged row keeps the previous number. An empty finished side shows 0. Aurora Telecom has no «Купленные» row. Its free cell stays on the previous total until every link is parsed and the draft is inserted, then it jumps once. «Дубликаты» is the count of copies that were not stored, written only on a successful publish. Until the next successful load of that source the cell is 0. A failed walk does not zero it after that. «Разобрано» is the per-source counter stored with the mask cursor. It is not a count of the catalog. While a tariff or mask file is still being applied, every card shows that counter, including 0 through the tariff pass, then the number climbs as mask batches commit. A successful load of one source sets only that card to 0, then its own pass climbs it. When the debt is closed, the cell is the last free plus purchased total. Aurora Telecom is the last free total only, so a fresh zero column does not wipe an already parsed catalog. The lines do not show a phone number or a price.
 
 ## v1.309.0 — Mask pass keeps its place
 

@@ -5,6 +5,8 @@
 
 import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/db";
+import { cardLabels } from "@/modules/numbering-sync/card-numbers";
+import { getDisplayTimezone } from "@/modules/settings/service";
 import { AUDIT_ACTIONS, auditService } from "@/modules/audit";
 import { chainStartBlock } from "@/modules/numbering-chain/gate";
 import { downloadAuroraCsv, auroraInterruptedMessage } from "@/modules/aurora/fetch";
@@ -92,6 +94,10 @@ export type AuroraSyncView = {
   lastError: string | null;
   lastFree: number | null;
   lastPurchased: number | null;
+  freeShown: number | null;
+  purchasedShown: number | null;
+  duplicates: number;
+  loadedAtLabel: string;
   hasLog: boolean;
   hasFiles: boolean;
 };
@@ -106,6 +112,10 @@ type StateRow = {
   last_error: string | null;
   last_free_written: number | null;
   last_purchased_written: number | null;
+  duplicates_dropped: number;
+  loaded_at: Date | null;
+  staged_free: number;
+  staged_purchased: number;
   busy: boolean;
 };
 
@@ -127,10 +137,21 @@ export async function getAuroraLoadView(): Promise<AuroraLoadView> {
 }
 
 export async function getAuroraSyncView(): Promise<AuroraSyncView> {
-  const [rows, hasLog, linkCount] = await Promise.all([
+  const [rows, hasLog, linkCount, timeZone] = await Promise.all([
     prisma.$queryRaw<StateRow[]>`
       SELECT phase, page_done, page_total, last_error,
         last_free_written, last_purchased_written,
+        duplicates_dropped, loaded_at,
+        (
+          SELECT count(*)::int FROM aurora_sync_stage AS stage
+          WHERE stage.run_id = aurora_sync_state.run_id
+            AND stage.catalog = 'free'
+        ) AS staged_free,
+        (
+          SELECT count(*)::int FROM aurora_sync_stage AS stage
+          WHERE stage.run_id = aurora_sync_state.run_id
+            AND stage.catalog = 'purchased'
+        ) AS staged_purchased,
         (
           run_id IS NOT NULL
           AND phase IN ('running', 'publishing')
@@ -147,17 +168,35 @@ export async function getAuroraSyncView(): Promise<AuroraSyncView> {
     `,
     auroraLogExists(),
     countAuroraLinks(),
+    getDisplayTimezone(),
   ]);
   const state = rows[0];
   const busy = Boolean(state?.busy) || isAuroraActive();
+  const phase = busy ? (state?.phase ?? "") : "";
+  const lastFree = state?.last_free_written ?? null;
+  const lastPurchased = state?.last_purchased_written ?? null;
   return {
     busy,
-    phase: busy ? (state?.phase ?? "") : "",
+    phase,
     pageDone: busy ? (state?.page_done ?? 0) : 0,
     pageTotal: busy ? (state?.page_total ?? 0) : 0,
     lastError: state?.last_error ?? null,
-    lastFree: state?.last_free_written ?? null,
-    lastPurchased: state?.last_purchased_written ?? null,
+    lastFree,
+    lastPurchased,
+    ...cardLabels({
+      kind: "aurora",
+      busy,
+      step: null,
+      list: "",
+      phase,
+      lastFree,
+      lastPurchased,
+      stagedFree: state?.staged_free,
+      stagedPurchased: state?.staged_purchased,
+      duplicates: state?.duplicates_dropped,
+      loadedAt: state?.loaded_at,
+      timeZone,
+    }),
     hasLog,
     hasFiles: linkCount > 0,
   };
@@ -504,6 +543,7 @@ export async function startAuroraSync(
       );
       await flushAuroraLog();
       if (!shouldPublishAurora(parsed.rows.length)) throw new Error(EMPTY);
+      const duplicates = parsed.dropped;
       await stageFreeNumbers(runId, parsed.rows);
       await guard();
       await fillDraftSplit(runId, guard);
@@ -514,7 +554,7 @@ export async function startAuroraSync(
       if (isAuroraStopping()) throw new Error(CANCELLED);
       let counts: { free: number; purchased: number };
       try {
-        counts = await replaceAuroraCatalogs(runId);
+        counts = await replaceAuroraCatalogs(runId, duplicates);
       } catch (error) {
         if (
           isLockTimeout(error) &&
@@ -523,7 +563,7 @@ export async function startAuroraSync(
           !isStatementTimeout(error)
         ) {
           await guard();
-          counts = await replaceAuroraCatalogs(runId);
+          counts = await replaceAuroraCatalogs(runId, duplicates);
         } else {
           throw error;
         }

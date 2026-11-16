@@ -219,9 +219,24 @@ describe("catalog decorate", () => {
     const cursor = flattenSql(saveCursorSql("resplit-free", 4, "", "row"));
     expect(cursor).toContain("cursor_after");
     expect(cursor).toContain("resplit_epoch");
+    expect(cursor).not.toContain("parsed");
     const providerCursor = flattenSql(saveCursorSql("provider-free", 2, "MCN Telecom", "row"));
     expect(providerCursor).toContain("mcn_epoch");
+    expect(providerCursor).toContain("mcn_parsed");
     expect(providerCursor).not.toContain("sipout_epoch");
+    expect(providerCursor).not.toContain("sipout_parsed");
+    const maskCursor = flattenSql(
+      saveCursorSql("free", 3, "", "row", { SipOut: 2, "MCN Telecom": 4 }),
+    );
+    expect(maskCursor).toContain("sipout_parsed");
+    expect(maskCursor).toContain("mcn_parsed");
+    expect(maskCursor).toContain("parsed_pass");
+    expect(flattenSql(freeMaskBatchSql("", null))).toContain("n.provider");
+    expect(flattenSql(purchasedFullBatchSql("", null))).toContain("n.provider");
+    expect(flattenSql(purchasedClientBatchSql(""))).not.toContain("n.provider");
+    expect(flattenSql(bumpMaskDebtSql())).toContain("parsed_pass");
+    expect(SIPOUT_EPOCH_SQL).toContain("sipout_parsed = 0");
+    expect(SIPOUT_EPOCH_SQL).not.toContain("runexis_parsed");
 
     const source = readFileSync(
       path.join(process.cwd(), "src/modules/numbering-catalog/decorate.ts"),

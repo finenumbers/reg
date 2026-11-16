@@ -44,6 +44,7 @@ export type WalkDeps = {
   ) => Promise<void>;
   log: (block: string) => Promise<void>;
   flushLog: () => Promise<void>;
+  addDuplicates?: (count: number) => void;
 };
 
 export type WalkResult =
@@ -211,7 +212,10 @@ async function stageChunks(
     if (blocked) return { done: await stop(deps, blocked), draft };
     const chunk = rows.slice(offset, offset + STAGE_CHUNK);
     try {
-      draft += await deps.stageFree(chunk);
+      const inserted = await deps.stageFree(chunk);
+      draft += inserted;
+      const skipped = chunk.length - inserted;
+      if (skipped > 0) deps.addDuplicates?.(skipped);
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Не удалось записать номера.";
