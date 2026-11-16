@@ -1,7 +1,8 @@
 /**
  * Purchased numbers, then free numbers for every country whose prefix is 7.
  * One request at a time. A short free page is not kept and does not advance.
- * A moved total is read again once. The second move does not publish.
+ * A free country gets five attempts. A moved total, a recount mismatch, or a
+ * repeated number discards that attempt. Anything else stops the country.
  */
 
 import {
@@ -33,8 +34,11 @@ export type Gate = "run" | "cancel" | "lost";
 export type FailReason = "lost" | "cancel" | "fail";
 export type WalkResult = { ok: true } | { ok: false; error: string; reason: FailReason };
 
+const PURCHASED_ATTEMPTS = 2;
+const FREE_ATTEMPTS = 5;
+
 type ReadOk<T> = { kind: "ok"; total: number; rows: T[] };
-type ReadShift = { kind: "shift" };
+type ReadShift = { kind: "shift"; error: string };
 type ReadFail = { kind: "fail"; error: string; reason: FailReason };
 type ReadResult<T> = ReadOk<T> | ReadShift | ReadFail;
 
@@ -80,7 +84,12 @@ async function readPages<T>(input: Selection<T>): Promise<ReadResult<T>> {
     await input.log(
       `${line(input.method, page.meta, `${input.detail(cursor)}${totalText}`)}`,
     );
-    if (!page.ok) return { kind: "fail", error: page.error, reason: "fail" };
+    if (!page.ok) {
+      if (input.kind === "page" && page.error === DUPLICATE_NUMBER) {
+        return { kind: "shift", error: DUPLICATE_NUMBER };
+      }
+      return { kind: "fail", error: page.error, reason: "fail" };
+    }
     if (page.rows.length > input.limit) {
       return { kind: "fail", error: PAGE_TOO_LONG, reason: "fail" };
     }
@@ -88,7 +97,7 @@ async function readPages<T>(input: Selection<T>): Promise<ReadResult<T>> {
       return { kind: "fail", error: OFFSET_ECHO, reason: "fail" };
     }
     if (locked == null) locked = page.total;
-    else if (page.total !== locked) return { kind: "shift" };
+    else if (page.total !== locked) return { kind: "shift", error: TOTAL_MOVED };
     if (page.rows.length === 0) {
       if (locked === 0) break;
       if (emptyRetries >= 1) return { kind: "fail", error: SHORT_LIST, reason: "fail" };
@@ -108,7 +117,10 @@ async function readPages<T>(input: Selection<T>): Promise<ReadResult<T>> {
     }
     for (const row of page.rows) {
       const id = input.key(row);
-      if (seen.has(id)) return { kind: "fail", error: DUPLICATE_NUMBER, reason: "fail" };
+      if (seen.has(id)) {
+        if (input.kind === "page") return { kind: "shift", error: DUPLICATE_NUMBER };
+        return { kind: "fail", error: DUPLICATE_NUMBER, reason: "fail" };
+      }
       seen.add(id);
     }
     if (accepted + page.rows.length > locked) {
@@ -124,11 +136,29 @@ async function readPages<T>(input: Selection<T>): Promise<ReadResult<T>> {
   return { kind: "ok", total: locked, rows: collected };
 }
 
-async function readStable<T>(input: Selection<T>): Promise<ReadResult<T>> {
-  for (let attempt = 0; attempt < 2; attempt += 1) {
+async function noteDiscarded<T>(
+  input: Selection<T>,
+  attempts: number,
+  attempt: number,
+): Promise<void> {
+  if (input.kind === "page") {
+    await input.log(`Попытка ${attempt + 1} из ${attempts}`);
+  }
+}
+
+async function readStable<T>(
+  input: Selection<T>,
+  attempts: number,
+): Promise<ReadResult<T>> {
+  let discarded = TOTAL_MOVED;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
     const read = await readPages(input);
     if (read.kind === "fail") return read;
-    if (read.kind === "shift") continue;
+    if (read.kind === "shift") {
+      discarded = read.error;
+      await noteDiscarded(input, attempts, attempt);
+      continue;
+    }
     const gate = await input.beat(read.total, read.total);
     if (gate === "cancel") return { kind: "fail", error: CANCELLED, reason: "cancel" };
     if (gate === "lost") return { kind: "fail", error: LOST, reason: "lost" };
@@ -137,10 +167,11 @@ async function readStable<T>(input: Selection<T>): Promise<ReadResult<T>> {
       `${line(input.method, recount.meta, `${input.detail(input.kind === "offset" ? 0 : 1)} recount${recount.ok ? ` total=${recount.total}` : ""}`)}`,
     );
     if (!recount.ok) return { kind: "fail", error: recount.error, reason: "fail" };
-    if (recount.total !== read.total) continue;
-    return read;
+    if (recount.total === read.total) return read;
+    discarded = TOTAL_MOVED;
+    await noteDiscarded(input, attempts, attempt);
   }
-  return { kind: "fail", error: TOTAL_MOVED, reason: "fail" };
+  return { kind: "fail", error: discarded, reason: "fail" };
 }
 
 export async function runMcnWalk(deps: {
@@ -154,17 +185,20 @@ export async function runMcnWalk(deps: {
   stageFree: (rows: readonly FreeRow[]) => Promise<void>;
   log: (text: string) => Promise<void>;
 }): Promise<WalkResult> {
-  const purchased = await readStable({
-    kind: "offset",
-    method: "composite-dids",
-    detail: (offset) => `offset=${offset}`,
-    limit: PURCHASED_LIMIT,
-    fetchPage: deps.purchasedPage,
-    recount: deps.purchasedRecount,
-    key: (row) => row,
-    beat: (done, total) => deps.beat("purchased", done, total),
-    log: deps.log,
-  });
+  const purchased = await readStable(
+    {
+      kind: "offset",
+      method: "composite-dids",
+      detail: (offset) => `offset=${offset}`,
+      limit: PURCHASED_LIMIT,
+      fetchPage: deps.purchasedPage,
+      recount: deps.purchasedRecount,
+      key: (row) => row,
+      beat: (done, total) => deps.beat("purchased", done, total),
+      log: deps.log,
+    },
+    PURCHASED_ATTEMPTS,
+  );
   if (purchased.kind !== "ok") {
     return failed(
       purchased.kind === "fail" ? purchased.error : TOTAL_MOVED,
@@ -190,17 +224,20 @@ export async function runMcnWalk(deps: {
 
   const freeSeen = new Set<string>();
   for (const code of codes) {
-    const read = await readStable({
-      kind: "page",
-      method: "numbers",
-      detail: (pageNumber) => `country=${code} page=${pageNumber}`,
-      limit: FREE_PAGE_LIMIT,
-      fetchPage: (pageNumber) => deps.freePage(code, pageNumber),
-      recount: () => deps.freeRecount(code),
-      key: (row) => row.e164,
-      beat: (done, total) => deps.beat("free", done, total),
-      log: deps.log,
-    });
+    const read = await readStable(
+      {
+        kind: "page",
+        method: "numbers",
+        detail: (pageNumber) => `country=${code} page=${pageNumber}`,
+        limit: FREE_PAGE_LIMIT,
+        fetchPage: (pageNumber) => deps.freePage(code, pageNumber),
+        recount: () => deps.freeRecount(code),
+        key: (row) => row.e164,
+        beat: (done, total) => deps.beat("free", done, total),
+        log: deps.log,
+      },
+      FREE_ATTEMPTS,
+    );
     if (read.kind !== "ok") {
       return failed(
         read.kind === "fail" ? read.error : TOTAL_MOVED,
@@ -217,7 +254,7 @@ export async function runMcnWalk(deps: {
 export async function runAccessProbe(client: {
   purchased(offset: number, limit: number): Promise<NumberPage<string>>;
   countries(): Promise<CountriesPage>;
-  free(countryCode: number, pageNumber: number): Promise<NumberPage<FreeRow>>;
+  freeProbe(countryCode: number): Promise<NumberPage<FreeRow>>;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   const purchased = await client.purchased(0, 1);
   if (!purchased.ok) return { ok: false, error: purchased.error };
@@ -225,7 +262,7 @@ export async function runAccessProbe(client: {
   if (!countries.ok) return { ok: false, error: countries.error };
   const codes = russianCountries(countries.countries);
   if (codes.length === 0) return { ok: false, error: EMPTY_COUNTRIES };
-  const free = await client.free(codes[0] ?? 0, 1);
+  const free = await client.freeProbe(codes[0] ?? 0);
   if (!free.ok) return { ok: false, error: free.error };
   return { ok: true };
 }

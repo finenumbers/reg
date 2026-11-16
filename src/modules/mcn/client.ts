@@ -17,6 +17,7 @@ import {
 } from "@/modules/mcn/parse";
 import {
   FREE_PAGE_LIMIT,
+  FREE_PROBE_LIMIT,
   authorizationHeader,
   countriesUrl,
   freeUrl,
@@ -238,6 +239,7 @@ export type McnClient = {
   purchasedRecount(): Promise<TotalPage>;
   countries(): Promise<CountriesPage>;
   free(countryCode: number, pageNumber: number): Promise<NumberPage<FreeRow>>;
+  freeProbe(countryCode: number): Promise<NumberPage<FreeRow>>;
   freeRecount(countryCode: number): Promise<TotalPage>;
 };
 
@@ -248,6 +250,28 @@ export function createMcnClient(
   const transport = options?.transport ?? httpsGet;
   const refused = (): { ok: false; error: string; meta: CallMeta } | null =>
     tokenReadable(token) ? null : { ok: false, error: BAD_SECRET, meta: EMPTY_META };
+
+  async function readFree(
+    countryCode: number,
+    pageNumber: number,
+    limit: number,
+  ): Promise<NumberPage<FreeRow>> {
+    const blocked = refused();
+    if (blocked) return blocked;
+    const url = freeUrl(countryCode, pageNumber, limit);
+    if (!url) return { ok: false, error: BAD_COUNTRY, meta: EMPTY_META };
+    const raw = await callJson(url, token, transport);
+    if (!raw.ok) return raw;
+    const parsed = parseFreePage(raw.data, limit);
+    if (!parsed.ok) return { ok: false, error: parsed.error, meta: raw.meta };
+    return {
+      ok: true,
+      rows: parsed.rows,
+      total: parsed.total,
+      echo: pageNumber,
+      meta: raw.meta,
+    };
+  }
 
   return {
     async purchased(offset, limit) {
@@ -290,26 +314,15 @@ export function createMcnClient(
       return { ok: true, countries: parsed.countries, meta: raw.meta };
     },
     async free(countryCode, pageNumber) {
-      const blocked = refused();
-      if (blocked) return blocked;
-      const url = freeUrl(countryCode, pageNumber);
-      if (!url) return { ok: false, error: BAD_COUNTRY, meta: EMPTY_META };
-      const raw = await callJson(url, token, transport);
-      if (!raw.ok) return raw;
-      const parsed = parseFreePage(raw.data, FREE_PAGE_LIMIT);
-      if (!parsed.ok) return { ok: false, error: parsed.error, meta: raw.meta };
-      return {
-        ok: true,
-        rows: parsed.rows,
-        total: parsed.total,
-        echo: pageNumber,
-        meta: raw.meta,
-      };
+      return readFree(countryCode, pageNumber, FREE_PAGE_LIMIT);
+    },
+    async freeProbe(countryCode) {
+      return readFree(countryCode, 1, FREE_PROBE_LIMIT);
     },
     async freeRecount(countryCode) {
       const blocked = refused();
       if (blocked) return blocked;
-      const url = freeUrl(countryCode, 1);
+      const url = freeUrl(countryCode, 1, FREE_PROBE_LIMIT);
       if (!url) return { ok: false, error: BAD_COUNTRY, meta: EMPTY_META };
       const raw = await callJson(url, token, transport);
       if (!raw.ok) return raw;

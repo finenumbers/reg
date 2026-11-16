@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { createMcnClient, type Transport } from "@/modules/mcn/client";
 import {
+  FREE_PAGE_LIMIT,
+  FREE_PROBE_LIMIT,
   authorizationHeader,
   countriesUrl,
   freePageTooFar,
@@ -33,14 +35,17 @@ describe("MCN Telecom client", () => {
     expect(countries.pathname).toBe("/api/protected/showcase/countries");
     expect(countries.search).toBe("");
 
-    const free = freeUrl(643, 1);
+    const free = freeUrl(643, 1, FREE_PAGE_LIMIT);
     const freeTarget = new URL(free ?? "");
     expect([...freeTarget.searchParams.keys()]).toEqual([
       "countryCode",
       "limitPerPage",
       "pageNumber",
     ]);
-    expect(freeTarget.searchParams.get("limitPerPage")).toBe("25");
+    expect(freeTarget.searchParams.get("limitPerPage")).toBe("2000");
+    const probe = freeUrl(643, 1, FREE_PROBE_LIMIT);
+    expect(new URL(probe ?? "").searchParams.get("limitPerPage")).toBe("25");
+    expect(freeUrl(643, 1, 50)).toBeNull();
     expect(platformRequest(purchased ?? "")?.method).toBe("GET");
     expect(platformRequest("https://shop.mcn.ru/api/protected/checkout")).toBeNull();
     expect(
@@ -52,8 +57,8 @@ describe("MCN Telecom client", () => {
     expect(authorizationHeader(TOKEN)).toBe(`Bearer ${TOKEN}`);
     expect(offsetTooFar(5_000_001)).toBe(true);
     expect(offsetTooFar(5_000_000)).toBe(false);
-    expect(freePageTooFar(200_002)).toBe(true);
-    expect(freePageTooFar(200_001)).toBe(false);
+    expect(freePageTooFar(2502)).toBe(true);
+    expect(freePageTooFar(2501)).toBe(false);
   });
 
   it("does not send a broken token and does not retry a rejection", async () => {
@@ -108,5 +113,33 @@ describe("MCN Telecom client", () => {
     const huge = await createMcnClient(TOKEN, { transport: oversized }).countries();
     expect(huge.ok).toBe(false);
     expect(big).toBe(1);
+  });
+
+  it("asks a walk page for 2000 and the probe and recount for 25", async () => {
+    const urls: string[] = [];
+    const transport: Transport = async (url) => {
+      urls.push(url);
+      return json(200, { numbers: [], totalNumbers: 0 });
+    };
+    const client = createMcnClient(TOKEN, { transport });
+    const page = await client.free(643, 3);
+    const probe = await client.freeProbe(643);
+    const recount = await client.freeRecount(643);
+    expect(page.ok).toBe(true);
+    expect(probe.ok).toBe(true);
+    expect(recount.ok).toBe(true);
+    expect(new URL(urls[0] ?? "").searchParams.get("limitPerPage")).toBe("2000");
+    expect(new URL(urls[0] ?? "").searchParams.get("pageNumber")).toBe("3");
+    expect(new URL(urls[1] ?? "").searchParams.get("limitPerPage")).toBe("25");
+    expect(new URL(urls[1] ?? "").searchParams.get("pageNumber")).toBe("1");
+    expect(new URL(urls[2] ?? "").searchParams.get("limitPerPage")).toBe("25");
+    expect(new URL(urls[2] ?? "").searchParams.get("pageNumber")).toBe("1");
+    for (const url of urls) {
+      expect([...new URL(url).searchParams.keys()]).toEqual([
+        "countryCode",
+        "limitPerPage",
+        "pageNumber",
+      ]);
+    }
   });
 });

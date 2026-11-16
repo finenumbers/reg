@@ -8,7 +8,8 @@ export const VPBX_ORIGIN = "https://vpbx.mcn.ru";
 export const SHOP_HOST = "shop.mcn.ru";
 export const VPBX_HOST = "vpbx.mcn.ru";
 export const MCN_PROVIDER = "MCN Telecom";
-export const FREE_PAGE_LIMIT = 25;
+export const FREE_PAGE_LIMIT = 2000;
+export const FREE_PROBE_LIMIT = 25;
 export const PURCHASED_LIMIT = 100;
 export const OFFSET_MAX = 5_000_000;
 
@@ -45,12 +46,17 @@ export function countriesUrl(): string {
   return `${SHOP_ORIGIN}${COUNTRIES_PATH}`;
 }
 
-export function freeUrl(countryCode: number, pageNumber: number): string | null {
+export function freeUrl(
+  countryCode: number,
+  pageNumber: number,
+  limit: number,
+): string | null {
+  if (limit !== FREE_PAGE_LIMIT && limit !== FREE_PROBE_LIMIT) return null;
   if (!Number.isSafeInteger(countryCode) || countryCode < 0) return null;
   if (!Number.isSafeInteger(pageNumber) || pageNumber < 1) return null;
   const query = new URLSearchParams({
     countryCode: String(countryCode),
-    limitPerPage: String(FREE_PAGE_LIMIT),
+    limitPerPage: String(limit),
     pageNumber: String(pageNumber),
   });
   return `${SHOP_ORIGIN}${NUMBERS_PATH}?${query.toString()}`;

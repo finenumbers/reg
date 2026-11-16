@@ -1,7 +1,13 @@
-# Current Phase — production (v1.304.0)
+# Current Phase — production (v1.305.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, purchased numbers, numbering sync, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-16
+
+## v1.305.0 — MCN Telecom free page
+
+This release does not migrate and does not rewrite catalog rows or epoch counters. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before the new one starts, then start one new app. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged. SipOut, Runexis, UIS, Aurora Telecom, MTS Exolve, and Voximplant are unchanged.
+
+A free MCN Telecom walk page asks for 2000 numbers. The access check and the recount still ask for 25. A country is published only when one pass keeps the same `totalNumbers`, the accepted rows equal that total, and the recount matches it. A changed total, a differing recount, or a repeated number discards that pass and reads the country again, up to five times. A short page still does not advance. A page of 25 while 2000 was requested stops the country and leaves the catalogs. A failed read leaves the catalogs. The stage log has no token, no URL, no phone number, and no price.
 
 ## v1.304.0 — MCN Telecom numbers
 
