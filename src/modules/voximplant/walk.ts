@@ -1,6 +1,7 @@
 /**
  * Purchased numbers, then every RU region. One request at a time.
- * A moved total is read again once. The second move does not publish.
+ * A moved total is read again once. A free page that fills the locked total
+ * is kept, and that total stays. The second move does not publish.
  * The next offset is the number of accepted rows, not the response `count`.
  */
 
@@ -64,6 +65,8 @@ type Selection<T> = {
   drop: () => Promise<void>;
   beat: (done: number, total: number) => Promise<Gate>;
   log: (text: string) => Promise<void>;
+  /** A free page may fill the locked total while reporting another total. */
+  completeLockedTotal?: boolean;
 };
 
 async function readPages<T>(input: Selection<T>): Promise<ReadResult<T>> {
@@ -80,7 +83,7 @@ async function readPages<T>(input: Selection<T>): Promise<ReadResult<T>> {
     if (gate === "cancel") return { kind: "fail", error: CANCELLED, reason: "cancel" };
     if (gate === "lost") return { kind: "fail", error: LOST, reason: "lost" };
     const page = await input.fetchPage(offset);
-    const totalText = page.ok ? ` total=${page.total}` : "";
+    const totalText = page.ok ? ` total=${page.total} rows=${page.rows.length}` : "";
     await input.log(
       `${line(input.method, page.meta, `${input.detail(offset)}${totalText}`)}`,
     );
@@ -88,8 +91,12 @@ async function readPages<T>(input: Selection<T>): Promise<ReadResult<T>> {
     if (page.rows.length > input.limit) {
       return { kind: "fail", error: PAGE_TOO_LONG, reason: "fail" };
     }
+    const fillsLockedTotal =
+      input.completeLockedTotal === true &&
+      locked != null &&
+      accepted + page.rows.length === locked;
     if (locked == null) locked = page.total;
-    else if (page.total !== locked) return { kind: "shift" };
+    else if (page.total !== locked && !fillsLockedTotal) return { kind: "shift" };
     if (page.rows.length === 0) {
       if (locked === 0) break;
       if (emptyRetries >= 1) return { kind: "fail", error: SHORT_LIST, reason: "fail" };
@@ -221,6 +228,7 @@ export async function runVoximplantWalk(deps: {
         drop: async () => undefined,
         beat: (done, total) => deps.beat("free", done, total),
         log: deps.log,
+        completeLockedTotal: true,
       });
       if (read.kind !== "ok") {
         return failed(

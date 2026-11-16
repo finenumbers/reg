@@ -1,7 +1,13 @@
-# Current Phase — production (v1.301.0)
+# Current Phase — production (v1.302.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, purchased numbers, numbering sync, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-16
+
+## v1.302.0 — Voximplant free tail
+
+This release does not migrate and does not rewrite catalog rows or epoch counters. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before the new one starts, then start one new app. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged. SipOut, Runexis, UIS, Aurora Telecom, and MTS Exolve are unchanged.
+
+A free Voximplant page that brings the accepted count up to the total locked on the first page is kept, even when that page reports a different total. The locked total is not replaced. The recount must still match it. Any other change of the total discards that selection and reads it once more. A second change does not publish. Purchased pages still discard every changed total. The stage log adds the row count of a page. It still has no key, no URL, no phone number, and no price.
 
 ## v1.301.0 — Voximplant numbers
 
