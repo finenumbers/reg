@@ -13,9 +13,13 @@ import {
   fillStageSplitSql,
   MASK_BATCH,
   MASK_BATCH_TX_MS,
+  bumpMaskDebtSql,
+  bumpTariffDebtSql,
   freeMaskBatchSql,
   markDecorateDoneSql,
   providerLiteral,
+  resplitBatchSql,
+  saveCursorSql,
   purchasedClientBatchSql,
   purchasedFullBatchSql,
 } from "@/modules/numbering-catalog/decorate";
@@ -32,6 +36,15 @@ import {
   FREE_COPY_SQL as AURORA_FREE,
   PURCHASED_COPY_SQL as AURORA_PURCHASED,
 } from "@/modules/aurora/sql";
+
+function sqlValues(sql: Prisma.Sql): unknown[] {
+  const found: unknown[] = [];
+  for (const value of sql.values) {
+    if (value instanceof Prisma.Sql) found.push(...sqlValues(value));
+    else found.push(value);
+  }
+  return found;
+}
 
 function flattenSql(sql: Prisma.Sql): string {
   const text: string[] = [];
@@ -167,5 +180,67 @@ describe("catalog decorate", () => {
       expect(sql).toContain("numbering_catalog_state");
       expect(sql).not.toContain("cdr_records");
     }
+  });
+
+  it("keeps a resplit batch on the tariff cells and guards the cursor epoch", () => {
+    const free = flattenSql(resplitBatchSql("free_numbers", ""));
+    const purchased = flattenSql(resplitBatchSql("purchased_numbers", ""));
+    for (const sql of [free, purchased]) {
+      expect(sql).toContain("cdr_tariff_geo");
+      expect(sql).toContain("geography_digit_split");
+      expect(sql).toContain('SET');
+      expect(sql).toContain("abc = computed.abc");
+      expect(sql).not.toContain("rtu_mask_lookup");
+      expect(sql).not.toContain("mask");
+      expect(sql).not.toContain("client");
+      expect(sql).not.toMatch(/operator\s*=/);
+      expect(sql).not.toMatch(/geography\s*=/);
+    }
+    expect(free).toContain("free_numbers");
+    expect(purchased).toContain("purchased_numbers");
+
+    const tariffSql = bumpTariffDebtSql();
+    const tariff = flattenSql(tariffSql);
+    const tariffValues = sqlValues(tariffSql);
+    expect(tariff).toContain("resplit_epoch = resplit_epoch + 1");
+    expect(tariff).toContain("mask_epoch = mask_epoch + 1");
+    expect(tariffValues).toContain("resplit-free");
+    expect(tariffValues).toContain("provider-purchased");
+    expect(tariffValues).not.toContain("client");
+
+    const maskSql = bumpMaskDebtSql();
+    const mask = flattenSql(maskSql);
+    const maskValues = sqlValues(maskSql);
+    expect(mask).toContain("mask_epoch = mask_epoch + 1");
+    expect(mask).not.toContain("resplit_epoch");
+    expect(maskValues).not.toContain("resplit-free");
+    expect(maskValues).toContain("free");
+
+    const cursor = flattenSql(saveCursorSql("resplit-free", 4, "", "row"));
+    expect(cursor).toContain("cursor_after");
+    expect(cursor).toContain("resplit_epoch");
+    const providerCursor = flattenSql(saveCursorSql("provider-free", 2, "MCN Telecom", "row"));
+    expect(providerCursor).toContain("mcn_epoch");
+    expect(providerCursor).not.toContain("sipout_epoch");
+
+    const source = readFileSync(
+      path.join(process.cwd(), "src/modules/numbering-catalog/decorate.ts"),
+      "utf8",
+    );
+    expect(source).toContain("WHERE id = 1 AND resplit_epoch =");
+    expect(source).toContain("WHERE id = 1 AND mask_epoch =");
+    expect(source).toContain("WHERE id = 1 AND client_epoch =");
+    expect(source).toContain("RETRY_MS = 5_000");
+    expect(source).not.toContain("resplitShouldWait");
+
+    const tariffApply = readFileSync(
+      path.join(process.cwd(), "src/modules/tariffs/apply.ts"),
+      "utf8",
+    );
+    expect(tariffApply.lastIndexOf("bumpTariffDebtSql()")).toBeGreaterThan(0);
+    expect(tariffApply.lastIndexOf("bumpTariffDebtSql()")).toBeLessThan(
+      tariffApply.indexOf("}, APPLY_TX)"),
+    );
+    expect(tariffApply).not.toContain("requestNumberingResplit");
   });
 });

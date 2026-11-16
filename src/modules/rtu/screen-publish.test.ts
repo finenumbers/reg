@@ -7,6 +7,7 @@ import {
   publishedScreenStamps,
   resetRtuScreenPublishForTests,
   runScreenPublish,
+  setScreenRetryWaitForTests,
   screenStampsMatch,
   screenSwapFresh,
   type ScreenPublishDeps,
@@ -124,6 +125,7 @@ describe("screen stamps", () => {
 describe("runScreenPublish", () => {
   beforeEach(() => {
     resetRtuScreenPublishForTests();
+    setScreenRetryWaitForTests(async () => undefined);
   });
 
   it("skips the build when the published stamps already match", async () => {
@@ -173,20 +175,21 @@ describe("runScreenPublish", () => {
     expect(harness.dropped).toEqual(["ab12cd34"]);
   });
 
-  it("returns unpublished on a SQL error and drops the build table once", async () => {
+  it("retries a SQL error and then publishes", async () => {
     let builds = 0;
     const harness = deps({
       read: async () => stamp({ published: false }),
-      build: async () => {
+      build: async (token) => {
         builds += 1;
-        throw new Error("relation rtu_screen does not exist");
+        if (builds === 1) throw new Error("relation rtu_screen does not exist");
+        harness.built.push(token);
       },
     });
     const result = await runScreenPublish(harness);
-    expect(result).toEqual({ published: false });
-    expect(builds).toBe(1);
+    expect(result).toEqual({ published: true });
+    expect(builds).toBe(2);
     expect(harness.dropped).toEqual(["ab12cd34"]);
-    expect(harness.swapped).toEqual([]);
+    expect(harness.swapped).toEqual(["ab12cd34"]);
   });
 
   it("does not publish a build whose supplier revision went stale", async () => {
@@ -210,7 +213,7 @@ describe("runScreenPublish", () => {
     expect(harness.dropped).toEqual(["ab12cd34"]);
   });
 
-  it("runs a queued publish only after the previous one has read its stamps", async () => {
+  it("shares a publish that is already reading stamps", async () => {
     let release: () => void = () => undefined;
     const gate = new Promise<void>((resolve) => {
       release = resolve;
@@ -226,10 +229,14 @@ describe("runScreenPublish", () => {
     const first = enqueueScreenPublish(harness);
     await Promise.resolve();
     const second = enqueueScreenPublish(harness);
+    expect(second).toBe(first);
     expect(reads).toBe(1);
     release();
     await expect(first).resolves.toEqual({ published: true });
     await expect(second).resolves.toEqual({ published: true });
+    expect(reads).toBe(1);
+    const third = enqueueScreenPublish(harness);
+    await expect(third).resolves.toEqual({ published: true });
     expect(reads).toBe(2);
     expect(harness.built).toEqual([]);
   });

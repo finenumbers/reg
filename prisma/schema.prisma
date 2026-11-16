@@ -1014,6 +1014,25 @@ model NumberingCatalogState {
   voximplantDone     Int @default(0) @map("voximplant_done")
   mcnEpoch           Int @default(0) @map("mcn_epoch")
   mcnDone            Int @default(0) @map("mcn_done")
+  /// Tariff file. The resplit pass sets done only while this value is unchanged.
+  resplitEpoch       Int @default(0) @map("resplit_epoch")
+  resplitDone        Int @default(0) @map("resplit_done")
+  /// Tariff file or mask file. A full mask pass sets done only while this value is unchanged.
+  maskEpoch          Int @default(0) @map("mask_epoch")
+  maskDone           Int @default(0) @map("mask_done")
+  /// Phone snapshot whose number and description set changed.
+  clientEpoch        Int @default(0) @map("client_epoch")
+  clientDone         Int @default(0) @map("client_done")
+  /// Hash of endpoint number and description. An equal hash does not bump client_epoch.
+  clientHash         String @default("") @map("client_hash")
+  /// resplit-free, resplit-purchased, free, purchased, provider-free, provider-purchased, client, bootstrap-free, bootstrap-purchased.
+  cursorPhase        String @default("") @map("cursor_phase")
+  /// Last id committed for cursor_phase. The next batch reads id greater than this.
+  cursorAfter        String @default("") @map("cursor_after")
+  /// Epoch the cursor belongs to. A newer snapshot does not keep this cursor.
+  cursorEpoch        Int    @default(0) @map("cursor_epoch")
+  /// Provider literal for a provider phase. Empty for a full pass.
+  cursorProvider     String @default("") @map("cursor_provider")
 
   @@map("numbering_catalog_state")
 }

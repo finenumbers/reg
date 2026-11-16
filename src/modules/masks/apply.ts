@@ -5,6 +5,7 @@
  */
 
 import { prisma } from "@/lib/db";
+import { bumpMaskDebtSql } from "@/modules/numbering-catalog/decorate";
 import type { MaskParsedRow } from "@/modules/masks/parse-xlsx";
 
 const APPLY_TX = { maxWait: 10_000, timeout: 180_000 } as const;
@@ -59,6 +60,7 @@ export async function applyMaskSnapshot(
         generation: { increment: 1 },
       },
     });
+    await tx.$executeRaw(bumpMaskDebtSql());
   }, APPLY_TX);
 
   void import("@/modules/rtu/screen-publish")

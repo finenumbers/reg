@@ -4,6 +4,7 @@
  */
 
 import { prisma } from "@/lib/db";
+import { bumpTariffDebtSql } from "@/modules/numbering-catalog/decorate";
 import type { TariffParsedRow } from "@/modules/tariffs/parse-xlsx";
 import { formatDigitLengths } from "@/modules/traffic/tariff-match";
 
@@ -53,6 +54,7 @@ export async function applyTariffSnapshot(
         rateGeneration: { increment: 1 },
       },
     });
+    await tx.$executeRaw(bumpTariffDebtSql());
   }, APPLY_TX);
 
   void import("@/modules/traffic/tariff-rate/enqueue")
@@ -61,10 +63,6 @@ export async function applyTariffSnapshot(
 
   void import("@/modules/rtu/screen-publish")
     .then(({ requestRtuScreenPublish }) => requestRtuScreenPublish())
-    .catch(() => undefined);
-
-  void import("@/modules/numbering-sync/recompute")
-    .then(({ requestNumberingResplit }) => requestNumberingResplit())
     .catch(() => undefined);
 
   void import("@/modules/numbering-catalog/decorate")

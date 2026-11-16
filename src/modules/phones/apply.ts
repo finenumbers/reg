@@ -6,7 +6,9 @@
 
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
+import { bumpClientDebtSql, seedClientHashSql } from "@/modules/numbering-catalog/decorate";
 import { categoryMapFromEndpoints, stampCategory } from "@/modules/phones/category";
+import { phoneClientHash, phoneDescription } from "@/modules/phones/client-hash";
 import {
   PHONE_CATALOG_LOCK_SQL,
   stampSupplier,
@@ -97,6 +99,24 @@ export async function applyPhonesSnapshot(
         lastJobRunId: jobRunId,
       },
     });
+
+    const nextHash = phoneClientHash(
+      payload.endpoints.map((row) => ({
+        phone: row.endpointNumber ?? "",
+        description: phoneDescription(row.data),
+      })),
+    );
+    const previousHash = phoneClientHash(
+      previous.map((row) => ({
+        phone: row.endpointNumber ?? "",
+        description: phoneDescription(row.data),
+      })),
+    );
+    if (nextHash === previousHash) {
+      await tx.$executeRaw(seedClientHashSql(nextHash));
+    } else {
+      await tx.$executeRaw(bumpClientDebtSql(nextHash));
+    }
   }, APPLY_TX);
 
   return {

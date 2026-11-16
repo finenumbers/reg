@@ -7,7 +7,7 @@
 import { Prisma } from "@/generated/prisma/client";
 import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/db";
-import { isLockTimeout, resplitShouldWait } from "@/modules/numbering-sync/db-retry";
+import { isLockTimeout } from "@/modules/numbering-sync/db-retry";
 import { SyncBusy } from "@/modules/numbering-sync/errors";
 import { RESPLIT_LOCKS } from "@/modules/numbering-sync/locks";
 import { cityAlertSql, cityLabelSql } from "@/modules/rtu/sql";
@@ -22,7 +22,7 @@ const BATCH_TX = { maxWait: 10_000, timeout: MASK_BATCH_TX_MS } as const;
 
 export type MaskProgress = {
   provider: CatalogProvider | null;
-  kind: "free" | "purchased" | "client";
+  kind: "free" | "purchased" | "client" | "resplit-free" | "resplit-purchased";
   done: number;
   total: number;
 };
@@ -146,6 +146,76 @@ function epochNames(provider: CatalogProvider): { epoch: string; done: string } 
   }
 }
 
+const TARIFF_CURSOR_PHASES = [
+  "resplit-free",
+  "resplit-purchased",
+  "free",
+  "purchased",
+  "provider-free",
+  "provider-purchased",
+] as const;
+const MASK_CURSOR_PHASES = [
+  "free",
+  "purchased",
+  "provider-free",
+  "provider-purchased",
+] as const;
+
+function phaseList(phases: readonly string[]): Prisma.Sql {
+  return Prisma.join(phases.map((phase) => Prisma.sql`${phase}`));
+}
+
+function clearCursorSql(phases: readonly string[]): Prisma.Sql {
+  const list = phaseList(phases);
+  return Prisma.sql`
+    cursor_phase = CASE WHEN cursor_phase IN (${list}) THEN '' ELSE cursor_phase END,
+    cursor_after = CASE WHEN cursor_phase IN (${list}) THEN '' ELSE cursor_after END,
+    cursor_epoch = CASE WHEN cursor_phase IN (${list}) THEN 0 ELSE cursor_epoch END,
+    cursor_provider = CASE WHEN cursor_phase IN (${list}) THEN '' ELSE cursor_provider END
+  `;
+}
+
+/** Tariff snapshot. Clears a resplit or mask cursor and leaves a client cursor. */
+export function bumpTariffDebtSql(): Prisma.Sql {
+  return Prisma.sql`
+    UPDATE numbering_catalog_state
+    SET resplit_epoch = resplit_epoch + 1,
+        mask_epoch = mask_epoch + 1,
+        ${clearCursorSql(TARIFF_CURSOR_PHASES)}
+    WHERE id = 1
+  `;
+}
+
+/** Mask snapshot. Clears a mask cursor and leaves a resplit or client cursor. */
+export function bumpMaskDebtSql(): Prisma.Sql {
+  return Prisma.sql`
+    UPDATE numbering_catalog_state
+    SET mask_epoch = mask_epoch + 1,
+        ${clearCursorSql(MASK_CURSOR_PHASES)}
+    WHERE id = 1
+  `;
+}
+
+/** Phone snapshot whose descriptions changed. Clears only a client cursor. */
+export function bumpClientDebtSql(hash: string): Prisma.Sql {
+  return Prisma.sql`
+    UPDATE numbering_catalog_state
+    SET client_epoch = client_epoch + 1,
+        client_hash = ${hash},
+        ${clearCursorSql(["client"])}
+    WHERE id = 1
+  `;
+}
+
+/** Same descriptions as the rows just replaced. Stores the hash and does not bump. */
+export function seedClientHashSql(hash: string): Prisma.Sql {
+  return Prisma.sql`
+    UPDATE numbering_catalog_state
+    SET client_hash = ${hash}
+    WHERE id = 1 AND client_hash = ''
+  `;
+}
+
 /** Mark one provider done only when its epoch is still the value this pass saw. */
 export function markDecorateDoneSql(provider: string, seen: number): Prisma.Sql {
   if (!isProvider(provider)) throw new Error("Некорректный источник.");
@@ -266,6 +336,48 @@ export function fillStageSplitSql(
     WHERE stage.run_id = ${runId}
       AND stage.catalog = computed.catalog
       AND stage.e164 = computed.e164
+  `;
+}
+
+/** ABC, local number, city, and region for one page. Mask and client stay. */
+export function resplitBatchSql(
+  table: "free_numbers" | "purchased_numbers",
+  afterId: string,
+): Prisma.Sql {
+  const city = cityLabelSql(Prisma.sql`geo.direction`);
+  const relation = Prisma.raw(table);
+  return Prisma.sql`
+    WITH batch AS (
+      SELECT id, e164
+      FROM ${relation}
+      WHERE id > ${afterId}
+        AND e164 <> ''
+      ORDER BY id
+      LIMIT ${BATCH}
+    ),
+    computed AS (
+      SELECT
+        batch.id,
+        COALESCE(split.abc, '') AS abc,
+        COALESCE(split.telephone, '') AS telephone,
+        ${city} AS city,
+        COALESCE(btrim(geo.region), '') AS region
+      FROM batch
+      LEFT JOIN LATERAL cdr_tariff_geo(batch.e164) AS geo ON TRUE
+      LEFT JOIN LATERAL geography_digit_split(geo.abc, geo.numbering, batch.e164) AS split ON TRUE
+    ),
+    updated AS (
+      UPDATE ${relation} AS n
+      SET
+        abc = computed.abc,
+        "number" = computed.telephone,
+        city = computed.city,
+        region = computed.region
+      FROM computed
+      WHERE n.id = computed.id
+      RETURNING n.id
+    )
+    SELECT id FROM updated ORDER BY id
   `;
 }
 
@@ -408,152 +520,54 @@ export function purchasedClientBatchSql(afterId: string): Prisma.Sql {
   `;
 }
 
-type BatchKind = "free" | "purchased" | "client";
+type Debt = EpochRow & {
+  resplit_epoch: number;
+  resplit_done: number;
+  mask_epoch: number;
+  mask_done: number;
+  client_epoch: number;
+  client_done: number;
+  cursor_phase: string;
+  cursor_after: string;
+  cursor_epoch: number;
+  cursor_provider: string;
+};
 
-function batchSql(
-  kind: BatchKind,
-  afterId: string,
-  provider: CatalogProvider | null,
-): Prisma.Sql {
-  if (kind === "free") return freeMaskBatchSql(afterId, provider);
-  if (kind === "purchased") return purchasedFullBatchSql(afterId, provider);
-  return purchasedClientBatchSql(afterId);
-}
-
-async function oneBatch(
-  kind: BatchKind,
-  afterId: string,
-  provider: CatalogProvider | null,
-): Promise<string[]> {
-  try {
-    return await prisma.$transaction(async (tx) => {
-      for (const sql of RESPLIT_LOCKS) {
-        const rows = await tx.$queryRaw<{ run_id: string | null; fresh: boolean }[]>(
-          Prisma.raw(sql),
-        );
-        const row = rows[0];
-        if (row?.run_id && row.fresh) throw new SyncBusy();
-      }
-      const updated = await tx.$queryRaw<{ id: string }[]>(
-        batchSql(kind, afterId, provider),
-      );
-      return updated.map((row) => row.id);
-    }, BATCH_TX);
-  } catch (error) {
-    if (isLockTimeout(error)) throw new SyncBusy();
-    throw error;
+class EpochMoved extends Error {
+  constructor() {
+    super("epoch-moved");
+    this.name = "EpochMoved";
   }
 }
 
-function wait(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function countCatalog(
-  kind: BatchKind,
-  provider: CatalogProvider | null,
-): Promise<number> {
-  const where = provider
-    ? Prisma.sql`WHERE provider = ${providerLiteral(provider)}`
-    : Prisma.empty;
-  const rows =
-    kind === "free"
-      ? await prisma.$queryRaw<{ n: unknown }[]>`
-          SELECT count(*)::int AS n FROM free_numbers ${where}
-        `
-      : await prisma.$queryRaw<{ n: unknown }[]>`
-          SELECT count(*)::int AS n FROM purchased_numbers ${where}
-        `;
-  return asCount(rows[0]?.n);
-}
-
-async function drain(
-  kind: BatchKind,
-  provider: CatalogProvider | null,
-): Promise<boolean> {
-  let after = "";
-  const started = Date.now();
-  let transientTries = 0;
-  const total = await countCatalog(kind, provider);
-  if (total > 0) maskProgress = { provider, kind, done: 0, total };
-  try {
-    for (;;) {
-      try {
-        const ids = await oneBatch(kind, after, provider);
-        if (ids.length === 0) return true;
-        after = ids[ids.length - 1] ?? after;
-        if (
-          maskProgress &&
-          maskProgress.kind === kind &&
-          maskProgress.provider === provider
-        ) {
-          maskProgress = {
-            provider,
-            kind,
-            total,
-            done: maskProgress.done + ids.length,
-          };
-        }
-        transientTries = 0;
-        await wait(PAUSE_MS);
-      } catch (error) {
-        const elapsed = Date.now() - started;
-        if (!resplitShouldWait(error, elapsed, transientTries)) {
-          if (error instanceof SyncBusy) {
-            logger.warn("numbering.decorate.gave_up", { kind, waitedMs: elapsed });
-            return false;
-          }
-          throw error;
-        }
-        if (!(error instanceof SyncBusy)) transientTries += 1;
-        await wait(RETRY_MS);
-      }
-    }
-  } finally {
-    if (
-      maskProgress &&
-      maskProgress.kind === kind &&
-      maskProgress.provider === provider
-    ) {
-      maskProgress = null;
-    }
+function isEpochMoved(error: unknown): boolean {
+  if (error instanceof EpochMoved) return true;
+  if (error instanceof Error && error.message === "epoch-moved") return true;
+  if (error && typeof error === "object" && "cause" in error) {
+    return isEpochMoved((error as { cause: unknown }).cause);
   }
+  return false;
 }
 
-/** Full pass updates masks on both catalogs and the purchased client. */
-export async function runCatalogDecorate(
-  scope: DecorateScope | CatalogProvider,
-): Promise<boolean> {
-  const provider = isProvider(scope) ? scope : null;
-  if (scope === "client") return drain("client", null);
-  const free = await drain("free", provider);
-  if (!free) return false;
-  return drain("purchased", provider);
-}
+const DEBT_SQL = Prisma.sql`
+  SELECT
+    sipout_epoch, sipout_done,
+    runexis_epoch, runexis_done,
+    uis_epoch, uis_done,
+    aurora_epoch, aurora_done,
+    exolve_epoch, exolve_done,
+    voximplant_epoch, voximplant_done,
+    mcn_epoch, mcn_done,
+    decorate_generation,
+    resplit_epoch, resplit_done,
+    mask_epoch, mask_done,
+    client_epoch, client_done,
+    cursor_phase, cursor_after, cursor_epoch, cursor_provider
+  FROM numbering_catalog_state
+  WHERE id = 1
+`;
 
-async function readEpochs(): Promise<EpochRow | null> {
-  const rows = await prisma.$queryRaw<EpochRow[]>`
-    SELECT
-      sipout_epoch,
-      sipout_done,
-      runexis_epoch,
-      runexis_done,
-      uis_epoch,
-      uis_done,
-      aurora_epoch,
-      aurora_done,
-      exolve_epoch,
-      exolve_done,
-      voximplant_epoch,
-      voximplant_done,
-      mcn_epoch,
-      mcn_done,
-      decorate_generation
-    FROM numbering_catalog_state
-    WHERE id = 1
-  `;
-  const row = rows[0];
-  if (!row) return null;
+function readDebtRow(row: Record<string, unknown>): Debt {
   return {
     sipout_epoch: asCount(row.sipout_epoch),
     sipout_done: asCount(row.sipout_done),
@@ -570,121 +584,432 @@ async function readEpochs(): Promise<EpochRow | null> {
     mcn_epoch: asCount(row.mcn_epoch),
     mcn_done: asCount(row.mcn_done),
     decorate_generation: asCount(row.decorate_generation),
+    resplit_epoch: asCount(row.resplit_epoch),
+    resplit_done: asCount(row.resplit_done),
+    mask_epoch: asCount(row.mask_epoch),
+    mask_done: asCount(row.mask_done),
+    client_epoch: asCount(row.client_epoch),
+    client_done: asCount(row.client_done),
+    cursor_phase: typeof row.cursor_phase === "string" ? row.cursor_phase : "",
+    cursor_after: typeof row.cursor_after === "string" ? row.cursor_after : "",
+    cursor_epoch: asCount(row.cursor_epoch),
+    cursor_provider: typeof row.cursor_provider === "string" ? row.cursor_provider : "",
   };
+}
+
+async function readDebt(): Promise<Debt | null> {
+  const rows = await prisma.$queryRaw<Record<string, unknown>[]>(DEBT_SQL);
+  const row = rows[0];
+  return row ? readDebtRow(row) : null;
+}
+
+function workSql(
+  phase: string,
+  afterId: string,
+  provider: CatalogProvider | null,
+): Prisma.Sql {
+  if (phase === "resplit-free") return resplitBatchSql("free_numbers", afterId);
+  if (phase === "resplit-purchased") return resplitBatchSql("purchased_numbers", afterId);
+  if (phase === "free" || phase === "bootstrap-free" || phase === "provider-free") {
+    return freeMaskBatchSql(afterId, provider);
+  }
+  if (phase === "purchased" || phase === "bootstrap-purchased" || phase === "provider-purchased") {
+    return purchasedFullBatchSql(afterId, provider);
+  }
+  return purchasedClientBatchSql(afterId);
+}
+
+function cursorGuard(phase: string, epoch: number, provider: string): Prisma.Sql {
+  if (phase === "bootstrap-free" || phase === "bootstrap-purchased") {
+    return Prisma.sql`AND decorate_generation = 0`;
+  }
+  if (phase === "resplit-free" || phase === "resplit-purchased") {
+    return Prisma.sql`AND resplit_epoch = ${epoch}`;
+  }
+  if (phase === "free" || phase === "purchased") {
+    return Prisma.sql`AND mask_epoch = ${epoch}`;
+  }
+  if (phase === "provider-free" || phase === "provider-purchased") {
+    if (!isProvider(provider)) throw new Error("Некорректный источник.");
+    const names = epochNames(provider);
+    return Prisma.sql`AND ${Prisma.raw(names.epoch)} = ${epoch}`;
+  }
+  if (phase === "client") return Prisma.sql`AND client_epoch = ${epoch}`;
+  throw new Error("Некорректная фаза.");
+}
+
+/** Cursor write. The row update and this statement share one transaction. */
+export function saveCursorSql(
+  phase: string,
+  epoch: number,
+  provider: string,
+  afterId: string,
+): Prisma.Sql {
+  return Prisma.sql`
+    UPDATE numbering_catalog_state
+    SET cursor_phase = ${phase},
+        cursor_after = ${afterId},
+        cursor_epoch = ${epoch},
+        cursor_provider = ${provider}
+    WHERE id = 1
+      ${cursorGuard(phase, epoch, provider)}
+  `;
+}
+
+function countWhere(phase: string, provider: CatalogProvider | null): Prisma.Sql {
+  const table =
+    phase === "resplit-purchased" ||
+    phase === "purchased" ||
+    phase === "bootstrap-purchased" ||
+    phase === "provider-purchased" ||
+    phase === "client"
+      ? "purchased_numbers"
+      : "free_numbers";
+  const digits =
+    phase === "resplit-free" || phase === "resplit-purchased"
+      ? Prisma.sql`AND e164 <> ''`
+      : Prisma.empty;
+  const only = providerWhere(provider);
+  return Prisma.sql`FROM ${Prisma.raw(table)} WHERE TRUE ${digits} ${only}`;
+}
+
+async function saveCursor(
+  tx: Prisma.TransactionClient,
+  phase: string,
+  epoch: number,
+  provider: string,
+  afterId: string,
+): Promise<void> {
+  const saved = await tx.$executeRaw(saveCursorSql(phase, epoch, provider, afterId));
+  if (Number(saved) !== 1) throw new EpochMoved();
+}
+
+async function runWorkBatch(
+  phase: string,
+  afterId: string,
+  epoch: number,
+  provider: CatalogProvider | null,
+): Promise<{ ids: string[]; outcome: "ok" | "moved" }> {
+  try {
+    const ids = await prisma.$transaction(async (tx) => {
+      for (const sql of RESPLIT_LOCKS) {
+        const locked = await tx.$queryRaw<{ run_id: string | null; fresh: boolean }[]>(
+          Prisma.raw(sql),
+        );
+        const row = locked[0];
+        if (row?.run_id && row.fresh) throw new SyncBusy();
+      }
+      const rows = await tx.$queryRaw<{ id: string }[]>(
+        workSql(phase, afterId, provider),
+      );
+      const next = rows.map((row) => row.id);
+      if (next.length > 0) {
+        await saveCursor(tx, phase, epoch, provider ?? "", next[next.length - 1] ?? "");
+      }
+      return next;
+    }, BATCH_TX);
+    return { ids, outcome: "ok" };
+  } catch (error) {
+    if (isEpochMoved(error)) return { ids: [], outcome: "moved" };
+    throw error;
+  }
+}
+
+type PhaseRun = {
+  phase: string;
+  epoch: number;
+  provider: CatalogProvider | null;
+  kind: MaskProgress["kind"];
+};
+
+async function openPhase(run: PhaseRun): Promise<string> {
+  const debt = await readDebt();
+  if (!debt) return "";
+  const same =
+    debt.cursor_phase === run.phase &&
+    debt.cursor_epoch === run.epoch &&
+    debt.cursor_provider === (run.provider ?? "");
+  const after = same ? debt.cursor_after : "";
+  const where = countWhere(run.phase, run.provider);
+  const totals = await prisma.$queryRaw<{ total: number; remain: number }[]>(Prisma.sql`
+    SELECT count(*)::int AS total,
+           count(*) FILTER (WHERE id > ${after})::int AS remain
+    ${where}
+  `);
+  const total = asCount(totals[0]?.total);
+  const remain = asCount(totals[0]?.remain);
+  maskProgress = {
+    provider: run.provider,
+    kind: run.kind,
+    done: Math.max(0, total - remain),
+    total,
+  };
+  return after;
+}
+
+async function walkPhase(run: PhaseRun): Promise<"done" | "moved"> {
+  let after = await openPhase(run);
+  for (;;) {
+    const fresh = await readDebt();
+    if (!fresh) return "moved";
+    const same =
+      fresh.cursor_phase === run.phase &&
+      fresh.cursor_epoch === run.epoch &&
+      fresh.cursor_provider === (run.provider ?? "");
+    after = same ? fresh.cursor_after : "";
+    const batch = await runWorkBatch(run.phase, after, run.epoch, run.provider);
+    if (batch.outcome === "moved") return "moved";
+    if (batch.ids.length === 0) return "done";
+    after = batch.ids[batch.ids.length - 1] ?? after;
+    if (maskProgress) maskProgress = { ...maskProgress, done: maskProgress.done + batch.ids.length };
+    await new Promise((resolve) => setTimeout(resolve, PAUSE_MS));
+  }
+}
+
+async function markResplitDone(seen: number): Promise<void> {
+  await prisma.$executeRaw`
+    UPDATE numbering_catalog_state
+    SET resplit_done = ${seen},
+        cursor_phase = CASE WHEN cursor_phase IN ('resplit-free', 'resplit-purchased') THEN '' ELSE cursor_phase END,
+        cursor_after = CASE WHEN cursor_phase IN ('resplit-free', 'resplit-purchased') THEN '' ELSE cursor_after END,
+        cursor_epoch = CASE WHEN cursor_phase IN ('resplit-free', 'resplit-purchased') THEN 0 ELSE cursor_epoch END,
+        cursor_provider = CASE WHEN cursor_phase IN ('resplit-free', 'resplit-purchased') THEN '' ELSE cursor_provider END
+    WHERE id = 1 AND resplit_epoch = ${seen}
+  `;
+}
+
+async function markMaskDone(seen: number): Promise<void> {
+  await prisma.$executeRaw`
+    UPDATE numbering_catalog_state
+    SET mask_done = ${seen},
+        cursor_phase = CASE WHEN cursor_phase IN ('free', 'purchased') THEN '' ELSE cursor_phase END,
+        cursor_after = CASE WHEN cursor_phase IN ('free', 'purchased') THEN '' ELSE cursor_after END,
+        cursor_epoch = CASE WHEN cursor_phase IN ('free', 'purchased') THEN 0 ELSE cursor_epoch END,
+        cursor_provider = CASE WHEN cursor_phase IN ('free', 'purchased') THEN '' ELSE cursor_provider END
+    WHERE id = 1 AND mask_epoch = ${seen}
+  `;
+}
+
+async function markClientDone(seen: number): Promise<void> {
+  await prisma.$executeRaw`
+    UPDATE numbering_catalog_state
+    SET client_done = ${seen},
+        cursor_phase = CASE WHEN cursor_phase = 'client' THEN '' ELSE cursor_phase END,
+        cursor_after = CASE WHEN cursor_phase = 'client' THEN '' ELSE cursor_after END,
+        cursor_epoch = CASE WHEN cursor_phase = 'client' THEN 0 ELSE cursor_epoch END,
+        cursor_provider = CASE WHEN cursor_phase = 'client' THEN '' ELSE cursor_provider END
+    WHERE id = 1 AND client_epoch = ${seen}
+  `;
+}
+
+async function markProviderDone(provider: CatalogProvider, seen: number): Promise<void> {
+  const names = epochNames(provider);
+  await prisma.$executeRaw(Prisma.sql`
+    UPDATE numbering_catalog_state
+    SET ${Prisma.raw(names.done)} = ${seen},
+        cursor_phase = CASE
+          WHEN cursor_phase IN ('provider-free', 'provider-purchased')
+           AND cursor_provider = ${provider}
+           AND cursor_epoch = ${seen}
+          THEN '' ELSE cursor_phase END,
+        cursor_after = CASE
+          WHEN cursor_phase IN ('provider-free', 'provider-purchased')
+           AND cursor_provider = ${provider}
+           AND cursor_epoch = ${seen}
+          THEN '' ELSE cursor_after END,
+        cursor_epoch = CASE
+          WHEN cursor_phase IN ('provider-free', 'provider-purchased')
+           AND cursor_provider = ${provider}
+           AND cursor_epoch = ${seen}
+          THEN 0 ELSE cursor_epoch END,
+        cursor_provider = CASE
+          WHEN cursor_phase IN ('provider-free', 'provider-purchased')
+           AND cursor_provider = ${provider}
+           AND cursor_epoch = ${seen}
+          THEN '' ELSE cursor_provider END
+    WHERE id = 1 AND ${Prisma.raw(names.epoch)} = ${seen}
+  `);
 }
 
 async function markSeen(row: EpochRow): Promise<void> {
   for (const provider of PROVIDERS) {
-    await prisma.$executeRaw(markDecorateDoneSql(provider, pair(row, provider).epoch));
+    const seen = pair(row, provider);
+    if (seen.epoch === seen.done) continue;
+    await markProviderDone(provider, seen.epoch);
   }
 }
 
-function stillDirty(row: EpochRow): boolean {
-  return PROVIDERS.some((provider) => {
-    const seen = pair(row, provider);
-    return seen.epoch > seen.done;
-  });
-}
-
-async function catchUpProviders(): Promise<void> {
-  for (const provider of PROVIDERS) {
-    const row = await readEpochs();
-    if (!row) return;
-    const seen = pair(row, provider);
-    if (seen.epoch <= seen.done) continue;
-    const ok = await runCatalogDecorate(provider);
-    if (!ok) {
-      enqueue(async () => {
-        await wait(RETRY_MS);
-        await catchUpProviders();
+async function settleDebt(): Promise<void> {
+  for (;;) {
+    const debt = await readDebt();
+    if (!debt) return;
+    maskProgress = null;
+    if (debt.decorate_generation === 0) {
+      const free = await walkPhase({
+        phase: "bootstrap-free",
+        epoch: 0,
+        provider: null,
+        kind: "free",
       });
-      return;
+      if (free === "moved") continue;
+      const purchased = await walkPhase({
+        phase: "bootstrap-purchased",
+        epoch: 0,
+        provider: null,
+        kind: "purchased",
+      });
+      if (purchased === "moved") continue;
+      await prisma.$executeRaw`
+        UPDATE numbering_catalog_state
+        SET decorate_generation = 1,
+            cursor_phase = CASE WHEN cursor_phase IN ('bootstrap-free', 'bootstrap-purchased') THEN '' ELSE cursor_phase END,
+            cursor_after = CASE WHEN cursor_phase IN ('bootstrap-free', 'bootstrap-purchased') THEN '' ELSE cursor_after END,
+            cursor_epoch = CASE WHEN cursor_phase IN ('bootstrap-free', 'bootstrap-purchased') THEN 0 ELSE cursor_epoch END,
+            cursor_provider = CASE WHEN cursor_phase IN ('bootstrap-free', 'bootstrap-purchased') THEN '' ELSE cursor_provider END
+        WHERE id = 1 AND decorate_generation = 0
+      `;
+      await markSeen(debt);
+      continue;
     }
-    await prisma.$executeRaw(markDecorateDoneSql(provider, seen.epoch));
-  }
-  const left = await readEpochs();
-  if (left && stillDirty(left)) enqueue(() => catchUpProviders());
-}
-
-async function runFullMark(): Promise<void> {
-  const before = await readEpochs();
-  const ok = await runCatalogDecorate("full");
-  if (!ok) {
-    enqueue(async () => {
-      await wait(RETRY_MS);
-      await catchUpProviders();
+    if (debt.resplit_epoch > debt.resplit_done) {
+      const free = await walkPhase({
+        phase: "resplit-free",
+        epoch: debt.resplit_epoch,
+        provider: null,
+        kind: "resplit-free",
+      });
+      if (free === "moved") continue;
+      const purchased = await walkPhase({
+        phase: "resplit-purchased",
+        epoch: debt.resplit_epoch,
+        provider: null,
+        kind: "resplit-purchased",
+      });
+      if (purchased === "moved") continue;
+      await markResplitDone(debt.resplit_epoch);
+      continue;
+    }
+    if (debt.mask_epoch > debt.mask_done) {
+      const free = await walkPhase({
+        phase: "free",
+        epoch: debt.mask_epoch,
+        provider: null,
+        kind: "free",
+      });
+      if (free === "moved") continue;
+      const purchased = await walkPhase({
+        phase: "purchased",
+        epoch: debt.mask_epoch,
+        provider: null,
+        kind: "purchased",
+      });
+      if (purchased === "moved") continue;
+      await markMaskDone(debt.mask_epoch);
+      await markSeen(debt);
+      continue;
+    }
+    const behind = PROVIDERS.find((provider) => {
+      const seen = pair(debt, provider);
+      return seen.epoch > seen.done;
     });
+    if (behind) {
+      const seen = pair(debt, behind);
+      const free = await walkPhase({
+        phase: "provider-free",
+        epoch: seen.epoch,
+        provider: behind,
+        kind: "free",
+      });
+      if (free === "moved") continue;
+      const purchased = await walkPhase({
+        phase: "provider-purchased",
+        epoch: seen.epoch,
+        provider: behind,
+        kind: "purchased",
+      });
+      if (purchased === "moved") continue;
+      await markProviderDone(behind, seen.epoch);
+      continue;
+    }
+    if (debt.client_epoch > debt.client_done) {
+      const clients = await walkPhase({
+        phase: "client",
+        epoch: debt.client_epoch,
+        provider: null,
+        kind: "client",
+      });
+      if (clients === "moved") continue;
+      await markClientDone(debt.client_epoch);
+      continue;
+    }
     return;
   }
-  if (before) await markSeen(before);
-  await catchUpProviders();
 }
 
-let decorateQueue: Promise<void> = Promise.resolve();
+let chain: Promise<void> = Promise.resolve();
+let lastRetryLog = 0;
+
+function decorateError(error: unknown): string {
+  return error instanceof Error ? error.message : "Не удалось обновить каталог.";
+}
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 function enqueue(task: () => Promise<void>): void {
-  decorateQueue = decorateQueue.then(task).catch((error: unknown) => {
-    logger.warn("numbering.decorate.failed", {
-      error: error instanceof Error ? error.name : "error",
-    });
+  chain = chain.then(task).catch((error: unknown) => {
+    const now = Date.now();
+    if (now - lastRetryLog >= 60_000) {
+      lastRetryLog = now;
+      logger.error("numbering.decorate.retry", { message: decorateError(error) });
+    }
   });
 }
 
-/** Resolves when the mask queue, including a retry already queued, is idle. */
+async function settleUntilClear(): Promise<void> {
+  for (;;) {
+    try {
+      await settleDebt();
+      return;
+    } catch (error) {
+      if (error instanceof SyncBusy || isLockTimeout(error)) {
+        const now = Date.now();
+        if (now - lastRetryLog >= 60_000) {
+          lastRetryLog = now;
+          logger.error("numbering.decorate.retry", { message: "Каталог занят загрузкой." });
+        }
+      } else {
+        const now = Date.now();
+        if (now - lastRetryLog >= 60_000) {
+          lastRetryLog = now;
+          logger.error("numbering.decorate.retry", { message: decorateError(error) });
+        }
+      }
+      await wait(RETRY_MS);
+    }
+  }
+}
+
+/** The queue is busy until every stored epoch has been caught up. */
 export function whenDecorateIdle(): Promise<void> {
-  const watch = async (): Promise<void> => {
-    let seen = decorateQueue;
-    for (;;) {
-      await seen;
-      if (decorateQueue === seen) return;
-      seen = decorateQueue;
-    }
-  };
-  return watch();
+  const pending = chain;
+  return pending.then(() => chain);
 }
 
-/** Queue one full or client pass. Passes run one after another. */
-export function requestCatalogDecorate(scope: DecorateScope): void {
-  enqueue(async () => {
-    if (scope === "full") {
-      await runFullMark();
-      return;
-    }
-    const ok = await runCatalogDecorate("client");
-    if (!ok) {
-      enqueue(async () => {
-        await wait(RETRY_MS);
-        await catchUpProviders();
-      });
-      return;
-    }
-    await catchUpProviders();
-  });
+export function requestCatalogDecorate(_scope?: DecorateScope): void {
+  enqueue(() => settleUntilClear());
 }
 
 /** A committed catalog replace already incremented its epoch. Fill whatever is behind. */
 export function requestDecorateCatchUp(): void {
-  enqueue(() => catchUpProviders());
+  enqueue(() => settleUntilClear());
 }
 
 /**
  * The first migration leaves decorate_generation at 0. One successful full pass
- * sets it. A later start fills only a provider whose catalog was replaced.
+ * sets it. A later start continues from the stored cursor.
  */
 export function decorateCatalogsIfNeeded(): void {
-  enqueue(async () => {
-    const row = await readEpochs();
-    if (row && row.decorate_generation === 0) {
-      const ok = await runCatalogDecorate("full");
-      if (ok) {
-        await prisma.$executeRaw`
-          UPDATE numbering_catalog_state
-          SET decorate_generation = 1
-          WHERE id = 1 AND decorate_generation = 0
-        `;
-        await markSeen(row);
-      }
-    }
-    await catchUpProviders();
-  });
+  enqueue(() => settleUntilClear());
 }

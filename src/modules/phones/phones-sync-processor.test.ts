@@ -22,6 +22,8 @@ vi.mock("@/modules/rtu/screen-publish", () => ({
 vi.mock("@/modules/numbering-catalog/decorate", () => ({
   requestCatalogDecorate: vi.fn(),
   decorateCatalogsIfNeeded: vi.fn(),
+  bumpClientDebtSql: vi.fn(),
+  seedClientHashSql: vi.fn(),
 }));
 
 vi.mock("@/modules/audit", () => ({

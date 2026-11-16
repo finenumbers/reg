@@ -254,6 +254,15 @@ export async function processPhonesSync(
       gatewayCount: applyResult.gatewayCount,
     });
 
+    try {
+      requestCatalogDecorate("client");
+    } catch (error) {
+      logger.error("phones.sync.client_decorate_failed", {
+        jobRunId: jobRun.id,
+        error: error instanceof Error ? error.name : "Error",
+      });
+    }
+
     let screenPending = false;
     try {
       const published = await (deps.publishScreen ?? requestRtuScreenPublish)();
@@ -263,15 +272,6 @@ export async function processPhonesSync(
       logger.warn("phones.sync.screen_pending", {
         jobRunId: jobRun.id,
         error: error instanceof Error ? error.message : String(error),
-      });
-    }
-
-    try {
-      requestCatalogDecorate("client");
-    } catch (error) {
-      logger.error("phones.sync.client_decorate_failed", {
-        jobRunId: jobRun.id,
-        error: error instanceof Error ? error.name : "Error",
       });
     }
 

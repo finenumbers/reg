@@ -93,6 +93,20 @@ describe("numbering chain text", () => {
     expect(view.queue).toBe("Маски, MCN Telecom. Дальше: MCN Telecom.");
   });
 
+  it("shows a tariff remainder above the cards", () => {
+    const view = buildChainView({
+      running: true,
+      index: 0,
+      mode: "wait",
+      progress: { provider: null, kind: "resplit-free", done: 1000, total: 4000 },
+    });
+    expect(view.banner).toBe("Тариф, свободные: осталось 3000 из 4000.");
+    expect(view.cards).toEqual({});
+    expect(view.queue).toBe(
+      "Тариф. Дальше: SipOut, Runexis, UIS, Aurora Telecom, MTS Exolve, Voximplant, MCN Telecom.",
+    );
+  });
+
   it("shows a client pass above the cards", () => {
     const view = buildChainView({
       running: true,

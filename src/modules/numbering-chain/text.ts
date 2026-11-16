@@ -14,6 +14,10 @@ function remain(done: number, total: number): number {
 
 function countLine(kind: MaskProgress["kind"], left: number, total: number): string {
   if (kind === "client") return `Клиенты, купленные: осталось ${left} из ${total}.`;
+  if (kind === "resplit-free" || kind === "resplit-purchased") {
+    const side = kind === "resplit-purchased" ? "купленные" : "свободные";
+    return `Тариф, ${side}: осталось ${left} из ${total}.`;
+  }
   const side = kind === "purchased" ? "купленные" : "свободные";
   return `Маски, ${side}: осталось ${left} из ${total}.`;
 }
@@ -60,6 +64,9 @@ function queueLine(
     .join(", ");
   const tail = rest ? ` Дальше: ${rest}.` : "";
   if (masking && progress?.kind === "client") return `Клиенты, купленные.${tail}`;
+  if (masking && (progress?.kind === "resplit-free" || progress?.kind === "resplit-purchased")) {
+    return `Тариф.${tail}`;
+  }
   if (masking && progress?.provider) return `Маски, ${progress.provider}.${tail}`;
   if (masking) return `Маски.${tail}`;
   const current = CHAIN_SOURCES[index];

@@ -18,7 +18,25 @@ import {
   screenStampsSql,
 } from "@/modules/rtu/sql";
 
-const ATTEMPTS = 3;
+const SCREEN_RETRY_MS = 5_000;
+
+let screenRetryWait: () => Promise<void> = () =>
+  new Promise((resolve) => setTimeout(resolve, SCREEN_RETRY_MS));
+let lastScreenRetryLog = 0;
+
+/** Tests skip the pause between screen attempts. */
+export function setScreenRetryWaitForTests(wait: () => Promise<void>): void {
+  screenRetryWait = wait;
+}
+
+function noteScreenRetry(error: unknown): void {
+  const now = Date.now();
+  if (now - lastScreenRetryLog < 60_000) return;
+  lastScreenRetryLog = now;
+  logger.warn("rtu.screen.publish_failed", {
+    error: error instanceof Error ? error.message : String(error),
+  });
+}
 
 export type ScreenStamps = {
   phonesSyncedAt: Date | null;
@@ -118,27 +136,6 @@ export function publishedScreenStamps(row: StampRow): ScreenStamps {
   };
 }
 
-function isStale(error: unknown): boolean {
-  if (error instanceof ScreenStaleError) return true;
-  const message = error instanceof Error ? error.message : "";
-  if (message.includes("screen stamps changed")) return true;
-  if (error && typeof error === "object" && "cause" in error) {
-    return isStale((error as { cause: unknown }).cause);
-  }
-  return false;
-}
-
-function isLockTimeout(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error);
-  if (message.includes("55P03") || message.toLowerCase().includes("lock timeout")) {
-    return true;
-  }
-  if (error && typeof error === "object" && "cause" in error) {
-    return isLockTimeout((error as { cause: unknown }).cause);
-  }
-  return false;
-}
-
 export type ScreenPublishDeps = {
   read: (forUpdate: boolean) => Promise<StampRow | null>;
   markDirty: () => Promise<void>;
@@ -152,46 +149,34 @@ export type ScreenPublishDeps = {
 export async function runScreenPublish(
   deps: ScreenPublishDeps,
 ): Promise<ScreenPublishResult> {
-  try {
-    return await publishAttempts(deps);
-  } catch (error) {
-    logger.warn("rtu.screen.publish_failed", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return { published: false };
-  }
+  return publishUntilCurrent(deps);
 }
 
-async function publishAttempts(deps: ScreenPublishDeps): Promise<ScreenPublishResult> {
-  for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
-    const row = await deps.read(false);
-    if (!row) return { published: false };
-    const live = liveScreenStamps(row);
-    if (row.published && screenStampsMatch(publishedScreenStamps(row), live)) {
-      if (row.needs_publish) await deps.clearDirty();
-      return { published: true };
-    }
-    const token = screenBuildToken(deps.token());
+async function publishUntilCurrent(deps: ScreenPublishDeps): Promise<ScreenPublishResult> {
+  for (;;) {
+    let token = "";
     let swapped = false;
+    let started = false;
     try {
+      const row = await deps.read(false);
+      if (!row) throw new Error("Нет строки экрана.");
+      const live = liveScreenStamps(row);
+      if (row.published && screenStampsMatch(publishedScreenStamps(row), live)) {
+        if (row.needs_publish) await deps.clearDirty();
+        return { published: true };
+      }
+      token = screenBuildToken(deps.token());
+      started = true;
       await deps.markDirty();
       await deps.build(token);
-      try {
-        await deps.swap(token, live);
-        swapped = true;
-        return { published: true };
-      } catch (error) {
-        if (isStale(error) || isLockTimeout(error)) continue;
-        throw error;
-      }
+      await deps.swap(token, live);
+      swapped = true;
+      return { published: true };
     } catch (error) {
-      if (isStale(error) || isLockTimeout(error)) continue;
-      logger.warn("rtu.screen.publish_failed", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-      return { published: false };
+      noteScreenRetry(error);
+      await screenRetryWait();
     } finally {
-      if (!swapped) {
+      if (started && !swapped) {
         try {
           await deps.dropBuild(token);
         } catch (error) {
@@ -202,8 +187,6 @@ async function publishAttempts(deps: ScreenPublishDeps): Promise<ScreenPublishRe
       }
     }
   }
-  logger.warn("rtu.screen.publish_unsettled", {});
-  return { published: false };
 }
 
 function swapDdl(token: string): string[] {
@@ -340,24 +323,27 @@ const defaultDeps: ScreenPublishDeps = {
   token: () => randomBytes(4).toString("hex"),
 };
 
-let tail: Promise<ScreenPublishResult> = Promise.resolve({ published: true });
+let inflight: Promise<ScreenPublishResult> | null = null;
 
 export function resetRtuScreenPublishForTests(): void {
-  tail = Promise.resolve({ published: true });
+  inflight = null;
+  screenRetryWait = async () => undefined;
+  lastScreenRetryLog = 0;
 }
 
-/** Queue one publish. The caller waits for a pass that starts after earlier ones. */
+/**
+ * One publish at a time. A caller that arrives while it is running shares that
+ * pass. The pass reads the stamps again after a stale swap, so a sync that
+ * lands mid-build is not skipped. The next call after it finishes reads again.
+ */
 export function enqueueScreenPublish(
   deps: ScreenPublishDeps,
 ): Promise<ScreenPublishResult> {
-  const run = tail.then(
-    () => runScreenPublish(deps),
-    () => runScreenPublish(deps),
-  );
-  tail = run.then(
-    (result) => result,
-    () => ({ published: false }),
-  );
+  if (inflight) return inflight;
+  const run = runScreenPublish(deps).finally(() => {
+    inflight = null;
+  });
+  inflight = run;
   return run;
 }
 

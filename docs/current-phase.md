@@ -1,7 +1,13 @@
-# Current Phase — production (v1.308.0)
+# Current Phase — production (v1.309.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, purchased numbers, numbering sync, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
-**Date:** 2026-11-16
+**Date:** 2026-11-17
+
+## v1.309.0 — Mask pass keeps its place
+
+The migration `20261117010000_catalog_decorate_cursor` adds resplit, mask, and client counters, a client hash, and the last committed batch on `numbering_catalog_state`. It does not rewrite catalog rows and does not scan the CDR journal. The migration is label-free. `lock_timeout` is 15 seconds. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app, let migrate finish, then start one new app. If migrate stops on `lock_timeout`, do not start the new app. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged.
+
+The first start after this deploy has no saved batch, so an in-progress mask pass starts once at the first free number of the source that is still behind. The next restart continues from the last committed id. A tariff file refreshes ABC, the local number, city, and region in batches of 1000 before the masks, with one second between batches and a 60-second batch transaction. A mask file refreshes masks after that. A phone snapshot refreshes clients only when the set of endpoint number and «Описание» changed. An unchanged phone read does not start that pass. Any error waits 5 seconds and repeats the same id. There is no give-up. «Управление РТУ» retries until its stamps match. A phone sync waits for that pass. The numbering chain does not run on boot. It runs at the next 22:00 UTC, or from «Загрузить все». The lines do not show a phone number or a price.
 
 ## v1.308.0 — Numbering chain at 22:00 UTC
 
