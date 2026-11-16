@@ -1,11 +1,11 @@
 ---
-description: Aurora Telecom numbers come from operator HTTPS links, not from an invented API
+description: Aurora Telecom numbers come from operator http or https links, not from an invented API
 alwaysApply: true
 ---
 
 # Aurora Telecom CSV
 
-Aurora Telecom is a numbering source. It has no vendor method. The operator saves HTTPS links on «Загрузка нумерации». Each «Загрузить» and each «Проверить» downloads that saved list again. Do not accept a link from the load request. Do not log a URL, a query, a path, a CSV body, or a phone number.
+Aurora Telecom is a numbering source. It has no vendor method. The operator saves http or https links on «Загрузка нумерации». Each «Загрузить» and each «Проверить» downloads that saved list again. Do not accept a link from the load request. Do not log a URL, a query, a path, a CSV body, or a phone number.
 
 The operator chooses the layout for each link. The stored format is the literal `short` or `full`. Do not infer the layout from the name or from the width. A file whose header or width does not match the chosen layout fails the whole set.
 
@@ -15,9 +15,9 @@ Decode UTF-8 and fail the file on any other encoding. Accept a BOM and CRLF. Par
 
 Scan every downloaded file together, in list order. The first number and its price stay. A later copy is dropped and does not fail the set. A header-only file is empty and does not fail the set. An empty accepted set does not publish.
 
-Saving a link does not download and does not change the catalog. One request stores one link, and the list holds at most 20. The address is `https` only, without a login or a fragment, at most 2000 characters. `localhost`, a `.local` name, and a private, local, or service address are rejected. The ciphertext uses the same AES-256-GCM envelope as the other secrets. The settings screen may show the address. The sync status, the audit, and both logs may show the host only.
+Saving a link does not download and does not change the catalog. One request stores one link, and the list holds at most 20. The address is `http` or `https`, without a login or a fragment, at most 2000 characters. `localhost`, a `.local` name, and a private, local, or service address are rejected. The ciphertext uses the same AES-256-GCM envelope as the other secrets. The settings screen may show the address. The audit may show the host and the format. The operator error and the stage log may show the host and a non-default port. They do not show the scheme, the path, or the query.
 
-One `GET`, and only HTTP 200. Do not follow a redirect or read `Location`. Do not trust a custom certificate. Resolve the name first. If any address is not global, do not connect. Connect only to an address from that lookup, with the name used for TLS. A repeat resolves again. Do not use a proxy from the environment. Timeout 30 seconds. Read the body as a stream and stop after 20 MB decoded. Transport failure, timeout, an empty body, and HTTP 5xx retry once. HTTP 4xx, a redirect, and an oversized body do not. Discard the bytes after that file is parsed. Do not write them to disk.
+One `GET`, and only HTTP 200. Do not follow a redirect or read `Location`, including a redirect from `http` to `https` on the same host. For `https`, do not trust a custom certificate, and use the name for TLS. For `http`, do not send a TLS option. Resolve the name first. If any address is not global, do not connect. Connect only to an address from that lookup. The port and the Host header come from the saved address. A repeat resolves again. Do not use a proxy from the environment. Do not use `fetch`. Timeout 30 seconds. Read the body as a stream and stop after 20 MB decoded. Transport failure, timeout, an empty body, and HTTP 5xx retry once. HTTP 4xx, a redirect, and an oversized body do not. Discard the bytes after that file is parsed. Do not write them to disk. A socket error message is not shown: it contains the address.
 
 The lease is claimed before the first download. The heartbeat is updated before every link. Cancel and process stop are checked there, and process stop aborts the current request. There is no second `SIGTERM` listener. A failed download, a failed decrypt, or a failed parse discards that pass and does not publish. The check downloads and does not take the database lease, write the stage log, or publish. A closed browser request aborts the check.
 

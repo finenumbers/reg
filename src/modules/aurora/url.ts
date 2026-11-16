@@ -1,5 +1,5 @@
 /**
- * One saved Aurora link. The address is https, with no login and no fragment.
+ * One saved Aurora link. The address is http or https, with no login and no fragment.
  * A private or local target is rejected before any connection.
  */
 
@@ -41,7 +41,9 @@ block6("fe80::", 10);
 block6("fec0::", 10);
 block6("ff00::", 8);
 
-export type AuroraUrl = { href: string; host: string };
+export type AuroraUrl = { href: string; host: string; port: string };
+
+const ADDRESS_ERROR = "Укажите ссылку http или https.";
 
 export function isGlobalAddress(ip: string): boolean {
   const kind = isIP(ip);
@@ -65,17 +67,27 @@ export function canonicalizeAuroraUrl(
   raw: string,
 ): ({ ok: true } & AuroraUrl) | { ok: false; error: string } {
   const trimmed = raw.trim();
-  if (!trimmed || trimmed.length > AURORA_URL_LIMIT || /[\u0000-\u001f\u007f]/.test(trimmed)) {
-    return { ok: false, error: "Укажите ссылку https." };
+  if (
+    !trimmed ||
+    trimmed.length > AURORA_URL_LIMIT ||
+    /[\u0000-\u001f\u007f]/.test(trimmed)
+  ) {
+    return { ok: false, error: ADDRESS_ERROR };
   }
   let url: URL;
   try {
     url = new URL(trimmed);
   } catch {
-    return { ok: false, error: "Укажите ссылку https." };
+    return { ok: false, error: ADDRESS_ERROR };
   }
-  if (url.protocol !== "https:" || url.username || url.password || url.hash || !url.hostname) {
-    return { ok: false, error: "Укажите ссылку https." };
+  if (
+    (url.protocol !== "http:" && url.protocol !== "https:") ||
+    url.username ||
+    url.password ||
+    url.hash ||
+    !url.hostname
+  ) {
+    return { ok: false, error: ADDRESS_ERROR };
   }
   const bare =
     url.hostname.startsWith("[") && url.hostname.endsWith("]")
@@ -85,7 +97,15 @@ export function canonicalizeAuroraUrl(
     return { ok: false, error: "Ссылка ведёт на закрытый адрес." };
   }
   url.hash = "";
-  return { ok: true, href: url.href, host: bare };
+  return { ok: true, href: url.href, host: bare, port: url.port };
+}
+
+/** Host shown to the operator. A non-default port is included. The scheme and the path are not. */
+export function auroraEndpointLabel(host: string, port: string): string {
+  const bare = host.replace(/[\r\n]+/g, "").slice(0, 253);
+  if (!/^[1-9]\d{0,4}$/.test(port)) return bare;
+  if (bare.includes(":")) return `[${bare}]:${port}`;
+  return `${bare}:${port}`;
 }
 
 /** Operator text. A fetch error can contain the full address, so that text is dropped. */

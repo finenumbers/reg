@@ -18,6 +18,7 @@ export type AuroraLinkRow = {
   id: string;
   url: string;
   host: string;
+  port: string;
   format: AuroraFormat;
   sortIndex: number;
   unreadable: boolean;
@@ -29,12 +30,12 @@ function seal(href: string): string {
   return serializeEncryptedSecret(getSecretEncryptionService().encrypt(href));
 }
 
-function openLink(raw: string): { href: string; host: string } | null {
+function openLink(raw: string): { href: string; host: string; port: string } | null {
   try {
     const href = getSecretEncryptionService().decrypt(deserializeEncryptedSecret(raw));
     const parsed = canonicalizeAuroraUrl(href);
     if (!parsed.ok || parsed.href !== href) return null;
-    return { href: parsed.href, host: parsed.host };
+    return { href: parsed.href, host: parsed.host, port: parsed.port };
   } catch {
     return null;
   }
@@ -55,6 +56,7 @@ export async function listAuroraLinks(): Promise<AuroraLinkRow[]> {
           id: row.id,
           url: "",
           host: "",
+          port: "",
           format: "short",
           sortIndex: row.sort_index,
           unreadable: true,
@@ -68,6 +70,7 @@ export async function listAuroraLinks(): Promise<AuroraLinkRow[]> {
           id: row.id,
           url: "",
           host: "",
+          port: "",
           format: row.format,
           sortIndex: row.sort_index,
           unreadable: true,
@@ -79,6 +82,7 @@ export async function listAuroraLinks(): Promise<AuroraLinkRow[]> {
         id: row.id,
         url: opened.href,
         host: opened.host,
+        port: opened.port,
         format: row.format,
         sortIndex: row.sort_index,
         unreadable: false,

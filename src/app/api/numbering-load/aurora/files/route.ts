@@ -26,12 +26,15 @@ export async function POST(request: Request) {
   }
   if (typeof url !== "string" || url.length > AURORA_URL_LIMIT) {
     return numberingLoadJson(
-      { error: "Укажите ссылку https.", settings: await getAuroraLoadView() },
+      { error: "Укажите ссылку http или https.", settings: await getAuroraLoadView() },
       400,
     );
   }
   try {
-    const saved = await saveAuroraLink({ url, format }, { userId: actor.userId, ip: actor.ip });
+    const saved = await saveAuroraLink(
+      { url, format },
+      { userId: actor.userId, ip: actor.ip },
+    );
     if (!saved.ok) {
       return numberingLoadJson(
         { error: saved.error, settings: await getAuroraLoadView() },

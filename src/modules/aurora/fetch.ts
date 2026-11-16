@@ -1,9 +1,11 @@
 /**
  * One GET of a saved Aurora link. The name is resolved first.
  * A private address is not connected. The body is not written to disk.
+ * http and https each use their own client. Redirects are not followed.
  */
 
 import { lookup as dnsLookup } from "node:dns/promises";
+import http from "node:http";
 import https from "node:https";
 import { isIP } from "node:net";
 import { Readable, type Duplex } from "node:stream";
@@ -45,7 +47,13 @@ function failure(
   status = 0,
   interrupted = false,
 ): AuroraFetchFailure {
-  return { ok: false, error, retryable, status, ...(interrupted ? { interrupted: true } : {}) };
+  return {
+    ok: false,
+    error,
+    retryable,
+    status,
+    ...(interrupted ? { interrupted: true } : {}),
+  };
 }
 
 export async function resolveAuroraHost(
@@ -67,7 +75,9 @@ export async function resolveAuroraHost(
   return { ok: true, addresses };
 }
 
-async function defaultLookup(host: string): Promise<{ address: string; family: number }[]> {
+async function defaultLookup(
+  host: string,
+): Promise<{ address: string; family: number }[]> {
   return dnsLookup(host, { all: true, verbatim: true });
 }
 
@@ -97,7 +107,10 @@ function decoder(encoding: string | undefined): Duplex | "identity" | "reject" {
   return "reject";
 }
 
-function readStream(stream: Readable, cap: number): Promise<AuroraFetchSuccess | AuroraFetchFailure> {
+function readStream(
+  stream: Readable,
+  cap: number,
+): Promise<AuroraFetchSuccess | AuroraFetchFailure> {
   return new Promise((resolve) => {
     const chunks: Buffer[] = [];
     let total = 0;
@@ -121,6 +134,22 @@ function readStream(stream: Readable, cap: number): Promise<AuroraFetchSuccess |
   });
 }
 
+function savedTarget(href: string, host: string): URL | null {
+  let url: URL;
+  try {
+    url = new URL(href);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+  const name =
+    url.hostname.startsWith("[") && url.hostname.endsWith("]")
+      ? url.hostname.slice(1, -1)
+      : url.hostname;
+  if (name !== host) return null;
+  return url;
+}
+
 export function fetchAuroraOnce(
   href: string,
   host: string,
@@ -128,7 +157,12 @@ export function fetchAuroraOnce(
   signal: AbortSignal,
 ): Promise<AuroraFetchSuccess | AuroraFetchFailure> {
   if (signal.aborted) return Promise.resolve(failure(INTERRUPTED, false, 0, true));
-  const agent = new https.Agent({ keepAlive: false, maxSockets: 1, rejectUnauthorized: true });
+  const target = savedTarget(href, host);
+  if (!target) return Promise.resolve(failure(REJECTED, false));
+  const secure = target.protocol === "https:";
+  const agent = secure
+    ? new https.Agent({ keepAlive: false, maxSockets: 1, rejectUnauthorized: true })
+    : new http.Agent({ keepAlive: false, maxSockets: 1 });
   return new Promise((resolve) => {
     let settled = false;
     const finish = (result: AuroraFetchSuccess | AuroraFetchFailure) => {
@@ -142,57 +176,66 @@ export function fetchAuroraOnce(
       req.destroy();
       finish(failure(INTERRUPTED, false, 0, true));
     };
-    const req = https.request(
-      href,
-      {
-        method: "GET",
-        servername: isIP(host) ? undefined : host,
-        rejectUnauthorized: true,
-        timeout: TIMEOUT_MS,
-        agent,
-        headers: {
-          Accept: "text/csv, text/plain, */*",
-          "Accept-Encoding": "gzip, deflate, br, identity",
-        },
-        lookup: ((_hostname, options, callback) => {
-          const family = address.family;
-          if (options && typeof options === "object" && "all" in options && options.all) {
-            callback(null, [{ address: address.address, family }]);
-            return;
-          }
-          callback(null, address.address, family);
-        }) as https.RequestOptions["lookup"],
-      },
-      (response) => {
-        const status = response.statusCode ?? 0;
-        if (status >= 300 && status < 400) {
-          response.resume();
-          finish(failure(REDIRECT, false, status));
-          return;
-        }
-        if (status >= 500) {
-          response.resume();
-          finish(failure(QUIET, true, status));
-          return;
-        }
-        if (status !== 200) {
-          response.resume();
-          finish(failure(REJECTED, false, status));
-          return;
-        }
-        const coding = decoder(response.headers["content-encoding"]);
-        if (coding === "reject") {
-          response.resume();
-          finish(failure(REJECTED, false, status));
-          return;
-        }
-        const source = coding === "identity" ? response : response.pipe(coding);
-        void readStream(source, AURORA_BODY_CAP).then((result) => {
-          if (!result.ok && result.error === OVERSIZE) response.destroy();
-          finish({ ...result, status });
-        });
-      },
-    );
+    const lookup = ((_hostname, options, callback) => {
+      const family = address.family;
+      if (options && typeof options === "object" && "all" in options && options.all) {
+        callback(null, [{ address: address.address, family }]);
+        return;
+      }
+      callback(null, address.address, family);
+    }) as http.RequestOptions["lookup"];
+    const headers = {
+      Accept: "text/csv, text/plain, */*",
+      "Accept-Encoding": "gzip, deflate, br, identity",
+    };
+    const onResponse = (response: http.IncomingMessage) => {
+      const status = response.statusCode ?? 0;
+      if (status >= 300 && status < 400) {
+        response.resume();
+        finish(failure(REDIRECT, false, status));
+        return;
+      }
+      if (status >= 500) {
+        response.resume();
+        finish(failure(QUIET, true, status));
+        return;
+      }
+      if (status !== 200) {
+        response.resume();
+        finish(failure(REJECTED, false, status));
+        return;
+      }
+      const coding = decoder(response.headers["content-encoding"]);
+      if (coding === "reject") {
+        response.resume();
+        finish(failure(REJECTED, false, status));
+        return;
+      }
+      const source = coding === "identity" ? response : response.pipe(coding);
+      void readStream(source, AURORA_BODY_CAP).then((result) => {
+        if (!result.ok && result.error === OVERSIZE) response.destroy();
+        finish({ ...result, status });
+      });
+    };
+    const req = secure
+      ? https.request(
+          href,
+          {
+            method: "GET",
+            servername: isIP(host) ? undefined : host,
+            rejectUnauthorized: true,
+            timeout: TIMEOUT_MS,
+            agent,
+            headers,
+            lookup,
+          },
+          onResponse,
+        )
+      : http.request(
+          href,
+          { method: "GET", timeout: TIMEOUT_MS, agent, headers, lookup },
+          onResponse,
+        );
     signal.addEventListener("abort", onAbort, { once: true });
     req.on("timeout", () => {
       req.destroy();
@@ -222,7 +265,11 @@ export async function downloadAuroraCsv(
     const started = Date.now();
     const resolved = await resolve(link.host);
     if (!resolved.ok) {
-      logger.info("aurora.fetch", { status: 0, attempt, durationMs: Date.now() - started });
+      logger.info("aurora.fetch", {
+        status: 0,
+        attempt,
+        durationMs: Date.now() - started,
+      });
       if (!resolved.retryable || resolved.interrupted) return resolved;
       last = resolved;
       continue;

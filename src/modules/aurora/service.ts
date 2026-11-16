@@ -16,7 +16,12 @@ import {
   unreadableAuroraLink,
   type AuroraLinkRow,
 } from "@/modules/aurora/files";
-import { endAurora, isAuroraActive, isAuroraStopping, tryBeginAurora } from "@/modules/aurora/lease";
+import {
+  endAurora,
+  isAuroraActive,
+  isAuroraStopping,
+  tryBeginAurora,
+} from "@/modules/aurora/lease";
 import {
   appendAuroraLog,
   auroraLogExists,
@@ -33,7 +38,11 @@ import {
   type AuroraFormat,
   type ParsedAurora,
 } from "@/modules/aurora/parse";
-import { auroraOperatorError, canonicalizeAuroraUrl } from "@/modules/aurora/url";
+import {
+  auroraEndpointLabel,
+  auroraOperatorError,
+  canonicalizeAuroraUrl,
+} from "@/modules/aurora/url";
 import {
   dropStage,
   fillDraftSplit,
@@ -204,13 +213,31 @@ async function downloadAuroraSet(
         if (downloaded.interrupted || watched.signal.aborted) {
           return { ok: false, error: auroraInterruptedMessage() };
         }
-        return { ok: false, error: auroraOperatorError(index, link.host, downloaded.error) };
+        return {
+          ok: false,
+          error: auroraOperatorError(
+            index,
+            auroraEndpointLabel(link.host, link.port),
+            downloaded.error,
+          ),
+        };
       }
       const decoded = decodeAuroraCsv(`Ссылка ${index + 1}`, downloaded.bytes);
       if (!decoded.ok) {
-        return { ok: false, error: auroraOperatorError(index, link.host, decoded.error) };
+        return {
+          ok: false,
+          error: auroraOperatorError(
+            index,
+            auroraEndpointLabel(link.host, link.port),
+            decoded.error,
+          ),
+        };
       }
-      texts.push({ name: `Ссылка ${index + 1}`, format: link.format, text: decoded.text });
+      texts.push({
+        name: `Ссылка ${index + 1}`,
+        format: link.format,
+        text: decoded.text,
+      });
     }
     await beat(links.length, links.length);
     const parsed = combineAuroraFiles(texts);
@@ -219,7 +246,11 @@ async function downloadAuroraSet(
     const index = match ? Number(match[1]) - 1 : 0;
     return {
       ok: false,
-      error: auroraOperatorError(index, links[index]?.host ?? "", parsed.error),
+      error: auroraOperatorError(
+        index,
+        auroraEndpointLabel(links[index]?.host ?? "", links[index]?.port ?? ""),
+        parsed.error,
+      ),
     };
   } finally {
     watched.close();
@@ -452,7 +483,7 @@ export async function startAuroraSync(
             [
               `Ссылка: ${index + 1}`,
               `Формат: ${auroraFormatLabel(link.format)}`,
-              `Узел: ${link.host}`,
+              `Узел: ${auroraEndpointLabel(link.host, link.port)}`,
               "",
             ].join("\n"),
           );
@@ -534,7 +565,9 @@ export async function startAuroraSync(
   return { ok: true };
 }
 
-export async function cancelAuroraSync(): Promise<{ ok: true } | { ok: false; error: string }> {
+export async function cancelAuroraSync(): Promise<
+  { ok: true } | { ok: false; error: string }
+> {
   try {
     const rows = await prisma.$queryRaw<{ run_id: string }[]>`
       UPDATE aurora_sync_state

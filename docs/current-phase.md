@@ -1,7 +1,13 @@
-# Current Phase — production (v1.294.0)
+# Current Phase — production (v1.295.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, purchased numbers, numbering sync, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-16
+
+## v1.295.0 — Aurora Telecom http links
+
+This release does not migrate and does not rewrite catalog rows or Aurora epoch counters. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before the new one starts, then start one new app. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged. SipOut, Runexis, and UIS are unchanged.
+
+An Aurora Telecom link may be `http` or `https`. A non-default port, such as 8080, is part of the address. Saving a link still does not download. Already saved https links stay. A private, local, or service address is still rejected. A redirect is not followed. On an `http` link the CSV crosses the network unencrypted, and the `app` container must be able to open TCP to that host and port. The operator error and the stage log may show the host and that port. They still have no URL and no CSV body.
 
 ## v1.294.0 — Aurora Telecom links
 

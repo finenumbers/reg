@@ -1,8 +1,10 @@
+import http from "node:http";
 import { describe, expect, it } from "vitest";
 import {
   AURORA_BODY_CAP,
   collectCapped,
   downloadAuroraCsv,
+  fetchAuroraOnce,
   resolveAuroraHost,
   type AuroraFetchFailure,
   type AuroraOnce,
@@ -30,6 +32,10 @@ describe("Aurora download", () => {
       { address: "10.1.1.1", family: 4 },
     ]);
     expect(resolved.ok).toBe(false);
+    const loopback = await resolveAuroraHost("files.example.com", async () => [
+      { address: "127.0.0.1", family: 4 },
+    ]);
+    expect(loopback.ok).toBe(false);
     const once = viOnce();
     const result = await downloadAuroraCsv(
       { href: "https://files.example.com/a.csv", host: "files.example.com" },
@@ -75,6 +81,77 @@ describe("Aurora download", () => {
     });
     expect(redirect.calls).toBe(1);
     expect(moved.ok).toBe(false);
+  });
+
+  it("reads http on the saved port and does not follow a redirect", async () => {
+    const seen: { url?: string; host?: string }[] = [];
+    const server = http.createServer((request, response) => {
+      seen.push({ url: request.url, host: request.headers.host });
+      if (request.url === "/moved.csv") {
+        response.writeHead(302, { Location: "/secret.csv" });
+        response.end();
+        return;
+      }
+      response.writeHead(200, { "Content-Type": "text/csv" });
+      response.end("column");
+    });
+    await new Promise<void>((resolve) => {
+      server.listen(0, "127.0.0.1", () => resolve());
+    });
+    const bound = server.address();
+    const port = typeof bound === "object" && bound ? bound.port : 0;
+    const signal = new AbortController().signal;
+    try {
+      const ok = await fetchAuroraOnce(
+        `http://files.example.com:${port}/a.csv`,
+        "files.example.com",
+        { address: "127.0.0.1", family: 4 },
+        signal,
+      );
+      expect(ok.ok).toBe(true);
+      if (!ok.ok) return;
+      expect(Buffer.from(ok.bytes).toString()).toBe("column");
+      expect(seen[0]?.host).toBe(`files.example.com:${port}`);
+      expect(seen[0]?.url).toBe("/a.csv");
+
+      const moved = await fetchAuroraOnce(
+        `http://files.example.com:${port}/moved.csv`,
+        "files.example.com",
+        { address: "127.0.0.1", family: 4 },
+        signal,
+      );
+      expect(moved.ok).toBe(false);
+      if (moved.ok) return;
+      expect(moved.error).toBe("Ссылка перенаправляет. Укажите прямой адрес.");
+      expect(moved.error).not.toContain("://");
+      expect(seen.some((hit) => hit.url === "/secret.csv")).toBe(false);
+
+      const closed = await fetchAuroraOnce(
+        "http://files.example.com:1/a.csv",
+        "files.example.com",
+        { address: "127.0.0.1", family: 4 },
+        signal,
+      );
+      expect(closed.ok).toBe(false);
+      if (closed.ok) return;
+      expect(closed.error).toBe("Ссылка не отвечает.");
+      expect(closed.error).not.toContain("://");
+
+      const foreign = await fetchAuroraOnce(
+        `http://other.example:${port}/a.csv`,
+        "files.example.com",
+        { address: "127.0.0.1", family: 4 },
+        signal,
+      );
+      expect(foreign.ok).toBe(false);
+      if (foreign.ok) return;
+      expect(foreign.error).toBe("Ссылка отклонена.");
+      expect(seen.filter((hit) => hit.url === "/a.csv")).toHaveLength(1);
+    } finally {
+      await new Promise<void>((resolve) => {
+        server.close(() => resolve());
+      });
+    }
   });
 
   it("stops when the body is larger than 20 MB", () => {

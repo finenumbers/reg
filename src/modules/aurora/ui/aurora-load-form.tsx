@@ -77,14 +77,18 @@ export function AuroraLoadForm({ initial }: { initial: AuroraLoadView }) {
     <div className="max-w-xl space-y-4" onKeyDown={onKeyDown}>
       <h2 className="text-base font-semibold">Aurora Telecom</h2>
       <p className="text-muted-foreground text-sm">
-        У каждой ссылки укажите формат. Сохранение ничего не скачивает. «Загрузить» на
-        странице синхронизации каждый раз скачивает этот список заново.
+        У каждой ссылки свой формат. Сохраните ссылку, затем введите следующую и снова
+        выберите формат. В списке не больше 20. Сохранение ничего не скачивает.
+        «Загрузить» на странице синхронизации каждый раз скачивает этот список заново.
       </p>
       {view.files.length > 0 ? (
         <ul className="space-y-2">
           {view.files.map((item, index) => (
             <li key={item.id} className="flex flex-wrap items-center gap-2 text-sm">
-              <span className="min-w-0 flex-1 truncate" title={item.unreadable ? undefined : item.url}>
+              <span
+                className="min-w-0 flex-1 truncate"
+                title={item.unreadable ? undefined : item.url}
+              >
                 {item.unreadable ? "Ссылка не читается" : item.url}
               </span>
               <span>{item.unreadable ? "" : FORMAT_LABEL[item.format]}</span>
@@ -181,7 +185,11 @@ export function AuroraLoadForm({ initial }: { initial: AuroraLoadView }) {
         </Button>
       </div>
       {confirm && trimmed && format ? (
-        <div role="dialog" aria-label="Подтверждение сохранения" className="space-y-3 rounded-md border p-4">
+        <div
+          role="dialog"
+          aria-label="Подтверждение сохранения"
+          className="space-y-3 rounded-md border p-4"
+        >
           <p className="text-sm break-all">
             Aurora Telecom
             <br />
@@ -202,14 +210,23 @@ export function AuroraLoadForm({ initial }: { initial: AuroraLoadView }) {
             >
               {pending ? "Сохранение…" : "Сохранить"}
             </Button>
-            <Button type="button" variant="outline" disabled={pending} onClick={() => setConfirm(false)}>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={pending}
+              onClick={() => setConfirm(false)}
+            >
               Отмена
             </Button>
           </div>
         </div>
       ) : null}
       {remove ? (
-        <div role="dialog" aria-label="Подтверждение удаления" className="space-y-3 rounded-md border p-4">
+        <div
+          role="dialog"
+          aria-label="Подтверждение удаления"
+          className="space-y-3 rounded-md border p-4"
+        >
           <p className="text-sm break-all">
             Удалить {remove.unreadable ? "нечитаемую ссылку" : remove.url}
             <br />
@@ -228,7 +245,12 @@ export function AuroraLoadForm({ initial }: { initial: AuroraLoadView }) {
             >
               Удалить
             </Button>
-            <Button type="button" variant="outline" disabled={pending} onClick={() => setRemoveId(null)}>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={pending}
+              onClick={() => setRemoveId(null)}
+            >
               Отмена
             </Button>
           </div>
