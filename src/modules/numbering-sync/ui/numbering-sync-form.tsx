@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { Button } from "@/components/ui/button";
 import {
   ChainCardNote,
@@ -8,13 +8,13 @@ import {
   useParsedCount,
 } from "@/modules/numbering-chain/ui/chain-context";
 import type { NumberingSyncView } from "@/modules/numbering-sync/service";
-import { loadButtonClass, SourceCard } from "@/modules/numbering-sync/ui/source-card";
+import { SourceCard } from "@/modules/numbering-sync/ui/source-card";
 
 export function NumberingSyncForm({ initial }: { initial: NumberingSyncView }) {
   const [view, setView] = useState(initial);
-  const [confirm, setConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const gate = useRef(false);
   const chainRunning = useChainRunning();
   const parsed = useParsedCount("sipout", view.lastFree, view.lastPurchased);
 
@@ -40,7 +40,8 @@ export function NumberingSyncForm({ initial }: { initial: NumberingSyncView }) {
   }, [chainRunning, refresh, view.busy]);
 
   async function send(path: string) {
-    if (pending) return;
+    if (gate.current) return;
+    gate.current = true;
     setPending(true);
     setError(null);
     try {
@@ -58,20 +59,16 @@ export function NumberingSyncForm({ initial }: { initial: NumberingSyncView }) {
         setError(body?.error ?? "Не удалось выполнить запрос.");
         return;
       }
-      setConfirm(false);
     } catch {
       setError("Не удалось выполнить запрос.");
     } finally {
+      gate.current = false;
       setPending(false);
     }
   }
 
   function onKeyDown(event: KeyboardEvent) {
     if (event.key === "Enter") event.preventDefault();
-    if (event.key === "Escape" && confirm) {
-      event.preventDefault();
-      setConfirm(false);
-    }
   }
 
   const progress = !view.busy
@@ -99,49 +96,11 @@ export function NumberingSyncForm({ initial }: { initial: NumberingSyncView }) {
         { label: "Разобрано", value: parsed },
       ]}
       loadDisabled={pending || view.busy || !view.hasKey || chainRunning}
-      onLoad={() => {
-        setError(null);
-        setConfirm(true);
-      }}
+      onLoad={() => void send("/api/numbering-sync/sipout")}
       hasLog={view.hasLog}
       logHref="/api/numbering-sync/sipout/log"
       onKeyDown={onKeyDown}
     >
-      {confirm ? (
-        <div
-          role="dialog"
-          aria-label="Подтверждение загрузки"
-          className="space-y-3 rounded-md border p-4"
-        >
-          <p className="text-sm">
-            Источник: SipOut
-            <br />
-            Хост: {view.host}
-            <br />
-            Будут заново прочитаны свободные и купленные номера. Успешная запись удалит
-            все прежние номера SipOut в обеих таблицах, в том числе если новый список
-            короче или пуст.
-          </p>
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              className={loadButtonClass}
-              disabled={pending || chainRunning}
-              onClick={() => void send("/api/numbering-sync/sipout")}
-            >
-              {pending ? "Запуск…" : "Загрузить"}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={pending}
-              onClick={() => setConfirm(false)}
-            >
-              Отмена
-            </Button>
-          </div>
-        </div>
-      ) : null}
       {progress ? <p className="text-sm">{progress}</p> : null}
       <ChainCardNote source="sipout" />
       {view.busy && view.phase === "running" ? (

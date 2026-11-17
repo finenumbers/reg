@@ -35,6 +35,7 @@ function snapshot(patch: Partial<ParsedSnapshot> = {}): ParsedSnapshot {
     exolve: { epoch: 1, done: 1, parsed: 0 },
     voximplant: { epoch: 1, done: 1, parsed: 0 },
     mcn: { epoch: 1, done: 1, parsed: 0 },
+    finenumbers: { epoch: 1, done: 1, parsed: 0 },
   };
   return {
     maskEpoch: 1,

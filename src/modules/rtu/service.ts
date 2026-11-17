@@ -12,7 +12,6 @@ import {
 import { Prisma } from "@/generated/prisma/client";
 import { amountFacetQueryHits } from "@/lib/amount-format";
 import { prisma } from "@/lib/db";
-import { kickGeographyDidRefresh } from "@/modules/rtu/did-snapshot";
 import { EXCEL_MAX_ROWS } from "@/modules/enrich/types";
 import { isRtuColumn, type RtuColumn } from "@/modules/rtu/columns";
 import { clampPage, clampPageSize } from "@/modules/rtu/paging";
@@ -226,7 +225,6 @@ export async function listRtu(opts: {
   const phoneQ = opts.phoneQ?.trim() ?? "";
   const flags = listFlags(opts);
   const cursor = cursorPair(opts.cursorNumber, opts.cursorId);
-  kickGeographyDidRefresh();
   const [refresh, gate] = await Promise.all([readRefresh(), readRtuScreenGate()]);
   if (!gate?.published || gate.needsPublish) {
     void requestRtuScreenPublish();
@@ -269,7 +267,6 @@ export async function listRtu(opts: {
 
 /** Full catalog, one snapshot. Used by the XLSX download. */
 export async function listAllRtu(): Promise<RtuItem[]> {
-  kickGeographyDidRefresh();
   const gate = await readRtuScreenGate();
   if (!gate?.published) {
     void requestRtuScreenPublish();
@@ -301,7 +298,6 @@ export async function listRtuFacets(opts: {
   limit?: number;
 }): Promise<FacetResponse> {
   const column = opts.column.trim();
-  kickGeographyDidRefresh();
   if (!isRtuColumn(column)) {
     return { items: [], truncated: false };
   }

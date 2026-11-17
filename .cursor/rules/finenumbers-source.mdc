@@ -1,0 +1,20 @@
+---
+description: Finenumbers numbering source from one PSTN operator
+alwaysApply: true
+---
+
+# Finenumbers numbers
+
+Finenumbers is a numbering source. It has no secret, no access check, and no card on «Загрузка нумерации». The provider literal is `Finenumbers`.
+
+The only PSTN reads for this walk are `GET /api/ranges` and `GET /api/summary`. The ranges query is `limit` 500, the existing sort, and `inn` equal to the literal `5406978329`. No other filter is sent. Do not call `GET /api/v1/lookup`. Do not accept an INN, a path, or a filter from a caller, a flag, or a setting. One request is in flight with the range snapshot. HTTPS or the saved PSTN origin. Do not follow redirects. Timeout 30s. Body cap 20 MB.
+
+Read the phone snapshot once, before PSTN, in one repeatable-read transaction, together with `phone_import_state.lastSyncedAt`. Select only `endpointNumber`. A null `lastSyncedAt` does not publish. A number present on that snapshot is purchased, including a blocked or unregistered endpoint. A number from this INN that is absent is free. Match with the PSTN key: 11 digits starting with 7 or 8, and 10 national digits, share one key. A phone number outside this INN is not inserted.
+
+Inclusive bounds. ABC is exactly 3 digits. The local part is 7 digits, left-padded. `e164` is `7` plus ABC plus that local part, and it must pass the tariff admission. `capacity` must equal `rangeEnd - rangeStart + 1`. A display gap is not filled. A foreign INN, a short ABC, or a capacity mismatch fails the walk and publishes nothing. Expand in slices of 500. A duplicate `e164` fails the walk. The operator error is «В ответе повторяется номер.» and does not include the number.
+
+The first page locks `totalRows`. Completeness is that count, not `hasMore`. A changed total, a hole, a missing cursor, or a repeated range id reads the list once more from the start. The second shift does not publish. After the pages, one summary recount must match the range count and the capacity sum, and `totalCapacityPending` must be false. An empty slice is published only when the page and the summary both say 0 ranges and 0 capacity. Transport, timeout, an empty body, non-JSON, and HTTP 5xx retry the same request once. HTTP 4xx and a page longer than 500 do not.
+
+Prices stay empty. City and region come from the tariff fragment. Operator and geography come from that range. A missing tariff keeps the number. Both catalogs are replaced only when the staged free count plus the staged purchased count equals the capacity sum and the two drafts share no `e164`. Otherwise the previous Finenumbers rows stay. Deletes and inserts are chunked inside one transaction. Commit only after the counts match. The epoch is `finenumbers_epoch`. A stop seen before BEGIN does not publish. Cancel during publishing returns «Запись уже началась.»
+
+The stage log is `data/numbering-sync/finenumbers.txt`. It names the page, the attempt, the status, the range count, and the duration. It does not name a phone number, a bound, a price, or a URL. The operator error is at most 200 characters. Do not copy a database error. An API key cannot call these routes. The card is last on «Синхронизация». «Загрузить» starts immediately. Enter does not start it.

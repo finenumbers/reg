@@ -24,12 +24,9 @@ export function displayProviderCode(code: string): string {
   return PROVIDER_LABELS[code] ?? code;
 }
 
-/** DID provider code as stored on a geography snapshot row. */
+/** Stored provider, shown as stored. Finenumbers stays Finenumbers. */
 export function geographyProviderLabel(code: string): string {
   const trimmed = code.trim();
-  if (trimmed.toLowerCase() === FINENUMBERS_PROVIDER_CODE) return GEOGRAPHY_MANUAL_SOURCE;
-  const label = displayProviderCode(trimmed);
-  if (label.trim().toLowerCase() === FINENUMBERS_PROVIDER_CODE)
-    return GEOGRAPHY_MANUAL_SOURCE;
-  return label;
+  if (!trimmed) return "";
+  return displayProviderCode(trimmed);
 }

@@ -5,6 +5,7 @@
  */
 
 import PQueue from "p-queue";
+import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
 import { logger } from "@/lib/logger";
 import { PstnLookupError, lookupPstnPhone } from "@/modules/pstn/client";
@@ -194,21 +195,32 @@ async function endpointNumbers(ids: readonly string[]): Promise<PstnFillEndpoint
   });
 }
 
+function numberFromMissingId(id: string): string | null {
+  if (!id.startsWith("did:p:")) return null;
+  const national = id.slice("did:p:".length);
+  return /^\d{10}$/.test(national) ? `7${national}` : null;
+}
+
 async function didNumbers(ids: readonly string[]): Promise<PstnFillEndpoint[]> {
   if (ids.length === 0) return [];
-  const state = await prisma.geographyDidState.findUnique({
-    where: { id: 1 },
-    select: { generation: true },
+  const decoded: PstnFillEndpoint[] = [];
+  const rest: string[] = [];
+  for (const id of ids) {
+    const number = numberFromMissingId(id);
+    if (number) decoded.push({ id, number });
+    else rest.push(id);
+  }
+  if (rest.length === 0) return decoded;
+  const rows = await prisma.$queryRaw<{ id: string; number: string }[]>`
+    SELECT id, number
+    FROM rtu_screen
+    WHERE id IN (${Prisma.join(rest)})
+  `;
+  const stored = rows.flatMap((row) => {
+    const number = row.number.trim();
+    return number === "" ? [] : [{ id: row.id, number }];
   });
-  if (!state) return [];
-  const rows = await prisma.geographyDidSource.findMany({
-    where: { generation: state.generation, rowId: { in: [...ids] } },
-    select: { rowId: true, displayNumber: true },
-  });
-  return rows.flatMap((row) => {
-    const number = row.displayNumber.trim();
-    return number === "" ? [] : [{ id: row.rowId, number }];
-  });
+  return [...decoded, ...stored];
 }
 
 async function numbersForPstnFill(ids: readonly string[]): Promise<PstnFillEndpoint[]> {

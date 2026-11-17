@@ -123,10 +123,6 @@ model AppSetting {
   pstnBaseUrl           String?     @default("https://pstn.finenumbers.com")
   /// AES-256-GCM ciphertext of PSTN External Lookup API key. Never plaintext.
   pstnApiKeyCiphertext  String?
-  /// Origin of the DID UI (no path). Empty → DEFAULT_DID_BASE_URL.
-  didBaseUrl            String?     @default("https://did.finenumbers.com")
-  /// AES-256-GCM ciphertext of DID ADMIN_API_TOKEN. Never plaintext.
-  didApiTokenCiphertext String?
   /// In-process FTP listener for softswitch CDR uploads.
   ftpEnabled            Boolean     @default(false)
   ftpUsername           String?
@@ -414,31 +410,6 @@ model PstnPhoneCache {
 
   @@index([lookedUpAt])
   @@map("pstn_phone_cache")
-}
-
-// One complete read of DID purchased numbers. Readers use the generation
-// named by GeographyDidState. A failed read does not switch that generation.
-model GeographyDidSource {
-  generation    Int
-  matchKey      String
-  displayNumber String
-  provider      String
-  rowId         String
-
-  @@id([generation, matchKey])
-  @@index([rowId])
-  @@map("geography_did_sources")
-}
-
-model GeographyDidState {
-  id          Int       @id
-  generation  Int       @default(0)
-  refreshedAt DateTime?
-  attemptedAt DateTime?
-  lockedUntil DateTime?
-  lockedToken String?
-
-  @@map("geography_did_state")
 }
 
 // Published rows of «Управление РТУ». Rebuilt beside this table, then swapped.
@@ -1011,6 +982,80 @@ model McnSyncStage {
   @@map("mcn_sync_stage")
 }
 
+/// One Finenumbers walk. It has no secret and does not share the other leases.
+model FinenumbersSyncState {
+  id                   Int       @id @default(1)
+  runId                String?   @map("run_id")
+  phase                String    @default("")
+  /// Unused. The card shows range progress in page_done.
+  list                 String    @default("")
+  pageDone             Int       @default(0) @map("page_done")
+  pageTotal            Int       @default(0) @map("page_total")
+  error                String?
+  heartbeatAt          DateTime? @map("heartbeat_at")
+  startedAt            DateTime? @map("started_at")
+  lastError            String?   @map("last_error")
+  lastFreeWritten      Int?      @map("last_free_written")
+  lastPurchasedWritten Int?      @map("last_purchased_written")
+  lastFinishedAt       DateTime? @map("last_finished_at")
+  duplicatesDropped    Int       @default(0) @map("duplicates_dropped")
+  loadedAt             DateTime? @map("loaded_at")
+
+  @@map("finenumbers_sync_state")
+}
+
+/// Numbers expanded from one Finenumbers selection, before the replace.
+model FinenumbersSyncStage {
+  runId            String  @map("run_id")
+  /// free or purchased.
+  catalog          String
+  e164             String
+  abc              String  @default("")
+  number           String  @default("")
+  city             String  @default("")
+  region           String  @default("")
+  incomingPurchase String  @default("") @map("incoming_purchase")
+  incomingPeriod   String  @default("") @map("incoming_period")
+  operator         String  @default("")
+  geography        String  @default("")
+  ready            Boolean @default(false)
+
+  @@id([runId, catalog, e164])
+  @@map("finenumbers_sync_stage")
+}
+
+/// loadedAt of the PSTN range dataset already stored. A matching value is not read again.
+model PstnRangeState {
+  id       Int    @id
+  loadedAt String @default("") @map("loaded_at")
+
+  @@map("pstn_range_state")
+}
+
+/// One complete PSTN range dataset used to fill operator and geography.
+model PstnRangeSnapshot {
+  abc          String
+  rangeStart   Int    @map("range_start")
+  rangeEnd     Int    @map("range_end")
+  operator     String @default("")
+  garTerritory String @default("") @map("gar_territory")
+
+  @@id([abc, rangeStart, rangeEnd])
+  @@map("pstn_range_snapshot")
+}
+
+/// Staging rows for the next range snapshot. The live snapshot stays until the swap.
+model PstnRangeLoad {
+  abc          String
+  rangeStart   Int    @map("range_start")
+  rangeEnd     Int    @map("range_end")
+  operator     String @default("")
+  garTerritory String @default("") @map("gar_territory")
+
+  @@id([abc, rangeStart, rangeEnd])
+  @@map("pstn_range_load")
+}
+
 /// One decorate pass after the first catalog migration. A provider epoch
 /// moves ahead of its done stamp when that catalog is replaced.
 model NumberingCatalogState {
@@ -1030,6 +1075,11 @@ model NumberingCatalogState {
   voximplantDone     Int @default(0) @map("voximplant_done")
   mcnEpoch           Int @default(0) @map("mcn_epoch")
   mcnDone            Int @default(0) @map("mcn_done")
+  finenumbersEpoch   Int @default(0) @map("finenumbers_epoch")
+  finenumbersDone    Int @default(0) @map("finenumbers_done")
+  /// PSTN range dataset. A full operator pass sets done only while this value is unchanged.
+  pstnRangeEpoch     Int @default(0) @map("pstn_range_epoch")
+  pstnRangeDone      Int @default(0) @map("pstn_range_done")
   /// Tariff file. The resplit pass sets done only while this value is unchanged.
   resplitEpoch       Int @default(0) @map("resplit_epoch")
   resplitDone        Int @default(0) @map("resplit_done")
@@ -1041,7 +1091,7 @@ model NumberingCatalogState {
   clientDone         Int @default(0) @map("client_done")
   /// Hash of endpoint number and description. An equal hash does not bump client_epoch.
   clientHash         String @default("") @map("client_hash")
-  /// resplit-free, resplit-purchased, free, purchased, provider-free, provider-purchased, client, bootstrap-free, bootstrap-purchased.
+  /// resplit-free, resplit-purchased, free, purchased, provider-free, provider-purchased, pstn-free, pstn-purchased, client, bootstrap-free, bootstrap-purchased.
   cursorPhase        String @default("") @map("cursor_phase")
   /// Last id committed for cursor_phase. The next batch reads id greater than this.
   cursorAfter        String @default("") @map("cursor_after")
@@ -1057,6 +1107,7 @@ model NumberingCatalogState {
   exolveParsed       Int    @default(0) @map("exolve_parsed")
   voximplantParsed   Int    @default(0) @map("voximplant_parsed")
   mcnParsed          Int    @default(0) @map("mcn_parsed")
+  finenumbersParsed  Int    @default(0) @map("finenumbers_parsed")
   /// `mask:<epoch>` or `provider:<name>:<epoch>`. A different pass replaces instead of adding.
   parsedPass         String @default("") @map("parsed_pass")
 

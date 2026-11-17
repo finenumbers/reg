@@ -6,6 +6,7 @@ export const CHAIN_SOURCES = [
   { id: "exolve", label: "MTS Exolve", provider: "MTS Exolve" },
   { id: "voximplant", label: "Voximplant", provider: "Voximplant" },
   { id: "mcn", label: "MCN Telecom", provider: "MCN Telecom" },
+  { id: "finenumbers", label: "Finenumbers", provider: "Finenumbers" },
 ] as const;
 
 export type ChainSourceId = (typeof CHAIN_SOURCES)[number]["id"];

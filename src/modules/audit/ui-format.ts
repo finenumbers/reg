@@ -101,6 +101,7 @@ const ACTION_LABELS: Record<string, string> = {
   "mcn.settings_save": "Сохранение доступа MCN Telecom",
   "mcn.test": "Проверка доступа MCN Telecom",
   "mcn.sync": "Загрузка номеров MCN Telecom",
+  "finenumbers.sync": "Загрузка номеров Finenumbers",
 };
 
 export function formatAuditTimestamp(

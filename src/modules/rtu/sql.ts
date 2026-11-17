@@ -4,9 +4,10 @@
  * the count, and the facets. cdr_tariff_geo uses the same predicate as
  * cdr_tariff_direction. Geography calls it once, then geography_digit_split
  * trims the screen ABC. Filter values are bound parameters. Column names
- * come from the allowlist. «Источник» is a cheap column joined from the DID
- * snapshot by one match key. Rows that are only in that snapshot are unioned
- * before the page limit. The tariff function still runs after that limit.
+ * come from the allowlist. «Источник» is a cheap column joined from purchased
+ * numbers by one match key. A key with several providers stays empty. Rows
+ * that are only in that catalog are unioned before the page limit. The tariff
+ * function still runs after that limit.
  */
 
 import { Prisma } from "@/generated/prisma/client";
@@ -26,10 +27,6 @@ import {
   type RtuColumn,
 } from "@/modules/rtu/columns";
 import { CITY_DIRECTION_PREFIX } from "@/modules/traffic/call-class";
-import {
-  FINENUMBERS_PROVIDER_CODE,
-  GEOGRAPHY_MANUAL_SOURCE,
-} from "@/modules/rtu/source-label";
 
 /** Same shape as normalizePstnPhone: 11 digits on 7/8 drop the first, else 10. */
 export const PSTN_ELEVEN_DIGIT = "^[78][0-9]{10}$";
@@ -242,17 +239,6 @@ export function toolbarCountSql(): Prisma.Sql {
   `;
 }
 
-/** Stored DID provider, with Finenumbers shown as «Вручную». */
-function sourceLabelSql(provider: Prisma.Sql): Prisma.Sql {
-  return Prisma.sql`(
-    CASE
-      WHEN lower(btrim(COALESCE(${provider}, ''))) = ${FINENUMBERS_PROVIDER_CODE}
-        THEN ${GEOGRAPHY_MANUAL_SOURCE}
-      ELSE btrim(COALESCE(${provider}, ''))
-    END
-  )`;
-}
-
 export function expensiveWhere(
   filters: ColumnFilters,
   excludeColumn?: string,
@@ -274,11 +260,6 @@ export function geographyMatchKeySql(numberExpr: Prisma.Sql): Prisma.Sql {
 }
 
 const baseCte = Prisma.sql`
-  did_generation AS (
-    SELECT generation
-    FROM geography_did_state
-    WHERE id = 1
-  ),
   endpoints AS (
     SELECT
       e.id,
@@ -306,14 +287,25 @@ const baseCte = Prisma.sql`
       ${geographyMatchKeySql(Prisma.sql`endpoints.number`)} AS match_key
     FROM endpoints
   ),
-  did_rows AS (
+  purchased_rows AS (
     SELECT
-      s."rowId" AS id,
-      s."displayNumber" AS number,
-      s."matchKey" AS match_key,
-      s.provider AS provider
-    FROM geography_did_sources s
-    WHERE s.generation = (SELECT generation FROM did_generation)
+      e164 AS number,
+      btrim(provider) AS provider,
+      ${geographyMatchKeySql(Prisma.sql`e164`)} AS match_key
+    FROM purchased_numbers
+    WHERE btrim(e164) <> ''
+  ),
+  purchased_keys AS (
+    SELECT
+      match_key,
+      min(number) AS number,
+      CASE
+        WHEN count(DISTINCT provider) = 1 THEN min(provider)
+        ELSE ''
+      END AS provider
+    FROM purchased_rows
+    WHERE match_key <> ''
+    GROUP BY match_key
   ),
   base_rows AS (
     SELECT
@@ -325,27 +317,27 @@ const baseCte = Prisma.sql`
       e.category,
       e.activation,
       e.title,
-      ${sourceLabelSql(Prisma.sql`d.provider`)} AS source,
+      btrim(COALESCE(p.provider, '')) AS source,
       FALSE AS missing
     FROM endpoint_keys e
-    LEFT JOIN did_rows d ON d.match_key = e.match_key
+    LEFT JOIN purchased_keys p ON p.match_key = e.match_key
     UNION ALL
     SELECT
-      d.id,
-      d.number,
+      ('did:' || p.match_key) AS id,
+      p.number,
       '' AS client,
       '' AS capacity,
       '' AS supplier,
       '' AS category,
       ${STATUS_NOT_IN_RTU} AS activation,
       '' AS title,
-      ${sourceLabelSql(Prisma.sql`d.provider`)} AS source,
+      btrim(p.provider) AS source,
       TRUE AS missing
-    FROM did_rows d
+    FROM purchased_keys p
     WHERE NOT EXISTS (
       SELECT 1
       FROM endpoint_keys e
-      WHERE e.match_key = d.match_key
+      WHERE e.match_key = p.match_key
     )
   ),
   base AS (
@@ -1040,23 +1032,25 @@ export function screenFacetSql(
   `;
 }
 
+const PURCHASED_EPOCH_STAMP = Prisma.sql`
+  COALESCE((
+    SELECT
+      sipout_epoch::text || '|' ||
+      runexis_epoch::text || '|' ||
+      uis_epoch::text || '|' ||
+      aurora_epoch::text || '|' ||
+      exolve_epoch::text || '|' ||
+      voximplant_epoch::text || '|' ||
+      mcn_epoch::text || '|' ||
+      finenumbers_epoch::text
+    FROM numbering_catalog_state
+    WHERE id = 1
+  ), '')
+`;
+
 /** Live source stamps and the stamps stored for the published screen. */
 export function screenStampsSql(forUpdate: boolean): Prisma.Sql {
   const lock = forUpdate ? Prisma.sql`FOR UPDATE OF st` : Prisma.empty;
-  // The content hash walks every DID row. The locked swap compares the generation
-  // instead, so that walk does not sit on the state-row lock.
-  const didHash = forUpdate
-    ? Prisma.sql`''::text`
-    : Prisma.sql`COALESCE((
-        SELECT md5(string_agg(
-          s."matchKey" || chr(31) || s."displayNumber" || chr(31) || s.provider,
-          chr(30) ORDER BY s."matchKey"
-        ))
-        FROM geography_did_sources s
-        WHERE s.generation = (
-          SELECT generation FROM geography_did_state WHERE id = 1
-        )
-      ), '')`;
   return Prisma.sql`
     SELECT
       p."lastSyncedAt" AS phones_synced_at,
@@ -1071,8 +1065,8 @@ export function screenStampsSql(forUpdate: boolean): Prisma.Sql {
       st.published AS published,
       st."needsPublish" AS needs_publish,
       st."catalogRevision"::int AS catalog_revision,
-      COALESCE((SELECT generation FROM geography_did_state WHERE id = 1), 0)::int AS did_generation,
-      ${didHash} AS did_hash
+      COALESCE(hashtext(${PURCHASED_EPOCH_STAMP}), 0)::int AS did_generation,
+      md5(${PURCHASED_EPOCH_STAMP}) AS did_hash
     FROM rtu_screen_state st
     LEFT JOIN phone_import_state p ON p.id = 1
     LEFT JOIN tariff_import_state t ON t.id = 1

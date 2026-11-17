@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   geoipKeyReplaceSchema,
   keyReplaceSchema,
-  didKeyReplaceSchema,
   pstnKeyReplaceSchema,
   settingsUpdateSchema,
   type SettingsView,
@@ -37,13 +36,11 @@ function assertMaskedSettings(view: SettingsView) {
   expect(typeof view.hasPrivateKey).toBe("boolean");
   expect(typeof view.hasGeoipApiKey).toBe("boolean");
   expect(typeof view.hasPstnApiKey).toBe("boolean");
-  expect(typeof view.hasDidApiToken).toBe("boolean");
   expect(typeof view.hasFtpPassword).toBe("boolean");
   expect(view).toHaveProperty("keyFingerprint");
   expect(view).toHaveProperty("keyAlgo");
   expect(view).toHaveProperty("geoipBaseUrl");
   expect(view).toHaveProperty("pstnBaseUrl");
-  expect(view).toHaveProperty("didBaseUrl");
   expect(view.schedulerLoopActive).toBe(false);
 }
 
@@ -145,20 +142,10 @@ describe("settings schemas and masked view contract", () => {
     });
   });
 
-  it("requires a non-empty DID token and rejects a URL with credentials", () => {
-    expect(() => didKeyReplaceSchema.parse({ apiKey: "" })).toThrow();
-    expect(didKeyReplaceSchema.parse({ apiKey: "did-token" })).toEqual({
-      apiKey: "did-token",
-    });
-    expect(
-      settingsUpdateSchema.parse({ didBaseUrl: "http://did-frontend:3000/free-numbers" }),
-    ).toMatchObject({ didBaseUrl: "http://did-frontend:3000/free-numbers" });
-    expect(settingsUpdateSchema.parse({ didBaseUrl: "" })).toMatchObject({
-      didBaseUrl: "",
-    });
-    expect(() =>
-      settingsUpdateSchema.parse({ didBaseUrl: "http://user:secret@did-frontend:3000" }),
-    ).toThrow();
+  it("rejects an RTU URL with credentials or a path", () => {
+    expect(settingsUpdateSchema.parse({ didBaseUrl: "http://did-frontend:3000/free-numbers" })).toEqual(
+      {},
+    );
     expect(settingsUpdateSchema.parse({ rtuSoapBaseUrl: "https://rtu.example" })).toMatchObject({
       rtuSoapBaseUrl: "https://rtu.example",
     });
@@ -250,8 +237,6 @@ describe("settings schemas and masked view contract", () => {
       hasGeoipApiKey: false,
       pstnBaseUrl: null,
       hasPstnApiKey: false,
-      didBaseUrl: null,
-      hasDidApiToken: false,
       displayTimezone: "Europe/Moscow",
       ftpEnabled: false,
       ftpUsername: null,

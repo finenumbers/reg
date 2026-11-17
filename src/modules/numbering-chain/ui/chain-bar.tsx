@@ -1,22 +1,21 @@
 "use client";
 
-import { useState, type KeyboardEvent } from "react";
+import { useRef, useState, type KeyboardEvent } from "react";
 import { Button } from "@/components/ui/button";
-import { CHAIN_SOURCES, type ChainView } from "@/modules/numbering-chain/order";
+import type { ChainView } from "@/modules/numbering-chain/order";
 import { useChainView, useNextRunLabel } from "@/modules/numbering-chain/ui/chain-context";
 import { loadButtonClass } from "@/modules/numbering-sync/ui/source-card";
-
-const NAMES = CHAIN_SOURCES.map((source) => source.label).join(", ");
 
 export function ChainBar() {
   const view = useChainView();
   const nextRunLabel = useNextRunLabel();
-  const [confirm, setConfirm] = useState(false);
   const [pending, setPending] = useState(false);
+  const gate = useRef(false);
   const [error, setError] = useState<string | null>(null);
 
   async function send(path: string) {
-    if (pending) return;
+    if (gate.current) return;
+    gate.current = true;
     setPending(true);
     setError(null);
     try {
@@ -33,20 +32,16 @@ export function ChainBar() {
         setError(body?.error ?? "Не удалось выполнить запрос.");
         return;
       }
-      setConfirm(false);
     } catch {
       setError("Не удалось выполнить запрос.");
     } finally {
+      gate.current = false;
       setPending(false);
     }
   }
 
   function onKeyDown(event: KeyboardEvent) {
     if (event.key === "Enter") event.preventDefault();
-    if (event.key === "Escape" && confirm) {
-      event.preventDefault();
-      setConfirm(false);
-    }
   }
 
   return (
@@ -59,10 +54,7 @@ export function ChainBar() {
           type="button"
           className={loadButtonClass}
           disabled={pending || view.running}
-          onClick={() => {
-            setError(null);
-            setConfirm(true);
-          }}
+          onClick={() => void send("/api/numbering-sync/chain")}
         >
           Загрузить все
         </Button>
@@ -77,41 +69,9 @@ export function ChainBar() {
           </Button>
         ) : null}
       </div>
-      {confirm ? (
-        <div
-          role="dialog"
-          aria-label="Подтверждение цепочки загрузок"
-          className="space-y-3 rounded-md border p-4"
-        >
-          <p className="text-sm">
-            Будут по очереди загружены: {NAMES}.
-            <br />
-            Каждый источник заменяет только свои строки.
-            <br />
-            Источник без сохранённого секрета пропускается.
-            <br />
-            Ошибка одного не отменяет уже записанные номера.
-          </p>
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              className={loadButtonClass}
-              disabled={pending}
-              onClick={() => void send("/api/numbering-sync/chain")}
-            >
-              {pending ? "Запуск…" : "Загрузить"}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={pending}
-              onClick={() => setConfirm(false)}
-            >
-              Отмена
-            </Button>
-          </div>
-        </div>
-      ) : null}
+      <p className="text-sm">
+        Источник без сохранённого секрета пропускается. Finenumbers секрета не требует.
+      </p>
       {view.queue ? <p className="text-sm">{view.queue}</p> : null}
       {view.banner ? <p className="text-sm">{view.banner}</p> : null}
       {error ? <p className="text-destructive text-sm">{error}</p> : null}

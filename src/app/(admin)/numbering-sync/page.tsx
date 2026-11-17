@@ -14,6 +14,8 @@ import { getExolveSyncView } from "@/modules/exolve/service";
 import { ExolveSyncForm } from "@/modules/exolve/ui/exolve-sync-form";
 import { getVoximplantSyncView } from "@/modules/voximplant/service";
 import { VoximplantSyncForm } from "@/modules/voximplant/ui/voximplant-sync-form";
+import { getFinenumbersSyncView } from "@/modules/finenumbers/service";
+import { FinenumbersSyncForm } from "@/modules/finenumbers/ui/finenumbers-sync-form";
 import { getMcnSyncView } from "@/modules/mcn/service";
 import { McnSyncForm } from "@/modules/mcn/ui/mcn-sync-form";
 
@@ -21,7 +23,7 @@ export const dynamic = "force-dynamic";
 
 export default async function NumberingSyncPage() {
   await requirePagePermission("settings:write");
-  const [initial, runexis, uis, aurora, exolve, voximplant, mcn, screen] =
+  const [initial, runexis, uis, aurora, exolve, voximplant, mcn, finenumbers, screen] =
     await Promise.all([
       getNumberingSyncView(),
       getRunexisSyncView(),
@@ -30,6 +32,7 @@ export default async function NumberingSyncPage() {
       getExolveSyncView(),
       getVoximplantSyncView(),
       getMcnSyncView(),
+      getFinenumbersSyncView(),
       readSyncScreen(),
     ]);
   return (
@@ -58,6 +61,8 @@ export default async function NumberingSyncPage() {
         <VoximplantSyncForm initial={voximplant} />
         <hr className="border-border" />
         <McnSyncForm initial={mcn} />
+        <hr className="border-border" />
+        <FinenumbersSyncForm initial={finenumbers} />
       </div>
     </ChainProvider>
   );

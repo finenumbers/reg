@@ -180,6 +180,18 @@ export async function register() {
     }
 
     try {
+      const { armNumberingSyncStop } = await import("@/modules/numbering-sync/lease");
+      const { reclaimFinenumbersLease } = await import("@/modules/finenumbers/reclaim");
+      armNumberingSyncStop();
+      await reclaimFinenumbersLease();
+      logger.info("finenumbers.sync.reclaim");
+    } catch (error) {
+      logger.error("finenumbers.sync.reclaim.failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    try {
       const { releaseFalselyParkedMisses } =
         await import("@/modules/voipmonitor/release-parked");
       const released = await releaseFalselyParkedMisses();

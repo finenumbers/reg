@@ -15,7 +15,8 @@ export type ProviderKey =
   | "aurora"
   | "exolve"
   | "voximplant"
-  | "mcn";
+  | "mcn"
+  | "finenumbers";
 
 export type ParsedProvider = {
   epoch: number;
@@ -37,6 +38,7 @@ const PROVIDER_KEYS: readonly ProviderKey[] = [
   "exolve",
   "voximplant",
   "mcn",
+  "finenumbers",
 ];
 
 export function emptyParsed(): ParsedSnapshot {

@@ -90,7 +90,7 @@ describe("numbering chain text", () => {
     });
     expect(view.cards.mcn).toBe("Маски, свободные: осталось 234150 из 235150.");
     expect(view.banner).toBeNull();
-    expect(view.queue).toBe("Маски, MCN Telecom. Дальше: MCN Telecom.");
+    expect(view.queue).toBe("Маски, MCN Telecom. Дальше: MCN Telecom, Finenumbers.");
   });
 
   it("shows a tariff remainder above the cards", () => {
@@ -103,7 +103,7 @@ describe("numbering chain text", () => {
     expect(view.banner).toBe("Тариф, свободные: осталось 3000 из 4000.");
     expect(view.cards).toEqual({});
     expect(view.queue).toBe(
-      "Тариф. Дальше: SipOut, Runexis, UIS, Aurora Telecom, MTS Exolve, Voximplant, MCN Telecom.",
+      "Тариф. Дальше: SipOut, Runexis, UIS, Aurora Telecom, MTS Exolve, Voximplant, MCN Telecom, Finenumbers.",
     );
   });
 
@@ -117,7 +117,7 @@ describe("numbering chain text", () => {
     expect(view.banner).toBe("Клиенты, купленные: осталось 30 из 40.");
     expect(view.cards).toEqual({});
     expect(view.queue).toBe(
-      "Клиенты, купленные. Дальше: Runexis, UIS, Aurora Telecom, MTS Exolve, Voximplant, MCN Telecom.",
+      "Клиенты, купленные. Дальше: Runexis, UIS, Aurora Telecom, MTS Exolve, Voximplant, MCN Telecom, Finenumbers.",
     );
   });
 
@@ -136,7 +136,7 @@ describe("numbering chain text", () => {
       progress: null,
     });
     expect(reading.queue).toBe(
-      "Цепочка: Runexis. Дальше: UIS, Aurora Telecom, MTS Exolve, Voximplant, MCN Telecom.",
+      "Цепочка: Runexis. Дальше: UIS, Aurora Telecom, MTS Exolve, Voximplant, MCN Telecom, Finenumbers.",
     );
   });
 });

@@ -39,6 +39,12 @@ const COLUMNS: readonly {
     parsed: "voximplant_parsed",
   },
   { key: "mcn", epoch: "mcn_epoch", done: "mcn_done", parsed: "mcn_parsed" },
+  {
+    key: "finenumbers",
+    epoch: "finenumbers_epoch",
+    done: "finenumbers_done",
+    parsed: "finenumbers_parsed",
+  },
 ];
 
 export async function readParsedSnapshot(): Promise<ParsedSnapshot> {
@@ -51,7 +57,8 @@ export async function readParsedSnapshot(): Promise<ParsedSnapshot> {
       aurora_epoch, aurora_done, aurora_parsed,
       exolve_epoch, exolve_done, exolve_parsed,
       voximplant_epoch, voximplant_done, voximplant_parsed,
-      mcn_epoch, mcn_done, mcn_parsed
+      mcn_epoch, mcn_done, mcn_parsed,
+      finenumbers_epoch, finenumbers_done, finenumbers_parsed
     FROM numbering_catalog_state
     WHERE id = 1
   `;

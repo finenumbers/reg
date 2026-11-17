@@ -1,7 +1,13 @@
-# Current Phase — production (v1.310.0)
+# Current Phase — production (v1.311.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, purchased numbers, numbering sync, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-17
+
+## v1.311.0 — Finenumbers source, no DID
+
+The migration `20261117150000_finenumbers_source` adds the Finenumbers lease, draft, and epoch, and a PSTN range snapshot. It drops `didBaseUrl`, `didApiTokenCiphertext`, `geography_did_sources`, and `geography_did_state`. It does not rewrite catalog rows and does not scan the CDR journal. The migration is label-free. `lock_timeout` is 15 seconds. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before migrate. Let migrate finish, then start one new app. If migrate stops on `lock_timeout`, do not start the new app. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged.
+
+Finenumbers is last on «Синхронизация» and last in the 22:00 chain. It has no secret. «Загрузить» and «Загрузить все» start immediately. Enter does not start a load. A source without a saved secret is still skipped. The walk reads PSTN ranges of INN 5406978329, expands each range, and marks a number purchased when it is already in «Телефонные номера». The previous Finenumbers rows stay unless the counts match. «Источник» is the purchased provider as stored. One key with several providers stays empty. «Нет в РТУ» is a purchased number absent from the phone snapshot. «Оператор связи» and «География» are filled from the PSTN range when exactly one range covers the number. A failed range read keeps the previous cells.
 
 ## v1.310.0 — Sync page counts
 

@@ -11,9 +11,9 @@ describe("geography provider label", () => {
     expect(displayProviderCode("other")).toBe("other");
   });
 
-  it("shows Finenumbers as a manual source", () => {
-    expect(geographyProviderLabel("finenumbers")).toBe("Вручную");
-    expect(geographyProviderLabel("Finenumbers")).toBe("Вручную");
+  it("shows Finenumbers as stored", () => {
+    expect(geographyProviderLabel("finenumbers")).toBe("Finenumbers");
+    expect(geographyProviderLabel("Finenumbers")).toBe("Finenumbers");
     expect(geographyProviderLabel("mcn")).toBe("MCN Telecom");
   });
 });

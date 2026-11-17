@@ -169,19 +169,9 @@ Probe from `reg-app-1` (no curl in the image). `401` without a key means the pat
 node -e 'fetch("http://pstn_app:5555/api/v1/lookup?phone=4996660000").then(async r=>console.log("status",r.status,await r.text())).catch(e=>console.error(e.cause||e))'
 ```
 
-## 8. DID on the same Docker host
+## 8. DID
 
-The `app` container must not call the **public** DID HTTPS origin (`https://did.finenumbers.com`). That resolves to the host’s public IP. Docker hairpin NAT typically fails: Node `fetch` waits, then `UND_ERR_CONNECT_TIMEOUT` / UI «fetch failed». The same URL works from a laptop.
-
-The purchased catalog is read through the DID UI proxy, **`did-frontend`** port **3000**, which is already on `proxy`. Settings → DID → URL: **`http://did-frontend:3000`**. Save the `ADMIN_API_TOKEN`, then **Check connection**. The check reads one purchased row. «Свободные номера» reads the local `free_numbers` table and does not call DID. REG only sends GET for `/numbers/purchased`.
-
-Do **not** clear the URL field. An empty save stores the default `https://did.finenumbers.com` and the timeout comes back.
-
-Probe from `reg-app-1` (no curl in the image). `401` without a token means the path works:
-
-```bash
-node -e 'fetch("http://did-frontend:3000/api/backend/api/v1/numbers/purchased?page=1&page_size=1").then(async r=>console.log("status",r.status,await r.text())).catch(e=>console.error(e.cause||e))'
-```
+v1.311.0 does not call `did.finenumbers.com`. Settings has no DID URL and no DID token. Those columns and the DID snapshot tables are dropped. «Источник» on «Управление РТУ» is read from purchased numbers. Stop the old `app` before migrate.
 
 ## 9. Upgrades / redeploy
 

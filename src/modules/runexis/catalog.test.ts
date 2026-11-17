@@ -286,8 +286,8 @@ describe("runexis showcase", () => {
     expect(text).toContain("DELETE FROM runexis_sync_stage");
   });
 
-  it("locks SipOut before Runexis, UIS, Aurora Telecom, MTS Exolve, Voximplant, and MCN Telecom", () => {
-    expect(RESPLIT_LOCKS).toHaveLength(7);
+  it("locks SipOut before Runexis, UIS, Aurora Telecom, MTS Exolve, Voximplant, MCN Telecom, and Finenumbers", () => {
+    expect(RESPLIT_LOCKS).toHaveLength(8);
     expect(RESPLIT_LOCKS[0]).toContain("numbering_sync_state");
     expect(RESPLIT_LOCKS[0]).not.toContain("runexis_sync_state");
     expect(RESPLIT_LOCKS[1]).toContain("runexis_sync_state");
@@ -301,6 +301,8 @@ describe("runexis showcase", () => {
     expect(RESPLIT_LOCKS[5]).toContain("voximplant_sync_state");
     expect(RESPLIT_LOCKS[5]).not.toContain("mcn_sync_state");
     expect(RESPLIT_LOCKS[6]).toContain("mcn_sync_state");
+    expect(RESPLIT_LOCKS[6]).not.toContain("finenumbers_sync_state");
+    expect(RESPLIT_LOCKS[7]).toContain("finenumbers_sync_state");
     expect(RESPLIT_LOCKS[0]).toContain("FOR UPDATE");
     expect(RESPLIT_LOCKS[1]).toContain("FOR UPDATE");
     expect(RESPLIT_LOCKS[2]).toContain("FOR UPDATE");
@@ -308,6 +310,7 @@ describe("runexis showcase", () => {
     expect(RESPLIT_LOCKS[4]).toContain("FOR UPDATE");
     expect(RESPLIT_LOCKS[5]).toContain("FOR UPDATE");
     expect(RESPLIT_LOCKS[6]).toContain("FOR UPDATE");
+    expect(RESPLIT_LOCKS[7]).toContain("FOR UPDATE");
   });
 
   it("strips a secret from the stage log", () => {

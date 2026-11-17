@@ -6,6 +6,8 @@ import { cancelAuroraSync, startAuroraSync } from "@/modules/aurora/service";
 import { isAuroraActive } from "@/modules/aurora/lease";
 import { cancelExolveSync, startExolveSync } from "@/modules/exolve/service";
 import { isExolveActive } from "@/modules/exolve/lease";
+import { cancelFinenumbersSync, startFinenumbersSync } from "@/modules/finenumbers/service";
+import { isFinenumbersActive } from "@/modules/finenumbers/lease";
 import { cancelMcnSync, startMcnSync } from "@/modules/mcn/service";
 import { isMcnActive } from "@/modules/mcn/lease";
 import { chainSlot } from "@/modules/numbering-chain/gate";
@@ -83,6 +85,12 @@ const RUNNERS: SourceRun[] = [
     start: (actor) => startMcnSync(actor, { fromChain: true }),
     cancel: () => cancelMcnSync(),
   },
+  {
+    id: "finenumbers",
+    active: isFinenumbersActive,
+    start: (actor) => startFinenumbersSync(actor, { fromChain: true }),
+    cancel: () => cancelFinenumbersSync(),
+  },
 ];
 
 function sleep(ms: number): Promise<void> {
@@ -114,6 +122,8 @@ function stampQuery(id: ChainSourceId): Prisma.Sql {
       return Prisma.sql`SELECT last_finished_at AS at, last_error AS error FROM voximplant_sync_state WHERE id = 1`;
     case "mcn":
       return Prisma.sql`SELECT last_finished_at AS at, last_error AS error FROM mcn_sync_state WHERE id = 1`;
+    case "finenumbers":
+      return Prisma.sql`SELECT last_finished_at AS at, last_error AS error FROM finenumbers_sync_state WHERE id = 1`;
   }
 }
 

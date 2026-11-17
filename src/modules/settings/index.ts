@@ -6,7 +6,6 @@ export {
   replaceSshPrivateKey,
   replaceGeoipApiKey,
   replacePstnApiKey,
-  replaceDidApiToken,
   replaceFtpPassword,
   replaceVoipmonitorPassword,
   replaceRtuSoapPassword,

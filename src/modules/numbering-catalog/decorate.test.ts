@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   AURORA_EPOCH_SQL,
   EXOLVE_EPOCH_SQL,
+  FINENUMBERS_EPOCH_SQL,
   MCN_EPOCH_SQL,
   VOXIMPLANT_EPOCH_SQL,
   SIPOUT_EPOCH_SQL,
@@ -120,8 +121,9 @@ describe("catalog decorate", () => {
     const free = flattenSql(freeSql);
     expect(free).toContain("sale = computed.mask_price");
     expect(free).toContain("rtu_mask_lookup");
-    expect(free).not.toMatch(/operator\s*=/);
-    expect(free).not.toMatch(/geography\s*=/);
+    expect(free).toContain("pstn_range_snapshot");
+    expect(free).toContain("operator = COALESCE(computed.pstn_operator, n.operator)");
+    expect(free).toContain("geography = COALESCE(computed.pstn_geography, n.geography)");
     expect(free).not.toContain("provider =");
 
     const scoped = flattenSql(freeMaskBatchSql("", "SipOut"));
@@ -131,6 +133,7 @@ describe("catalog decorate", () => {
     expect(flattenSql(providerLiteral("MTS Exolve"))).toBe("'MTS Exolve'");
     expect(flattenSql(providerLiteral("Voximplant"))).toBe("'Voximplant'");
     expect(flattenSql(providerLiteral("MCN Telecom"))).toBe("'MCN Telecom'");
+    expect(flattenSql(providerLiteral("Finenumbers"))).toBe("'Finenumbers'");
     expect(() => providerLiteral("mcn")).toThrow(/источник/);
 
     const purchased = flattenSql(purchasedFullBatchSql("", "UIS"));
@@ -172,6 +175,7 @@ describe("catalog decorate", () => {
       ["src/modules/exolve/publish.ts", "EXOLVE_EPOCH_SQL", EXOLVE_EPOCH_SQL],
       ["src/modules/voximplant/publish.ts", "VOXIMPLANT_EPOCH_SQL", VOXIMPLANT_EPOCH_SQL],
       ["src/modules/mcn/publish.ts", "MCN_EPOCH_SQL", MCN_EPOCH_SQL],
+      ["src/modules/finenumbers/publish.ts", "FINENUMBERS_EPOCH_SQL", FINENUMBERS_EPOCH_SQL],
     ] as const;
     for (const [file, symbol, sql] of files) {
       const text = readFileSync(path.join(process.cwd(), file), "utf8");

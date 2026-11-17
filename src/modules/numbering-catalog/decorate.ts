@@ -10,6 +10,7 @@ import { prisma } from "@/lib/db";
 import { isLockTimeout } from "@/modules/numbering-sync/db-retry";
 import { SyncBusy } from "@/modules/numbering-sync/errors";
 import { RESPLIT_LOCKS } from "@/modules/numbering-sync/locks";
+import { refreshPstnRangeSnapshot } from "@/modules/numbering-catalog/pstn-ranges";
 import { cityAlertSql, cityLabelSql } from "@/modules/rtu/sql";
 
 const ELEVEN = "^[78][0-9]{10}$";
@@ -41,6 +42,7 @@ const STAGE_TABLES = new Set([
   "exolve_sync_stage",
   "voximplant_sync_stage",
   "mcn_sync_stage",
+  "finenumbers_sync_stage",
 ]);
 
 const PROVIDERS = [
@@ -51,6 +53,7 @@ const PROVIDERS = [
   "MTS Exolve",
   "Voximplant",
   "MCN Telecom",
+  "Finenumbers",
 ] as const;
 export type CatalogProvider = (typeof PROVIDERS)[number];
 export type DecorateScope = "full" | "client";
@@ -69,6 +72,8 @@ export const VOXIMPLANT_EPOCH_SQL =
   "UPDATE numbering_catalog_state SET voximplant_epoch = voximplant_epoch + 1, voximplant_parsed = 0 WHERE id = 1";
 export const MCN_EPOCH_SQL =
   "UPDATE numbering_catalog_state SET mcn_epoch = mcn_epoch + 1, mcn_parsed = 0 WHERE id = 1";
+export const FINENUMBERS_EPOCH_SQL =
+  "UPDATE numbering_catalog_state SET finenumbers_epoch = finenumbers_epoch + 1, finenumbers_parsed = 0 WHERE id = 1";
 
 type EpochRow = {
   sipout_epoch: number;
@@ -85,6 +90,8 @@ type EpochRow = {
   voximplant_done: number;
   mcn_epoch: number;
   mcn_done: number;
+  finenumbers_epoch: number;
+  finenumbers_done: number;
   decorate_generation: number;
 };
 
@@ -101,7 +108,8 @@ function isProvider(value: string): value is CatalogProvider {
     value === "Aurora Telecom" ||
     value === "MTS Exolve" ||
     value === "Voximplant" ||
-    value === "MCN Telecom"
+    value === "MCN Telecom" ||
+    value === "Finenumbers"
   );
 }
 
@@ -122,6 +130,8 @@ export function providerLiteral(provider: string): Prisma.Sql {
       return Prisma.sql`'Voximplant'`;
     case "MCN Telecom":
       return Prisma.sql`'MCN Telecom'`;
+    case "Finenumbers":
+      return Prisma.sql`'Finenumbers'`;
     default:
       throw new Error("Некорректный источник.");
   }
@@ -143,6 +153,8 @@ function epochNames(provider: CatalogProvider): { epoch: string; done: string } 
       return { epoch: "voximplant_epoch", done: "voximplant_done" };
     case "MCN Telecom":
       return { epoch: "mcn_epoch", done: "mcn_done" };
+    case "Finenumbers":
+      return { epoch: "finenumbers_epoch", done: "finenumbers_done" };
   }
 }
 
@@ -154,6 +166,7 @@ const PARSED_COLUMN: Record<CatalogProvider, string> = {
   "MTS Exolve": "exolve_parsed",
   Voximplant: "voximplant_parsed",
   "MCN Telecom": "mcn_parsed",
+  Finenumbers: "finenumbers_parsed",
 };
 
 const CLEAR_PARSED_SQL = Prisma.sql`
@@ -164,6 +177,7 @@ const CLEAR_PARSED_SQL = Prisma.sql`
   exolve_parsed = 0,
   voximplant_parsed = 0,
   mcn_parsed = 0,
+  finenumbers_parsed = 0,
   parsed_pass = ''
 `;
 
@@ -268,6 +282,8 @@ function pair(row: EpochRow, provider: CatalogProvider): { epoch: number; done: 
       return { epoch: row.voximplant_epoch, done: row.voximplant_done };
     case "MCN Telecom":
       return { epoch: row.mcn_epoch, done: row.mcn_done };
+    case "Finenumbers":
+      return { epoch: row.finenumbers_epoch, done: row.finenumbers_done };
   }
 }
 
@@ -318,6 +334,35 @@ function providerWhere(provider: CatalogProvider | null): Prisma.Sql {
   if (!provider) return Prisma.empty;
   return Prisma.sql`AND provider = ${providerLiteral(provider)}`;
 }
+
+/** Exactly one covering range writes the cells. Zero or several leave them. */
+function pstnLateral(e164: Prisma.Sql): Prisma.Sql {
+  return Prisma.sql`
+    LEFT JOIN LATERAL (
+      SELECT
+        count(*)::int AS hits,
+        min(s.operator) AS operator,
+        min(s.gar_territory) AS geography
+      FROM pstn_range_snapshot s
+      WHERE s.abc = substring(${e164} from 2 for 3)
+        AND CASE
+          WHEN ${e164} ~ '^7[0-9]{10}$'
+          THEN substring(${e164} from 5)::int BETWEEN s.range_start AND s.range_end
+          ELSE FALSE
+        END
+    ) pstn ON TRUE
+  `;
+}
+
+const PSTN_COLUMNS = Prisma.sql`
+  CASE WHEN pstn.hits = 1 THEN btrim(pstn.operator) ELSE NULL END AS pstn_operator,
+  CASE WHEN pstn.hits = 1 THEN btrim(pstn.geography) ELSE NULL END AS pstn_geography
+`;
+
+const PSTN_ASSIGN = Prisma.sql`
+  operator = COALESCE(computed.pstn_operator, n.operator),
+  geography = COALESCE(computed.pstn_geography, n.geography)
+`;
 
 /** Tariff split for one draft batch. Mask and client stay empty until the pass. */
 export function fillStageSplitSql(
@@ -427,7 +472,8 @@ export function freeMaskBatchSql(
         COALESCE(hit.mask, '') AS mask,
         COALESCE(hit.mask_type, '') AS mask_type,
         COALESCE(hit.purchase, '') AS mask_price,
-        COALESCE(hit.premium, '') AS premium
+        COALESCE(hit.premium, '') AS premium,
+        ${PSTN_COLUMNS}
       FROM batch
       LEFT JOIN LATERAL cdr_tariff_geo(batch.e164) AS geo ON TRUE
       LEFT JOIN LATERAL geography_digit_split(geo.abc, geo.numbering, batch.e164) AS split ON TRUE
@@ -437,6 +483,7 @@ export function freeMaskBatchSql(
         Prisma.sql`COALESCE(split.abc, '')`,
         Prisma.sql`COALESCE(split.telephone, '')`,
       )}
+      ${pstnLateral(Prisma.sql`batch.e164`)}
     ),
     updated AS (
       UPDATE free_numbers AS n
@@ -444,7 +491,8 @@ export function freeMaskBatchSql(
         mask = computed.mask,
         "maskType" = computed.mask_type,
         sale = computed.mask_price,
-        premium = computed.premium
+        premium = computed.premium,
+        ${PSTN_ASSIGN}
       FROM computed
       WHERE n.id = computed.id
       RETURNING n.id, n.provider
@@ -478,7 +526,8 @@ export function purchasedFullBatchSql(
         COALESCE(hit.mask_type, '') AS mask_type,
         COALESCE(hit.purchase, '') AS mask_price,
         COALESCE(hit.premium, '') AS premium,
-        COALESCE(exact_client.client, national_client.client, '') AS client
+        COALESCE(exact_client.client, national_client.client, '') AS client,
+        ${PSTN_COLUMNS}
       FROM batch
       LEFT JOIN LATERAL cdr_tariff_geo(batch.e164) AS geo ON TRUE
       LEFT JOIN LATERAL geography_digit_split(geo.abc, geo.numbering, batch.e164) AS split ON TRUE
@@ -488,6 +537,7 @@ export function purchasedFullBatchSql(
         Prisma.sql`COALESCE(split.abc, '')`,
         Prisma.sql`COALESCE(split.telephone, '')`,
       )}
+      ${pstnLateral(Prisma.sql`batch.e164`)}
       LEFT JOIN exact_client ON exact_client.phone = batch.e164
       LEFT JOIN national_client
         ON exact_client.client IS NULL
@@ -501,7 +551,8 @@ export function purchasedFullBatchSql(
         "maskType" = computed.mask_type,
         purchase = computed.mask_price,
         premium = computed.premium,
-        client = computed.client
+        client = computed.client,
+        ${PSTN_ASSIGN}
       FROM computed
       WHERE n.id = computed.id
       RETURNING n.id, n.provider
@@ -544,6 +595,8 @@ export function purchasedClientBatchSql(afterId: string): Prisma.Sql {
 }
 
 type Debt = EpochRow & {
+  pstn_range_epoch: number;
+  pstn_range_done: number;
   resplit_epoch: number;
   resplit_done: number;
   mask_epoch: number;
@@ -581,6 +634,8 @@ const DEBT_SQL = Prisma.sql`
     exolve_epoch, exolve_done,
     voximplant_epoch, voximplant_done,
     mcn_epoch, mcn_done,
+    finenumbers_epoch, finenumbers_done,
+    pstn_range_epoch, pstn_range_done,
     decorate_generation,
     resplit_epoch, resplit_done,
     mask_epoch, mask_done,
@@ -606,6 +661,10 @@ function readDebtRow(row: Record<string, unknown>): Debt {
     voximplant_done: asCount(row.voximplant_done),
     mcn_epoch: asCount(row.mcn_epoch),
     mcn_done: asCount(row.mcn_done),
+    finenumbers_epoch: asCount(row.finenumbers_epoch),
+    finenumbers_done: asCount(row.finenumbers_done),
+    pstn_range_epoch: asCount(row.pstn_range_epoch),
+    pstn_range_done: asCount(row.pstn_range_done),
     decorate_generation: asCount(row.decorate_generation),
     resplit_epoch: asCount(row.resplit_epoch),
     resplit_done: asCount(row.resplit_done),
@@ -626,6 +685,35 @@ async function readDebt(): Promise<Debt | null> {
   return row ? readDebtRow(row) : null;
 }
 
+export function pstnBatchSql(
+  table: "free_numbers" | "purchased_numbers",
+  afterId: string,
+): Prisma.Sql {
+  const relation = Prisma.raw(table);
+  return Prisma.sql`
+    WITH batch AS (
+      SELECT id, e164
+      FROM ${relation}
+      WHERE id > ${afterId}
+      ORDER BY id
+      LIMIT ${BATCH}
+    ),
+    computed AS (
+      SELECT batch.id, ${PSTN_COLUMNS}
+      FROM batch
+      ${pstnLateral(Prisma.sql`batch.e164`)}
+    ),
+    updated AS (
+      UPDATE ${relation} AS n
+      SET ${PSTN_ASSIGN}
+      FROM computed
+      WHERE n.id = computed.id
+      RETURNING n.id
+    )
+    SELECT id FROM updated ORDER BY id
+  `;
+}
+
 function workSql(
   phase: string,
   afterId: string,
@@ -639,6 +727,8 @@ function workSql(
   if (phase === "purchased" || phase === "bootstrap-purchased" || phase === "provider-purchased") {
     return purchasedFullBatchSql(afterId, provider);
   }
+  if (phase === "pstn-free") return pstnBatchSql("free_numbers", afterId);
+  if (phase === "pstn-purchased") return pstnBatchSql("purchased_numbers", afterId);
   return purchasedClientBatchSql(afterId);
 }
 
@@ -656,6 +746,9 @@ function cursorGuard(phase: string, epoch: number, provider: string): Prisma.Sql
     if (!isProvider(provider)) throw new Error("Некорректный источник.");
     const names = epochNames(provider);
     return Prisma.sql`AND ${Prisma.raw(names.epoch)} = ${epoch}`;
+  }
+  if (phase === "pstn-free" || phase === "pstn-purchased") {
+    return Prisma.sql`AND pstn_range_epoch = ${epoch}`;
   }
   if (phase === "client") return Prisma.sql`AND client_epoch = ${epoch}`;
   throw new Error("Некорректная фаза.");
@@ -718,6 +811,7 @@ function countWhere(phase: string, provider: CatalogProvider | null): Prisma.Sql
     phase === "purchased" ||
     phase === "bootstrap-purchased" ||
     phase === "provider-purchased" ||
+    phase === "pstn-purchased" ||
     phase === "client"
       ? "purchased_numbers"
       : "free_numbers";
@@ -841,6 +935,18 @@ async function walkPhase(run: PhaseRun): Promise<"done" | "moved"> {
   }
 }
 
+async function markPstnDone(seen: number): Promise<void> {
+  await prisma.$executeRaw`
+    UPDATE numbering_catalog_state
+    SET pstn_range_done = ${seen},
+        cursor_phase = CASE WHEN cursor_phase IN ('pstn-free', 'pstn-purchased') THEN '' ELSE cursor_phase END,
+        cursor_after = CASE WHEN cursor_phase IN ('pstn-free', 'pstn-purchased') THEN '' ELSE cursor_after END,
+        cursor_epoch = CASE WHEN cursor_phase IN ('pstn-free', 'pstn-purchased') THEN 0 ELSE cursor_epoch END,
+        cursor_provider = CASE WHEN cursor_phase IN ('pstn-free', 'pstn-purchased') THEN '' ELSE cursor_provider END
+    WHERE id = 1 AND pstn_range_epoch = ${seen}
+  `;
+}
+
 async function markResplitDone(seen: number): Promise<void> {
   await prisma.$executeRaw`
     UPDATE numbering_catalog_state
@@ -915,6 +1021,7 @@ async function markSeen(row: EpochRow): Promise<void> {
 }
 
 async function settleDebt(): Promise<void> {
+  await refreshPstnRangeSnapshot();
   for (;;) {
     const debt = await readDebt();
     if (!debt) return;
@@ -981,6 +1088,24 @@ async function settleDebt(): Promise<void> {
       if (purchased === "moved") continue;
       await markMaskDone(debt.mask_epoch);
       await markSeen(debt);
+      continue;
+    }
+    if (debt.pstn_range_epoch > debt.pstn_range_done) {
+      const free = await walkPhase({
+        phase: "pstn-free",
+        epoch: debt.pstn_range_epoch,
+        provider: null,
+        kind: "free",
+      });
+      if (free === "moved") continue;
+      const purchased = await walkPhase({
+        phase: "pstn-purchased",
+        epoch: debt.pstn_range_epoch,
+        provider: null,
+        kind: "purchased",
+      });
+      if (purchased === "moved") continue;
+      await markPstnDone(debt.pstn_range_epoch);
       continue;
     }
     const behind = PROVIDERS.find((provider) => {
