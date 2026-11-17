@@ -23,6 +23,7 @@ import type { NumberingRow } from "@/modules/numbering-resource/types";
 const ABC = /^\d{3}$/;
 const LOCAL_MAX = 9_999_999;
 const INSERT_CHUNK = 500;
+const SWAP_TX = { maxWait: 10_000, timeout: 600_000 } as const;
 
 function keepRange(row: NumberingRow): { kind: "keep" } | { kind: "skip" } {
   if (!ABC.test(row.abc)) return { kind: "skip" };
@@ -70,6 +71,7 @@ async function swap(loadedAt: string): Promise<void> {
       SELECT abc, range_start, range_end, operator, gar_territory
       FROM pstn_range_load
     `;
+    await tx.$executeRaw`ANALYZE pstn_range_snapshot`;
     await tx.$executeRaw`TRUNCATE pstn_range_load`;
     const state = await tx.$executeRaw`
       UPDATE pstn_range_state SET loaded_at = ${loadedAt} WHERE id = 1
@@ -80,7 +82,7 @@ async function swap(loadedAt: string): Promise<void> {
       WHERE id = 1
     `;
     if (state !== 1 || epoch !== 1) throw new Error("Не удалось сохранить диапазоны.");
-  });
+  }, SWAP_TX);
 }
 
 export type SnapshotRefresh = "ready" | "yielded";
@@ -110,8 +112,9 @@ async function refresh(stop?: () => Promise<boolean>): Promise<SnapshotRefresh> 
   try {
     await insertLoad(read.items);
     await swap(loadedAt);
-  } catch {
+  } catch (error) {
     await prisma.$executeRaw`TRUNCATE pstn_range_load`.catch(() => undefined);
+    throw error;
   }
   return "ready";
 }

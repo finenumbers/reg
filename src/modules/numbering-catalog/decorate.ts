@@ -335,21 +335,30 @@ function providerWhere(provider: CatalogProvider | null): Prisma.Sql {
   return Prisma.sql`AND provider = ${providerLiteral(provider)}`;
 }
 
-/** Exactly one covering range writes the cells. Zero or several leave them. */
+/**
+ * Exactly one covering range writes the cells. Zero or several leave them.
+ * The cast stays inside CASE. The span comparison is the GiST index expression.
+ */
 function pstnLateral(e164: Prisma.Sql): Prisma.Sql {
   return Prisma.sql`
+    LEFT JOIN LATERAL (
+      SELECT
+        CASE
+          WHEN ${e164} ~ '^7[0-9]{10}$' THEN substring(${e164} from 2 for 3)
+        END AS abc_key,
+        CASE
+          WHEN ${e164} ~ '^7[0-9]{10}$' THEN substring(${e164} from 5)::int
+        END AS local_key
+    ) digits ON TRUE
     LEFT JOIN LATERAL (
       SELECT
         count(*)::int AS hits,
         min(s.operator) AS operator,
         min(s.gar_territory) AS geography
       FROM pstn_range_snapshot s
-      WHERE s.abc = substring(${e164} from 2 for 3)
-        AND CASE
-          WHEN ${e164} ~ '^7[0-9]{10}$'
-          THEN substring(${e164} from 5)::int BETWEEN s.range_start AND s.range_end
-          ELSE FALSE
-        END
+      WHERE digits.local_key IS NOT NULL
+        AND s.abc = digits.abc_key
+        AND int4range(s.range_start, s.range_end, '[]') @> digits.local_key
     ) pstn ON TRUE
   `;
 }

@@ -1,7 +1,13 @@
-# Current Phase — production (v1.315.0)
+# Current Phase — production (v1.316.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, purchased numbers, numbering sync, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-17
+
+## v1.316.0 — Range lookup uses the span index
+
+The migration `20261117180000_pstn_range_span` adds `btree_gist` and a GiST index on the stored range snapshot. It does not rewrite catalog rows and does not scan the CDR journal. The migration is label-free. `lock_timeout` is 15 seconds. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app, let migrate finish, then start one new app. If migrate stops on `lock_timeout` or the extension, do not start the new app. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged.
+
+A free or purchased batch still writes the tariff cells, the mask, and the mask type. Operator and geography are written when exactly one stored range covers the number. The local-part cast stays inside `CASE`. «Разобрано» climbs with the committed batches. A failed snapshot swap leaves the previous snapshot. The sentence under «Загрузить все» on «Синхронизация» is gone.
 
 ## v1.315.0 — Parse before the range download
 

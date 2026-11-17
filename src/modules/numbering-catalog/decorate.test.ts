@@ -24,6 +24,7 @@ import {
   resplitBatchSql,
   saveCursorSql,
   purchasedClientBatchSql,
+  pstnBatchSql,
   purchasedFullBatchSql,
 } from "@/modules/numbering-catalog/decorate";
 import { FREE_COPY_SQL, PURCHASED_COPY_SQL } from "@/modules/numbering-sync/sql";
@@ -349,5 +350,59 @@ describe("catalog decorate", () => {
     expect(snapshotAfterDebt({ kind: "resplit" })).toBe(false);
     expect(snapshotAfterDebt({ kind: "pstn" })).toBe(true);
     expect(snapshotAfterDebt({ kind: "idle" })).toBe(true);
+  });
+
+  it("looks up a covering range by the span index", () => {
+    const batches = [
+      flattenSql(freeMaskBatchSql("", "SipOut")),
+      flattenSql(purchasedFullBatchSql("", "UIS")),
+      flattenSql(pstnBatchSql("free_numbers", "")),
+      flattenSql(pstnBatchSql("purchased_numbers", "")),
+    ];
+    for (const sql of batches) {
+      expect(sql).toContain("int4range(s.range_start, s.range_end, '[]') @>");
+      expect(sql).toContain("digits.local_key IS NOT NULL");
+      expect(sql).toContain("s.abc = digits.abc_key");
+      expect(sql).not.toContain("BETWEEN");
+      const castAt = sql.indexOf("from 5)::int");
+      expect(castAt).toBeGreaterThan(0);
+      const before = sql.slice(0, castAt);
+      expect(before.lastIndexOf("CASE")).toBeGreaterThan(before.lastIndexOf("END"));
+    }
+    const free = batches[0] ?? "";
+    expect(free).toContain("abc = computed.abc");
+    expect(free).toContain("sale = computed.mask_price");
+    expect(free).toContain("rtu_mask_lookup");
+    expect(free).toContain("operator = COALESCE(computed.pstn_operator, n.operator)");
+    const purchased = batches[1] ?? "";
+    expect(purchased).toContain("abc = computed.abc");
+    expect(purchased).toContain("purchase = computed.mask_price");
+    expect(purchased).toContain("client = computed.client");
+    const pstn = batches[2] ?? "";
+    expect(pstn).not.toContain("rtu_mask_lookup");
+    expect(pstn).toContain("operator = COALESCE(computed.pstn_operator, n.operator)");
+
+    const migration = readFileSync(
+      path.join(
+        process.cwd(),
+        "prisma/migrations/20261117180000_pstn_range_span/migration.sql",
+      ),
+      "utf8",
+    );
+    expect(migration).toContain("CREATE EXTENSION IF NOT EXISTS btree_gist");
+    expect(migration).toContain("USING gist");
+    expect(migration).toContain('"abc"');
+    expect(migration).toContain("int4range(\"range_start\", \"range_end\", '[]')");
+    expect(migration).toContain("ANALYZE \"pstn_range_snapshot\"");
+    expect(migration).toContain("lock_timeout = '15s'");
+    expect(migration).not.toMatch(/\b(UPDATE|INSERT INTO|DELETE FROM)\b/);
+
+    const swap = readFileSync(
+      path.join(process.cwd(), "src/modules/numbering-catalog/pstn-ranges.ts"),
+      "utf8",
+    );
+    expect(swap).toContain("timeout: 600_000");
+    expect(swap).toContain("ANALYZE pstn_range_snapshot");
+    expect(swap).toContain("throw error");
   });
 });

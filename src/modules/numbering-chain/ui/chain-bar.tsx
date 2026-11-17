@@ -69,9 +69,6 @@ export function ChainBar() {
           </Button>
         ) : null}
       </div>
-      <p className="text-sm">
-        Источник без сохранённого секрета пропускается. Finenumbers секрета не требует.
-      </p>
       {view.queue ? <p className="text-sm">{view.queue}</p> : null}
       {view.banner ? <p className="text-sm">{view.banner}</p> : null}
       {error ? <p className="text-destructive text-sm">{error}</p> : null}
