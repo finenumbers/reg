@@ -2,12 +2,14 @@
  * Purchased numbers, then free numbers for every country whose prefix is 7.
  * One request at a time. A short free page is not kept and does not advance.
  * A free country gets five attempts. A moved total, a recount mismatch, or a
- * repeated number discards that attempt. Anything else stops the country.
+ * repeated number discards that attempt. A missed answer asks the same page again.
  */
 
+import { NO_ANSWER } from "@/modules/mcn/client";
 import {
   DUPLICATE_NUMBER,
   PAGE_TOO_LONG,
+  UNREADABLE,
   russianCountries,
   type CallMeta,
   type FreeRow,
@@ -44,6 +46,10 @@ type ReadResult<T> = ReadOk<T> | ReadShift | ReadFail;
 
 function failed(error: string, reason: FailReason = "fail"): WalkResult {
   return { ok: false, error, reason };
+}
+
+function pageAgain(error: string): boolean {
+  return error === NO_ANSWER || error === UNREADABLE;
 }
 
 function line(method: string, meta: CallMeta, fields: string): string {
@@ -88,6 +94,7 @@ async function readPages<T>(input: Selection<T>): Promise<ReadResult<T>> {
       if (input.kind === "page" && page.error === DUPLICATE_NUMBER) {
         return { kind: "shift", error: DUPLICATE_NUMBER };
       }
+      if (pageAgain(page.error)) continue;
       return { kind: "fail", error: page.error, reason: "fail" };
     }
     if (page.rows.length > input.limit) {
@@ -159,17 +166,28 @@ async function readStable<T>(
       await noteDiscarded(input, attempts, attempt);
       continue;
     }
-    const gate = await input.beat(read.total, read.total);
-    if (gate === "cancel") return { kind: "fail", error: CANCELLED, reason: "cancel" };
-    if (gate === "lost") return { kind: "fail", error: LOST, reason: "lost" };
-    const recount = await input.recount();
-    await input.log(
-      `${line(input.method, recount.meta, `${input.detail(input.kind === "offset" ? 0 : 1)} recount${recount.ok ? ` total=${recount.total}` : ""}`)}`,
-    );
-    if (!recount.ok) return { kind: "fail", error: recount.error, reason: "fail" };
-    if (recount.total === read.total) return read;
-    discarded = TOTAL_MOVED;
-    await noteDiscarded(input, attempts, attempt);
+    let matched = false;
+    for (;;) {
+      const gate = await input.beat(read.total, read.total);
+      if (gate === "cancel") return { kind: "fail", error: CANCELLED, reason: "cancel" };
+      if (gate === "lost") return { kind: "fail", error: LOST, reason: "lost" };
+      const recount = await input.recount();
+      await input.log(
+        `${line(input.method, recount.meta, `${input.detail(input.kind === "offset" ? 0 : 1)} recount${recount.ok ? ` total=${recount.total}` : ""}`)}`,
+      );
+      if (!recount.ok) {
+        if (pageAgain(recount.error)) continue;
+        return { kind: "fail", error: recount.error, reason: "fail" };
+      }
+      if (recount.total === read.total) {
+        matched = true;
+        break;
+      }
+      discarded = TOTAL_MOVED;
+      await noteDiscarded(input, attempts, attempt);
+      break;
+    }
+    if (matched) return read;
   }
   return { kind: "fail", error: discarded, reason: "fail" };
 }
@@ -208,18 +226,22 @@ export async function runMcnWalk(deps: {
   }
   if (purchased.rows.length > 0) await deps.stagePurchased(purchased.rows);
 
-  const gate = await deps.beat("free", 0, 0);
-  if (gate === "cancel") return failed(CANCELLED, "cancel");
-  if (gate === "lost") return failed(LOST, "lost");
-  const countries = await deps.countries();
-  await deps.log(
-    line(
-      "countries",
-      countries.meta,
-      countries.ok ? `countries=${countries.countries.length}` : "",
-    ),
-  );
-  if (!countries.ok) return failed(countries.error);
+  let countries: CountriesPage;
+  for (;;) {
+    const gate = await deps.beat("free", 0, 0);
+    if (gate === "cancel") return failed(CANCELLED, "cancel");
+    if (gate === "lost") return failed(LOST, "lost");
+    countries = await deps.countries();
+    await deps.log(
+      line(
+        "countries",
+        countries.meta,
+        countries.ok ? `countries=${countries.countries.length}` : "",
+      ),
+    );
+    if (countries.ok) break;
+    if (!pageAgain(countries.error)) return failed(countries.error);
+  }
   const codes = russianCountries(countries.countries);
   if (codes.length === 0) return failed(EMPTY_COUNTRIES);
 

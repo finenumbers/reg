@@ -6,6 +6,7 @@
 import https from "node:https";
 import {
   BAD_COUNTRY,
+  UNREADABLE,
   parseCountries,
   parseFreePage,
   parseFreeTotal,
@@ -26,11 +27,12 @@ import {
 } from "@/modules/mcn/url";
 
 const BODY_CAP = 20 * 1024 * 1024;
-const TIMEOUT_MS = 30_000;
+export const MCN_TIMEOUT_MS = 90_000;
+const TIMEOUT_MS = MCN_TIMEOUT_MS;
 const REJECTED = "Площадка отклонила запрос.";
-const NO_ANSWER = "Площадка не ответила.";
+export const NO_ANSWER = "Площадка не ответила.";
 const TOO_BIG = "Ответ площадки слишком большой.";
-const INTERRUPTED = "Загрузка прервана.";
+export const INTERRUPTED = "Загрузка прервана.";
 const BAD_SECRET = "Ключ не читается.";
 
 export type TransportResult = {
@@ -69,6 +71,16 @@ function tokenReadable(token: string): boolean {
   return token.length >= 1 && token.length <= 4096 && !/[\r\n]/.test(token);
 }
 
+/** A deadline abort is a slow platform. Any other abort is a foreign cancel. */
+export function isTimeoutReason(reason: unknown): boolean {
+  return (
+    (typeof DOMException !== "undefined" &&
+      reason instanceof DOMException &&
+      reason.name === "TimeoutError") ||
+    (reason instanceof Error && reason.name === "TimeoutError")
+  );
+}
+
 export function httpsGet(
   url: string,
   token: string,
@@ -88,7 +100,11 @@ export function httpsGet(
     };
     const onAbort = () => {
       req.destroy();
-      finish({ status: 0, body: "", interrupted: true });
+      finish(
+        isTimeoutReason(signal.reason)
+          ? { status: 0, body: "", failed: true }
+          : { status: 0, body: "", interrupted: true },
+      );
     };
     const agent = new https.Agent({
       keepAlive: false,
@@ -164,6 +180,7 @@ async function callJson(
   url: string,
   token: string,
   transport: Transport,
+  beforeAttempt?: () => Promise<void>,
 ): Promise<RawCall> {
   if (!tokenReadable(token)) {
     return { ok: false, error: BAD_SECRET, meta: EMPTY_META };
@@ -176,6 +193,7 @@ async function callJson(
     meta: metaOf(0, 0, started),
   };
   for (let tryIndex = 0; tryIndex < 2; tryIndex += 1) {
+    if (beforeAttempt) await beforeAttempt();
     attempts += 1;
     const signal = AbortSignal.timeout(TIMEOUT_MS);
     let result: TransportResult;
@@ -184,6 +202,13 @@ async function callJson(
     } catch {
       last = { ok: false, error: NO_ANSWER, meta: metaOf(0, attempts, started) };
       continue;
+    }
+    if (result.interrupted) {
+      return {
+        ok: false,
+        error: INTERRUPTED,
+        meta: metaOf(result.status, attempts, started),
+      };
     }
     if (result.tooBig) {
       return {
@@ -200,7 +225,6 @@ async function callJson(
       };
     }
     if (
-      result.interrupted ||
       result.failed ||
       result.status === 0 ||
       result.status >= 500 ||
@@ -208,7 +232,7 @@ async function callJson(
     ) {
       last = {
         ok: false,
-        error: result.interrupted ? INTERRUPTED : NO_ANSWER,
+        error: NO_ANSWER,
         meta: metaOf(result.status, attempts, started),
       };
       continue;
@@ -226,7 +250,7 @@ async function callJson(
     } catch {
       last = {
         ok: false,
-        error: "Ответ площадки не разобран.",
+        error: UNREADABLE,
         meta: metaOf(result.status, attempts, started),
       };
     }
@@ -245,9 +269,10 @@ export type McnClient = {
 
 export function createMcnClient(
   token: string,
-  options?: { transport?: Transport },
+  options?: { transport?: Transport; beforeAttempt?: () => Promise<void> },
 ): McnClient {
   const transport = options?.transport ?? httpsGet;
+  const beforeAttempt = options?.beforeAttempt;
   const refused = (): { ok: false; error: string; meta: CallMeta } | null =>
     tokenReadable(token) ? null : { ok: false, error: BAD_SECRET, meta: EMPTY_META };
 
@@ -260,7 +285,7 @@ export function createMcnClient(
     if (blocked) return blocked;
     const url = freeUrl(countryCode, pageNumber, limit);
     if (!url) return { ok: false, error: BAD_COUNTRY, meta: EMPTY_META };
-    const raw = await callJson(url, token, transport);
+    const raw = await callJson(url, token, transport, beforeAttempt);
     if (!raw.ok) return raw;
     const parsed = parseFreePage(raw.data, limit);
     if (!parsed.ok) return { ok: false, error: parsed.error, meta: raw.meta };
@@ -280,7 +305,7 @@ export function createMcnClient(
       const url = purchasedUrl(offset, limit);
       if (!url)
         return { ok: false, error: "Ответ площадки не разобран.", meta: EMPTY_META };
-      const raw = await callJson(url, token, transport);
+      const raw = await callJson(url, token, transport, beforeAttempt);
       if (!raw.ok) return raw;
       const parsed = parsePurchasedPage(raw.data, limit, offset);
       if (!parsed.ok) return { ok: false, error: parsed.error, meta: raw.meta };
@@ -298,7 +323,7 @@ export function createMcnClient(
       const url = purchasedUrl(0, 1);
       if (!url)
         return { ok: false, error: "Ответ площадки не разобран.", meta: EMPTY_META };
-      const raw = await callJson(url, token, transport);
+      const raw = await callJson(url, token, transport, beforeAttempt);
       if (!raw.ok) return raw;
       const parsed = parsePurchasedTotal(raw.data, 0);
       if (!parsed.ok) return { ok: false, error: parsed.error, meta: raw.meta };
@@ -307,7 +332,7 @@ export function createMcnClient(
     async countries() {
       const blocked = refused();
       if (blocked) return blocked;
-      const raw = await callJson(countriesUrl(), token, transport);
+      const raw = await callJson(countriesUrl(), token, transport, beforeAttempt);
       if (!raw.ok) return raw;
       const parsed = parseCountries(raw.data);
       if (!parsed.ok) return { ok: false, error: parsed.error, meta: raw.meta };
@@ -324,7 +349,7 @@ export function createMcnClient(
       if (blocked) return blocked;
       const url = freeUrl(countryCode, 1, FREE_PROBE_LIMIT);
       if (!url) return { ok: false, error: BAD_COUNTRY, meta: EMPTY_META };
-      const raw = await callJson(url, token, transport);
+      const raw = await callJson(url, token, transport, beforeAttempt);
       if (!raw.ok) return raw;
       const parsed = parseFreeTotal(raw.data);
       if (!parsed.ok) return { ok: false, error: parsed.error, meta: raw.meta };

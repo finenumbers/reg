@@ -451,7 +451,7 @@ export async function startMcnSync(
     if (state === "cancel") throw new Error(CANCELLED);
     if (state === "lost") throw new SyncLost();
   };
-  const client = createMcnClient(key);
+  const client = createMcnClient(key, { beforeAttempt: keep });
 
   let duplicates = 0;
   void (async () => {

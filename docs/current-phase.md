@@ -1,7 +1,13 @@
-# Current Phase — production (v1.316.0)
+# Current Phase — production (v1.317.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, purchased numbers, numbering sync, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-17
+
+## v1.317.0 — MCN reads a slow page again
+
+This release does not migrate and does not rewrite catalog rows or the CDR journal. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before the new one starts, then start one new app. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged.
+
+An MCN Telecom request waits 90 seconds. A timeout says «Площадка не ответила.» and the same page is read again. Accepted pages stay. Cancel and process stop leave the catalog. A rejection or an oversized body still stops the country. The walk refreshes its lease before every request. The access check does not take the lease.
 
 ## v1.316.0 — Range lookup uses the span index
 

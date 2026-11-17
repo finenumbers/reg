@@ -1,5 +1,14 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { createMcnClient, type Transport } from "@/modules/mcn/client";
+import {
+  INTERRUPTED,
+  MCN_TIMEOUT_MS,
+  NO_ANSWER,
+  createMcnClient,
+  isTimeoutReason,
+  type Transport,
+} from "@/modules/mcn/client";
 import {
   FREE_PAGE_LIMIT,
   FREE_PROBE_LIMIT,
@@ -134,6 +143,9 @@ describe("MCN Telecom client", () => {
     expect(new URL(urls[1] ?? "").searchParams.get("pageNumber")).toBe("1");
     expect(new URL(urls[2] ?? "").searchParams.get("limitPerPage")).toBe("25");
     expect(new URL(urls[2] ?? "").searchParams.get("pageNumber")).toBe("1");
+    expect(MCN_TIMEOUT_MS).toBe(90_000);
+    expect(isTimeoutReason(new DOMException("timeout", "TimeoutError"))).toBe(true);
+    expect(isTimeoutReason(new Error("abort"))).toBe(false);
     for (const url of urls) {
       expect([...new URL(url).searchParams.keys()]).toEqual([
         "countryCode",
@@ -141,5 +153,62 @@ describe("MCN Telecom client", () => {
         "pageNumber",
       ]);
     }
+  });
+
+  it("retries a timeout once and does not retry a foreign abort", async () => {
+    let timeouts = 0;
+    let prepares = 0;
+    const timed = await createMcnClient(TOKEN, {
+      transport: async () => {
+        timeouts += 1;
+        if (timeouts === 1) return { status: 0, body: "", failed: true };
+        return json(200, { countries: [{ country_code: 643, country_prefix: 7 }] });
+      },
+      beforeAttempt: async () => {
+        prepares += 1;
+      },
+    }).countries();
+    expect(timeouts).toBe(2);
+    expect(prepares).toBe(2);
+    expect(timed.ok).toBe(true);
+
+    let aborts = 0;
+    const aborted = await createMcnClient(TOKEN, {
+      transport: async () => {
+        aborts += 1;
+        return { status: 0, body: "", interrupted: true };
+      },
+    }).countries();
+    expect(aborted.ok).toBe(false);
+    if (!aborted.ok) expect(aborted.error).toBe(INTERRUPTED);
+    expect(aborts).toBe(1);
+
+    const missed = await createMcnClient(TOKEN, {
+      transport: async () => ({ status: 0, body: "", failed: true }),
+    }).countries();
+    expect(missed.ok).toBe(false);
+    if (!missed.ok) expect(missed.error).toBe(NO_ANSWER);
+    if (!missed.ok) expect(missed.meta.attempts).toBe(2);
+
+    let calls = 0;
+    await expect(
+      createMcnClient(TOKEN, {
+        transport: async () => {
+          calls += 1;
+          return { status: 200, body: "{}" };
+        },
+        beforeAttempt: async () => {
+          throw new Error("Загрузка отменена. Каталог не изменён.");
+        },
+      }).countries(),
+    ).rejects.toThrow("Загрузка отменена");
+    expect(calls).toBe(0);
+
+    const service = readFileSync(
+      path.join(process.cwd(), "src/modules/mcn/service.ts"),
+      "utf8",
+    );
+    expect(service).toContain("createMcnClient(key, { beforeAttempt: keep })");
+    expect(service).toContain("const client = createMcnClient(key);");
   });
 });

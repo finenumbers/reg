@@ -440,7 +440,39 @@ describe("MCN Telecom walk", () => {
     expect(calls).toBe(2);
   });
 
-  it("does not reread a country after a transport failure", async () => {
+  it("asks the same free page again after no answer", async () => {
+    const pages: number[] = [];
+    let missed = false;
+    const result = await runMcnWalk({
+      beat: async () => "run" satisfies Gate,
+      purchasedPage: async () => purchased([], 0, 0),
+      purchasedRecount: async () => ({ ok: true, total: 0, meta }),
+      countries: async () => ({
+        ok: true,
+        countries: [{ code: 643, prefix: 7 }],
+        meta,
+      }),
+      freePage: async (_country, pageNumber) => {
+        pages.push(pageNumber);
+        if (pageNumber === 2 && !missed) {
+          missed = true;
+          return { ok: false, error: "Площадка не ответила.", meta };
+        }
+        const count = pageNumber === 1 ? FREE_PAGE_LIMIT : 1;
+        const body =
+          pageNumber === 1 ? rows(0, count) : [row(FREE_PAGE_LIMIT)];
+        return free(body, FREE_PAGE_LIMIT + 1, pageNumber);
+      },
+      freeRecount: async () => ({ ok: true, total: FREE_PAGE_LIMIT + 1, meta }),
+      stagePurchased: async () => undefined,
+      stageFree: async () => undefined,
+      log: async () => undefined,
+    });
+    expect(result.ok).toBe(true);
+    expect(pages).toEqual([1, 2, 2]);
+  });
+
+  it("does not repeat a rejected free page", async () => {
     let calls = 0;
     const result = await runMcnWalk({
       beat: async () => "run" satisfies Gate,
@@ -453,7 +485,7 @@ describe("MCN Telecom walk", () => {
       }),
       freePage: async () => {
         calls += 1;
-        return { ok: false, error: "Площадка не ответила.", meta };
+        return { ok: false, error: "Площадка отклонила запрос.", meta };
       },
       freeRecount: async () => ({ ok: true, total: 1, meta }),
       stagePurchased: async () => undefined,
@@ -464,7 +496,7 @@ describe("MCN Telecom walk", () => {
     expect(calls).toBe(1);
   });
 
-  it("stops when the free recount fails", async () => {
+  it("asks the free recount again after no answer", async () => {
     let pages = 0;
     let recounts = 0;
     const result = await runMcnWalk({
@@ -482,15 +514,16 @@ describe("MCN Telecom walk", () => {
       },
       freeRecount: async () => {
         recounts += 1;
-        return { ok: false, error: "Площадка не ответила.", meta };
+        if (recounts === 1) return { ok: false, error: "Площадка не ответила.", meta };
+        return { ok: true, total: 1, meta };
       },
       stagePurchased: async () => undefined,
       stageFree: async () => undefined,
       log: async () => undefined,
     });
-    expect(result.ok).toBe(false);
+    expect(result.ok).toBe(true);
     expect(pages).toBe(1);
-    expect(recounts).toBe(1);
+    expect(recounts).toBe(2);
   });
 
   it("stops a purchased duplicate on the first page", async () => {
