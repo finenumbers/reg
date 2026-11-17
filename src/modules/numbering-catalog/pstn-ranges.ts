@@ -8,7 +8,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { logger } from "@/lib/logger";
 import { NumberingClientError } from "@/modules/numbering-resource/errors";
 import { prisma } from "@/lib/db";
-import { readAllPagesTwice } from "@/modules/finenumbers/pages";
+import { pageStopped, readAllPagesTwice } from "@/modules/finenumbers/pages";
 import { pstnTurn } from "@/modules/numbering-resource/turn";
 import {
   EMPTY_NUMBERING_FILTERS,
@@ -83,11 +83,13 @@ async function swap(loadedAt: string): Promise<void> {
   });
 }
 
-async function refresh(): Promise<void> {
+export type SnapshotRefresh = "ready" | "yielded";
+
+async function refresh(stop?: () => Promise<boolean>): Promise<SnapshotRefresh> {
   const summary = await pstnTurn(() => summarizeNumberingResource(EMPTY_NUMBERING_FILTERS));
   const loadedAt = summary.loadedAt ?? "";
-  if (!loadedAt) return;
-  if ((await storedLoadedAt()) === loadedAt) return;
+  if (!loadedAt) return "ready";
+  if ((await storedLoadedAt()) === loadedAt) return "ready";
   const read = await readAllPagesTwice({
     page: (cursor) =>
       pstnTurn(() =>
@@ -98,10 +100,12 @@ async function refresh(): Promise<void> {
         }),
       ),
     accept: keepRange,
+    stop,
   });
-  if (!read.ok) return;
+  if (pageStopped(read)) return "yielded";
+  if (!read.ok) return "ready";
   const again = await pstnTurn(() => summarizeNumberingResource(EMPTY_NUMBERING_FILTERS));
-  if ((again.loadedAt ?? "") !== loadedAt) return;
+  if ((again.loadedAt ?? "") !== loadedAt) return "ready";
   await prisma.$executeRaw`TRUNCATE pstn_range_load`;
   try {
     await insertLoad(read.items);
@@ -109,14 +113,18 @@ async function refresh(): Promise<void> {
   } catch {
     await prisma.$executeRaw`TRUNCATE pstn_range_load`.catch(() => undefined);
   }
+  return "ready";
 }
 
-/** Compare loadedAt first. The same dataset is not downloaded again. */
-export async function refreshPstnRangeSnapshot(): Promise<void> {
+/** Compare loadedAt first. The same dataset is not downloaded again. A stop leaves it. */
+export async function refreshPstnRangeSnapshot(
+  stop?: () => Promise<boolean>,
+): Promise<SnapshotRefresh> {
   try {
-    await refresh();
+    return await refresh(stop);
   } catch (error) {
     const code = error instanceof NumberingClientError ? error.code : "failed";
     logger.warn("pstn.range_snapshot.failed", { error: code });
+    return "ready";
   }
 }

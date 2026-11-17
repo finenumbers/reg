@@ -20,6 +20,7 @@ import {
   markDecorateDoneSql,
   nextDecorateStep,
   providerLiteral,
+  snapshotAfterDebt,
   resplitBatchSql,
   saveCursorSql,
   purchasedClientBatchSql,
@@ -341,5 +342,12 @@ describe("catalog decorate", () => {
     expect(nextDecorateStep({ ...caught, resplit_epoch: 2, mask_epoch: 2 })).toEqual({
       kind: "resplit",
     });
+    expect(snapshotAfterDebt({ kind: "provider", provider: "Aurora Telecom" })).toBe(false);
+    expect(snapshotAfterDebt({ kind: "provider", provider: "Finenumbers" })).toBe(false);
+    expect(snapshotAfterDebt({ kind: "provider", provider: "SipOut" })).toBe(false);
+    expect(snapshotAfterDebt({ kind: "mask" })).toBe(false);
+    expect(snapshotAfterDebt({ kind: "resplit" })).toBe(false);
+    expect(snapshotAfterDebt({ kind: "pstn" })).toBe(true);
+    expect(snapshotAfterDebt({ kind: "idle" })).toBe(true);
   });
 });

@@ -25,7 +25,12 @@ export type PageVerdict = { kind: "keep" } | { kind: "skip" } | { kind: "fail"; 
 
 export type PageRead<T> =
   | { ok: true; items: T[]; total: number }
-  | { ok: false; error: string; again: boolean };
+  | { ok: false; error: string; again: boolean; stopped?: boolean };
+
+/** A caller asked to leave the list between pages. The rows read so far are dropped. */
+export function pageStopped(read: PageRead<unknown>): boolean {
+  return !read.ok && read.stopped === true;
+}
 
 export function rangeReadRetriable(error: unknown): boolean {
   if (!(error instanceof NumberingClientError)) return false;
@@ -55,6 +60,8 @@ export async function readAllPages<T extends { id: number }>(input: {
   page: (cursor: string | null) => Promise<RangePage<T>>;
   accept: (row: T) => PageVerdict;
   onProgress?: (seen: number, total: number) => Promise<void>;
+  /** Checked before every page. True drops the list without a second read. */
+  stop?: () => Promise<boolean>;
   limit?: number;
 }): Promise<PageRead<T>> {
   const limit = input.limit ?? RANGE_PAGE_LIMIT;
@@ -64,6 +71,9 @@ export async function readAllPages<T extends { id: number }>(input: {
   let locked: number | null = null;
   let seen = 0;
   for (;;) {
+    if (input.stop && (await input.stop())) {
+      return { ok: false, error: "", again: false, stopped: true };
+    }
     let page: RangePage<T>;
     try {
       page = await readRangePage(() => input.page(cursor));
@@ -100,6 +110,6 @@ export async function readAllPagesTwice<T extends { id: number }>(
   input: Parameters<typeof readAllPages<T>>[0],
 ): Promise<PageRead<T>> {
   const first = await readAllPages(input);
-  if (first.ok || !first.again) return first;
+  if (first.ok || !first.again || pageStopped(first)) return first;
   return readAllPages(input);
 }

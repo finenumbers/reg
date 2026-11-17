@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { FINENUMBERS_INN } from "@/modules/finenumbers/expand";
+import { readAllPages, readAllPagesTwice } from "@/modules/finenumbers/pages";
 import { readInnRanges } from "@/modules/finenumbers/walk";
 import type { NumberingRow, NumberingSummary } from "@/modules/numbering-resource/types";
 
@@ -258,5 +259,50 @@ describe("Finenumbers range read", () => {
     expect(read.ok).toBe(true);
     if (!read.ok) return;
     expect(read.capacity).toBe(1);
+  });
+});
+
+describe("range page stop", () => {
+  function page(total: number) {
+    return async (cursor: string | null) => {
+      const id = cursor == null ? 1 : Number(cursor) + 1;
+      return {
+        items: [{ id }],
+        total,
+        hasMore: id < total,
+        nextCursor: id < total ? String(id) : null,
+      };
+    };
+  }
+
+  it("reads every page when nothing asks it to stop", async () => {
+    let calls = 0;
+    const read = await readAllPages({
+      page: async (cursor) => {
+        calls += 1;
+        return page(2)(cursor);
+      },
+      accept: () => ({ kind: "keep" }),
+    });
+    expect(calls).toBe(2);
+    expect(read.ok).toBe(true);
+  });
+
+  it("stops before the next page and does not read the list again", async () => {
+    let calls = 0;
+    const read = await readAllPagesTwice({
+      page: async (cursor) => {
+        calls += 1;
+        return page(2)(cursor);
+      },
+      accept: () => ({ kind: "keep" }),
+      stop: async () => calls > 0,
+    });
+    expect(calls).toBe(1);
+    expect(read.ok).toBe(false);
+    if (read.ok) return;
+    expect(read.stopped).toBe(true);
+    expect(read.again).toBe(false);
+    expect(read.error).toBe("");
   });
 });

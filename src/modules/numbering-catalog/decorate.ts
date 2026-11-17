@@ -933,10 +933,15 @@ async function openPhase(run: PhaseRun): Promise<string> {
 }
 
 async function walkPhase(run: PhaseRun): Promise<"done" | "moved"> {
+  if (pstnPhase(run.phase)) {
+    const gate = await readDebt();
+    if (!gate || nextDecorateStep(gate).kind !== "pstn") return "moved";
+  }
   let after = await openPhase(run);
   for (;;) {
     const fresh = await readDebt();
     if (!fresh) return "moved";
+    if (pstnPhase(run.phase) && nextDecorateStep(fresh).kind !== "pstn") return "moved";
     const same =
       fresh.cursor_phase === run.phase &&
       fresh.cursor_epoch === run.epoch &&
@@ -1072,13 +1077,36 @@ export function nextDecorateStep(
   return { kind: "idle" };
 }
 
+/** The range download waits until source, mask, and resplit debt is closed. */
+export function snapshotAfterDebt(step: DecorateStep): boolean {
+  return step.kind === "pstn" || step.kind === "idle";
+}
+
+function pstnPhase(phase: string): boolean {
+  return phase === "pstn-free" || phase === "pstn-purchased";
+}
+
+async function snapshotStop(): Promise<boolean> {
+  const debt = await readDebt();
+  if (!debt) return true;
+  return !snapshotAfterDebt(nextDecorateStep(debt));
+}
+
 async function settleDebt(): Promise<void> {
-  await refreshPstnRangeSnapshot();
+  let snapshotChecked = false;
   for (;;) {
     const debt = await readDebt();
     if (!debt) return;
     maskProgress = null;
     const step = nextDecorateStep(debt);
+    if (
+      step.kind === "bootstrap" ||
+      step.kind === "resplit" ||
+      step.kind === "mask" ||
+      step.kind === "provider"
+    ) {
+      snapshotChecked = false;
+    }
     if (step.kind === "bootstrap") {
       const free = await walkPhase({
         phase: "bootstrap-free",
@@ -1163,24 +1191,6 @@ async function settleDebt(): Promise<void> {
       await markProviderDone(behind, seen.epoch);
       continue;
     }
-    if (step.kind === "pstn") {
-      const free = await walkPhase({
-        phase: "pstn-free",
-        epoch: debt.pstn_range_epoch,
-        provider: null,
-        kind: "free",
-      });
-      if (free === "moved") continue;
-      const purchased = await walkPhase({
-        phase: "pstn-purchased",
-        epoch: debt.pstn_range_epoch,
-        provider: null,
-        kind: "purchased",
-      });
-      if (purchased === "moved") continue;
-      await markPstnDone(debt.pstn_range_epoch);
-      continue;
-    }
     if (step.kind === "client") {
       const clients = await walkPhase({
         phase: "client",
@@ -1190,6 +1200,36 @@ async function settleDebt(): Promise<void> {
       });
       if (clients === "moved") continue;
       await markClientDone(debt.client_epoch);
+      continue;
+    }
+    if (!snapshotChecked) {
+      const outcome = await refreshPstnRangeSnapshot(snapshotStop);
+      if (outcome === "yielded") continue;
+      snapshotChecked = true;
+      continue;
+    }
+    if (step.kind === "pstn") {
+      const free = await walkPhase({
+        phase: "pstn-free",
+        epoch: debt.pstn_range_epoch,
+        provider: null,
+        kind: "free",
+      });
+      if (free === "moved") {
+        snapshotChecked = false;
+        continue;
+      }
+      const purchased = await walkPhase({
+        phase: "pstn-purchased",
+        epoch: debt.pstn_range_epoch,
+        provider: null,
+        kind: "purchased",
+      });
+      if (purchased === "moved") {
+        snapshotChecked = false;
+        continue;
+      }
+      await markPstnDone(debt.pstn_range_epoch);
       continue;
     }
     return;

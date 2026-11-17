@@ -54,6 +54,8 @@ Optional publish ports: `APP_PUBLISH_PORT`, `POSTGRES_PUBLISH_PORT`.
 
 ## 3. Database
 
+v1.315.0 does not migrate and does not rewrite catalog rows or the CDR journal. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before the new one starts, then start one new app. Refresh the browser. An open source epoch is parsed before the national range download. That download and the catalog-wide PSTN walk yield while the epoch is open. «Разобрано» climbs with the committed batches. Nothing is written to the switch. RTU activation is unchanged.
+
 v1.314.0 does not migrate and does not rewrite catalog rows or the CDR journal. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before the new one starts, then start one new app. Refresh the browser. A source with an open epoch is parsed before the catalog-wide PSTN walk. That pass writes the tariff cells, the mask, the mask type, and operator and geography. «Разобрано» climbs with the committed batches. Nothing is written to the switch. RTU activation is unchanged.
 
 v1.313.0 does not migrate and does not rewrite catalog rows or the CDR journal. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before the new one starts, then start one new app. Refresh the browser. Finenumbers writes the number and the tariff cells. Operator, geography, and mask stay empty until the shared pass. The note under the Finenumbers card is gone. Nothing is written to the switch. RTU activation is unchanged.
