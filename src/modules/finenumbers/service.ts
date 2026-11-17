@@ -82,7 +82,9 @@ type StateRow = {
 
 function operatorError(error: unknown): string {
   const text = error instanceof Error ? error.message : "";
-  return sanitizeLogLine(text) || FAILED;
+  const line = sanitizeLogLine(text);
+  if (!line || !/[А-Яа-яЁё]/.test(line)) return FAILED;
+  return line;
 }
 
 function emptySync(hasLog: boolean): FinenumbersSyncView {

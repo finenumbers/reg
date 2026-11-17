@@ -52,7 +52,7 @@ export const DELETE_PURCHASED_CHUNK_SQL = `
 
 export const FREE_COPY_SQL = `
   WITH picked AS (
-    SELECT abc, "number", city, region, operator, geography, e164
+    SELECT abc, "number", city, region, e164
     FROM finenumbers_sync_stage
     WHERE run_id = $1
       AND catalog = 'free'
@@ -81,8 +81,8 @@ export const FREE_COPY_SQL = `
       '',
       '',
       '',
-      operator,
-      geography,
+      '',
+      '',
       e164
     FROM picked
     RETURNING e164
@@ -92,7 +92,7 @@ export const FREE_COPY_SQL = `
 
 export const PURCHASED_COPY_SQL = `
   WITH picked AS (
-    SELECT abc, "number", city, region, operator, geography, e164
+    SELECT abc, "number", city, region, e164
     FROM finenumbers_sync_stage
     WHERE run_id = $1
       AND catalog = 'purchased'
@@ -120,8 +120,7 @@ export const PURCHASED_COPY_SQL = `
       '',
       '',
       '',
-      operator,
-      geography,
+      '',
       e164
     FROM picked
     RETURNING e164

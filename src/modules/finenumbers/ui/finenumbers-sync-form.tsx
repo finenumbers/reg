@@ -97,10 +97,6 @@ export function FinenumbersSyncForm({ initial }: { initial: FinenumbersSyncView 
       logHref="/api/numbering-sync/finenumbers/log"
       onKeyDown={onKeyDown}
     >
-      <p className="text-sm">
-        Успешная загрузка заменяет только строки Finenumbers. Берутся номера оператора с
-        ИНН 5406978329.
-      </p>
       {progress ? <p className="text-sm">{progress}</p> : null}
       <ChainCardNote source="finenumbers" />
       {view.busy && view.phase === "running" ? (

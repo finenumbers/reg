@@ -3,14 +3,45 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { FINENUMBERS_EPOCH_SQL } from "@/modules/numbering-catalog/decorate";
-import { decidePublish, DELETE_FREE_CHUNK_SQL, DELETE_PURCHASED_CHUNK_SQL } from "@/modules/finenumbers/sql";
+import {
+  decidePublish,
+  DELETE_FREE_CHUNK_SQL,
+  DELETE_PURCHASED_CHUNK_SQL,
+  FREE_COPY_SQL,
+  PURCHASED_COPY_SQL,
+} from "@/modules/finenumbers/sql";
 
 const migration = readFileSync(
   path.join(process.cwd(), "prisma/migrations/20261117150000_finenumbers_source/migration.sql"),
   "utf8",
 );
 
+function insertShape(sql: string, table: string): { columns: number; expressions: string } {
+  const header = `INSERT INTO ${table} (`;
+  const insertAt = sql.indexOf(header);
+  const selectAt = sql.indexOf("SELECT", insertAt);
+  const fromAt = sql.indexOf("FROM picked", selectAt);
+  const columns = sql.slice(insertAt + header.length, sql.indexOf(")", insertAt)).split(",").length;
+  const expressions = sql.slice(selectAt + "SELECT".length, fromAt);
+  return { columns, expressions };
+}
+
 describe("Finenumbers publish SQL", () => {
+  it("copies the number and leaves operator and geography empty", () => {
+    const free = insertShape(FREE_COPY_SQL, "free_numbers");
+    const purchased = insertShape(PURCHASED_COPY_SQL, "purchased_numbers");
+    expect(free.columns).toBe(free.expressions.split(",").length);
+    expect(free.columns).toBe(16);
+    expect(purchased.columns).toBe(purchased.expressions.split(",").length);
+    expect(purchased.columns).toBe(15);
+    expect(free.expressions).not.toMatch(/\boperator\b/);
+    expect(free.expressions).not.toMatch(/\bgeography\b/);
+    expect(purchased.expressions).not.toMatch(/\boperator\b/);
+    expect(purchased.expressions).not.toMatch(/\bgeography\b/);
+    expect(free.expressions.trim().endsWith("'',\n      '',\n      e164")).toBe(true);
+    expect(purchased.expressions.trim().endsWith("'',\n      '',\n      e164")).toBe(true);
+  });
+
   it("deletes only the Finenumbers slice of both catalogs", () => {
     expect(DELETE_FREE_CHUNK_SQL).toContain("provider = 'Finenumbers'");
     expect(DELETE_PURCHASED_CHUNK_SQL).toContain("provider = 'Finenumbers'");
