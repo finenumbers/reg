@@ -1,7 +1,13 @@
-# Current Phase — production (v1.313.0)
+# Current Phase — production (v1.314.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, purchased numbers, numbering sync, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-17
+
+## v1.314.0 — Parse fills tariff, mask, and PSTN
+
+This release does not migrate and does not rewrite catalog rows or the CDR journal. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before the new one starts, then start one new app. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged.
+
+A source whose epoch is ahead is parsed before the catalog-wide PSTN walk. Each free and purchased batch writes the tariff cells, the mask, the mask type, and operator and geography from the stored range snapshot. «Разобрано» climbs with those batches. The snapshot is still compared first. A failed range read leaves the previous cells.
 
 ## v1.313.0 — Finenumbers copies the number
 

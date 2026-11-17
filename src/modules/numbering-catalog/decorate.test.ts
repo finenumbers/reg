@@ -18,6 +18,7 @@ import {
   bumpTariffDebtSql,
   freeMaskBatchSql,
   markDecorateDoneSql,
+  nextDecorateStep,
   providerLiteral,
   resplitBatchSql,
   saveCursorSql,
@@ -120,11 +121,16 @@ describe("catalog decorate", () => {
     expect(freeSql.values).toContain(MASK_BATCH);
     const free = flattenSql(freeSql);
     expect(free).toContain("sale = computed.mask_price");
+    expect(free).toContain("abc = computed.abc");
+    expect(free).toContain('"number" = computed.telephone');
+    expect(free).toContain("city = computed.city");
+    expect(free).toContain("region = computed.region");
     expect(free).toContain("rtu_mask_lookup");
     expect(free).toContain("pstn_range_snapshot");
     expect(free).toContain("operator = COALESCE(computed.pstn_operator, n.operator)");
     expect(free).toContain("geography = COALESCE(computed.pstn_geography, n.geography)");
     expect(free).not.toContain("provider =");
+    expect(free).not.toContain("client = computed.client");
 
     const scoped = flattenSql(freeMaskBatchSql("", "SipOut"));
     expect(scoped).toContain("provider = 'SipOut'");
@@ -138,9 +144,16 @@ describe("catalog decorate", () => {
 
     const purchased = flattenSql(purchasedFullBatchSql("", "UIS"));
     expect(purchased).toContain("purchase = computed.mask_price");
+    expect(purchased).toContain("abc = computed.abc");
+    expect(purchased).toContain('"number" = computed.telephone');
+    expect(purchased).toContain("city = computed.city");
+    expect(purchased).toContain("region = computed.region");
     expect(purchased).toContain("client = computed.client");
     expect(purchased).toContain("provider = 'UIS'");
     expect(purchased).toContain("rtu_mask_lookup");
+    expect(purchased).toContain("operator = COALESCE(computed.pstn_operator, n.operator)");
+    expect(purchased).toContain("geography = COALESCE(computed.pstn_geography, n.geography)");
+    expect(purchased).not.toContain("sale = computed.mask_price");
 
     const client = flattenSql(purchasedClientBatchSql(""));
     expect(client).toContain("SET client = computed.client");
@@ -261,5 +274,72 @@ describe("catalog decorate", () => {
       tariffApply.indexOf("}, APPLY_TX)"),
     );
     expect(tariffApply).not.toContain("requestNumberingResplit");
+  });
+
+  it("parses a provider before the range-snapshot walk", () => {
+    const caught = {
+      decorate_generation: 1,
+      sipout_epoch: 1,
+      sipout_done: 1,
+      runexis_epoch: 1,
+      runexis_done: 1,
+      uis_epoch: 1,
+      uis_done: 1,
+      aurora_epoch: 1,
+      aurora_done: 1,
+      exolve_epoch: 1,
+      exolve_done: 1,
+      voximplant_epoch: 1,
+      voximplant_done: 1,
+      mcn_epoch: 1,
+      mcn_done: 1,
+      finenumbers_epoch: 1,
+      finenumbers_done: 1,
+      resplit_epoch: 1,
+      resplit_done: 1,
+      mask_epoch: 1,
+      mask_done: 1,
+      pstn_range_epoch: 1,
+      pstn_range_done: 1,
+      client_epoch: 1,
+      client_done: 1,
+    };
+    expect(
+      nextDecorateStep({
+        ...caught,
+        decorate_generation: 0,
+        finenumbers_epoch: 2,
+        pstn_range_epoch: 2,
+      }),
+    ).toEqual({ kind: "bootstrap" });
+    expect(
+      nextDecorateStep({
+        ...caught,
+        mask_epoch: 2,
+        finenumbers_epoch: 2,
+        pstn_range_epoch: 2,
+      }),
+    ).toEqual({ kind: "mask" });
+    expect(
+      nextDecorateStep({
+        ...caught,
+        finenumbers_epoch: 2,
+        pstn_range_epoch: 2,
+      }),
+    ).toEqual({ kind: "provider", provider: "Finenumbers" });
+    expect(
+      nextDecorateStep({
+        ...caught,
+        sipout_epoch: 2,
+        finenumbers_epoch: 2,
+        pstn_range_epoch: 2,
+      }),
+    ).toEqual({ kind: "provider", provider: "SipOut" });
+    expect(nextDecorateStep({ ...caught, pstn_range_epoch: 2 })).toEqual({ kind: "pstn" });
+    expect(nextDecorateStep({ ...caught, client_epoch: 2 })).toEqual({ kind: "client" });
+    expect(nextDecorateStep(caught)).toEqual({ kind: "idle" });
+    expect(nextDecorateStep({ ...caught, resplit_epoch: 2, mask_epoch: 2 })).toEqual({
+      kind: "resplit",
+    });
   });
 });

@@ -449,7 +449,7 @@ export function resplitBatchSql(
   `;
 }
 
-/** Mask price lands in sale. Provider purchase and subscription stay. */
+/** Tariff, mask, and PSTN for one free page. Provider purchase and subscription stay. */
 export function freeMaskBatchSql(
   afterId: string,
   provider: CatalogProvider | null = null,
@@ -469,6 +469,10 @@ export function freeMaskBatchSql(
     computed AS (
       SELECT
         batch.id,
+        COALESCE(split.abc, '') AS abc,
+        COALESCE(split.telephone, '') AS telephone,
+        ${city} AS city,
+        COALESCE(btrim(geo.region), '') AS region,
         COALESCE(hit.mask, '') AS mask,
         COALESCE(hit.mask_type, '') AS mask_type,
         COALESCE(hit.purchase, '') AS mask_price,
@@ -488,6 +492,10 @@ export function freeMaskBatchSql(
     updated AS (
       UPDATE free_numbers AS n
       SET
+        abc = computed.abc,
+        "number" = computed.telephone,
+        city = computed.city,
+        region = computed.region,
         mask = computed.mask,
         "maskType" = computed.mask_type,
         sale = computed.mask_price,
@@ -501,7 +509,7 @@ export function freeMaskBatchSql(
   `;
 }
 
-/** Mask price lands in purchase. Client comes from the phone description. */
+/** Tariff, mask, PSTN, and client for one purchased page. */
 export function purchasedFullBatchSql(
   afterId: string,
   provider: CatalogProvider | null = null,
@@ -522,6 +530,10 @@ export function purchasedFullBatchSql(
     computed AS (
       SELECT
         batch.id,
+        COALESCE(split.abc, '') AS abc,
+        COALESCE(split.telephone, '') AS telephone,
+        ${city} AS city,
+        COALESCE(btrim(geo.region), '') AS region,
         COALESCE(hit.mask, '') AS mask,
         COALESCE(hit.mask_type, '') AS mask_type,
         COALESCE(hit.purchase, '') AS mask_price,
@@ -547,6 +559,10 @@ export function purchasedFullBatchSql(
     updated AS (
       UPDATE purchased_numbers AS n
       SET
+        abc = computed.abc,
+        "number" = computed.telephone,
+        city = computed.city,
+        region = computed.region,
         mask = computed.mask,
         "maskType" = computed.mask_type,
         purchase = computed.mask_price,
@@ -1020,13 +1036,50 @@ async function markSeen(row: EpochRow): Promise<void> {
   }
 }
 
+export type DecorateStep =
+  | { kind: "bootstrap" }
+  | { kind: "resplit" }
+  | { kind: "mask" }
+  | { kind: "provider"; provider: CatalogProvider }
+  | { kind: "pstn" }
+  | { kind: "client" }
+  | { kind: "idle" };
+
+/** Next catalog debt. An open provider epoch comes before the range-snapshot walk. */
+export function nextDecorateStep(
+  debt: EpochRow & {
+    decorate_generation: number;
+    resplit_epoch: number;
+    resplit_done: number;
+    mask_epoch: number;
+    mask_done: number;
+    pstn_range_epoch: number;
+    pstn_range_done: number;
+    client_epoch: number;
+    client_done: number;
+  },
+): DecorateStep {
+  if (debt.decorate_generation === 0) return { kind: "bootstrap" };
+  if (debt.resplit_epoch > debt.resplit_done) return { kind: "resplit" };
+  if (debt.mask_epoch > debt.mask_done) return { kind: "mask" };
+  const behind = PROVIDERS.find((provider) => {
+    const seen = pair(debt, provider);
+    return seen.epoch > seen.done;
+  });
+  if (behind) return { kind: "provider", provider: behind };
+  if (debt.pstn_range_epoch > debt.pstn_range_done) return { kind: "pstn" };
+  if (debt.client_epoch > debt.client_done) return { kind: "client" };
+  return { kind: "idle" };
+}
+
 async function settleDebt(): Promise<void> {
   await refreshPstnRangeSnapshot();
   for (;;) {
     const debt = await readDebt();
     if (!debt) return;
     maskProgress = null;
-    if (debt.decorate_generation === 0) {
+    const step = nextDecorateStep(debt);
+    if (step.kind === "bootstrap") {
       const free = await walkPhase({
         phase: "bootstrap-free",
         epoch: 0,
@@ -1053,7 +1106,7 @@ async function settleDebt(): Promise<void> {
       await markSeen(debt);
       continue;
     }
-    if (debt.resplit_epoch > debt.resplit_done) {
+    if (step.kind === "resplit") {
       const free = await walkPhase({
         phase: "resplit-free",
         epoch: debt.resplit_epoch,
@@ -1071,7 +1124,7 @@ async function settleDebt(): Promise<void> {
       await markResplitDone(debt.resplit_epoch);
       continue;
     }
-    if (debt.mask_epoch > debt.mask_done) {
+    if (step.kind === "mask") {
       const free = await walkPhase({
         phase: "free",
         epoch: debt.mask_epoch,
@@ -1090,29 +1143,8 @@ async function settleDebt(): Promise<void> {
       await markSeen(debt);
       continue;
     }
-    if (debt.pstn_range_epoch > debt.pstn_range_done) {
-      const free = await walkPhase({
-        phase: "pstn-free",
-        epoch: debt.pstn_range_epoch,
-        provider: null,
-        kind: "free",
-      });
-      if (free === "moved") continue;
-      const purchased = await walkPhase({
-        phase: "pstn-purchased",
-        epoch: debt.pstn_range_epoch,
-        provider: null,
-        kind: "purchased",
-      });
-      if (purchased === "moved") continue;
-      await markPstnDone(debt.pstn_range_epoch);
-      continue;
-    }
-    const behind = PROVIDERS.find((provider) => {
-      const seen = pair(debt, provider);
-      return seen.epoch > seen.done;
-    });
-    if (behind) {
+    if (step.kind === "provider") {
+      const behind = step.provider;
       const seen = pair(debt, behind);
       const free = await walkPhase({
         phase: "provider-free",
@@ -1131,7 +1163,25 @@ async function settleDebt(): Promise<void> {
       await markProviderDone(behind, seen.epoch);
       continue;
     }
-    if (debt.client_epoch > debt.client_done) {
+    if (step.kind === "pstn") {
+      const free = await walkPhase({
+        phase: "pstn-free",
+        epoch: debt.pstn_range_epoch,
+        provider: null,
+        kind: "free",
+      });
+      if (free === "moved") continue;
+      const purchased = await walkPhase({
+        phase: "pstn-purchased",
+        epoch: debt.pstn_range_epoch,
+        provider: null,
+        kind: "purchased",
+      });
+      if (purchased === "moved") continue;
+      await markPstnDone(debt.pstn_range_epoch);
+      continue;
+    }
+    if (step.kind === "client") {
       const clients = await walkPhase({
         phase: "client",
         epoch: debt.client_epoch,
