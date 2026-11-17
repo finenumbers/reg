@@ -63,9 +63,9 @@ describe("list projection", () => {
     expect(listProjection({ supplier: [EMPTY_FILTER_TOKEN] })).toBe("page");
   });
 
-  it("joins the live cache only for operator and geography", () => {
+  it("joins the live cache for operator, geography, and region", () => {
     expect(listProjection({ city: ["Москва"] })).toBe("page");
-    expect(listProjection({ region: ["Приморский край"] })).toBe("page");
+    expect(listProjection({ region: ["Приморский край"] })).toBe("catalog");
     expect(listProjection({ abc: ["7383"] })).toBe("page");
     expect(listProjection({ telephone: ["480882"] })).toBe("page");
     expect(listProjection({ operator: ["МТС"], number: ["7900"] })).toBe("catalog");
@@ -303,11 +303,11 @@ describe("city sql phrase", () => {
   it("reads stored ABC, region, and the local number on the page path", () => {
     expect(facetProjection("abc", {})).toBe("page");
     expect(facetProjection("telephone", {})).toBe("page");
-    expect(facetProjection("region", {})).toBe("page");
+    expect(facetProjection("region", {})).toBe("catalog");
     expect(facetProjection("geography", {})).toBe("catalog");
     expect(listProjection({ abc: ["7383"] })).toBe("page");
     expect(listProjection({ telephone: ["480882"] })).toBe("page");
-    expect(listProjection({ region: ["Приморский край"] })).toBe("page");
+    expect(listProjection({ region: ["Приморский край"] })).toBe("catalog");
     expect(listProjection({ mask: ["00000"] })).toBe("page");
     expect(listProjection({ maskType: ["Золотой"] })).toBe("page");
     expect(listProjection({ sale: ["1"] })).toBe("page");
@@ -336,8 +336,9 @@ describe("pstn labels by id", () => {
     expect(flat.values).toContain(hostile);
     expect(flat.values).toContain(MISSING_PSTN_LABEL);
     expect(page.values).toContain(MISSING_PSTN_LABEL);
-    expect(flat.values.filter((value) => value === MISSING_PSTN_LABEL).length).toBe(
-      page.values.filter((value) => value === MISSING_PSTN_LABEL).length,
+    // The page repeats the geography label inside the displayed region.
+    expect(page.values.filter((value) => value === MISSING_PSTN_LABEL).length).toBe(
+      flat.values.filter((value) => value === MISSING_PSTN_LABEL).length + 1,
     );
     expect(flat.text).toContain("btrim(pstn_geography) = '' THEN ''");
     expect(page.text).toContain("btrim(pstn_geography) = '' THEN ''");
@@ -353,6 +354,7 @@ describe("screen snapshot sql", () => {
     expect(built.text).toContain("geography_digit_split");
     expect(built.text).toContain("rtu_mask_lookup");
     expect(built.text).toContain("AS sale");
+    expect(built.text).toContain("COALESCE(matched_region, '') AS region");
     expect(built.text).not.toContain("AS purchase");
     expect(built.text).not.toContain("Регистрационный пароль");
   });
@@ -372,6 +374,8 @@ describe("screen snapshot sql", () => {
     expect(page.text).toContain("mask_type");
     expect(page.text).toContain('"maskType"');
     expect(page.text).toContain("visible.sale");
+    expect(page.text).toContain("btrim(city) = ?");
+    expect(page.values).toContain(MOBILE_RF_DIRECTION);
     expect(page.text.indexOf("LIMIT")).toBeLessThan(
       page.text.indexOf("pstn_phone_cache"),
     );

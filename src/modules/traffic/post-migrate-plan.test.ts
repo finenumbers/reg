@@ -148,6 +148,15 @@ describe("planPostMigrate", () => {
     ).toEqual({ callClass: false, tariff: false });
   });
 
+  it("does not scan the journal when catalog category columns are dropped", () => {
+    expect(
+      planPostMigrate("Applying migration `20261117210000_drop_catalog_category`\n", {
+        rateGeneration: 4,
+        ratedGeneration: 4,
+      }),
+    ).toEqual({ callClass: false, tariff: false });
+  });
+
   it("does not scan the journal when a provider decorate epoch is added", () => {
     expect(
       planPostMigrate("Applying migration `20261116020000_catalog_decorate_epoch`\n", {

@@ -596,8 +596,6 @@ model FreeNumber {
   abc          String @default("")
   /// «Номер». Text so a leading zero survives.
   number       String @default("")
-  /// «Категория».
-  category     String @default("")
   /// «Город».
   city         String @default("")
   /// «Регион».
@@ -639,8 +637,6 @@ model PurchasedNumber {
   abc       String @default("")
   /// «Номер». Text so a leading zero survives.
   number    String @default("")
-  /// «Категория».
-  category  String @default("")
   /// «Город».
   city      String @default("")
   /// «Регион».

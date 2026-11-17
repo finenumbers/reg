@@ -34,7 +34,6 @@ function toRow(row: DbRow): PurchasedNumberRow {
     provider: row.provider ?? "",
     abc: row.abc ?? "",
     number: row.number ?? "",
-    category: row.category ?? "",
     city: row.city ?? "",
     region: row.region ?? "",
     client: row.client ?? "",

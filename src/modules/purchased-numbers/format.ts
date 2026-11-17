@@ -15,7 +15,6 @@ export type PurchasedNumberRow = {
   provider: string;
   abc: string;
   number: string;
-  category: string;
   city: string;
   region: string;
   client: string;

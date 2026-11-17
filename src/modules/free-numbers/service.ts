@@ -30,7 +30,6 @@ function toRow(row: DbRow): FreeNumberRow {
     provider: row.provider ?? "",
     abc: row.abc ?? "",
     number: row.number ?? "",
-    category: row.category ?? "",
     city: row.city ?? "",
     region: row.region ?? "",
     purchase: row.purchase ?? "",

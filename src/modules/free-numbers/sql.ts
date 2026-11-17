@@ -14,6 +14,7 @@ import {
   isAmountColumn,
   type FreeNumberColumn,
 } from "@/modules/free-numbers/columns";
+import { catalogRegionSql } from "@/modules/rtu/sql";
 
 export type FreeNumberCursor = {
   abc: string;
@@ -29,12 +30,10 @@ function columnRef(column: FreeNumberColumn): Prisma.Sql {
       return Prisma.sql`abc`;
     case "number":
       return Prisma.sql`"number"`;
-    case "category":
-      return Prisma.sql`category`;
     case "city":
       return Prisma.sql`city`;
     case "region":
-      return Prisma.sql`region`;
+      return catalogRegionSql();
     case "purchase":
       return Prisma.sql`purchase`;
     case "subscription":
@@ -157,9 +156,8 @@ const ROW_SELECT = Prisma.sql`
   provider,
   abc,
   "number",
-  category,
   city,
-  region,
+  ${catalogRegionSql()} AS region,
   purchase,
   subscription,
   mask,

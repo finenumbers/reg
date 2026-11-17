@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { MOBILE_RF_DIRECTION } from "@/modules/rtu/columns";
 import { blankPstnRowIds, mergePstnLabels } from "@/modules/rtu/pstn-fill-rows";
 import type { RtuItem } from "@/modules/rtu/types";
 
@@ -66,6 +67,20 @@ describe("mergePstnLabels", () => {
     });
     expect(merged?.cityAlert).toBe(true);
     expect(merged?.city).toBe("Ростов-на-Дону");
+  });
+
+  it("copies geography into the region only for a mobile city", () => {
+    const [mobile] = mergePstnLabels(
+      [row({ city: MOBILE_RF_DIRECTION, region: "тариф", cityAlert: false })],
+      [{ id: "a", operator: "МТС", geography: "край" }],
+    );
+    expect(mobile?.region).toBe("край");
+    expect(mobile?.geography).toBe("край");
+    const [landline] = mergePstnLabels(
+      [row({ region: "Ростовская область" })],
+      [{ id: "a", operator: "МТС", geography: "край" }],
+    );
+    expect(landline?.region).toBe("Ростовская область");
   });
 
   it("returns the same rows when nothing changes", () => {

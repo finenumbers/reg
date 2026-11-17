@@ -1,6 +1,7 @@
 import { Prisma } from "@/generated/prisma/client";
 import { describe, expect, it } from "vitest";
 import { EMPTY_FILTER_TOKEN } from "@/components/column-filters/types";
+import { MOBILE_RF_DIRECTION } from "@/modules/rtu/columns";
 import {
   freeNumberFacetSql,
   freeNumberKeysetSql,
@@ -43,11 +44,18 @@ describe("free-number SQL", () => {
     );
     expect(flat.text).not.toContain("client");
     expect(flat.text).not.toContain("Секрет");
-    expect(flat.text).toContain("region IN");
+    expect(flat.text).toContain("btrim(city) = ? THEN geography");
+    expect(flat.text).toContain("ELSE region");
     expect(flat.text).toContain(`"number" = ''`);
     expect(flat.text).toContain(`e164 ILIKE ? ESCAPE '\\'`);
     expect(flat.text).toContain(`"number" ILIKE ? ESCAPE '\\'`);
-    expect(flat.values).toEqual(["0495", "Москва", "%12\\%3\\_a%", "%12\\%3\\_a%"]);
+    expect(flat.values).toEqual([
+      "0495",
+      MOBILE_RF_DIRECTION,
+      "Москва",
+      "%12\\%3\\_a%",
+      "%12\\%3\\_a%",
+    ]);
   });
 
   it("leaves the open column out of a facet and matches a compact amount", () => {
@@ -73,7 +81,7 @@ describe("free-number SQL", () => {
     const list = flattenSql(freeNumberListSql(where, 100, 200));
     expect(list.text).toContain('ORDER BY abc ASC, "number" ASC, id ASC');
     expect(list.text).toContain("LIMIT ? OFFSET ?");
-    expect(list.values).toEqual([100, 200]);
+    expect(list.values).toEqual([MOBILE_RF_DIRECTION, 100, 200]);
 
     const first = flattenSql(freeNumberKeysetSql(where, null, 500));
     expect(first.text).not.toContain("OFFSET");
@@ -85,7 +93,16 @@ describe("free-number SQL", () => {
     expect(next.text).toContain("abc > ?");
     expect(next.text).toContain(`"number" > ?`);
     expect(next.text).toContain("id > ?");
-    expect(next.values).toEqual(["495", "495", "100", "495", "100", "row", 500]);
+    expect(next.values).toEqual([
+      MOBILE_RF_DIRECTION,
+      "495",
+      "495",
+      "100",
+      "495",
+      "100",
+      "row",
+      500,
+    ]);
   });
 
   it("filters and searches ABC by the screen text", () => {

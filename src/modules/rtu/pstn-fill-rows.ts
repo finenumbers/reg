@@ -3,6 +3,7 @@
  * lands on the rows already on screen.
  */
 
+import { MOBILE_RF_DIRECTION } from "@/modules/rtu/columns";
 import type { RtuItem } from "@/modules/rtu/types";
 
 export function blankPstnRowIds(
@@ -30,11 +31,17 @@ export function mergePstnLabels(
   const next = items.map((item) => {
     const update = byId.get(item.id);
     if (!update) return item;
-    if (item.operator === update.operator && item.geography === update.geography) {
+    const region =
+      item.city.trim() === MOBILE_RF_DIRECTION ? update.geography : item.region;
+    if (
+      item.operator === update.operator &&
+      item.geography === update.geography &&
+      item.region === region
+    ) {
       return item;
     }
     changed = true;
-    return { ...item, operator: update.operator, geography: update.geography };
+    return { ...item, operator: update.operator, geography: update.geography, region };
   });
   return changed ? next : (items as RtuItem[]);
 }

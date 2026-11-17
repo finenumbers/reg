@@ -61,7 +61,8 @@ export function geographyMatchKey(raw: string | null | undefined): string | null
 /**
  * Page: sort and limit first, then tariff and PSTN for that page.
  * Catalog: an operator or geography filter must see every row.
- * City, region, ABC, and the local number are stored on the screen snapshot.
+ * City, the tariff region, ABC, and the local number are stored on the screen snapshot.
+ * A city of «Мобильные РФ» shows geography in the region cell, so that filter joins the cache.
  * Empty is reserved. Supplier is a cheap column like number and client.
  */
 export function listProjection(filters: ColumnFilters): ListProjection {
@@ -361,6 +362,28 @@ export function pstnKeyFromDigits(digits: Prisma.Sql): Prisma.Sql {
   )`;
 }
 
+/**
+ * Region cell. A city of «Мобильные РФ» shows the geography already computed
+ * for this row. `city` is that label, `tariffRegion` is the tariff region.
+ */
+export function shownRegionSql(
+  city: Prisma.Sql,
+  tariffRegion: Prisma.Sql,
+  geography: Prisma.Sql,
+): Prisma.Sql {
+  return Prisma.sql`(
+    CASE
+      WHEN btrim(${city}) = ${MOBILE_RF_DIRECTION} THEN ${geography}
+      ELSE ${tariffRegion}
+    END
+  )`;
+}
+
+/** Catalog region. City, the tariff region, and geography are columns of one row. */
+export function catalogRegionSql(): Prisma.Sql {
+  return shownRegionSql(Prisma.sql`city`, Prisma.sql`region`, Prisma.sql`geography`);
+}
+
 /** City label. `direction` is the direction from the matched tariff row. */
 export function cityLabelSql(direction: Prisma.Sql): Prisma.Sql {
   const start = CITY_DIRECTION_PREFIX.length + 1;
@@ -491,7 +514,11 @@ function labeledSelect(): Prisma.Sql {
       ${pstnStatusSql()} AS pstn_status,
       ${cityLabelSql(Prisma.sql`direction`)} AS city,
       ${cityAlertSql(Prisma.sql`direction`)} AS city_alert,
-      COALESCE(matched_region, '') AS region,
+      ${shownRegionSql(
+        cityLabelSql(Prisma.sql`direction`),
+        Prisma.sql`COALESCE(matched_region, '')`,
+        geographyLabelSql(),
+      )} AS region,
       split.abc AS abc,
       split.telephone AS telephone,
       ${operatorLabelSql()} AS operator,
@@ -858,7 +885,7 @@ function screenLabeledFrom(raw: Prisma.Sql): Prisma.Sql {
       missing,
       unregistered,
       city,
-      region,
+      ${shownRegionSql(Prisma.sql`city`, Prisma.sql`region`, geographyLabelSql())} AS region,
       abc,
       telephone,
       mask,

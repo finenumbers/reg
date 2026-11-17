@@ -12,16 +12,16 @@ import {
 import { buildChainView } from "@/modules/numbering-chain/text";
 
 describe("numbering chain cadence", () => {
-  it("waits until the next 22:00 UTC and does not catch the exact hour", () => {
-    const hour = msUntilNextUtcHour(new Date("2026-11-16T21:00:00.000Z"));
+  it("waits until the next 18:00 UTC and does not catch the exact hour", () => {
+    const hour = msUntilNextUtcHour(new Date("2026-11-16T17:00:00.000Z"));
     expect(hour).toBe(60 * 60 * 1000);
-    const exact = msUntilNextUtcHour(new Date("2026-11-16T22:00:00.000Z"));
+    const exact = msUntilNextUtcHour(new Date("2026-11-16T18:00:00.000Z"));
     expect(exact).toBe(24 * 60 * 60 * 1000);
-    const later = msUntilNextUtcHour(new Date("2026-11-16T22:30:00.000Z"));
+    const later = msUntilNextUtcHour(new Date("2026-11-16T18:30:00.000Z"));
     expect(later).toBe(23.5 * 60 * 60 * 1000);
-    const year = msUntilNextUtcHour(new Date("2026-12-31T23:00:00.000Z"));
-    expect(new Date(Date.parse("2026-12-31T23:00:00.000Z") + year).toISOString()).toBe(
-      "2027-01-01T22:00:00.000Z",
+    const year = msUntilNextUtcHour(new Date("2026-12-31T19:00:00.000Z"));
+    expect(new Date(Date.parse("2026-12-31T19:00:00.000Z") + year).toISOString()).toBe(
+      "2027-01-01T18:00:00.000Z",
     );
   });
 });

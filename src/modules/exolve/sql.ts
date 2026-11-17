@@ -24,7 +24,7 @@ export const STAGED_COUNT_SQL = `
 
 export const FREE_COPY_SQL = `
   INSERT INTO free_numbers (
-    id, provider, abc, "number", category, city, region,
+    id, provider, abc, "number", city, region,
     purchase, subscription, mask, "maskType", sale, premium,
     operator, geography, e164
   )
@@ -33,7 +33,6 @@ export const FREE_COPY_SQL = `
     'MTS Exolve',
     abc,
     "number",
-    '',
     city,
     region,
     incoming_purchase,
@@ -51,7 +50,7 @@ export const FREE_COPY_SQL = `
 
 export const PURCHASED_COPY_SQL = `
   INSERT INTO purchased_numbers (
-    id, provider, abc, "number", category, city, region, client,
+    id, provider, abc, "number", city, region, client,
     mask, "maskType", purchase, premium, operator, geography, e164
   )
   SELECT
@@ -59,7 +58,6 @@ export const PURCHASED_COPY_SQL = `
     'MTS Exolve',
     abc,
     "number",
-    '',
     city,
     region,
     '',

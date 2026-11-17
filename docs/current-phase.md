@@ -1,7 +1,13 @@
-# Current Phase — production (v1.317.0)
+# Current Phase — production (v1.318.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, purchased numbers, numbering sync, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-17
+
+## v1.318.0 — Catalog category, mobile region, chain at 18:00 UTC
+
+The migration `20261117210000_drop_catalog_category` drops `category` from `free_numbers` and `purchased_numbers`. It does not rewrite catalog rows and does not scan the CDR journal. The migration is label-free. `lock_timeout` is 15 seconds. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before migrate: the old process still inserts `category`. Let migrate finish, then start one new app. If migrate stops on `lock_timeout`, do not start the new app. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged.
+
+«Категория» is gone from «Свободные номера» and «Купленные номера». «Управление РТУ» still has «Категория». On those three screens, a city of «Мобильные РФ» shows that row's geography in «Регион». An empty geography leaves «Регион» empty. The stored region stays the tariff region. Decorate does not write region from geography. A region filter on «Управление РТУ» reads the live PSTN cache, the same as «География». The default page still limits before that join. The numbering chain runs at 18:00 UTC. The card shows that hour in the display zone: 21:00 in Europe/Moscow, 01:00 the next day in Asia/Novosibirsk. A process that starts at 18:00:00 UTC waits until the next day. A chain already running at 18:00 is not queued again. Restart does not resume a chain. «Загрузить» and «Загрузить все» still start immediately. The new hour applies when the process starts.
 
 ## v1.317.0 — MCN reads a slow page again
 

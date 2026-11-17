@@ -97,11 +97,12 @@ export function isRtuColumn(value: string): value is RtuColumn {
 }
 
 /**
- * Operator and geography are read from the PSTN cache at request time.
- * City, region, ABC, the local number, and the four mask cells are stored
- * on the screen snapshot.
+ * Operator, geography, and the displayed region are read with the PSTN cache.
+ * A city of «Мобильные РФ» shows that geography in the region cell.
+ * City, the tariff region, ABC, the local number, and the four mask cells
+ * are stored on the screen snapshot.
  */
-export const EXPENSIVE_COLUMNS = new Set<RtuColumn>(["operator", "geography"]);
+export const EXPENSIVE_COLUMNS = new Set<RtuColumn>(["operator", "geography", "region"]);
 
 /** Digit columns split from the tariff row. ABC stays left, the local number stays right. */
 export function geographyDigitAlign(column: RtuColumn): "left" | "right" | null {

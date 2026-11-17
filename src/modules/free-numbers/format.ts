@@ -15,7 +15,6 @@ export type FreeNumberRow = {
   provider: string;
   abc: string;
   number: string;
-  category: string;
   city: string;
   region: string;
   purchase: string;

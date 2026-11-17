@@ -628,7 +628,7 @@ function startSchedulerLoop(runtime: SchedulerJobRuntime): void {
       "regs.poll uses regsPollEnabled; phones.sync and groups.sync use exportSyncEnabled; " +
       "cdr.sides.refresh uses cdrSidesRefreshEnabled. " +
       "VATS reads every 120s after the previous pass, one platform request at a time. " +
-      "Numbering sources load in one chain at 22:00 UTC.",
+      "Numbering sources load in one chain at 18:00 UTC.",
   });
   // First regs/housekeeping tick after a short delay so boot is not blocked.
   state.timer = armTimer(null, 5_000, () => {

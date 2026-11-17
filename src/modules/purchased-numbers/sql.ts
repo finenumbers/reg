@@ -14,6 +14,7 @@ import {
   isAmountColumn,
   type PurchasedNumberColumn,
 } from "@/modules/purchased-numbers/columns";
+import { catalogRegionSql } from "@/modules/rtu/sql";
 
 export type PurchasedNumberCursor = {
   abc: string;
@@ -29,12 +30,10 @@ function columnRef(column: PurchasedNumberColumn): Prisma.Sql {
       return Prisma.sql`abc`;
     case "number":
       return Prisma.sql`"number"`;
-    case "category":
-      return Prisma.sql`category`;
     case "city":
       return Prisma.sql`city`;
     case "region":
-      return Prisma.sql`region`;
+      return catalogRegionSql();
     case "client":
       return Prisma.sql`client`;
     case "mask":
@@ -158,9 +157,8 @@ const ROW_SELECT = Prisma.sql`
   provider,
   abc,
   "number",
-  category,
   city,
-  region,
+  ${catalogRegionSql()} AS region,
   client,
   mask,
   "maskType",

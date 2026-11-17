@@ -31,9 +31,9 @@ describe("Finenumbers publish SQL", () => {
     const free = insertShape(FREE_COPY_SQL, "free_numbers");
     const purchased = insertShape(PURCHASED_COPY_SQL, "purchased_numbers");
     expect(free.columns).toBe(free.expressions.split(",").length);
-    expect(free.columns).toBe(16);
+    expect(free.columns).toBe(15);
     expect(purchased.columns).toBe(purchased.expressions.split(",").length);
-    expect(purchased.columns).toBe(15);
+    expect(purchased.columns).toBe(14);
     expect(free.expressions).not.toMatch(/\boperator\b/);
     expect(free.expressions).not.toMatch(/\bgeography\b/);
     expect(purchased.expressions).not.toMatch(/\boperator\b/);
