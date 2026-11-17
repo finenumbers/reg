@@ -1,5 +1,7 @@
 /**
  * One complete PSTN range list. Completeness is the locked total, not hasMore.
+ * A cursor page reports totalRows 0 because PSTN does not recount it.
+ * That zero keeps the locked total and does not end the list.
  * A transport failure retries the same page once. A shifted total restarts once.
  */
 
@@ -73,7 +75,9 @@ export async function readAllPages<T extends { id: number }>(input: {
       return { ok: false, error: INCOMPLETE, again: false };
     }
     if (locked == null) locked = page.total;
-    else if (page.total !== locked) return { ok: false, error: TOTAL_CHANGED, again: true };
+    else if (page.total !== 0 && page.total !== locked) {
+      return { ok: false, error: TOTAL_CHANGED, again: true };
+    }
     for (const row of page.items) {
       if (seenIds.has(row.id)) return { ok: false, error: INCOMPLETE, again: true };
       seenIds.add(row.id);

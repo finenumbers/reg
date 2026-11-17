@@ -103,6 +103,128 @@ describe("Finenumbers range read", () => {
     expect(read).toEqual({ ok: true, ranges: [], capacity: 0 });
   });
 
+  it("keeps the locked total when a cursor page reports zero", async () => {
+    const read = await readInnRanges({
+      list: async (cursor) => {
+        if (cursor == null) {
+          return {
+            items: [row({ id: 1, rangeStart: 1, rangeEnd: 1, capacity: 1 })],
+            total: 2,
+            hasMore: true,
+            nextCursor: "next",
+          };
+        }
+        return {
+          items: [row({ id: 2, rangeStart: 2, rangeEnd: 2, capacity: 1 })],
+          total: 0,
+          hasMore: false,
+          nextCursor: null,
+        };
+      },
+      summary: async () => summary(2, 2),
+    });
+    expect(read).toEqual({
+      ok: true,
+      ranges: [
+        {
+          id: 1,
+          abc: "495",
+          rangeStart: 1,
+          rangeEnd: 1,
+          capacity: 1,
+          operator: "Finenumbers",
+          geography: "Москва",
+        },
+        {
+          id: 2,
+          abc: "495",
+          rangeStart: 2,
+          rangeEnd: 2,
+          capacity: 1,
+          operator: "Finenumbers",
+          geography: "Москва",
+        },
+      ],
+      capacity: 2,
+    });
+  });
+
+  it("does not publish a short tail when the cursor page reports zero", async () => {
+    const read = await readInnRanges({
+      list: async (cursor) => {
+        if (cursor == null) {
+          return {
+            items: [row({ id: 1, rangeStart: 1, rangeEnd: 1, capacity: 1 })],
+            total: 2,
+            hasMore: true,
+            nextCursor: "next",
+          };
+        }
+        return { items: [], total: 0, hasMore: false, nextCursor: null };
+      },
+      summary: async () => summary(1, 1),
+    });
+    expect(read).toEqual({
+      ok: false,
+      error: "Список диапазонов неполный. Каталог не изменён.",
+    });
+  });
+
+  it("does not publish rows past the locked total when the cursor page reports zero", async () => {
+    const read = await readInnRanges({
+      list: async (cursor) => {
+        if (cursor == null) {
+          return {
+            items: [row({ id: 1, rangeStart: 1, rangeEnd: 1, capacity: 1 })],
+            total: 1,
+            hasMore: true,
+            nextCursor: "next",
+          };
+        }
+        return {
+          items: [row({ id: 2, rangeStart: 2, rangeEnd: 2, capacity: 1 })],
+          total: 0,
+          hasMore: false,
+          nextCursor: null,
+        };
+      },
+      summary: async () => summary(2, 2),
+    });
+    expect(read).toEqual({
+      ok: false,
+      error: "Список диапазонов неполный. Каталог не изменён.",
+    });
+  });
+
+  it("does not treat a negative cursor total as an empty recount", async () => {
+    let calls = 0;
+    const read = await readInnRanges({
+      list: async (cursor) => {
+        calls += 1;
+        if (cursor == null) {
+          return {
+            items: [row({ id: 1, rangeStart: 1, rangeEnd: 1, capacity: 1 })],
+            total: 2,
+            hasMore: true,
+            nextCursor: "next",
+          };
+        }
+        return {
+          items: [row({ id: 2, rangeStart: 2, rangeEnd: 2, capacity: 1 })],
+          total: -1,
+          hasMore: true,
+          nextCursor: "more",
+        };
+      },
+      summary: async () => summary(2, 2),
+    });
+    expect(calls).toBe(2);
+    expect(read).toEqual({
+      ok: false,
+      error: "Список диапазонов неполный. Каталог не изменён.",
+    });
+  });
+
   it("reads the list once more when the locked total moves", async () => {
     let shifted = false;
     const read = await readInnRanges({

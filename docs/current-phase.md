@@ -1,7 +1,13 @@
-# Current Phase — production (v1.311.0)
+# Current Phase — production (v1.312.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, purchased numbers, numbering sync, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-17
+
+## v1.312.0 — Finenumbers cursor page
+
+This release does not migrate and does not rewrite catalog rows or the CDR journal. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before the new one starts, then start one new app. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged.
+
+PSTN returns `totalRows` 0 on a ranges page that already has a cursor. Finenumbers keeps the total locked by the first page and reads the rest. The list still publishes only when the accepted rows equal that total and the summary matches. A short page leaves the previous Finenumbers rows. The same page reader fills «Оператор связи» and «География» from the stored range snapshot.
 
 ## v1.311.0 — Finenumbers source, no DID
 
