@@ -24,6 +24,7 @@ import {
   FREE_CALL_DIRECTION,
   MOBILE_RF_DIRECTION,
   RTU_COLUMNS,
+  SHOWN_REGION_REPLACEMENTS,
   type RtuColumn,
 } from "@/modules/rtu/columns";
 import { CITY_DIRECTION_PREFIX } from "@/modules/traffic/call-class";
@@ -365,17 +366,30 @@ export function pstnKeyFromDigits(digits: Prisma.Sql): Prisma.Sql {
 /**
  * Region cell. A city of «Мобильные РФ» shows the geography already computed
  * for this row. `city` is that label, `tariffRegion` is the tariff region.
+ * The result then collapses the four Moscow and Petersburg labels.
+ * The inner choice is one scalar, so its bindings stay single.
  */
 export function shownRegionSql(
   city: Prisma.Sql,
   tariffRegion: Prisma.Sql,
   geography: Prisma.Sql,
 ): Prisma.Sql {
-  return Prisma.sql`(
+  const shown = Prisma.sql`(
     CASE
       WHEN btrim(${city}) = ${MOBILE_RF_DIRECTION} THEN ${geography}
       ELSE ${tariffRegion}
     END
+  )`;
+  const arms = Prisma.join(
+    SHOWN_REGION_REPLACEMENTS.map(([from, to]) => Prisma.sql`WHEN ${from} THEN ${to}`),
+    " ",
+  );
+  return Prisma.sql`(
+    SELECT CASE btrim(shown)
+      ${arms}
+      ELSE shown
+    END
+    FROM (SELECT ${shown} AS shown) AS region_shown
   )`;
 }
 

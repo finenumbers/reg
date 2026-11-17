@@ -1,7 +1,7 @@
 import { Prisma } from "@/generated/prisma/client";
 import { describe, expect, it } from "vitest";
 import { EMPTY_FILTER_TOKEN } from "@/components/column-filters/types";
-import { MOBILE_RF_DIRECTION } from "@/modules/rtu/columns";
+import { MOBILE_RF_DIRECTION, shownRegionBindingValues } from "@/modules/rtu/columns";
 import {
   purchasedNumberFacetSql,
   purchasedNumberKeysetSql,
@@ -54,6 +54,7 @@ describe("purchased-number SQL", () => {
     expect(flat.text).toContain(`"number" ILIKE ? ESCAPE '\\'`);
     expect(flat.values).toEqual([
       "0495",
+      ...shownRegionBindingValues(),
       MOBILE_RF_DIRECTION,
       "Москва",
       "Секрет",
@@ -86,7 +87,12 @@ describe("purchased-number SQL", () => {
     const list = flattenSql(purchasedNumberListSql(where, 100, 200));
     expect(list.text).toContain('ORDER BY abc ASC, "number" ASC, id ASC');
     expect(list.text).toContain("LIMIT ? OFFSET ?");
-    expect(list.values).toEqual([MOBILE_RF_DIRECTION, 100, 200]);
+    expect(list.values).toEqual([
+      ...shownRegionBindingValues(),
+      MOBILE_RF_DIRECTION,
+      100,
+      200,
+    ]);
 
     const first = flattenSql(purchasedNumberKeysetSql(where, null, 500));
     expect(first.text).not.toContain("OFFSET");
@@ -99,6 +105,7 @@ describe("purchased-number SQL", () => {
     expect(next.text).toContain(`"number" > ?`);
     expect(next.text).toContain("id > ?");
     expect(next.values).toEqual([
+      ...shownRegionBindingValues(),
       MOBILE_RF_DIRECTION,
       "495",
       "495",

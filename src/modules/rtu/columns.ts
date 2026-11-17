@@ -90,6 +90,40 @@ export const RTU_HEADERS: Record<RtuColumn, string> = {
 export const MOBILE_RF_DIRECTION = "Мобильные РФ";
 export const FREE_CALL_DIRECTION = "Бесплатный вызов";
 
+/**
+ * Shown «Регион» only. Geography and the stored tariff region stay.
+ * Compared after ASCII-space trim, the same characters as PostgreSQL btrim.
+ */
+export const SHOWN_REGION_REPLACEMENTS = [
+  ["Московская область, Город Москва", "Московская область"],
+  ["Город Москва, Московская область", "Московская область"],
+  ["Ленинградская область, Город Санкт-Петербург", "Ленинградская область"],
+  ["Город Санкт-Петербург, Ленинградская область", "Ленинградская область"],
+] as const;
+
+/** Bound pairs, source then replacement, in CASE order. */
+export function shownRegionBindingValues(): string[] {
+  return SHOWN_REGION_REPLACEMENTS.flatMap(([from, to]) => [from, to]);
+}
+
+/** PostgreSQL btrim with no second argument. Only U+0020. */
+function trimAsciiSpace(value: string): string {
+  let start = 0;
+  let end = value.length;
+  while (start < end && value.charCodeAt(start) === 32) start += 1;
+  while (end > start && value.charCodeAt(end - 1) === 32) end -= 1;
+  return start === 0 && end === value.length ? value : value.slice(start, end);
+}
+
+/** Short oblast for the four compound labels. Any other text is returned unchanged. */
+export function collapseShownRegion(value: string): string {
+  const trimmed = trimAsciiSpace(value);
+  for (const [from, to] of SHOWN_REGION_REPLACEMENTS) {
+    if (trimmed === from) return to;
+  }
+  return value;
+}
+
 const COLUMN_SET = new Set<string>(RTU_COLUMNS);
 
 export function isRtuColumn(value: string): value is RtuColumn {
@@ -99,6 +133,7 @@ export function isRtuColumn(value: string): value is RtuColumn {
 /**
  * Operator, geography, and the displayed region are read with the PSTN cache.
  * A city of «Мобильные РФ» shows that geography in the region cell.
+ * The shown cell then collapses the four Moscow and Petersburg labels.
  * City, the tariff region, ABC, the local number, and the four mask cells
  * are stored on the screen snapshot.
  */

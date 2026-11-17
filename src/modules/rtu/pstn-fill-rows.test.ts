@@ -83,6 +83,22 @@ describe("mergePstnLabels", () => {
     expect(landline?.region).toBe("Ростовская область");
   });
 
+  it("collapses a compound mobile geography and leaves the geography cell", () => {
+    const geography = "Московская область, Город Москва";
+    const [mobile] = mergePstnLabels(
+      [row({ city: MOBILE_RF_DIRECTION, region: "", cityAlert: false })],
+      [{ id: "a", operator: "МТС", geography }],
+    );
+    expect(mobile?.region).toBe("Московская область");
+    expect(mobile?.geography).toBe(geography);
+    const [landline] = mergePstnLabels(
+      [row({ region: "Ростовская область" })],
+      [{ id: "a", operator: "МТС", geography }],
+    );
+    expect(landline?.region).toBe("Ростовская область");
+    expect(landline?.geography).toBe(geography);
+  });
+
   it("returns the same rows when nothing changes", () => {
     const items = [row({ operator: "МТС", geography: "край" })];
     expect(

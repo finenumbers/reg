@@ -1,7 +1,13 @@
-# Current Phase — production (v1.318.0)
+# Current Phase — production (v1.319.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, purchased numbers, numbering sync, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-17
+
+## v1.319.0 — Moscow and Petersburg region labels
+
+This release does not migrate and does not rewrite catalog rows or the CDR journal. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before the new one starts, then start one new app. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged.
+
+On «Управление РТУ», «Свободные номера», and «Купленные номера», «Регион» shows «Московская область» for «Московская область, Город Москва» and «Город Москва, Московская область». It shows «Ленинградская область» for «Ленинградская область, Город Санкт-Петербург» and «Город Санкт-Петербург, Ленинградская область». A city of «Мобильные РФ» still shows geography in that cell, and these four labels collapse after that choice. «География» stays the stored text. The stored region stays the tariff region. A filter, a facet, and the XLSX use the same cell. An empty geography on a mobile row still leaves «Регион» empty until the PSTN fill, which applies the same collapse.
 
 ## v1.318.0 — Catalog category, mobile region, chain at 18:00 UTC
 

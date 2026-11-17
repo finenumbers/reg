@@ -10,6 +10,7 @@ import {
   MOBILE_RF_DIRECTION,
   RTU_COLUMNS,
   RTU_HEADERS,
+  shownRegionBindingValues,
 } from "@/modules/rtu/columns";
 import {
   activeFilterColumns,
@@ -32,6 +33,7 @@ import {
   screenFacetSql,
   screenListSql,
   screenStampsSql,
+  shownRegionSql,
 } from "@/modules/rtu/sql";
 import { normalizePstnPhone } from "@/modules/pstn/types";
 import { CITY_DIRECTION_PREFIX } from "@/modules/traffic/call-class";
@@ -245,6 +247,24 @@ describe("pstn cache key", () => {
     expect(flat.values).toContain("pending");
     expect(flat.values).toContain("resolved");
     expect(flat.values).toContain("Премиум");
+  });
+});
+
+describe("shown region", () => {
+  it("collapses both branches after one inner choice", () => {
+    const flat = flattenSql(
+      shownRegionSql(Prisma.sql`city`, Prisma.sql`region`, Prisma.sql`geo`),
+    );
+    expect(flat.text.indexOf("CASE btrim(shown)")).toBeLessThan(
+      flat.text.indexOf("btrim(city)"),
+    );
+    expect(flat.text.indexOf("ELSE shown")).toBeLessThan(flat.text.indexOf("AS shown"));
+    expect(flat.text).toContain("THEN geo");
+    expect(flat.text).toContain("ELSE region");
+    expect(flat.values).toEqual([
+      ...shownRegionBindingValues(),
+      MOBILE_RF_DIRECTION,
+    ]);
   });
 });
 
