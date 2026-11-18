@@ -33,6 +33,7 @@ import {
   collectLegCdrIds,
   parseVoipmonitorLegs,
 } from "@/modules/voipmonitor/legs";
+import type { VoipmonitorLegs } from "@/modules/voipmonitor/types";
 import { matchBucket } from "@/modules/voipmonitor/match";
 import {
   probeBudgetForLane,
@@ -77,6 +78,8 @@ type HourMeta = {
   fetchMs?: number;
   matchMs?: number;
   writeMs?: number;
+  audioLegs?: number;
+  audioKnown?: number;
 };
 
 const CANDIDATE_SELECT = {
@@ -127,7 +130,13 @@ async function writeHourResults(
   candidates: NonNullable<ReturnType<typeof candidateFromSatelRow>>[],
   results: Awaited<ReturnType<typeof matchBucket>>["results"],
   attempts: Map<string, number>,
-): Promise<{ matched: number; written: number; invariantIssues: number }> {
+): Promise<{
+  matched: number;
+  written: number;
+  invariantIssues: number;
+  audioLegs: number;
+  audioKnown: number;
+}> {
   const issues = auditLinkInvariants(candidates, results);
   if (issues.length > 0) {
     logger.warn("voipmonitor.match.invariants", {
@@ -151,13 +160,20 @@ async function writeHourResults(
     updatedAt: Date;
   }> = [];
   let matched = 0;
+  let audioLegs = 0;
+  let audioKnown = 0;
   for (let i = 0; i < candidates.length; i++) {
     const candidate = candidates[i]!;
     const result = results[i];
     if (!result) continue;
     const attemptCount = (attempts.get(candidate.sourceRecordId) ?? 0) + 1;
     const matchedOk = isMatchedStatus(result.status);
-    if (matchedOk) matched += 1;
+    if (matchedOk) {
+      matched += 1;
+      const tally = tallyLegAudio(result.legs);
+      audioLegs += tally.audioLegs;
+      audioKnown += tally.audioKnown;
+    }
     const evidenceJson = compactEvidence(result);
     rows.push({
       cdrRecordId: candidate.sourceRecordId,
@@ -228,7 +244,27 @@ async function writeHourResults(
         updated_at = EXCLUDED.updated_at
     `;
   }
-  return { matched, written: rows.length, invariantIssues: issues.length };
+  return {
+    matched,
+    written: rows.length,
+    invariantIssues: issues.length,
+    audioLegs,
+    audioKnown,
+  };
+}
+
+function tallyLegAudio(legs: VoipmonitorLegs): {
+  audioLegs: number;
+  audioKnown: number;
+} {
+  let audioLegs = 0;
+  let audioKnown = 0;
+  for (const leg of [legs.in, legs.out]) {
+    if (!leg) continue;
+    audioLegs += 1;
+    if (leg.audio === true || leg.audio === false) audioKnown += 1;
+  }
+  return { audioLegs, audioKnown };
 }
 
 async function processHour(input: {

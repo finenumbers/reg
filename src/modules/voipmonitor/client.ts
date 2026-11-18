@@ -75,6 +75,28 @@ function firstTime(
   return null;
 }
 
+const CODEC_KEYS = ["codec_a", "codec_b"] as const;
+
+/** A documented codec value. 0 is PCMU. Null, blank, "null", and "<nil>" are empty. */
+export function codecValuePresent(value: unknown): boolean {
+  if (value == null) return false;
+  if (typeof value === "number") return Number.isFinite(value);
+  if (typeof value === "string") {
+    const text = value.trim();
+    return text !== "" && text !== "null" && text !== "<nil>";
+  }
+  return true;
+}
+
+/** Null when this getVoipCalls object did not carry codec_a or codec_b. */
+export function audioFromCodecs(row: Record<string, unknown>): boolean | null {
+  const present = CODEC_KEYS.filter((key) =>
+    Object.prototype.hasOwnProperty.call(row, key),
+  );
+  if (present.length === 0) return null;
+  return present.some((key) => codecValuePresent(row[key]));
+}
+
 function mapVmCalls(rows: Record<string, unknown>[]): VmCall[] {
   const out: VmCall[] = [];
   for (const row of rows) {
@@ -89,6 +111,7 @@ function mapVmCalls(rows: Record<string, unknown>[]): VmCall[] {
       connectDuration: firstInt(row, "connect_duration", "connectduration"),
       callDate: firstTime(row, "calldate", "callDate", "start"),
       callEnd: firstTime(row, "callend", "callEnd", "end"),
+      hasAudio: audioFromCodecs(row),
     };
     if (!call.cdrId && !call.callId) continue;
     out.push(call);

@@ -369,6 +369,27 @@ describe("jobs ui-format", () => {
     expect(
       formatJobMessage(
         sample({
+          actionCode: "voipmonitor.match",
+          phonesParsed: 2,
+          changesCount: 2,
+          meta: {
+            hours: [
+              {
+                lane: "live",
+                hour: "2026-09-01T03:00:00.000Z",
+                matched: 2,
+                audioKnown: 0,
+                audioLegs: 3,
+              },
+            ],
+          },
+        }),
+        "UTC",
+      ),
+    ).toMatch(/кодек у 0 из 3/);
+    expect(
+      formatJobMessage(
+        sample({
           actionCode: "cdr.import",
           phonesParsed: 12,
           changesCount: 0,

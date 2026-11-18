@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  calltraceCells,
   classifyCallId,
   collectLegCdrIds,
   parseVoipmonitorLegs,
+  RTP_ABSENT,
+  RTP_PRESENT,
 } from "@/modules/voipmonitor/legs";
 import { SOURCE_SATEL, type CdrCandidate } from "@/modules/voipmonitor/types";
 
@@ -57,6 +60,82 @@ describe("classifyCallId", () => {
     const row = cdr({ inCallIds: ["in-id"], outCallIds: ["out-id"] });
     expect(classifyCallId("in-id", row)).toEqual({ in: true, out: false });
     expect(classifyCallId("out-id", row)).toEqual({ in: false, out: true });
+  });
+});
+
+describe("parseVoipmonitorLegs audio", () => {
+  it("keeps a boolean and ignores a string", () => {
+    expect(
+      parseVoipmonitorLegs({
+        out: { url: "https://vm/a", cdrId: "1", callId: "out", audio: false },
+        in: { url: "https://vm/b", cdrId: "2", callId: "in", audio: "true" },
+      }),
+    ).toEqual({
+      out: { url: "https://vm/a", cdrId: "1", callId: "out", audio: false },
+      in: { url: "https://vm/b", cdrId: "2", callId: "in" },
+    });
+  });
+});
+
+describe("calltrace RTP mark", () => {
+  const gui = "https://vm.example";
+  const outUrl = "https://vm.example/admin.php?cdr_filter=%7B%7D";
+  const inUrl = "https://vm.example/admin.php?cdr_filter=%7Bok%7D";
+
+  it("reads Out and does not fall back when Out has no codec key", () => {
+    expect(
+      calltraceCells(
+        {
+          out: { url: outUrl, cdrId: "9", callId: "out", audio: false },
+          in: { url: inUrl, cdrId: "8", callId: "in", audio: true },
+        },
+        gui,
+      ).rtp,
+    ).toBe(RTP_ABSENT);
+    expect(
+      calltraceCells(
+        {
+          out: { url: outUrl, cdrId: "9", callId: "out" },
+          in: { url: inUrl, cdrId: "8", callId: "in", audio: true },
+        },
+        gui,
+      ).rtp,
+    ).toBe("");
+  });
+
+  it("reads In only when Out is not shown", () => {
+    expect(
+      calltraceCells(
+        { in: { url: inUrl, cdrId: "8", callId: "in", audio: true } },
+        gui,
+      ).rtp,
+    ).toBe(RTP_PRESENT);
+    expect(
+      calltraceCells(
+        {
+          out: { url: "javascript:alert(1)", cdrId: "9", callId: "out", audio: false },
+          in: { url: inUrl, cdrId: "8", callId: "in", audio: true },
+        },
+        gui,
+      ).rtp,
+    ).toBe(RTP_PRESENT);
+    expect(
+      calltraceCells(
+        {
+          out: { url: outUrl, cdrId: "9", callId: "out", audio: true },
+          in: { url: inUrl, cdrId: "8", callId: "in", audio: false },
+        },
+        "",
+      ).rtp,
+    ).toBe("");
+    expect(
+      calltraceCells(
+        {
+          out: { url: "https://other.example/a", cdrId: "9", callId: "out", audio: true },
+        },
+        gui,
+      ).rtp,
+    ).toBe("");
   });
 });
 

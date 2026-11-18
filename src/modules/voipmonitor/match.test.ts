@@ -450,8 +450,18 @@ describe("matchOne", () => {
 
   it("places distinct in/out Call-IDs in the matching columns", async () => {
     const client = fakeClient([
-      vm({ cdrId: "in-1", callId: "call-in", sipCallerIp: "1.1.1.1" }),
-      vm({ cdrId: "out-1", callId: "call-out", sipCallerIp: "9.9.9.9" }),
+      vm({
+        cdrId: "in-1",
+        callId: "call-in",
+        sipCallerIp: "1.1.1.1",
+        hasAudio: true,
+      }),
+      vm({
+        cdrId: "out-1",
+        callId: "call-out",
+        sipCallerIp: "9.9.9.9",
+        hasAudio: false,
+      }),
     ]);
     const { result, error } = await matchOne(
       { client, guiBase: "https://vm.example" },
@@ -467,6 +477,8 @@ describe("matchOne", () => {
     expect(result.legs.out?.cdrId).toBe("out-1");
     expect(result.legs.in?.url).toContain("fcallid");
     expect(result.legs.out?.url).toContain("fcallid");
+    expect(result.legs.in?.audio).toBe(true);
+    expect(result.legs.out?.audio).toBe(false);
     expect(result.vm?.cdrId).toBe("in-1");
   });
 
@@ -499,6 +511,7 @@ describe("matchOne", () => {
       }),
     );
     expect(result.legs.in?.cdrId).toBe("7");
+    expect(result.legs.in?.audio).toBeUndefined();
     expect(result.legs.out).toBeUndefined();
   });
 

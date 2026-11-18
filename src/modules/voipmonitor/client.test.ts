@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { VoipmonitorClient } from "@/modules/voipmonitor/client";
+import {
+  audioFromCodecs,
+  parseVoipCallsResponse,
+  VoipmonitorClient,
+} from "@/modules/voipmonitor/client";
 
 function jsonCalls(count: number): string {
   const rows = Array.from({ length: count }, (_, i) => ({
@@ -11,6 +15,25 @@ function jsonCalls(count: number): string {
   }));
   return JSON.stringify(rows);
 }
+
+describe("audioFromCodecs", () => {
+  it("treats 0 as a codec and ignores payload fields", () => {
+    expect(audioFromCodecs({ codec_a: 0, codec_b: null })).toBe(true);
+    expect(audioFromCodecs({ codec_a: "", codec_b: "PCMA" })).toBe(true);
+    expect(audioFromCodecs({ codec_a: "  ", codec_b: "<nil>" })).toBe(false);
+    expect(audioFromCodecs({ codec_a: "null", codec_b: null })).toBe(false);
+    expect(audioFromCodecs({ codec_b: { name: "PCMA" } })).toBe(true);
+    expect(audioFromCodecs({ a_payload: 8 })).toBeNull();
+    expect(audioFromCodecs({})).toBeNull();
+  });
+
+  it("stores the flag on a parsed call", () => {
+    const [call] = parseVoipCallsResponse(
+      JSON.stringify([{ cdrId: "1", callId: "abc", codec_a: 0 }]),
+    );
+    expect(call?.hasAudio).toBe(true);
+  });
+});
 
 describe("VoipmonitorClient.listVoipCallsRange", () => {
   it("fetches 15-minute slices in parallel", async () => {

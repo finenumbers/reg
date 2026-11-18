@@ -1,7 +1,13 @@
-# Current Phase — production (v1.319.0)
+# Current Phase — production (v1.320.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, purchased numbers, numbering sync, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
-**Date:** 2026-11-17
+**Date:** 2026-11-18
+
+## v1.320.0 — RTP on the CDR tables
+
+This release does not migrate and does not rewrite CDR rows. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before the new one starts, then start one new app. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged.
+
+A new VoIPmonitor match stores whether `codec_a` or `codec_b` was present on each leg. «Телефонный трафик», «Звонки в ОПРС», and «Сырые данные» show «RTP» after Calltrace Out. «Есть» and «Нет» follow the outgoing link. The incoming link is used only when the outgoing link is not shown. A link matched before this release stays blank. The column is not a CDR field. On «Звонки в ОПРС» the filter uses the same host check as Calltrace, and the xlsx includes the column. The month traffic workbook does not. «Задачи» adds «кодек у N из M» on the hour line. Zero known codecs means this GUI did not send `codec_a` or `codec_b`.
 
 ## v1.319.0 — Moscow and Petersburg region labels
 

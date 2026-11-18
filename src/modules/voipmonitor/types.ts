@@ -54,6 +54,8 @@ export type VoipmonitorLegRef = {
   url: string;
   cdrId: string;
   callId: string;
+  /** Present only when getVoipCalls included codec_a or codec_b. */
+  audio?: boolean;
 };
 
 export type VoipmonitorLegs = {
@@ -72,6 +74,8 @@ export type VmCall = {
   called: string;
   sipCallerIp: string;
   sipCalledIp: string;
+  /** True or false when the response had codec_a or codec_b. Omitted when it did not. */
+  hasAudio?: boolean | null;
 };
 
 export type MatchResult = {

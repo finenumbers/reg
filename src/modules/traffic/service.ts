@@ -29,9 +29,7 @@ import {
 import { listCachedMonthCounts } from "@/modules/traffic/cdr-month-stats";
 import { countInboxFiles } from "@/modules/traffic/inbox";
 import { listPoisonEntries } from "@/modules/traffic/poison";
-import { parseVoipmonitorLegs } from "@/modules/voipmonitor/legs";
-import type { VoipmonitorLegs } from "@/modules/voipmonitor/types";
-import { isSafeVoipmonitorHref } from "@/modules/voipmonitor/url";
+import { calltraceCells, parseVoipmonitorLegs } from "@/modules/voipmonitor/legs";
 import { splitCdrDateParts } from "@/modules/traffic/cdr-date-parts";
 import {
   CALL_CLASS_COLUMNS,
@@ -93,16 +91,6 @@ export type TrafficOperationalStatus = {
   }>;
 };
 
-function safeLeg(
-  ref: { url: string; cdrId: string } | undefined,
-  guiUrl: string,
-): { url: string; cdrId: string } {
-  if (!ref?.url || !guiUrl || !isSafeVoipmonitorHref(ref.url, guiUrl)) {
-    return { url: "", cdrId: "" };
-  }
-  return { url: ref.url, cdrId: ref.cdrId };
-}
-
 function rowToData(
   row: Record<string, unknown>,
   link?: { voipmonitorLegs: unknown } | null,
@@ -131,13 +119,12 @@ function rowToData(
     const asText = stored == null ? "" : String(stored);
     data[col] = asText || (col === "cdr_day" ? fallback.day : fallback.time);
   }
-  const legs: VoipmonitorLegs = parseVoipmonitorLegs(link?.voipmonitorLegs);
-  const inn = safeLeg(legs.in, guiUrl);
-  const out = safeLeg(legs.out, guiUrl);
-  data.voipmonitor_url_in = inn.url;
-  data.voipmonitor_cdr_id_in = inn.cdrId;
-  data.voipmonitor_url_out = out.url;
-  data.voipmonitor_cdr_id_out = out.cdrId;
+  const cells = calltraceCells(parseVoipmonitorLegs(link?.voipmonitorLegs), guiUrl);
+  data.voipmonitor_url_in = cells.inUrl;
+  data.voipmonitor_cdr_id_in = cells.inId;
+  data.voipmonitor_url_out = cells.outUrl;
+  data.voipmonitor_cdr_id_out = cells.outId;
+  data.rtp = cells.rtp;
   return data;
 }
 

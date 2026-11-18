@@ -16,6 +16,7 @@ import {
   buildOprsFacetSql,
   buildOprsSliceSql,
   oprsUsesCalltrace,
+  oprsUsesRtp,
   oprsUsesMarking,
   type OprsSqlContext,
   type OprsSqlInput,
@@ -148,11 +149,12 @@ export async function loadOprsReadContext(
 ): Promise<OprsReadContext> {
   const marking = oprsUsesMarking(filters, facetColumn);
   const calltrace = oprsUsesCalltrace(filters, facetColumn);
+  const rtp = oprsUsesRtp(filters, facetColumn);
   const [tone, blocked, labels, guiHost] = await Promise.all([
     loadOprsToneReport(),
     loadBlockedNumbers(),
     marking ? loadOprsMarkingSnapshot() : Promise.resolve(null),
-    calltrace ? readGuiHost() : Promise.resolve(""),
+    calltrace || rtp ? readGuiHost() : Promise.resolve(""),
   ]);
   return {
     tones: tone.map,

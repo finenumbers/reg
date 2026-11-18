@@ -201,6 +201,31 @@ describe("oprs computed sql", () => {
     expect(flat.text).toContain("ESCAPE E'\\\\'");
   });
 
+  it("filters RTP from the same host check without a Calltrace filter", () => {
+    const flat = sliceText(
+      input({ filters: { rtp: ["Есть"] } }),
+      ctx({ guiHost: "gui.example" }),
+    );
+    expect(flat.text).toContain("cdr_voipmonitor_links");
+    expect(flat.text).toContain("->>'audio'");
+    expect(flat.text).toContain(":443");
+    expect(flat.text.indexOf("->'out'")).toBeLessThan(flat.text.indexOf("->'in'"));
+    expect(flat.values).toContain("Есть");
+    expect(flat.values).toContain("Нет");
+    expect(flat.values).toContain("gui.example");
+    expect(flat.text).not.toContain("= 'false' THEN ''");
+
+    const menu = flattenSql(
+      buildOprsFacetSql(input(), ctx({ guiHost: "gui.example" }), "rtp", "", 20),
+    );
+    expect(menu.text).toContain("cdr_voipmonitor_links");
+    expect(menu.values).toContain("Есть");
+
+    const blind = sliceText(input({ filters: { rtp: ["Есть"] } }), ctx());
+    expect(blind.text).not.toContain("voipmonitor_legs");
+    expect(() => oprsStoredColumnSql("rtp")).toThrow(OprsQueryError);
+  });
+
   it("uses one aggregate and the same search tokens as the stored menu", () => {
     const facet = flattenSql(
       buildOprsFacetSql(

@@ -392,6 +392,13 @@ function formatHourDetail(
   const bits = [lane];
   if (stamped) bits.push(stamped);
   if (matched != null) bits.push(`${formatCount(matched)} сопоставлено`);
+  const audioKnown = finiteNumber(hour.audioKnown);
+  const audioLegs = finiteNumber(hour.audioLegs);
+  if (audioKnown != null && audioLegs != null && audioLegs > 0) {
+    bits.push(
+      `кодек у ${formatCount(audioKnown)} из ${formatCount(audioLegs)}`,
+    );
+  }
   if (error) bits.push(error);
   return bits.length > 1 || error ? bits.join(" · ") : null;
 }

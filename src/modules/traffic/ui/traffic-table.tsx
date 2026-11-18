@@ -13,6 +13,7 @@ import { BLOCKED_ROW_CLASS } from "@/components/blocked-row-class";
 import { HighlightText } from "@/components/highlight-text";
 import {
   BILLING_MINUTES_COLUMN,
+  RTP_COLUMN,
   CDR_PHONE_COLUMNS,
   TRAFFIC_BOLD_COLUMNS,
   VOIPMONITOR_COLUMN_IN,
@@ -120,6 +121,7 @@ export function TrafficTable({
               plain:
                 VOIPMONITOR_COLUMN_SET.has(h) ||
                 h === BILLING_MINUTES_COLUMN ||
+                h === RTP_COLUMN ||
                 plainSet.has(h),
             });
             const filter =

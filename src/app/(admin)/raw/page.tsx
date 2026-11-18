@@ -6,6 +6,7 @@ import {
   CDR_COLUMNS,
   CDR_ENRICH_LABELS,
   RAW_TABLE_COLUMNS,
+  RTP_COLUMN,
   VOIPMONITOR_RAW_LABELS,
 } from "@/modules/traffic/columns";
 import { loadTrafficPageInitial } from "@/modules/traffic/service";
@@ -15,6 +16,7 @@ const HEADER_LABELS: Record<string, string> = {
   ...Object.fromEntries(CDR_COLUMNS.map((col) => [col, col])),
   ...CDR_ENRICH_LABELS,
   ...VOIPMONITOR_RAW_LABELS,
+  [RTP_COLUMN]: "RTP",
   ...CALL_CLASS_LABELS,
   ...CDR_TARIFF_LABELS,
 };

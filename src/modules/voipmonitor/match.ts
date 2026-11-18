@@ -235,8 +235,8 @@ function legRef(
   guiBase: string,
   cardTemplate: string,
   call: VmCall,
-): VoipmonitorLegs["in"] {
-  return {
+): NonNullable<VoipmonitorLegs["in"]> {
+  const ref: NonNullable<VoipmonitorLegs["in"]> = {
     url: buildCardUrl(cardTemplate, guiBase, {
       cdrId: call.cdrId,
       callId: call.callId,
@@ -245,6 +245,10 @@ function legRef(
     cdrId: call.cdrId,
     callId: call.callId,
   };
+  if (call.hasAudio === true || call.hasAudio === false) {
+    ref.audio = call.hasAudio;
+  }
+  return ref;
 }
 
 function success(

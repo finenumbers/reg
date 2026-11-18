@@ -4,9 +4,7 @@
 
 import type { Prisma } from "@/generated/prisma/client";
 import { splitCdrDateParts } from "@/modules/traffic/cdr-date-parts";
-import { parseVoipmonitorLegs } from "@/modules/voipmonitor/legs";
-import type { VoipmonitorLegs } from "@/modules/voipmonitor/types";
-import { isSafeVoipmonitorHref } from "@/modules/voipmonitor/url";
+import { calltraceCells, parseVoipmonitorLegs } from "@/modules/voipmonitor/legs";
 
 export const OPRS_LIST_SELECT = {
   id: true,
@@ -43,16 +41,6 @@ function text(value: string | null | undefined): string {
   return value ?? "";
 }
 
-function safeLeg(
-  ref: { url: string; cdrId: string } | undefined,
-  guiUrl: string,
-): { url: string; cdrId: string } {
-  if (!ref?.url || !guiUrl || !isSafeVoipmonitorHref(ref.url, guiUrl)) {
-    return { url: "", cdrId: "" };
-  }
-  return { url: ref.url, cdrId: ref.cdrId };
-}
-
 /** Display cells plus the raw sort key (`cdr_date`, `cdr_id`) used as the cursor. */
 export function oprsRowData(
   row: OprsListRow,
@@ -60,9 +48,7 @@ export function oprsRowData(
   guiUrl: string,
 ): Record<string, string> {
   const fallback = splitCdrDateParts(row.cdrDate);
-  const legs: VoipmonitorLegs = parseVoipmonitorLegs(link?.voipmonitorLegs);
-  const inn = safeLeg(legs.in, guiUrl);
-  const out = safeLeg(legs.out, guiUrl);
+  const cells = calltraceCells(parseVoipmonitorLegs(link?.voipmonitorLegs), guiUrl);
   return {
     cdr_date: row.cdrDate,
     cdr_id: row.cdrId,
@@ -80,9 +66,10 @@ export function oprsRowData(
     dst_name: text(row.dstName),
     dp_name: text(row.dpName),
     disconnect_code_string: text(row.disconnectCodeString),
-    voipmonitor_url_in: inn.url,
-    voipmonitor_cdr_id_in: inn.cdrId,
-    voipmonitor_url_out: out.url,
-    voipmonitor_cdr_id_out: out.cdrId,
+    voipmonitor_url_in: cells.inUrl,
+    voipmonitor_cdr_id_in: cells.inId,
+    voipmonitor_url_out: cells.outUrl,
+    voipmonitor_cdr_id_out: cells.outId,
+    rtp: cells.rtp,
   };
 }
