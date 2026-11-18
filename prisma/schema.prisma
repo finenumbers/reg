@@ -1384,6 +1384,16 @@ model CdrVoipmonitorLink {
   voipmonitorCdrId   String    @default("") @map("voipmonitor_cdr_id")
   voipmonitorCallId  String    @default("") @map("voipmonitor_call_id")
   voipmonitorLegs    Json?     @map("voipmonitor_legs")
+  /// Screen host of the outgoing link. Empty when the URL is not http(s).
+  outHost            String?   @map("out_host")
+  /// Screen host of the incoming link. Empty when the URL is not http(s).
+  inHost             String?   @map("in_host")
+  /// True, false, or null when the outgoing leg has no boolean audio.
+  outAudio           Boolean?  @map("out_audio")
+  /// True, false, or null when the incoming leg has no boolean audio.
+  inAudio            Boolean?  @map("in_audio")
+  /// Copy of cdr_records.cdr_date at the moment the link was written.
+  cdrDate            String?   @map("cdr_date")
   matchStatus        String    @default("") @map("match_status")
   matchMethod        String    @default("") @map("match_method")
   matchScore         Int       @default(0) @map("match_score")

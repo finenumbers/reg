@@ -18,6 +18,8 @@ COPY scripts/cdr-call-class-backfill.mjs ./scripts/cdr-call-class-backfill.mjs
 COPY scripts/cdr-tariff-backfill.mjs ./scripts/cdr-tariff-backfill.mjs
 COPY scripts/cdr-post-migrate.mjs ./scripts/cdr-post-migrate.mjs
 COPY scripts/migrate-and-backfill.sh ./scripts/migrate-and-backfill.sh
+COPY scripts/rtp-leg-index.mjs ./scripts/rtp-leg-index.mjs
+COPY scripts/rtp-leg-index-backfill.mjs ./scripts/rtp-leg-index-backfill.mjs
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 CMD ["sh", "./scripts/migrate-and-backfill.sh"]

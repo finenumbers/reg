@@ -44,6 +44,46 @@ export function rtpExpr(host: string): Prisma.Sql {
   )`;
 }
 
-export function rtpAbsentSql(host: string): Prisma.Sql {
-  return Prisma.sql`${rtpExpr(host)} = ${RTP_ABSENT}`;
+/** One checkbox «Нет RTP» and no other stored flag. The page starts at the index. */
+export function onlyAbsentRtp(flags: {
+  noRtp?: boolean;
+  phantom?: boolean;
+  callErrors?: boolean;
+  parking?: boolean;
+  failed?: boolean;
+  check?: boolean;
+  success?: boolean;
+}): boolean {
+  return (
+    flags.noRtp === true &&
+    flags.phantom !== true &&
+    flags.callErrors !== true &&
+    flags.parking !== true &&
+    flags.failed !== true &&
+    flags.check !== true &&
+    flags.success !== true
+  );
+}
+
+/**
+ * Ids whose screen RTP word is «Нет» for this host and month.
+ * Out on the host decides. In is used only when Out is on another host.
+ * An empty host is not a match and must not be passed here.
+ */
+export function rtpAbsentIdsSql(host: string, monthLike: string): Prisma.Sql {
+  return Prisma.sql`
+    SELECT cdr_record_id FROM cdr_voipmonitor_links
+    WHERE out_audio = false AND out_host = ${host} AND cdr_date LIKE ${monthLike}
+    UNION ALL
+    SELECT cdr_record_id FROM cdr_voipmonitor_links
+    WHERE in_audio = false AND in_host = ${host}
+      AND out_host <> ${host} AND cdr_date LIKE ${monthLike}
+  `;
+}
+
+/** Checkbox predicate. An empty host matches nothing and does not read the table. */
+export function rtpAbsentSql(host: string, monthLike: string): Prisma.Sql {
+  const trimmed = host.trim();
+  if (!trimmed) return Prisma.sql`FALSE`;
+  return Prisma.sql`c.id IN (${rtpAbsentIdsSql(trimmed, monthLike)})`;
 }

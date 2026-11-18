@@ -14,3 +14,5 @@ printf '%s\n' "$log"
 echo "Migrations applied."
 printf '%s\n' "$log" | node scripts/cdr-post-migrate.mjs
 echo "CDR post-migrate finished."
+node scripts/rtp-leg-index-backfill.mjs
+echo "RTP leg index finished."

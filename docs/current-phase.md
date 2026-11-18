@@ -1,7 +1,13 @@
-# Current Phase — production (v1.322.0)
+# Current Phase — production (v1.323.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, purchased numbers, numbering sync, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-18
+
+## v1.323.0 — Absent RTP checkbox reads an index
+
+The migration `20261118160000_rtp_leg_index` adds nullable `out_host`, `in_host`, `out_audio`, `in_audio`, and `cdr_date` on `cdr_voipmonitor_links`. It does not read or update `cdr_records`. The migration is label-free. `lock_timeout` is 15 seconds. The migrator then fills those columns from the stored Calltrace JSON and the CDR date, sets the three text columns `NOT NULL`, and builds two partial indexes. That fill reads `cdr_date` by primary key and does not rewrite a CDR row. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before migrate. Let the migrator exit 0, then start one new app. If migrate or the fill stops, do not start the new app. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged.
+
+«Нет RTP» on «Телефонный трафик» and «Звонки в ОПРС» reads that index. The host is the same `URL.host` the row paint compares, so a changed GUI host stays correct. A lone checkbox does not scan the month. «Неуспешный» on «Звонки в ОПРС» still shows unsuccessful calls whose RTP is not «Нет». «Неуспешный» on «Телефонный трафик» is unchanged. The status column still means the stored status. Calltrace text and the RTP column on «Сырые данные» still parse the link.
 
 ## v1.322.0 — OPRS unsuccessful checkbox is the black tail
 

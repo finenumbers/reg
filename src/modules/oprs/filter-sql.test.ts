@@ -233,29 +233,38 @@ describe("oprs computed sql", () => {
       input({ flags: { noRtp: true } }),
       ctx({ guiHost: "gui.example" }),
     );
-    expect(flat.text).toContain("cdr_voipmonitor_links");
-    expect(flat.text).toContain("->>'audio'");
-    expect(flat.values).toContain("Нет");
+    expect(flat.text.indexOf("SELECT cdr_record_id")).toBeLessThan(
+      flat.text.indexOf("JOIN cdr_records"),
+    );
+    expect(flat.text).toContain("out_audio = false");
+    expect(flat.text).toContain("out_host <>");
+    expect(flat.text).not.toContain("->>'audio'");
+    expect(flat.text).not.toContain("regexp_replace");
     expect(flat.values).toContain("gui.example");
+    expect(flat.values).not.toContain("Нет");
 
     const withFailed = sliceText(
       input({ flags: { noRtp: true, failed: true } }),
       ctx({ guiHost: "gui.example" }),
     );
+    expect(withFailed.text.startsWith("cdr_records c")).toBe(true);
     expect(withFailed.text).toContain(" OR ");
-    expect(withFailed.values).toContain("Нет");
+    expect(withFailed.text).toContain("out_audio = false");
+    expect(withFailed.values).not.toContain("Нет");
     expect(withFailed.values).toContain("Неуспешный");
 
     const blind = sliceText(input({ flags: { noRtp: true } }), ctx());
     expect(blind.text).not.toContain("voipmonitor_legs");
-    expect(blind.values).toContain("Нет");
+    expect(blind.text).not.toContain("cdr_voipmonitor_links");
+    expect(blind.text).not.toContain("out_host");
+    expect(blind.text).toContain("FALSE");
 
     const painted = sliceText(
       input({ filters: { oprs_network: ["МТС"] }, flags: { noRtp: true } }),
       ctx({ guiHost: "gui.example", tones: { "ПАО МТС": "red" } }),
     );
     expect(painted.values).toContain("gui.example");
-    expect(painted.values).toContain("Нет");
+    expect(painted.text).toContain("out_audio = false");
     expect(oprsUsesRtp({ oprs_network: ["МТС"] }, undefined, { noRtp: true })).toBe(true);
     expect(flat.text).not.toContain("NOT");
     expect(flat.values).not.toContain("Неуспешный");
@@ -269,16 +278,23 @@ describe("oprs computed sql", () => {
       input({ flags: { failed: true } }),
       ctx({ guiHost: "gui.example" }),
     );
+    expect(failed.text.startsWith("cdr_records c")).toBe(true);
     expect(failed.text).toContain("cdr_voipmonitor_links");
     expect(failed.text).toContain("AND NOT");
+    expect(failed.text).toContain("out_audio = false");
+    expect(failed.text).not.toContain("->>'audio'");
+    expect(failed.text).not.toContain("regexp_replace");
     expect(failed.values).toContain("Неуспешный");
-    expect(failed.values).toContain("Нет");
+    expect(failed.values).toContain("gui.example");
+    expect(failed.values).not.toContain("Нет");
     expect(failed.text).not.toMatch(/call_status = \?\)/);
 
     const blind = sliceText(input({ flags: { failed: true } }), ctx());
     expect(blind.text).not.toContain("voipmonitor_legs");
+    expect(blind.text).not.toContain("cdr_voipmonitor_links");
     expect(blind.text).not.toContain("l.");
     expect(blind.text).toContain("NOT");
+    expect(blind.text).not.toContain("out_host");
     expect(blind.values).toContain("Неуспешный");
 
     const both = sliceText(
@@ -287,7 +303,8 @@ describe("oprs computed sql", () => {
     );
     expect(both.text).toContain(" OR ");
     expect(both.text).toContain("AND NOT");
-    expect(both.values).toContain("Нет");
+    expect(both.text).toContain("out_audio = false");
+    expect(both.values).not.toContain("Нет");
     expect(both.values).toContain("Неуспешный");
 
     expect(oprsUsesComputedRead({}, { failed: true })).toBe(true);

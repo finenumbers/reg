@@ -30,7 +30,13 @@ import {
   VOIPMONITOR_COLUMN_IN,
   VOIPMONITOR_COLUMN_OUT,
 } from "@/modules/traffic/columns";
-import { legOnHost, rtpAbsentSql, rtpExpr } from "@/modules/voipmonitor/rtp-sql";
+import {
+  legOnHost,
+  onlyAbsentRtp,
+  rtpAbsentIdsSql,
+  rtpAbsentSql,
+  rtpExpr,
+} from "@/modules/voipmonitor/rtp-sql";
 import { facetSearchMatch } from "@/modules/traffic/facet-search";
 import type { TrafficRowFlags } from "@/modules/traffic/row-flags";
 import type { TimeSort } from "@/modules/traffic/traffic-sort";
@@ -166,6 +172,10 @@ export function oprsUsesCalltrace(filters: ColumnFilters, facetColumn?: string):
   );
 }
 
+function oprsRtpColumn(filters: ColumnFilters, facetColumn?: string): boolean {
+  return facetColumn === RTP_COLUMN || (filters[RTP_COLUMN]?.length ?? 0) > 0;
+}
+
 export function oprsUsesRtp(
   filters: ColumnFilters,
   facetColumn?: string,
@@ -253,11 +263,13 @@ export function buildOprsSliceSql(
     throw new OprsQueryError("Некорректный снимок списка");
   }
   const prefix = requireOprsMonthPrefix(input.year, input.month);
+  const monthLike = `${prefix}%`;
   const names = oprsNamesByTone(ctx.tones);
   const paint = usesPaint(input.filters, input.facetColumn);
   const marking = oprsUsesMarking(input.filters, input.facetColumn);
   const calltrace = oprsUsesCalltrace(input.filters, input.facetColumn);
-  const rtp = oprsUsesRtp(input.filters, input.facetColumn, input.flags);
+  const rtpColumn = oprsRtpColumn(input.filters, input.facetColumn);
+  const indexed = onlyAbsentRtp(input.flags) && ctx.guiHost !== "";
   const blocked =
     paint && (ctx.blocked.exact.size > 0 || ctx.blocked.pstn.size > 0)
       ? blockedExists(ctx.blocked)
@@ -266,23 +278,28 @@ export function buildOprsSliceSql(
   const exprs = paintExprs(names, blockedRef, ctx.guiHost, {
     marking,
     calltrace,
-    rtp,
+    rtp: rtpColumn,
     labelUnpainted: ctx.labelUnpainted,
   });
   const from = fromSql({
     blocked,
     markingJson: marking ? oprsMarkingJson(ctx.marking) : null,
-    legs: (calltrace || rtp) && ctx.guiHost !== "",
+    legs: (calltrace || rtpColumn) && ctx.guiHost !== "",
+    absent: indexed ? rtpAbsentIdsSql(ctx.guiHost, monthLike) : null,
   });
   const where = andSql([
-    Prisma.sql`c.cdr_date LIKE ${`${prefix}%`}`,
+    Prisma.sql`c.cdr_date LIKE ${monthLike}`,
     predicateSql(),
     columnFiltersSql(input.filters, input.excludeColumn),
     phoneSql(input.phoneQ),
-    flagSql(
-      input.flags,
-      input.flags.noRtp || input.flags.failed ? rtpAbsentSql(ctx.guiHost) : null,
-    ),
+    indexed
+      ? null
+      : flagSql(
+          input.flags,
+          input.flags.noRtp || input.flags.failed
+            ? rtpAbsentSql(ctx.guiHost, monthLike)
+            : null,
+        ),
     Prisma.sql`c."importedAt" <= ${input.snapshot}`,
     input.cursor ? keysetSql(input.timeSort, input.cursor) : null,
     computedFiltersSql(input.filters, input.excludeColumn, exprs),
@@ -456,8 +473,15 @@ function fromSql(input: {
   blocked: Prisma.Sql | null;
   markingJson: string | null;
   legs: boolean;
+  absent: Prisma.Sql | null;
 }): Prisma.Sql {
   const joins: Prisma.Sql[] = [];
+  const base = input.absent
+    ? Prisma.sql`(
+        ${input.absent}
+      ) absent
+      JOIN cdr_records c ON c.id = absent.cdr_record_id`
+    : Prisma.sql`cdr_records c`;
   if (input.blocked) {
     joins.push(
       Prisma.sql`LEFT JOIN LATERAL (SELECT ${input.blocked} AS blocked) blk ON TRUE`,
@@ -479,8 +503,8 @@ function fromSql(input: {
   if (input.legs) {
     joins.push(Prisma.sql`LEFT JOIN cdr_voipmonitor_links l ON l.cdr_record_id = c.id`);
   }
-  if (joins.length === 0) return Prisma.sql`cdr_records c`;
-  return Prisma.sql`cdr_records c ${Prisma.join(joins, " ")}`;
+  if (joins.length === 0) return base;
+  return Prisma.sql`${base} ${Prisma.join(joins, " ")}`;
 }
 
 function predicateSql(): Prisma.Sql {
@@ -523,7 +547,10 @@ function phoneSql(phoneQ: string): Prisma.Sql | null {
   return orSql(parts);
 }
 
-function flagSql(flags: TrafficRowFlags, rtpAbsent: Prisma.Sql | null): Prisma.Sql | null {
+function flagSql(
+  flags: TrafficRowFlags,
+  rtpAbsent: Prisma.Sql | null,
+): Prisma.Sql | null {
   const parts: Prisma.Sql[] = [];
   if (flags.phantom) parts.push(Prisma.sql`c.call_category = ${CALL_CATEGORY.phantom}`);
   if (flags.callErrors) parts.push(Prisma.sql`c.call_category = ${CALL_CATEGORY.errors}`);

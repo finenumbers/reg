@@ -29,10 +29,8 @@ import {
   type MatchLane,
 } from "@/modules/voipmonitor/lanes";
 import { openQueueWhereSql } from "@/modules/voipmonitor/open-queue-sql";
-import {
-  collectLegCdrIds,
-  parseVoipmonitorLegs,
-} from "@/modules/voipmonitor/legs";
+import { indexVoipmonitorLegs } from "@/modules/voipmonitor/leg-index";
+import { collectLegCdrIds, parseVoipmonitorLegs } from "@/modules/voipmonitor/legs";
 import type { VoipmonitorLegs } from "@/modules/voipmonitor/types";
 import { matchBucket } from "@/modules/voipmonitor/match";
 import {
@@ -85,6 +83,7 @@ type HourMeta = {
 const CANDIDATE_SELECT = {
   id: true,
   cdrId: true,
+  cdrDate: true,
   cdrAt: true,
   billAni: true,
   billDnis: true,
@@ -107,10 +106,7 @@ const CANDIDATE_SELECT = {
   confId: true,
 } as const;
 
-export async function pickNextHour(
-  now: Date,
-  lane: MatchLane,
-): Promise<Date | null> {
+export async function pickNextHour(now: Date, lane: MatchLane): Promise<Date | null> {
   return withTransientRetry(async () => {
     const rows = await prisma.$queryRaw<Array<{ hour: Date }>>(Prisma.sql`
       SELECT date_trunc('hour', c."cdrAt") AS hour
@@ -130,6 +126,7 @@ async function writeHourResults(
   candidates: NonNullable<ReturnType<typeof candidateFromSatelRow>>[],
   results: Awaited<ReturnType<typeof matchBucket>>["results"],
   attempts: Map<string, number>,
+  cdrDates: ReadonlyMap<string, string>,
 ): Promise<{
   matched: number;
   written: number;
@@ -157,6 +154,11 @@ async function writeHourResults(
     nextAttemptAt: Date | null;
     evidenceJson: string;
     voipmonitorLegs: string | null;
+    outHost: string;
+    inHost: string;
+    outAudio: boolean | null;
+    inAudio: boolean | null;
+    cdrDate: string;
     updatedAt: Date;
   }> = [];
   let matched = 0;
@@ -175,6 +177,7 @@ async function writeHourResults(
       audioKnown += tally.audioKnown;
     }
     const evidenceJson = compactEvidence(result);
+    const indexed = indexVoipmonitorLegs(matchedOk ? result.legs : null);
     rows.push({
       cdrRecordId: candidate.sourceRecordId,
       voipmonitorUrl: matchedOk ? result.cardUrl : "",
@@ -190,6 +193,11 @@ async function writeHourResults(
         : nextAttemptAtForMiss(attemptCount, evidenceJson, now),
       evidenceJson,
       voipmonitorLegs: matchedOk ? JSON.stringify(result.legs) : null,
+      outHost: indexed.outHost,
+      inHost: indexed.inHost,
+      outAudio: indexed.outAudio,
+      inAudio: indexed.inAudio,
+      cdrDate: cdrDates.get(candidate.sourceRecordId) ?? "",
       updatedAt: now,
     });
   }
@@ -209,6 +217,11 @@ async function writeHourResults(
         ${row.nextAttemptAt},
         ${row.evidenceJson},
         ${row.voipmonitorLegs === null ? Prisma.sql`NULL` : Prisma.sql`CAST(${row.voipmonitorLegs} AS JSONB)`},
+        ${row.outHost},
+        ${row.inHost},
+        ${row.outAudio === null ? Prisma.sql`NULL` : Prisma.sql`${row.outAudio}`},
+        ${row.inAudio === null ? Prisma.sql`NULL` : Prisma.sql`${row.inAudio}`},
+        ${row.cdrDate},
         ${row.updatedAt}
       )`,
     );
@@ -226,6 +239,11 @@ async function writeHourResults(
         next_attempt_at,
         evidence_json,
         voipmonitor_legs,
+        out_host,
+        in_host,
+        out_audio,
+        in_audio,
+        cdr_date,
         updated_at
       )
       VALUES ${Prisma.join(tuples)}
@@ -241,6 +259,11 @@ async function writeHourResults(
         next_attempt_at = EXCLUDED.next_attempt_at,
         evidence_json = EXCLUDED.evidence_json,
         voipmonitor_legs = EXCLUDED.voipmonitor_legs,
+        out_host = EXCLUDED.out_host,
+        in_host = EXCLUDED.in_host,
+        out_audio = EXCLUDED.out_audio,
+        in_audio = EXCLUDED.in_audio,
+        cdr_date = EXCLUDED.cdr_date,
         updated_at = EXCLUDED.updated_at
     `;
   }
@@ -296,6 +319,7 @@ async function processHour(input: {
       take: MAX_CANDIDATES_PER_HOUR,
     }),
   );
+  const cdrDates = new Map(rows.map((row) => [row.id, row.cdrDate]));
   const candidates = rows
     .map((row) => candidateFromSatelRow(row))
     .filter((row): row is NonNullable<typeof row> => row != null);
@@ -310,9 +334,7 @@ async function processHour(input: {
             select: { cdrRecordId: true, attemptCount: true },
           }),
         );
-  const attempts = new Map(
-    existing.map((row) => [row.cdrRecordId, row.attemptCount]),
-  );
+  const attempts = new Map(existing.map((row) => [row.cdrRecordId, row.attemptCount]));
   let maxAttempt = 0;
   for (const count of attempts.values()) {
     if (count > maxAttempt) maxAttempt = count;
@@ -368,6 +390,7 @@ async function processHour(input: {
     candidates,
     results,
     attempts,
+    cdrDates,
   );
   return {
     lane: input.lane,
@@ -375,11 +398,9 @@ async function processHour(input: {
     candidates: candidates.length,
     ...written,
     probeBudget,
-    matchedExact: results.filter((row) => row.status === STATUS_MATCHED_EXACT)
+    matchedExact: results.filter((row) => row.status === STATUS_MATCHED_EXACT).length,
+    matchedFallback: results.filter((row) => row.status === STATUS_MATCHED_FALLBACK)
       .length,
-    matchedFallback: results.filter(
-      (row) => row.status === STATUS_MATCHED_FALLBACK,
-    ).length,
     writeMs: Date.now() - writeStarted,
     ...statsFields(stats),
   };
@@ -472,15 +493,8 @@ export async function processVoipmonitorMatch(
     const live = await processLane("live", jobRun.id, client, runtime.guiUrl);
     if (live) hours.push(live);
     let fetchedArchive = false;
-    while (
-      shouldFetchAnotherArchiveHour(fetchedArchive, Date.now(), deadline)
-    ) {
-      const archive = await processLane(
-        "archive",
-        jobRun.id,
-        client,
-        runtime.guiUrl,
-      );
+    while (shouldFetchAnotherArchiveHour(fetchedArchive, Date.now(), deadline)) {
+      const archive = await processLane("archive", jobRun.id, client, runtime.guiUrl);
       if (!archive) break;
       hours.push(archive);
       fetchedArchive = true;
@@ -489,9 +503,7 @@ export async function processVoipmonitorMatch(
     const matched = hours.reduce((sum, hour) => sum + hour.matched, 0);
     const written = hours.reduce((sum, hour) => sum + hour.written, 0);
     const hourErrors = hours.filter((hour) => hour.error);
-    const attempted = hours.filter(
-      (hour) => hour.candidates > 0 || Boolean(hour.error),
-    );
+    const attempted = hours.filter((hour) => hour.candidates > 0 || Boolean(hour.error));
     const hoursProcessed = attempted.length;
     const anyProgress =
       written > 0 || attempted.some((hour) => !hour.error && hour.candidates > 0);

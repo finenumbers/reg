@@ -1,7 +1,6 @@
 /**
  * Calltrace text on the OPRS screen: the safe leg's id, or «открыть».
- * The host rules match `new URL(url).host` for http(s) links: userinfo is
- * dropped, the host is lowercased, and the default port is removed.
+ * The GUI host is `new URL(url).host` for an http(s) address.
  */
 
 import { isSafeVoipmonitorHref } from "@/modules/voipmonitor/url";
@@ -12,7 +11,7 @@ export function oprsGuiHost(guiBase: string): string {
   try {
     const url = new URL(trimmed);
     if (url.protocol !== "http:" && url.protocol !== "https:") return "";
-    return url.host.toLowerCase();
+    return url.host;
   } catch {
     return "";
   }

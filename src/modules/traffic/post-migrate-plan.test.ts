@@ -157,6 +157,15 @@ describe("planPostMigrate", () => {
     ).toEqual({ callClass: false, tariff: false });
   });
 
+  it("does not scan the journal when the RTP leg index columns are added", () => {
+    expect(
+      planPostMigrate("Applying migration `20261118160000_rtp_leg_index`\n", {
+        rateGeneration: 4,
+        ratedGeneration: 4,
+      }),
+    ).toEqual({ callClass: false, tariff: false });
+  });
+
   it("does not scan the journal when a provider decorate epoch is added", () => {
     expect(
       planPostMigrate("Applying migration `20261116020000_catalog_decorate_epoch`\n", {

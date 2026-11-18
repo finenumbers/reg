@@ -6,3 +6,4 @@ set -eu
 log=$(npx prisma migrate deploy 2>&1)
 printf '%s\n' "$log"
 printf '%s\n' "$log" | node scripts/cdr-post-migrate.mjs
+node scripts/rtp-leg-index-backfill.mjs

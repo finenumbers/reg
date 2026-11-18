@@ -1,6 +1,7 @@
 /**
  * Traffic list when «Нет RTP» is on. RTP is not a CDR column, so the page
- * id and the facet counts are one statement. The CASE is `rtpExpr`.
+ * id and the facet counts are one statement. A lone checkbox reads the
+ * partial index. Another checkbox ORs that set with the stored flag.
  * This is the whole month, not the OPRS mobile predicate.
  */
 
@@ -20,7 +21,11 @@ import { CDR_PHONE_COLUMNS, isTrafficColumn } from "@/modules/traffic/columns";
 import { facetSearchMatch } from "@/modules/traffic/facet-search";
 import type { TrafficRowFlags } from "@/modules/traffic/row-flags";
 import type { TimeSort } from "@/modules/traffic/traffic-sort";
-import { rtpAbsentSql } from "@/modules/voipmonitor/rtp-sql";
+import {
+  onlyAbsentRtp,
+  rtpAbsentIdsSql,
+  rtpAbsentSql,
+} from "@/modules/voipmonitor/rtp-sql";
 
 export type TrafficNoRtpSqlInput = {
   year: number;
@@ -38,11 +43,11 @@ export function trafficNoRtpCanMatch(flags: TrafficRowFlags, guiHost: string): b
   if (guiHost) return true;
   return Boolean(
     flags.phantom ||
-      flags.callErrors ||
-      flags.parking ||
-      flags.failed ||
-      flags.check ||
-      flags.success,
+    flags.callErrors ||
+    flags.parking ||
+    flags.failed ||
+    flags.check ||
+    flags.success,
   );
 }
 
@@ -51,15 +56,19 @@ export function buildTrafficNoRtpSliceSql(input: TrafficNoRtpSqlInput): {
   where: Prisma.Sql;
 } {
   const host = input.guiHost.trim();
-  const needsLegs = input.flags.noRtp === true && host !== "";
-  const from = needsLegs
-    ? Prisma.sql`cdr_records c LEFT JOIN cdr_voipmonitor_links l ON l.cdr_record_id = c.id`
+  const monthLike = `${cdrMonthPrefix(input.year, input.month)}%`;
+  const indexed = onlyAbsentRtp(input.flags) && host !== "";
+  const from = indexed
+    ? Prisma.sql`(
+        ${rtpAbsentIdsSql(host, monthLike)}
+      ) absent
+      JOIN cdr_records c ON c.id = absent.cdr_record_id`
     : Prisma.sql`cdr_records c`;
   const where = andSql([
-    Prisma.sql`c.cdr_date LIKE ${`${cdrMonthPrefix(input.year, input.month)}%`}`,
+    Prisma.sql`c.cdr_date LIKE ${monthLike}`,
     columnFiltersSql(input.filters, input.excludeColumn),
     phoneSql(input.phoneQ),
-    flagSql(input.flags, host),
+    indexed ? null : flagSql(input.flags, host, monthLike),
   ]);
   return { from, where };
 }
@@ -141,7 +150,11 @@ function phoneSql(phoneQ: string): Prisma.Sql | null {
   return orSql(CDR_PHONE_COLUMNS.map((column) => likeSql(columnExpr(column), q)));
 }
 
-function flagSql(flags: TrafficRowFlags, host: string): Prisma.Sql | null {
+function flagSql(
+  flags: TrafficRowFlags,
+  host: string,
+  monthLike: string,
+): Prisma.Sql | null {
   const parts: Prisma.Sql[] = [];
   if (flags.phantom) parts.push(Prisma.sql`c.call_category = ${CALL_CATEGORY.phantom}`);
   if (flags.callErrors) parts.push(Prisma.sql`c.call_category = ${CALL_CATEGORY.errors}`);
@@ -160,7 +173,7 @@ function flagSql(flags: TrafficRowFlags, host: string): Prisma.Sql | null {
       )
     )`);
   }
-  if (flags.noRtp) parts.push(host ? rtpAbsentSql(host) : Prisma.sql`FALSE`);
+  if (flags.noRtp) parts.push(rtpAbsentSql(host, monthLike));
   if (parts.length === 0) return null;
   if (parts.length === 1) return parts[0]!;
   return orSql(parts);

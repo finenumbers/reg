@@ -43,24 +43,38 @@ function input(patch: Partial<TrafficNoRtpSqlInput> = {}): TrafficNoRtpSqlInput 
 }
 
 describe("traffic absent RTP sql", () => {
-  it("uses the RTP case, the month, and OR with an unsuccessful call", () => {
-    const flat = flattenSql(buildTrafficNoRtpSliceSql(input()).where);
-    const from = flattenSql(buildTrafficNoRtpSliceSql(input()).from);
-    expect(from.text).toContain("cdr_voipmonitor_links");
-    expect(flat.text).toContain("->>'audio'");
-    expect(flat.values).toContain("Нет");
-    expect(flat.values).toContain("gui.example");
+  it("reads the partial index for one checkbox and ORs a stored flag", () => {
+    const slice = buildTrafficNoRtpSliceSql(input());
+    const flat = flattenSql(slice.where);
+    const from = flattenSql(slice.from);
+    expect(from.text.indexOf("SELECT cdr_record_id")).toBeLessThan(
+      from.text.indexOf("JOIN cdr_records"),
+    );
+    expect(from.text).toContain("out_audio = false");
+    expect(from.text).toContain("out_host <>");
+    expect(from.text).not.toContain("regexp_replace");
+    expect(from.text).not.toContain("->>'audio'");
+    expect(from.values).toContain("gui.example");
+    expect(from.values).toContain("2026-11-%");
     expect(flat.values).toContain("2026-11-%");
+    expect(flat.values).not.toContain("Нет");
     expect(flat.values).not.toContain(CALL_CATEGORY.outgoing);
     expect(flat.values).not.toContain(MOBILE_RF_DIRECTION);
     expect(flat.values).not.toContain(CALL_STATUS.failed);
 
-    const both = flattenSql(
-      buildTrafficNoRtpSliceSql(input({ flags: { noRtp: true, failed: true } })).where,
+    const bothSlice = buildTrafficNoRtpSliceSql(
+      input({ flags: { noRtp: true, failed: true } }),
     );
+    const both = flattenSql(bothSlice.where);
+    const bothFrom = flattenSql(bothSlice.from);
+    expect(bothFrom.text).toBe("cdr_records c");
     expect(both.text).toContain(" OR ");
+    expect(both.text).toContain("out_audio = false");
+    expect(both.text).not.toContain("AND NOT");
+    expect(both.text).not.toContain("->>'audio'");
     expect(both.values).toContain(CALL_STATUS.failed);
-    expect(both.values).toContain("Нет");
+    expect(both.values).toContain("gui.example");
+    expect(both.values).not.toContain("Нет");
   });
 
   it("does not read legs when the host is empty", () => {
@@ -73,7 +87,9 @@ describe("traffic absent RTP sql", () => {
       buildTrafficNoRtpSliceSql(input({ guiHost: "", flags: { noRtp: true } })).from,
     );
     expect(from.text).not.toContain("voipmonitor_legs");
+    expect(from.text).not.toContain("cdr_voipmonitor_links");
     expect(flat.text).toContain("FALSE");
+    expect(flat.text).not.toContain("out_host");
     expect(flat.values).not.toContain(CALL_CATEGORY.outgoing);
   });
 
@@ -82,10 +98,14 @@ describe("traffic absent RTP sql", () => {
       buildTrafficNoRtpFacetSql(input(), "cdr_date", "28.12.2026", 20),
     );
     expect(
-      facet.values.some((value) => typeof value === "string" && value.includes("2026-12-28")),
+      facet.values.some(
+        (value) => typeof value === "string" && value.includes("2026-12-28"),
+      ),
     ).toBe(true);
     expect(
-      facet.values.some((value) => typeof value === "string" && value.includes("28.12.2026")),
+      facet.values.some(
+        (value) => typeof value === "string" && value.includes("28.12.2026"),
+      ),
     ).toBe(true);
 
     const poisoned = flattenSql(
