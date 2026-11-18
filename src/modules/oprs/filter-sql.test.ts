@@ -257,9 +257,43 @@ describe("oprs computed sql", () => {
     expect(painted.values).toContain("gui.example");
     expect(painted.values).toContain("Нет");
     expect(oprsUsesRtp({ oprs_network: ["МТС"] }, undefined, { noRtp: true })).toBe(true);
+    expect(flat.text).not.toContain("NOT");
+    expect(flat.values).not.toContain("Неуспешный");
     expect(oprsUsesComputedRead({}, { noRtp: true })).toBe(true);
     expect(oprsUsesComputedRead({ oprs_network: ["МТС"] }, { noRtp: true })).toBe(true);
     expect(oprsUsesComputedRead({}, {})).toBe(false);
+  });
+
+  it("keeps the unsuccessful checkbox to the black tail", () => {
+    const failed = sliceText(
+      input({ flags: { failed: true } }),
+      ctx({ guiHost: "gui.example" }),
+    );
+    expect(failed.text).toContain("cdr_voipmonitor_links");
+    expect(failed.text).toContain("AND NOT");
+    expect(failed.values).toContain("Неуспешный");
+    expect(failed.values).toContain("Нет");
+    expect(failed.text).not.toMatch(/call_status = \?\)/);
+
+    const blind = sliceText(input({ flags: { failed: true } }), ctx());
+    expect(blind.text).not.toContain("voipmonitor_legs");
+    expect(blind.text).not.toContain("l.");
+    expect(blind.text).toContain("NOT");
+    expect(blind.values).toContain("Неуспешный");
+
+    const both = sliceText(
+      input({ flags: { noRtp: true, failed: true } }),
+      ctx({ guiHost: "gui.example" }),
+    );
+    expect(both.text).toContain(" OR ");
+    expect(both.text).toContain("AND NOT");
+    expect(both.values).toContain("Нет");
+    expect(both.values).toContain("Неуспешный");
+
+    expect(oprsUsesComputedRead({}, { failed: true })).toBe(true);
+    expect(oprsUsesRtp({}, undefined, { failed: true })).toBe(true);
+    expect(oprsUsesComputedRead({}, {})).toBe(false);
+    expect(oprsUsesRtp({}, undefined, {})).toBe(false);
   });
 
   it("uses one aggregate and the same search tokens as the stored menu", () => {

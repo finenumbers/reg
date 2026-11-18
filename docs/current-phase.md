@@ -1,7 +1,13 @@
-# Current Phase — production (v1.321.0)
+# Current Phase — production (v1.322.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, purchased numbers, numbering sync, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-18
+
+## v1.322.0 — OPRS unsuccessful checkbox is the black tail
+
+This release does not migrate and does not rewrite CDR rows. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before the new one starts, then start one new app. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged.
+
+On «Звонки в ОПРС», «Неуспешный» shows unsuccessful calls whose RTP is not «Нет». The red tail stays under «Нет RTP», including a successful call with that RTP, which is not painted. The two checkboxes together show both sets. The status column still means the stored status. «Неуспешный» on «Телефонный трафик» is unchanged. The OPRS xlsx follows the open checkbox.
 
 ## v1.321.0 — Absent RTP is red
 

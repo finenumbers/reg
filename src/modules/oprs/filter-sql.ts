@@ -141,7 +141,11 @@ export function oprsUsesComputedRead(
   flags: TrafficRowFlags,
   facetColumn?: string,
 ): boolean {
-  return oprsNeedsComputedSql(filters, facetColumn) || flags.noRtp === true;
+  return (
+    oprsNeedsComputedSql(filters, facetColumn) ||
+    flags.noRtp === true ||
+    flags.failed === true
+  );
 }
 
 export function oprsUsesMarking(filters: ColumnFilters, facetColumn?: string): boolean {
@@ -169,6 +173,7 @@ export function oprsUsesRtp(
 ): boolean {
   return (
     flags?.noRtp === true ||
+    flags?.failed === true ||
     facetColumn === RTP_COLUMN ||
     (filters[RTP_COLUMN]?.length ?? 0) > 0
   );
@@ -276,7 +281,7 @@ export function buildOprsSliceSql(
     phoneSql(input.phoneQ),
     flagSql(
       input.flags,
-      input.flags.noRtp ? rtpAbsentSql(ctx.guiHost) : null,
+      input.flags.noRtp || input.flags.failed ? rtpAbsentSql(ctx.guiHost) : null,
     ),
     Prisma.sql`c."importedAt" <= ${input.snapshot}`,
     input.cursor ? keysetSql(input.timeSort, input.cursor) : null,
@@ -523,7 +528,13 @@ function flagSql(flags: TrafficRowFlags, rtpAbsent: Prisma.Sql | null): Prisma.S
   if (flags.phantom) parts.push(Prisma.sql`c.call_category = ${CALL_CATEGORY.phantom}`);
   if (flags.callErrors) parts.push(Prisma.sql`c.call_category = ${CALL_CATEGORY.errors}`);
   if (flags.parking) parts.push(Prisma.sql`c.call_status = ${CALL_STATUS.parking}`);
-  if (flags.failed) parts.push(Prisma.sql`c.call_status = ${CALL_STATUS.failed}`);
+  if (flags.failed) {
+    parts.push(
+      rtpAbsent
+        ? Prisma.sql`(c.call_status = ${CALL_STATUS.failed} AND NOT (${rtpAbsent}))`
+        : Prisma.sql`c.call_status = ${CALL_STATUS.failed}`,
+    );
+  }
   if (flags.check) parts.push(Prisma.sql`c.call_category = ${CALL_CATEGORY.check}`);
   if (flags.noRtp) parts.push(rtpAbsent ?? Prisma.sql`FALSE`);
   if (flags.success) {

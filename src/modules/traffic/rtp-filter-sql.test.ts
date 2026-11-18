@@ -53,6 +53,7 @@ describe("traffic absent RTP sql", () => {
     expect(flat.values).toContain("2026-11-%");
     expect(flat.values).not.toContain(CALL_CATEGORY.outgoing);
     expect(flat.values).not.toContain(MOBILE_RF_DIRECTION);
+    expect(flat.values).not.toContain(CALL_STATUS.failed);
 
     const both = flattenSql(
       buildTrafficNoRtpSliceSql(input({ flags: { noRtp: true, failed: true } })).where,
