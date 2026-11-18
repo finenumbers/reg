@@ -32,6 +32,7 @@ env:
 jobs:
   build-push:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -83,7 +84,9 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.app_tags }}
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # mode=max uploads every intermediate layer. The deps layer
+          # stalled the release for 50 minutes after the image was already pushed.
+          cache-to: type=gha,mode=min
 
       - name: Build and push migrator
         uses: docker/build-push-action@v6
@@ -95,4 +98,4 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.migrate_tags }}
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-to: type=gha,mode=min
