@@ -80,6 +80,39 @@ describe("traffic column header", () => {
     ).toBe("filter");
   });
 
+  it("sorts cost only when that button is wired and keeps minutes as a label", () => {
+    expect(
+      trafficColumnHeaderMode({
+        column: "tariff_charge",
+        oprs: false,
+        timeSortable: true,
+        durationSortable: true,
+        chargeSortable: true,
+        plain: false,
+      }),
+    ).toBe("sort");
+    expect(
+      trafficColumnHeaderMode({
+        column: "tariff_charge",
+        oprs: false,
+        timeSortable: true,
+        durationSortable: false,
+        chargeSortable: false,
+        plain: false,
+      }),
+    ).toBe("text");
+    expect(
+      trafficColumnHeaderMode({
+        column: "billable_minutes",
+        oprs: false,
+        timeSortable: true,
+        durationSortable: true,
+        chargeSortable: true,
+        plain: true,
+      }),
+    ).toBe("text");
+  });
+
   it("keeps minutes and cost as labels on every screen", () => {
     for (const column of ["billable_minutes", "tariff_charge"]) {
       expect(

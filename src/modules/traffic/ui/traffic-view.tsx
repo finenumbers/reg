@@ -68,6 +68,7 @@ type LoadListOpts = {
   noRtp?: boolean;
   timeSort?: TimeSort | null;
   durationSort?: TimeSort | null;
+  chargeSort?: TimeSort | null;
   cursor?: { cdrDate: string; cdrId: string } | { elapsed: string; cdrId: string } | null;
 };
 
@@ -127,7 +128,8 @@ export function TrafficView({
   const [noRtp, setNoRtp] = useState(false);
   const [timeSort, setTimeSort] = useState<TimeSort | null>(null);
   const [durationSort, setDurationSort] = useState<TimeSort | null>(null);
-  const [durationPageFull, setDurationPageFull] = useState(false);
+  const [chargeSort, setChargeSort] = useState<TimeSort | null>(null);
+  const [orderedPageFull, setOrderedPageFull] = useState(false);
   const [month, setMonth] = useState(initial.month || currentUtcMonth().key);
   const [months, setMonths] = useState<CdrMonth[]>(
     initial.months?.length ? initial.months : [currentUtcMonth()],
@@ -179,6 +181,7 @@ export function TrafficView({
   const noRtpRef = useRef(noRtp);
   const timeSortRef = useRef(timeSort);
   const durationSortRef = useRef(durationSort);
+  const chargeSortRef = useRef(chargeSort);
   const wasBusyRef = useRef(false);
   const lastFinishedAtRef = useRef<string | null | undefined>(undefined);
   const [scrollRoot, setScrollRoot] = useState<Element | null>(null);
@@ -200,6 +203,7 @@ export function TrafficView({
   noRtpRef.current = noRtp;
   timeSortRef.current = timeSort;
   durationSortRef.current = durationSort;
+  chargeSortRef.current = chargeSort;
 
   const defaultMonthKey = currentUtcMonth().key;
   const filtersActive =
@@ -214,11 +218,13 @@ export function TrafficView({
     noRtp ||
     timeSort != null ||
     durationSort != null ||
+    chargeSort != null ||
     month !== defaultMonthKey;
+  const numericSort = durationSort != null || chargeSort != null;
   const hasMore = oprs
     ? oprsHasMore
-    : durationSort != null
-      ? durationPageFull
+    : numericSort
+      ? orderedPageFull
       : items.length < total;
   const monthOptions = useMemo(() => {
     if (months.some((item) => item.key === month)) return months;
@@ -250,6 +256,8 @@ export function TrafficView({
       const nextTimeSort = "timeSort" in opts ? opts.timeSort : timeSortRef.current;
       const nextDurationSort =
         "durationSort" in opts ? opts.durationSort : durationSortRef.current;
+      const nextChargeSort =
+        "chargeSort" in opts ? opts.chargeSort : chargeSortRef.current;
       const nextPage = opts.page ?? (replace ? 1 : page);
       const seq = ++refreshSeq.current;
 
@@ -275,8 +283,9 @@ export function TrafficView({
         check: nextCheck,
         success: nextSuccess,
         noRtp: nextNoRtp,
-        timeSort: nextDurationSort ? null : nextTimeSort,
-        durationSort: nextDurationSort,
+        timeSort: nextChargeSort || nextDurationSort ? null : nextTimeSort,
+        durationSort: nextChargeSort ? null : nextDurationSort,
+        chargeSort: nextChargeSort,
         pageSize: PAGE_SIZE,
       };
       if (oprs) {
@@ -338,16 +347,14 @@ export function TrafficView({
       }
 
       const pageFull = result.data.items.length === result.data.pageSize;
-      setDurationPageFull(nextDurationSort != null && pageFull);
+      const ordering = nextChargeSort != null || nextDurationSort != null;
+      setOrderedPageFull(ordering && pageFull);
       setItems((prev) => {
-        if (replace || nextDurationSort == null) {
+        if (replace || !ordering) {
           return replace ? result.data.items : [...prev, ...result.data.items];
         }
         const seen = new Set(prev.map((item) => item.id));
-        return [
-          ...prev,
-          ...result.data.items.filter((item) => !seen.has(item.id)),
-        ];
+        return [...prev, ...result.data.items.filter((item) => !seen.has(item.id))];
       });
       setTotal(result.data.total);
       setPage(result.data.page);
@@ -502,7 +509,8 @@ export function TrafficView({
     setOpenColumn(null);
     setTimeSort(null);
     setDurationSort(null);
-    setDurationPageFull(false);
+    setChargeSort(null);
+    setOrderedPageFull(false);
     void loadList({
       page: 1,
       replace: true,
@@ -510,6 +518,7 @@ export function TrafficView({
       filters: {},
       timeSort: null,
       durationSort: null,
+      chargeSort: null,
     });
   }
 
@@ -527,7 +536,8 @@ export function TrafficView({
     setNoRtp(false);
     setTimeSort(null);
     setDurationSort(null);
-    setDurationPageFull(false);
+    setChargeSort(null);
+    setOrderedPageFull(false);
     setMonth(nowMonth.key);
     setOpenColumn(null);
     void loadList({
@@ -544,6 +554,7 @@ export function TrafficView({
       noRtp: false,
       timeSort: null,
       durationSort: null,
+      chargeSort: null,
       month: nowMonth.key,
     });
   }
@@ -597,13 +608,14 @@ export function TrafficView({
 
   function onTimeSortChange(next: TimeSort | null) {
     const prev = timeSort;
-    const hadDuration = durationSortRef.current != null;
+    const hadNumeric = durationSortRef.current != null || chargeSortRef.current != null;
     const sorts = applyExclusiveSort("time", next);
     setTimeSort(sorts.timeSort);
     setDurationSort(sorts.durationSort);
-    setDurationPageFull(false);
+    setChargeSort(sorts.chargeSort);
+    setOrderedPageFull(false);
     // desc matches the default server ORDER BY — do not refetch the list.
-    if (!hadDuration && prev == null && next === "desc") return;
+    if (!hadNumeric && prev == null && next === "desc") return;
     void loadList({ page: 1, replace: true, ...sorts });
   }
 
@@ -611,7 +623,17 @@ export function TrafficView({
     const sorts = applyExclusiveSort("duration", next);
     setTimeSort(sorts.timeSort);
     setDurationSort(sorts.durationSort);
-    setDurationPageFull(false);
+    setChargeSort(sorts.chargeSort);
+    setOrderedPageFull(false);
+    void loadList({ page: 1, replace: true, ...sorts });
+  }
+
+  function onChargeSortChange(next: TimeSort | null) {
+    const sorts = applyExclusiveSort("charge", next);
+    setTimeSort(sorts.timeSort);
+    setDurationSort(sorts.durationSort);
+    setChargeSort(sorts.chargeSort);
+    setOrderedPageFull(false);
     void loadList({ page: 1, replace: true, ...sorts });
   }
 
@@ -1019,6 +1041,8 @@ export function TrafficView({
             onTimeSortChange={onTimeSortChange}
             durationSort={durationSort}
             onDurationSortChange={durationSortable ? onDurationSortChange : undefined}
+            chargeSort={chargeSort}
+            onChargeSortChange={oprs ? undefined : onChargeSortChange}
             oprs={oprs}
             onBdpnCheck={oprs ? onBdpnCheck : undefined}
             facetUrl={

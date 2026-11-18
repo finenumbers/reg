@@ -26,8 +26,12 @@ export async function GET(request: Request) {
   const check = parseTrafficFlagParam(url.searchParams.get("check"));
   const success = parseTrafficFlagParam(url.searchParams.get("success"));
   const noRtp = parseTrafficFlagParam(url.searchParams.get("noRtp"));
-  const durationSort = parseTimeSort(url.searchParams.get("durationSort"));
-  const timeSort = durationSort ? null : parseTimeSort(url.searchParams.get("timeSort"));
+  const chargeSort = parseTimeSort(url.searchParams.get("chargeSort"));
+  const durationSort = chargeSort
+    ? null
+    : parseTimeSort(url.searchParams.get("durationSort"));
+  const timeSort =
+    chargeSort || durationSort ? null : parseTimeSort(url.searchParams.get("timeSort"));
   const page = Number(url.searchParams.get("page") ?? "1");
   const pageSize = Number(url.searchParams.get("pageSize") ?? "100");
 
@@ -44,6 +48,7 @@ export async function GET(request: Request) {
     noRtp,
     timeSort,
     durationSort,
+    chargeSort,
     page: Number.isFinite(page) ? page : 1,
     pageSize: Number.isFinite(pageSize) ? pageSize : 100,
   });

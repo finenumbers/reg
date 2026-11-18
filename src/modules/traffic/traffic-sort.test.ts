@@ -34,35 +34,34 @@ describe("applyExclusiveSort", () => {
     expect(applyExclusiveSort("duration", "desc")).toEqual({
       timeSort: null,
       durationSort: "desc",
+      chargeSort: null,
     });
     expect(applyExclusiveSort("time", "asc")).toEqual({
       timeSort: "asc",
       durationSort: null,
+      chargeSort: null,
+    });
+    expect(applyExclusiveSort("charge", "asc")).toEqual({
+      timeSort: null,
+      durationSort: null,
+      chargeSort: "asc",
     });
     expect(applyExclusiveSort("duration", null)).toEqual({
       timeSort: null,
       durationSort: null,
+      chargeSort: null,
     });
   });
 });
 
 describe("trafficListOrderBy", () => {
   it("keeps newest-call order when sort is off", () => {
-    expect(trafficListOrderBy(null)).toEqual([
-      { cdrDate: "desc" },
-      { cdrId: "desc" },
-    ]);
+    expect(trafficListOrderBy(null)).toEqual([{ cdrDate: "desc" }, { cdrId: "desc" }]);
   });
 
   it("sorts by full call time so days stay in calendar order", () => {
-    expect(trafficListOrderBy("asc")).toEqual([
-      { cdrDate: "asc" },
-      { cdrId: "asc" },
-    ]);
-    expect(trafficListOrderBy("desc")).toEqual([
-      { cdrDate: "desc" },
-      { cdrId: "desc" },
-    ]);
+    expect(trafficListOrderBy("asc")).toEqual([{ cdrDate: "asc" }, { cdrId: "asc" }]);
+    expect(trafficListOrderBy("desc")).toEqual([{ cdrDate: "desc" }, { cdrId: "desc" }]);
   });
 });
 

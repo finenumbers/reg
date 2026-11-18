@@ -1,7 +1,15 @@
-# Current Phase — production (v1.325.0)
+# Current Phase — production (v1.326.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, purchased numbers, numbering sync, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-18
+
+## v1.326.0 — Blue MAV cell and cost sort
+
+This release does not migrate and does not rewrite CDR rows. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before the new one starts, then start one new app. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged.
+
+On «Звонки в ОПРС», a «МАВ» cell with text is saturated blue with white letters. A blank cell stays on the row color. A blocked number stays black. The column menu stays. The xlsx is unchanged.
+
+On «Телефонный трафик» and «Сырые данные», «Стоимость» is the same sort button as «Секунды». The first click sorts by cost descending and reloads the list. The second click sorts ascending. The third click clears it. A blank or non-numeric cost stays after every number. Equal costs are ordered by `cdr_id`. «Минуты» stay a plain label. Turning one sort on clears the others. The first click on «Время» still does not reload the list, unless «Секунды» or «Стоимость» was already sorting. «Сбросить фильтры» and a new month clear the cost sort. On «Сырые данные», `elapsed_time` and `term_elapsed_time` keep their menus and do not sort. A cost sort reads the selected month under the 60-second CDR read limit. There is no new index. The month traffic workbook is unchanged.
 
 ## v1.325.0 — CDR seconds sort without a search menu
 

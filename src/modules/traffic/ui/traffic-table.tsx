@@ -13,6 +13,7 @@ import { BLOCKED_ROW_CLASS } from "@/components/blocked-row-class";
 import { HighlightText } from "@/components/highlight-text";
 import {
   BILLING_MINUTES_COLUMN,
+  OPRS_MAV_COLUMN,
   RTP_COLUMN,
   CDR_PHONE_COLUMNS,
   TRAFFIC_BOLD_COLUMNS,
@@ -32,6 +33,7 @@ import { cdrRowTone } from "@/modules/traffic/row-tone";
 import {
   isRtpAbsent,
   OPRS_FAILED_TAIL_BLACK,
+  OPRS_MAV_FILL,
   oprsFailedTailFill,
   RTP_ABSENT_FILL,
   type RtpChrome,
@@ -77,6 +79,8 @@ type Props = {
   onTimeSortChange?: (next: TimeSort | null) => void;
   durationSort?: TimeSort | null;
   onDurationSortChange?: (next: TimeSort | null) => void;
+  chargeSort?: TimeSort | null;
+  onChargeSortChange?: (next: TimeSort | null) => void;
   plainColumns?: readonly string[];
   facetUrl?: (input: { column: string; filters: ColumnFilters; q?: string }) => string;
   /** OPRS replaces the shared CDR palette. Color comes from the stamped tone. */
@@ -111,6 +115,8 @@ export function TrafficTable({
   onTimeSortChange,
   durationSort = null,
   onDurationSortChange,
+  chargeSort = null,
+  onChargeSortChange,
   plainColumns,
   facetUrl,
   oprs = false,
@@ -134,6 +140,7 @@ export function TrafficTable({
               oprs: oprsPaint,
               timeSortable: onTimeSortChange != null,
               durationSortable: onDurationSortChange != null,
+              chargeSortable: onChargeSortChange != null,
               plain:
                 VOIPMONITOR_COLUMN_SET.has(h) ||
                 h === BILLING_MINUTES_COLUMN ||
@@ -184,6 +191,13 @@ export function TrafficTable({
                   sort={durationSort}
                   labels={DURATION_SORT_LABELS}
                   onChange={onDurationSortChange}
+                />
+              ) : mode === "sort" && h === "tariff_charge" && onChargeSortChange ? (
+                <TimeSortHeader
+                  header={header}
+                  sort={chargeSort}
+                  labels={CHARGE_SORT_LABELS}
+                  onChange={onChargeSortChange}
                 />
               ) : mode === "sort" && onTimeSortChange ? (
                 <TimeSortHeader
@@ -282,6 +296,11 @@ export function TrafficTable({
                           trafficMissingLabelClass(h, shown),
                         failedTail &&
                           (tailRed ? RTP_ABSENT_FILL : OPRS_FAILED_TAIL_BLACK),
+                        oprsPaint &&
+                          !blocked &&
+                          h === OPRS_MAV_COLUMN &&
+                          shown.trim() &&
+                          OPRS_MAV_FILL,
                       )}
                     >
                       {VOIPMONITOR_COLUMN_SET.has(h) ? (
@@ -344,6 +363,12 @@ const DURATION_SORT_LABELS = {
   asc: "Длительность, по возрастанию. Нажмите чтобы сбросить",
 };
 
+const CHARGE_SORT_LABELS = {
+  idle: "Сортировать по стоимости",
+  desc: "Стоимость, по убыванию. Нажмите для возрастания",
+  asc: "Стоимость, по возрастанию. Нажмите чтобы сбросить",
+};
+
 function TimeSortHeader({
   header,
   sort,
@@ -358,7 +383,7 @@ function TimeSortHeader({
   const active = sort != null;
   const label = sort === "desc" ? labels.desc : sort === "asc" ? labels.asc : labels.idle;
   return (
-    <div className={`col-header col-header-sort${active ? " active" : ""}`}>
+    <div className={`col-header col-header-sort${active ? "active" : ""}`}>
       <button
         type="button"
         className="col-filter-trigger"

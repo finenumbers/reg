@@ -1,8 +1,5 @@
 import type { Prisma } from "@/generated/prisma/client";
-import {
-  EMPTY_FILTER_TOKEN,
-  type FacetItem,
-} from "@/components/column-filters/types";
+import { EMPTY_FILTER_TOKEN, type FacetItem } from "@/components/column-filters/types";
 
 /** Time column: chronology only (no facet). Date column: facet days ascending. */
 export type TimeSort = "asc" | "desc";
@@ -18,13 +15,19 @@ export function nextTimeSort(current: TimeSort | null): TimeSort | null {
   return null;
 }
 
-/** One column sorts the list. Turning one on clears the other. */
+/** One column sorts the list. Turning one on clears the other two. */
 export function applyExclusiveSort(
-  field: "time" | "duration",
+  field: "time" | "duration" | "charge",
   next: TimeSort | null,
-): { timeSort: TimeSort | null; durationSort: TimeSort | null } {
-  if (field === "time") return { timeSort: next, durationSort: null };
-  return { timeSort: null, durationSort: next };
+): {
+  timeSort: TimeSort | null;
+  durationSort: TimeSort | null;
+  chargeSort: TimeSort | null;
+} {
+  if (field === "time") return { timeSort: next, durationSort: null, chargeSort: null };
+  if (field === "duration")
+    return { timeSort: null, durationSort: next, chargeSort: null };
+  return { timeSort: null, durationSort: null, chargeSort: next };
 }
 
 export function trafficListOrderBy(
@@ -51,12 +54,10 @@ export function moveEmptyFacetLast(items: FacetItem[]): FacetItem[] {
 }
 
 /** Date menu: calendar order. Other columns: most frequent first. */
-export function trafficFacetGroupOrder(column: string):
-  | { cdrDay: "asc" }
-  | { _count: { id: "desc" } } {
-  return column === "cdr_day"
-    ? { cdrDay: "asc" }
-    : { _count: { id: "desc" } };
+export function trafficFacetGroupOrder(
+  column: string,
+): { cdrDay: "asc" } | { _count: { id: "desc" } } {
+  return column === "cdr_day" ? { cdrDay: "asc" } : { _count: { id: "desc" } };
 }
 
 export function arrangeTrafficFacetItems(

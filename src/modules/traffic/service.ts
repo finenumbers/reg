@@ -326,6 +326,7 @@ export async function listTraffic(opts: {
   noRtp?: boolean;
   timeSort?: TimeSort | null;
   durationSort?: TimeSort | null;
+  chargeSort?: TimeSort | null;
   page?: number;
   pageSize?: number;
 }): Promise<ListTrafficResult> {
@@ -334,7 +335,8 @@ export async function listTraffic(opts: {
   const filters = opts.filters ?? {};
   const phoneQ = opts.phoneQ?.trim() ?? "";
   const month = resolveMonthKey(opts.month);
-  const durationSort = opts.durationSort ?? null;
+  const chargeSort = opts.chargeSort ?? null;
+  const durationSort = chargeSort ? null : (opts.durationSort ?? null);
   const flags = {
     phantom: opts.phantom,
     callErrors: opts.callErrors,
@@ -344,14 +346,15 @@ export async function listTraffic(opts: {
     success: opts.success,
     noRtp: opts.noRtp,
   };
-  if (opts.noRtp || durationSort) {
+  if (opts.noRtp || durationSort || chargeSort) {
     return listTrafficBySql({
       filters,
       phoneQ,
       month,
       flags,
-      timeSort: durationSort ? null : (opts.timeSort ?? null),
+      timeSort: durationSort || chargeSort ? null : (opts.timeSort ?? null),
       durationSort,
+      chargeSort,
       rtpGate: trafficSqlAppliesRtpGate(opts.noRtp),
       page,
       pageSize,
@@ -505,7 +508,8 @@ async function listTrafficBySql(input: {
   flags: TrafficRowFlags;
   timeSort: TimeSort | null;
   durationSort: TimeSort | null;
-  /** True only for «Нет RTP». A seconds sort must not take the empty-host shortcut. */
+  chargeSort: TimeSort | null;
+  /** True only for «Нет RTP». A seconds or cost sort must not take the empty-host shortcut. */
   rtpGate: boolean;
   page: number;
   pageSize: number;
@@ -525,6 +529,7 @@ async function listTrafficBySql(input: {
     guiHost,
     timeSort: input.timeSort,
     durationSort: input.durationSort,
+    chargeSort: input.chargeSort,
   };
   const skip = (input.page - 1) * input.pageSize;
   const [counted, months, blockedNumbers] = await Promise.all([

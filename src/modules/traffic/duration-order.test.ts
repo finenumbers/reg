@@ -2,6 +2,9 @@ import { Prisma } from "@/generated/prisma/client";
 import { describe, expect, it } from "vitest";
 import {
   compareDurationRows,
+  cdrListOrderSql,
+  chargeOrderSql,
+  chargeSortSql,
   durationKeysetSql,
   durationOrderSql,
   durationRowFollowsCursor,
@@ -61,7 +64,9 @@ describe("duration order", () => {
       ":a",
       "nope:b",
     ]);
-    const desc = [...rows].sort((left, right) => compareDurationRows(left, right, "desc"));
+    const desc = [...rows].sort((left, right) =>
+      compareDurationRows(left, right, "desc"),
+    );
     expect(desc.map((row) => `${row.elapsed}:${row.cdrId}`)).toEqual([
       "1000:b",
       "999:c",
@@ -86,16 +91,22 @@ describe("duration keyset", () => {
   it("steps from the last number into the blank tail and through that tail", () => {
     expect(durationRowFollowsCursor(firstBlank, lastNumber, "asc")).toBe(true);
     expect(durationRowFollowsCursor(lastNumber, firstBlank, "asc")).toBe(false);
-    expect(durationRowFollowsCursor({ elapsed: "", cdrId: "a" }, firstBlank, "asc")).toBe(false);
-    expect(durationRowFollowsCursor({ elapsed: "", cdrId: "zz" }, firstBlank, "asc")).toBe(true);
+    expect(durationRowFollowsCursor({ elapsed: "", cdrId: "a" }, firstBlank, "asc")).toBe(
+      false,
+    );
+    expect(
+      durationRowFollowsCursor({ elapsed: "", cdrId: "zz" }, firstBlank, "asc"),
+    ).toBe(true);
     expect(durationRowFollowsCursor(firstBlank, lastNumber, "desc")).toBe(true);
-    expect(durationRowFollowsCursor({ elapsed: "1000", cdrId: "a" }, lastNumber, "desc")).toBe(
-      false,
-    );
-    expect(durationRowFollowsCursor({ elapsed: "", cdrId: "a" }, firstBlank, "desc")).toBe(true);
-    expect(durationRowFollowsCursor({ elapsed: "", cdrId: "zz" }, firstBlank, "desc")).toBe(
-      false,
-    );
+    expect(
+      durationRowFollowsCursor({ elapsed: "1000", cdrId: "a" }, lastNumber, "desc"),
+    ).toBe(false);
+    expect(
+      durationRowFollowsCursor({ elapsed: "", cdrId: "a" }, firstBlank, "desc"),
+    ).toBe(true);
+    expect(
+      durationRowFollowsCursor({ elapsed: "", cdrId: "zz" }, firstBlank, "desc"),
+    ).toBe(false);
   });
 
   it("binds a numeric cursor and keeps the blank tail in the predicate", () => {
@@ -109,5 +120,38 @@ describe("duration keyset", () => {
     const blank = flattenSql(durationKeysetSql("asc", { elapsed: "", cdrId: "z" }));
     expect(blank.text).toContain("IS NULL AND c.cdr_id >");
     expect(blank.values).toEqual(["z"]);
+  });
+});
+
+describe("charge order", () => {
+  it("sorts the stored rubles and leaves a blank or a word NULL", () => {
+    const { text } = flattenSql(chargeSortSql());
+    expect(text).toContain("btrim(c.tariff_charge)");
+    expect(text).toContain("^-?[0-9]+([.][0-9]+)?$");
+    expect(text).toContain("::numeric");
+    expect(text).not.toContain("ELSE 0");
+  });
+
+  it("asks Postgres for NULLS LAST and the same cdr_id direction", () => {
+    const asc = flattenSql(chargeOrderSql("asc"));
+    expect(asc.text).toContain("ASC NULLS LAST, c.cdr_id ASC");
+    const desc = flattenSql(chargeOrderSql("desc"));
+    expect(desc.text).toContain("DESC NULLS LAST, c.cdr_id DESC");
+  });
+
+  it("lets cost replace seconds and the date order", () => {
+    const cost = flattenSql(
+      cdrListOrderSql({ timeSort: "asc", durationSort: "desc", chargeSort: "asc" }),
+    );
+    expect(cost.text).toContain("tariff_charge");
+    expect(cost.text).toContain("ASC NULLS LAST, c.cdr_id ASC");
+    expect(cost.text).not.toContain("elapsed_time");
+    expect(cost.text).not.toContain("c.cdr_date");
+
+    const seconds = flattenSql(
+      cdrListOrderSql({ timeSort: "asc", durationSort: "desc", chargeSort: null }),
+    );
+    expect(seconds.text).toContain("elapsed_time");
+    expect(seconds.text).not.toContain("tariff_charge");
   });
 });

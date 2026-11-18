@@ -39,6 +39,7 @@ export function buildTrafficListUrl(opts: {
   noRtp?: boolean;
   timeSort?: TimeSort | null;
   durationSort?: TimeSort | null;
+  chargeSort?: TimeSort | null;
   page?: number;
   pageSize?: number;
 }): string {
@@ -54,7 +55,8 @@ export function buildTrafficListUrl(opts: {
   if (opts.check) params.set("check", "1");
   if (opts.success) params.set("success", "1");
   if (opts.noRtp) params.set("noRtp", "1");
-  if (opts.durationSort) params.set("durationSort", opts.durationSort);
+  if (opts.chargeSort) params.set("chargeSort", opts.chargeSort);
+  else if (opts.durationSort) params.set("durationSort", opts.durationSort);
   else if (opts.timeSort) params.set("timeSort", opts.timeSort);
   if (opts.page != null) params.set("page", String(opts.page));
   if (opts.pageSize != null) params.set("pageSize", String(opts.pageSize));
@@ -108,6 +110,7 @@ export async function fetchTrafficList(opts: {
   noRtp?: boolean;
   timeSort?: TimeSort | null;
   durationSort?: TimeSort | null;
+  chargeSort?: TimeSort | null;
   page?: number;
   pageSize?: number;
 }): Promise<{ ok: true; data: ListTrafficResult } | { ok: false; message: string }> {

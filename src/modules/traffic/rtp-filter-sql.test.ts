@@ -132,9 +132,24 @@ describe("traffic absent RTP sql", () => {
     expect(seconds.text).not.toContain("ELSE 0");
     expect(seconds.text).not.toContain("c.cdr_date ASC");
 
-    const dated = flattenSql(buildTrafficNoRtpPageSql(input({ timeSort: "asc" }), 100, 0));
+    const dated = flattenSql(
+      buildTrafficNoRtpPageSql(input({ timeSort: "asc" }), 100, 0),
+    );
     expect(dated.text).toContain("c.cdr_date ASC, c.cdr_id ASC");
     expect(dated.text).not.toContain("NULLS LAST");
+
+    const cost = flattenSql(
+      buildTrafficNoRtpPageSql(
+        input({ chargeSort: "desc", durationSort: "asc", timeSort: "asc" }),
+        100,
+        0,
+      ),
+    );
+    expect(cost.text).toContain("tariff_charge");
+    expect(cost.text).toContain("DESC NULLS LAST, c.cdr_id DESC");
+    expect(cost.text).not.toContain("c.cdr_date ASC");
+    expect(cost.text).not.toContain("c.cdr_date DESC");
+    expect(cost.text).not.toContain("ELSE 0");
   });
 
   it("does not treat a seconds sort as the empty RTP shortcut", () => {

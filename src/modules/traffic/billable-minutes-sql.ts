@@ -35,11 +35,32 @@ export function durationOrderSql(sort: TimeSort): Prisma.Sql {
   return Prisma.sql`${expr} DESC NULLS LAST, c.cdr_id DESC`;
 }
 
-/** List order. A seconds sort replaces the date order. */
+/**
+ * Rubles stored by `cdr_kopecks_text`. A blank or non-numeric cell is NULL,
+ * so it stays after every number. The same pattern is the detail total.
+ */
+export function chargeSortSql(): Prisma.Sql {
+  return Prisma.sql`
+    CASE
+      WHEN btrim(c.tariff_charge) ~ '^-?[0-9]+([.][0-9]+)?$'
+      THEN btrim(c.tariff_charge)::numeric
+    END
+  `;
+}
+
+export function chargeOrderSql(sort: TimeSort): Prisma.Sql {
+  const expr = chargeSortSql();
+  if (sort === "asc") return Prisma.sql`${expr} ASC NULLS LAST, c.cdr_id ASC`;
+  return Prisma.sql`${expr} DESC NULLS LAST, c.cdr_id DESC`;
+}
+
+/** List order. Cost replaces seconds, and seconds replace the date order. */
 export function cdrListOrderSql(input: {
   timeSort: TimeSort | null;
   durationSort?: TimeSort | null;
+  chargeSort?: TimeSort | null;
 }): Prisma.Sql {
+  if (input.chargeSort) return chargeOrderSql(input.chargeSort);
   if (input.durationSort) return durationOrderSql(input.durationSort);
   if (input.timeSort === "asc") return Prisma.sql`c.cdr_date ASC, c.cdr_id ASC`;
   return Prisma.sql`c.cdr_date DESC, c.cdr_id DESC`;

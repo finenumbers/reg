@@ -39,6 +39,8 @@ export type TrafficNoRtpSqlInput = {
   timeSort: TimeSort | null;
   /** Set only for the seconds column. It replaces the date order. */
   durationSort?: TimeSort | null;
+  /** Set only for «Стоимость». It replaces seconds and the date order. */
+  chargeSort?: TimeSort | null;
 };
 
 /** The empty-host shortcut belongs to «Нет RTP». A seconds sort still reads the month. */
@@ -97,8 +99,9 @@ export function buildTrafficNoRtpPageSql(
 ): Prisma.Sql {
   const slice = buildTrafficNoRtpSliceSql(input);
   const order = cdrListOrderSql({
-    timeSort: input.durationSort ? null : input.timeSort,
-    durationSort: input.durationSort,
+    timeSort: input.chargeSort || input.durationSort ? null : input.timeSort,
+    durationSort: input.chargeSort ? null : input.durationSort,
+    chargeSort: input.chargeSort,
   });
   const take = Math.min(200, Math.max(1, limit));
   const skip = Math.max(0, offset);
