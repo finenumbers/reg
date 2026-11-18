@@ -1,7 +1,13 @@
-# Current Phase — production (v1.326.0)
+# Current Phase — production (v1.327.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, purchased numbers, numbering sync, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-18
+
+## v1.327.0 — Purchased provider prices
+
+The migration `20261118210000_purchased_provider_prices` renames `purchased_numbers.purchase` to `sale` and adds empty `purchase` and `subscription`. It rewrites no row. It does not read `cdr_records`. The migration is label-free. `lock_timeout` is 15 seconds. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before migrate. Let the migrator exit 0, then start one new app. If migrate stops, do not start the new app. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged.
+
+«Купленные номера» shows «Покупка», «Абонплата», and «Продажа» in the same places as «Свободные номера». «Покупка» and «Абонплата» are the provider prices. «Продажа» is the mask price that this column used to store as «Покупка». The stored mask prices move with the column. Runexis stores `installationCost` and `subscriptionFee`. MTS Exolve stores `install_fee` and `subscription_fee`. Voximplant stores `phone_price` as «Абонплата» in the account currency and leaves «Покупка» empty. A bad price leaves that cell empty and keeps the number. SipOut, UIS, Aurora Telecom, MCN Telecom, and Finenumbers leave both provider cells empty. The prices appear after the next load of that source. `GET /api/purchased-numbers` returns `purchase` as the provider price, `subscription` as the provider subscription, and `sale` as the mask price.
 
 ## v1.326.0 — Blue MAV cell and cost sort
 

@@ -123,20 +123,8 @@ function parseList(
 function mapNumbers(
   items: readonly unknown[],
   prices: boolean,
-): Parsed<{ rows: FreeRow[] }> | Parsed<{ rows: string[] }> {
+): Parsed<{ rows: FreeRow[] }> {
   const seen = new Set<string>();
-  if (!prices) {
-    const rows: string[] = [];
-    for (const item of items) {
-      if (!isRecord(item)) return fail(NUMBER_UNREAD);
-      const e164 = readNumber(item.phone_number);
-      if (!e164) return fail(NUMBER_UNREAD);
-      if (seen.has(e164)) return fail(DUPLICATE_NUMBER);
-      seen.add(e164);
-      rows.push(e164);
-    }
-    return { ok: true, rows };
-  }
   const rows: FreeRow[] = [];
   for (const item of items) {
     if (!isRecord(item)) return fail(NUMBER_UNREAD);
@@ -146,7 +134,7 @@ function mapNumbers(
     seen.add(e164);
     rows.push({
       e164,
-      incomingPurchase: moneyText(item.phone_installation_price),
+      incomingPurchase: prices ? moneyText(item.phone_installation_price) : "",
       incomingPeriod: moneyText(item.phone_price),
     });
   }
@@ -156,12 +144,12 @@ function mapNumbers(
 export function parsePurchasedPage(
   data: unknown,
   limit: number,
-): Parsed<{ rows: string[]; total: number }> {
+): Parsed<{ rows: FreeRow[]; total: number }> {
   const list = parseList(data, limit);
   if (!list.ok) return list;
   const rows = mapNumbers(list.items, false);
   if (!rows.ok) return rows;
-  return { ok: true, rows: rows.rows as string[], total: list.total };
+  return { ok: true, rows: rows.rows, total: list.total };
 }
 
 export function parseFreePage(
@@ -172,7 +160,7 @@ export function parseFreePage(
   if (!list.ok) return list;
   const rows = mapNumbers(list.items, true);
   if (!rows.ok) return rows;
-  return { ok: true, rows: rows.rows as FreeRow[], total: list.total };
+  return { ok: true, rows: rows.rows, total: list.total };
 }
 
 function flag(value: unknown): boolean | "bad" | "absent" {

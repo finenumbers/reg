@@ -28,7 +28,10 @@ describe("Exolve page parse", () => {
     );
     expect(page.ok).toBe(true);
     if (!page.ok) return;
-    expect(page.rows).toEqual([NUMBER, "89991234455"]);
+    expect(page.rows).toEqual([
+      { e164: NUMBER, incomingPurchase: "", incomingPeriod: "" },
+      { e164: "89991234455", incomingPurchase: "", incomingPeriod: "" },
+    ]);
   });
 
   it("rejects a formatted number, an unsafe integer, and a duplicate on one page", () => {
@@ -154,6 +157,27 @@ describe("Exolve page parse", () => {
     expect(missing.error).toContain(NUMBER_UNREAD);
     expect(missing.error).toContain("type_name");
     expect(missing.error).not.toContain(NUMBER);
+  });
+
+  it("stores purchased install and subscription fees and leaves a bad price empty", () => {
+    const bought = parsePurchased(
+      {
+        total: 3,
+        numbers: [
+          { number_name: NUMBER, install_fee: 590, subscription_fee: "150.5" },
+          { number_name: "79300655935", install_fee: null, subscription_fee: -1 },
+          { number_name: "79300655936", install_fee: "1e2", subscription_fee: "12.5.1" },
+        ],
+      },
+      PURCHASED_LIMIT,
+    );
+    expect(bought.ok).toBe(true);
+    if (!bought.ok) return;
+    expect(bought.rows.map((row) => [row.e164, row.incomingPurchase, row.incomingPeriod])).toEqual([
+      [NUMBER, "590", "150.5"],
+      ["79300655935", "", ""],
+      ["79300655936", "", ""],
+    ]);
   });
 
   it("keeps a decimal price and leaves a bad price empty", () => {

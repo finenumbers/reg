@@ -35,7 +35,7 @@ export const LOST = "Загрузка прервана. Каталог не из
 export type { Directory, ExolveFreeRow, FreeCell, PurchasedFilter };
 
 export type PurchasedRead =
-  { ok: true; total: number; rows: string[] } | { ok: false; error: string };
+  { ok: true; total: number; rows: ExolveFreeRow[] } | { ok: false; error: string };
 
 export type TotalRead = { ok: true; total: number } | { ok: false; error: string };
 
@@ -58,7 +58,7 @@ export type ExolveWalkDeps = {
   recount: () => Promise<TotalRead>;
   directory: () => Promise<DirectoryRead>;
   free: (cell: FreeCell, offset: number, randomMode: FreeRandomMode) => Promise<FreeRead>;
-  stagePurchased: (dids: readonly string[]) => Promise<void>;
+  stagePurchased: (rows: readonly ExolveFreeRow[]) => Promise<void>;
   dropPurchased: () => Promise<void>;
   stageFree: (
     rows: readonly ExolveFreeRow[],
@@ -73,7 +73,7 @@ export type ExolveWalkResult =
   | { ok: false; reason: "lost" | "cancelled" | "error"; error: string };
 
 type PageStream =
-  | { status: "complete"; total: number; rows: string[] }
+  | { status: "complete"; total: number; rows: ExolveFreeRow[] }
   | { status: "gap"; total: number }
   | { status: "fail"; error: string; reason: "lost" | "cancelled" | "error" };
 
@@ -95,7 +95,7 @@ async function readPurchasedList(
   let offset = 0;
   let expected: number | null = null;
   let accepted = 0;
-  const buffered: string[] = [];
+  const buffered: ExolveFreeRow[] = [];
   const seen = new Set<string>();
   for (;;) {
     const gate = await deps.beat(
@@ -130,11 +130,11 @@ async function readPurchasedList(
       return { status: "fail", reason: "error", error: PURCHASED_CHANGED };
     }
     if (mode === "buffer") {
-      for (const did of page.rows) {
-        if (seen.has(did))
+      for (const row of page.rows) {
+        if (seen.has(row.e164))
           return { status: "fail", reason: "error", error: DUPLICATE_NUMBER };
-        seen.add(did);
-        buffered.push(did);
+        seen.add(row.e164);
+        buffered.push(row);
       }
     } else {
       try {
@@ -170,7 +170,7 @@ async function readPurchasedList(
 
 async function stageBuffer(
   deps: ExolveWalkDeps,
-  rows: readonly string[],
+  rows: readonly ExolveFreeRow[],
 ): Promise<Extract<PageStream, { status: "fail" }> | null> {
   if (rows.length === 0) return null;
   try {
@@ -188,10 +188,10 @@ async function readRegions(
   categoryId: number,
   regionIds: readonly number[],
 ): Promise<
-  | { ok: true; rows: string[]; sum: number }
+  | { ok: true; rows: ExolveFreeRow[]; sum: number }
   | { ok: false; error: string; reason: "lost" | "cancelled" | "error" }
 > {
-  const rows: string[] = [];
+  const rows: ExolveFreeRow[] = [];
   let sum = 0;
   for (const regionId of regionIds) {
     const child = await readPurchasedList(
@@ -220,7 +220,7 @@ async function splitCategory(
   categoryId: number,
   parentTotal: number,
 ): Promise<
-  | { ok: true; rows: string[] }
+  | { ok: true; rows: ExolveFreeRow[] }
   | { ok: false; error: string; reason: "lost" | "cancelled" | "error" }
 > {
   if (isKduType({ typeId, typeName })) {
@@ -276,10 +276,10 @@ async function splitType(
   type: Directory["types"][number],
   parentTotal: number,
 ): Promise<
-  | { ok: true; rows: string[] }
+  | { ok: true; rows: ExolveFreeRow[] }
   | { ok: false; error: string; reason: "lost" | "cancelled" | "error" }
 > {
-  const rows: string[] = [];
+  const rows: ExolveFreeRow[] = [];
   let sum = 0;
   for (const category of type.categories) {
     const child = await readPurchasedList(
@@ -289,7 +289,7 @@ async function splitType(
     );
     if (child.status === "fail")
       return { ok: false, error: child.error, reason: child.reason };
-    let taken: string[];
+    let taken: ExolveFreeRow[];
     let total: number;
     if (child.status === "complete") {
       taken = child.rows;
@@ -333,7 +333,7 @@ async function readByLayers(
     if (child.status === "fail") {
       return { ok: false, reason: child.reason, error: child.error };
     }
-    let rows: string[];
+    let rows: ExolveFreeRow[];
     let total: number;
     if (child.status === "complete") {
       rows = child.rows;

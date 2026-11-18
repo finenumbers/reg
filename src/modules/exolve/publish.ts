@@ -129,13 +129,18 @@ export async function stageFreeNumbers(
 
 export async function stagePurchasedNumbers(
   runId: string,
-  dids: readonly string[],
+  rows: readonly ExolveFreeRow[],
   beat?: () => Promise<void>,
 ): Promise<void> {
-  rejectDuplicates(dids);
-  const existing = await findExisting(runId, "purchased", dids, beat);
+  rejectDuplicates(rows.map((row) => row.e164));
+  const existing = await findExisting(
+    runId,
+    "purchased",
+    rows.map((row) => row.e164),
+    beat,
+  );
   if (existing.size > 0) throw new Error(DUPLICATE_NUMBER);
-  await writeChunks(dids, (chunk) => prisma.$executeRaw(stagePurchasedSql(runId, chunk)), beat);
+  await writeChunks(rows, (chunk) => prisma.$executeRaw(stagePurchasedSql(runId, chunk)), beat);
 }
 
 export async function dropPurchasedOverlap(runId: string): Promise<number> {

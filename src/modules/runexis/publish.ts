@@ -81,9 +81,9 @@ export async function stageFreeNumbers(
 
 export async function stagePurchasedNumbers(
   runId: string,
-  dids: readonly string[],
+  rows: readonly FreeDraft[],
 ): Promise<number> {
-  return stage(dids.length, () => prisma.$executeRaw(stagePurchasedSql(runId, dids)));
+  return stage(rows.length, () => prisma.$executeRaw(stagePurchasedSql(runId, rows)));
 }
 
 /** Free rows that are already purchased in this run. They leave the free draft. */

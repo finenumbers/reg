@@ -18,9 +18,11 @@ export type PurchasedNumberRow = {
   city: string;
   region: string;
   client: string;
+  purchase: string;
+  subscription: string;
   mask: string;
   maskType: string;
-  purchase: string;
+  sale: string;
   premium: string;
   operator: string;
   geography: string;

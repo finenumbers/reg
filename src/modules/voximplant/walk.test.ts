@@ -42,8 +42,13 @@ function meta(): CallMeta {
   return { status: 200, attempts: 1, durationMs: 4 };
 }
 
-function purchased(rows: string[], total: number): NumberPage<string> {
-  return { ok: true, rows, total, meta: meta() };
+function purchased(rows: string[], total: number): NumberPage<FreeRow> {
+  return {
+    ok: true,
+    rows: rows.map((e164) => ({ e164, incomingPurchase: "", incomingPeriod: "" })),
+    total,
+    meta: meta(),
+  };
 }
 
 function free(rows: FreeRow[], total: number): NumberPage<FreeRow> {
@@ -90,7 +95,10 @@ describe("Voximplant pages", () => {
       },
       PURCHASED_COUNT,
     );
-    expect(parsed.ok && parsed.rows).toEqual([A, B]);
+    expect(parsed.ok && parsed.rows).toEqual([
+      { e164: A, incomingPurchase: "", incomingPeriod: "" },
+      { e164: B, incomingPurchase: "", incomingPeriod: "" },
+    ]);
   });
 
   it("rejects a page longer than the request and a number that is not admitted", () => {
@@ -109,6 +117,28 @@ describe("Voximplant pages", () => {
       PURCHASED_COUNT,
     );
     expect(unread).toEqual({ ok: false, error: NUMBER_UNREAD });
+  });
+
+  it("stores the purchased monthly charge and leaves the one-time cell empty", () => {
+    const parsed = parsePurchasedPage(
+      {
+        result: [
+          {
+            phone_number: A,
+            phone_price: "20.5",
+            phone_installation_price: 100,
+            phone_tax_reserve: 5,
+          },
+          { phone_number: B, phone_price: "1e2" },
+        ],
+        total_count: 2,
+      },
+      PURCHASED_COUNT,
+    );
+    expect(parsed.ok && parsed.rows).toEqual([
+      { e164: A, incomingPurchase: "", incomingPeriod: "20.5" },
+      { e164: B, incomingPurchase: "", incomingPeriod: "" },
+    ]);
   });
 
   it("keeps an 8 and a 10-digit number, and stores only the two free prices", () => {
@@ -512,7 +542,9 @@ describe("Voximplant walk", () => {
     expect(pages).toEqual([0]);
     expect(recounts).toEqual([1]);
     expect(stagePurchased).toHaveBeenCalledTimes(1);
-    expect(stagePurchased).toHaveBeenCalledWith([A]);
+    expect(stagePurchased).toHaveBeenCalledWith([
+      { e164: A, incomingPurchase: "", incomingPeriod: "" },
+    ]);
   });
 
   it("does not publish when Russia has no categories or no regions", async () => {

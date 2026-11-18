@@ -39,13 +39,14 @@ function sourceText(): string {
 }
 
 describe("Voximplant catalog SQL", () => {
-  it("replaces only the Voximplant slice and leaves purchased money empty", () => {
+  it("replaces only the Voximplant slice and copies the purchased subscription", () => {
     expect(VOXIMPLANT_PROVIDER).toBe("Voximplant");
     expect(DELETE_VOXIMPLANT_FREE_SQL).toContain("provider = 'Voximplant'");
     expect(DELETE_VOXIMPLANT_PURCHASED_SQL).toContain("provider = 'Voximplant'");
     expect(FREE_COPY_SQL).toContain("incoming_purchase");
     expect(FREE_COPY_SQL).toContain("incoming_period");
-    expect(PURCHASED_COPY_SQL).not.toContain("incoming_purchase");
+    expect(PURCHASED_COPY_SQL).toContain("incoming_purchase");
+    expect(PURCHASED_COPY_SQL).toContain("incoming_period");
     expect(PURCHASED_COPY_SQL).toContain("''");
     expect(FREE_COPY_SQL).not.toContain("ON CONFLICT");
     expect(PURCHASED_COPY_SQL).not.toContain("ON CONFLICT");

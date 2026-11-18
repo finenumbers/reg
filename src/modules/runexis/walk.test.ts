@@ -77,8 +77,8 @@ function harness(
       free.push(rowsToStage.map((item) => item.e164));
       return rowsToStage.length;
     },
-    stagePurchased: async (dids) => {
-      purchased.push(dids);
+    stagePurchased: async (rows) => {
+      purchased.push(rows.map((row) => row.e164));
     },
     prepare: async () => undefined,
     publish: async () => {

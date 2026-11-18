@@ -94,7 +94,15 @@ function harness(input: {
       if (filter.kind === "region") regionCalls.push(`${filter.regionId}`);
       const page = input.purchased(filter, offset);
       if ("error" in page) return { ok: false, error: page.error };
-      return { ok: true, total: page.total, rows: page.rows };
+      return {
+        ok: true,
+        total: page.total,
+        rows: page.rows.map((e164) => ({
+          e164,
+          incomingPurchase: "",
+          incomingPeriod: "",
+        })),
+      };
     },
     recount: async () => {
       recounts.count += 1;
@@ -112,16 +120,15 @@ function harness(input: {
       const rows = input.free?.(cell, offset, randomMode) ?? [];
       return { ok: true, rows };
     },
-    stagePurchased: async (dids) => {
+    stagePurchased: async (rows) => {
       const seen = new Set<string>();
-      for (const id of dids) {
-        if (seen.has(id) || boughtSet.has(id)) throw new Error(DUPLICATE_NUMBER);
-        seen.add(id);
+      for (const row of rows) {
+        if (seen.has(row.e164) || boughtSet.has(row.e164)) throw new Error(DUPLICATE_NUMBER);
+        seen.add(row.e164);
       }
-      for (const id of dids) {
-        seen.add(id);
-        boughtSet.add(id);
-        bought.push(id);
+      for (const row of rows) {
+        boughtSet.add(row.e164);
+        bought.push(row.e164);
       }
     },
     dropPurchased: async () => {

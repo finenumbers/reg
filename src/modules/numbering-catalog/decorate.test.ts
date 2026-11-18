@@ -145,7 +145,8 @@ describe("catalog decorate", () => {
     expect(() => providerLiteral("mcn")).toThrow(/источник/);
 
     const purchased = flattenSql(purchasedFullBatchSql("", "UIS"));
-    expect(purchased).toContain("purchase = computed.mask_price");
+    expect(purchased).toContain("sale = computed.mask_price");
+    expect(purchased).not.toContain("purchase = computed.mask_price");
     expect(purchased).toContain("abc = computed.abc");
     expect(purchased).toContain('"number" = computed.telephone');
     expect(purchased).toContain("city = computed.city");
@@ -155,7 +156,6 @@ describe("catalog decorate", () => {
     expect(purchased).toContain("rtu_mask_lookup");
     expect(purchased).toContain("operator = COALESCE(computed.pstn_operator, n.operator)");
     expect(purchased).toContain("geography = COALESCE(computed.pstn_geography, n.geography)");
-    expect(purchased).not.toContain("sale = computed.mask_price");
 
     const client = flattenSql(purchasedClientBatchSql(""));
     expect(client).toContain("SET client = computed.client");
@@ -376,7 +376,8 @@ describe("catalog decorate", () => {
     expect(free).toContain("operator = COALESCE(computed.pstn_operator, n.operator)");
     const purchased = batches[1] ?? "";
     expect(purchased).toContain("abc = computed.abc");
-    expect(purchased).toContain("purchase = computed.mask_price");
+    expect(purchased).toContain("sale = computed.mask_price");
+    expect(purchased).not.toContain("purchase = computed.mask_price");
     expect(purchased).toContain("client = computed.client");
     const pstn = batches[2] ?? "";
     expect(pstn).not.toContain("rtu_mask_lookup");

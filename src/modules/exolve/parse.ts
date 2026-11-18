@@ -165,7 +165,7 @@ function readNumberField(item: Record<string, unknown>): string | null {
 export function parsePurchased(
   data: unknown,
   limit: number,
-): Parsed<{ total: number; rows: string[] }> {
+): Parsed<{ total: number; rows: ExolveFreeRow[] }> {
   if (!isRecord(data)) return fail();
   const platform = rootError(data);
   if (platform) return fail(platform);
@@ -184,7 +184,7 @@ export function parsePurchased(
     return { ok: true, total, rows: [] };
   }
   if (numbers.items.length > limit) return fail(PAGE_TOO_LONG);
-  const rows: string[] = [];
+  const rows: ExolveFreeRow[] = [];
   const seen = new Set<string>();
   for (const item of numbers.items) {
     if (!isRecord(item)) return fail(NUMBER_UNREAD);
@@ -192,7 +192,11 @@ export function parsePurchased(
     if (!did) return fail(withFields(NUMBER_UNREAD, item));
     if (seen.has(did)) return fail(DUPLICATE_NUMBER);
     seen.add(did);
-    rows.push(did);
+    rows.push({
+      e164: did,
+      incomingPurchase: moneyText(item.install_fee),
+      incomingPeriod: moneyText(item.subscription_fee),
+    });
   }
   return { ok: true, total, rows };
 }

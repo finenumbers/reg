@@ -42,6 +42,10 @@ function columnRef(column: PurchasedNumberColumn): Prisma.Sql {
       return Prisma.sql`"maskType"`;
     case "purchase":
       return Prisma.sql`purchase`;
+    case "subscription":
+      return Prisma.sql`subscription`;
+    case "sale":
+      return Prisma.sql`sale`;
     case "premium":
       return Prisma.sql`premium`;
     case "operator":
@@ -160,9 +164,11 @@ const ROW_SELECT = Prisma.sql`
   city,
   ${catalogRegionSql()} AS region,
   client,
+  purchase,
+  subscription,
   mask,
   "maskType",
-  purchase,
+  sale,
   premium,
   operator,
   geography,

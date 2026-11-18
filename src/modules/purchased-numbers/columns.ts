@@ -10,9 +10,11 @@ export const PURCHASED_NUMBER_COLUMNS = [
   "city",
   "region",
   "client",
+  "purchase",
+  "subscription",
   "mask",
   "maskType",
-  "purchase",
+  "sale",
   "premium",
   "operator",
   "geography",
@@ -27,9 +29,11 @@ export const PURCHASED_NUMBER_HEADERS: Record<PurchasedNumberColumn, string> = {
   city: "Город",
   region: "Регион",
   client: "Клиент",
+  purchase: "Покупка",
+  subscription: "Абонплата",
   mask: "Маска",
   maskType: "Тип",
-  purchase: "Покупка",
+  sale: "Продажа",
   premium: "Премиум",
   operator: "Оператор связи",
   geography: "География",
@@ -38,7 +42,12 @@ export const PURCHASED_NUMBER_HEADERS: Record<PurchasedNumberColumn, string> = {
 const COLUMN_SET = new Set<string>(PURCHASED_NUMBER_COLUMNS);
 
 /** Stored as text. The screen groups a whole number and keeps a fraction. */
-export const AMOUNT_COLUMNS = new Set<PurchasedNumberColumn>(["purchase", "premium"]);
+export const AMOUNT_COLUMNS = new Set<PurchasedNumberColumn>([
+  "purchase",
+  "subscription",
+  "sale",
+  "premium",
+]);
 
 export function isPurchasedNumberColumn(value: string): value is PurchasedNumberColumn {
   return COLUMN_SET.has(value);

@@ -51,7 +51,7 @@ export const FREE_COPY_SQL = `
 export const PURCHASED_COPY_SQL = `
   INSERT INTO purchased_numbers (
     id, provider, abc, "number", city, region, client,
-    mask, "maskType", purchase, premium, operator, geography, e164
+    purchase, subscription, mask, "maskType", sale, premium, operator, geography, e164
   )
   SELECT
     gen_random_uuid()::text,
@@ -61,6 +61,8 @@ export const PURCHASED_COPY_SQL = `
     city,
     region,
     '',
+    incoming_purchase,
+    incoming_period,
     '',
     '',
     '',
@@ -135,10 +137,18 @@ export function stageFreeSql(runId: string, rows: readonly ExolveFreeRow[]): Pri
   `;
 }
 
-export function stagePurchasedSql(runId: string, dids: readonly string[]): Prisma.Sql {
-  const values = dids.map((e164) => Prisma.sql`(${runId}, 'purchased', ${e164})`);
+export function stagePurchasedSql(
+  runId: string,
+  rows: readonly ExolveFreeRow[],
+): Prisma.Sql {
+  const values = rows.map(
+    (row) =>
+      Prisma.sql`(${runId}, 'purchased', ${row.e164}, ${row.incomingPurchase}, ${row.incomingPeriod})`,
+  );
   return Prisma.sql`
-    INSERT INTO exolve_sync_stage (run_id, catalog, e164)
+    INSERT INTO exolve_sync_stage (
+      run_id, catalog, e164, incoming_purchase, incoming_period
+    )
     VALUES ${Prisma.join(values)}
   `;
 }

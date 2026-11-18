@@ -7,6 +7,8 @@ import {
 describe("purchased-number display", () => {
   it("groups a whole amount and leaves a client name as stored", () => {
     expect(displayPurchasedNumberCell("purchase", "200000")).toBe("200 000");
+    expect(displayPurchasedNumberCell("subscription", "1500.5")).toBe("1 500.5");
+    expect(displayPurchasedNumberCell("sale", "3000")).toBe("3 000");
     expect(displayPurchasedNumberCell("premium", "1500.5")).toBe("1 500.5");
     expect(displayPurchasedNumberCell("premium", "золотой")).toBe("золотой");
     expect(displayPurchasedNumberCell("client", "1000")).toBe("1000");

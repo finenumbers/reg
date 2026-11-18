@@ -176,7 +176,7 @@ async function readStable<T>(input: Selection<T>): Promise<ReadResult<T>> {
 
 export async function runVoximplantWalk(deps: {
   beat: (list: "purchased" | "free", done: number, total: number) => Promise<Gate>;
-  purchasedPage: (offset: number) => Promise<NumberPage<string>>;
+  purchasedPage: (offset: number) => Promise<NumberPage<FreeRow>>;
   purchasedRecount: () => Promise<TotalPage>;
   categories: () => Promise<
     | { ok: true; categories: PhoneCategory[]; meta: CallMeta }
@@ -194,7 +194,7 @@ export async function runVoximplantWalk(deps: {
     offset: number,
   ) => Promise<NumberPage<FreeRow>>;
   freeRecount: (category: string, regionId: number) => Promise<TotalPage>;
-  stagePurchased: (rows: readonly string[]) => Promise<void>;
+  stagePurchased: (rows: readonly FreeRow[]) => Promise<void>;
   dropPurchased: () => Promise<void>;
   stageFree: (rows: readonly FreeRow[]) => Promise<void>;
   log: (text: string) => Promise<void>;
@@ -206,7 +206,7 @@ export async function runVoximplantWalk(deps: {
     limit: PURCHASED_COUNT,
     fetchPage: deps.purchasedPage,
     recount: deps.purchasedRecount,
-    key: (row) => row,
+    key: (row) => row.e164,
     stage: deps.stagePurchased,
     drop: deps.dropPurchased,
     beat: (done, total) => deps.beat("purchased", done, total),

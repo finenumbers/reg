@@ -24,13 +24,15 @@ function flattenSql(sql: Prisma.Sql): string {
 }
 
 describe("Exolve catalog SQL", () => {
-  it("replaces only the MTS Exolve slice and leaves purchased money empty", () => {
+  it("replaces only the MTS Exolve slice and copies purchased prices", () => {
     expect(EXOLVE_PROVIDER).toBe("MTS Exolve");
     expect(DELETE_EXOLVE_FREE_SQL).toContain("provider = 'MTS Exolve'");
     expect(DELETE_EXOLVE_PURCHASED_SQL).toContain("provider = 'MTS Exolve'");
     expect(FREE_COPY_SQL).toContain("incoming_purchase");
     expect(FREE_COPY_SQL).toContain("'MTS Exolve'");
-    expect(PURCHASED_COPY_SQL).not.toContain("incoming_purchase");
+    expect(PURCHASED_COPY_SQL).toContain("incoming_purchase");
+    expect(PURCHASED_COPY_SQL).toContain("incoming_period");
+    expect(PURCHASED_COPY_SQL).toContain("subscription");
     expect(FREE_COPY_SQL).not.toContain("ON CONFLICT");
     expect(PURCHASED_COPY_SQL).not.toContain("ON CONFLICT");
     expect(flattenSql(fillSplitSql("run", 10))).toContain("exolve_sync_stage");

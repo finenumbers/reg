@@ -518,7 +518,7 @@ export function freeMaskBatchSql(
   `;
 }
 
-/** Tariff, mask, PSTN, and client for one purchased page. */
+/** Tariff, mask, PSTN, and client for one purchased page. Provider prices stay. */
 export function purchasedFullBatchSql(
   afterId: string,
   provider: CatalogProvider | null = null,
@@ -574,7 +574,7 @@ export function purchasedFullBatchSql(
         region = computed.region,
         mask = computed.mask,
         "maskType" = computed.mask_type,
-        purchase = computed.mask_price,
+        sale = computed.mask_price,
         premium = computed.premium,
         client = computed.client,
         ${PSTN_ASSIGN}

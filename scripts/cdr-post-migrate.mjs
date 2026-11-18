@@ -40,6 +40,7 @@ export const LABEL_FREE_MIGRATIONS = new Set([
   "20261116020000_catalog_decorate_epoch",
   "20261117210000_drop_catalog_category",
   "20261118160000_rtp_leg_index",
+  "20261118210000_purchased_provider_prices",
 ]);
 
 /**

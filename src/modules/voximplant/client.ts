@@ -224,7 +224,7 @@ async function callJson(
 }
 
 export type VoximplantClient = {
-  purchased(offset: number, count: number): Promise<NumberPage<string>>;
+  purchased(offset: number, count: number): Promise<NumberPage<FreeRow>>;
   purchasedRecount(): Promise<TotalPage>;
   categories(): Promise<DirectoryPage<{ categories: PhoneCategory[] }>>;
   regions(category: string): Promise<DirectoryPage<{ regions: PhoneRegion[] }>>;

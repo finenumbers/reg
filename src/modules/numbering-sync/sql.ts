@@ -83,7 +83,7 @@ export const FREE_COPY_SQL = `
 export const PURCHASED_COPY_SQL = `
   INSERT INTO purchased_numbers (
     id, provider, abc, "number", city, region, client,
-    mask, "maskType", purchase, premium, operator, geography, e164
+    purchase, subscription, mask, "maskType", sale, premium, operator, geography, e164
   )
   SELECT
     gen_random_uuid()::text,
@@ -92,6 +92,8 @@ export const PURCHASED_COPY_SQL = `
     "number",
     city,
     region,
+    '',
+    '',
     '',
     '',
     '',

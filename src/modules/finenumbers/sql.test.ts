@@ -33,7 +33,7 @@ describe("Finenumbers publish SQL", () => {
     expect(free.columns).toBe(free.expressions.split(",").length);
     expect(free.columns).toBe(15);
     expect(purchased.columns).toBe(purchased.expressions.split(",").length);
-    expect(purchased.columns).toBe(14);
+    expect(purchased.columns).toBe(16);
     expect(free.expressions).not.toMatch(/\boperator\b/);
     expect(free.expressions).not.toMatch(/\bgeography\b/);
     expect(purchased.expressions).not.toMatch(/\boperator\b/);

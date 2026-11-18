@@ -642,15 +642,19 @@ model PurchasedNumber {
   /// «Регион».
   region    String @default("")
   /// «Клиент».
-  client    String @default("")
+  client       String @default("")
+  /// «Покупка». One-time provider price. Stored as text. A fraction is not rounded.
+  purchase     String @default("")
+  /// «Абонплата». Provider subscription. Stored as text. A fraction is not rounded.
+  subscription String @default("")
   /// «Маска».
-  mask      String @default("")
+  mask         String @default("")
   /// «Тип».
-  maskType  String @default("")
-  /// «Покупка». Stored as text. A fraction is not rounded.
-  purchase  String @default("")
+  maskType     String @default("")
+  /// «Продажа». Mask-catalog price. Stored as text. A fraction is not rounded.
+  sale         String @default("")
   /// «Премиум». Stored as text. A fraction is not rounded.
-  premium   String @default("")
+  premium      String @default("")
   /// «Оператор связи».
   operator  String @default("")
   /// «География».

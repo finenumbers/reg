@@ -78,6 +78,8 @@ describe("purchased-number SQL", () => {
     const list = flattenSql(purchasedNumberListSql(purchasedNumberWhere({}, ""), 100, 0));
     expect(list.text).toContain("FROM purchased_numbers");
     expect(list.text).toContain("client");
+    expect(list.text).toContain("subscription");
+    expect(list.text).toContain("sale");
     expect(list.text).not.toContain("incomingPurchase");
     expect(list.text).not.toContain("free_numbers");
   });

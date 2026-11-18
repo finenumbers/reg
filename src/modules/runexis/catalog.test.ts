@@ -7,6 +7,7 @@ import {
   nationalDigits,
   parseAccessToken,
   parseManagementPage,
+  purchasedPrices,
   parseRegionCodes,
   parseSession,
   parseShowcasePage,
@@ -150,7 +151,20 @@ describe("runexis showcase", () => {
     });
     expect(bought.ok).toBe(true);
     if (!bought.ok) return;
-    expect(bought.page.rows).toEqual(["79011234567"]);
+    expect(bought.page.rows).toEqual([
+      { e164: "79011234567", incomingPurchase: "", incomingPeriod: "" },
+    ]);
+    expect(
+      purchasedPrices({
+        installationCost: "7900",
+        subscriptionFee: 500,
+        meraPrice: 50.5,
+      }),
+    ).toEqual({ incomingPurchase: "7900", incomingPeriod: "500" });
+    expect(purchasedPrices({ meraPrice: 50.5, period_price: 9 })).toEqual({
+      incomingPurchase: "",
+      incomingPeriod: "",
+    });
     expect(bought.page.skippedFree).toBe(1);
     expect(bought.page.read).toBe(2);
     expect(
@@ -235,8 +249,9 @@ describe("runexis showcase", () => {
     expect(FREE_COPY_SQL).not.toContain("DELETE");
     expect(FREE_COPY_SQL).not.toContain("rtu_mask_lookup");
     expect(PURCHASED_COPY_SQL).toContain("INSERT INTO purchased_numbers");
+    expect(PURCHASED_COPY_SQL).toContain("incoming_purchase");
+    expect(PURCHASED_COPY_SQL).toContain("incoming_period");
     expect(PURCHASED_COPY_SQL).not.toContain("mask_price");
-    expect(PURCHASED_COPY_SQL).not.toContain("incoming");
     expect(PURCHASED_COPY_SQL).not.toContain("rtu_mask_lookup");
     expect(
       flattenSql(

@@ -37,7 +37,7 @@ export type ManagementNumbers = {
   limit: number;
   read: number;
   skippedFree: number;
-  rows: string[];
+  rows: FreeDraft[];
 };
 
 export type ParsedShowcase =
@@ -107,6 +107,17 @@ function presentMoney(
     return { found: true, text: moneyText(value) ?? "" };
   }
   return { found: false, text: "" };
+}
+
+/** Purchased management prices. `meraPrice` is not a purchase price. */
+export function purchasedPrices(row: Record<string, unknown>): {
+  incomingPurchase: string;
+  incomingPeriod: string;
+} {
+  return {
+    incomingPurchase: presentMoney(row, ["installation_cost", "installationCost"]).text,
+    incomingPeriod: presentMoney(row, ["subscription_fee", "subscriptionFee"]).text,
+  };
 }
 
 export function freePrices(row: Record<string, unknown>): {
@@ -188,7 +199,7 @@ export function parseShowcasePage(data: unknown): ParsedShowcase {
 export function parseManagementPage(data: unknown): ParsedManagement {
   const meta = pageMeta(data, MANAGEMENT_LIMIT);
   if (!meta.ok) return meta;
-  const rows: string[] = [];
+  const rows: FreeDraft[] = [];
   let skippedFree = 0;
   for (const item of meta.rows) {
     if (!item || typeof item !== "object") return { ok: false, error: BAD_NUMBER };
@@ -205,7 +216,7 @@ export function parseManagementPage(data: unknown): ParsedManagement {
       skippedFree += 1;
       continue;
     }
-    rows.push(e164);
+    rows.push({ e164, ...purchasedPrices(row) });
   }
   return {
     ok: true,
