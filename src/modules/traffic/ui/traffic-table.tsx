@@ -31,10 +31,10 @@ import {
 import { trafficColumnHeaderMode } from "@/modules/traffic/header-mode";
 import { cdrRowTone } from "@/modules/traffic/row-tone";
 import {
-  isRtpAbsent,
   OPRS_FAILED_TAIL_BLACK,
   OPRS_MAV_FILL,
   oprsFailedTailFill,
+  paintsRtpRow,
   RTP_ABSENT_FILL,
   type RtpChrome,
 } from "@/modules/traffic/rtp-row";
@@ -231,8 +231,7 @@ export function TrafficTable({
         ) : (
           data.map((row) => {
             const blocked = row.blocked === true;
-            const rtpAbsent = isRtpAbsent(row.data.rtp);
-            const paintRtpRow = rtpChrome === "row" && !blocked && rtpAbsent;
+            const paintRtpRow = paintsRtpRow(rtpChrome, blocked, row.data.rtp);
             const tone =
               blocked || paintRtpRow
                 ? null

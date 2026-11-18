@@ -1,7 +1,17 @@
-# Current Phase — production (v1.327.0)
+# Current Phase — production (v1.328.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, purchased numbers, numbering sync, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-18
+
+## v1.328.0 — Chain at 17:00 UTC, nav clocks, and red RTP rows
+
+This release does not migrate and does not rewrite catalog rows or the CDR journal. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before the new one starts, then start one new app. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged.
+
+The numbering chain runs at 17:00 UTC. The card shows that hour in the display zone: 20:00 in Europe/Moscow, 00:00 the next day in Asia/Novosibirsk. A process that starts at 17:00:00 UTC waits until the next day. A chain already running at 17:00 is not queued again. Restart does not resume a chain. «Загрузить» and «Загрузить все» still start immediately. The new hour applies when the process starts. A process that is still on v1.327.0 at 17:00 UTC keeps its 18:00 timer. Deploy before 17:00 UTC so today's chain runs at the new hour. A deploy between 17:00 and 18:00 UTC skips today's chain. «Загрузить все» starts it by hand. Do not deploy while a chain is running.
+
+«Синхронизация» paints the Settings clock red. «Звонки в ОПРС» paints the UTC clock red. The label stays black.
+
+«Операторы связи», «География звонков», and «Сырые данные» paint a non-blocked row saturated red when RTP is «Нет», the same as «Телефонный трафик». A blocked number stays black. The «Нет RTP» checkbox stays on «Телефонный трафик» and «Звонки в ОПРС». OPRS paint is unchanged. An empty GUI URL, or a link matched before v1.320.0, leaves the row unpainted.
 
 ## v1.327.0 — Purchased provider prices
 

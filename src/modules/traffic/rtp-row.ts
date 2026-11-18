@@ -19,6 +19,15 @@ export function isRtpAbsent(rtp: string | undefined): boolean {
   return rtp === RTP_ABSENT;
 }
 
+/** Whole-row saturated red. «Телефонный трафик» and the three CDR tables that share its predicate. */
+export function paintsRtpRow(
+  chrome: RtpChrome,
+  blocked: boolean,
+  rtp: string | undefined,
+): boolean {
+  return chrome === "row" && !blocked && isRtpAbsent(rtp);
+}
+
 export function oprsFailedTailFill(rtp: string | undefined): "red" | "black" {
   return isRtpAbsent(rtp) ? "red" : "black";
 }

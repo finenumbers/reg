@@ -36,6 +36,8 @@ export default async function RawCdrPage() {
       showOps
       canRetry={canRetry}
       durationSortable={false}
+      rtpChrome="row"
+      showNoRtpCheckbox={false}
       emptyUnfiltered="Нет данных. Дождитесь загрузки CDR по FTP или нажмите «Повторить импорт»."
       initial={initial}
       initialListError={initialListError}

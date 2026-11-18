@@ -88,6 +88,8 @@ type Props = {
   emptyUnfiltered: string;
   showMonthExport?: boolean;
   rtpChrome?: RtpChrome;
+  /** Defaults to on whenever a row is painted. The three CDR tables paint without the checkbox. */
+  showNoRtpCheckbox?: boolean;
   source?: "traffic" | "oprs";
   initialSnapshot?: string | null;
   /** «Сырые данные» keeps the duration menus and does not sort seconds. */
@@ -109,6 +111,7 @@ export function TrafficView({
   emptyUnfiltered,
   showMonthExport = false,
   rtpChrome = "off",
+  showNoRtpCheckbox,
   source = "traffic",
   initialSnapshot = null,
   durationSortable = true,
@@ -116,6 +119,7 @@ export function TrafficView({
   initialListError = null,
 }: Props) {
   const oprs = source === "oprs";
+  const showNoRtp = showNoRtpCheckbox ?? rtpChrome !== "off";
   const [filters, setFilters] = useState<ColumnFilters>({});
   const [phoneInput, setPhoneInput] = useState("");
   const [phoneQ, setPhoneQ] = useState("");
@@ -952,7 +956,7 @@ export function TrafficView({
               )}
             </Label>
           </div>
-          {rtpChrome === "off" ? null : (
+          {showNoRtp ? (
             <div className="flex items-center gap-2">
               <input
                 id={`${searchInputId}-no-rtp`}
@@ -965,7 +969,7 @@ export function TrafficView({
                 <RowColorMark tone="rtpAbsent">Нет RTP</RowColorMark>
               </Label>
             </div>
-          )}
+          ) : null}
           {oprs ? null : (
             <div className="flex items-center gap-2">
               <input

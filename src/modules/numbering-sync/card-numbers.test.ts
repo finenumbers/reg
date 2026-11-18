@@ -53,7 +53,7 @@ describe("sync card numbers", () => {
     );
     expect(formatSyncStamp(null, "Europe/Moscow")).toBe("—");
     expect(nextChainLabel(new Date("2026-12-26T10:00:00.000Z"), "Europe/Moscow")).toBe(
-      "21:00, 26.12.2026",
+      "20:00, 26.12.2026",
     );
   });
 

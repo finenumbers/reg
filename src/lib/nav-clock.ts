@@ -14,9 +14,10 @@ const UTC_ROOTS = [
   "/raw",
   "/antifraud",
   "/live-calls",
+  "/oprs",
   "/smg/syslog",
 ];
-const SETTINGS_ROOTS = ["/regs", "/audit", "/jobs"];
+const SETTINGS_ROOTS = ["/regs", "/audit", "/jobs", "/numbering-sync"];
 
 function matches(path: string, root: string): boolean {
   return path === root || path.startsWith(`${root}/`);
@@ -26,7 +27,8 @@ function matches(path: string, root: string): boolean {
  * Which nav clock the open page paints.
  * `smg` is resolved from the selected node's CDR zone, not from the path.
  * `/smg/syslog` is UTC arrival time and is matched before `/smg`.
- * `/live-calls` paints UTC. The call cells stay the switch digits.
+ * `/live-calls` and `/oprs` paint UTC. The call cells stay the switch digits.
+ * `/numbering-sync` paints the Settings row.
  * The home dashboard is UTC. `/` is an exact match so it does not paint every page.
  */
 export function navClockSource(pathname: string): NavClockRow | "smg" | null {

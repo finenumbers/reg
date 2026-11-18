@@ -205,7 +205,7 @@ export function formatSyncStamp(value: Date | null, timeZone: string): string {
   return `${hour}:${minute}, ${day}.${month}.${year}`;
 }
 
-/** Next 18:00 UTC, drawn in the operator zone. */
+/** Next 17:00 UTC, drawn in the operator zone. */
 export function nextChainLabel(now: Date, timeZone: string): string {
   return formatSyncStamp(new Date(now.getTime() + msUntilNextUtcHour(now)), timeZone);
 }

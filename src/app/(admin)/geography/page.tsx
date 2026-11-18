@@ -24,6 +24,8 @@ export default async function GeographyPage() {
       showOps={false}
       canRetry={false}
       emptyUnfiltered="Нет данных."
+      rtpChrome="row"
+      showNoRtpCheckbox={false}
       initial={initial}
       initialListError={initialListError}
     />

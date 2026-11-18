@@ -2,22 +2,24 @@ import { describe, expect, it } from "vitest";
 import { navClockRowForZone, navClockSource } from "@/lib/nav-clock";
 
 describe("navClockSource", () => {
-  it("paints UTC on the civil-UTC tables, live calls, Ошибки АнтиФрод, and syslog", () => {
+  it("paints UTC on the civil-UTC tables, live calls, OPRS, Ошибки АнтиФрод, and syslog", () => {
     expect(navClockSource("/traffic")).toBe("utc");
     expect(navClockSource("/operators")).toBe("utc");
     expect(navClockSource("/geography")).toBe("utc");
     expect(navClockSource("/raw")).toBe("utc");
     expect(navClockSource("/antifraud")).toBe("utc");
     expect(navClockSource("/live-calls")).toBe("utc");
+    expect(navClockSource("/oprs")).toBe("utc");
     expect(navClockSource("/smg/syslog")).toBe("utc");
     expect(navClockSource("/smg/syslog/node")).toBe("utc");
     expect(navClockSource("/")).toBe("utc");
   });
 
-  it("paints the Settings row on registrations, audit, and jobs", () => {
+  it("paints the Settings row on registrations, audit, jobs, and numbering sync", () => {
     expect(navClockSource("/regs")).toBe("settings");
     expect(navClockSource("/audit")).toBe("settings");
     expect(navClockSource("/jobs")).toBe("settings");
+    expect(navClockSource("/numbering-sync")).toBe("settings");
   });
 
   it("leaves the SMG call tables to the selected node", () => {
@@ -30,6 +32,7 @@ describe("navClockSource", () => {
     expect(navClockSource("/phones")).toBeNull();
     expect(navClockSource("/groups")).toBeNull();
     expect(navClockSource("/rtu")).toBeNull();
+    expect(navClockSource("/numbering-load")).toBeNull();
   });
 });
 
