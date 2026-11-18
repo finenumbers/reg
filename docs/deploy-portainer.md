@@ -180,7 +180,7 @@ v1.311.0 does not call `did.finenumbers.com`. Settings has no DID URL and no DID
 3. Migrate runs before app on each redeploy. When the schema is already current, migrate exits without reading the CDR journal. A release that moves the tariff generation queues the rewrite in the running app, under «Задачи».
 4. Smoke: `/api/readyz` + login.
 
-Supplier upload (`POST /api/phones/suppliers`), tariff upload (`POST /api/tariffs/import`), and the RTU XLSX import (`POST /api/phones/rtu-import`) pass through Next.js middleware. Middleware clones the request body. The default clone limit is **10 MiB**, and a larger body is truncated with no error. `experimental.proxyClientMaxBodySize` in `next.config.ts` is **`200mb`**. Each of those three routes still rejects a file above **20 MiB**. Do not lower `200mb`. `/api/enrich` is gone. The matcher exclusion for that path does not protect these three uploads.
+Supplier upload (`POST /api/phones/suppliers`), tariff upload (`POST /api/tariffs/import`), and the RTU XLSX import (`POST /api/phones/rtu-import`) pass through the Next.js proxy. The proxy clones the request body. The default clone limit is **10 MiB**, and a larger body is truncated with no error. `experimental.proxyClientMaxBodySize` in `next.config.ts` is **`200mb`**. Each of those three routes still rejects a file above **20 MiB**. Do not lower `200mb`. `/api/enrich` is gone. The matcher exclusion for that path does not protect these three uploads.
 
 ## 10. Must not
 

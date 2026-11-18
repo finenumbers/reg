@@ -12,13 +12,13 @@ function hasMachineApiKey(request: NextRequest): boolean {
 }
 
 /**
- * Lightweight edge gate:
+ * Lightweight gate in the Node.js proxy:
  * - Unauthenticated browser hits on protected app routes → redirect /login
  * - Unauthenticated API (non-public) → 401 JSON
  * - API with Bearer / X-Api-Key passes through (validated in route handlers)
  * Full permission checks happen in server layouts / route handlers.
  */
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const sessionCookie = getSessionCookie(request);
 

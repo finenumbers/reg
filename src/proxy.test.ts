@@ -6,7 +6,7 @@ vi.mock("better-auth/cookies", () => ({
     request.cookies.get("session")?.value ?? null,
 }));
 
-import { middleware, middlewareMatcherHits } from "@/middleware";
+import { middlewareMatcherHits, proxy } from "@/proxy";
 
 function makeRequest(path: string, hasSession = false) {
   const url = `http://localhost:3000${path}`;
@@ -19,145 +19,145 @@ function makeRequest(path: string, hasSession = false) {
 
 describe("middleware protected routes", () => {
   it("redirects anonymous users from /regs to /login", () => {
-    const res = middleware(makeRequest("/regs"));
+    const res = proxy(makeRequest("/regs"));
     expect(res.status).toBe(307);
     expect(res.headers.get("location")).toContain("/login");
     expect(res.headers.get("location")).toContain("next=%2Fregs");
   });
 
   it("redirects anonymous users from /live-calls to /login", () => {
-    const res = middleware(makeRequest("/live-calls"));
+    const res = proxy(makeRequest("/live-calls"));
     expect(res.status).toBe(307);
     expect(res.headers.get("location")).toContain("/login");
     expect(res.headers.get("location")).toContain("next=%2Flive-calls");
   });
 
   it("redirects anonymous users from /traffic to /login", () => {
-    const res = middleware(makeRequest("/traffic"));
+    const res = proxy(makeRequest("/traffic"));
     expect(res.status).toBe(307);
     expect(res.headers.get("location")).toContain("/login");
     expect(res.headers.get("location")).toContain("next=%2Ftraffic");
   });
 
   it("redirects anonymous users from /raw to /login", () => {
-    const res = middleware(makeRequest("/raw"));
+    const res = proxy(makeRequest("/raw"));
     expect(res.status).toBe(307);
     expect(res.headers.get("location")).toContain("/login");
     expect(res.headers.get("location")).toContain("next=%2Fraw");
   });
 
   it("redirects anonymous users from /oprs to /login", () => {
-    const res = middleware(makeRequest("/oprs"));
+    const res = proxy(makeRequest("/oprs"));
     expect(res.status).toBe(307);
     expect(res.headers.get("location")).toContain("/login");
     expect(res.headers.get("location")).toContain("next=%2Foprs");
   });
 
   it("redirects anonymous users from /geography to /login", () => {
-    const res = middleware(makeRequest("/geography"));
+    const res = proxy(makeRequest("/geography"));
     expect(res.status).toBe(307);
     expect(res.headers.get("location")).toContain("/login");
     expect(res.headers.get("location")).toContain("next=%2Fgeography");
   });
 
   it("redirects anonymous users from /operators to /login", () => {
-    const res = middleware(makeRequest("/operators"));
+    const res = proxy(makeRequest("/operators"));
     expect(res.status).toBe(307);
     expect(res.headers.get("location")).toContain("/login");
     expect(res.headers.get("location")).toContain("next=%2Foperators");
   });
 
   it("redirects anonymous users from /tariffs to /login", () => {
-    const res = middleware(makeRequest("/tariffs"));
+    const res = proxy(makeRequest("/tariffs"));
     expect(res.status).toBe(307);
     expect(res.headers.get("location")).toContain("/login");
     expect(res.headers.get("location")).toContain("next=%2Ftariffs");
   });
 
   it("redirects anonymous users from /marking to /login", () => {
-    const res = middleware(makeRequest("/marking"));
+    const res = proxy(makeRequest("/marking"));
     expect(res.status).toBe(307);
     expect(res.headers.get("location")).toContain("/login");
     expect(res.headers.get("location")).toContain("next=%2Fmarking");
   });
 
   it("redirects anonymous users from /masks to /login", () => {
-    const res = middleware(makeRequest("/masks"));
+    const res = proxy(makeRequest("/masks"));
     expect(res.status).toBe(307);
     expect(res.headers.get("location")).toContain("/login");
     expect(res.headers.get("location")).toContain("next=%2Fmasks");
   });
 
   it("redirects anonymous users from /groups to /login", () => {
-    const res = middleware(makeRequest("/groups"));
+    const res = proxy(makeRequest("/groups"));
     expect(res.status).toBe(307);
     expect(res.headers.get("location")).toContain("/login");
   });
 
   it("redirects anonymous users from /free-numbers to /login", () => {
-    const res = middleware(makeRequest("/free-numbers"));
+    const res = proxy(makeRequest("/free-numbers"));
     expect(res.status).toBe(307);
     expect(res.headers.get("location")).toContain("/login");
     expect(res.headers.get("location")).toContain("next=%2Ffree-numbers");
   });
 
   it("redirects anonymous users from /purchased-numbers to /login", () => {
-    const res = middleware(makeRequest("/purchased-numbers"));
+    const res = proxy(makeRequest("/purchased-numbers"));
     expect(res.status).toBe(307);
     expect(res.headers.get("location")).toContain("/login");
     expect(res.headers.get("location")).toContain("next=%2Fpurchased-numbers");
   });
 
   it("redirects anonymous users from /numbering-resource to /login", () => {
-    const res = middleware(makeRequest("/numbering-resource"));
+    const res = proxy(makeRequest("/numbering-resource"));
     expect(res.status).toBe(307);
     expect(res.headers.get("location")).toContain("/login");
     expect(res.headers.get("location")).toContain("next=%2Fnumbering-resource");
   });
 
   it("redirects anonymous users from /numbering-sync to /login", () => {
-    const res = middleware(makeRequest("/numbering-sync"));
+    const res = proxy(makeRequest("/numbering-sync"));
     expect(res.status).toBe(307);
     expect(res.headers.get("location")).toContain("/login");
     expect(res.headers.get("location")).toContain("next=%2Fnumbering-sync");
   });
 
   it("redirects anonymous users from /numbering-load to /login", () => {
-    const res = middleware(makeRequest("/numbering-load"));
+    const res = proxy(makeRequest("/numbering-load"));
     expect(res.status).toBe(307);
     expect(res.headers.get("location")).toContain("/login");
     expect(res.headers.get("location")).toContain("next=%2Fnumbering-load");
   });
 
   it("redirects anonymous users from /rtu to /login", () => {
-    const res = middleware(makeRequest("/rtu"));
+    const res = proxy(makeRequest("/rtu"));
     expect(res.status).toBe(307);
     expect(res.headers.get("location")).toContain("/login");
     expect(res.headers.get("location")).toContain("next=%2Frtu");
   });
 
   it("redirects anonymous users from /settings to /login", () => {
-    const res = middleware(makeRequest("/settings"));
+    const res = proxy(makeRequest("/settings"));
     expect(res.status).toBe(307);
     expect(res.headers.get("location")).toContain("/login");
   });
 
   it("redirects anonymous users from /detail to /login", () => {
-    const res = middleware(makeRequest("/detail"));
+    const res = proxy(makeRequest("/detail"));
     expect(res.status).toBe(307);
     expect(res.headers.get("location")).toContain("/login");
     expect(res.headers.get("location")).toContain("next=%2Fdetail");
   });
 
   it("redirects anonymous users from /stats to /login", () => {
-    const res = middleware(makeRequest("/stats"));
+    const res = proxy(makeRequest("/stats"));
     expect(res.status).toBe(307);
     expect(res.headers.get("location")).toContain("/login");
     expect(res.headers.get("location")).toContain("next=%2Fstats");
   });
 
   it("returns 401 JSON for anonymous /api/regs", async () => {
-    const res = middleware(makeRequest("/api/regs"));
+    const res = proxy(makeRequest("/api/regs"));
     expect(res.status).toBe(401);
     const body = await res.json();
     expect(body.code).toBe("UNAUTHORIZED");
@@ -166,36 +166,36 @@ describe("middleware protected routes", () => {
   it("allows Bearer API key without session cookie on /api/regs", () => {
     const url = "http://localhost:3000/api/regs";
     const headers = new Headers({ authorization: "Bearer reg_testkey" });
-    const res = middleware(new NextRequest(url, { headers }));
+    const res = proxy(new NextRequest(url, { headers }));
     expect(res.status).toBe(200);
   });
 
   it("does not treat a foreign Bearer token as a machine API key", () => {
     const url = "http://localhost:3000/api/regs";
     const headers = new Headers({ authorization: "Bearer not-a-platform-key" });
-    const res = middleware(new NextRequest(url, { headers }));
+    const res = proxy(new NextRequest(url, { headers }));
     expect(res.status).toBe(401);
   });
 
   it("allows X-Api-Key without session cookie on /api/phones", () => {
     const url = "http://localhost:3000/api/phones";
     const headers = new Headers({ "x-api-key": "reg_testkey" });
-    const res = middleware(new NextRequest(url, { headers }));
+    const res = proxy(new NextRequest(url, { headers }));
     expect(res.status).toBe(200);
   });
 
   it("allows Better Auth public API without session", () => {
-    const res = middleware(makeRequest("/api/auth/sign-in/username"));
+    const res = proxy(makeRequest("/api/auth/sign-in/username"));
     expect(res.status).toBe(200);
   });
 
   it("allows anonymous /login", () => {
-    const res = middleware(makeRequest("/login"));
+    const res = proxy(makeRequest("/login"));
     expect(res.status).toBe(200);
   });
 
   it("allows session cookie holders to stay on /login", () => {
-    const res = middleware(makeRequest("/login", true));
+    const res = proxy(makeRequest("/login", true));
     expect(res.status).toBe(200);
   });
 });
