@@ -16,7 +16,7 @@ const MONTHS: Record<string, number> = {
 const HEADER_RE =
   /^(?:Sun|Mon|Tue|Wed|Thu|Fri|Sat) (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) {1,2}(\d{1,2}) (\d{2}):(\d{2}):(\d{2}) (\d{4})$/;
 
-export type ParsedDetail = {
+type ParsedDetail = {
   loggedAt: Date | null;
   headerRaw: string;
   packetType: string;

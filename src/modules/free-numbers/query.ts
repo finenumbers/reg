@@ -13,11 +13,11 @@ import {
   type FreeNumberColumn,
 } from "@/modules/free-numbers/columns";
 
-export const FREE_NUMBERS_MAX_PAGE = 2000;
-export const FREE_NUMBERS_MAX_PAGE_SIZE = 100;
+const FREE_NUMBERS_MAX_PAGE = 2000;
+const FREE_NUMBERS_MAX_PAGE_SIZE = 100;
 export const FREE_NUMBERS_MAX_FILTERS_CHARS = 16_000;
 export const FREE_NUMBERS_MAX_QUERY_CHARS = 64;
-export const FREE_NUMBERS_FACET_LIMIT = 200;
+const FREE_NUMBERS_FACET_LIMIT = 200;
 export const FREE_NUMBERS_EXPORT_BATCH = 500;
 
 export class FreeNumbersQueryError extends Error {

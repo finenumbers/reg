@@ -75,7 +75,7 @@ const CALL_TIMEOUT_MS = 12_000;
 const MODULE_COLUMN = "Модуль";
 const UNKNOWN_OBJECT = /unknown object|неизвестн|does not exist|не найден/i;
 
-export type LiveCallAccount = {
+type LiveCallAccount = {
   origin: string;
   login: string;
   password: string;
@@ -97,7 +97,7 @@ export type LiveCallPayload = {
   error: string | null;
 };
 
-export type LiveCallDescriptions = (phones: string[]) => Promise<Map<string, string>>;
+type LiveCallDescriptions = (phones: string[]) => Promise<Map<string, string>>;
 
 export type LiveCallDeps = {
   now: () => number;

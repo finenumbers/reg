@@ -4,7 +4,7 @@ import type { DurationCursor } from "@/modules/traffic/billable-minutes-sql";
 import type { TimeSort } from "@/modules/traffic/traffic-sort";
 import type { OprsCursor } from "@/modules/oprs/where";
 
-export type OprsListQuery = {
+type OprsListQuery = {
   filters?: ColumnFilters;
   phoneQ?: string;
   month?: string;
@@ -91,7 +91,7 @@ export type OprsBdpnHit = {
   inn: string;
 };
 
-export type OprsBdpnResult =
+type OprsBdpnResult =
   OprsBdpnHit | { found: false; number: string } | { aborted: true } | { error: string };
 
 export async function fetchOprsBdpn(

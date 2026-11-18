@@ -1,6 +1,6 @@
 import path from "node:path";
 
-export const SYSLOG_STATUS_FILENAME = ".status.json";
+const SYSLOG_STATUS_FILENAME = ".status.json";
 export const PARTIAL_GZ_SUFFIX = ".log.gz.partial";
 
 /** Root of the syslog volume. Override with SMG_SYSLOG_DIR. */

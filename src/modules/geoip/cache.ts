@@ -10,7 +10,7 @@ import {
   type GeoFields,
 } from "@/modules/geoip/types";
 
-export type CachedGeo = GeoFields & { lookedUpAt: Date };
+type CachedGeo = GeoFields & { lookedUpAt: Date };
 
 export async function loadGeoCacheByIps(
   ips: string[],

@@ -12,7 +12,7 @@ import {
   type PstnFields,
 } from "@/modules/pstn/types";
 
-export type PstnLookupErrorCode =
+type PstnLookupErrorCode =
   | "TIMEOUT"
   | "HTTP_ERROR"
   | "NETWORK"

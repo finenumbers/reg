@@ -34,7 +34,7 @@ function toneFill(tone: GeographyRowTone) {
   };
 }
 
-export type RtuExportResult = {
+type RtuExportResult = {
   buffer: Buffer;
   filename: string;
 };

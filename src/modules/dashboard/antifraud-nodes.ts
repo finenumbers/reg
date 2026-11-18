@@ -13,7 +13,7 @@ import {
 export const ALL_ANTIFRAUD_NODES_LABEL = "Все узлы Eltex SMG-1016M";
 export const DASHBOARD_NODE_REJECTED = "Этот узел не участвует в АнтиФроде.";
 
-export type DashboardNodeParse = { ok: true; ip: string | null } | { ok: false };
+type DashboardNodeParse = { ok: true; ip: string | null } | { ok: false };
 
 export function isAntifraudChartNode(node: {
   antifraudEnabled: boolean;

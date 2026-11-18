@@ -146,7 +146,7 @@ export function detailHeaderRole(col: number): BorderRole {
   }
 }
 
-export type MissFontRole = "blue" | "red" | null;
+type MissFontRole = "blue" | "red" | null;
 
 /** Same hues as trafficMissingLabelClass (blue-600 / red-600). */
 export const XLSX_BILLING_FONT_ARGB = "FF2563EB";

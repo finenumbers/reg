@@ -250,7 +250,7 @@ export async function stampDomainClient(
   });
 }
 
-export type VatsScreen = {
+type VatsScreen = {
   readAt: string | null;
   notice: string | null;
   loading: boolean;

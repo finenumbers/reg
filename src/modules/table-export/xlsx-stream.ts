@@ -105,7 +105,7 @@ function yieldEventLoop(): Promise<void> {
   });
 }
 
-export type StreamingWorkbook = {
+type StreamingWorkbook = {
   writeRow: (raw: readonly StreamCell[]) => Promise<void>;
   finish: () => Promise<number>;
   abort: () => void;

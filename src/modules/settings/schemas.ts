@@ -54,7 +54,7 @@ const IPV4_RE =
   /^(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)$/;
 
 /** Empty clears PASV. A hostname would be split on dots in the 227 reply. */
-export const ftpPasvAddressSchema = z
+const ftpPasvAddressSchema = z
   .string()
   .max(255)
   .refine((value) => {

@@ -2,7 +2,7 @@ import { formatCount } from "@/lib/format-count";
 
 const UNITS = ["Б", "КБ", "МБ", "ГБ", "ТБ"] as const;
 
-export type ByteParts = {
+type ByteParts = {
   value: string;
   unit: string;
 };

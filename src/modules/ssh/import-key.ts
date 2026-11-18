@@ -26,7 +26,7 @@ import { logger } from "@/lib/logger";
 /** Hard limit for uploaded key material (64 KiB). */
 export const MAX_KEY_MATERIAL_BYTES = 64 * 1024;
 
-export type DetectedKeyFormat = "ppk" | "pem" | "openssh" | "unknown";
+type DetectedKeyFormat = "ppk" | "pem" | "openssh" | "unknown";
 
 export type ImportedPrivateKey = {
   /** Normalized OpenSSH private key (plaintext, in-memory only) */
@@ -36,14 +36,14 @@ export type ImportedPrivateKey = {
   sourceFormat: DetectedKeyFormat;
 };
 
-export type KeyImportInput = {
+type KeyImportInput = {
   /** Raw upload bytes/text (.ppk or PEM/OpenSSH) */
   rawKeyMaterial: string;
   /** Passphrase for encrypted PPK/PEM — discarded after import */
   passphrase?: string;
 };
 
-export interface PrivateKeyImportService {
+interface PrivateKeyImportService {
   importKey(input: KeyImportInput): Promise<ImportedPrivateKey>;
 }
 

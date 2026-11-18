@@ -10,7 +10,7 @@ export const SUPPLIER_MAX_LENGTH = 200;
 export const PHONE_CATALOG_LOCK_SQL =
   "SELECT pg_advisory_xact_lock(4815162342001::bigint)";
 
-export type SupplierEndpointRow = {
+type SupplierEndpointRow = {
   name: string;
   endpointNumber: string | null;
   data: unknown;

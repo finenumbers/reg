@@ -7,7 +7,7 @@ import {
 } from "@/modules/voipmonitor/types";
 
 /** Misses that mean "not in VoIPmonitor" — stop after MAX_MATCH_ATTEMPTS. */
-export const TERMINAL_NOT_FOUND_MISS = [
+const TERMINAL_NOT_FOUND_MISS = [
   MISS_CALL_ID_NOT_IN_INDEX,
   MISS_EMPTY_CALLID_WEAK_SIGNAL,
   MISS_NO_CANDIDATES_IN_WINDOW,
@@ -15,7 +15,7 @@ export const TERMINAL_NOT_FOUND_MISS = [
 ] as const;
 
 /** The outcome field only. `miss_reason_seed` is not a reason. */
-export function missReasonOf(evidenceJson: string): string | null {
+function missReasonOf(evidenceJson: string): string | null {
   try {
     const parsed = JSON.parse(evidenceJson) as unknown;
     if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {

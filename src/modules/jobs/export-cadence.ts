@@ -1,6 +1,6 @@
 /** Fixed RTU poll periods. Settings does not choose these. */
 
-export const MIN_SCHEDULE_INTERVAL_SEC = 30;
+const MIN_SCHEDULE_INTERVAL_SEC = 30;
 export const EXPORT_DEFER_SEC = 20;
 export const FIRST_PHONES_DELAY_SEC = 45;
 export const FIRST_GROUPS_DELAY_SEC = 90;

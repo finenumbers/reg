@@ -145,7 +145,7 @@ export const VOIPMONITOR_COLUMN_IN = "voipmonitor_url_in";
 export const VOIPMONITOR_COLUMN_OUT = "voipmonitor_url_out";
 /** Display-only. Filled with the Calltrace links. Not a CDR field. */
 export const RTP_COLUMN = "rtp";
-export const VOIPMONITOR_COLUMNS = [
+const VOIPMONITOR_COLUMNS = [
   VOIPMONITOR_COLUMN_IN,
   VOIPMONITOR_COLUMN_OUT,
 ] as const;
@@ -157,7 +157,7 @@ export const VOIPMONITOR_RAW_LABELS: Record<
   voipmonitor_url_in: "VoIPmonitor In",
   voipmonitor_url_out: "VoIPmonitor Out",
 };
-export const VOIPMONITOR_TRAFFIC_LABELS: Record<
+const VOIPMONITOR_TRAFFIC_LABELS: Record<
   (typeof VOIPMONITOR_COLUMNS)[number],
   string
 > = {
@@ -399,7 +399,7 @@ export const CDR_ENRICH_COLUMNS = [
   "provider_b",
 ] as const;
 
-export type CdrEnrichColumn = (typeof CDR_ENRICH_COLUMNS)[number];
+type CdrEnrichColumn = (typeof CDR_ENRICH_COLUMNS)[number];
 
 export const CDR_ENRICH_LABELS: Record<CdrEnrichColumn, string> = {
   side_a: "Сторона А",

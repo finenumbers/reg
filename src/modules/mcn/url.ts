@@ -3,8 +3,8 @@
  * GET only. The token is not a query field.
  */
 
-export const SHOP_ORIGIN = "https://shop.mcn.ru";
-export const VPBX_ORIGIN = "https://vpbx.mcn.ru";
+const SHOP_ORIGIN = "https://shop.mcn.ru";
+const VPBX_ORIGIN = "https://vpbx.mcn.ru";
 export const SHOP_HOST = "shop.mcn.ru";
 export const VPBX_HOST = "vpbx.mcn.ru";
 export const FREE_PAGE_LIMIT = 2000;

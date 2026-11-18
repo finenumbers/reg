@@ -10,7 +10,7 @@ import { escapeXml, isXmlName } from "@/modules/rtu-soap/xml";
 const UPDATE_ROWSET = "updateRowset";
 const UPDATE_PARTS = ["p_table_hi", "p_rowset", "p_filter"] as const;
 
-export type ActivationWire = "0" | "1";
+type ActivationWire = "0" | "1";
 
 export type ActivationUpdateCommand = {
   objectId: string;

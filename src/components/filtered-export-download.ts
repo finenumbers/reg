@@ -3,7 +3,7 @@
  * React paints, so opening the section does not save the file again.
  */
 
-export type ExportJobDownloadState = {
+type ExportJobDownloadState = {
   id: string;
   status: string;
 };

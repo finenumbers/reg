@@ -9,7 +9,7 @@ import { extractApiKeyFromHeaders } from "@/modules/api-keys/crypto";
 import { apiKeyFailureRateLimiter, apiKeyRateLimiter } from "@/lib/rate-limit";
 import { trustedClientIp } from "@/lib/request-ip";
 
-export type AuthSession = NonNullable<Awaited<ReturnType<typeof auth.api.getSession>>>;
+type AuthSession = NonNullable<Awaited<ReturnType<typeof auth.api.getSession>>>;
 
 export type SessionAuthzContext = {
   authKind: "session";
@@ -19,7 +19,7 @@ export type SessionAuthzContext = {
   username: string | null;
 };
 
-export type ApiKeyAuthzContext = {
+type ApiKeyAuthzContext = {
   authKind: "api_key";
   session: null;
   apiKeyId: string;

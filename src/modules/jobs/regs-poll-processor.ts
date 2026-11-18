@@ -24,12 +24,12 @@ import {
   type CatalogRegistrationEndpoint,
 } from "@/modules/registrations/rtu-rows";
 
-export type RegsPollProcessorInput = {
+type RegsPollProcessorInput = {
   trigger: JobTrigger;
   actorUserId?: string | null;
 };
 
-export type RegsPollProcessorResult = {
+type RegsPollProcessorResult = {
   jobRunId: string;
   status: "success" | "failed";
   errorMessage: string | null;
@@ -39,11 +39,11 @@ export type RegsPollProcessorResult = {
   exitCode: number | null;
 };
 
-export type CatalogLoad =
+type CatalogLoad =
   | { ok: true; rows: CatalogRegistrationEndpoint[] }
   | { ok: false; detail: string };
 
-export type RegsPollProcessorDeps = {
+type RegsPollProcessorDeps = {
   read: () => Promise<RegistrationsRead>;
   loadCatalog: () => Promise<CatalogLoad>;
   countCurrent: () => Promise<number>;

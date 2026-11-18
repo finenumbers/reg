@@ -13,7 +13,7 @@ export const MARKING_READ_ERROR = "Не удалось прочитать наб
 
 const SAMPLE_LIMIT = 30;
 
-export type MarkingImportField = {
+type MarkingImportField = {
   phone: string;
   labelMts: string | null;
   labelMegafon: string | null;
@@ -40,7 +40,7 @@ export function markingImportPayload(rows: readonly MarkingParsedRow[]): string 
   return JSON.stringify(fields);
 }
 
-export type MarkingSetStats = {
+type MarkingSetStats = {
   workingN: number;
   incomingN: number;
   incomingDistinct: number;

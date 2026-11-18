@@ -34,7 +34,7 @@ export type BossFailure = {
   truncated?: boolean;
 };
 
-export type BossSuccess<T> = {
+type BossSuccess<T> = {
   ok: true;
   status: number;
   data: T;
@@ -42,7 +42,7 @@ export type BossSuccess<T> = {
 
 export type BossResult<T> = BossSuccess<T> | BossFailure;
 
-export function bossStatusMessage(status: number): string {
+function bossStatusMessage(status: number): string {
   switch (status) {
     case 400:
       return "Платформа не приняла запрос.";

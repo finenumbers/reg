@@ -1,7 +1,7 @@
 import { cdrMonthPrefix, utcCalendarMonth } from "@/lib/month-window";
 
-export const CDR_MONTH_YEAR_MIN = 2000;
-export const CDR_MONTH_YEAR_MAX = 2100;
+const CDR_MONTH_YEAR_MIN = 2000;
+const CDR_MONTH_YEAR_MAX = 2100;
 
 const MONTH_KEY_RE = /^(\d{4})-(\d{2})$/;
 

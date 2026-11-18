@@ -1,4 +1,4 @@
-export type StoredNameList = {
+type StoredNameList = {
   origin: string;
   names: string[];
 };

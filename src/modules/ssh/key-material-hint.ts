@@ -3,7 +3,7 @@
  * Does not decrypt — only reads public PPK headers / PEM markers.
  */
 
-export type KeyMaterialHint = {
+type KeyMaterialHint = {
   format: "ppk" | "openssh" | "pem" | "unknown";
   /** True when PPK Encryption header is not "none", or PEM looks encrypted */
   encrypted: boolean | null;

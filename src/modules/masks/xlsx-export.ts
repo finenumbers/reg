@@ -15,7 +15,7 @@ import { getDisplayTimezone } from "@/modules/settings";
 
 const TEXT_COLUMNS = new Set(["Разрядность", "ABC", "Маска"]);
 
-export type MaskExportSource = {
+type MaskExportSource = {
   digitLength: number;
   category: string;
   abc: string | null;

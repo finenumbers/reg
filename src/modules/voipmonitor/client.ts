@@ -10,7 +10,7 @@ import {
 import { looksLikeResultCap } from "@/modules/voipmonitor/probe-budget";
 import type { RangeFetchMeta, VmCall } from "@/modules/voipmonitor/types";
 
-export type VoipmonitorClientConfig = {
+type VoipmonitorClientConfig = {
   apiUrl: string;
   user: string;
   password: string;
@@ -78,7 +78,7 @@ function firstTime(
 const CODEC_KEYS = ["codec_a", "codec_b"] as const;
 
 /** A documented codec value. 0 is PCMU. Null, blank, "null", and "<nil>" are empty. */
-export function codecValuePresent(value: unknown): boolean {
+function codecValuePresent(value: unknown): boolean {
   if (value == null) return false;
   if (typeof value === "number") return Number.isFinite(value);
   if (typeof value === "string") {

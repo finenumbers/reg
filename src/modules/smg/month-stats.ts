@@ -13,7 +13,7 @@ import { parseMonthKey, type CdrMonth } from "@/modules/traffic/cdr-month";
 const DAY_GTE = "2000-01-01";
 const DAY_LT = "2101-01-01";
 
-export function smgDurationSecondsSql(): Prisma.Sql {
+function smgDurationSecondsSql(): Prisma.Sql {
   return Prisma.sql`
     CASE
       WHEN duration ~ '^[0-9]{1,18}$' THEN duration::numeric
@@ -56,7 +56,7 @@ export async function querySmgMonthCallCounts(): Promise<CdrMonth[]> {
   });
 }
 
-export type SmgMonthStats = CdrMonth & {
+type SmgMonthStats = CdrMonth & {
   seconds: number;
   minutes: number;
 };

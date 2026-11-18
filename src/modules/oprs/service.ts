@@ -235,7 +235,7 @@ export async function loadOprsPageInitial(
   };
 }
 
-export function isOprsFacetColumn(column: string): boolean {
+function isOprsFacetColumn(column: string): boolean {
   return FACET_COLUMNS.has(column);
 }
 

@@ -16,7 +16,7 @@ export function errorScanStart(bounds: UtcCallWindow): Date {
   return new Date(Math.min(bounds.dayStart.getTime(), bounds.recentStart.getTime()));
 }
 
-export function concurrencyClassClause(series: ConcurrencySeriesId): Prisma.Sql {
+function concurrencyClassClause(series: ConcurrencySeriesId): Prisma.Sql {
   switch (series) {
     case "phone":
       return Prisma.empty;

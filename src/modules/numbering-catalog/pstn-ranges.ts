@@ -85,7 +85,7 @@ async function swap(loadedAt: string): Promise<void> {
   }, SWAP_TX);
 }
 
-export type SnapshotRefresh = "ready" | "yielded";
+type SnapshotRefresh = "ready" | "yielded";
 
 async function refresh(stop?: () => Promise<boolean>): Promise<SnapshotRefresh> {
   const summary = await pstnTurn(() => summarizeNumberingResource(EMPTY_NUMBERING_FILTERS));

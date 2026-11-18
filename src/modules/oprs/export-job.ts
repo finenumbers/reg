@@ -16,7 +16,7 @@ import { OprsExportTooLargeError, oprsExportFilename } from "@/modules/oprs/xlsx
 const KEY = "__reg_oprs_xlsx_job__";
 const KEEP_MS = 15 * 60 * 1000;
 
-export type OprsExportJobView = {
+type OprsExportJobView = {
   id: string;
   status: "running" | "ready" | "error";
   error: string | null;
@@ -39,7 +39,7 @@ function store(): Store {
   return holder[KEY];
 }
 
-export function oprsExportSlotHeld(
+function oprsExportSlotHeld(
   job: {
     status: Job["status"];
     actorUserId: string;
@@ -66,7 +66,7 @@ export function readOprsExportJob(
   return { id: job.id, status: job.status, error: job.error };
 }
 
-export type OprsExportRequest = {
+type OprsExportRequest = {
   month: CdrMonth;
   phoneQ: string;
   filters: ColumnFilters;

@@ -3,9 +3,9 @@
 export const ZABBIX_HISTORY_LIMIT = 20_000;
 export const ZABBIX_LINE_CAP = 12;
 
-export type ZabbixBucketFn = "min" | "avg" | "max" | "last";
+type ZabbixBucketFn = "min" | "avg" | "max" | "last";
 
-export type ZabbixHistoryPoint = {
+type ZabbixHistoryPoint = {
   clock: string;
   value: string;
 };

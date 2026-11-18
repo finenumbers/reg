@@ -12,7 +12,7 @@ const APPLY_TX = { maxWait: 10_000, timeout: 180_000 } as const;
 const CREATE_BATCH = 500;
 const MASK_CATALOG_LOCK_SQL = "SELECT pg_advisory_xact_lock(4815162342002::bigint)";
 
-export type ApplyMasksResult = {
+type ApplyMasksResult = {
   rowCount: number;
   loadedAt: Date;
 };

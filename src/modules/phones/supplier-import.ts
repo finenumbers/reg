@@ -17,7 +17,7 @@ import type { SupplierFileRow } from "@/modules/phones/supplier-xlsx";
 
 const APPLY_TX = { maxWait: 10_000, timeout: 180_000 } as const;
 
-export type SupplierImportResult = {
+type SupplierImportResult = {
   updated: number;
   cleared: number;
   categoryUpdated: number;

@@ -109,7 +109,7 @@ export const AUDIT_ACTIONS = {
   ZABBIX_TEST: "zabbix.test",
 } as const;
 
-export type AuditAction =
+type AuditAction =
   (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS] | (string & {});
 
 type AuditAppendInput = {

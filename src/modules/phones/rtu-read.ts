@@ -42,21 +42,21 @@ const WSDL_TIMEOUT_MS = 10_000;
 const DESCRIBE_TIMEOUT_MS = 20_000;
 const LOOKUP_TIMEOUT_MS = 20_000;
 const PAGE_TIMEOUT_MS = 60_000;
-export const EQUIPMENT_MAX_PAGES = 25;
+const EQUIPMENT_MAX_PAGES = 25;
 
 const EQUIPMENT_BOUNDS = {
   columnCap: EQUIPMENT_SELECT_COLUMN_CAP,
   offsetCap: EQUIPMENT_SELECT_OFFSET_CAP,
 };
 
-export type EquipmentAccount = {
+type EquipmentAccount = {
   origin: string;
   login: string;
   password: string;
   caPem: string | null;
 };
 
-export type EquipmentActiveColumn = {
+type EquipmentActiveColumn = {
   name: string;
   ctlType: string | null;
   action: number | null;

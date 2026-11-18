@@ -14,7 +14,7 @@ export type DialExceptionItem = {
   abc: string;
 };
 
-export type DialExceptionWriteResult =
+type DialExceptionWriteResult =
   { ok: true } | { ok: false; status: 400 | 404 | 409; error: string };
 
 function sortExceptions(items: DialExceptionItem[]): DialExceptionItem[] {

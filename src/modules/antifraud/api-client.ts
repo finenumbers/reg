@@ -18,7 +18,7 @@ function errorMessage(body: unknown, fallback: string): string {
   return fallback;
 }
 
-export function buildAntifraudListUrl(opts: {
+function buildAntifraudListUrl(opts: {
   filters?: ColumnFilters;
   phoneQ?: string;
   month?: string;

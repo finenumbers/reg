@@ -57,9 +57,9 @@ export async function workbookToBuffer(
 }
 
 /** Excel refuses a column wider than this. */
-export const EXCEL_COLUMN_WIDTH_MAX = 255;
-export const EXCEL_COLUMN_WIDTH_MIN = 8;
-export const EXCEL_COLUMN_WIDTH_PAD = 2;
+const EXCEL_COLUMN_WIDTH_MAX = 255;
+const EXCEL_COLUMN_WIDTH_MIN = 8;
+const EXCEL_COLUMN_WIDTH_PAD = 2;
 /** Past this length the width stays at the Excel maximum. */
 export const EXCEL_COLUMN_MEASURE_CAP = EXCEL_COLUMN_WIDTH_MAX - EXCEL_COLUMN_WIDTH_PAD;
 

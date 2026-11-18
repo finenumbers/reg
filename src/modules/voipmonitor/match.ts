@@ -46,7 +46,7 @@ import {
 import { classifyCallId } from "@/modules/voipmonitor/legs";
 import { buildCardUrl } from "@/modules/voipmonitor/url";
 
-export type MatcherOptions = {
+type MatcherOptions = {
   client: VoipmonitorClientLike;
   guiBase: string;
   cardTemplate?: string;

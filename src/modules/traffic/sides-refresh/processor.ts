@@ -18,12 +18,12 @@ import {
 } from "@/modules/traffic/sides-refresh/diff";
 import { buildSidesUpdateSql } from "@/modules/traffic/sides-refresh/sql";
 
-export type CdrSidesRefreshInput = {
+type CdrSidesRefreshInput = {
   trigger: "schedule" | "manual" | "test";
   actorUserId?: string;
 };
 
-export type CdrSidesRefreshResult = {
+type CdrSidesRefreshResult = {
   status: "success" | "failed";
   jobRunId: string;
   phonesParsed: number;
@@ -42,7 +42,7 @@ async function currentJobsBusy(): Promise<boolean> {
   );
 }
 
-export async function loadPhoneDescriptionMap(): Promise<Map<string, string>> {
+async function loadPhoneDescriptionMap(): Promise<Map<string, string>> {
   const rows = await prisma.phoneEndpoint.findMany({
     where: { endpointNumber: { not: null } },
     select: { endpointNumber: true, name: true, data: true },

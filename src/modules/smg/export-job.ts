@@ -15,7 +15,7 @@ import type { TimeSort } from "@/modules/traffic/traffic-sort";
 const KEY = "__reg_smg_xlsx_job__";
 const KEEP_MS = 15 * 60 * 1000;
 
-export type SmgExportJobView = {
+type SmgExportJobView = {
   id: string;
   status: "running" | "ready" | "error";
   error: string | null;

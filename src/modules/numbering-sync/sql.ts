@@ -18,7 +18,7 @@ export type StagedNumber = {
   incomingPeriod: string;
 };
 
-export type PublishDecision = {
+type PublishDecision = {
   held: boolean;
   stagedFree: number;
   insertedFree: number;

@@ -37,7 +37,7 @@ export type DashboardAlert = {
   href: string | null;
 };
 
-export type DashboardStat = {
+type DashboardStat = {
   label: string;
   value: string;
 };
@@ -77,7 +77,7 @@ export type DashboardSnapshot = {
   antifraudNodes: DashboardAntifraudNode[] | null;
 };
 
-export type DashboardCallSeries = {
+type DashboardCallSeries = {
   /** ISO time of the first bucket. Labels are counted from here. */
   start: string;
   minutes: number[];

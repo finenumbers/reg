@@ -13,7 +13,7 @@ const ANTIFRAUD_NEEDS_IDENTIFIER = "Чтобы выключить АнтиФро
 const ANTIFRAUD_KEEPS_IDENTIFIER =
   "Нельзя очистить идентификатор, пока АнтиФрод выключен";
 
-export type SyslogNode = {
+type SyslogNode = {
   ip: string;
   name: string;
   identifier: string | null;

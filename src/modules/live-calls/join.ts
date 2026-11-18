@@ -11,7 +11,7 @@ export type CallSide = {
   talk?: CallTalk | null;
 };
 
-export type JoinedCall = Record<LiveCallColumnKey, string> & {
+type JoinedCall = Record<LiveCallColumnKey, string> & {
   conferenceId: string;
   /** Null when the duration column was not read. Empty when it was read and blank. */
   switchSeconds: string | null;

@@ -28,13 +28,13 @@ import {
 import { pstnLabelsByIdsSql, pstnLabelsForNumbersSql } from "@/modules/rtu/sql";
 
 export const PSTN_FILL_FAILURE_COOLDOWN_MS = 5 * 60 * 1000;
-export const PSTN_FILL_AUTH_BLOCK_MS = 10 * 60 * 1000;
-export const PSTN_FILL_NET_BLOCK_MS = 60 * 1000;
-export const PSTN_FILL_MAX_RETRY_WAIT_MS = 2_000;
+const PSTN_FILL_AUTH_BLOCK_MS = 10 * 60 * 1000;
+const PSTN_FILL_NET_BLOCK_MS = 60 * 1000;
+const PSTN_FILL_MAX_RETRY_WAIT_MS = 2_000;
 const NET_STRIKES_TO_BLOCK = 3;
 
-export type PstnFillEndpoint = { id: string; number: string };
-export type PstnFillLabel = { id: string; operator: string; geography: string };
+type PstnFillEndpoint = { id: string; number: string };
+type PstnFillLabel = { id: string; operator: string; geography: string };
 
 export type PstnFillDeps = {
   loadCredentials: () => Promise<PstnCredentials | null>;

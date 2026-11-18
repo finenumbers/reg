@@ -53,7 +53,7 @@ function badResponse(): never {
   );
 }
 
-export function mapRangeRow(value: unknown): NumberingRow {
+function mapRangeRow(value: unknown): NumberingRow {
   const row = asRecord(value);
   const id = asSafeInt(row?.id);
   const rangeStart = asSafeInt(row?.rangeStart);

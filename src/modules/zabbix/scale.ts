@@ -1,13 +1,13 @@
 import { AXIS_BASELINE, AXIS_TOP } from "@/modules/dashboard/concurrency";
 
-export type ZabbixScale = {
+type ZabbixScale = {
   min: number;
   max: number;
   ticks: number[];
 };
 
 /** 1-2-5 step on a power of ten. A zero span does not collapse the scale. */
-export function niceStep(span: number): number {
+function niceStep(span: number): number {
   if (!Number.isFinite(span) || span <= 0) return 1;
   const exp = Math.floor(Math.log10(span));
   const base = 10 ** exp;

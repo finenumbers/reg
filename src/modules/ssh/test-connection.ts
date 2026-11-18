@@ -15,7 +15,7 @@ import {
 } from "@/modules/ssh/secrets";
 import type { SshTestResult } from "@/generated/prisma/client";
 
-export type SshConnectionTestView = {
+type SshConnectionTestView = {
   id: string;
   result: SshTestResult;
   detail: string | null;

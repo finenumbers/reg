@@ -10,9 +10,9 @@ import { PERMISSIONS } from "@/modules/rbac/permissions";
 import { auditService, AUDIT_ACTIONS } from "@/modules/audit/service";
 
 /** Default scopes for integration keys (read-only). */
-export const API_KEY_READ_PERMISSIONS: PermissionCode[] = ["regs:read", "phones:read"];
+const API_KEY_READ_PERMISSIONS: PermissionCode[] = ["regs:read", "phones:read"];
 
-export type ApiKeyListItem = {
+type ApiKeyListItem = {
   id: string;
   name: string;
   keyPrefix: string;
@@ -23,7 +23,7 @@ export type ApiKeyListItem = {
   lastUsedAt: string | null;
 };
 
-export type AuthenticatedApiKey = {
+type AuthenticatedApiKey = {
   id: string;
   name: string;
   permissions: PermissionCode[];

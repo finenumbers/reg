@@ -43,7 +43,7 @@ export function isTariffColumn(column: string): column is TariffColumnId {
 }
 
 /** Screen label. Any ABC that starts with 7 shows 11, including a non-bold 77. */
-export function tariffDigitLengthLabel(
+function tariffDigitLengthLabel(
   abc: string,
   digitLengths: number[] | null,
 ): string {
@@ -52,7 +52,7 @@ export function tariffDigitLengthLabel(
   return digitLengths.join("/");
 }
 
-export function tariffNumberingLabel(numbering: number[] | null): string {
+function tariffNumberingLabel(numbering: number[] | null): string {
   if (numbering == null || numbering.length === 0) return "";
   return numbering.join("/");
 }
@@ -77,7 +77,7 @@ export function tariffCellText(row: TariffListItem, column: string): string {
   }
 }
 
-export type TariffQuery = {
+type TariffQuery = {
   filters?: ColumnFilters;
   excludeColumn?: string;
 };

@@ -24,7 +24,7 @@ export type RegistrationStateSnapshot = {
   userAgent: string | null;
 };
 
-export type PlannedRegistrationChange = {
+type PlannedRegistrationChange = {
   phone: string;
   kind: "insert" | "update" | "unchanged";
   previous: RegistrationStateSnapshot | null;

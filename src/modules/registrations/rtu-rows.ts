@@ -34,7 +34,7 @@ export type CatalogRegistrationEndpoint = {
   registrationFlag: string;
 };
 
-export type AssembledRegistrations = {
+type AssembledRegistrations = {
   rows: ParsedRegistrationRow[];
   pcommCount: number;
 };

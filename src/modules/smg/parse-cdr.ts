@@ -15,13 +15,13 @@ import {
 const BANNER_RE = /^SMG1016M\. CDR\. File started at '\d{14}'$/;
 const DISCONNECT_RE = /^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2})$/;
 
-export type ParsedSmgCall = {
+type ParsedSmgCall = {
   fields: Record<SmgField, string>;
   recordKey: string;
   disconnectDay: string;
 };
 
-export type ParseSmgResult = {
+type ParseSmgResult = {
   rows: ParsedSmgCall[];
   linesBad: number;
   firstBadLine: number | null;
@@ -29,7 +29,7 @@ export type ParseSmgResult = {
   error: string | null;
 };
 
-export function splitSmgRow(line: string): string[] {
+function splitSmgRow(line: string): string[] {
   const parts = line.split(";");
   if (parts.length > 0 && parts[parts.length - 1] === "") parts.pop();
   return parts;

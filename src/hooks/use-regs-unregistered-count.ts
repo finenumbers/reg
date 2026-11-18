@@ -16,7 +16,7 @@ export type RegsUnregisteredWatchState = {
   pending?: boolean;
 };
 
-export type RegsUnregisteredWatchEvent =
+type RegsUnregisteredWatchEvent =
   | {
       ok: true;
       unregisteredCount: number;
@@ -24,7 +24,7 @@ export type RegsUnregisteredWatchEvent =
     }
   | { ok: false };
 
-export type RegsUnregisteredWatchResult = {
+type RegsUnregisteredWatchResult = {
   count: number | null;
   snapshot: boolean;
   next: RegsUnregisteredWatchState;

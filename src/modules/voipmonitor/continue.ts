@@ -2,7 +2,7 @@ import { prisma } from "@/lib/db";
 import { hasVoipmonitorWork } from "@/modules/voipmonitor/count";
 import { isDatabaseVacuumActive } from "@/modules/storage/vacuum/gate";
 
-export type VoipmonitorContinueHint = {
+type VoipmonitorContinueHint = {
   status: "success" | "failed";
   skipped?: boolean;
   hoursProcessed?: number;

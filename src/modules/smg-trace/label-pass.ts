@@ -5,7 +5,7 @@ export const LABEL_DEVICE = "@labels";
 export const LABEL_FILE_KEY = "@revision";
 export const LABEL_BATCH = 200;
 
-export type LabelMark = {
+type LabelMark = {
   revision: number;
   cursor: string;
   done: boolean;

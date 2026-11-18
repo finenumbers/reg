@@ -19,7 +19,7 @@ import { failJobRunIfStillRunning } from "@/modules/jobs/finalize";
 import { requestRtuScreenPublish } from "@/modules/rtu/screen-publish";
 import { requestCatalogDecorate } from "@/modules/numbering-catalog/decorate";
 
-export type PhonesSyncProcessorInput = {
+type PhonesSyncProcessorInput = {
   trigger: JobTrigger;
   actorUserId?: string | null;
 };
@@ -38,7 +38,7 @@ export type PhonesSyncProcessorResult = {
   screenPending?: boolean;
 };
 
-export type PhonesSyncProcessorDeps = {
+type PhonesSyncProcessorDeps = {
   read: () => Promise<EquipmentRead>;
   apply: typeof applyPhonesSnapshot;
   catalog: () => Promise<PhoneCatalogSide>;

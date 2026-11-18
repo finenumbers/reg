@@ -6,7 +6,7 @@
  * geography_digit_split repeats this rule.
  */
 
-export type CityDigitSplit = {
+type CityDigitSplit = {
   abc: string;
   telephone: string;
 };

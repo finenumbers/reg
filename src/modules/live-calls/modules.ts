@@ -4,9 +4,9 @@ const SIGNALING_MODULE = /^signaling-[0-9]+$/;
 const SCRIPTING_MODULE = /^scripting-[0-9]+$/;
 
 /** Twice the signaling and scripting modules seen on the live switch. */
-export const CALL_MODULE_CAP = 4;
+const CALL_MODULE_CAP = 4;
 
-export type CallModules =
+type CallModules =
   | { ok: true; signaling: string[]; scripting: string[] }
   | { ok: false; reason: "none" | "many" | "unexpected" };
 
@@ -47,7 +47,7 @@ export function selectCallModules(names: readonly string[]): CallModules {
   return { ok: true, signaling, scripting };
 }
 
-export type RegistrationModuleNeed = {
+type RegistrationModuleNeed = {
   signaling: boolean;
   scripting: boolean;
 };

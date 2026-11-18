@@ -12,17 +12,17 @@ import {
 } from "@/modules/numbering-resource/columns";
 import { NumberingQueryError } from "@/modules/numbering-resource/errors";
 
-export const NUMBERING_PAGE_SIZE = 100;
+const NUMBERING_PAGE_SIZE = 100;
 /** Export page size. PSTN rejects anything larger. The screen stays at 100. */
 export const NUMBERING_EXPORT_PAGE_SIZE = 500;
-export const NUMBERING_SORT = "abc:asc,rangeStart:asc";
-export const NUMBERING_CURSOR_MAX = 512;
-export const NUMBERING_FILTERS_MAX_CHARS = 16_000;
-export const NUMBERING_FACET_SEARCH_MAX = 100;
-export const NUMBERING_VALUE_MAX = 200;
-export const NUMBERING_COVERAGE_MAX = 20;
+const NUMBERING_SORT = "abc:asc,rangeStart:asc";
+const NUMBERING_CURSOR_MAX = 512;
+const NUMBERING_FILTERS_MAX_CHARS = 16_000;
+const NUMBERING_FACET_SEARCH_MAX = 100;
+const NUMBERING_VALUE_MAX = 200;
+const NUMBERING_COVERAGE_MAX = 20;
 export const NUMBERING_OR_MAX = 50;
-export const PHONE_MASK_LENGTH = 10;
+const PHONE_MASK_LENGTH = 10;
 
 export type NumberingFilters = {
   abc: string[];
@@ -83,7 +83,7 @@ function takeValues(
   });
 }
 
-export function normalizePhoneMaskQuery(raw: string | null | undefined): string {
+function normalizePhoneMaskQuery(raw: string | null | undefined): string {
   const value = (raw ?? "").trim();
   if (!value) return "";
   if (value.length !== PHONE_MASK_LENGTH || !/^[\d_]+$/.test(value)) {

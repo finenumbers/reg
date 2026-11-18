@@ -18,7 +18,7 @@ export const MISS_ASSIGNED_ELSEWHERE = "assigned_elsewhere";
 export const MISS_NO_CANDIDATES_IN_WINDOW = "no_candidates_in_window";
 export const MISS_API_ERROR = "api_error";
 
-export type MatchStatus =
+type MatchStatus =
   | typeof STATUS_MATCHED_EXACT
   | typeof STATUS_MATCHED_FALLBACK
   | typeof STATUS_UNMATCHED

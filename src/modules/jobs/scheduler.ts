@@ -74,9 +74,9 @@ export type SchedulerJobRuntime = {
   isInFlight(actionCode: AllowedActionCode): boolean;
 };
 
-export type ExportSyncAction = "phones.sync" | "groups.sync";
+type ExportSyncAction = "phones.sync" | "groups.sync";
 
-export type CatalogTick = {
+type CatalogTick = {
   action: ExportSyncAction | null;
   delaySec: number;
 };
@@ -143,7 +143,7 @@ export function catalogDelayAfterEnqueue(delaySec: number, accepted: boolean): n
   return accepted ? delaySec : EXPORT_DEFER_SEC;
 }
 
-export type SmgInboxDrainAction = "stamp-empty" | "enqueue" | "arm-timer" | "keep-timer";
+type SmgInboxDrainAction = "stamp-empty" | "enqueue" | "arm-timer" | "keep-timer";
 
 /**
  * Ready files import now. A young-only inbox waits on one settle timer and
@@ -275,7 +275,7 @@ export function lastSmgEmptyScanAt(): number | null {
   return schedulerState().lastSmgEmptyScanAt;
 }
 
-export type LoadCounterSide = "rtu" | "smg";
+type LoadCounterSide = "rtu" | "smg";
 
 /** Empty-file time that ended red, if this process saw that gap. */
 export function loadStreakBreakAt(side: LoadCounterSide): number | null {

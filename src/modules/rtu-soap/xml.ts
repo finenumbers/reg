@@ -18,7 +18,7 @@ export function escapeXml(value: string): string {
 }
 
 /** The five built-in XML entities. External and numeric references stay literal. */
-export function decodeXmlText(value: string): string {
+function decodeXmlText(value: string): string {
   return value.replaceAll(/&(?:amp|lt|gt|quot|apos);/g, (entity) => {
     const name = entity.slice(1, -1);
     return NAMED[name] ?? entity;

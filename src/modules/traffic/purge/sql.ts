@@ -21,12 +21,12 @@ export function utcMonthInterval(
 }
 
 /** Same bounds as purgeJobsBatchSql. Excludes the live purge job. */
-export function purgeJobsWhereSql(start: Date, end: Date, keepJobId: string): Prisma.Sql {
+function purgeJobsWhereSql(start: Date, end: Date, keepJobId: string): Prisma.Sql {
   return Prisma.sql`"startedAt" >= ${start} AND "startedAt" < ${end} AND id <> ${keepJobId}`;
 }
 
 /** Same bounds as purgeAuditBatchSql. */
-export function purgeAuditWhereSql(start: Date, end: Date): Prisma.Sql {
+function purgeAuditWhereSql(start: Date, end: Date): Prisma.Sql {
   return Prisma.sql`"createdAt" >= ${start} AND "createdAt" < ${end}`;
 }
 
@@ -78,7 +78,7 @@ export function purgeAuditBatchSql(
 }
 
 /** UTC month of `logged_at`. A null timestamp is not in any month. */
-export function purgeJournalWhereSql(start: Date, end: Date): Prisma.Sql {
+function purgeJournalWhereSql(start: Date, end: Date): Prisma.Sql {
   return Prisma.sql`"logged_at" >= ${start} AND "logged_at" < ${end}`;
 }
 
@@ -105,7 +105,7 @@ export function purgeJournalBatchSql(
   `;
 }
 
-export function purgeSmgWhereSql(year: number, month: number): Prisma.Sql {
+function purgeSmgWhereSql(year: number, month: number): Prisma.Sql {
   const range = smgMonthDayRange({ year, month, key: monthKey(year, month) });
   return Prisma.sql`disconnect_day >= ${range.gte} AND disconnect_day < ${range.lt}`;
 }

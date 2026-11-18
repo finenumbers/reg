@@ -11,8 +11,8 @@ import type { CdrMonth } from "@/modules/traffic/cdr-month";
 import { isDatabaseVacuumActive } from "@/modules/storage/vacuum/gate";
 
 /** Checkpoint that gates the fast antifraud filter. Not a syslog file. */
-export const CDR_LABEL_DEVICE = "@cdr-labels";
-export const CDR_LABEL_FILE_KEY = "@revision";
+const CDR_LABEL_DEVICE = "@cdr-labels";
+const CDR_LABEL_FILE_KEY = "@revision";
 
 const NULL_BATCH = 20;
 const SWEEP_BATCH = 40;
@@ -20,18 +20,18 @@ const BLANK_BATCH = 40;
 const TICK_BUDGET_MS = 1000;
 const LOCK_ATTEMPTS = 4;
 
-export type CdrLabelMark = {
+type CdrLabelMark = {
   revision: number;
   done: boolean;
   cursor: string;
 };
 
-export type CdrTagNorms = {
+type CdrTagNorms = {
   uniqueTagNorm: string;
   radiusSessionNorm: string;
 };
 
-export type CdrLabelRow = {
+type CdrLabelRow = {
   id: string;
   uniqueTagNorm: string;
   radiusSessionNorm: string;

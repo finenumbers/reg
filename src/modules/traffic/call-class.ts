@@ -68,10 +68,10 @@ export const CALL_STATUS = {
   parking: "Паркинг",
 } as const;
 
-export type CallGeography = "local" | "mobile" | "intercity" | "international";
+type CallGeography = "local" | "mobile" | "intercity" | "international";
 
 /** Outgoing geography reads the B-number. Incoming and phantom read the A-number. */
-export type CallVector = "outgoing" | "incoming";
+type CallVector = "outgoing" | "incoming";
 
 function sqlLiteral(value: string): string {
   return `'${value.replaceAll("'", "''")}'`;

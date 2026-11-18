@@ -60,14 +60,14 @@ const FIELD_INIT = "ИНИЦ. список адресов";
 const FIELD_TERM = "ТЕРМ. список адресов";
 const FIELD_REG_ADDR = "Список разрешенных адресов для регистрации";
 
-export type UfwRuleRow = {
+type UfwRuleRow = {
   group: string;
   rtu: string;
   name: string;
   fromAddress: string;
 };
 
-export type UfwExportSheets = {
+type UfwExportSheets = {
   gateways: UfwRuleRow[];
   registered: UfwRuleRow[];
   unregistered: UfwRuleRow[];
@@ -75,7 +75,7 @@ export type UfwExportSheets = {
 
 export const UFW_SKIPPED_REGISTRATION_HEADER = "X-Ufw-Skipped-Registration-Error";
 
-export type UfwExportResult = {
+type UfwExportResult = {
   buffer: Buffer;
   filename: string;
   skippedRegistrationError: number;

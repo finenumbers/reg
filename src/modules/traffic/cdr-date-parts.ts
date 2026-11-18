@@ -11,7 +11,7 @@ export const CDR_DATE_CIVIL_REGEX =
 const CIVIL_PREFIX = new RegExp(CDR_DATE_CIVIL_REGEX);
 const ISO_DAY = /^(\d{4})-(\d{2})-(\d{2})$/;
 
-export type CdrDateParts = {
+type CdrDateParts = {
   day: string;
   time: string;
 };

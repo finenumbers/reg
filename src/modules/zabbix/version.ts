@@ -1,6 +1,6 @@
 /** How a Zabbix session token is sent after user.login. */
 
-export type ZabbixAuthKind = "auth" | "bearer";
+type ZabbixAuthKind = "auth" | "bearer";
 
 /**
  * 6.0 through 7.0 keep the token in the JSON `auth` field.

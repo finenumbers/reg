@@ -33,7 +33,7 @@ export type StoredEnrichRow = {
   enrichedAt: Date | null;
 };
 
-export type MergedEnrichPatch = {
+type MergedEnrichPatch = {
   sideA?: string;
   operatorA?: string;
   geographyA?: string;
@@ -62,15 +62,15 @@ export function patchTouchesSide(patch: MergedEnrichPatch): boolean {
   return patch.sideA !== undefined || patch.sideB !== undefined;
 }
 
-export function sideNeedsFill(value: string): boolean {
+function sideNeedsFill(value: string): boolean {
   return isBlank(value);
 }
 
-export function pstnFieldNeedsFill(value: string): boolean {
+function pstnFieldNeedsFill(value: string): boolean {
   return isBlank(value);
 }
 
-export function geoSideNeedsFill(
+function geoSideNeedsFill(
   country: string,
   city: string,
   provider: string,

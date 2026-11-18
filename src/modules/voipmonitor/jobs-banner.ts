@@ -8,7 +8,7 @@ export type JobsEnrichBannerInput = {
 };
 
 /** Open (not parked) VoIPmonitor rows belong on the yellow banner. */
-export function voipmonitorBannerCount(input: {
+function voipmonitorBannerCount(input: {
   voipmonitorUnenriched: number;
   voipmonitorEnabled: boolean;
   voipmonitorHasWork?: boolean;

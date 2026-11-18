@@ -34,14 +34,14 @@ export type StatsDeviceRow = {
 
 export type { PstnJoinRow };
 
-export type StatsTableTotals = Omit<StatsDeviceRow, "name">;
+type StatsTableTotals = Omit<StatsDeviceRow, "name">;
 
 export type StatsTable = {
   rows: StatsDeviceRow[];
   totals: StatsTableTotals;
 };
 
-export type PstnJoinTotals = Omit<PstnJoinRow, "name">;
+type PstnJoinTotals = Omit<PstnJoinRow, "name">;
 
 export type PstnJoinTable = {
   rows: PstnJoinRow[];

@@ -249,7 +249,7 @@ function sideText(value: string): string {
   return text(value);
 }
 
-export type XlsxSheetProgress = {
+type XlsxSheetProgress = {
   sheet: "traffic" | "detail";
   current: number;
   total: number;

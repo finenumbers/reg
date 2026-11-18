@@ -7,7 +7,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
 import { sanitizeAuditMeta } from "@/modules/audit/sanitize";
 
-export type ListAuditLogsFilters = {
+type ListAuditLogsFilters = {
   /** Case-insensitive substring on action */
   action?: string;
   /** Case-insensitive substring on actor username */

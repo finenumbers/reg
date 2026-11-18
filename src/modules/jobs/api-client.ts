@@ -8,7 +8,7 @@ import {
   type JobsListQuery,
 } from "@/modules/jobs/ui-format";
 
-export type FetchJobsListResult =
+type FetchJobsListResult =
   | { ok: true; data: ListJobRunsResult }
   | { ok: false; status: number; message: string };
 

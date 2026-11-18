@@ -11,7 +11,7 @@ const SERVER_NAMES: Record<string, string> = {
   "5.227.161.183": "Parking",
 };
 
-export type ServerRow = {
+type ServerRow = {
   name: string;
   ip: string;
   outcome: string;
@@ -70,7 +70,7 @@ export function radiusDelayCells(text: string): RadiusDelayCells {
 
 const INT4_MAX = 2_147_483_647;
 
-export type RadiusDelaySamples = {
+type RadiusDelaySamples = {
   afMsDev: number[];
   afMsProd: number[];
   afMsParking: number[];

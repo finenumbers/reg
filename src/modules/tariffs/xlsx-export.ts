@@ -18,7 +18,7 @@ import { abcIgnoresDigitLengths } from "@/modules/traffic/tariff-match";
 
 const TEXT_COLUMNS = new Set(["ABC", "Разрядность", "Нумерация"]);
 
-export type TariffExportSource = {
+type TariffExportSource = {
   direction: string;
   region: string | null;
   abc: string;

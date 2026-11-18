@@ -25,7 +25,7 @@ import {
 } from "@/modules/exolve/url";
 
 export const PURCHASED_CHANGED = "Список изменился во время чтения. Каталог не изменён.";
-export const PURCHASED_GAP = "Ответ площадки обрезан. Каталог не изменён.";
+const PURCHASED_GAP = "Ответ площадки обрезан. Каталог не изменён.";
 export const SUM_MISMATCH = "Сумма разделов не сошлась. Каталог не изменён.";
 export const FREE_OFFSET_TOO_FAR =
   "Смещение свободных номеров слишком велико. Каталог не изменён.";
@@ -34,15 +34,15 @@ export const LOST = "Загрузка прервана. Каталог не из
 
 export type { Directory, ExolveFreeRow, FreeCell, PurchasedFilter };
 
-export type PurchasedRead =
+type PurchasedRead =
   { ok: true; total: number; rows: ExolveFreeRow[] } | { ok: false; error: string };
 
-export type TotalRead = { ok: true; total: number } | { ok: false; error: string };
+type TotalRead = { ok: true; total: number } | { ok: false; error: string };
 
-export type DirectoryRead =
+type DirectoryRead =
   { ok: true; directory: Directory } | { ok: false; error: string };
 
-export type FreeRead = { ok: true; rows: ExolveFreeRow[] } | { ok: false; error: string };
+type FreeRead = { ok: true; rows: ExolveFreeRow[] } | { ok: false; error: string };
 
 export type ExolveProgress = {
   list?: "" | "purchased" | "free";
@@ -68,7 +68,7 @@ export type ExolveWalkDeps = {
   freeOffsetMax?: number;
 };
 
-export type ExolveWalkResult =
+type ExolveWalkResult =
   | { ok: true; free: number; purchased: number }
   | { ok: false; reason: "lost" | "cancelled" | "error"; error: string };
 

@@ -7,11 +7,11 @@ import { logger } from "@/lib/logger";
 import { NumberingClientError } from "@/modules/numbering-resource/errors";
 import { PSTN_UNREACHABLE_HINT, normalizePstnBaseUrl } from "@/modules/pstn/types";
 
-export const NUMBERING_PSTN_TIMEOUT_MS = 30_000;
+const NUMBERING_PSTN_TIMEOUT_MS = 30_000;
 
 const PATHS = ["/api/ranges", "/api/ranges/facets", "/api/summary"] as const;
 
-export type NumberingPstnPath = (typeof PATHS)[number];
+type NumberingPstnPath = (typeof PATHS)[number];
 
 export type PstnReadOptions = {
   signal?: AbortSignal;

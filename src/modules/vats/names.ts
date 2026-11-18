@@ -51,7 +51,7 @@ export function passwordWrite(
   return hasExisting ? "keep" : "missing";
 }
 
-export type VatsNameHrefPrefix = "/vats/domains" | "/vats/telnums";
+type VatsNameHrefPrefix = "/vats/domains" | "/vats/telnums";
 
 /** One path segment. The card page decodes once. */
 export function nameListHref(prefix: VatsNameHrefPrefix, name: string): string {

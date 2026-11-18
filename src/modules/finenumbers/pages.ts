@@ -7,21 +7,21 @@
 
 import { NumberingClientError } from "@/modules/numbering-resource/errors";
 
-export const RANGE_PAGE_LIMIT = 500;
+const RANGE_PAGE_LIMIT = 500;
 
 export const TOTAL_CHANGED = "Количество номеров изменилось. Каталог не изменён.";
 export const INCOMPLETE = "Список диапазонов неполный. Каталог не изменён.";
-export const PAGE_LONG = "Страница длиннее запрошенного лимита.";
-export const READ_FAILED = "Список диапазонов не прочитан. Каталог не изменён.";
+const PAGE_LONG = "Страница длиннее запрошенного лимита.";
+const READ_FAILED = "Список диапазонов не прочитан. Каталог не изменён.";
 
-export type RangePage<T extends { id: number }> = {
+type RangePage<T extends { id: number }> = {
   items: T[];
   total: number;
   hasMore: boolean;
   nextCursor: string | null;
 };
 
-export type PageVerdict = { kind: "keep" } | { kind: "skip" } | { kind: "fail"; error: string };
+type PageVerdict = { kind: "keep" } | { kind: "skip" } | { kind: "fail"; error: string };
 
 export type PageRead<T> =
   | { ok: true; items: T[]; total: number }
@@ -32,7 +32,7 @@ export function pageStopped(read: PageRead<unknown>): boolean {
   return !read.ok && read.stopped === true;
 }
 
-export function rangeReadRetriable(error: unknown): boolean {
+function rangeReadRetriable(error: unknown): boolean {
   if (!(error instanceof NumberingClientError)) return false;
   if (error.code === "TIMEOUT" || error.code === "NETWORK" || error.code === "BAD_RESPONSE") {
     return true;

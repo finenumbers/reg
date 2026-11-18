@@ -7,7 +7,7 @@ import { prisma } from "@/lib/db";
 import type { ParsedGroupsPayload } from "@/modules/groups/parse";
 import { sortRoutingGroupsById } from "@/modules/groups/sort";
 
-export type ApplyGroupsResult = {
+type ApplyGroupsResult = {
   groupCount: number;
 };
 

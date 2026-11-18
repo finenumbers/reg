@@ -1,7 +1,7 @@
 /** Fixed VATS read cadence. Not a Settings field. */
 
 export const VATS_FIRST_DELAY_MS = 5_000;
-export const VATS_INTERVAL_MS = 120_000;
+const VATS_INTERVAL_MS = 120_000;
 export const VATS_SECTION_BUDGET_MS = 45 * 60 * 1000;
 export const VATS_DOMAIN_LIMIT = 1_000;
 export const VATS_TELNUM_LIMIT = 5_000;

@@ -101,7 +101,7 @@ export async function countInboxFiles(
   return { pending, poisoned };
 }
 
-export type PoisonedInboxFile = {
+type PoisonedInboxFile = {
   filename: string;
   absPath: string;
   size: number;

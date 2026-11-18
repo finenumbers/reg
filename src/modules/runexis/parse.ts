@@ -10,8 +10,8 @@ const BAD_NUMBER = "В ответе есть номер, который нель
 const BAD_STATUS = "В ответе нет статуса номера.";
 export const DUPLICATE = "В ответе повторяется номер.";
 const BAD_CODES = "Справочник кодов не принят.";
-export const FOREIGN_CODE = "В ответе номер другого кода.";
-export const WRONG_LIMIT = "Площадка отдала другой размер страницы.";
+const FOREIGN_CODE = "В ответе номер другого кода.";
+const WRONG_LIMIT = "Площадка отдала другой размер страницы.";
 export const SHORT_PAGE = "Страница витрины короче запрошенной.";
 
 const PURCHASE_KEYS = ["installation_cost", "installationCost", "buy_price"] as const;
@@ -24,14 +24,14 @@ export type FreeDraft = {
   incomingPeriod: string;
 };
 
-export type ShowcaseNumbers = {
+type ShowcaseNumbers = {
   total: number;
   page: number;
   limit: number;
   rows: FreeDraft[];
 };
 
-export type ManagementNumbers = {
+type ManagementNumbers = {
   total: number;
   page: number;
   limit: number;
@@ -40,13 +40,13 @@ export type ManagementNumbers = {
   rows: FreeDraft[];
 };
 
-export type ParsedShowcase =
+type ParsedShowcase =
   { ok: true; page: ShowcaseNumbers } | { ok: false; error: string };
 
-export type ParsedCodes =
+type ParsedCodes =
   { ok: true; slices: CodeSlice[] } | { ok: false; error: string };
 
-export type ParsedManagement =
+type ParsedManagement =
   { ok: true; page: ManagementNumbers } | { ok: false; error: string };
 
 export type PageStep = "done" | "next" | "short" | "over";

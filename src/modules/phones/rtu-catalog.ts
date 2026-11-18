@@ -7,11 +7,11 @@ import { normalizeRtuLabel } from "@/modules/live-calls/columns";
 import { isRtuObjectId } from "@/modules/rtu-soap/envelope";
 
 export const EQUIPMENT_TITLE = "Оборудование";
-export const EQUIPMENT_FOLDER = "Оборудование";
+const EQUIPMENT_FOLDER = "Оборудование";
 
 const PER_MODULE = "Данные по модулям";
 
-export type EquipmentObject = {
+type EquipmentObject = {
   objectId: string;
   title: string;
   path: string;

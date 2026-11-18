@@ -9,8 +9,8 @@ export const PAGE_LIMIT = 10_000;
 export const OFFSET_MAX = 100_000;
 export const WINDOW = OFFSET_MAX + PAGE_LIMIT;
 export const ACCESS_LIMIT = 1_000;
-export const COUNT_LIMIT = 1;
-export const MAX_PREFIX = 15;
+const COUNT_LIMIT = 1;
+const MAX_PREFIX = 15;
 
 export type UisList = "purchased" | "free";
 
@@ -31,7 +31,7 @@ const FREE_METHOD = "get.available_virtual_numbers";
 const PURCHASED_FIELDS = ["virtual_phone_number"] as const;
 const FREE_FIELDS = ["phone_number", "onetime_payment", "monthly_charge"] as const;
 
-export function phoneField(list: UisList): "virtual_phone_number" | "phone_number" {
+function phoneField(list: UisList): "virtual_phone_number" | "phone_number" {
   return list === "purchased" ? "virtual_phone_number" : "phone_number";
 }
 

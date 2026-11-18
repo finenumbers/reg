@@ -9,7 +9,7 @@ export type SyncUiState =
   | { status: "error"; message: string }
   | { status: "conflict"; message: string };
 
-export type SyncUiEvent =
+type SyncUiEvent =
   | { type: "START" }
   | { type: "SUCCESS"; message?: string }
   | { type: "ERROR"; message: string; conflict?: boolean }
@@ -109,7 +109,7 @@ export function interpretSyncResponse(
   };
 }
 
-export type PhonesSyncStatusSnapshot = {
+type PhonesSyncStatusSnapshot = {
   lastJobStatus: "success" | "failed" | "running" | "never" | null;
   lastError: string | null;
   lastFinishedAt: string | null;
@@ -117,7 +117,7 @@ export type PhonesSyncStatusSnapshot = {
   lastFailedError?: string | null;
 };
 
-export type WaitForSyncOutcomeResult =
+type WaitForSyncOutcomeResult =
   { ok: true; message: string } | { ok: false; message: string };
 
 const DEFAULT_OUTCOME_TIMEOUT_MS = 150_000;

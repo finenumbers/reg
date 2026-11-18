@@ -1,7 +1,7 @@
 /** Pages requested after a full page. Five pages is 10_000 rows on one module. */
 export const MAX_CALL_PAGES = 5;
 
-export type PageDecision = {
+type PageDecision = {
   action: "stop" | "continue" | "duplicate" | "cap";
   append: boolean;
   truncated: boolean;
@@ -19,7 +19,7 @@ export function conferenceIdSet(
   return ids;
 }
 
-export function sameConferenceIds(
+function sameConferenceIds(
   left: ReadonlySet<string>,
   right: ReadonlySet<string>,
 ): boolean {

@@ -58,7 +58,7 @@ function expectedOrigins(request: Request): Set<string> {
   return origins;
 }
 
-export type SameOriginResult =
+type SameOriginResult =
   | { ok: true }
   | { ok: false; reason: string };
 

@@ -15,7 +15,7 @@ import {
   TERMINATOR_CAPACITY_DISCONNECT,
 } from "@/modules/traffic/call-class";
 
-export function detailMonthDayPrefix(year: number, month: number): string {
+function detailMonthDayPrefix(year: number, month: number): string {
   return `${cdrMonthPrefix(year, month)}%`;
 }
 

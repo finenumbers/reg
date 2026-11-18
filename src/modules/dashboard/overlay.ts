@@ -11,7 +11,7 @@ const ANTIFRAUD_EVENTS = "События Антифрод";
 
 const GAP_NOTES = [MONTH_CALLS_UNAVAILABLE, CDR_VACUUM_BUSY_MESSAGE];
 
-export type DashboardFigurePatch = {
+type DashboardFigurePatch = {
   trafficCalls: number | null;
   trafficNote: string | null;
   smgCalls: number | null;

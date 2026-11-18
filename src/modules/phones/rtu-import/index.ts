@@ -36,7 +36,7 @@ export function resetRtuImportDefaultsCache(): void {
   cachedDefaults = null;
 }
 
-export type ConvertRtuXlsxOptions = {
+type ConvertRtuXlsxOptions = {
   /** Override DB catalog (tests). When omitted, loads routing_groups. */
   groupIdByName?: Map<string, string>;
 };

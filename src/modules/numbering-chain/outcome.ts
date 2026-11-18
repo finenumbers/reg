@@ -13,7 +13,7 @@ const SKIP = new Set([
   "Ссылка не читается.",
 ]);
 
-export type StartClass = "retry" | "skip" | "stop" | "next";
+type StartClass = "retry" | "skip" | "stop" | "next";
 
 export function classifyStart(error: string): StartClass {
   if (error === CHAIN_BUSY_RETRY || error === CHAIN_VACUUM) return "retry";
@@ -22,7 +22,7 @@ export function classifyStart(error: string): StartClass {
   return "next";
 }
 
-export type FinishClass = "ok" | "next" | "stop";
+type FinishClass = "ok" | "next" | "stop";
 
 export function classifyFinish(input: {
   beforeFinishedAt: number | null;

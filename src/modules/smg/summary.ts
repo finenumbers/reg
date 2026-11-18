@@ -25,7 +25,7 @@ export const SMG_SUMMARY_DERIVED = [
   "redirectNumber",
 ] as const;
 
-export type SmgSummaryDerived = (typeof SMG_SUMMARY_DERIVED)[number];
+type SmgSummaryDerived = (typeof SMG_SUMMARY_DERIVED)[number];
 
 export const SMG_SUMMARY_COLUMNS = [
   "setupDay",
@@ -46,7 +46,7 @@ export const SMG_SUMMARY_COLUMNS = [
   ...SMG_ANTIFRAUD_COLUMNS,
 ] as const;
 
-export type SmgSummaryColumn = (typeof SMG_SUMMARY_COLUMNS)[number];
+type SmgSummaryColumn = (typeof SMG_SUMMARY_COLUMNS)[number];
 
 export const SMG_SUMMARY_LABELS: Record<SmgSummaryColumn, string> = {
   setupDay: "Дата",

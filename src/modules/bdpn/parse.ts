@@ -17,7 +17,7 @@ const NAMED_ENTITIES: Record<string, string> = {
   nbsp: " ",
 };
 
-export type BdpnLookupErrorCode =
+type BdpnLookupErrorCode =
   | "INVALID"
   | "REDIRECT"
   | "HTTP_ERROR"
@@ -37,7 +37,7 @@ export class BdpnLookupError extends Error {
   }
 }
 
-export type BdpnHit = {
+type BdpnHit = {
   found: true;
   number: string;
   operator: string;
@@ -45,7 +45,7 @@ export type BdpnHit = {
   inn: string;
 };
 
-export type BdpnMiss = {
+type BdpnMiss = {
   found: false;
   number: string;
 };

@@ -31,7 +31,7 @@ const NUMBERING_PART = /^(?:0|[1-9]|1[0-4])$/;
 
 const TARIFF_HEADER_ERROR = `В первой строке должны быть столбцы ${TARIFF_HEADERS.map((name) => `«${name}»`).join(", ")} и больше ничего`;
 
-export const TARIFF_MAX_ROWS = 50_000;
+const TARIFF_MAX_ROWS = 50_000;
 export const TARIFF_MAX_ERRORS = 30;
 const MAX_DIRECTION = 500;
 const MAX_REGION = 200;
@@ -54,7 +54,7 @@ export type TariffParsedRow = {
   price: string;
 };
 
-export type TariffParseResult =
+type TariffParseResult =
   { ok: true; rows: TariffParsedRow[] } | { ok: false; error: string; details: string[] };
 
 const PARSE_ERROR = "Файл не подходит для тарификации";

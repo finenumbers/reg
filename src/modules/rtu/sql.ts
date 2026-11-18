@@ -33,7 +33,7 @@ import { CITY_DIRECTION_PREFIX } from "@/modules/traffic/call-class";
 export const PSTN_ELEVEN_DIGIT = "^[78][0-9]{10}$";
 export const PSTN_TEN_DIGIT = "^[0-9]{10}$";
 
-export type ListProjection = "page" | "catalog" | "empty";
+type ListProjection = "page" | "catalog" | "empty";
 
 export function pstnCacheKey(raw: string | null | undefined): string | null {
   if (!raw) return null;
@@ -193,7 +193,7 @@ function phoneLikePattern(value: string): string {
 }
 
 /** Substring of the trimmed «Номер». A blank query matches every row. */
-export function phoneNumberSql(phoneQ: string | undefined): Prisma.Sql | null {
+function phoneNumberSql(phoneQ: string | undefined): Prisma.Sql | null {
   const q = phoneQ?.trim() ?? "";
   if (!q) return null;
   return Prisma.sql`number ILIKE ${phoneLikePattern(q)} ESCAPE '\\'`;
@@ -249,7 +249,7 @@ export function expensiveWhere(
 }
 
 /** Same branches as geographyMatchKey. The number expression is already trimmed. */
-export function geographyMatchKeySql(numberExpr: Prisma.Sql): Prisma.Sql {
+function geographyMatchKeySql(numberExpr: Prisma.Sql): Prisma.Sql {
   const digits = Prisma.sql`regexp_replace(${numberExpr}, '[^0-9]', '', 'g')`;
   return Prisma.sql`(
     CASE
@@ -433,7 +433,7 @@ export function cityAlertSql(direction: Prisma.Sql): Prisma.Sql {
  * pending: a key with no cache row yet. resolved: a non-empty operator.
  * pstn_phone alone cannot tell a short number from a cache miss.
  */
-export function pstnStatusSql(): Prisma.Sql {
+function pstnStatusSql(): Prisma.Sql {
   return Prisma.sql`(
     CASE
       WHEN pstn_key IS NULL THEN ${"unresolved"}
@@ -933,7 +933,7 @@ const screenRowSelect = Prisma.sql`
   counts.catalog_revision
 `;
 
-export type ScreenReadOpts = {
+type ScreenReadOpts = {
   joined: boolean;
   where: Prisma.Sql;
   cursorNumber?: string;

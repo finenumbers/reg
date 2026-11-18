@@ -11,7 +11,7 @@ export type MonthExportStageId =
   | "detail"
   | "download";
 
-export type MonthExportStageStatus = "pending" | "running" | "done" | "error";
+type MonthExportStageStatus = "pending" | "running" | "done" | "error";
 
 export type MonthExportStageView = {
   id: MonthExportStageId;
@@ -22,7 +22,7 @@ export type MonthExportStageView = {
   detail?: string;
 };
 
-export const INITIAL_MONTH_EXPORT_STAGES: MonthExportStageView[] = [
+const INITIAL_MONTH_EXPORT_STAGES: MonthExportStageView[] = [
   { id: "period", label: "Определение периода", status: "pending" },
   { id: "read", label: "Чтение звонков", status: "pending" },
   { id: "fill", label: "PSTN и GeoIP", status: "pending" },

@@ -46,7 +46,7 @@ export type ZabbixMethod =
   | "item.get"
   | "history.get";
 
-export type ZabbixAuth = { token: string; bearer: boolean } | null;
+type ZabbixAuth = { token: string; bearer: boolean } | null;
 
 export type ZabbixCaller = (
   method: ZabbixMethod,
@@ -62,7 +62,7 @@ export type ZabbixSlotRequest = {
   title?: string;
 };
 
-export type ZabbixLineRead = {
+type ZabbixLineRead = {
   id: string;
   label: string;
   unit: string;
@@ -70,7 +70,7 @@ export type ZabbixLineRead = {
   minutes: (number | null)[];
 };
 
-export type ZabbixSlotRead = {
+type ZabbixSlotRead = {
   slot: 1 | 2;
   host: string;
   name: string;
@@ -82,7 +82,7 @@ export type ZabbixSlotRead = {
   elements: number;
 };
 
-export type ZabbixSessionRead =
+type ZabbixSessionRead =
   | { ok: false; detail: string }
   | { ok: true; version: string; origin: string; slots: ZabbixSlotRead[] };
 

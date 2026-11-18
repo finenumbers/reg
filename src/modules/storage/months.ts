@@ -13,7 +13,7 @@ export type MonthTrafficStats = {
   minutes: number;
 };
 
-export type MergedStorageMonth = {
+type MergedStorageMonth = {
   year: number;
   month: number;
   key: string;
@@ -45,7 +45,7 @@ export type AntifraudMonthStats = {
   delays: number;
 };
 
-export type SyslogMonthPresence = {
+type SyslogMonthPresence = {
   year: number;
   month: number;
   key: string;

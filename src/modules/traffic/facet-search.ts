@@ -17,10 +17,10 @@ const DATE_TIME =
 const MONTH_YEAR = /^(\d{1,2})\.(\d{4})$/;
 const DAY_MONTH = /^(\d{1,2})\.(\d{1,2})$/;
 
-export type FacetSearchMatch =
+type FacetSearchMatch =
   { kind: "contains"; needles: string[] } | { kind: "in"; values: string[] };
 
-export function isDurationFacetColumn(column: string): boolean {
+function isDurationFacetColumn(column: string): boolean {
   return DURATION_COLUMNS.has(column);
 }
 

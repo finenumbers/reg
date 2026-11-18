@@ -41,7 +41,7 @@ export type ActivationRequest = {
   title: string;
 };
 
-export type ActivationResult = {
+type ActivationResult = {
   ok: boolean;
   busy?: boolean;
   message: string;

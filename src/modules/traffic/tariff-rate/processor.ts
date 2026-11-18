@@ -14,12 +14,12 @@ import { CDR_TARIFF_BATCH_SQL } from "@/modules/traffic/tariff-rate/sql";
 const BATCH = 5000;
 const DEADLOCK_ATTEMPTS = 5;
 
-export type CdrTariffRateInput = {
+type CdrTariffRateInput = {
   trigger: "schedule" | "manual" | "test";
   actorUserId?: string;
 };
 
-export type CdrTariffRateResult = {
+type CdrTariffRateResult = {
   status: "success" | "failed";
   jobRunId: string;
   changesCount: number;

@@ -1,9 +1,9 @@
 const inflightUsers = new Set<string>();
 let inflightCount = 0;
 
-export const BDPN_PROCESS_LIMIT = 2;
+const BDPN_PROCESS_LIMIT = 2;
 
-export type BdpnFlight = "ok" | "user" | "process";
+type BdpnFlight = "ok" | "user" | "process";
 
 /** One outbound check per user, and at most two in this process. */
 export function acquireBdpnLookup(userId: string): BdpnFlight {

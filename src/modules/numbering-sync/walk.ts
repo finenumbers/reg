@@ -50,7 +50,7 @@ export function uniqueDids(dids: readonly string[]): string[] {
 }
 
 /** First price wins. A later copy of the same number is dropped. */
-export function uniqueStaged(rows: readonly StagedNumber[]): StagedNumber[] {
+function uniqueStaged(rows: readonly StagedNumber[]): StagedNumber[] {
   const seen = new Set<string>();
   const unique: StagedNumber[] = [];
   for (const row of rows) {

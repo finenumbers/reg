@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef } from "react";
 
-export type UseInfiniteScrollOptions = {
+type UseInfiniteScrollOptions = {
   /** When false, observer is idle (e.g. no more pages or initial load). */
   enabled: boolean;
   /** Called when the sentinel enters the scroll root (or viewport). */

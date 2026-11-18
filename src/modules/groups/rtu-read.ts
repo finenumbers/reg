@@ -33,7 +33,7 @@ import { readCallReads, readWsdl } from "@/modules/rtu-soap/wsdl";
 const WSDL_TIMEOUT_MS = 10_000;
 const READ_TIMEOUT_MS = 12_000;
 
-export type IncomingGroupsAccount = {
+type IncomingGroupsAccount = {
   origin: string;
   login: string;
   password: string;

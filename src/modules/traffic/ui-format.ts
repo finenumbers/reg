@@ -70,13 +70,13 @@ export function trafficMissingLabelClass(
   return undefined;
 }
 
-export type TrafficPoisonFile = {
+type TrafficPoisonFile = {
   filename: string;
   error: string;
   heldForPurge: boolean;
 };
 
-export type TrafficBannerStatus = {
+type TrafficBannerStatus = {
   lastError: string | null;
   pendingInboxCount: number;
   poisonedCount: number;

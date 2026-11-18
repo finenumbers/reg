@@ -4,9 +4,9 @@
  */
 
 export const PSTN_FILL_MAX_IDS = 16;
-export const PSTN_FILL_MAX_ID_LENGTH = 64;
+const PSTN_FILL_MAX_ID_LENGTH = 64;
 
-export type PstnFillItemStatus = "filled" | "cached" | "invalid" | "error";
+type PstnFillItemStatus = "filled" | "cached" | "invalid" | "error";
 
 export type PstnFillItem = {
   id: string;

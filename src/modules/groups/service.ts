@@ -8,7 +8,7 @@ import { getJobRunSummary } from "@/modules/jobs/query";
 import type { SyncSnapshot } from "@/modules/jobs/sync-line";
 import { syncSnapshotFromJob } from "@/modules/jobs/sync-snapshot";
 
-export type RoutingGroupListItem = {
+type RoutingGroupListItem = {
   id: string;
   externalId: string;
   name: string;

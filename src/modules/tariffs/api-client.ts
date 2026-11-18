@@ -5,10 +5,10 @@
 import { encodeFilters, type ColumnFilters } from "@/components/column-filters/types";
 import type { ListTariffsResult } from "@/modules/tariffs/service";
 
-export type FetchTariffsResult =
+type FetchTariffsResult =
   { ok: true; data: ListTariffsResult } | { ok: false; status: number; message: string };
 
-export type ImportTariffsResult =
+type ImportTariffsResult =
   | { ok: true; rowCount: number; loadedAt: string }
   | { ok: false; status: number; error: string; details: string[] };
 

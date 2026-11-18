@@ -2,7 +2,7 @@
  * Registration row carried from the RTU API read into apply.
  */
 
-export type RegStatusValue = "Registered" | "Unregistered";
+type RegStatusValue = "Registered" | "Unregistered";
 
 export type ParsedRegistrationRow = {
   phone: string;

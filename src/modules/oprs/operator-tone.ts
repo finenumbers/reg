@@ -39,7 +39,7 @@ const TONE_SET = new Set<string>(["green", "red", "yellow", "gray"]);
 
 export type OprsOperatorToneMap = Partial<Record<string, OprsOperatorTone>>;
 
-export type OprsOperatorNameGroup = {
+type OprsOperatorNameGroup = {
   tone: OprsOperatorTone;
   names: readonly string[];
   truncated: boolean;
@@ -67,7 +67,7 @@ export function oprsToneMap(
   return map;
 }
 
-export type OprsToneConflict = {
+type OprsToneConflict = {
   name: string;
   tones: OprsOperatorTone[];
 };

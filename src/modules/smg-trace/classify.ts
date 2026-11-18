@@ -18,7 +18,7 @@ export const SMG_ANTIFRAUD_COLUMNS = [
   ...SMG_RADIUS_DELAY_COLUMNS,
 ] as const;
 
-export type SmgAntifraudColumn = (typeof SMG_ANTIFRAUD_COLUMNS)[number];
+type SmgAntifraudColumn = (typeof SMG_ANTIFRAUD_COLUMNS)[number];
 
 export const SMG_ANTIFRAUD_LABELS: Record<SmgAntifraudColumn, string> = {
   antifraud: "АнтиФрод",
@@ -51,7 +51,7 @@ export const AF_STATUS = {
   wrongType: "Не тип number",
 } as const;
 
-export type AntifraudLabels = {
+type AntifraudLabels = {
   category: string;
   status: string;
 };

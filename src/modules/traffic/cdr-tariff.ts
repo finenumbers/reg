@@ -11,14 +11,14 @@ import { matchTariffAbc } from "@/modules/traffic/tariff-match";
 
 export const CDR_TARIFF_COLUMNS = ["tariff_direction", "tariff_charge"] as const;
 
-export type CdrTariffColumn = (typeof CDR_TARIFF_COLUMNS)[number];
+type CdrTariffColumn = (typeof CDR_TARIFF_COLUMNS)[number];
 
 export const CDR_TARIFF_LABELS: Record<CdrTariffColumn, string> = {
   tariff_direction: "Направление",
   tariff_charge: "Стоимость",
 };
 
-export type CdrTariffCells = {
+type CdrTariffCells = {
   direction: string;
   charge: string;
   /** Catalog per-minute price, same text as «Тарификация». */

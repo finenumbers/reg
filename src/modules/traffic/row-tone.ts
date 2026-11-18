@@ -6,7 +6,7 @@
 
 import { CALL_CATEGORY, CALL_STATUS } from "@/modules/traffic/call-class";
 
-export type CdrRowTone = "phantom" | "call_error" | "parking" | "check" | "failed";
+type CdrRowTone = "phantom" | "call_error" | "parking" | "check" | "failed";
 
 export function cdrRowTone(category: string, status: string): CdrRowTone | null {
   if (category === CALL_CATEGORY.phantom) return "phantom";

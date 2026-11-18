@@ -57,7 +57,7 @@ const READ_TIMEOUT_MS = 12_000;
 const MODULE_COLUMN = "Модуль";
 const MODULES_TRUNCATED = "Список активных модулей прочитан не целиком.";
 
-export type RegistrationsAccount = {
+type RegistrationsAccount = {
   origin: string;
   login: string;
   password: string;

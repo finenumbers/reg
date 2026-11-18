@@ -13,13 +13,13 @@ export function redirectToken(outgoing: string, incoming: string): string {
   return incoming.trim();
 }
 
-export type StoredTraceHit = {
+type StoredTraceHit = {
   id: string;
   category: string | null;
   status: string | null;
 };
 
-export type ResolvedTraceLabel =
+type ResolvedTraceLabel =
   | { kind: "none" }
   | { kind: "pending"; traceId: string }
   | { kind: "ready"; category: string; status: string };

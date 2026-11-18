@@ -68,7 +68,7 @@ type CacheStore = {
   inflight: Map<string, Promise<DashboardCalls>>;
 };
 
-export type DashboardCallsRejection = {
+type DashboardCallsRejection = {
   status: "rejected";
   message: string;
 };

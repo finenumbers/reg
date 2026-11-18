@@ -74,7 +74,7 @@ const LOG_OPEN_FAILED = "Не удалось открыть журнал ста�
 const START_FAILED = "Не удалось начать загрузку.";
 const CANCELLED = "Загрузка отменена. Каталог не изменён.";
 
-export type AuroraLoadFile = {
+type AuroraLoadFile = {
   id: string;
   url: string;
   format: AuroraFormat;

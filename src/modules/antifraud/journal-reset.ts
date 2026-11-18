@@ -3,8 +3,8 @@ import { prisma } from "@/lib/db";
 import { SMG_TRACE_PARSER_VERSION } from "@/modules/smg-trace/assemble";
 
 /** Not a live mark. Losing every `@live` row must not run this delete again. */
-export const JOURNAL_RESET_DEVICE = "@journal-reset";
-export const JOURNAL_RESET_FILE = "@revision";
+const JOURNAL_RESET_DEVICE = "@journal-reset";
+const JOURNAL_RESET_FILE = "@revision";
 
 function isDone(state: unknown): boolean {
   return (

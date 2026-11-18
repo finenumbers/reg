@@ -54,7 +54,7 @@ export function isTableExportCancel(error: unknown, signal?: AbortSignal): boole
   return false;
 }
 
-export async function loadPageOnceMore<T>(
+async function loadPageOnceMore<T>(
   signal: AbortSignal | undefined,
   load: () => Promise<T>,
   delayMs: (error: unknown) => number | null,

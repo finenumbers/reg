@@ -397,7 +397,7 @@ export async function listTraffic(opts: {
   };
 }
 
-export async function loadTrafficViewData(): Promise<ListTrafficResult> {
+async function loadTrafficViewData(): Promise<ListTrafficResult> {
   return listTraffic({
     page: 1,
     pageSize: TABLE_PAGE_SIZE,

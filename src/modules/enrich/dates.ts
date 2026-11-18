@@ -5,7 +5,7 @@
 const CIVIL =
   /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})$/;
 
-export type CivilDateTime = {
+type CivilDateTime = {
   year: number;
   month: number;
   day: number;

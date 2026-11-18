@@ -24,7 +24,7 @@ export type GeographyToneRow = {
   unregistered: boolean;
 };
 
-export type GeographyToneOptions = {
+type GeographyToneOptions = {
   /** Export has no in-flight lookup, so a cache miss is already an operator miss. */
   surface: "screen" | "export";
   /** Screen only. A failed or unconfigured lookup, while the operator cell is still empty. */

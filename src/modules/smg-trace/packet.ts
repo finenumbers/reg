@@ -1,6 +1,6 @@
 import type { TraceAttr } from "@/modules/smg-trace/types";
 
-export type RadiusPacket = {
+type RadiusPacket = {
   code: number;
   id: number;
   attributes: TraceAttr[];

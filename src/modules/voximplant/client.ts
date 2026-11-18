@@ -54,7 +54,7 @@ export type TotalPage =
   | { ok: true; total: number; meta: CallMeta }
   | { ok: false; error: string; meta: CallMeta };
 
-export type DirectoryPage<T> =
+type DirectoryPage<T> =
   ({ ok: true; meta: CallMeta } & T) | { ok: false; error: string; meta: CallMeta };
 
 const EMPTY_META: CallMeta = { status: 0, attempts: 0, durationMs: 0 };
@@ -63,7 +63,7 @@ function metaOf(status: number, attempts: number, started: number): CallMeta {
   return { status, attempts, durationMs: Date.now() - started };
 }
 
-export function httpsPost(
+function httpsPost(
   url: string,
   token: string,
   signal: AbortSignal,
@@ -223,7 +223,7 @@ async function callJson(
   return last;
 }
 
-export type VoximplantClient = {
+type VoximplantClient = {
   purchased(offset: number, count: number): Promise<NumberPage<FreeRow>>;
   purchasedRecount(): Promise<TotalPage>;
   categories(): Promise<DirectoryPage<{ categories: PhoneCategory[] }>>;

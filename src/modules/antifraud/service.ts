@@ -14,7 +14,7 @@ import type { TimeSort } from "@/modules/traffic/traffic-sort";
 /** The АнтиФрод journal is UTC. The display timezone is not applied here. */
 const PAGE_ZONE = "UTC";
 
-export type RadiusMonth = {
+type RadiusMonth = {
   key: string;
   year: number;
   month: number;
@@ -40,7 +40,7 @@ export type RadiusListItem = {
   session: string;
 };
 
-export type RadiusGapView = {
+type RadiusGapView = {
   id: string;
   fromOffset: string;
   toOffset: string;

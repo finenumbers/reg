@@ -9,14 +9,14 @@ import { readActivationWrite, readWsdl } from "@/modules/rtu-soap/wsdl";
 const WSDL_TIMEOUT_MS = 10_000;
 const UPDATE_TIMEOUT_MS = 60_000;
 
-export type ActivationAccount = {
+type ActivationAccount = {
   origin: string;
   login: string;
   password: string;
   caPem: string | null;
 };
 
-export type ActivationExchange = (input: {
+type ActivationExchange = (input: {
   url: string;
   method: "GET" | "POST";
   headers: Record<string, string>;

@@ -6,7 +6,7 @@ import { classifyTlsCodes, collectErrorCodes, tlsFailureDetail } from "@/modules
 
 const MAX_EXTRA_CA_BYTES = 256 * 1024;
 
-export type TlsCallResult =
+type TlsCallResult =
   | { ok: true; status: number; text: string }
   | {
       ok: false;

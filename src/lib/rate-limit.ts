@@ -3,7 +3,7 @@
  * Single-replica v1 assumption (same as in-process scheduler).
  */
 
-export type RateLimitResult = {
+type RateLimitResult = {
   allowed: boolean;
   remaining: number;
   retryAfterSec: number;

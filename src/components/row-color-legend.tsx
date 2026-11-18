@@ -3,7 +3,7 @@ import { FILTER_TOOLBAR_TEXT } from "@/components/filter-toolbar";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
-export type RowColorTone =
+type RowColorTone =
   | "phantom"
   | "call_error"
   | "parking_known"

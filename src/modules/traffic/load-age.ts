@@ -2,7 +2,7 @@
 
 export type LoadTone = "green" | "yellow" | "red";
 
-export type FilePassCounts = {
+type FilePassCounts = {
   fileCount: number | null;
   phonesParsed: number | null;
   changesCount: number | null;
@@ -44,7 +44,7 @@ export function passTone(input: {
   return input.hadCalls ? "green" : "yellow";
 }
 
-export type LoadPass = { at: number; hadCalls: boolean };
+type LoadPass = { at: number; hadCalls: boolean };
 
 /**
  * Clock anchor. Digits always come from a file time.

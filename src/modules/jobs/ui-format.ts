@@ -88,7 +88,7 @@ export function formatJobActionTitle(actionCode: string): string {
   return label ? `${label} (${actionCode})` : actionCode;
 }
 
-export type JobMetaDetail = { label: string; value: string };
+type JobMetaDetail = { label: string; value: string };
 
 function jobMeta(job: JobRunListItem): Record<string, unknown> | null {
   const meta = job.meta;

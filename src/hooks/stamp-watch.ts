@@ -2,15 +2,15 @@
 
 import { useEffect, useRef } from "react";
 
-export type StampWatchState = {
+type StampWatchState = {
   /** undefined = not primed yet. */
   stamp: string | null | undefined;
   pending: boolean;
 };
 
-export type StampWatchEvent = { ok: true; stamp: string | null } | { ok: false };
+type StampWatchEvent = { ok: true; stamp: string | null } | { ok: false };
 
-export type StampWatchResult = {
+type StampWatchResult = {
   reload: boolean;
   next: StampWatchState;
 };

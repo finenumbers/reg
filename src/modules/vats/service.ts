@@ -85,14 +85,14 @@ import type { VatsCatalogs, VatsSettingsView } from "@/modules/vats/views";
 
 export type { VatsCatalogs, VatsSettingsView };
 
-export type VatsCardResult<T> =
+type VatsCardResult<T> =
   { ok: true; card: T } | { ok: false; status: number; error: string };
 
-export type VatsDomainWrite =
+type VatsDomainWrite =
   | { ok: true; card: VatsDomainCard; sent: boolean }
   | { ok: false; status: number; error: string; card?: VatsDomainCard };
 
-export type VatsTablePage<T> = {
+type VatsTablePage<T> = {
   configured: boolean;
   readAt: string | null;
   notice: string | null;
@@ -100,7 +100,7 @@ export type VatsTablePage<T> = {
   rows: T[];
 };
 
-export type VatsStatusBody = {
+type VatsStatusBody = {
   loading: boolean;
   domains: { readAt: string | null; notice: string | null };
   telnums: { readAt: string | null; notice: string | null };

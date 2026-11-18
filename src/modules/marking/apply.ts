@@ -26,7 +26,7 @@ import { readRtuScreenGate, requestRtuScreenPublish } from "@/modules/rtu/screen
 
 const APPLY_TX_MS = 40_000;
 
-export type ApplyMarkingResult = {
+type ApplyMarkingResult = {
   rowCount: number;
   loadedAt: Date;
 };
@@ -41,7 +41,7 @@ export class MarkingRejected extends Error {
   }
 }
 
-export type MarkingApplyHttpError = {
+type MarkingApplyHttpError = {
   status: 400 | 409 | 503;
   error: string;
   details: string[];

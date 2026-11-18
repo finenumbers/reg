@@ -19,7 +19,7 @@ import type { ParsedPhonesPayload } from "@/modules/phones/types";
 const APPLY_TX = { maxWait: 10_000, timeout: 180_000 } as const;
 const CREATE_BATCH = 500;
 
-export type ApplyPhonesResult = {
+type ApplyPhonesResult = {
   endpointCount: number;
   gatewayCount: number;
 };

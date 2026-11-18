@@ -23,7 +23,7 @@ export type RpcOk = {
   minuteReset: number | null;
 };
 
-export type RpcFail = {
+type RpcFail = {
   ok: false;
   error: string;
   minuteWait: number | null;

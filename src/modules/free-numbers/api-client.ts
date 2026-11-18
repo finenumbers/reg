@@ -9,7 +9,7 @@ import {
 } from "@/components/column-filters/types";
 import type { ListFreeNumbersResult } from "@/modules/free-numbers/format";
 
-export type FetchFreeNumbersResult =
+type FetchFreeNumbersResult =
   | { ok: true; data: ListFreeNumbersResult }
   | { ok: false; status: number; message: string };
 
@@ -29,7 +29,7 @@ async function readJson(res: Response): Promise<unknown> {
   }
 }
 
-export function buildFreeNumbersListUrl(opts: {
+function buildFreeNumbersListUrl(opts: {
   filters?: ColumnFilters;
   phoneQ?: string;
   page?: number;

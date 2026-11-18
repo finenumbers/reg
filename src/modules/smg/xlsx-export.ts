@@ -21,7 +21,7 @@ export const SMG_EXPORT_PAGE_SIZE = 2000;
 
 export type SmgExportLayout = "calls" | "traffic";
 
-export type SmgExportColumn = {
+type SmgExportColumn = {
   header: string;
   cell: (row: Record<SmgField, string>) => string;
 };
@@ -81,7 +81,7 @@ export function smgExportFilename(
   return node ? `${title} ${month} ${node}.xlsx` : `${title} ${month}.xlsx`;
 }
 
-export function smgExportSheetName(layout: SmgExportLayout): string {
+function smgExportSheetName(layout: SmgExportLayout): string {
   return layout === "calls" ? "Звонки на SMG" : "Трафик SMG";
 }
 

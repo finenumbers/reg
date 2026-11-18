@@ -21,7 +21,7 @@ const MONTH = /^(?:0[1-9]|1[0-2])$/;
 const DAY = /^(?:0[1-9]|[12]\d|3[01])$/;
 const HOUR = /^(?:[01]\d|2[0-3])$/;
 
-export type TraceSource = {
+type TraceSource = {
   deviceIp: string;
   fileKey: string;
   abs: string;
@@ -29,7 +29,7 @@ export type TraceSource = {
   size: number;
 };
 
-export type TraceCheckpointMeta = {
+type TraceCheckpointMeta = {
   fileKey: string;
   size: number;
   version: number;
@@ -40,7 +40,7 @@ export const LIVE_FILE_KEY = "@live";
 
 const TRACE_SLOT = /^(00|10|20|30|40|50)$/;
 
-export type TailPresence = "present" | "absent" | "unreadable";
+type TailPresence = "present" | "absent" | "unreadable";
 
 /**
  * Direct stat of the open slot. ENOENT on both forms means the file is gone.

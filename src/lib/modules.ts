@@ -4,7 +4,7 @@ import type { PermissionCode } from "@/modules/rbac/permissions";
  * Feature module registry — platform core + product modules.
  */
 
-export type FeatureModuleId =
+type FeatureModuleId =
   | "settings"
   | "masks"
   | "marking"
@@ -37,7 +37,7 @@ export type FeatureModuleId =
   | "vats-telnums"
   | "vats-settings";
 
-export type FeatureNavGroup =
+type FeatureNavGroup =
   "primary" | "cdr" | "smg" | "vats" | "analytics" | "links" | "catalog" | "admin";
 
 type FeatureModuleDefinition = {

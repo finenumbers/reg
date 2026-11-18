@@ -21,7 +21,7 @@ export function buildCardUrl(
   return encodeCdrFilterQuery(replaced);
 }
 
-export function cardFilter(parts: CardUrlParts): string {
+function cardFilter(parts: CardUrlParts): string {
   if (!parts.callId) return "";
   let quoted: string;
   try {

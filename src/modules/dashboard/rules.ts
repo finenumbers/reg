@@ -20,10 +20,10 @@ import type {
   DashboardSnapshot,
 } from "@/modules/dashboard/types";
 
-export const REGS_STALE_FLOOR_MS = 2 * 60 * 1000;
-export const EXPORT_STALE_FLOOR_MS = 10 * 60 * 1000;
-export const SYSLOG_STATUS_STALE_MS = 30 * 1000;
-export const INBOX_ALERT_MIN = 2;
+const REGS_STALE_FLOOR_MS = 2 * 60 * 1000;
+const EXPORT_STALE_FLOOR_MS = 10 * 60 * 1000;
+const SYSLOG_STATUS_STALE_MS = 30 * 1000;
+const INBOX_ALERT_MIN = 2;
 const ERROR_MAX = 180;
 
 export type PulseStatus = "never" | "running" | "success" | "failed";
@@ -49,13 +49,13 @@ export type ImportPulse = {
   lastCheckedAt: number | null;
 };
 
-export type TrafficPulse = ImportPulse & {
+type TrafficPulse = ImportPulse & {
   monthCalls: number | null;
   monthMinutes: number | null;
   monthNote: string | null;
 };
 
-export type SmgPulse = ImportPulse & {
+type SmgPulse = ImportPulse & {
   monthCalls: number | null;
   monthMinutes: number | null;
 };

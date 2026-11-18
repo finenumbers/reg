@@ -139,7 +139,7 @@ export async function getZabbixDashboard(
   });
 }
 
-export type ZabbixProbe = {
+type ZabbixProbe = {
   result: "success" | "error";
   detail: string;
   slots: number;

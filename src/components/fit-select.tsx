@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 const SIZER =
   "invisible col-start-1 row-start-1 h-8 w-max border border-transparent py-0 pr-8 pl-2.5 whitespace-nowrap";
 
-export type FitSelectOption = {
+type FitSelectOption = {
   value: string;
   label: string;
 };

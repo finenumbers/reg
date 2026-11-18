@@ -20,7 +20,7 @@ export function isSmgCdrFilename(name: string): boolean {
   return SMG_CDR_NAME_RE.test(name);
 }
 
-export function isHiddenInboxName(name: string): boolean {
+function isHiddenInboxName(name: string): boolean {
   return !name || name.startsWith(".") || name === SMG_POISON_FILENAME;
 }
 

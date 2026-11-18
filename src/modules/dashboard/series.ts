@@ -19,7 +19,7 @@ export type ConcurrencySeriesId = Exclude<
   "errors" | "af-answers" | "af-delay" | "af-timeout"
 >;
 
-export type AntifraudChartSeriesId = Extract<
+type AntifraudChartSeriesId = Extract<
   DashboardSeriesId,
   "af-answers" | "af-delay" | "af-timeout"
 >;

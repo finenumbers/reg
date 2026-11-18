@@ -3,7 +3,7 @@
  * A stored e164 with an empty pair is shown in «Номер». ABC stays empty.
  */
 
-export type CatalogDigitColumn = "abc" | "number";
+type CatalogDigitColumn = "abc" | "number";
 
 export function catalogDigitPlain(
   column: CatalogDigitColumn,

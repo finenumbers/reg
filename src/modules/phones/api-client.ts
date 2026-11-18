@@ -11,10 +11,10 @@ import {
   type DownloadXlsxResult,
 } from "@/lib/download-xlsx";
 
-export type FetchPhonesListResult =
+type FetchPhonesListResult =
   { ok: true; data: ListPhonesResult } | { ok: false; status: number; message: string };
 
-export type FetchPhonesStatusResult =
+type FetchPhonesStatusResult =
   | { ok: true; data: PhonesOperationalStatus }
   | { ok: false; status: number; message: string };
 
@@ -146,7 +146,7 @@ export async function downloadPhonesUfwExport(): Promise<DownloadXlsxResult> {
   );
 }
 
-export type RtuImportClientResult =
+type RtuImportClientResult =
   | { ok: true; filename: string }
   | { ok: false; status: number; error: string; details: string[] };
 

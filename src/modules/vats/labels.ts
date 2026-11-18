@@ -19,7 +19,7 @@ export function msgSoft(count: number): string {
   return `Не прочитано строк: ${count}. Остальные обновлены.`;
 }
 
-export function clampNotice(text: string): string {
+function clampNotice(text: string): string {
   const clean = text
     .replace(/[\u0000-\u001F\u007F]/g, " ")
     .replace(/\s+/g, " ")

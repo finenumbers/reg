@@ -33,13 +33,13 @@ export type ExolveFreeRow = {
   incomingPeriod: string;
 };
 
-export type DirectoryCategory = { categoryId: number };
-export type DirectoryType = {
+type DirectoryCategory = { categoryId: number };
+type DirectoryType = {
   typeId: number;
   typeName: string;
   categories: DirectoryCategory[];
 };
-export type DirectoryRegion = {
+type DirectoryRegion = {
   regionId: number;
   parentRegionId: number | null;
 };
@@ -111,7 +111,7 @@ function numbersShape(data: Record<string, unknown>): NumbersShape {
 }
 
 /** uint32 from a JSON number or a decimal digit string. Leading zeros are rejected. */
-export function readUint32(value: unknown): number | null {
+function readUint32(value: unknown): number | null {
   if (typeof value === "number") {
     if (!Number.isSafeInteger(value) || value < 0 || value > 4_294_967_295) return null;
     return value;

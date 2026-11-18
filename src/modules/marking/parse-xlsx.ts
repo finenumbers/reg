@@ -38,8 +38,8 @@ const OPTIONAL_FIELDS = [
 export const MARKING_PARSE_ERROR = "Файл не подходит для маркировки и МАВ";
 const MARKING_HEADER_ERROR = `В первой строке должны быть столбцы ${MARKING_HEADERS.map((name) => `«${name}»`).join(", ")} в этом порядке и больше ничего`;
 
-export const MARKING_MAX_ROWS = EXCEL_SHEET_MAX_DATA_ROWS;
-export const MARKING_MAX_ERRORS = 30;
+const MARKING_MAX_ROWS = EXCEL_SHEET_MAX_DATA_ROWS;
+const MARKING_MAX_ERRORS = 30;
 const MAX_TEXT = 200;
 
 export type MarkingParsedRow = {
@@ -56,7 +56,7 @@ export type MarkingParsedRow = {
   mavT2: string | null;
 };
 
-export type MarkingParseResult =
+type MarkingParseResult =
   | { ok: true; rows: MarkingParsedRow[] }
   | { ok: false; error: string; details: string[] };
 

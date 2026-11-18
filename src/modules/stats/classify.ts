@@ -1,7 +1,7 @@
 import { MISSING_BILLING_LABEL } from "@/modules/enrich/types";
 
 export const SIP_TRUNK_PREFIXES = ["PSTN_", "Trunk_"] as const;
-export const PLATFORM_PREFIXES = ["Service_", "Platform_"] as const;
+const PLATFORM_PREFIXES = ["Service_", "Platform_"] as const;
 export const PARKING_DST = "Service_Parking";
 
 export const STATS_DEVICE_PREFIXES = [
@@ -13,7 +13,7 @@ export type StatsKind = "sip" | "platform";
 
 export type SipTrunkGroup = "pstnTfop" | "pstnLdc" | "trunk";
 
-export type ClassifiedCallLeg = {
+type ClassifiedCallLeg = {
   kind: StatsKind;
   name: string;
   dir: "in" | "out";

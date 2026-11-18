@@ -8,7 +8,7 @@ export function generateApiKeySecret(): string {
 }
 
 /** Platform machine keys are `reg_…`. Other Bearer values must not steal the API-key path. */
-export function isPlatformApiKeySecret(secret: string): boolean {
+function isPlatformApiKeySecret(secret: string): boolean {
   return secret.startsWith("reg_");
 }
 

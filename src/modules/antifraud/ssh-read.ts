@@ -29,7 +29,7 @@ export class ParkingSshError extends Error {
   }
 }
 
-export type ParkingLogin = {
+type ParkingLogin = {
   host: ParkingHost;
   username: ParkingUser;
   privateKeyPem: string;

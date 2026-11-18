@@ -49,7 +49,7 @@ function civilRanges(
  * A blank or any other text sorts after every parsed stamp.
  * Two parsed equals, or two unparsed values, compare as zero.
  */
-export function compareLiveCallStart(left: string, right: string): number {
+function compareLiveCallStart(left: string, right: string): number {
   const parsedLeft = startSortKey(left);
   const parsedRight = startSortKey(right);
   if (parsedLeft && parsedRight) {

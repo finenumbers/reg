@@ -95,7 +95,7 @@ export const REG_COLUMN_ORDER = [
   "lastSeenAt",
 ] as const;
 
-export type RegColumnId = (typeof REG_COLUMN_ORDER)[number];
+type RegColumnId = (typeof REG_COLUMN_ORDER)[number];
 
 export const REG_COLUMN_HEADERS: Record<RegColumnId, string> = {
   phone: "Телефон",

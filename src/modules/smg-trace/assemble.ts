@@ -11,7 +11,7 @@ import type { TraceBlocks } from "@/modules/smg-trace/types";
 export const SMG_TRACE_PARSER_VERSION = 9;
 
 /** A call with no release and no reject leaves the assembler after this long. */
-export const SMG_TRACE_HOLD_MS = 4 * 60 * 60 * 1000;
+const SMG_TRACE_HOLD_MS = 4 * 60 * 60 * 1000;
 
 const SYSLOG_PREFIX = /^<\d+>\s+<[^>]+>\s+\d{2}:\d{2}:\d{2}\.\d+\s+\[[A-Z]{3,4} ?\]\s*/;
 
@@ -154,7 +154,7 @@ export function commitTraceFile(
 }
 
 /** UTC instant of a `ip/year/month/day/hour/slot` key. The slot is the minute. */
-export function slotInstant(fileKey: string): number | null {
+function slotInstant(fileKey: string): number | null {
   const parts = fileKey.split("/");
   if (parts.length < 6) return null;
   const year = Number(parts[1]);

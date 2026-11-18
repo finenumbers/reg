@@ -81,7 +81,7 @@ export function isTimeoutReason(reason: unknown): boolean {
   );
 }
 
-export function httpsGet(
+function httpsGet(
   url: string,
   token: string,
   signal: AbortSignal,
@@ -258,7 +258,7 @@ async function callJson(
   return last;
 }
 
-export type McnClient = {
+type McnClient = {
   purchased(offset: number, limit: number): Promise<NumberPage<string>>;
   purchasedRecount(): Promise<TotalPage>;
   countries(): Promise<CountriesPage>;

@@ -2,7 +2,7 @@ import { lookupIpGeo, GeoipLookupError } from "@/modules/geoip/client";
 import { loadGeoipCredentials } from "@/modules/geoip/credentials";
 import { GEOIP_TEST_IP, GEOIP_TEST_TIMEOUT_MS } from "@/modules/geoip/types";
 
-export type GeoipTestResultView = {
+type GeoipTestResultView = {
   result: "success" | "error";
   detail: string | null;
   durationMs: number;

@@ -41,7 +41,7 @@ export type StorageMonthRow = {
   syslogBytes: number;
 };
 
-export type StoragePurgeProgress = ReturnType<typeof purgeProgressFromJob>;
+type StoragePurgeProgress = ReturnType<typeof purgeProgressFromJob>;
 
 export type StorageSnapshot = {
   months: StorageMonthRow[];

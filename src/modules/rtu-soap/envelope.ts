@@ -35,13 +35,13 @@ export const SELECT_ROW_LIMIT = 2000;
 /** Calls, groups, and registrations stay inside this column list. */
 export const SELECT_COLUMN_CAP = 16;
 /** Five pages: offsets 0, 2000, 4000, 6000, and 8000. */
-export const SELECT_OFFSET_CAP = SELECT_ROW_LIMIT * 4;
+const SELECT_OFFSET_CAP = SELECT_ROW_LIMIT * 4;
 /** Equipment page: catalog fields, the activation flag, and one primary key. The cap leaves room for the zone columns. */
 export const EQUIPMENT_SELECT_COLUMN_CAP = 24;
 /** Twenty-five equipment pages. The last offset is 48000. */
 export const EQUIPMENT_SELECT_OFFSET_CAP = SELECT_ROW_LIMIT * 24;
 
-export type SelectRowsetBounds = {
+type SelectRowsetBounds = {
   columnCap: number;
   offsetCap: number;
 };

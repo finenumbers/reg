@@ -16,7 +16,7 @@ export type MinuteEventRow = {
   touchesStart: boolean;
 };
 
-export type UtcCallDay = {
+type UtcCallDay = {
   dayStart: Date;
   dayEnd: Date;
   lookbackStart: Date;
@@ -33,7 +33,7 @@ export const TWO_HOUR_MINUTES = 120;
  * Tail that can still move: a softswitch call lasts at most 3600 seconds,
  * so its CDR may arrive after the minute it occupied.
  */
-export const PROVISIONAL_MINUTES = 60;
+const PROVISIONAL_MINUTES = 60;
 
 const WEEKDAYS_RU = [
   "воскресенье",
@@ -104,7 +104,7 @@ export function formatUtcMinute(origin: Date, index: number): string {
 }
 
 /** Horizontal labels on a dashboard chart. The last eighth of the span is unlabeled. */
-export const CHART_TIME_LABELS = 8;
+const CHART_TIME_LABELS = 8;
 
 /**
  * Minute offsets of the eight clock labels. Empty when the span is not a
@@ -230,7 +230,7 @@ export function provisionalMinuteIndex(length: number): number {
   return Math.max(0, count - PROVISIONAL_MINUTES);
 }
 
-export function utcDayStamp(dayStart: Date): string {
+function utcDayStamp(dayStart: Date): string {
   const year = dayStart.getUTCFullYear();
   const month = String(dayStart.getUTCMonth() + 1).padStart(2, "0");
   const day = String(dayStart.getUTCDate()).padStart(2, "0");

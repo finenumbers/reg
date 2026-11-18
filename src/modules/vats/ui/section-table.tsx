@@ -26,7 +26,7 @@ type StatusPayload = {
   settings?: { readAt?: string | null; notice?: string | null };
 };
 
-export function vatsLoadLine(
+function vatsLoadLine(
   readAt: string | null,
   loading: boolean,
   timeZone: string,

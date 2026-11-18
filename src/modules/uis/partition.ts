@@ -10,7 +10,7 @@ export const SUM_MISMATCH = "Сумма префиксов не сошлась. 
 
 export type Counted = { filter: UisFilter; total: number };
 
-export type CountResult = { ok: true; total: number } | { ok: false; error: string };
+type CountResult = { ok: true; total: number } | { ok: false; error: string };
 
 export async function planSlices(
   total: number,

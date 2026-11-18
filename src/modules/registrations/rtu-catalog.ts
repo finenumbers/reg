@@ -8,7 +8,7 @@ import { isRtuObjectId } from "@/modules/rtu-soap/envelope";
 
 export const PCOMM_REGISTRATIONS_TITLE = "Регистрации (ПКомм)";
 export const PUPR_REGISTRATIONS_TITLE = "Регистрации (ПУпр)";
-export const REGISTRATIONS_MONITOR = "Мониторинг ПКомм";
+const REGISTRATIONS_MONITOR = "Мониторинг ПКомм";
 export const REGISTRATION_ID_TITLE = "ID регистрации";
 export const REGISTRATION_NAME_TITLE = "Имя";
 export const REGISTRATION_ALIASES_TITLE = "Алиасы";

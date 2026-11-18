@@ -44,12 +44,12 @@ import {
   type MatchBucketStats,
 } from "@/modules/voipmonitor/types";
 
-export type VoipmonitorMatchInput = {
+type VoipmonitorMatchInput = {
   trigger: "schedule" | "manual" | "test";
   actorUserId?: string;
 };
 
-export type VoipmonitorMatchResult = {
+type VoipmonitorMatchResult = {
   status: "success" | "failed";
   jobRunId: string;
   phonesParsed: number;

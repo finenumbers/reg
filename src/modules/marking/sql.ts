@@ -23,7 +23,7 @@ function andWhere(clauses: Prisma.Sql[]): Prisma.Sql {
 }
 
 /** Display text on the marked CTE. Labels treat NULL as empty. */
-export function markingValueSql(column: MarkingColumnId): Prisma.Sql {
+function markingValueSql(column: MarkingColumnId): Prisma.Sql {
   switch (column) {
     case "client":
       return Prisma.sql`client`;

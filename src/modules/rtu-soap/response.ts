@@ -8,7 +8,7 @@ export type RtuObject = {
   type: string;
 };
 
-export type SoapRead =
+type SoapRead =
   | { kind: "fault"; detail: string }
   | { kind: "bad" }
   | { kind: "objects"; objects: RtuObject[] };
@@ -129,12 +129,12 @@ export type SoapColumn = {
   actionUnreadable: boolean;
 };
 
-export type SoapColumns =
+type SoapColumns =
   | { kind: "fault"; detail: string }
   | { kind: "bad" }
   | { kind: "columns"; columns: SoapColumn[] };
 
-export type SoapRows =
+type SoapRows =
   | { kind: "fault"; detail: string }
   | { kind: "bad" }
   | { kind: "rows"; rows: Array<Record<string, string>> };
@@ -149,7 +149,7 @@ export function interpretDescribeTable(xml: string, password: string): SoapColum
   return { kind: "columns", columns };
 }
 
-export type SoapLookup =
+type SoapLookup =
   | { kind: "fault"; detail: string }
   | { kind: "bad" }
   | { kind: "lookup"; pairs: Array<{ key: string; value: string }> };
@@ -268,7 +268,7 @@ function columnAction(value: string | null): {
   return { action, actionUnreadable: false };
 }
 
-export type SoapCount =
+type SoapCount =
   { kind: "fault"; detail: string } | { kind: "bad" } | { kind: "count"; count: number };
 
 /** Integer row count from `countRowset`. Several different integers are not a count. */

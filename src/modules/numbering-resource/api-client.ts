@@ -11,7 +11,7 @@ import type {
   NumberingSummary,
 } from "@/modules/numbering-resource/types";
 
-export type FetchNumberingResult<T> =
+type FetchNumberingResult<T> =
   | { ok: true; data: T }
   | { ok: false; aborted: boolean; status: number; message: string };
 
@@ -42,7 +42,7 @@ function searchParams(opts: {
   return params;
 }
 
-export function buildNumberingListUrl(opts: {
+function buildNumberingListUrl(opts: {
   filters?: ColumnFilters;
   phoneQ?: string;
   cursor?: string | null;
@@ -65,7 +65,7 @@ export function buildNumberingFacetsUrl(opts: {
   return `/api/numbering-resource/facets?${params.toString()}`;
 }
 
-export function buildNumberingSummaryUrl(opts: {
+function buildNumberingSummaryUrl(opts: {
   filters?: ColumnFilters;
   phoneQ?: string;
 }): string {

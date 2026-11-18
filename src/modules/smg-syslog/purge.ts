@@ -14,9 +14,9 @@ import {
 } from "@/modules/smg-syslog/month-inventory";
 import { currentUtcMonth, monthKey as cdrMonthKey } from "@/modules/traffic/cdr-month";
 
-export type SyslogCutoff = { year: string; month: string };
+type SyslogCutoff = { year: string; month: string };
 
-export type SyslogPurgeResult =
+type SyslogPurgeResult =
   | { ok: true; deleted: SyslogCutoff[] }
   | {
       ok: false;
@@ -224,7 +224,7 @@ async function removeYearIfEmpty(yearDir: string): Promise<void> {
   }
 }
 
-export type DeviceRemoval = "removed" | "missing" | "remains" | "refused";
+type DeviceRemoval = "removed" | "missing" | "remains" | "refused";
 
 /** Remove one device directory. A symlink is unlinked and its target is left in place. */
 export async function removeSyslogDeviceDirectory(
@@ -281,9 +281,9 @@ export async function removeSyslogDeviceDirectory(
   }
 }
 
-export type SyslogNodeRow = { ip: string; name: string; identifier: string | null };
+type SyslogNodeRow = { ip: string; name: string; identifier: string | null };
 
-export type EraseSyslogNodeResult =
+type EraseSyslogNodeResult =
   | { ok: true; node: SyslogNodeRow | null; filesRemoved: boolean; leftover: boolean }
   | {
       ok: false;

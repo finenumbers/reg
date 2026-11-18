@@ -10,7 +10,7 @@ import {
 
 const IGNORED = new Set<string>([STATUS_FIELD, SUPPLIER_FIELD, CATEGORY_FIELD]);
 
-export type ActivationStatus = typeof STATUS_ACTIVE | typeof STATUS_BLOCKED;
+type ActivationStatus = typeof STATUS_ACTIVE | typeof STATUS_BLOCKED;
 
 /**
  * The second equipment read confirms the write.

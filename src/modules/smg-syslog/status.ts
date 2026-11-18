@@ -20,7 +20,7 @@ export type SyslogStatus = {
   updatedAt: string;
 };
 
-export function emptyStatus(): SyslogStatus {
+function emptyStatus(): SyslogStatus {
   return {
     enabled: false,
     listening: false,

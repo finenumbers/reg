@@ -2,7 +2,7 @@ import { XMLParser } from "fast-xml-parser";
 import { pinSoapEndpoint } from "@/modules/rtu-soap/origin";
 import { hasDoctype, isXmlName } from "@/modules/rtu-soap/xml";
 
-export type RpcEncodedBinding = {
+type RpcEncodedBinding = {
   kind: "rpc-encoded";
   operationNamespace: string;
   soapAction: string;
@@ -11,7 +11,7 @@ export type RpcEncodedBinding = {
   nilParent: boolean;
 };
 
-export type DocumentLiteralBinding = {
+type DocumentLiteralBinding = {
   kind: "document-literal";
   targetNamespace: string;
   soapAction: string;
@@ -21,7 +21,7 @@ export type DocumentLiteralBinding = {
 
 export type GetObjectsBinding = RpcEncodedBinding | DocumentLiteralBinding;
 
-export type WsdlPlan =
+type WsdlPlan =
   | { ok: true; binding: GetObjectsBinding; endpoint: string }
   | { ok: false; reason: "doctype" | "parse" | "unsupported" | "host" };
 
@@ -304,7 +304,7 @@ const COUNT_PARTS = ["p_table_hi", "p_filter"] as const;
 const LOOKUP_ID_PARTS = new Set(["p_object_id", "p_table_hi"]);
 const LOOKUP_COLUMN_PARTS = new Set(["p_column_nm", "p_column_name"]);
 
-export type CallParamStyle = "scalar" | "repeat" | "items";
+type CallParamStyle = "scalar" | "repeat" | "items";
 
 type LookupOperation = typeof GET_LOOKUP | typeof GET_COLUMN_LOOKUP;
 type CountOperation = typeof COUNT_ROWSET;

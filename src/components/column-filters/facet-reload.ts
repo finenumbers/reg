@@ -20,7 +20,7 @@ export type FacetFullList = FacetScope & {
   items: FacetItem[];
 };
 
-export type FacetLoadDecision =
+type FacetLoadDecision =
   { kind: "keep" } | { kind: "local"; items: FacetItem[] } | { kind: "fetch" };
 
 /** Drop the list snapshot. Other parameters stay, in a stable order. */

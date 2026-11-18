@@ -16,7 +16,7 @@ export const PCOMM_TEMPLATE_LEAF = "Конференции Class 4";
 export const PUPR_TEMPLATE_LEAF = "Вызовы";
 /** Summary page whose «Модуль» column names the running modules. */
 export const ACTIVE_MODULES_TITLE = "Активные модули";
-export const ACTIVE_MODULES_PATH =
+const ACTIVE_MODULES_PATH =
   "Подсистема коммутации;Мониторинг ПКомм;Активные модули";
 
 export type CatalogObject = {

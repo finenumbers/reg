@@ -9,9 +9,9 @@ import ExcelJS from "exceljs";
 import { CATEGORY_FIELD, CATEGORY_MAX_LENGTH } from "@/modules/phones/category";
 import { SUPPLIER_FIELD, SUPPLIER_MAX_LENGTH } from "@/modules/phones/supplier";
 
-export const SUPPLIER_NUMBER_HEADER = "Номер";
-export const SUPPLIER_TELEPHONE_HEADER = "Телефонный номер";
-export const SUPPLIER_CITY_HEADER = "Город";
+const SUPPLIER_NUMBER_HEADER = "Номер";
+const SUPPLIER_TELEPHONE_HEADER = "Телефонный номер";
+const SUPPLIER_CITY_HEADER = "Город";
 
 const FILE_HEADERS = [
   CATEGORY_FIELD,
@@ -48,7 +48,7 @@ export type SupplierFileRow = {
   category: string;
 };
 
-export type SupplierXlsxResult =
+type SupplierXlsxResult =
   { ok: true; rows: SupplierFileRow[] } | { ok: false; error: string; details: string[] };
 
 function cellText(value: ExcelJS.CellValue): string {

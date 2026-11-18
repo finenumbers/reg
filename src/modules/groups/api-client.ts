@@ -7,11 +7,11 @@ import type {
   ListRoutingGroupsResult,
 } from "@/modules/groups/service";
 
-export type FetchGroupsResult =
+type FetchGroupsResult =
   | { ok: true; data: ListRoutingGroupsResult }
   | { ok: false; status: number; message: string };
 
-export type FetchGroupsStatusResult =
+type FetchGroupsStatusResult =
   | { ok: true; data: GroupsOperationalStatus }
   | { ok: false; status: number; message: string };
 

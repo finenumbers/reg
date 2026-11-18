@@ -1,4 +1,4 @@
-export type SmgRefreshDecision = {
+type SmgRefreshDecision = {
   reload: boolean;
   since: string | null;
 };

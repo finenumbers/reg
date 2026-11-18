@@ -80,7 +80,7 @@ export const RESPLIT_MCN_LOCK_SQL = `
   FOR UPDATE
 `;
 
-export const RESPLIT_FINENUMBERS_LOCK_SQL = `
+const RESPLIT_FINENUMBERS_LOCK_SQL = `
   SELECT run_id,
     (
       heartbeat_at IS NOT NULL

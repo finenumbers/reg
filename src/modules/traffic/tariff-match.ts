@@ -51,7 +51,7 @@ export function isTariffNumberAdmitted(number: string): boolean {
 export const SEEDED_DIAL_EXCEPTIONS = ["887", "889", "83", "89", "0"] as const;
 
 /** Longest listed ABC that the number starts with. Equal lengths cannot both match. */
-export function dialExceptionPrefix(
+function dialExceptionPrefix(
   number: string,
   exceptions: readonly string[],
 ): string | null {

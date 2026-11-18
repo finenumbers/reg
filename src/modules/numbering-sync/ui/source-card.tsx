@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { formatCount } from "@/modules/numbering-sync/card-numbers";
 
 export const loadButtonClass = "bg-black text-white hover:bg-neutral-800";
-export const logButtonClass = "border-black bg-white text-black hover:bg-neutral-100";
+const logButtonClass = "border-black bg-white text-black hover:bg-neutral-100";
 
 export function SourceCard({
   name,

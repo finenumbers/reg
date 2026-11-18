@@ -1,7 +1,7 @@
 import { AF_CATEGORY } from "@/modules/smg-trace/classify";
 
 /** One fill for a «Трафик SMG» row. Parking delay outranks «Заблокирован». */
-export type SmgTrafficRowFill = "parking" | "blocked";
+type SmgTrafficRowFill = "parking" | "blocked";
 
 /**
  * A Parking reply millisecond paints gray, including `0` and a blocked call.

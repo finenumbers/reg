@@ -36,7 +36,7 @@ async function settleProbe<T>(
   }
 }
 
-export type ListJobRunsFilters = {
+type ListJobRunsFilters = {
   status?: JobStatus;
   actionCode?: string;
   page?: number;
@@ -203,7 +203,7 @@ export async function listJobRuns(
   };
 }
 
-export type JobRunSummary = {
+type JobRunSummary = {
   lastSuccess: JobRunListItem | null;
   lastFailed: JobRunListItem | null;
   lastAny: JobRunListItem | null;

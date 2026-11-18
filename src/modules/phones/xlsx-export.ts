@@ -52,7 +52,7 @@ function rowValues(
   return headers.map((h) => data[h] ?? "");
 }
 
-export type PhonesExportResult = {
+type PhonesExportResult = {
   buffer: Buffer;
   filename: string;
 };

@@ -13,7 +13,7 @@ const SMG_BLOCKED_FIELDS = [
   "outgoingRedirectingNumber",
 ] as const;
 
-export type SmgBlockedNumberSource = Partial<
+type SmgBlockedNumberSource = Partial<
   Record<(typeof SMG_BLOCKED_FIELDS)[number] | "incomingIp", string | null>
 >;
 

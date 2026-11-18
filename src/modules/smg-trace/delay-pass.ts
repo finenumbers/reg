@@ -10,7 +10,7 @@ export const DELAY_DEVICE = "@delays";
 export const DELAY_FILE_KEY = "@revision";
 export const DELAY_BATCH = 200;
 
-export type DelayMark = {
+type DelayMark = {
   revision: number;
   done: boolean;
 };

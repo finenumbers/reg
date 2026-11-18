@@ -43,7 +43,7 @@ function listBridgeDevices(root: string): { ip: string; name: string }[] {
   }
 }
 
-export type SyslogFolder = {
+type SyslogFolder = {
   name: string;
   label: string;
 };
@@ -56,11 +56,11 @@ export type SyslogFileRow = {
   state: "archive" | "open" | "updating";
 };
 
-export type SyslogList =
+type SyslogList =
   | { kind: "folders"; folders: SyslogFolder[] }
   | { kind: "files"; files: SyslogFileRow[] };
 
-export type SyslogDownload =
+type SyslogDownload =
   | {
       kind: "file";
       absPath: string;
@@ -419,7 +419,7 @@ export type SyslogCascade = {
 
 export type SyslogPurgeMonth = { year: string; month: string; label: string };
 
-export function emptySyslogCascade(): SyslogCascade {
+function emptySyslogCascade(): SyslogCascade {
   return { years: [], months: [], days: [], hours: [], files: [], selected: null };
 }
 

@@ -32,12 +32,12 @@ import { getPurgeTargetMonth } from "@/modules/traffic/purge/target";
 import { purgeHoldMessage } from "@/modules/traffic/poison";
 import { isStorBusy } from "@/modules/traffic/stor-gate";
 
-export type SmgImportProcessorInput = {
+type SmgImportProcessorInput = {
   trigger: "schedule" | "manual" | "test";
   actorUserId?: string;
 };
 
-export type SmgImportProcessorResult = {
+type SmgImportProcessorResult = {
   status: "success" | "failed";
   jobRunId: string;
   phonesParsed: number;

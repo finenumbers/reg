@@ -4,10 +4,10 @@
 
 export type DialExceptionItem = { abc: string };
 
-export type FetchExceptionsResult =
+type FetchExceptionsResult =
   { ok: true; items: DialExceptionItem[] } | { ok: false; message: string };
 
-export type ExceptionWriteResult = { ok: true } | { ok: false; error: string };
+type ExceptionWriteResult = { ok: true } | { ok: false; error: string };
 
 async function readJson(res: Response): Promise<unknown> {
   try {

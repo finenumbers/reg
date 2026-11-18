@@ -18,12 +18,12 @@ import {
   type VacuumTableId,
 } from "@/modules/storage/vacuum/sql";
 
-export type VacuumSqlClient = {
+type VacuumSqlClient = {
   query(sql: string): Promise<unknown>;
   end(): Promise<void>;
 };
 
-export async function connectVacuumClient(): Promise<VacuumSqlClient> {
+async function connectVacuumClient(): Promise<VacuumSqlClient> {
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) {
     throw new Error("DATABASE_URL is required");
@@ -33,12 +33,12 @@ export async function connectVacuumClient(): Promise<VacuumSqlClient> {
   return client;
 }
 
-export type DatabaseVacuumInput = {
+type DatabaseVacuumInput = {
   trigger: "schedule" | "manual" | "test";
   actorUserId?: string;
 };
 
-export type DatabaseVacuumResult = {
+type DatabaseVacuumResult = {
   status: "success" | "failed";
   jobRunId: string;
   errorMessage?: string;

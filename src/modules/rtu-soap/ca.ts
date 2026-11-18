@@ -4,17 +4,17 @@ const MAX_PEM_CHARS = 32_768;
 const MAX_CERTS = 8;
 const SUBJECT_CHARS = 200;
 
-export type RtuCaCert = {
+type RtuCaCert = {
   fingerprint256: string;
   subject: string;
 };
 
-export type ParsedRtuCa = {
+type ParsedRtuCa = {
   pem: string;
   certs: RtuCaCert[];
 };
 
-export type PemParseFailure = "empty" | "private_key" | "invalid" | "too_many";
+type PemParseFailure = "empty" | "private_key" | "invalid" | "too_many";
 
 const BLOCK_RE = /-----BEGIN ([A-Z0-9 ]+)-----[\s\S]*?-----END \1-----/g;
 
@@ -94,7 +94,7 @@ export function describeRtuCa(pem: string | null | undefined): {
   return { hasRtuSoapCa: true, rtuSoapCaCerts: parsed.ca.certs };
 }
 
-export type TlsFailureKind = "issuer" | "name" | "expired" | "other";
+type TlsFailureKind = "issuer" | "name" | "expired" | "other";
 
 const NAME_CODE = /ERR_TLS_CERT_ALTNAME_INVALID|HOSTNAME_MISMATCH/i;
 const EXPIRED_CODE = /CERT_HAS_EXPIRED|CERT_NOT_YET_VALID/i;

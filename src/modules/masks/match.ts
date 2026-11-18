@@ -9,9 +9,9 @@
 
 import { FREE_CALL_DIRECTION, MOBILE_RF_DIRECTION } from "@/modules/rtu/columns";
 
-export const MASK_CATEGORY_MOBILE = "Мобильный";
-export const MASK_CATEGORY_FREE = "Бесплатный вызов";
-export const MASK_CATEGORY_CITY = "Городской";
+const MASK_CATEGORY_MOBILE = "Мобильный";
+const MASK_CATEGORY_FREE = "Бесплатный вызов";
+const MASK_CATEGORY_CITY = "Городской";
 
 const MASK_BODY = /^[0-9A-DX-Z]+$/;
 const MASK_TEXT = /^[0-9A-DX-Z-]+$/;
@@ -37,14 +37,14 @@ export type MaskCandidate = {
   premium: string | null;
 };
 
-export type MaskMatch = {
+type MaskMatch = {
   mask: string;
   maskType: string;
   purchase: string;
   premium: string;
 };
 
-export type MaskMatchInput = {
+type MaskMatchInput = {
   city: string;
   cityAlert: boolean;
   abc: string;
@@ -52,7 +52,7 @@ export type MaskMatchInput = {
 };
 
 /** Category of the mask catalog, or null when the row has no mask. */
-export function maskCategory(city: string, cityAlert: boolean): string | null {
+function maskCategory(city: string, cityAlert: boolean): string | null {
   const trimmed = city.trim();
   if (trimmed === MOBILE_RF_DIRECTION) return MASK_CATEGORY_MOBILE;
   if (trimmed === FREE_CALL_DIRECTION) return MASK_CATEGORY_FREE;
@@ -64,7 +64,7 @@ export function maskCategory(city: string, cityAlert: boolean): string | null {
  * 0 is the screen ABC, 1 is that ABC without one leading 7, 2 is an empty
  * catalog ABC. Null means this catalog ABC is a different code.
  */
-export function maskAbcRank(
+function maskAbcRank(
   maskAbc: string | null | undefined,
   screenAbc: string,
 ): number | null {

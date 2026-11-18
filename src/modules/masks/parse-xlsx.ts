@@ -20,8 +20,8 @@ export const MASK_HEADERS = [
 
 const MASK_HEADER_ERROR = `В первой строке должны быть столбцы ${MASK_HEADERS.map((name) => `«${name}»`).join(", ")} в этом порядке и больше ничего`;
 
-export const MASK_MAX_ROWS = 50_000;
-export const MASK_MAX_ERRORS = 30;
+const MASK_MAX_ROWS = 50_000;
+const MASK_MAX_ERRORS = 30;
 const MAX_TEXT = 200;
 const MAX_ABC = 15;
 const MASK_BODY = /^[0-9A-DX-Z]+$/;
@@ -44,7 +44,7 @@ export type MaskParsedRow = {
   purchase: string | null;
 };
 
-export type MaskParseResult =
+type MaskParseResult =
   { ok: true; rows: MaskParsedRow[] } | { ok: false; error: string; details: string[] };
 
 const PARSE_ERROR = "Файл не подходит для масок и типов";

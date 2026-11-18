@@ -62,7 +62,7 @@ export function domainCardView(
   };
 }
 
-export type DomainStatFields = {
+type DomainStatFields = {
   recordDays: number | null;
   speechMinutes: number | null;
 };

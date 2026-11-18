@@ -1,6 +1,6 @@
 /** Daily numbering chain. The hour is UTC, not the process timezone. */
 
-export const CHAIN_HOUR_UTC = 17;
+const CHAIN_HOUR_UTC = 17;
 const DAY_MS = 86_400_000;
 
 /**

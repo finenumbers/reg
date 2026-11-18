@@ -30,13 +30,13 @@ const TIMEOUT_MS = 30_000;
 const BODY_CAP = 20 * 1024 * 1024;
 const ERROR_CAP = 8192;
 
-export type ExolveMeta = {
+type ExolveMeta = {
   status: number;
   attempts: number;
   durationMs: number;
 };
 
-export type ExolveDeps = {
+type ExolveDeps = {
   fetchImpl?: typeof fetch;
   beat?: () => Promise<void>;
   note?: (line: string) => Promise<void> | void;

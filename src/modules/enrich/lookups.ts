@@ -45,7 +45,7 @@ export async function loadDescriptionsForPhones(
   return map;
 }
 
-export type LookupProgress = {
+type LookupProgress = {
   current: number;
   total: number;
   cacheHits: number;

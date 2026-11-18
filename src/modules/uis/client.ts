@@ -12,7 +12,7 @@ import { UIS_ORIGIN, buildRequest, type UisCall, type UisList } from "@/modules/
 const TIMEOUT_MS = 30_000;
 const BODY_CAP = 20 * 1024 * 1024;
 
-export type UisMeta = {
+type UisMeta = {
   status: number;
   attempts: number;
   durationMs: number;
@@ -26,7 +26,7 @@ type Attempt =
   | { ok: true; data: unknown; status: number; durationMs: number }
   | { ok: false; error: string; retryable: boolean; status: number; durationMs: number };
 
-export type UisDeps = {
+type UisDeps = {
   fetchImpl?: typeof fetch;
   beat?: () => Promise<void>;
   sleep?: (ms: number) => Promise<void>;

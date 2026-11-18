@@ -7,9 +7,9 @@
 import { CATEGORY_FIELD, readCategory } from "@/modules/phones/category";
 import { SUPPLIER_FIELD, readSupplier } from "@/modules/phones/supplier";
 
-export type AnnotationOutcome = "updated" | "cleared" | "unchanged";
+type AnnotationOutcome = "updated" | "cleared" | "unchanged";
 
-export type AnnotationPatch = {
+type AnnotationPatch = {
   data: Record<string, unknown>;
   write: boolean;
   supplier: AnnotationOutcome;

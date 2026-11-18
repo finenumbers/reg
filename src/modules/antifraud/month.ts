@@ -1,4 +1,4 @@
-export type ZonedMonth = {
+type ZonedMonth = {
   year: number;
   month: number;
   key: string;

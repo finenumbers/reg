@@ -8,7 +8,7 @@ const SLOTS = new Set(["00", "10", "20", "30", "40", "50"]);
 const YEAR = /^\d{4}$/;
 const MONTH = /^(?:0[1-9]|1[0-2])$/;
 
-export type SyslogMonthStat = {
+type SyslogMonthStat = {
   year: number;
   month: number;
   key: string;
@@ -19,7 +19,7 @@ export type SyslogMonthStat = {
   present: boolean;
 };
 
-export type SyslogMonthTarget = {
+type SyslogMonthTarget = {
   ip: string;
   yearDir: string;
   monthDir: string;

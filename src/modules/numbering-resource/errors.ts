@@ -1,4 +1,4 @@
-export type NumberingClientCode =
+type NumberingClientCode =
   "TIMEOUT" | "HTTP_ERROR" | "NETWORK" | "RATE_LIMITED" | "BAD_RESPONSE" | "ABORTED";
 
 export class NumberingQueryError extends Error {

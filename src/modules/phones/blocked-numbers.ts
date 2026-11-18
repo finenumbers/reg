@@ -66,7 +66,7 @@ export function anyNumberBlocked(
   return false;
 }
 
-export type BlockedNumberRead = {
+type BlockedNumberRead = {
   stamp: string;
   index: BlockedNumberIndex;
 };

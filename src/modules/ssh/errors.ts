@@ -3,7 +3,7 @@
  * Never include key material or passphrases in messages.
  */
 
-export type KeyImportErrorCode =
+type KeyImportErrorCode =
   | "KEY_TOO_LARGE"
   | "KEY_EMPTY"
   | "UNSUPPORTED_FORMAT"
@@ -12,7 +12,7 @@ export type KeyImportErrorCode =
   | "PASSPHRASE_REQUIRED"
   | "ENCRYPT_FAILED";
 
-export type SshTestErrorCode =
+type SshTestErrorCode =
   | "PROFILE_INCOMPLETE"
   | "NO_PRIVATE_KEY"
   | "DECRYPT_FAILED"

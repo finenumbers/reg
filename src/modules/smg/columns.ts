@@ -117,7 +117,7 @@ export const SMG_COLUMNS = [
 
 export type SmgField = (typeof SMG_COLUMNS)[number]["field"];
 
-export const SMG_SHORT_HEADER_LENGTH = 50;
+const SMG_SHORT_HEADER_LENGTH = 50;
 
 export const SMG_PHONE_FIELDS = [
   "incomingCgpn",
@@ -139,7 +139,7 @@ const SHORT_HEADERS = SMG_COLUMNS.slice(0, SMG_SHORT_HEADER_LENGTH).map(
 );
 const FULL_HEADERS = SMG_COLUMNS.map((column) => column.header);
 
-export function smgHeadersEqual(
+function smgHeadersEqual(
   actual: readonly string[],
   expected: readonly string[],
 ): boolean {

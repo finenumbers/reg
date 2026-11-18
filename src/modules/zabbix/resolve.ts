@@ -22,13 +22,13 @@ export type ZabbixGraphRow = {
   items: ZabbixGraphItemRow[];
 };
 
-export type ZabbixPick<T> =
+type ZabbixPick<T> =
   | { ok: true; row: T }
   | { ok: false; reason: "none" | "many" };
 
 const TEMPLATE_STATUS = "3";
 
-export function sameZabbixText(left: string, right: string): boolean {
+function sameZabbixText(left: string, right: string): boolean {
   return left.localeCompare(right, "ru", { sensitivity: "accent" }) === 0;
 }
 

@@ -8,7 +8,7 @@ import { FREE_CALL_DIRECTION, MOBILE_RF_DIRECTION } from "@/modules/rtu/columns"
 import { CITY_DIRECTION_PREFIX } from "@/modules/traffic/call-class";
 
 /** Place name after «г. », or null when the direction is not that prefix. */
-export function cityTail(raw: string | null | undefined): string | null {
+function cityTail(raw: string | null | undefined): string | null {
   const trimmed = raw?.trim() ?? "";
   if (!trimmed) return null;
   // btrim eats the space in a bare «г. », so the leftover is «г.».

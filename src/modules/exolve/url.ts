@@ -5,8 +5,8 @@
 
 export const EXOLVE_ORIGIN = "https://api.exolve.ru";
 export const PURCHASED_PATH = "/number/customer/v1/GetList";
-export const DIRECTORY_PATH = "/number/reference/v1/GetList";
-export const FREE_PATH = "/number/v1/GetFree";
+const DIRECTORY_PATH = "/number/reference/v1/GetList";
+const FREE_PATH = "/number/v1/GetFree";
 
 export const PURCHASED_LIMIT = 1000;
 export const FREE_LIMIT = 500;

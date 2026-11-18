@@ -17,11 +17,11 @@ import {
   type DownloadXlsxResult,
 } from "@/lib/download-xlsx";
 
-export type FetchRegsListResult =
+type FetchRegsListResult =
   | { ok: true; data: ListRegistrationsResult }
   | { ok: false; status: number; message: string };
 
-export type FetchRegsDetailResult =
+type FetchRegsDetailResult =
   | { ok: true; data: RegistrationDetailResult }
   | { ok: false; status: number; message: string };
 
@@ -96,7 +96,7 @@ export async function fetchRegsDetail(
   return { ok: true, data: body as RegistrationDetailResult };
 }
 
-export type FetchRegsStatusResult =
+type FetchRegsStatusResult =
   | { ok: true; data: RegistrationsOperationalStatus }
   | { ok: false; status: number; message: string };
 

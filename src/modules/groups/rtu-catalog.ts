@@ -8,7 +8,7 @@ import type { ParsedRoutingGroup } from "@/modules/groups/parse";
 import { isRtuObjectId } from "@/modules/rtu-soap/envelope";
 
 export const INCOMING_GROUPS_TITLE = "Входящие группы";
-export const INCOMING_GROUPS_FOLDER = "Оборудование";
+const INCOMING_GROUPS_FOLDER = "Оборудование";
 export const INCOMING_GROUP_ID_TITLE = "ID";
 export const INCOMING_GROUP_NAME_TITLE = "Название";
 

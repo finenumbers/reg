@@ -71,7 +71,7 @@ const BATCH_PAUSE_MS = 50;
 const CALL_LOCK_ATTEMPTS = 30;
 const CALL_LOCK_PAUSE_MS = 1000;
 
-export function isPurgeLockTimeout(error: unknown): boolean {
+function isPurgeLockTimeout(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
   const record = error as {
     code?: unknown;
@@ -83,7 +83,7 @@ export function isPurgeLockTimeout(error: unknown): boolean {
   return message.includes("55P03") || /lock timeout/i.test(message);
 }
 
-export type CdrPurgeProcessorInput = {
+type CdrPurgeProcessorInput = {
   trigger: "schedule" | "manual" | "test";
   actorUserId?: string;
   month?: string;
@@ -97,7 +97,7 @@ export type CdrPurgeProcessorInput = {
   deletedCalls?: number;
 };
 
-export type CdrPurgeProcessorResult = {
+type CdrPurgeProcessorResult = {
   status: "success" | "failed";
   jobRunId: string;
   phonesParsed: number;

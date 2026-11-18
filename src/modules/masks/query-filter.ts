@@ -62,7 +62,7 @@ export function maskCellText(row: MaskListItem, column: string): string {
   }
 }
 
-export type MaskQuery = {
+type MaskQuery = {
   filters?: ColumnFilters;
   excludeColumn?: string;
 };

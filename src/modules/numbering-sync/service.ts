@@ -182,7 +182,7 @@ export async function getNumberingSyncView(): Promise<NumberingSyncView> {
   };
 }
 
-export async function loadSipoutKey(): Promise<string> {
+async function loadSipoutKey(): Promise<string> {
   const row = await prisma.appSetting.findUnique({
     where: { id: 1 },
     select: { sipoutApiKeyCiphertext: true },
@@ -471,7 +471,7 @@ export async function cancelSipoutSync(): Promise<
   }
 }
 
-export type SipoutAccessView = {
+type SipoutAccessView = {
   host: typeof SIPOUT_ORIGIN;
   hasKey: boolean;
 };

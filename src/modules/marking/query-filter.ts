@@ -78,7 +78,7 @@ export function markingCellText(row: MarkingListItem, column: string): string {
   }
 }
 
-export type MarkingQuery = {
+type MarkingQuery = {
   filters?: ColumnFilters;
   excludeColumn?: string;
 };

@@ -24,7 +24,7 @@ import type { CountriesPage, NumberPage, TotalPage } from "@/modules/mcn/client"
 
 export const CANCELLED = "Загрузка отменена. Каталог не изменён.";
 export const LOST = "Загрузка прервана. Каталог не изменён.";
-export const EMPTY_COUNTRIES =
+const EMPTY_COUNTRIES =
   "В справочнике нет стран с префиксом 7. Каталог не изменён.";
 export const SHORT_LIST = "Список прочитан не полностью. Каталог не изменён.";
 export const TOTAL_MOVED = "Количество номеров изменилось. Каталог не изменён.";

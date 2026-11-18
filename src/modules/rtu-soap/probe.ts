@@ -6,7 +6,7 @@ import { interpretGetObjects, type RtuObject } from "@/modules/rtu-soap/response
 import { readWsdl } from "@/modules/rtu-soap/wsdl";
 import { tlsRequest } from "@/modules/rtu-soap/tls-fetch";
 
-export type RtuAccessCode =
+type RtuAccessCode =
   | "ok"
   | "tls"
   | "timeout"
@@ -21,7 +21,7 @@ export type RtuProcedurePreview = {
   path: string;
 };
 
-export type RtuAccessReport = {
+type RtuAccessReport = {
   code: RtuAccessCode;
   detail: string;
   tableCount: number;

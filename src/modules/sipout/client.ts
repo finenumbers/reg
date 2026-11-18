@@ -22,7 +22,7 @@ type Attempt =
   | { ok: true; data: unknown; status: number; durationMs: number }
   | { ok: false; error: string; retryable: boolean; status: number; durationMs: number };
 
-export type SipoutDeps = {
+type SipoutDeps = {
   fetchImpl?: typeof fetch;
 };
 

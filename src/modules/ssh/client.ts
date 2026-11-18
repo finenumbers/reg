@@ -7,7 +7,7 @@
 
 import { Client, type ConnectConfig } from "ssh2";
 
-export type SshConnectionConfig = {
+type SshConnectionConfig = {
   host: string;
   port: number;
   username: string;
@@ -15,13 +15,13 @@ export type SshConnectionConfig = {
   privateKeyPem: string;
 };
 
-export type SshConnectionTestOutcome = {
+type SshConnectionTestOutcome = {
   result: "success" | "auth_error" | "timeout" | "error";
   detail: string;
   durationMs: number;
 };
 
-export interface SshClient {
+interface SshClient {
   /**
    * Auth + session establishment only (connection test).
    * Does not execute a remote command.

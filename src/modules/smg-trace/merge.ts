@@ -8,7 +8,7 @@ export type SavedCard = {
   open: boolean;
 };
 
-export type MergeResult = SavedCard & { diverged: boolean };
+type MergeResult = SavedCard & { diverged: boolean };
 
 /**
  * Keep every stored line, and keep earlier slots before later ones.

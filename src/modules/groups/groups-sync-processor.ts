@@ -16,12 +16,12 @@ import {
 } from "@/modules/groups/rtu-read";
 import { failJobRunIfStillRunning } from "@/modules/jobs/finalize";
 
-export type GroupsSyncProcessorInput = {
+type GroupsSyncProcessorInput = {
   trigger: JobTrigger;
   actorUserId?: string | null;
 };
 
-export type GroupsSyncProcessorResult = {
+type GroupsSyncProcessorResult = {
   jobRunId: string;
   status: "success" | "failed";
   errorMessage: string | null;
@@ -29,7 +29,7 @@ export type GroupsSyncProcessorResult = {
   exitCode: number | null;
 };
 
-export type GroupsSyncProcessorDeps = {
+type GroupsSyncProcessorDeps = {
   read: () => Promise<IncomingGroupsRead>;
   apply: (
     payload: ParsedGroupsPayload,

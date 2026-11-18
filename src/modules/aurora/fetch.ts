@@ -16,7 +16,7 @@ import { isGlobalAddress } from "@/modules/aurora/url";
 export const AURORA_BODY_CAP = 20 * 1024 * 1024;
 const TIMEOUT_MS = 30_000;
 
-export type ResolvedAddress = { address: string; family: 4 | 6 };
+type ResolvedAddress = { address: string; family: 4 | 6 };
 
 export type AuroraFetchFailure = {
   ok: false;
@@ -26,7 +26,7 @@ export type AuroraFetchFailure = {
   status: number;
 };
 
-export type AuroraFetchSuccess = { ok: true; bytes: Uint8Array; status: number };
+type AuroraFetchSuccess = { ok: true; bytes: Uint8Array; status: number };
 
 type Lookup = (host: string) => Promise<{ address: string; family: number }[]>;
 

@@ -265,7 +265,7 @@ export async function smgDeviceFileLabel(device: string): Promise<string> {
   return nodes.find((node) => node.identifier === id)?.name ?? "";
 }
 
-export async function querySmgMonthCounts(): Promise<CdrMonth[]> {
+async function querySmgMonthCounts(): Promise<CdrMonth[]> {
   if (isDatabaseVacuumActive()) return [];
   const rows = await prisma.$queryRaw<MonthCountRow[]>`
     SELECT left(disconnect_day, 7) AS key, COUNT(*)::int AS count

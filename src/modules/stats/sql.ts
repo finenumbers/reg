@@ -18,7 +18,7 @@ function startsWithAnySql(
   );
 }
 
-export function statsMonthDayPrefix(year: number, month: number): string {
+function statsMonthDayPrefix(year: number, month: number): string {
   return `${cdrMonthPrefix(year, month)}%`;
 }
 

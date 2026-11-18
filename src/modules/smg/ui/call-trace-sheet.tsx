@@ -23,7 +23,7 @@ const SERVER_MARK = " — ";
 const ACCEPT = "Access-Accept";
 const REJECT = "Access-Reject";
 
-export type SummaryTone = "pass" | "block";
+type SummaryTone = "pass" | "block";
 
 /** Whole category only. «Отказ не применён» stays plain beside a red Access-Reject. */
 export function categoryTone(category: string): SummaryTone | null {
@@ -36,7 +36,7 @@ export function summaryToneClass(tone: SummaryTone): string {
   return tone === "pass" ? AF_SUMMARY_PASS_CLASS : AF_SUMMARY_BLOCK_CLASS;
 }
 
-export type ServerLineParts = {
+type ServerLineParts = {
   server: string;
   lead: string;
   outcome: string;

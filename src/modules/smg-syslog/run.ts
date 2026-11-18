@@ -22,7 +22,7 @@ const UNKNOWN_KEEP = 8;
 export const SHUTDOWN_DRAIN_MS = 5_000;
 /** A dead socket exits once the queue is flushed, or after this long if disk writes fail. */
 export const FATAL_SOCKET_EXIT_MS = 5_000;
-export const RECV_BUFFER_BYTES = 16 * 1024 * 1024;
+const RECV_BUFFER_BYTES = 16 * 1024 * 1024;
 
 export function shutdownDrainContinues(idleStreak: number, elapsedMs: number): boolean {
   return idleStreak < 2 && elapsedMs < SHUTDOWN_DRAIN_MS;
@@ -39,12 +39,12 @@ export function fatalSocketShouldExit(input: {
   return input.failingForMs >= FATAL_SOCKET_EXIT_MS;
 }
 
-export type SyslogRegistry = {
+type SyslogRegistry = {
   enabled: boolean;
   ips: Set<string>;
 };
 
-export type ReceiverOptions = {
+type ReceiverOptions = {
   port: number;
   root: string;
   loadRegistry: () => Promise<SyslogRegistry>;

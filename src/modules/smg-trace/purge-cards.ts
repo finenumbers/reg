@@ -97,7 +97,7 @@ export async function countTraceDelays(keys: readonly string[]): Promise<number>
   return total;
 }
 
-export type TraceCardDelete = {
+type TraceCardDelete = {
   cards: number;
   delays: number;
 };

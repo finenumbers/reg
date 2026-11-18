@@ -144,7 +144,7 @@ const MINUTES_KEY = "__reg_cdr_month_minutes__";
 const MINUTES_TTL_MS = 60_000;
 const MINUTES_STATEMENT_TIMEOUT = "8s";
 
-export type MonthMinutesCacheState = {
+type MonthMinutesCacheState = {
   slot: { key: string; at: number; minutes: number } | null;
   failedKey: string | null;
   failedAt: number | null;

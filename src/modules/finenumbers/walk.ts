@@ -27,7 +27,7 @@ export type AcceptedRange = {
   geography: string;
 };
 
-export type InnRead =
+type InnRead =
   | { ok: true; ranges: AcceptedRange[]; capacity: number }
   | { ok: false; error: string };
 

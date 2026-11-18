@@ -7,7 +7,7 @@ export type RtuConvertIssue = {
   message: string;
 };
 
-export type RtuSheetKind = "endpoints" | "gateways";
+type RtuSheetKind = "endpoints" | "gateways";
 
 export type RtuSourceRow = {
   sheet: RtuSheetKind;
@@ -16,14 +16,14 @@ export type RtuSourceRow = {
   values: Record<string, string>;
 };
 
-export type RtuConvertSuccess = {
+type RtuConvertSuccess = {
   ok: true;
   csv: string;
   endpointCount: number;
   gatewayCount: number;
 };
 
-export type RtuConvertFailure = {
+type RtuConvertFailure = {
   ok: false;
   error: string;
   details: string[];

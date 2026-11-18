@@ -9,7 +9,7 @@ import {
 } from "@/components/column-filters/types";
 import type { ListPurchasedNumbersResult } from "@/modules/purchased-numbers/format";
 
-export type FetchPurchasedNumbersResult =
+type FetchPurchasedNumbersResult =
   | { ok: true; data: ListPurchasedNumbersResult }
   | { ok: false; status: number; message: string };
 
@@ -29,7 +29,7 @@ async function readJson(res: Response): Promise<unknown> {
   }
 }
 
-export function buildPurchasedNumbersListUrl(opts: {
+function buildPurchasedNumbersListUrl(opts: {
   filters?: ColumnFilters;
   phoneQ?: string;
   page?: number;

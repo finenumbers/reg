@@ -11,7 +11,7 @@ export type DigitMark = {
   hit: boolean;
 };
 
-export type GeographyDigitMarks = {
+type GeographyDigitMarks = {
   abc: DigitMark[];
   telephone: DigitMark[];
 };

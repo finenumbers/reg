@@ -2,7 +2,7 @@ const YANDEX_MAPS_PREFIX = "https://yandex.ru/maps/?text=";
 const DADATA_PARTY_PREFIX = "https://dadata.ru/find/party/";
 
 /** Browsers reject very long hrefs. Keep a margin under common limits. */
-export const YANDEX_MAPS_URL_MAX_LENGTH = 2000;
+const YANDEX_MAPS_URL_MAX_LENGTH = 2000;
 
 /** Yandex search link. The address is only a query value. */
 export function yandexMapsUrl(address: string | null | undefined): string | null {

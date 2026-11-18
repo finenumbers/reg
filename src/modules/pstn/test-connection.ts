@@ -2,7 +2,7 @@ import { lookupPstnPhone, PstnLookupError } from "@/modules/pstn/client";
 import { loadPstnCredentials } from "@/modules/pstn/credentials";
 import { PSTN_TEST_PHONE, PSTN_TEST_TIMEOUT_MS } from "@/modules/pstn/types";
 
-export type PstnTestResultView = {
+type PstnTestResultView = {
   result: "success" | "error";
   detail: string | null;
   durationMs: number;

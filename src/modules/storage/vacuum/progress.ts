@@ -22,7 +22,7 @@ const PHASE_LABEL: Record<string, string> = {
   "performing final cleanup": "завершение",
 };
 
-export type VacuumTableState = "pending" | "active" | "done" | "failed";
+type VacuumTableState = "pending" | "active" | "done" | "failed";
 
 export type VacuumClusterRow = {
   relname: string;
@@ -31,7 +31,7 @@ export type VacuumClusterRow = {
   written: number | null;
 };
 
-export type VacuumStageView = {
+type VacuumStageView = {
   id: VacuumTableId;
   label: string;
   state: VacuumTableState;
@@ -72,7 +72,7 @@ function readTableState(value: unknown): VacuumTableState | null {
   return null;
 }
 
-export function vacuumPhaseLabel(phase: string | null | undefined): string | null {
+function vacuumPhaseLabel(phase: string | null | undefined): string | null {
   if (!phase) return null;
   return PHASE_LABEL[phase] ?? phase;
 }

@@ -41,7 +41,7 @@ block6("fe80::", 10);
 block6("fec0::", 10);
 block6("ff00::", 8);
 
-export type AuroraUrl = { href: string; host: string; port: string };
+type AuroraUrl = { href: string; host: string; port: string };
 
 const ADDRESS_ERROR = "Укажите ссылку http или https.";
 

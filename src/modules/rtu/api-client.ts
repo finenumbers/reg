@@ -10,7 +10,7 @@ import {
 import type { PstnFillResponse } from "@/modules/rtu/pstn-fill-contract";
 import type { ListRtuResult } from "@/modules/rtu/types";
 
-export type FetchRtuResult =
+type FetchRtuResult =
   { ok: true; data: ListRtuResult } | { ok: false; status: number; message: string };
 
 function errorMessage(body: unknown, fallback: string): string {
@@ -29,7 +29,7 @@ async function readJson(res: Response): Promise<unknown> {
   }
 }
 
-export function buildRtuListUrl(opts: {
+function buildRtuListUrl(opts: {
   filters?: ColumnFilters;
   phoneQ?: string;
   blockedOnly?: boolean;

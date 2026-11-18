@@ -1,6 +1,6 @@
 import { TABLE_PAGE_SIZE } from "@/lib/table-pagination";
 
-export const RTU_MAX_PAGE_SIZE = 200;
+const RTU_MAX_PAGE_SIZE = 200;
 
 export function clampPage(value: number): number {
   if (!Number.isFinite(value) || value < 1) return 1;

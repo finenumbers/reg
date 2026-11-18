@@ -28,7 +28,7 @@ export type RtuColumn = (typeof RTU_COLUMNS)[number];
 /** Hidden together when the «Маски и типы» switch is off. The data contract keeps them. */
 const RTU_MASK_COLUMN_LIST = ["mask", "maskType", "sale", "premium"] as const;
 
-export const RTU_MASK_COLUMNS: ReadonlySet<RtuColumn> = new Set(RTU_MASK_COLUMN_LIST);
+const RTU_MASK_COLUMNS: ReadonlySet<RtuColumn> = new Set(RTU_MASK_COLUMN_LIST);
 
 /** Hidden together when the «Маски и типы» switch is on. The data contract keeps them. */
 const RTU_MASK_ON_HIDDEN_LIST = ["category", "supplier", "source"] as const;

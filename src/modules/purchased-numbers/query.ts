@@ -13,11 +13,11 @@ import {
   type PurchasedNumberColumn,
 } from "@/modules/purchased-numbers/columns";
 
-export const PURCHASED_NUMBERS_MAX_PAGE = 2000;
-export const PURCHASED_NUMBERS_MAX_PAGE_SIZE = 100;
+const PURCHASED_NUMBERS_MAX_PAGE = 2000;
+const PURCHASED_NUMBERS_MAX_PAGE_SIZE = 100;
 export const PURCHASED_NUMBERS_MAX_FILTERS_CHARS = 16_000;
 export const PURCHASED_NUMBERS_MAX_QUERY_CHARS = 64;
-export const PURCHASED_NUMBERS_FACET_LIMIT = 200;
+const PURCHASED_NUMBERS_FACET_LIMIT = 200;
 export const PURCHASED_NUMBERS_EXPORT_BATCH = 500;
 
 export class PurchasedNumbersQueryError extends Error {

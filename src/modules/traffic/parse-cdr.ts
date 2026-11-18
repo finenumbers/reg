@@ -14,7 +14,7 @@ import {
   headersMatchCanonical,
 } from "@/modules/traffic/columns";
 
-export function stripBom(line: string): string {
+function stripBom(line: string): string {
   return line.charCodeAt(0) === 0xfeff ? line.slice(1) : line;
 }
 
@@ -31,7 +31,7 @@ export function assertCanonicalCdrHeader(headers: readonly string[]): void {
   }
 }
 
-export type ParsedCdrRow = {
+type ParsedCdrRow = {
   fields: Record<string, string>;
   prisma: Record<string, string>;
   cdrId: string;
@@ -64,7 +64,7 @@ export function parseCdrDate(raw: string): Date | null {
 
 export type CdrParseReject = "width" | "cdr_id" | "date";
 
-export type ClassifiedCdrLine =
+type ClassifiedCdrLine =
   | { ok: true; row: ParsedCdrRow }
   | { ok: false; reason: CdrParseReject };
 

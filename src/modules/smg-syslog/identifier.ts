@@ -1,7 +1,7 @@
 const IDENTIFIER_MAX = 32;
 const IDENTIFIER_RE = /^[a-z][a-z0-9_]*$/;
 
-export type IdentifierParse = { ok: true; value: string | null } | { ok: false };
+type IdentifierParse = { ok: true; value: string | null } | { ok: false };
 
 /** Lowercase variable token. Empty is null when the field is optional. */
 export function parseIdentifier(raw: string, required: boolean): IdentifierParse {

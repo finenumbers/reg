@@ -19,7 +19,7 @@ export type CabinetOpenInput = {
 export type CabinetOpenResult =
   { ok: true; location: string } | { ok: false; status: number; error: string };
 
-export type CabinetActor = { userId: string; ip: string | null };
+type CabinetActor = { userId: string; ip: string | null };
 
 export type CabinetIo = {
   creds: () => Promise<{ ok: true; auth: BossAuth } | { ok: false; error: string }>;

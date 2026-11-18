@@ -57,12 +57,12 @@ import {
   type CdrEnrichLookupStats,
 } from "@/modules/traffic/enrich-import";
 
-export type CdrImportProcessorInput = {
+type CdrImportProcessorInput = {
   trigger: "schedule" | "manual" | "test";
   actorUserId?: string;
 };
 
-export type CdrImportProcessorResult = {
+type CdrImportProcessorResult = {
   status: "success" | "failed";
   jobRunId: string;
   phonesParsed: number;

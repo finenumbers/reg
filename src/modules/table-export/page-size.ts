@@ -6,7 +6,7 @@
 import { NumberingClientError } from "@/modules/numbering-resource/errors";
 
 /** Previous PSTN page cap. One step down from 500, then the size stays. */
-export const NUMBERING_EXPORT_PAGE_FALLBACK = 200;
+const NUMBERING_EXPORT_PAGE_FALLBACK = 200;
 
 /**
  * Load one numbering page. A 400 on the first cursor page is tried once at

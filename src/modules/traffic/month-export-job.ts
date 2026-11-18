@@ -17,7 +17,7 @@ import { isDatabaseVacuumActive } from "@/modules/storage/vacuum/gate";
 
 const KEY = "__reg_month_export_jobs__";
 
-export type MonthExportJobRecord = MonthExportJobView & {
+type MonthExportJobRecord = MonthExportJobView & {
   actorUserId: string;
   createdAt: number;
 };

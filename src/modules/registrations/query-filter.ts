@@ -11,7 +11,7 @@ import { displayTermCapacity } from "@/modules/phones/capacity";
 import type { RegistrationListItem } from "@/modules/registrations/types";
 import { formatEndpoint } from "@/modules/registrations/ui-format";
 
-export type RegistrationQuery = {
+type RegistrationQuery = {
   filters?: ColumnFilters;
   phoneQ?: string;
   unregisteredOnly?: boolean;
@@ -24,7 +24,7 @@ function isPendingGeo(row: RegistrationListItem, column: string): boolean {
   return row.geoPending === true && GEO_FILTER_COLUMNS.has(column);
 }
 
-export function columnCellValue(
+function columnCellValue(
   row: RegistrationListItem,
   column: string,
 ): string {
@@ -102,7 +102,7 @@ export function countUnregisteredRows(
   );
 }
 
-export function matchesPhoneQ(
+function matchesPhoneQ(
   row: RegistrationListItem,
   phoneQ: string,
 ): boolean {

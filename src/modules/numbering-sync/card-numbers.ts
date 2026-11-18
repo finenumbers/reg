@@ -6,7 +6,7 @@
 
 import { msUntilNextUtcHour } from "@/modules/numbering-chain/cadence";
 
-export type SidePhase = "idle" | "reading" | "done";
+type SidePhase = "idle" | "reading" | "done";
 
 export type ProviderKey =
   | "sipout"
@@ -18,7 +18,7 @@ export type ProviderKey =
   | "mcn"
   | "finenumbers";
 
-export type ParsedProvider = {
+type ParsedProvider = {
   epoch: number;
   done: number;
   parsed: number;
@@ -55,7 +55,7 @@ export function asCardInt(value: unknown): number {
   return parsed;
 }
 
-export function asCardDate(value: unknown): Date | null {
+function asCardDate(value: unknown): Date | null {
   if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
   if (typeof value === "string" && value !== "") {
     const date = new Date(value);
@@ -77,7 +77,7 @@ export function droppedCopies(received: number, unique: number, inserted: number
   return inResponse + already;
 }
 
-export function liveCount(
+function liveCount(
   busy: boolean,
   phase: SidePhase,
   last: number | null,
@@ -89,7 +89,7 @@ export function liveCount(
 }
 
 /** SipOut. `check` and `cities` keep both previous numbers. */
-export function sipoutPhases(
+function sipoutPhases(
   step: string | null,
   phase: string,
 ): { purchased: SidePhase; free: SidePhase } {
@@ -105,7 +105,7 @@ export function sipoutPhases(
  * Sources whose list moves from purchased to free.
  * An empty list is the access check and keeps both previous numbers.
  */
-export function listPhases(
+function listPhases(
   list: string,
   phase: string,
 ): { purchased: SidePhase; free: SidePhase } {
@@ -123,7 +123,7 @@ export function listPhases(
  * Aurora writes the free draft once, after every link.
  * `list` is already `free` during the download, so an empty draft stays on the previous number.
  */
-export function auroraFreeCount(
+function auroraFreeCount(
   busy: boolean,
   last: number | null,
   staged: number,

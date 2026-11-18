@@ -12,7 +12,7 @@ import {
 import type { DashboardChartLine, DashboardLineTone } from "@/modules/dashboard/types";
 
 /** Widest offset in the curated CDR zone list. Novosibirsk is UTC+7, and none observe DST. */
-export const CDR_ZONE_MAX_OFFSET_MS = 7 * 60 * 60 * 1000;
+const CDR_ZONE_MAX_OFFSET_MS = 7 * 60 * 60 * 1000;
 
 const ANSWER_TONE: Record<keyof typeof AF_CATEGORY, DashboardLineTone> = {
   waiting: "amber",
@@ -28,7 +28,7 @@ const ANSWER_TONE: Record<keyof typeof AF_CATEGORY, DashboardLineTone> = {
   conflict: "pink",
 };
 
-export const AF_ANSWER_ORDER: ReadonlyArray<{
+const AF_ANSWER_ORDER: ReadonlyArray<{
   id: keyof typeof AF_CATEGORY;
   category: string;
   tone: DashboardLineTone;
@@ -38,7 +38,7 @@ export const AF_ANSWER_ORDER: ReadonlyArray<{
   tone: ANSWER_TONE[id],
 }));
 
-export const DELAY_LINES = [
+const DELAY_LINES = [
   { id: "dev", label: "Dev", tone: "emerald" },
   { id: "prod", label: "Prod", tone: "blue" },
   { id: "parking", label: "Parking", tone: "red" },

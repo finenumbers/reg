@@ -2,9 +2,9 @@ import { readCappedBody } from "@/modules/rtu-soap/body";
 import { classifyTlsCodes, collectErrorCodes } from "@/modules/rtu-soap/ca";
 
 /** One JSON-RPC reply. Two hours of one-second points stay under this. */
-export const ZABBIX_BODY_CAP = 4 * 1024 * 1024;
+const ZABBIX_BODY_CAP = 4 * 1024 * 1024;
 
-export type ZabbixFailureKind =
+type ZabbixFailureKind =
   | "timeout"
   | "tls"
   | "network"

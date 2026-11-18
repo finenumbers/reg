@@ -11,7 +11,7 @@ import {
   type GeoipCredentials,
 } from "@/modules/geoip/types";
 
-export type GeoipLookupErrorCode =
+type GeoipLookupErrorCode =
   | "TIMEOUT"
   | "HTTP_ERROR"
   | "NETWORK"

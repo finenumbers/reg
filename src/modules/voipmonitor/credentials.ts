@@ -4,7 +4,7 @@ import {
   getSecretEncryptionService,
 } from "@/modules/ssh/secrets";
 
-export type VoipmonitorRuntimeConfig = {
+type VoipmonitorRuntimeConfig = {
   enabled: boolean;
   ready: boolean;
   apiUrl: string;

@@ -9,13 +9,13 @@ import { isSafeVoipmonitorHref } from "@/modules/voipmonitor/url";
 export const RTP_PRESENT = "Есть";
 export const RTP_ABSENT = "Нет";
 
-export type VisibleCalltraceLeg = {
+type VisibleCalltraceLeg = {
   url: string;
   cdrId: string;
   audio?: boolean;
 };
 
-export function callIdMatchesAny(callId: string, raws: string[]): boolean {
+function callIdMatchesAny(callId: string, raws: string[]): boolean {
   return raws.some((raw) => callIdsEqual(raw, callId));
 }
 
@@ -62,7 +62,7 @@ function parseLegRef(value: unknown): VoipmonitorLegRef | undefined {
 }
 
 /** The leg the Calltrace cell shows. An unsafe or empty link has no URL. */
-export function visibleCalltraceLeg(
+function visibleCalltraceLeg(
   ref: VoipmonitorLegRef | undefined,
   guiUrl: string,
 ): VisibleCalltraceLeg {

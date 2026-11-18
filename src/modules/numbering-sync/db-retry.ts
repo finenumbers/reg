@@ -35,7 +35,7 @@ export function isStatementTimeout(error: unknown): boolean {
   return text.includes("57014") || /statement timeout/i.test(text);
 }
 
-export function isTransientDbError(error: unknown): boolean {
+function isTransientDbError(error: unknown): boolean {
   if (isStatementTimeout(error)) return false;
   if (isLockTimeout(error)) return true;
   return /40001|40P01|08006|08003|08001|57P01|ECONNRESET|ECONNREFUSED|Connection terminated|timeout exceeded when trying to connect|sorry, too many clients/i.test(

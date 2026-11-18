@@ -134,7 +134,7 @@ export type OprsSqlContext = {
   guiHost: string;
 };
 
-export type OprsSliceSql = {
+type OprsSliceSql = {
   from: Prisma.Sql;
   where: Prisma.Sql;
   exprs: Partial<Record<string, Prisma.Sql>>;
@@ -196,7 +196,7 @@ export function oprsUsesRtp(
   );
 }
 
-export function isOprsComputedColumn(column: string): boolean {
+function isOprsComputedColumn(column: string): boolean {
   return (COMPUTED_COLUMNS as readonly string[]).includes(column);
 }
 

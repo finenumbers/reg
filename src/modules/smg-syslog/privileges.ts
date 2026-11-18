@@ -1,4 +1,4 @@
-export type PrivilegeDrop = { uid: number; gid: number };
+type PrivilegeDrop = { uid: number; gid: number };
 
 function parseId(raw: string | undefined): number | null {
   if (!raw) return null;

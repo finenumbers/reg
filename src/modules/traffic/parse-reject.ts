@@ -1,7 +1,7 @@
 import { formatCount } from "@/lib/format-count";
 import type { CdrParseReject } from "@/modules/traffic/parse-cdr";
 
-export type ParseRejectCounts = Record<CdrParseReject, number>;
+type ParseRejectCounts = Record<CdrParseReject, number>;
 
 export function emptyParseRejectCounts(): ParseRejectCounts {
   return { width: 0, cdr_id: 0, date: 0 };

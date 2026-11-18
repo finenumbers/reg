@@ -6,18 +6,18 @@ import { sipoutDidDigits } from "@/modules/sipout/did";
 
 const CITY_ID = /^\d{1,12}$/;
 
-export type ParsedCities = { ok: true; ids: string[] } | { ok: false; error: string };
+type ParsedCities = { ok: true; ids: string[] } | { ok: false; error: string };
 
-export type ParsedDids =
+type ParsedDids =
   | { ok: true; dids: string[] }
   | { ok: false; error: string; index: number | null };
 
-export type SipoutFreeRow = {
+type SipoutFreeRow = {
   e164: string;
   incomingPeriod: string;
 };
 
-export type ParsedFree =
+type ParsedFree =
   | { ok: true; rows: SipoutFreeRow[] }
   | { ok: false; error: string; index: number | null };
 

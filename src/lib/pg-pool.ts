@@ -1,6 +1,6 @@
 /** App pool only. The migrator process does not use this config. */
-export const APP_POOL_LOCK_TIMEOUT_MS = 5000;
-export const APP_POOL_CONNECT_TIMEOUT_MS = 10_000;
+const APP_POOL_LOCK_TIMEOUT_MS = 5000;
+const APP_POOL_CONNECT_TIMEOUT_MS = 10_000;
 
 export function appPoolOptions(connectionString: string): {
   connectionString: string;

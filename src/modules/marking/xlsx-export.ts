@@ -25,7 +25,7 @@ import {
 const EXPORT_TX_MS = 40_000;
 const EXPORT_LIMIT = EXCEL_SHEET_MAX_DATA_ROWS + 1;
 
-export type MarkingExportSource = {
+type MarkingExportSource = {
   client: string;
   supplier: string;
   phoneNumber: string;
@@ -88,7 +88,7 @@ type ExportQueryRow = {
   mav_t2: string | null;
 };
 
-export async function readMarkingExportRows(): Promise<MarkingExportSource[]> {
+async function readMarkingExportRows(): Promise<MarkingExportSource[]> {
   const gate = await readRtuScreenGate();
   if (!gate?.published || gate.needsPublish) {
     void requestRtuScreenPublish();

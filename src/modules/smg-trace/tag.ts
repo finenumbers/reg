@@ -3,12 +3,12 @@
 const ZERO_SESSION = /^[0-9a-f]{8}0{24}$/;
 
 /** Remove every whitespace character and lowercase. */
-export function normalizeTag(raw: string): string {
+function normalizeTag(raw: string): string {
   return raw.replace(/\s+/g, "").toLowerCase();
 }
 
 /** Placeholder session id printed before the gateway learns the real tag. */
-export function isZeroSession(normalized: string): boolean {
+function isZeroSession(normalized: string): boolean {
   return ZERO_SESSION.test(normalized);
 }
 

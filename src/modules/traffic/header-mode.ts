@@ -9,7 +9,7 @@
 
 import { VOIPMONITOR_COLUMN_SET } from "@/modules/traffic/columns";
 
-export type TrafficHeaderMode = "text" | "sort" | "filter";
+type TrafficHeaderMode = "text" | "sort" | "filter";
 
 export function trafficColumnHeaderMode(input: {
   column: string;

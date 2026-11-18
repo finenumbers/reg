@@ -1,4 +1,4 @@
-export type StateLabelPair = {
+type StateLabelPair = {
   key: string;
   value: string;
 };

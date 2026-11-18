@@ -17,7 +17,7 @@ import type { GeoFields } from "@/modules/geoip/types";
 import type { PstnFields } from "@/modules/pstn/types";
 import { CDR_ENRICH_BACKFILL_PAGE_SIZE } from "@/modules/traffic/columns";
 
-export type CdrEnrichKeySets = {
+type CdrEnrichKeySets = {
   phones: Set<string>;
   ips: Set<string>;
 };
@@ -36,7 +36,7 @@ export type CdrEnrichMaps = {
   stats: CdrEnrichLookupStats;
 };
 
-export type CdrEnrichFields = {
+type CdrEnrichFields = {
   sideA: string;
   operatorA: string;
   geographyA: string;
@@ -51,7 +51,7 @@ export type CdrEnrichFields = {
   providerB: string;
 };
 
-export type CdrEnrichBackfillResult = {
+type CdrEnrichBackfillResult = {
   backfilled: number;
   remaining: number;
   aborted: boolean;
@@ -69,12 +69,12 @@ export function createCdrEnrichKeySets(): CdrEnrichKeySets {
   return { phones: new Set(), ips: new Set() };
 }
 
-export function addPhoneEnrichKey(set: Set<string>, raw: string | undefined): void {
+function addPhoneEnrichKey(set: Set<string>, raw: string | undefined): void {
   const trimmed = raw?.trim() ?? "";
   if (trimmed) set.add(trimmed);
 }
 
-export function addIpEnrichKey(set: Set<string>, raw: string | undefined): void {
+function addIpEnrichKey(set: Set<string>, raw: string | undefined): void {
   const ip = stripIpPort(raw ?? "");
   if (ip) set.add(ip);
 }

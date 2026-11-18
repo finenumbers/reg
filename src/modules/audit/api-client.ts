@@ -8,7 +8,7 @@ import {
   type AuditListQuery,
 } from "@/modules/audit/ui-format";
 
-export type FetchAuditListResult =
+type FetchAuditListResult =
   | { ok: true; data: ListAuditLogsResult }
   | { ok: false; status: number; message: string };
 

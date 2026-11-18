@@ -23,7 +23,7 @@ import {
 
 export const REG_EXPORT_COLUMNS = REG_COLUMN_ORDER;
 
-export function registrationExportCell(
+function registrationExportCell(
   row: RegistrationListItem,
   column: (typeof REG_EXPORT_COLUMNS)[number],
   timeZone: string,
@@ -77,7 +77,7 @@ export function registrationExportRow(
   return REG_EXPORT_COLUMNS.map((key) => registrationExportCell(row, key, timeZone));
 }
 
-export type RegsExportResult = {
+type RegsExportResult = {
   buffer: Buffer;
   filename: string;
 };

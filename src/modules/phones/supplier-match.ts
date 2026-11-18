@@ -6,12 +6,12 @@
 
 import { normalizePstnPhone } from "@/modules/pstn/types";
 
-export type SupplierCatalogRow = {
+type SupplierCatalogRow = {
   id: string;
   endpointNumber: string;
 };
 
-export type SupplierCatalogIndex = {
+type SupplierCatalogIndex = {
   byExact: Map<string, SupplierCatalogRow[]>;
   byDigits: Map<string, SupplierCatalogRow[]>;
   byPstn: Map<string, SupplierCatalogRow[]>;

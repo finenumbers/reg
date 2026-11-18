@@ -29,7 +29,7 @@ import { loadOprsToneReport } from "@/modules/oprs/operator-tone-load";
 import type { OprsListRow } from "@/modules/oprs/row";
 import { OprsQueryError } from "@/modules/oprs/where";
 
-export type OprsReadContext = OprsSqlContext & {
+type OprsReadContext = OprsSqlContext & {
   tones: OprsOperatorToneMap;
   blocked: BlockedNumberIndex;
   marking: Map<string, OprsCatalogLabels> | null;

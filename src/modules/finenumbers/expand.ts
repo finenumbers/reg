@@ -6,13 +6,13 @@
 import { isTariffNumberAdmitted } from "@/modules/traffic/tariff-match";
 
 export const FINENUMBERS_INN = "5406978329";
-export const LOCAL_DIGITS = 7;
+const LOCAL_DIGITS = 7;
 export const LOCAL_MAX = 9_999_999;
 export const EXPAND_CHUNK = 500;
 
 const ABC = /^\d{3}$/;
 
-export type RangeShape = {
+type RangeShape = {
   abc: string;
   rangeStart: number;
   rangeEnd: number;

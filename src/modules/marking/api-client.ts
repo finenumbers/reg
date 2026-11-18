@@ -6,10 +6,10 @@ import { encodeFilters, type ColumnFilters } from "@/components/column-filters/t
 import type { ListMarkingResult } from "@/modules/marking/service";
 import type { MarkingStatsSnapshot } from "@/modules/marking/stats";
 
-export type FetchMarkingResult =
+type FetchMarkingResult =
   { ok: true; data: ListMarkingResult } | { ok: false; status: number; message: string };
 
-export type ImportMarkingResult =
+type ImportMarkingResult =
   | { ok: true; rowCount: number; loadedAt: string }
   | { ok: false; status: number; error: string; details: string[] };
 

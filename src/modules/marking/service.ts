@@ -91,7 +91,7 @@ function clampPageSize(value: number | undefined): number {
   return Math.min(MAX_PAGE, Math.max(1, Math.floor(value)));
 }
 
-export class MarkingQueryError extends Error {
+class MarkingQueryError extends Error {
   readonly status = 400;
 
   constructor(message: string) {

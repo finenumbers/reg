@@ -1,7 +1,7 @@
 import { formatCount } from "@/lib/format-count";
 import { parseMonthKey } from "@/modules/traffic/cdr-month";
 
-export const PURGE_STAGE_ORDER = [
+const PURGE_STAGE_ORDER = [
   "calls",
   "journal",
   "cards",
@@ -14,7 +14,7 @@ export const PURGE_STAGE_ORDER = [
 
 export type PurgeStageId = (typeof PURGE_STAGE_ORDER)[number];
 
-export type PurgeStageCounts = {
+type PurgeStageCounts = {
   done: number;
   total: number;
 };
@@ -35,7 +35,7 @@ const STAGE_LABEL: Record<PurgeStageId, string> = {
   audit: "Аудит",
 };
 
-export type PurgeStageView = {
+type PurgeStageView = {
   id: PurgeStageId;
   label: string;
   done: number;
@@ -43,7 +43,7 @@ export type PurgeStageView = {
   state: "done" | "active" | "pending";
 };
 
-export type PurgeProgress =
+type PurgeProgress =
   | {
       month: string;
       mode: "stages";
@@ -86,7 +86,7 @@ function readStages(value: unknown): PurgeStagesMeta | null {
   return stages;
 }
 
-export function purgeStageViews(
+function purgeStageViews(
   stages: PurgeStagesMeta,
   phase: PurgeStageId,
 ): PurgeStageView[] {

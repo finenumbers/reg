@@ -1,9 +1,9 @@
-export type RecordSlice = {
+type RecordSlice = {
   fileOffset: bigint;
   bytes: Buffer;
 };
 
-export type TakenRecords = {
+type TakenRecords = {
   records: RecordSlice[];
   pending: Buffer;
   nextOffset: bigint;
@@ -54,7 +54,7 @@ export type StatSnapshot = {
   inode: string;
 };
 
-export type FileChange =
+type FileChange =
   | { kind: "continue" }
   | {
       kind: "truncate-tail";

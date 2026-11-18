@@ -5,10 +5,10 @@
 import { encodeFilters, type ColumnFilters } from "@/components/column-filters/types";
 import type { ListMasksResult } from "@/modules/masks/service";
 
-export type FetchMasksResult =
+type FetchMasksResult =
   { ok: true; data: ListMasksResult } | { ok: false; status: number; message: string };
 
-export type ImportMasksResult =
+type ImportMasksResult =
   | { ok: true; rowCount: number; loadedAt: string }
   | { ok: false; status: number; error: string; details: string[] };
 

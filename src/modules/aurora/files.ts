@@ -12,7 +12,7 @@ import {
 import { isAuroraFormat, type AuroraFormat } from "@/modules/aurora/parse";
 import { canonicalizeAuroraUrl } from "@/modules/aurora/url";
 
-export const AURORA_LINK_LIMIT = 20;
+const AURORA_LINK_LIMIT = 20;
 
 export type AuroraLinkRow = {
   id: string;

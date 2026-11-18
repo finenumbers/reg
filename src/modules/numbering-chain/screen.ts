@@ -47,7 +47,7 @@ const COLUMNS: readonly {
   },
 ];
 
-export async function readParsedSnapshot(): Promise<ParsedSnapshot> {
+async function readParsedSnapshot(): Promise<ParsedSnapshot> {
   const rows = await prisma.$queryRaw<Record<string, unknown>[]>`
     SELECT
       mask_epoch, mask_done,
