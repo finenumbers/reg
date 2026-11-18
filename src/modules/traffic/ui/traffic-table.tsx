@@ -136,7 +136,7 @@ export function TrafficTable({
                 plainSet.has(h),
             });
             const filter =
-              mode === "filter" || mode === "sort-and-filter" ? (
+              mode === "filter" ? (
                 <ColumnFilterDropdown
                   column={h}
                   header={header}
@@ -173,23 +173,16 @@ export function TrafficTable({
                 />
               ) : null;
             const sort =
-              (mode === "sort" || mode === "sort-and-filter") && onTimeSortChange ? (
+              mode === "sort" && onTimeSortChange ? (
                 <TimeSortHeader
-                  header={mode === "sort" ? header : ""}
+                  header={header}
                   timeSort={timeSort}
                   onChange={onTimeSortChange}
                 />
               ) : null;
             return (
               <TableHead key={h} className="font-medium">
-                {mode === "sort-and-filter" ? (
-                  <div className="flex items-center gap-1">
-                    {filter}
-                    {sort}
-                  </div>
-                ) : (
-                  (filter ?? sort ?? header)
-                )}
+                {filter ?? sort ?? header}
               </TableHead>
             );
           })}
@@ -261,7 +254,9 @@ export function TrafficTable({
                     !blocked &&
                     oprsFailedTail(h, headers, row.data.call_status ?? "");
                   const tailRed =
-                    failedTail && rtpChrome === "tail" && oprsFailedTailFill(row.data.rtp) === "red";
+                    failedTail &&
+                    rtpChrome === "tail" &&
+                    oprsFailedTailFill(row.data.rtp) === "red";
                   return (
                     <TableCell
                       key={h}
@@ -272,7 +267,8 @@ export function TrafficTable({
                           !failedTail &&
                           !paintRtpRow &&
                           trafficMissingLabelClass(h, shown),
-                        failedTail && (tailRed ? RTP_ABSENT_FILL : OPRS_FAILED_TAIL_BLACK),
+                        failedTail &&
+                          (tailRed ? RTP_ABSENT_FILL : OPRS_FAILED_TAIL_BLACK),
                       )}
                     >
                       {VOIPMONITOR_COLUMN_SET.has(h) ? (

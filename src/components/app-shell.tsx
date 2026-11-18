@@ -13,7 +13,8 @@ import { cn } from "@/lib/utils";
 function isNavActive(pathname: string, href: string): boolean {
   if (href === "/") return pathname === "/";
   if (href === "/smg") return pathname === "/smg";
-  if (href === "/vats") return pathname === "/vats" || pathname.startsWith("/vats/domains/");
+  if (href === "/vats")
+    return pathname === "/vats" || pathname.startsWith("/vats/domains/");
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
@@ -78,8 +79,8 @@ export function AppShell({
   return (
     <NavClockProvider>
       <div className="bg-background text-foreground flex h-screen overflow-hidden">
-        {/* 142px keeps the aside on a whole pixel so border-r is not painted between device pixels. */}
-        <aside className="border-border bg-card sticky top-0 flex h-screen w-[calc(2.5rem+142px+1px)] shrink-0 flex-col overflow-hidden border-r px-3 py-4">
+        {/* 144px fits «Телефонный трафик» (142.44px) and keeps border-r on a whole pixel. */}
+        <aside className="border-border bg-card sticky top-0 flex h-screen w-[calc(2.5rem+144px+1px)] shrink-0 flex-col overflow-hidden border-r px-3 py-4">
           <Link href="/" className="flex shrink-0 justify-center pb-4">
             <img
               src="/brand/logo-full.png"
