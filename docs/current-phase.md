@@ -1,7 +1,13 @@
-# Current Phase — production (v1.324.0)
+# Current Phase — production (v1.325.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, purchased numbers, numbering sync, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-18
+
+## v1.325.0 — CDR seconds sort without a search menu
+
+This release does not migrate and does not rewrite CDR rows. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before the new one starts, then start one new app. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged.
+
+On «Телефонный трафик», «География звонков», «Операторы связи», and «Звонки в ОПРС», «Секунды» is only the sort button, the same button as «Время». The first click sorts by duration descending and reloads the list. The second click sorts ascending. The third click clears it. A blank or non-numeric duration stays after every number. Equal durations are ordered by `cdr_id`. «Минуты» and «Стоимость» are plain labels. Turning one sort on clears the other. The first click on «Время» still does not reload the list, unless «Секунды» was already sorting. «Сбросить фильтры» clears both. The open OPRS xlsx follows the same order. An active sort button is highlighted. On «Сырые данные», `elapsed_time` and `term_elapsed_time` keep their menus and do not sort. «Стоимость» there is a plain label. A seconds sort reads the selected month under the 60-second CDR read limit. There is no new index.
 
 ## v1.324.0 — OPRS Calltrace and time headers match traffic
 

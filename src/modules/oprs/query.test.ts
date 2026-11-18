@@ -10,6 +10,47 @@ describe("oprs search parser", () => {
     expect(() => parseOprsListSearch(params)).toThrow(OprsQueryError);
   });
 
+  it("reads a seconds cursor, including a blank duration", () => {
+    const params = new URLSearchParams({
+      durationSort: "desc",
+      timeSort: "asc",
+      cursorElapsed: "",
+      cursorId: "cdr-9",
+      snapshot: "2026-11-13T00:00:00.000Z",
+    });
+    const parsed = parseOprsListSearch(params);
+    expect(parsed.timeSort).toBeNull();
+    expect(parsed.durationSort).toBe("desc");
+    expect(parsed.cursor).toBeNull();
+    expect(parsed.durationCursor).toEqual({ elapsed: "", cdrId: "cdr-9" });
+  });
+
+  it("refuses a seconds cursor that is missing one part or the snapshot", () => {
+    expect(() =>
+      parseOprsListSearch(
+        new URLSearchParams({ durationSort: "asc", cursorId: "a" }),
+      ),
+    ).toThrow(OprsQueryError);
+    expect(() =>
+      parseOprsListSearch(
+        new URLSearchParams({
+          durationSort: "asc",
+          cursorElapsed: "1000",
+          snapshot: "2026-11-13T00:00:00.000Z",
+        }),
+      ),
+    ).toThrow(OprsQueryError);
+    expect(() =>
+      parseOprsListSearch(
+        new URLSearchParams({
+          durationSort: "asc",
+          cursorElapsed: "",
+          cursorId: "a",
+        }),
+      ),
+    ).toThrow(OprsQueryError);
+  });
+
   it("reads a cursor only when both parts and the snapshot are present", () => {
     const params = new URLSearchParams({
       cursorDate: "2026-11-01 00:00:00",
@@ -43,6 +84,17 @@ describe("oprs urls", () => {
     expect(list).not.toContain("/api/traffic");
     expect(list).toContain("cursorDate=");
     expect(list).toContain("snapshot=");
+    const seconds = buildOprsListUrl({
+      month: "2026-11",
+      snapshot: "2026-11-13T00:00:00.000Z",
+      durationSort: "asc",
+      timeSort: "desc",
+      cursor: { elapsed: "", cdrId: "a" },
+    });
+    expect(seconds).toContain("durationSort=asc");
+    expect(seconds).not.toContain("timeSort=");
+    expect(seconds).toContain("cursorElapsed=");
+    expect(seconds).toContain("cursorId=a");
     const facets = buildOprsFacetsUrl({
       column: "oprs_marking",
       snapshot: "2026-11-13T00:00:00.000Z",

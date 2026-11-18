@@ -20,6 +20,7 @@ type Props = {
   success: boolean;
   noRtp: boolean;
   timeSort: TimeSort | null;
+  durationSort: TimeSort | null;
 };
 
 export function OprsExportButton(props: Props) {
@@ -47,6 +48,7 @@ export function OprsExportButton(props: Props) {
           success: props.success,
           noRtp: props.noRtp,
           timeSort: props.timeSort,
+          durationSort: props.durationSort,
         }),
       });
       const started = (await res.json()) as {

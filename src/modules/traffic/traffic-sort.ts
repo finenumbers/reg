@@ -18,6 +18,15 @@ export function nextTimeSort(current: TimeSort | null): TimeSort | null {
   return null;
 }
 
+/** One column sorts the list. Turning one on clears the other. */
+export function applyExclusiveSort(
+  field: "time" | "duration",
+  next: TimeSort | null,
+): { timeSort: TimeSort | null; durationSort: TimeSort | null } {
+  if (field === "time") return { timeSort: next, durationSort: null };
+  return { timeSort: null, durationSort: next };
+}
+
 export function trafficListOrderBy(
   timeSort: TimeSort | null,
 ): Prisma.CdrRecordOrderByWithRelationInput[] {

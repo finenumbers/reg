@@ -373,4 +373,19 @@ describe("oprs computed sql", () => {
     expect(held.values).not.toContain("Внешние сети");
     expect(held.text).toContain("ELSE ''");
   });
+
+  it("pages a seconds sort by the duration keyset and ignores the date cursor", () => {
+    const paged = sliceText(
+      input({
+        durationSort: "desc",
+        timeSort: "asc",
+        cursor: { cdrDate: "2026-11-01 00:00:00", cdrId: "date-id" },
+        durationCursor: { elapsed: "", cdrId: "blank-id" },
+      }),
+      ctx(),
+    );
+    expect(paged.values).toContain("blank-id");
+    expect(paged.values).not.toContain("date-id");
+    expect(paged.text).toContain("IS NULL");
+  });
 });

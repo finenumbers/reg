@@ -121,8 +121,10 @@ export async function listOprs(
 ): Promise<OprsListResult> {
   const pageSize = Math.min(200, Math.max(1, input.pageSize));
   const month = resolveMonthKey(input.month, now);
-  const snapshot = input.cursor ? resolveOprsSnapshot(input.snapshotRaw, now) : now;
-  const counted = input.cursor == null;
+  const durationSort = input.durationSort;
+  const paging = input.cursor != null || input.durationCursor != null;
+  const snapshot = paging ? resolveOprsSnapshot(input.snapshotRaw, now) : now;
+  const counted = !paging;
   const base = {
     year: month.year,
     month: month.month,
@@ -130,14 +132,16 @@ export async function listOprs(
     phoneQ: input.phoneQ,
     flags: input.flags,
     snapshot,
-    cursor: input.cursor,
-    timeSort: input.timeSort,
+    cursor: durationSort ? null : input.cursor,
+    timeSort: durationSort ? null : input.timeSort,
+    durationSort,
+    durationCursor: durationSort ? input.durationCursor : null,
   };
-  const computed = oprsUsesComputedRead(input.filters, input.flags);
+  const computed = oprsUsesComputedRead(input.filters, input.flags) || durationSort != null;
   const ctx = computed
     ? await loadOprsReadContext(input.filters, undefined, input.flags)
     : null;
-  const orderBy = trafficListOrderBy(input.timeSort);
+  const orderBy = trafficListOrderBy(base.timeSort);
   const page =
     computed && ctx
       ? await withOprsTimeout(
@@ -219,7 +223,9 @@ export async function loadOprsPageInitial(
         phoneQ: "",
         flags: {},
         timeSort: null,
+        durationSort: null,
         cursor: null,
+        durationCursor: null,
         snapshotRaw: null,
         pageSize: TABLE_PAGE_SIZE,
       },

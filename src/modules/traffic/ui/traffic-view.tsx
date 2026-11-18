@@ -47,7 +47,7 @@ import { MonthExportButtons } from "@/modules/traffic/ui/month-export-buttons";
 import { LoadAgeChip } from "@/modules/traffic/ui/load-age-chip";
 import { TrafficTable } from "@/modules/traffic/ui/traffic-table";
 import type { RtpChrome } from "@/modules/traffic/rtp-row";
-import type { TimeSort } from "@/modules/traffic/traffic-sort";
+import { applyExclusiveSort, type TimeSort } from "@/modules/traffic/traffic-sort";
 import { composeTrafficBanner, displayTrafficFacet } from "@/modules/traffic/ui-format";
 
 const PAGE_SIZE = TABLE_PAGE_SIZE;
@@ -67,7 +67,8 @@ type LoadListOpts = {
   success?: boolean;
   noRtp?: boolean;
   timeSort?: TimeSort | null;
-  cursor?: { cdrDate: string; cdrId: string } | null;
+  durationSort?: TimeSort | null;
+  cursor?: { cdrDate: string; cdrId: string } | { elapsed: string; cdrId: string } | null;
 };
 
 const FILTERED_EMPTY =
@@ -88,6 +89,8 @@ type Props = {
   rtpChrome?: RtpChrome;
   source?: "traffic" | "oprs";
   initialSnapshot?: string | null;
+  /** «Сырые данные» keeps the duration menus and does not sort seconds. */
+  durationSortable?: boolean;
   initial: ListTrafficResult;
   initialListError?: string | null;
 };
@@ -107,6 +110,7 @@ export function TrafficView({
   rtpChrome = "off",
   source = "traffic",
   initialSnapshot = null,
+  durationSortable = true,
   initial,
   initialListError = null,
 }: Props) {
@@ -122,6 +126,8 @@ export function TrafficView({
   const [success, setSuccess] = useState(false);
   const [noRtp, setNoRtp] = useState(false);
   const [timeSort, setTimeSort] = useState<TimeSort | null>(null);
+  const [durationSort, setDurationSort] = useState<TimeSort | null>(null);
+  const [durationPageFull, setDurationPageFull] = useState(false);
   const [month, setMonth] = useState(initial.month || currentUtcMonth().key);
   const [months, setMonths] = useState<CdrMonth[]>(
     initial.months?.length ? initial.months : [currentUtcMonth()],
@@ -172,6 +178,7 @@ export function TrafficView({
   const successRef = useRef(success);
   const noRtpRef = useRef(noRtp);
   const timeSortRef = useRef(timeSort);
+  const durationSortRef = useRef(durationSort);
   const wasBusyRef = useRef(false);
   const lastFinishedAtRef = useRef<string | null | undefined>(undefined);
   const [scrollRoot, setScrollRoot] = useState<Element | null>(null);
@@ -192,6 +199,7 @@ export function TrafficView({
   successRef.current = success;
   noRtpRef.current = noRtp;
   timeSortRef.current = timeSort;
+  durationSortRef.current = durationSort;
 
   const defaultMonthKey = currentUtcMonth().key;
   const filtersActive =
@@ -205,8 +213,13 @@ export function TrafficView({
     success ||
     noRtp ||
     timeSort != null ||
+    durationSort != null ||
     month !== defaultMonthKey;
-  const hasMore = oprs ? oprsHasMore : items.length < total;
+  const hasMore = oprs
+    ? oprsHasMore
+    : durationSort != null
+      ? durationPageFull
+      : items.length < total;
   const monthOptions = useMemo(() => {
     if (months.some((item) => item.key === month)) return months;
     const extra = parseMonthKey(month);
@@ -235,6 +248,8 @@ export function TrafficView({
       const nextSuccess = opts.success ?? successRef.current;
       const nextNoRtp = opts.noRtp ?? noRtpRef.current;
       const nextTimeSort = "timeSort" in opts ? opts.timeSort : timeSortRef.current;
+      const nextDurationSort =
+        "durationSort" in opts ? opts.durationSort : durationSortRef.current;
       const nextPage = opts.page ?? (replace ? 1 : page);
       const seq = ++refreshSeq.current;
 
@@ -260,7 +275,8 @@ export function TrafficView({
         check: nextCheck,
         success: nextSuccess,
         noRtp: nextNoRtp,
-        timeSort: nextTimeSort,
+        timeSort: nextDurationSort ? null : nextTimeSort,
+        durationSort: nextDurationSort,
         pageSize: PAGE_SIZE,
       };
       if (oprs) {
@@ -321,7 +337,18 @@ export function TrafficView({
         return;
       }
 
-      setItems((prev) => (replace ? result.data.items : [...prev, ...result.data.items]));
+      const pageFull = result.data.items.length === result.data.pageSize;
+      setDurationPageFull(nextDurationSort != null && pageFull);
+      setItems((prev) => {
+        if (replace || nextDurationSort == null) {
+          return replace ? result.data.items : [...prev, ...result.data.items];
+        }
+        const seen = new Set(prev.map((item) => item.id));
+        return [
+          ...prev,
+          ...result.data.items.filter((item) => !seen.has(item.id)),
+        ];
+      });
       setTotal(result.data.total);
       setPage(result.data.page);
       if (result.data.months) setMonths(result.data.months);
@@ -439,9 +466,16 @@ export function TrafficView({
     if (!hasMore || loading || loadingMoreRef.current) return;
     if (oprs) {
       const last = itemsRef.current.at(-1);
-      const cdrDate = last?.data.cdr_date;
       const cdrId = last?.data.cdr_id;
-      if (!last || cdrDate == null || cdrId == null || !snapshotRef.current) return;
+      if (!last || cdrId == null || !snapshotRef.current) return;
+      if (durationSortRef.current) {
+        const elapsed = last.data.elapsed_time;
+        if (elapsed == null) return;
+        void loadList({ replace: false, cursor: { elapsed, cdrId } });
+        return;
+      }
+      const cdrDate = last.data.cdr_date;
+      if (cdrDate == null) return;
       void loadList({ replace: false, cursor: { cdrDate, cdrId } });
       return;
     }
@@ -467,12 +501,15 @@ export function TrafficView({
     setFilters({});
     setOpenColumn(null);
     setTimeSort(null);
+    setDurationSort(null);
+    setDurationPageFull(false);
     void loadList({
       page: 1,
       replace: true,
       month: parsed.key,
       filters: {},
       timeSort: null,
+      durationSort: null,
     });
   }
 
@@ -489,6 +526,8 @@ export function TrafficView({
     setSuccess(false);
     setNoRtp(false);
     setTimeSort(null);
+    setDurationSort(null);
+    setDurationPageFull(false);
     setMonth(nowMonth.key);
     setOpenColumn(null);
     void loadList({
@@ -504,6 +543,7 @@ export function TrafficView({
       success: false,
       noRtp: false,
       timeSort: null,
+      durationSort: null,
       month: nowMonth.key,
     });
   }
@@ -557,10 +597,22 @@ export function TrafficView({
 
   function onTimeSortChange(next: TimeSort | null) {
     const prev = timeSort;
-    setTimeSort(next);
+    const hadDuration = durationSortRef.current != null;
+    const sorts = applyExclusiveSort("time", next);
+    setTimeSort(sorts.timeSort);
+    setDurationSort(sorts.durationSort);
+    setDurationPageFull(false);
     // desc matches the default server ORDER BY — do not refetch the list.
-    if (prev == null && next === "desc") return;
-    void loadList({ page: 1, replace: true, timeSort: next });
+    if (!hadDuration && prev == null && next === "desc") return;
+    void loadList({ page: 1, replace: true, ...sorts });
+  }
+
+  function onDurationSortChange(next: TimeSort | null) {
+    const sorts = applyExclusiveSort("duration", next);
+    setTimeSort(sorts.timeSort);
+    setDurationSort(sorts.durationSort);
+    setDurationPageFull(false);
+    void loadList({ page: 1, replace: true, ...sorts });
   }
 
   async function onDownloadPoison(filename: string) {
@@ -727,6 +779,7 @@ export function TrafficView({
               success={success}
               noRtp={noRtp}
               timeSort={timeSort}
+              durationSort={durationSort}
             />
           ) : null}
           {showRetry ? (
@@ -964,6 +1017,8 @@ export function TrafficView({
             onColumnFilterChange={onColumnChange}
             timeSort={timeSort}
             onTimeSortChange={onTimeSortChange}
+            durationSort={durationSort}
+            onDurationSortChange={durationSortable ? onDurationSortChange : undefined}
             oprs={oprs}
             onBdpnCheck={oprs ? onBdpnCheck : undefined}
             facetUrl={

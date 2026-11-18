@@ -1,6 +1,8 @@
 import { encodeFilters, type ColumnFilters } from "@/components/column-filters/types";
 import type { OprsListResult } from "@/modules/oprs/service";
+import type { DurationCursor } from "@/modules/traffic/billable-minutes-sql";
 import type { TimeSort } from "@/modules/traffic/traffic-sort";
+import type { OprsCursor } from "@/modules/oprs/where";
 
 export type OprsListQuery = {
   filters?: ColumnFilters;
@@ -14,8 +16,9 @@ export type OprsListQuery = {
   success?: boolean;
   noRtp?: boolean;
   timeSort?: TimeSort | null;
+  durationSort?: TimeSort | null;
   snapshot?: string | null;
-  cursor?: { cdrDate: string; cdrId: string } | null;
+  cursor?: OprsCursor | DurationCursor | null;
   pageSize?: number;
 };
 
@@ -31,9 +34,15 @@ function writeShared(params: URLSearchParams, opts: OprsListQuery): void {
   if (opts.check) params.set("check", "1");
   if (opts.success) params.set("success", "1");
   if (opts.noRtp) params.set("noRtp", "1");
-  if (opts.timeSort) params.set("timeSort", opts.timeSort);
+  if (opts.durationSort) params.set("durationSort", opts.durationSort);
+  else if (opts.timeSort) params.set("timeSort", opts.timeSort);
   if (opts.snapshot?.trim()) params.set("snapshot", opts.snapshot.trim());
-  if (opts.cursor?.cdrDate && opts.cursor.cdrId) {
+  if (opts.cursor && "elapsed" in opts.cursor) {
+    if (opts.cursor.cdrId) {
+      params.set("cursorElapsed", opts.cursor.elapsed);
+      params.set("cursorId", opts.cursor.cdrId);
+    }
+  } else if (opts.cursor?.cdrDate && opts.cursor.cdrId) {
     params.set("cursorDate", opts.cursor.cdrDate);
     params.set("cursorId", opts.cursor.cdrId);
   }

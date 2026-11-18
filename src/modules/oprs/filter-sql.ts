@@ -49,6 +49,10 @@ import {
   type OprsCatalogLabels,
 } from "@/modules/oprs/derived";
 import { oprsNamesByTone, type OprsOperatorToneMap } from "@/modules/oprs/operator-tone";
+import {
+  durationKeysetSql,
+  type DurationCursor,
+} from "@/modules/traffic/billable-minutes-sql";
 import { OprsQueryError, oprsScreenFilters, type OprsCursor } from "@/modules/oprs/where";
 
 const COMPUTED_COLUMNS = [
@@ -112,6 +116,9 @@ export type OprsSqlInput = {
   snapshot: Date;
   cursor: OprsCursor | null;
   timeSort: TimeSort | null;
+  /** When set, the date cursor and the date order are not used. */
+  durationSort?: TimeSort | null;
+  durationCursor?: DurationCursor | null;
   /** Open menu. Its own selection is not applied. */
   excludeColumn?: string;
   /** Set when the statement must be able to group this column. */
@@ -301,7 +308,13 @@ export function buildOprsSliceSql(
             : null,
         ),
     Prisma.sql`c."importedAt" <= ${input.snapshot}`,
-    input.cursor ? keysetSql(input.timeSort, input.cursor) : null,
+    input.durationSort
+      ? input.durationCursor
+        ? durationKeysetSql(input.durationSort, input.durationCursor)
+        : null
+      : input.cursor
+        ? keysetSql(input.timeSort, input.cursor)
+        : null,
     computedFiltersSql(input.filters, input.excludeColumn, exprs),
   ]);
   return { from, where, exprs };

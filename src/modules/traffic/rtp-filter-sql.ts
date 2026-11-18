@@ -20,6 +20,7 @@ import {
 import { CDR_PHONE_COLUMNS, isTrafficColumn } from "@/modules/traffic/columns";
 import { facetSearchMatch } from "@/modules/traffic/facet-search";
 import type { TrafficRowFlags } from "@/modules/traffic/row-flags";
+import { cdrListOrderSql } from "@/modules/traffic/billable-minutes-sql";
 import type { TimeSort } from "@/modules/traffic/traffic-sort";
 import {
   onlyAbsentRtp,
@@ -36,7 +37,14 @@ export type TrafficNoRtpSqlInput = {
   guiHost: string;
   excludeColumn?: string;
   timeSort: TimeSort | null;
+  /** Set only for the seconds column. It replaces the date order. */
+  durationSort?: TimeSort | null;
 };
+
+/** The empty-host shortcut belongs to «Нет RTP». A seconds sort still reads the month. */
+export function trafficSqlAppliesRtpGate(noRtp: boolean | undefined): boolean {
+  return noRtp === true;
+}
 
 /** An empty host makes the RTP arm false. Another checkbox can still match. */
 export function trafficNoRtpCanMatch(flags: TrafficRowFlags, guiHost: string): boolean {
@@ -88,10 +96,10 @@ export function buildTrafficNoRtpPageSql(
   offset: number,
 ): Prisma.Sql {
   const slice = buildTrafficNoRtpSliceSql(input);
-  const order =
-    input.timeSort === "asc"
-      ? Prisma.sql`c.cdr_date ASC, c.cdr_id ASC`
-      : Prisma.sql`c.cdr_date DESC, c.cdr_id DESC`;
+  const order = cdrListOrderSql({
+    timeSort: input.durationSort ? null : input.timeSort,
+    durationSort: input.durationSort,
+  });
   const take = Math.min(200, Math.max(1, limit));
   const skip = Math.max(0, offset);
   return Prisma.sql`

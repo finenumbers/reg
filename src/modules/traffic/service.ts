@@ -55,6 +55,7 @@ import {
   buildTrafficNoRtpFacetSql,
   buildTrafficNoRtpPageSql,
   trafficNoRtpCanMatch,
+  trafficSqlAppliesRtpGate,
   type TrafficNoRtpSqlInput,
 } from "@/modules/traffic/rtp-filter-sql";
 import { trafficFlagWhere, type TrafficRowFlags } from "@/modules/traffic/row-flags";
@@ -324,6 +325,7 @@ export async function listTraffic(opts: {
   success?: boolean;
   noRtp?: boolean;
   timeSort?: TimeSort | null;
+  durationSort?: TimeSort | null;
   page?: number;
   pageSize?: number;
 }): Promise<ListTrafficResult> {
@@ -332,6 +334,7 @@ export async function listTraffic(opts: {
   const filters = opts.filters ?? {};
   const phoneQ = opts.phoneQ?.trim() ?? "";
   const month = resolveMonthKey(opts.month);
+  const durationSort = opts.durationSort ?? null;
   const flags = {
     phantom: opts.phantom,
     callErrors: opts.callErrors,
@@ -341,13 +344,15 @@ export async function listTraffic(opts: {
     success: opts.success,
     noRtp: opts.noRtp,
   };
-  if (opts.noRtp) {
-    return listTrafficWithoutRtp({
+  if (opts.noRtp || durationSort) {
+    return listTrafficBySql({
       filters,
       phoneQ,
       month,
       flags,
-      timeSort: opts.timeSort ?? null,
+      timeSort: durationSort ? null : (opts.timeSort ?? null),
+      durationSort,
+      rtpGate: trafficSqlAppliesRtpGate(opts.noRtp),
       page,
       pageSize,
     });
@@ -493,18 +498,21 @@ export async function listTrafficFacets(opts: {
   };
 }
 
-async function listTrafficWithoutRtp(input: {
+async function listTrafficBySql(input: {
   filters: ColumnFilters;
   phoneQ: string;
   month: CdrMonth;
   flags: TrafficRowFlags;
   timeSort: TimeSort | null;
+  durationSort: TimeSort | null;
+  /** True only for «Нет RTP». A seconds sort must not take the empty-host shortcut. */
+  rtpGate: boolean;
   page: number;
   pageSize: number;
 }): Promise<ListTrafficResult> {
   const includeMonths = input.page === 1;
   const { guiUrl, guiHost } = await readVoipmonitorGui();
-  if (!trafficNoRtpCanMatch(input.flags, guiHost)) {
+  if (input.rtpGate && !trafficNoRtpCanMatch(input.flags, guiHost)) {
     const months = includeMonths ? await listTrafficMonths() : undefined;
     return emptyTrafficPage(input.month, input.page, input.pageSize, months);
   }
@@ -516,6 +524,7 @@ async function listTrafficWithoutRtp(input: {
     flags: input.flags,
     guiHost,
     timeSort: input.timeSort,
+    durationSort: input.durationSort,
   };
   const skip = (input.page - 1) * input.pageSize;
   const [counted, months, blockedNumbers] = await Promise.all([

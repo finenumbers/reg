@@ -9,6 +9,7 @@ import { toFilterToken, type FacetResponse } from "@/components/column-filters/t
 import { prisma } from "@/lib/db";
 import type { BlockedNumberIndex } from "@/modules/phones/blocked-numbers";
 import { loadBlockedNumbers } from "@/modules/phones/blocked-numbers";
+import { cdrListOrderSql } from "@/modules/traffic/billable-minutes-sql";
 import type { TrafficRowFlags } from "@/modules/traffic/row-flags";
 import { arrangeTrafficFacetItems } from "@/modules/traffic/traffic-sort";
 import { oprsGuiHost } from "@/modules/oprs/calltrace";
@@ -188,10 +189,10 @@ export async function fetchOprsSlice(
   pageSize: number,
 ): Promise<OprsListRow[]> {
   const slice = buildOprsSliceSql(input, ctx);
-  const order =
-    input.timeSort === "asc"
-      ? Prisma.sql`c.cdr_date ASC, c.cdr_id ASC`
-      : Prisma.sql`c.cdr_date DESC, c.cdr_id DESC`;
+  const order = cdrListOrderSql({
+    timeSort: input.durationSort ? null : input.timeSort,
+    durationSort: input.durationSort,
+  });
   const rows = await tx.$queryRaw<RawRow[]>`
     SELECT ${LIST_COLUMNS}
     FROM ${slice.from}

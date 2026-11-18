@@ -72,6 +72,7 @@ export type OprsExportRequest = {
   filters: ColumnFilters;
   flags: TrafficRowFlags;
   timeSort: TimeSort | null;
+  durationSort: TimeSort | null;
   snapshot: Date;
   actorUserId: string;
 };

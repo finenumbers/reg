@@ -3,6 +3,7 @@ import { EMPTY_FILTER_TOKEN } from "@/components/column-filters/types";
 import {
   arrangeTrafficFacetItems,
   moveEmptyFacetLast,
+  applyExclusiveSort,
   nextTimeSort,
   parseTimeSort,
   timeSortChevron,
@@ -25,6 +26,23 @@ describe("nextTimeSort", () => {
     expect(nextTimeSort(null)).toBe("desc");
     expect(nextTimeSort("desc")).toBe("asc");
     expect(nextTimeSort("asc")).toBeNull();
+  });
+});
+
+describe("applyExclusiveSort", () => {
+  it("keeps one sort and clears the other", () => {
+    expect(applyExclusiveSort("duration", "desc")).toEqual({
+      timeSort: null,
+      durationSort: "desc",
+    });
+    expect(applyExclusiveSort("time", "asc")).toEqual({
+      timeSort: "asc",
+      durationSort: null,
+    });
+    expect(applyExclusiveSort("duration", null)).toEqual({
+      timeSort: null,
+      durationSort: null,
+    });
   });
 });
 

@@ -35,6 +35,7 @@ export default async function RawCdrPage() {
       headerLabels={HEADER_LABELS}
       showOps
       canRetry={canRetry}
+      durationSortable={false}
       emptyUnfiltered="Нет данных. Дождитесь загрузки CDR по FTP или нажмите «Повторить импорт»."
       initial={initial}
       initialListError={initialListError}

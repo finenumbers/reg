@@ -75,6 +75,8 @@ type Props = {
   onColumnFilterChange: (column: string, values: string[]) => void;
   timeSort?: TimeSort | null;
   onTimeSortChange?: (next: TimeSort | null) => void;
+  durationSort?: TimeSort | null;
+  onDurationSortChange?: (next: TimeSort | null) => void;
   plainColumns?: readonly string[];
   facetUrl?: (input: { column: string; filters: ColumnFilters; q?: string }) => string;
   /** OPRS replaces the shared CDR palette. Color comes from the stamped tone. */
@@ -107,6 +109,8 @@ export function TrafficTable({
   onColumnFilterChange,
   timeSort = null,
   onTimeSortChange,
+  durationSort = null,
+  onDurationSortChange,
   plainColumns,
   facetUrl,
   oprs = false,
@@ -129,6 +133,7 @@ export function TrafficTable({
               column: h,
               oprs: oprsPaint,
               timeSortable: onTimeSortChange != null,
+              durationSortable: onDurationSortChange != null,
               plain:
                 VOIPMONITOR_COLUMN_SET.has(h) ||
                 h === BILLING_MINUTES_COLUMN ||
@@ -173,10 +178,18 @@ export function TrafficTable({
                 />
               ) : null;
             const sort =
-              mode === "sort" && onTimeSortChange ? (
+              mode === "sort" && h === "elapsed_time" && onDurationSortChange ? (
                 <TimeSortHeader
                   header={header}
-                  timeSort={timeSort}
+                  sort={durationSort}
+                  labels={DURATION_SORT_LABELS}
+                  onChange={onDurationSortChange}
+                />
+              ) : mode === "sort" && onTimeSortChange ? (
+                <TimeSortHeader
+                  header={header}
+                  sort={timeSort}
+                  labels={TIME_SORT_LABELS}
                   onChange={onTimeSortChange}
                 />
               ) : null;
@@ -319,34 +332,43 @@ export function TrafficTable({
   );
 }
 
+const TIME_SORT_LABELS = {
+  idle: "Сортировать по дате и времени",
+  desc: "Дата и время, по убыванию. Нажмите для возрастания",
+  asc: "Дата и время, по возрастанию. Нажмите чтобы сбросить",
+};
+
+const DURATION_SORT_LABELS = {
+  idle: "Сортировать по длительности",
+  desc: "Длительность, по убыванию. Нажмите для возрастания",
+  asc: "Длительность, по возрастанию. Нажмите чтобы сбросить",
+};
+
 function TimeSortHeader({
   header,
-  timeSort,
+  sort,
+  labels,
   onChange,
 }: {
   header: string;
-  timeSort: TimeSort | null;
+  sort: TimeSort | null;
+  labels: { idle: string; desc: string; asc: string };
   onChange: (next: TimeSort | null) => void;
 }) {
-  const active = timeSort != null;
-  const label =
-    timeSort === "desc"
-      ? "Дата и время, по убыванию. Нажмите для возрастания"
-      : timeSort === "asc"
-        ? "Дата и время, по возрастанию. Нажмите чтобы сбросить"
-        : "Сортировать по дате и времени";
+  const active = sort != null;
+  const label = sort === "desc" ? labels.desc : sort === "asc" ? labels.asc : labels.idle;
   return (
-    <div className={`col-header col-header-sort${active ? "active" : ""}`}>
+    <div className={`col-header col-header-sort${active ? " active" : ""}`}>
       <button
         type="button"
         className="col-filter-trigger"
         aria-label={label}
         aria-pressed={active}
-        onClick={() => onChange(nextTimeSort(timeSort))}
+        onClick={() => onChange(nextTimeSort(sort))}
       >
         {header ? <span className="col-header-label">{header}</span> : null}
         <span className="col-filter-chevron" aria-hidden>
-          {timeSortChevron(timeSort)}
+          {timeSortChevron(sort)}
         </span>
       </button>
     </div>

@@ -99,6 +99,9 @@ export async function POST(request: Request) {
     filters: readFilters(record.filters),
     flags: flagsFrom(record),
     timeSort: parseTimeSort(typeof record.timeSort === "string" ? record.timeSort : null),
+    durationSort: parseTimeSort(
+      typeof record.durationSort === "string" ? record.durationSort : null,
+    ),
     snapshot,
     actorUserId: userId,
   });

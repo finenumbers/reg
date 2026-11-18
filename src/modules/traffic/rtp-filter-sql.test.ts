@@ -4,8 +4,10 @@ import { CALL_CATEGORY, CALL_STATUS } from "@/modules/traffic/call-class";
 import { escapeLike } from "@/modules/oprs/filter-sql";
 import {
   buildTrafficNoRtpFacetSql,
+  buildTrafficNoRtpPageSql,
   buildTrafficNoRtpSliceSql,
   trafficNoRtpCanMatch,
+  trafficSqlAppliesRtpGate,
   type TrafficNoRtpSqlInput,
 } from "@/modules/traffic/rtp-filter-sql";
 import { MOBILE_RF_DIRECTION } from "@/modules/rtu/columns";
@@ -119,5 +121,25 @@ describe("traffic absent RTP sql", () => {
     expect(poisoned.text).not.toContain("c.id = 'x'");
     expect(poisoned.values).toContain("7900");
     expect(poisoned.values).toContain(`%${escapeLike("%")}%`);
+  });
+
+  it("orders a seconds sort numerically and leaves the date order otherwise", () => {
+    const seconds = flattenSql(
+      buildTrafficNoRtpPageSql(input({ durationSort: "asc", timeSort: "desc" }), 100, 0),
+    );
+    expect(seconds.text).toContain("ASC NULLS LAST");
+    expect(seconds.text).toContain("c.cdr_id ASC");
+    expect(seconds.text).not.toContain("ELSE 0");
+    expect(seconds.text).not.toContain("c.cdr_date ASC");
+
+    const dated = flattenSql(buildTrafficNoRtpPageSql(input({ timeSort: "asc" }), 100, 0));
+    expect(dated.text).toContain("c.cdr_date ASC, c.cdr_id ASC");
+    expect(dated.text).not.toContain("NULLS LAST");
+  });
+
+  it("does not treat a seconds sort as the empty RTP shortcut", () => {
+    expect(trafficSqlAppliesRtpGate(true)).toBe(true);
+    expect(trafficSqlAppliesRtpGate(false)).toBe(false);
+    expect(trafficSqlAppliesRtpGate(undefined)).toBe(false);
   });
 });

@@ -10,6 +10,7 @@ import { loadBlockedNumbers } from "@/modules/phones/blocked-numbers";
 import { cdrHasBlockedNumber } from "@/modules/traffic/blocked-number";
 import type { CdrMonth } from "@/modules/traffic/cdr-month";
 import type { TrafficRowFlags } from "@/modules/traffic/row-flags";
+import type { DurationCursor } from "@/modules/traffic/billable-minutes-sql";
 import { trafficListOrderBy, type TimeSort } from "@/modules/traffic/traffic-sort";
 import {
   countOprsSlice,
@@ -42,9 +43,11 @@ export async function writeOprsExport(input: {
   filters: ColumnFilters;
   flags: TrafficRowFlags;
   timeSort: TimeSort | null;
+  durationSort: TimeSort | null;
   snapshot: Date;
   filePath: string;
 }): Promise<number> {
+  const durationSort = input.durationSort;
   const base = {
     year: input.month.year,
     month: input.month.month,
@@ -52,9 +55,10 @@ export async function writeOprsExport(input: {
     phoneQ: input.phoneQ,
     flags: input.flags,
     snapshot: input.snapshot,
-    timeSort: input.timeSort,
+    timeSort: durationSort ? null : input.timeSort,
+    durationSort,
   };
-  const computed = oprsUsesComputedRead(input.filters, input.flags);
+  const computed = oprsUsesComputedRead(input.filters, input.flags) || durationSort != null;
   const ctx = computed
     ? await loadOprsReadContext(input.filters, undefined, input.flags)
     : null;
@@ -74,16 +78,22 @@ export async function writeOprsExport(input: {
       ? Promise.resolve({ map: ctx.tones, labelUnpainted: ctx.labelUnpainted })
       : loadOprsToneReport(),
   ]);
-  const orderBy = trafficListOrderBy(input.timeSort);
+  const orderBy = trafficListOrderBy(base.timeSort);
   return writeOprsSheet({
     filePath: input.filePath,
     eachRow: async (visit) => {
       let cursor: OprsCursor | null = null;
+      let durationCursor: DurationCursor | null = null;
       for (;;) {
         const rows: OprsListRow[] =
           computed && ctx
             ? await withOprsTimeout((tx) =>
-                fetchOprsSlice(tx, { ...base, cursor }, ctx, OPRS_EXPORT_PAGE_SIZE),
+                fetchOprsSlice(
+                  tx,
+                  { ...base, cursor, durationCursor },
+                  ctx,
+                  OPRS_EXPORT_PAGE_SIZE,
+                ),
               )
             : await withOprsTimeout((tx) =>
                 tx.cdrRecord.findMany({
@@ -110,7 +120,11 @@ export async function writeOprsExport(input: {
         });
         for (const item of items) await visit(item.data);
         const last = rows[rows.length - 1]!;
-        cursor = { cdrDate: last.cdrDate, cdrId: last.cdrId };
+        if (durationSort) {
+          durationCursor = { elapsed: last.elapsedTime ?? "", cdrId: last.cdrId };
+        } else {
+          cursor = { cdrDate: last.cdrDate, cdrId: last.cdrId };
+        }
         if (rows.length < OPRS_EXPORT_PAGE_SIZE) break;
       }
     },
