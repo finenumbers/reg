@@ -23,6 +23,7 @@ function flagsFrom(params: URLSearchParams): TrafficRowFlags {
     failed: parseTrafficFlagParam(params.get("failed")),
     check: parseTrafficFlagParam(params.get("check")),
     success: parseTrafficFlagParam(params.get("success")),
+    noRtp: parseTrafficFlagParam(params.get("noRtp")),
   };
 }
 

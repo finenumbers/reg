@@ -32,6 +32,7 @@ export async function GET(request: Request) {
   const failed = parseTrafficFlagParam(url.searchParams.get("failed"));
   const check = parseTrafficFlagParam(url.searchParams.get("check"));
   const success = parseTrafficFlagParam(url.searchParams.get("success"));
+  const noRtp = parseTrafficFlagParam(url.searchParams.get("noRtp"));
   const q = url.searchParams.get("q") ?? undefined;
   const limitRaw = Number(url.searchParams.get("limit") ?? "200");
   const limit = Number.isFinite(limitRaw) ? limitRaw : 200;
@@ -47,6 +48,7 @@ export async function GET(request: Request) {
     failed,
     check,
     success,
+    noRtp,
     q,
     limit,
   });

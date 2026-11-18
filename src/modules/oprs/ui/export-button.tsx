@@ -18,6 +18,7 @@ type Props = {
   failed: boolean;
   check: boolean;
   success: boolean;
+  noRtp: boolean;
   timeSort: TimeSort | null;
 };
 
@@ -44,6 +45,7 @@ export function OprsExportButton(props: Props) {
           failed: props.failed,
           check: props.check,
           success: props.success,
+          noRtp: props.noRtp,
           timeSort: props.timeSort,
         }),
       });

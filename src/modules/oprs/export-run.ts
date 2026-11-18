@@ -17,7 +17,7 @@ import {
   loadOprsReadContext,
 } from "@/modules/oprs/computed-read";
 import { attachOprsDerived } from "@/modules/oprs/derived";
-import { oprsNeedsComputedSql } from "@/modules/oprs/filter-sql";
+import { oprsUsesComputedRead } from "@/modules/oprs/filter-sql";
 import { loadOprsToneReport } from "@/modules/oprs/operator-tone-load";
 import { OPRS_LIST_SELECT, oprsRowData, type OprsListRow } from "@/modules/oprs/row";
 import {
@@ -54,8 +54,10 @@ export async function writeOprsExport(input: {
     snapshot: input.snapshot,
     timeSort: input.timeSort,
   };
-  const computed = oprsNeedsComputedSql(input.filters);
-  const ctx = computed ? await loadOprsReadContext(input.filters) : null;
+  const computed = oprsUsesComputedRead(input.filters, input.flags);
+  const ctx = computed
+    ? await loadOprsReadContext(input.filters, undefined, input.flags)
+    : null;
   const total =
     computed && ctx
       ? await withOprsTimeout((tx) => countOprsSlice(tx, { ...base, cursor: null }, ctx))

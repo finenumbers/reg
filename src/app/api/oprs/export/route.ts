@@ -35,6 +35,7 @@ function flagsFrom(record: Record<string, unknown>): TrafficRowFlags {
     failed: flag(record, "failed"),
     check: flag(record, "check"),
     success: flag(record, "success"),
+    noRtp: flag(record, "noRtp"),
   };
 }
 

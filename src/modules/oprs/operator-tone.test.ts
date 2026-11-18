@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { NUMBERING_OR_MAX } from "@/modules/numbering-resource/filters";
 import { OPRS_COLUMNS } from "@/modules/traffic/columns";
 import { CALL_STATUS } from "@/modules/traffic/call-class";
+import { oprsFailedTailFill } from "@/modules/traffic/rtp-row";
 import {
   OPRS_OPERATOR_INNS,
   oprsFailedTail,
@@ -118,5 +119,14 @@ describe("oprs failed tail", () => {
     expect(oprsFailedTail("operator_b", OPRS_COLUMNS, CALL_STATUS.failed)).toBe(false);
     expect(oprsFailedTail("elapsed_time", OPRS_COLUMNS, CALL_STATUS.success)).toBe(false);
     expect(oprsFailedTail("elapsed_time", ["cdr_day"], CALL_STATUS.failed)).toBe(false);
+  });
+});
+
+describe("absent RTP tail", () => {
+  it("turns only the unsuccessful tail red", () => {
+    expect(oprsFailedTailFill("Нет")).toBe("red");
+    expect(oprsFailedTailFill("Есть")).toBe("black");
+    expect(oprsFailedTailFill("")).toBe("black");
+    expect(oprsFailedTail("elapsed_time", OPRS_COLUMNS, CALL_STATUS.success)).toBe(false);
   });
 });

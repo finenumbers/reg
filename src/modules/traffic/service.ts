@@ -29,6 +29,7 @@ import {
 import { listCachedMonthCounts } from "@/modules/traffic/cdr-month-stats";
 import { countInboxFiles } from "@/modules/traffic/inbox";
 import { listPoisonEntries } from "@/modules/traffic/poison";
+import { oprsGuiHost } from "@/modules/oprs/calltrace";
 import { calltraceCells, parseVoipmonitorLegs } from "@/modules/voipmonitor/legs";
 import { splitCdrDateParts } from "@/modules/traffic/cdr-date-parts";
 import {
@@ -48,8 +49,19 @@ import {
   trafficListOrderBy,
   type TimeSort,
 } from "@/modules/traffic/traffic-sort";
+import { withCdrReadTimeout } from "@/modules/traffic/read-timeout";
+import {
+  buildTrafficNoRtpCountSql,
+  buildTrafficNoRtpFacetSql,
+  buildTrafficNoRtpPageSql,
+  trafficNoRtpCanMatch,
+  type TrafficNoRtpSqlInput,
+} from "@/modules/traffic/rtp-filter-sql";
 import { trafficFlagWhere, type TrafficRowFlags } from "@/modules/traffic/row-flags";
-import { cdrHasBlockedNumber } from "@/modules/traffic/blocked-number";
+import {
+  cdrHasBlockedNumber,
+  type CdrBlockedNumberSource,
+} from "@/modules/traffic/blocked-number";
 import { loadBlockedNumbers } from "@/modules/phones/blocked-numbers";
 
 export type { CdrMonth };
@@ -238,6 +250,68 @@ async function listTrafficMonths(): Promise<CdrMonth[]> {
   return listCachedMonthCounts();
 }
 
+function asCount(value: unknown): number {
+  const n = typeof value === "bigint" ? Number(value) : Number(value);
+  if (!Number.isSafeInteger(n) || n < 0) {
+    throw new Error("Некорректный подсчёт");
+  }
+  return n;
+}
+
+async function readVoipmonitorGui(): Promise<{ guiUrl: string; guiHost: string }> {
+  const setting = await prisma.appSetting.findUnique({
+    where: { id: 1 },
+    select: { voipmonitorGuiUrl: true },
+  });
+  const guiUrl = setting?.voipmonitorGuiUrl?.trim() ?? "";
+  return { guiUrl, guiHost: oprsGuiHost(guiUrl) };
+}
+
+function emptyTrafficPage(
+  month: CdrMonth,
+  page: number,
+  pageSize: number,
+  months?: CdrMonth[],
+): ListTrafficResult {
+  return {
+    items: [],
+    headers: [...CDR_COLUMNS],
+    total: 0,
+    page,
+    pageSize,
+    month: month.key,
+    months,
+  };
+}
+
+type TrafficRow = CdrBlockedNumberSource & {
+  id: string;
+  cdrAt: Date | null;
+};
+
+async function hydrateTrafficRows(
+  rows: TrafficRow[],
+  guiUrl: string,
+  blockedNumbers: Awaited<ReturnType<typeof loadBlockedNumbers>>,
+): Promise<TrafficListItem[]> {
+  if (rows.length === 0) return [];
+  const links = await prisma.cdrVoipmonitorLink.findMany({
+    where: { cdrRecordId: { in: rows.map((row) => row.id) } },
+    select: { cdrRecordId: true, voipmonitorLegs: true },
+  });
+  const linkById = new Map(links.map((link) => [link.cdrRecordId, link]));
+  return rows.map((row) => ({
+    id: row.id,
+    cdrAt: row.cdrAt?.toISOString() ?? null,
+    data: rowToData(
+      row as unknown as Record<string, unknown>,
+      linkById.get(row.id),
+      guiUrl,
+    ),
+    ...(cdrHasBlockedNumber(blockedNumbers, row) ? { blocked: true as const } : {}),
+  }));
+}
+
 export async function listTraffic(opts: {
   filters?: ColumnFilters;
   phoneQ?: string;
@@ -248,6 +322,7 @@ export async function listTraffic(opts: {
   failed?: boolean;
   check?: boolean;
   success?: boolean;
+  noRtp?: boolean;
   timeSort?: TimeSort | null;
   page?: number;
   pageSize?: number;
@@ -264,7 +339,19 @@ export async function listTraffic(opts: {
     failed: opts.failed,
     check: opts.check,
     success: opts.success,
+    noRtp: opts.noRtp,
   };
+  if (opts.noRtp) {
+    return listTrafficWithoutRtp({
+      filters,
+      phoneQ,
+      month,
+      flags,
+      timeSort: opts.timeSort ?? null,
+      page,
+      pageSize,
+    });
+  }
   const where = buildWhere(filters, phoneQ, month, flags);
   const skip = (page - 1) * pageSize;
   const includeMonths = page === 1;
@@ -281,36 +368,18 @@ export async function listTraffic(opts: {
     loadBlockedNumbers(),
   ]);
 
-  const [links, guiSetting] =
+  const guiUrl =
     rows.length === 0
-      ? [[], null]
-      : await Promise.all([
-          prisma.cdrVoipmonitorLink.findMany({
-            where: { cdrRecordId: { in: rows.map((row) => row.id) } },
-            select: {
-              cdrRecordId: true,
-              voipmonitorLegs: true,
-            },
-          }),
-          prisma.appSetting.findUnique({
+      ? ""
+      : ((
+          await prisma.appSetting.findUnique({
             where: { id: 1 },
             select: { voipmonitorGuiUrl: true },
-          }),
-        ]);
-  const guiUrl = guiSetting?.voipmonitorGuiUrl?.trim() ?? "";
-  const linkById = new Map(links.map((link) => [link.cdrRecordId, link]));
+          })
+        )?.voipmonitorGuiUrl?.trim() ?? "");
 
   return {
-    items: rows.map((row) => ({
-      id: row.id,
-      cdrAt: row.cdrAt?.toISOString() ?? null,
-      data: rowToData(
-        row as unknown as Record<string, unknown>,
-        linkById.get(row.id),
-        guiUrl,
-      ),
-      ...(cdrHasBlockedNumber(blockedNumbers, row) ? { blocked: true } : {}),
-    })),
+    items: await hydrateTrafficRows(rows, guiUrl, blockedNumbers),
     headers: [...CDR_COLUMNS],
     total,
     page,
@@ -362,6 +431,7 @@ export async function listTrafficFacets(opts: {
   failed?: boolean;
   check?: boolean;
   success?: boolean;
+  noRtp?: boolean;
   q?: string;
   limit?: number;
 }): Promise<FacetResponse> {
@@ -381,7 +451,19 @@ export async function listTrafficFacets(opts: {
     failed: opts.failed,
     check: opts.check,
     success: opts.success,
+    noRtp: opts.noRtp,
   };
+  if (opts.noRtp) {
+    return listTrafficFacetsWithoutRtp({
+      column,
+      filters: opts.filters ?? {},
+      phoneQ,
+      month,
+      flags,
+      q,
+      limit,
+    });
+  }
   const where = buildWhere(opts.filters ?? {}, phoneQ, month, flags, {
     excludeColumn: column,
   });
@@ -408,6 +490,103 @@ export async function listTrafficFacets(opts: {
   return {
     items: items.slice(0, limit),
     truncated: grouped.length > limit,
+  };
+}
+
+async function listTrafficWithoutRtp(input: {
+  filters: ColumnFilters;
+  phoneQ: string;
+  month: CdrMonth;
+  flags: TrafficRowFlags;
+  timeSort: TimeSort | null;
+  page: number;
+  pageSize: number;
+}): Promise<ListTrafficResult> {
+  const includeMonths = input.page === 1;
+  const { guiUrl, guiHost } = await readVoipmonitorGui();
+  if (!trafficNoRtpCanMatch(input.flags, guiHost)) {
+    const months = includeMonths ? await listTrafficMonths() : undefined;
+    return emptyTrafficPage(input.month, input.page, input.pageSize, months);
+  }
+  const query: TrafficNoRtpSqlInput = {
+    year: input.month.year,
+    month: input.month.month,
+    filters: input.filters,
+    phoneQ: input.phoneQ,
+    flags: input.flags,
+    guiHost,
+    timeSort: input.timeSort,
+  };
+  const skip = (input.page - 1) * input.pageSize;
+  const [counted, months, blockedNumbers] = await Promise.all([
+    withCdrReadTimeout(async (tx) => {
+      const counts = await tx.$queryRaw<Array<{ count: unknown }>>(
+        buildTrafficNoRtpCountSql(query),
+      );
+      const ids = await tx.$queryRaw<Array<{ id: string }>>(
+        buildTrafficNoRtpPageSql(query, input.pageSize, skip),
+      );
+      return { total: asCount(counts[0]?.count ?? 0), ids };
+    }),
+    includeMonths ? listTrafficMonths() : Promise.resolve(undefined),
+    loadBlockedNumbers(),
+  ]);
+  const idOrder = new Map(counted.ids.map((row, index) => [row.id, index]));
+  const rows =
+    counted.ids.length === 0
+      ? []
+      : await prisma.cdrRecord.findMany({
+          where: { id: { in: counted.ids.map((row) => row.id) } },
+        });
+  rows.sort((a, b) => (idOrder.get(a.id) ?? 0) - (idOrder.get(b.id) ?? 0));
+  return {
+    items: await hydrateTrafficRows(rows, guiUrl, blockedNumbers),
+    headers: [...CDR_COLUMNS],
+    total: counted.total,
+    page: input.page,
+    pageSize: input.pageSize,
+    month: input.month.key,
+    months,
+  };
+}
+
+async function listTrafficFacetsWithoutRtp(input: {
+  column: string;
+  filters: ColumnFilters;
+  phoneQ: string;
+  month: CdrMonth;
+  flags: TrafficRowFlags;
+  q: string;
+  limit: number;
+}): Promise<FacetResponse> {
+  const { guiHost } = await readVoipmonitorGui();
+  if (!trafficNoRtpCanMatch(input.flags, guiHost)) {
+    return { items: [], truncated: false };
+  }
+  const query: TrafficNoRtpSqlInput = {
+    year: input.month.year,
+    month: input.month.month,
+    filters: input.filters,
+    phoneQ: input.phoneQ,
+    flags: input.flags,
+    guiHost,
+    timeSort: null,
+  };
+  const grouped = await withCdrReadTimeout((tx) =>
+    tx.$queryRaw<Array<{ value: string | null; count: unknown }>>(
+      buildTrafficNoRtpFacetSql(query, input.column, input.q, input.limit),
+    ),
+  );
+  const items = arrangeTrafficFacetItems(
+    input.column,
+    grouped.slice(0, input.limit).map((row) => ({
+      value: toFilterToken(row.value == null ? "" : String(row.value)),
+      count: asCount(row.count),
+    })),
+  );
+  return {
+    items,
+    truncated: grouped.length > input.limit,
   };
 }
 

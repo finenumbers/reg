@@ -38,7 +38,7 @@ import {
   readOprsComputedFacets,
 } from "@/modules/oprs/computed-read";
 import { attachOprsDerived } from "@/modules/oprs/derived";
-import { oprsNeedsComputedSql } from "@/modules/oprs/filter-sql";
+import { oprsUsesComputedRead } from "@/modules/oprs/filter-sql";
 import { OPRS_LIST_SELECT, oprsRowData, type OprsListRow } from "@/modules/oprs/row";
 import { withOprsTimeout } from "@/modules/oprs/timeout";
 import { buildOprsWhere, resolveOprsSnapshot } from "@/modules/oprs/where";
@@ -133,8 +133,10 @@ export async function listOprs(
     cursor: input.cursor,
     timeSort: input.timeSort,
   };
-  const computed = oprsNeedsComputedSql(input.filters);
-  const ctx = computed ? await loadOprsReadContext(input.filters) : null;
+  const computed = oprsUsesComputedRead(input.filters, input.flags);
+  const ctx = computed
+    ? await loadOprsReadContext(input.filters, undefined, input.flags)
+    : null;
   const orderBy = trafficListOrderBy(input.timeSort);
   const page =
     computed && ctx
@@ -240,8 +242,8 @@ export async function listOprsFacets(
   const snapshot = resolveOprsSnapshot(input.snapshotRaw, now);
   const month = resolveMonthKey(input.month, now);
   const limit = Math.min(500, Math.max(1, input.limit));
-  if (oprsNeedsComputedSql(input.filters, column)) {
-    const ctx = await loadOprsReadContext(input.filters, column);
+  if (oprsUsesComputedRead(input.filters, input.flags, column)) {
+    const ctx = await loadOprsReadContext(input.filters, column, input.flags);
     return withOprsTimeout((tx) =>
       readOprsComputedFacets(
         tx,

@@ -1,7 +1,13 @@
-# Current Phase — production (v1.320.0)
+# Current Phase — production (v1.321.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, purchased numbers, numbering sync, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-18
+
+## v1.321.0 — Absent RTP is red
+
+This release does not migrate and does not rewrite CDR rows. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before the new one starts, then start one new app. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged.
+
+«Телефонный трафик» and «Звонки в ОПРС» no longer show the RTP column. «Сырые данные» still shows it after Calltrace Out. A traffic row whose RTP is «Нет» is saturated red, above the other row colors. A blocked number stays black. On «Звонки в ОПРС» the black tail of a «Неуспешный» call turns that same red only when RTP is «Нет». The other unsuccessful tails stay black. A successful OPRS call is not painted for RTP. Both screens add the checkbox «Нет RTP». It is combined with the other checkboxes. On «Звонки в ОПРС» the «Неуспешный» checkbox is a black badge. The OPRS xlsx follows the open filter and no longer has the RTP column. The month traffic workbook is unchanged.
 
 ## v1.320.0 — RTP on the CDR tables
 

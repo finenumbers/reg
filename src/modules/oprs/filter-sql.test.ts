@@ -14,6 +14,8 @@ import {
   oprsFacetMatchSql,
   oprsMarkingJson,
   oprsNeedsComputedSql,
+  oprsUsesComputedRead,
+  oprsUsesRtp,
   oprsStoredColumnSql,
   requireOprsMonthPrefix,
   type OprsSqlContext,
@@ -224,6 +226,40 @@ describe("oprs computed sql", () => {
     const blind = sliceText(input({ filters: { rtp: ["Есть"] } }), ctx());
     expect(blind.text).not.toContain("voipmonitor_legs");
     expect(() => oprsStoredColumnSql("rtp")).toThrow(OprsQueryError);
+  });
+
+  it("filters absent RTP from the checkbox without a column filter", () => {
+    const flat = sliceText(
+      input({ flags: { noRtp: true } }),
+      ctx({ guiHost: "gui.example" }),
+    );
+    expect(flat.text).toContain("cdr_voipmonitor_links");
+    expect(flat.text).toContain("->>'audio'");
+    expect(flat.values).toContain("Нет");
+    expect(flat.values).toContain("gui.example");
+
+    const withFailed = sliceText(
+      input({ flags: { noRtp: true, failed: true } }),
+      ctx({ guiHost: "gui.example" }),
+    );
+    expect(withFailed.text).toContain(" OR ");
+    expect(withFailed.values).toContain("Нет");
+    expect(withFailed.values).toContain("Неуспешный");
+
+    const blind = sliceText(input({ flags: { noRtp: true } }), ctx());
+    expect(blind.text).not.toContain("voipmonitor_legs");
+    expect(blind.values).toContain("Нет");
+
+    const painted = sliceText(
+      input({ filters: { oprs_network: ["МТС"] }, flags: { noRtp: true } }),
+      ctx({ guiHost: "gui.example", tones: { "ПАО МТС": "red" } }),
+    );
+    expect(painted.values).toContain("gui.example");
+    expect(painted.values).toContain("Нет");
+    expect(oprsUsesRtp({ oprs_network: ["МТС"] }, undefined, { noRtp: true })).toBe(true);
+    expect(oprsUsesComputedRead({}, { noRtp: true })).toBe(true);
+    expect(oprsUsesComputedRead({ oprs_network: ["МТС"] }, { noRtp: true })).toBe(true);
+    expect(oprsUsesComputedRead({}, {})).toBe(false);
   });
 
   it("uses one aggregate and the same search tokens as the stored menu", () => {

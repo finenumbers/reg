@@ -17,6 +17,8 @@ export type TrafficRowFlags = {
   failed?: boolean;
   check?: boolean;
   success?: boolean;
+  /** Visible Calltrace leg has no RTP. Not a CDR column. */
+  noRtp?: boolean;
 };
 
 export function parseTrafficFlagParam(raw: string | null): boolean {

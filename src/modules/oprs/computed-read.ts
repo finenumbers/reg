@@ -9,6 +9,7 @@ import { toFilterToken, type FacetResponse } from "@/components/column-filters/t
 import { prisma } from "@/lib/db";
 import type { BlockedNumberIndex } from "@/modules/phones/blocked-numbers";
 import { loadBlockedNumbers } from "@/modules/phones/blocked-numbers";
+import type { TrafficRowFlags } from "@/modules/traffic/row-flags";
 import { arrangeTrafficFacetItems } from "@/modules/traffic/traffic-sort";
 import { oprsGuiHost } from "@/modules/oprs/calltrace";
 import type { OprsCatalogLabels } from "@/modules/oprs/derived";
@@ -146,10 +147,11 @@ async function readGuiHost(): Promise<string> {
 export async function loadOprsReadContext(
   filters: OprsSqlInput["filters"],
   facetColumn?: string,
+  flags?: TrafficRowFlags,
 ): Promise<OprsReadContext> {
   const marking = oprsUsesMarking(filters, facetColumn);
   const calltrace = oprsUsesCalltrace(filters, facetColumn);
-  const rtp = oprsUsesRtp(filters, facetColumn);
+  const rtp = oprsUsesRtp(filters, facetColumn, flags);
   const [tone, blocked, labels, guiHost] = await Promise.all([
     loadOprsToneReport(),
     loadBlockedNumbers(),

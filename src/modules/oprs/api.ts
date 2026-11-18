@@ -12,6 +12,7 @@ export type OprsListQuery = {
   failed?: boolean;
   check?: boolean;
   success?: boolean;
+  noRtp?: boolean;
   timeSort?: TimeSort | null;
   snapshot?: string | null;
   cursor?: { cdrDate: string; cdrId: string } | null;
@@ -29,6 +30,7 @@ function writeShared(params: URLSearchParams, opts: OprsListQuery): void {
   if (opts.failed) params.set("failed", "1");
   if (opts.check) params.set("check", "1");
   if (opts.success) params.set("success", "1");
+  if (opts.noRtp) params.set("noRtp", "1");
   if (opts.timeSort) params.set("timeSort", opts.timeSort);
   if (opts.snapshot?.trim()) params.set("snapshot", opts.snapshot.trim());
   if (opts.cursor?.cdrDate && opts.cursor.cdrId) {

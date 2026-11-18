@@ -11,7 +11,9 @@ export type RowColorTone =
   | "check"
   | "unregistered"
   | "blocked"
-  | "missing";
+  | "missing"
+  | "rtpAbsent"
+  | "unsuccessful";
 
 const TONE_CLASS: Record<RowColorTone, string> = {
   phantom: "bg-green-200 dark:bg-green-950",
@@ -22,6 +24,8 @@ const TONE_CLASS: Record<RowColorTone, string> = {
   unregistered: "bg-destructive/10",
   blocked: "bg-black text-white",
   missing: "bg-red-600 text-white",
+  rtpAbsent: "bg-red-600 text-white",
+  unsuccessful: "bg-black text-white",
 };
 
 /** Badge chrome on checkbox label text — same base fill as the matching table row. */

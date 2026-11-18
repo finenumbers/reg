@@ -195,7 +195,6 @@ export const TRAFFIC_SUMMARY_COLUMNS = [
   "dp_name",
   "disconnect_code_string",
   ...VOIPMONITOR_COLUMNS,
-  RTP_COLUMN,
 ] as const;
 
 export const TRAFFIC_SUMMARY_LABELS: Record<
@@ -222,7 +221,6 @@ export const TRAFFIC_SUMMARY_LABELS: Record<
   disconnect_code_string: "Код завершения",
   voipmonitor_url_in: VOIPMONITOR_TRAFFIC_LABELS.voipmonitor_url_in,
   voipmonitor_url_out: VOIPMONITOR_TRAFFIC_LABELS.voipmonitor_url_out,
-  rtp: "RTP",
 };
 
 /** Display-only traffic column. Not a CDR field and not filterable. */
@@ -260,7 +258,6 @@ export const OPRS_COLUMNS = [
   "dp_name",
   "disconnect_code_string",
   ...VOIPMONITOR_COLUMNS,
-  RTP_COLUMN,
 ] as const;
 
 export const OPRS_LABELS: Record<(typeof OPRS_COLUMNS)[number], string> = {
@@ -282,7 +279,6 @@ export const OPRS_LABELS: Record<(typeof OPRS_COLUMNS)[number], string> = {
   disconnect_code_string: "Код завершения",
   voipmonitor_url_in: VOIPMONITOR_TRAFFIC_LABELS.voipmonitor_url_in,
   voipmonitor_url_out: VOIPMONITOR_TRAFFIC_LABELS.voipmonitor_url_out,
-  rtp: "RTP",
 };
 
 export const TRAFFIC_GEOGRAPHY_COLUMNS = [

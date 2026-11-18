@@ -80,6 +80,13 @@ describe("trafficFlagWhere", () => {
     });
   });
 
+  it("leaves absent RTP out of the stored predicate", () => {
+    expect(trafficFlagWhere({ noRtp: true })).toBeNull();
+    expect(trafficFlagWhere({ noRtp: true, failed: true })).toEqual({
+      callStatus: CALL_STATUS.failed,
+    });
+  });
+
   it("ANDs the flag predicate with phone search", () => {
     const flags = trafficFlagWhere({ callErrors: true })!;
     const where = applyPhoneQ(flags, "7900");

@@ -27,7 +27,6 @@ describe("OPRS columns", () => {
       "disconnect_code_string",
       "voipmonitor_url_in",
       "voipmonitor_url_out",
-      "rtp",
     ]);
     expect(OPRS_LABELS.operator_b).toBe("ОПРС (Реестр Минцифры)");
     expect(OPRS_LABELS.oprs_network).toBe("Сеть");
@@ -36,7 +35,7 @@ describe("OPRS columns", () => {
     expect(OPRS_LABELS.dst_name).toBe("Терминирующее устройство");
     expect(OPRS_LABELS.oprs_marking).toBe("Маркировка");
     expect(OPRS_LABELS.oprs_mav).toBe("МАВ");
-    expect(OPRS_LABELS.rtp).toBe("RTP");
+    expect(OPRS_COLUMNS).not.toContain("rtp");
     for (const column of OPRS_STATIC_COLUMNS) {
       expect(isTrafficColumn(column)).toBe(false);
     }

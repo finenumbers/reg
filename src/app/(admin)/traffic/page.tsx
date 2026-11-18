@@ -28,6 +28,7 @@ export default async function TrafficPage() {
       canRetry={false}
       emptyUnfiltered="Нет данных."
       showMonthExport
+      rtpChrome="row"
       initial={initial}
       initialListError={initialListError}
     />

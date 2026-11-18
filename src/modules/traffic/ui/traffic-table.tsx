@@ -29,6 +29,13 @@ import {
 } from "@/modules/oprs/operator-tone";
 import { trafficColumnHeaderMode } from "@/modules/traffic/header-mode";
 import { cdrRowTone } from "@/modules/traffic/row-tone";
+import {
+  isRtpAbsent,
+  OPRS_FAILED_TAIL_BLACK,
+  oprsFailedTailFill,
+  RTP_ABSENT_FILL,
+  type RtpChrome,
+} from "@/modules/traffic/rtp-row";
 import { cn } from "@/lib/utils";
 import {
   nextTimeSort,
@@ -61,6 +68,8 @@ type Props = {
   failed?: boolean;
   check?: boolean;
   success?: boolean;
+  noRtp?: boolean;
+  rtpChrome?: RtpChrome;
   openColumn: string | null;
   onOpenColumnChange: (column: string | null) => void;
   onColumnFilterChange: (column: string, values: string[]) => void;
@@ -91,6 +100,8 @@ export function TrafficTable({
   failed = false,
   check = false,
   success = false,
+  noRtp = false,
+  rtpChrome = "off",
   openColumn,
   onOpenColumnChange,
   onColumnFilterChange,
@@ -146,6 +157,7 @@ export function TrafficTable({
                           failed,
                           check,
                           success,
+                          noRtp,
                           q,
                         })
                   }
@@ -199,9 +211,12 @@ export function TrafficTable({
         ) : (
           data.map((row) => {
             const blocked = row.blocked === true;
-            const tone = blocked
-              ? null
-              : cdrRowTone(row.data.call_category ?? "", row.data.call_status ?? "");
+            const rtpAbsent = isRtpAbsent(row.data.rtp);
+            const paintRtpRow = rtpChrome === "row" && !blocked && rtpAbsent;
+            const tone =
+              blocked || paintRtpRow
+                ? null
+                : cdrRowTone(row.data.call_category ?? "", row.data.call_status ?? "");
             const oprsTone =
               blocked || !oprsPaint ? null : oprsStampedTone(row.data[OPRS_TONE_FIELD]);
             return (
@@ -209,6 +224,7 @@ export function TrafficTable({
                 key={row.id}
                 className={cn(
                   blocked && BLOCKED_ROW_CLASS,
+                  paintRtpRow && RTP_ABSENT_FILL,
                   !oprsPaint &&
                     tone === "phantom" &&
                     "bg-green-200 hover:bg-green-300/90 dark:bg-green-950 dark:hover:bg-green-900",
@@ -244,15 +260,19 @@ export function TrafficTable({
                     oprsPaint &&
                     !blocked &&
                     oprsFailedTail(h, headers, row.data.call_status ?? "");
+                  const tailRed =
+                    failedTail && rtpChrome === "tail" && oprsFailedTailFill(row.data.rtp) === "red";
                   return (
                     <TableCell
                       key={h}
                       className={cn(
                         "whitespace-nowrap",
                         boldSet.has(h) && "font-bold",
-                        !blocked && !failedTail && trafficMissingLabelClass(h, shown),
-                        failedTail &&
-                          "bg-black text-white hover:bg-black hover:text-white",
+                        !blocked &&
+                          !failedTail &&
+                          !paintRtpRow &&
+                          trafficMissingLabelClass(h, shown),
+                        failedTail && (tailRed ? RTP_ABSENT_FILL : OPRS_FAILED_TAIL_BLACK),
                       )}
                     >
                       {VOIPMONITOR_COLUMN_SET.has(h) ? (
@@ -263,7 +283,9 @@ export function TrafficTable({
                             rel="noopener noreferrer"
                             className={cn(
                               "underline-offset-2 hover:underline",
-                              blocked || failedTail ? "text-white" : "text-primary",
+                              blocked || failedTail || paintRtpRow
+                                ? "text-white"
+                                : "text-primary",
                             )}
                           >
                             {row.data[

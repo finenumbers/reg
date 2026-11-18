@@ -46,6 +46,7 @@ import type { ListTrafficResult, TrafficListItem } from "@/modules/traffic/servi
 import { MonthExportButtons } from "@/modules/traffic/ui/month-export-buttons";
 import { LoadAgeChip } from "@/modules/traffic/ui/load-age-chip";
 import { TrafficTable } from "@/modules/traffic/ui/traffic-table";
+import type { RtpChrome } from "@/modules/traffic/rtp-row";
 import type { TimeSort } from "@/modules/traffic/traffic-sort";
 import { composeTrafficBanner, displayTrafficFacet } from "@/modules/traffic/ui-format";
 
@@ -64,6 +65,7 @@ type LoadListOpts = {
   failed?: boolean;
   check?: boolean;
   success?: boolean;
+  noRtp?: boolean;
   timeSort?: TimeSort | null;
   cursor?: { cdrDate: string; cdrId: string } | null;
 };
@@ -83,6 +85,7 @@ type Props = {
   canRetry: boolean;
   emptyUnfiltered: string;
   showMonthExport?: boolean;
+  rtpChrome?: RtpChrome;
   source?: "traffic" | "oprs";
   initialSnapshot?: string | null;
   initial: ListTrafficResult;
@@ -101,6 +104,7 @@ export function TrafficView({
   canRetry,
   emptyUnfiltered,
   showMonthExport = false,
+  rtpChrome = "off",
   source = "traffic",
   initialSnapshot = null,
   initial,
@@ -116,6 +120,7 @@ export function TrafficView({
   const [failed, setFailed] = useState(false);
   const [check, setCheck] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [noRtp, setNoRtp] = useState(false);
   const [timeSort, setTimeSort] = useState<TimeSort | null>(null);
   const [month, setMonth] = useState(initial.month || currentUtcMonth().key);
   const [months, setMonths] = useState<CdrMonth[]>(
@@ -165,6 +170,7 @@ export function TrafficView({
   const failedRef = useRef(failed);
   const checkRef = useRef(check);
   const successRef = useRef(success);
+  const noRtpRef = useRef(noRtp);
   const timeSortRef = useRef(timeSort);
   const wasBusyRef = useRef(false);
   const lastFinishedAtRef = useRef<string | null | undefined>(undefined);
@@ -184,6 +190,7 @@ export function TrafficView({
   failedRef.current = failed;
   checkRef.current = check;
   successRef.current = success;
+  noRtpRef.current = noRtp;
   timeSortRef.current = timeSort;
 
   const defaultMonthKey = currentUtcMonth().key;
@@ -196,6 +203,7 @@ export function TrafficView({
     failed ||
     check ||
     success ||
+    noRtp ||
     timeSort != null ||
     month !== defaultMonthKey;
   const hasMore = oprs ? oprsHasMore : items.length < total;
@@ -225,6 +233,7 @@ export function TrafficView({
       const nextFailed = opts.failed ?? failedRef.current;
       const nextCheck = opts.check ?? checkRef.current;
       const nextSuccess = opts.success ?? successRef.current;
+      const nextNoRtp = opts.noRtp ?? noRtpRef.current;
       const nextTimeSort = "timeSort" in opts ? opts.timeSort : timeSortRef.current;
       const nextPage = opts.page ?? (replace ? 1 : page);
       const seq = ++refreshSeq.current;
@@ -250,6 +259,7 @@ export function TrafficView({
         failed: nextFailed,
         check: nextCheck,
         success: nextSuccess,
+        noRtp: nextNoRtp,
         timeSort: nextTimeSort,
         pageSize: PAGE_SIZE,
       };
@@ -477,6 +487,7 @@ export function TrafficView({
     setFailed(false);
     setCheck(false);
     setSuccess(false);
+    setNoRtp(false);
     setTimeSort(null);
     setMonth(nowMonth.key);
     setOpenColumn(null);
@@ -491,6 +502,7 @@ export function TrafficView({
       failed: false,
       check: false,
       success: false,
+      noRtp: false,
       timeSort: null,
       month: nowMonth.key,
     });
@@ -536,6 +548,11 @@ export function TrafficView({
   function onSuccessChange(checked: boolean) {
     setSuccess(checked);
     void loadList({ page: 1, replace: true, success: checked });
+  }
+
+  function onNoRtpChange(checked: boolean) {
+    setNoRtp(checked);
+    void loadList({ page: 1, replace: true, noRtp: checked });
   }
 
   function onTimeSortChange(next: TimeSort | null) {
@@ -708,6 +725,7 @@ export function TrafficView({
               failed={failed}
               check={check}
               success={success}
+              noRtp={noRtp}
               timeSort={timeSort}
             />
           ) : null}
@@ -853,12 +871,26 @@ export function TrafficView({
             />
             <Label htmlFor={`${searchInputId}-failed`}>
               {oprs ? (
-                <span className={FILTER_TOOLBAR_TEXT}>Неуспешный</span>
+                <RowColorMark tone="unsuccessful">Неуспешный</RowColorMark>
               ) : (
                 <RowColorMark tone="failed">Неуспешный</RowColorMark>
               )}
             </Label>
           </div>
+          {rtpChrome === "off" ? null : (
+            <div className="flex items-center gap-2">
+              <input
+                id={`${searchInputId}-no-rtp`}
+                type="checkbox"
+                className="size-4 rounded border"
+                checked={noRtp}
+                onChange={(e) => onNoRtpChange(e.target.checked)}
+              />
+              <Label htmlFor={`${searchInputId}-no-rtp`}>
+                <RowColorMark tone="rtpAbsent">Нет RTP</RowColorMark>
+              </Label>
+            </div>
+          )}
           {oprs ? null : (
             <div className="flex items-center gap-2">
               <input
@@ -925,6 +957,8 @@ export function TrafficView({
             failed={failed}
             check={check}
             success={success}
+            noRtp={noRtp}
+            rtpChrome={rtpChrome}
             openColumn={openColumn}
             onOpenColumnChange={setOpenColumn}
             onColumnFilterChange={onColumnChange}
@@ -946,6 +980,7 @@ export function TrafficView({
                       failed,
                       check,
                       success,
+                      noRtp,
                       q,
                       snapshot,
                     })

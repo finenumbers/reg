@@ -23,6 +23,7 @@ export default async function OprsPage() {
       showOps={false}
       canRetry={false}
       emptyUnfiltered="Нет данных."
+      rtpChrome="tail"
       initial={initial}
       initialSnapshot={initial.snapshot}
       initialListError={initialListError}

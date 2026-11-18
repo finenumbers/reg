@@ -30,7 +30,7 @@ import {
   VOIPMONITOR_COLUMN_IN,
   VOIPMONITOR_COLUMN_OUT,
 } from "@/modules/traffic/columns";
-import { RTP_ABSENT, RTP_PRESENT } from "@/modules/voipmonitor/legs";
+import { legOnHost, rtpAbsentSql, rtpExpr } from "@/modules/voipmonitor/rtp-sql";
 import { facetSearchMatch } from "@/modules/traffic/facet-search";
 import type { TrafficRowFlags } from "@/modules/traffic/row-flags";
 import type { TimeSort } from "@/modules/traffic/traffic-sort";
@@ -135,6 +135,15 @@ export function oprsNeedsComputedSql(
   return COMPUTED_COLUMNS.some((column) => (filters[column]?.length ?? 0) > 0);
 }
 
+/** The Prisma list cannot see RTP. The flag forces the same slice as a computed filter. */
+export function oprsUsesComputedRead(
+  filters: ColumnFilters,
+  flags: TrafficRowFlags,
+  facetColumn?: string,
+): boolean {
+  return oprsNeedsComputedSql(filters, facetColumn) || flags.noRtp === true;
+}
+
 export function oprsUsesMarking(filters: ColumnFilters, facetColumn?: string): boolean {
   return (
     facetColumn === OPRS_MARKING_COLUMN ||
@@ -153,8 +162,16 @@ export function oprsUsesCalltrace(filters: ColumnFilters, facetColumn?: string):
   );
 }
 
-export function oprsUsesRtp(filters: ColumnFilters, facetColumn?: string): boolean {
-  return facetColumn === RTP_COLUMN || (filters[RTP_COLUMN]?.length ?? 0) > 0;
+export function oprsUsesRtp(
+  filters: ColumnFilters,
+  facetColumn?: string,
+  flags?: TrafficRowFlags,
+): boolean {
+  return (
+    flags?.noRtp === true ||
+    facetColumn === RTP_COLUMN ||
+    (filters[RTP_COLUMN]?.length ?? 0) > 0
+  );
 }
 
 export function isOprsComputedColumn(column: string): boolean {
@@ -235,7 +252,7 @@ export function buildOprsSliceSql(
   const paint = usesPaint(input.filters, input.facetColumn);
   const marking = oprsUsesMarking(input.filters, input.facetColumn);
   const calltrace = oprsUsesCalltrace(input.filters, input.facetColumn);
-  const rtp = oprsUsesRtp(input.filters, input.facetColumn);
+  const rtp = oprsUsesRtp(input.filters, input.facetColumn, input.flags);
   const blocked =
     paint && (ctx.blocked.exact.size > 0 || ctx.blocked.pstn.size > 0)
       ? blockedExists(ctx.blocked)
@@ -257,7 +274,10 @@ export function buildOprsSliceSql(
     predicateSql(),
     columnFiltersSql(input.filters, input.excludeColumn),
     phoneSql(input.phoneQ),
-    flagSql(input.flags),
+    flagSql(
+      input.flags,
+      input.flags.noRtp ? rtpAbsentSql(ctx.guiHost) : null,
+    ),
     Prisma.sql`c."importedAt" <= ${input.snapshot}`,
     input.cursor ? keysetSql(input.timeSort, input.cursor) : null,
     computedFiltersSql(input.filters, input.excludeColumn, exprs),
@@ -390,27 +410,6 @@ function nameIn(names: readonly string[]): Prisma.Sql {
   return Prisma.sql`btrim(c.operator_b) IN (${Prisma.join([...names])})`;
 }
 
-function legUrl(side: "in" | "out"): Prisma.Sql {
-  return Prisma.raw(`btrim(COALESCE(l.voipmonitor_legs->'${side}'->>'url', ''))`);
-}
-
-/** Same host check the Calltrace cell uses. Side is the literal in or out. */
-function legOnHost(side: "in" | "out", host: string): Prisma.Sql {
-  const url = legUrl(side);
-  const scheme = Prisma.sql`(CASE WHEN ${url} ~* '^https://' THEN 'https' WHEN ${url} ~* '^http://' THEN 'http' ELSE '' END)`;
-  const authority = Prisma.sql`lower(regexp_replace(COALESCE(substring(${url} from '^[A-Za-z][A-Za-z0-9+.-]*://([^/?#]*)'), ''), '^.*@', ''))`;
-  const normalized = Prisma.sql`(
-    CASE
-      WHEN ${scheme} = 'https' AND right(${authority}, 4) = ':443'
-        THEN left(${authority}, -4)
-      WHEN ${scheme} = 'http' AND right(${authority}, 3) = ':80'
-        THEN left(${authority}, -3)
-      ELSE ${authority}
-    END
-  )`;
-  return Prisma.sql`${scheme} <> '' AND ${normalized} = lower(${host})`;
-}
-
 function calltraceExpr(side: "in" | "out", host: string): Prisma.Sql {
   if (!host) return Prisma.sql`''`;
   const id = Prisma.raw(`btrim(COALESCE(l.voipmonitor_legs->'${side}'->>'cdrId', ''))`);
@@ -418,23 +417,6 @@ function calltraceExpr(side: "in" | "out", host: string): Prisma.Sql {
     CASE
       WHEN ${legOnHost(side, host)}
         THEN COALESCE(NULLIF(${id}, ''), ${"открыть"})
-      ELSE ''
-    END
-  )`;
-}
-
-/** Out decides. In is read only when the outgoing link is not on the GUI host. */
-function rtpExpr(host: string): Prisma.Sql {
-  if (!host) return Prisma.sql`''`;
-  const outAudio = Prisma.raw(`l.voipmonitor_legs->'out'->>'audio'`);
-  const inAudio = Prisma.raw(`l.voipmonitor_legs->'in'->>'audio'`);
-  return Prisma.sql`(
-    CASE
-      WHEN ${legOnHost("out", host)} AND ${outAudio} = 'true' THEN ${RTP_PRESENT}
-      WHEN ${legOnHost("out", host)} AND ${outAudio} = 'false' THEN ${RTP_ABSENT}
-      WHEN ${legOnHost("out", host)} THEN ''
-      WHEN ${legOnHost("in", host)} AND ${inAudio} = 'true' THEN ${RTP_PRESENT}
-      WHEN ${legOnHost("in", host)} AND ${inAudio} = 'false' THEN ${RTP_ABSENT}
       ELSE ''
     END
   )`;
@@ -536,13 +518,14 @@ function phoneSql(phoneQ: string): Prisma.Sql | null {
   return orSql(parts);
 }
 
-function flagSql(flags: TrafficRowFlags): Prisma.Sql | null {
+function flagSql(flags: TrafficRowFlags, rtpAbsent: Prisma.Sql | null): Prisma.Sql | null {
   const parts: Prisma.Sql[] = [];
   if (flags.phantom) parts.push(Prisma.sql`c.call_category = ${CALL_CATEGORY.phantom}`);
   if (flags.callErrors) parts.push(Prisma.sql`c.call_category = ${CALL_CATEGORY.errors}`);
   if (flags.parking) parts.push(Prisma.sql`c.call_status = ${CALL_STATUS.parking}`);
   if (flags.failed) parts.push(Prisma.sql`c.call_status = ${CALL_STATUS.failed}`);
   if (flags.check) parts.push(Prisma.sql`c.call_category = ${CALL_CATEGORY.check}`);
+  if (flags.noRtp) parts.push(rtpAbsent ?? Prisma.sql`FALSE`);
   if (flags.success) {
     parts.push(Prisma.sql`(
       c.call_status = ${CALL_STATUS.success}

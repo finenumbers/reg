@@ -67,7 +67,6 @@ describe("CDR column contract", () => {
       "disconnect_code_string",
       "voipmonitor_url_in",
       "voipmonitor_url_out",
-      "rtp",
     ]);
     expect(TRAFFIC_SUMMARY_LABELS.cdr_day).toBe("Дата");
     expect(TRAFFIC_SUMMARY_LABELS.cdr_time).toBe("Время");
@@ -81,14 +80,12 @@ describe("CDR column contract", () => {
     );
     expect(TRAFFIC_SUMMARY_LABELS.voipmonitor_url_in).toBe("Calltrace In");
     expect(TRAFFIC_SUMMARY_LABELS.voipmonitor_url_out).toBe("Calltrace Out");
-    expect(TRAFFIC_SUMMARY_LABELS.rtp).toBe("RTP");
     expect(isTrafficColumn(BILLING_MINUTES_COLUMN)).toBe(false);
     expect(isTrafficColumn("rtp")).toBe(false);
     for (const col of TRAFFIC_SUMMARY_COLUMNS) {
       if (
         col === "voipmonitor_url_in" ||
         col === "voipmonitor_url_out" ||
-        col === "rtp" ||
         col === BILLING_MINUTES_COLUMN
       ) {
         expect(isTrafficColumn(col)).toBe(false);
