@@ -94,9 +94,9 @@ Do not hand-author conflicting auth table definitions. App RBAC (`roles` / `perm
 - SSH connection test is auth/session only and sends no command
 - RTU SOAP access check (Settings) is one read of `getObjects`. The password is AES-256-GCM ciphertext. A pasted PEM certificate is trusted only by that check. The client cannot build a write. API keys cannot call it.
 - `regs.poll` reads the RTU registration pages when Settings regular registration polling is on.
-- Auto-poll is Settings-only (`regsPollEnabled` + interval); in-process loop starts at boot; single `app` replica required
+- Auto-poll is Settings-only (`regsPollEnabled`; fixed 30 s interval); in-process loop starts at boot; single `app` replica required
 - Admin/settings/audit routes require RBAC permissions; anonymous users are redirected or rejected
-- Mutating APIs require same-origin Origin/Referer; login/poll/SSH-test are rate-limited (in-memory; single replica)
+- Mutating APIs require same-origin Origin/Referer; login, import retry, and SSH-test are rate-limited (in-memory; single replica)
 - Machine API keys (Settings → API-ключи): read-only `regs:read` + `phones:read`; `Authorization: Bearer` / `X-Api-Key`; 10 000 req/min per key; no poll/sync/settings/SSH/RTU-import/tariffs/SMG-xlsx-export
 
 ## Settings / SSH APIs

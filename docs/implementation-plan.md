@@ -63,7 +63,7 @@ Open questions **закрыты** — см. [open-questions.md](./open-questions
 
 - ssh profile CRUD (без отдачи plaintext key)
 - PPK/PEM import + normalize + encrypt (AES-GCM)
-- test-connection через allowlisted action
+- test-connection через `POST /api/settings/ssh/test`
 - audit events
 - Settings UI: host/port/user/key upload/passphrase/poll toggles
 - masked key state (`has_key`, fingerprint)
@@ -132,7 +132,6 @@ Open questions **закрыты** — см. [open-questions.md](./open-questions
 - `GET /api/regs/[phone]` (current + history)
 - `GET /api/regs/facets`
 - `GET /api/regs/export`
-- `POST /api/regs/poll`
 - `GET /api/regs/status` (summary)
 
 ### Phones
@@ -140,11 +139,9 @@ Open questions **закрыты** — см. [open-questions.md](./open-questions
 - `GET /api/phones/facets`
 - `GET /api/phones/export`
 - `GET /api/phones/status`
-- `POST /api/phones/request`
 
 ### Jobs / Audit
 - `GET /api/jobs`
-- `GET /api/jobs/:id`
 - `GET /api/audit`
 
 ### Health
@@ -160,7 +157,7 @@ Open questions **закрыты** — см. [open-questions.md](./open-questions
 | `rbac` | roles/permissions checks |
 | `settings` | app settings |
 | `ssh` | crypto, ppk import, client, test |
-| `actions` | allowlist resolve/validate/execute interface |
+| `actions` | тип кодов локальных задач (`AllowedActionCode`), реестра нет |
 | `jobs` | p-queue wiring, job_runs persistence |
 | `registrations` | parser, apply, queries |
 | `audit` | append/list |
@@ -173,7 +170,7 @@ UI pages и Route Handlers вызывают модули; бизнес-логи�
 | Route | Purpose |
 |-------|---------|
 | `/login` | вход |
-| `/` | redirect на первый доступный модуль |
+| `/` | главная панель (Dashboard) |
 | `/regs` | таблица + detail sheet (история) |
 | `/phones` | таблица endpoints/gateways |
 | `/settings` | SSH + poll |
@@ -184,8 +181,7 @@ UI pages и Route Handlers вызывают модули; бизнес-логи�
 
 - Source of truth schedule: `app_settings`
 - On boot + on settings save: reschedule in-process interval / timer
-- `regs.poll` serialized через `p-queue` (concurrency 1) + in-flight guard
-- Manual poll ставит ту же задачу в очередь
+- `regs.poll` идёт через общий `p-queue` (concurrency 3) и anti-overlap по коду задачи
 - No aggressive retries on schedule failures (не молотить softswitch)
 - Persist every attempt in `job_runs`
 - v1 assumption: single `app` replica

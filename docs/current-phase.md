@@ -1,7 +1,17 @@
-# Current Phase — production (v1.328.0)
+# Current Phase — production (v1.329.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, purchased numbers, numbering sync, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
-**Date:** 2026-11-18
+**Date:** 2026-11-19
+
+## v1.329.0 — Technical cleanup
+
+This release does not migrate and does not rewrite catalog rows, the CDR journal, or settings. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before the new one starts, then start one new app. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged.
+
+No screen, route, or response changes. The code that nothing called is removed: the old DID client and its table-export branch, the DID test rate limiter, unused helpers, constants, and types, and unused test-only hooks. The job action registry is now a type list of the allowed codes. The migration gate in `scripts/cdr-post-migrate.mjs` lists the 26 migrations that were missing from it. A test fails when a new migration is not classified, or when a label-free migration rewrites CDR labels. ESLint ignores the generated `dist` folder and warns about unused variables that do not start with `_`.
+
+The Docker Compose files no longer mount the `reg_smg_cdr_inbox` volume. Existing data on a host stays there. After the new app runs, remove that volume by hand with `docker volume rm reg_smg_cdr_inbox` if nothing uses it. `.env.example` documents the syslog settings `SYSLOG_BIND_PORT`, `SYSLOG_ADVERTISE_PORT`, `SMG_SYSLOG_DIR`, `SMG_SYSLOG_DROP_UID`, and `SMG_SYSLOG_DROP_GID`.
+
+The docs now match the code. The registrations poll interval is fixed at 30 seconds and is not set in Settings. The poll route and the phone request route do not exist. The home page is the Dashboard. The job queue runs three jobs at a time.
 
 ## v1.328.0 — Chain at 17:00 UTC, nav clocks, and red RTP rows
 

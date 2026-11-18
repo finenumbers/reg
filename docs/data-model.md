@@ -69,7 +69,7 @@ Permissions seed: `settings:write`, `ssh:test`, `regs:read`, `regs:poll`, `audit
 | id | int PK = 1 |
 | active_ssh_profile_id | FK nullable |
 | regs_poll_enabled | boolean |
-| regs_poll_interval_sec | int, настраивается в UI; технический min в валидации (рекомендуемо ≥ 30) |
+| regs_poll_interval_sec | int; в коде не читается: интервал фиксирован 30 с (`REGS_POLL_INTERVAL_SEC`), в UI не настраивается |
 | artifact_retention_days | int, настраивается в UI |
 | artifact_keep_last_runs | int, настраивается в UI |
 | artifact_max_bytes | int, лимит размера stdout/stderr на run |

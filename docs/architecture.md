@@ -155,7 +155,7 @@ Reg/
 
 ## 6. Поток данных модуля Registrations
 
-1. Scheduler (interval из `app_settings`, если polling enabled) ставит задачу `regs.poll` в `p-queue`.
+1. Scheduler (фиксированный интервал 30 с, если `regsPollEnabled`) ставит задачу `regs.poll` в `p-queue`.
 2. Очередь `p-queue` (concurrency=3) с anti-overlap **на action code**: второй `regs.poll` не стартует, пока первый in-flight (`phones.sync` / `groups.sync` / `cdr.import` могут идти параллельно). `cdr.purge.month` не стартует, пока `cdr.import` in-flight.
 3. Создаёт `job_runs` со статусом `running`.
 4. Читает учётку API РТУ и страницы «Регистрации (ПКомм)» и «Регистрации (ПУпр)». Конверт не пишется в артефакты.

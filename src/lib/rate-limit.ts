@@ -54,7 +54,7 @@ export class SlidingWindowRateLimiter {
 /** Login attempts per IP: 10 / 5 minutes */
 export const loginRateLimiter = new SlidingWindowRateLimiter(10, 5 * 60 * 1000);
 
-/** Manual poll triggers per user: 6 / minute (anti-hammer; anti-overlap still applies) */
+/** CDR and SMG import retries per user: 6 / minute */
 export const pollRateLimiter = new SlidingWindowRateLimiter(6, 60 * 1000);
 
 /** SSH test triggers per user: 10 / minute */
