@@ -10,4 +10,3 @@ export const voximplantAccessSaveSchema = z
   })
   .strict();
 
-export type VoximplantAccessSaveInput = z.infer<typeof voximplantAccessSaveSchema>;

@@ -50,10 +50,6 @@ export function invalidateCdrMonthCountCache(): void {
 }
 
 /** Months already counted in this process. Does not start a scan and does not invent a zero. */
-export function peekCachedMonthCounts(): CdrMonth[] | null {
-  return cacheStore().slot?.months ?? null;
-}
-
 type MonthCountRow = { month_key: string; calls: number };
 
 export async function queryMonthCallCounts(): Promise<CdrMonth[]> {

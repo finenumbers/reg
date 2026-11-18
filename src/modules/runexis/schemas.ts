@@ -11,4 +11,3 @@ export const runexisAccessSaveSchema = z
   })
   .strict();
 
-export type RunexisAccessSaveInput = z.infer<typeof runexisAccessSaveSchema>;

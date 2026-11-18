@@ -10,18 +10,11 @@ import path from "node:path";
 
 const FILE_NAME = "aurora.txt";
 
-let dirOverride: string | null = null;
 let chain: Promise<void> = Promise.resolve();
 let pending = "";
 
-export function setAuroraLogDirForTests(dir: string | null): void {
-  dirOverride = dir;
-  pending = "";
-  chain = Promise.resolve();
-}
-
 function directory(): string {
-  return dirOverride ?? path.join(process.cwd(), "data", "numbering-sync");
+  return path.join(process.cwd(), "data", "numbering-sync");
 }
 
 function filePath(): string {

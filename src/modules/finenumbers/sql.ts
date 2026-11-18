@@ -7,7 +7,6 @@ import { Prisma } from "@/generated/prisma/client";
 import { fillStageSplitSql } from "@/modules/numbering-catalog/decorate";
 import type { ExpandedNumber } from "@/modules/finenumbers/expand";
 
-export const FINENUMBERS_PROVIDER_SQL = "Finenumbers";
 export const SPLIT_BATCH = 2000;
 export const STAGE_CHUNK = 500;
 export const COPY_CHUNK = 5000;

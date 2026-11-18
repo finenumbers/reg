@@ -7,7 +7,6 @@ export const SHOP_ORIGIN = "https://shop.mcn.ru";
 export const VPBX_ORIGIN = "https://vpbx.mcn.ru";
 export const SHOP_HOST = "shop.mcn.ru";
 export const VPBX_HOST = "vpbx.mcn.ru";
-export const MCN_PROVIDER = "MCN Telecom";
 export const FREE_PAGE_LIMIT = 2000;
 export const FREE_PROBE_LIMIT = 25;
 export const PURCHASED_LIMIT = 100;

@@ -83,7 +83,6 @@ export type DomainSummary = {
 export type TelnumTableRow = {
   telnum: string;
   domain: string;
-  domainHref: string | null;
   fmc: string;
   gateways: string;
 };
@@ -325,14 +324,6 @@ export function pageRows<T>(rows: T[], offset: number, size: number): T[] {
   return rows.slice(offset, offset + size);
 }
 
-export function domainNames(rows: DomainRow[]): string[] {
-  return rows.map((row) => row.name);
-}
-
-export function telnumNames(rows: TelnumRow[]): string[] {
-  return rows.map((row) => row.telnum);
-}
-
 export function groupAssignedTelnums(snap: {
   committed: boolean;
   rows: TelnumRow[];
@@ -395,7 +386,6 @@ export function toTelnumTable(row: TelnumRow): TelnumTableRow {
   return {
     telnum: row.telnum,
     domain: showCell(domain),
-    domainHref: domain,
     fmc: formatYesNo(row.isFmc),
     gateways: row.gateways.length === 0 ? "—" : row.gateways.join(", "),
   };

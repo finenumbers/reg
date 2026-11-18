@@ -93,7 +93,6 @@ export async function runSyslogReceiver(
   let lastStatusAt = 0;
   const unknown = new Map<string, number>();
   const lastPacket = new Map<string, string>();
-  let accepted = 0;
   let wake: (() => void) | null = null;
 
   async function pullQueuedDatagrams(): Promise<void> {
@@ -268,7 +267,6 @@ export async function runSyslogReceiver(
       kept.push(packet);
       lastPacket.set(packet.ip, packet.receivedAt.toISOString());
       if (looksLikeDockerBridge(packet.ip)) bridgeSeen = true;
-      accepted += 1;
     }
     if (kept.length === 0) return current;
     return current ? current.concat(kept) : kept;

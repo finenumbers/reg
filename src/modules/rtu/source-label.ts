@@ -3,9 +3,6 @@
  * The label is the purchased-catalog provider code.
  */
 
-export const FINENUMBERS_PROVIDER_CODE = "finenumbers";
-export const GEOGRAPHY_MANUAL_SOURCE = "Вручную";
-
 const PROVIDER_LABELS: Record<string, string> = {
   sipout: "SipOut",
   runexis: "Runexis",

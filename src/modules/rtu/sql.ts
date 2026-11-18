@@ -542,15 +542,6 @@ function labeledSelect(): Prisma.Sql {
   `;
 }
 
-export function pageCountSql(cheap: Prisma.Sql): Prisma.Sql {
-  return Prisma.sql`
-    WITH ${baseCte}
-    SELECT count(*)::int AS n
-    FROM base
-    WHERE ${cheap}
-  `;
-}
-
 export function pageListSql(
   cheap: Prisma.Sql,
   limit: number,
@@ -568,19 +559,6 @@ export function pageListSql(
     ${joinedFrom(Prisma.sql`page`, Prisma.sql`TRUE`)}
     ${labeledSelect()}
     ORDER BY number ASC, id ASC
-  `;
-}
-
-export function catalogCountSql(cheap: Prisma.Sql, expensive: Prisma.Sql): Prisma.Sql {
-  return Prisma.sql`
-    WITH ${baseCte},
-    ${joinedFrom(Prisma.sql`base`, cheap)},
-    labeled AS (
-      ${labeledSelect()}
-    )
-    SELECT count(*)::int AS n
-    FROM labeled
-    WHERE ${expensive}
   `;
 }
 
@@ -611,25 +589,6 @@ export function pageFacetSql(column: RtuColumn, cheap: Prisma.Sql): Prisma.Sql {
     SELECT ${expr} AS value, count(*)::int AS count
     FROM base
     WHERE ${cheap}
-    GROUP BY 1
-  `;
-}
-
-export function catalogFacetSql(
-  column: RtuColumn,
-  cheap: Prisma.Sql,
-  expensive: Prisma.Sql,
-): Prisma.Sql {
-  const expr = columnRef(column);
-  return Prisma.sql`
-    WITH ${baseCte},
-    ${joinedFrom(Prisma.sql`base`, cheap)},
-    labeled AS (
-      ${labeledSelect()}
-    )
-    SELECT ${expr} AS value, count(*)::int AS count
-    FROM labeled
-    WHERE ${expensive}
     GROUP BY 1
   `;
 }

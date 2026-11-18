@@ -10,4 +10,3 @@ export const mcnAccessSaveSchema = z
   })
   .strict();
 
-export type McnAccessSaveInput = z.infer<typeof mcnAccessSaveSchema>;

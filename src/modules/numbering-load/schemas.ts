@@ -11,8 +11,6 @@ export const sipoutKeySaveSchema = z
   })
   .strict();
 
-export type SipoutKeySaveInput = z.infer<typeof sipoutKeySaveSchema>;
-
 export type NumberingLoadView = {
   host: typeof SIPOUT_ORIGIN;
   hasKey: boolean;

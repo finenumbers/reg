@@ -114,15 +114,3 @@ export async function loadOprsToneReport(
     if (timer) clearTimeout(timer);
   }
 }
-
-/** Fresh cache, else the map that arrives within the budget, else the last map. */
-export async function loadOprsOperatorToneMap(
-  now = Date.now(),
-): Promise<OprsOperatorToneMap> {
-  return (await loadOprsToneReport(now)).map;
-}
-
-export function resetOprsOperatorToneCache(): void {
-  cache = null;
-  pending = null;
-}

@@ -38,10 +38,6 @@ export type TraceCheckpointMeta = {
 /** Not a syslog file. The archive walker ignores it. */
 export const LIVE_FILE_KEY = "@live";
 
-export function isLiveFileKey(fileKey: string): boolean {
-  return fileKey.startsWith("@");
-}
-
 const TRACE_SLOT = /^(00|10|20|30|40|50)$/;
 
 export type TailPresence = "present" | "absent" | "unreadable";

@@ -7,7 +7,6 @@ import { Prisma } from "@/generated/prisma/client";
 import { fillStageSplitSql } from "@/modules/numbering-catalog/decorate";
 import type { UisRow } from "@/modules/uis/parse";
 
-export const UIS_PROVIDER = "UIS";
 export const SPLIT_BATCH = 2000;
 
 export const DELETE_UIS_FREE_SQL = `DELETE FROM free_numbers WHERE provider = 'UIS'`;

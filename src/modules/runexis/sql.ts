@@ -7,7 +7,6 @@ import { Prisma } from "@/generated/prisma/client";
 import { fillStageSplitSql } from "@/modules/numbering-catalog/decorate";
 import type { FreeDraft } from "@/modules/runexis/parse";
 
-export const RUNEXIS_PROVIDER = "Runexis";
 export const SPLIT_BATCH = 2000;
 
 export const DELETE_RUNEXIS_FREE_SQL = `DELETE FROM free_numbers WHERE provider = 'Runexis'`;

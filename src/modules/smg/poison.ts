@@ -3,7 +3,6 @@ import { smgPoisonStorePath } from "@/modules/smg/paths";
 import {
   errorHoldsMonth,
   isPurgeHoldError,
-  purgeHoldMessage,
   purgeHoldReleased,
 } from "@/modules/traffic/poison";
 

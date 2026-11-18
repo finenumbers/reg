@@ -6,7 +6,6 @@
 import { isTariffNumberAdmitted } from "@/modules/traffic/tariff-match";
 
 export const FINENUMBERS_INN = "5406978329";
-export const FINENUMBERS_PROVIDER = "Finenumbers";
 export const LOCAL_DIGITS = 7;
 export const LOCAL_MAX = 9_999_999;
 export const EXPAND_CHUNK = 500;

@@ -5,7 +5,6 @@
 import {
   encodeFilters,
   type ColumnFilters,
-  type FacetResponse,
 } from "@/components/column-filters/types";
 import type {
   ListNumberingResult,

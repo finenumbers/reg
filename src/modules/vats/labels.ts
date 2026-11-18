@@ -7,7 +7,6 @@ export const MSG_CREDENTIALS = "Укажите хост, логин и паро�
 export const MSG_EMPTY = "Пустой ответ не заменил сохранённый список.";
 export const MSG_TRUNCATED = "Ответ обрезан. Сохранённый список не изменён.";
 export const MSG_NOT_LIST = "Платформа вернула не список имён.";
-export const MSG_NOT_CATALOG = "Платформа вернула не список справочника.";
 export const MSG_DOMAIN_LIMIT = "В списке больше 1000 доменов. Снимок не изменён.";
 export const MSG_TELNUM_LIMIT = "В списке больше 5000 номеров. Снимок не изменён.";
 export const MSG_BUDGET = "Чтение раздела не уложилось в 45 минут. Снимок не изменён.";

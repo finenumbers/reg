@@ -7,7 +7,6 @@ import { Prisma } from "@/generated/prisma/client";
 import { fillStageSplitSql } from "@/modules/numbering-catalog/decorate";
 import { cityLabelSql } from "@/modules/rtu/sql";
 
-export const SIPOUT_PROVIDER = "SipOut";
 export const APPLY_TX = { maxWait: 10_000, timeout: 180_000 } as const;
 export const STAGE_BATCH = 2000;
 export const SPLIT_BATCH = 2000;

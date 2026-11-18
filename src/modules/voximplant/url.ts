@@ -4,7 +4,6 @@
  */
 
 export const VOXIMPLANT_ORIGIN = "https://api.voximplant.com";
-export const VOXIMPLANT_PROVIDER = "Voximplant";
 export const FREE_COUNT = 50;
 export const PURCHASED_COUNT = 100;
 export const OFFSET_MAX = 5_000_000;

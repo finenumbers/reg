@@ -338,5 +338,4 @@ export function createExolveClient(key: string, deps?: ExolveDeps) {
   };
 }
 
-export type ExolveClient = ReturnType<typeof createExolveClient>;
 export type { Directory, ExolveFreeRow };

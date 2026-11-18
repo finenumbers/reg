@@ -19,7 +19,6 @@ import {
   rescheduleAfterSettingsChange,
 } from "@/modules/jobs/scheduler";
 import {
-  deserializeEncryptedSecret,
   getSecretEncryptionService,
   serializeEncryptedSecret,
 } from "@/modules/ssh/secrets";
@@ -543,34 +542,6 @@ export async function replaceSshPrivateKey(
   });
 
   return view;
-}
-
-/**
- * Load decrypted private key for in-process SSH use only.
- * Caller must not log or return the plaintext.
- */
-export async function loadActiveSshPrivateKeyPem(): Promise<{
-  profileId: string;
-  host: string;
-  port: number;
-  username: string;
-  privateKeyPem: string;
-} | null> {
-  const settings = await ensureAppSettings();
-  const profile = settings.activeSshProfile;
-  if (!profile?.privateKeyCiphertext) return null;
-
-  const encryption = getSecretEncryptionService();
-  const envelope = deserializeEncryptedSecret(profile.privateKeyCiphertext);
-  const privateKeyPem = encryption.decrypt(envelope);
-
-  return {
-    profileId: profile.id,
-    host: profile.host,
-    port: profile.port,
-    username: profile.username,
-    privateKeyPem,
-  };
 }
 
 /**

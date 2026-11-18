@@ -238,7 +238,6 @@ export const OPRS_STATIC_COLUMNS = [
   OPRS_MARKING_COLUMN,
   OPRS_MAV_COLUMN,
 ] as const;
-export const OPRS_STATIC_COLUMN_SET = new Set<string>(OPRS_STATIC_COLUMNS);
 
 export const OPRS_COLUMNS = [
   "cdr_day",

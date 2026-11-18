@@ -10,4 +10,3 @@ export const uisAccessSaveSchema = z
   })
   .strict();
 
-export type UisAccessSaveInput = z.infer<typeof uisAccessSaveSchema>;

@@ -10,4 +10,3 @@ export const exolveAccessSaveSchema = z
   })
   .strict();
 
-export type ExolveAccessSaveInput = z.infer<typeof exolveAccessSaveSchema>;

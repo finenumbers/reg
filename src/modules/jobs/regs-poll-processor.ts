@@ -24,28 +24,6 @@ import {
   type CatalogRegistrationEndpoint,
 } from "@/modules/registrations/rtu-rows";
 
-/**
- * Sanitize stderr for inclusion in a job error. Phones sync still uses this.
- * Strips ANSI and control characters and prefers a permission line.
- */
-export function sanitizeStderrSnippet(stderr: string, maxLen = 240): string {
-  const strip = (value: string) =>
-    value
-      .replace(/\u001b\[[0-9;]*m/g, "")
-      .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, "")
-      .trim();
-  const lines = stderr
-    .split(/\r?\n/)
-    .map(strip)
-    .filter((line) => line.length > 0);
-  if (lines.length === 0) return "";
-  const preferred =
-    lines.find((line) => /permission denied|sudo:|mysql:|access-db\.conf/i.test(line)) ??
-    lines[0]!;
-  if (preferred.length <= maxLen) return preferred;
-  return `${preferred.slice(0, Math.max(0, maxLen - 1))}…`;
-}
-
 export type RegsPollProcessorInput = {
   trigger: JobTrigger;
   actorUserId?: string | null;

@@ -12,18 +12,11 @@ const FILE_NAME = "voximplant.txt";
 const FLUSH_AT = 64_000;
 const REJECTED = "Площадка отклонила запрос.";
 
-let dirOverride: string | null = null;
 let chain: Promise<void> = Promise.resolve();
 let pending = "";
 
-export function setVoximplantLogDirForTests(dir: string | null): void {
-  dirOverride = dir;
-  pending = "";
-  chain = Promise.resolve();
-}
-
 function directory(): string {
-  return dirOverride ?? path.join(process.cwd(), "data", "numbering-sync");
+  return path.join(process.cwd(), "data", "numbering-sync");
 }
 
 function filePath(): string {
