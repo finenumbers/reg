@@ -1,7 +1,12 @@
+import { readdirSync, readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
   appliedMigrations,
+  LABEL_FREE_MIGRATIONS,
+  LABEL_REWRITING_MIGRATIONS,
   planPostMigrate,
+  TARIFF_BLOCKING_MIGRATIONS,
 } from "../../../scripts/cdr-post-migrate.mjs";
 
 const QUIET = "No pending migrations to apply.\n";
@@ -288,5 +293,50 @@ describe("planPostMigrate", () => {
       callClass: true,
       tariff: true,
     });
+  });
+});
+
+/**
+ * Every migration after the last one the lists were written against must say
+ * how it touches stored CDR labels. A new migration with no entry fails here
+ * instead of starting a full cdr_records scan on the next deploy without a decision.
+ */
+const CLASSIFIED_FROM = "20261021021000_smg_trace_labels";
+const MIGRATIONS_DIR = fileURLToPath(new URL("../../../prisma/migrations", import.meta.url));
+const LABEL_REWRITE_SQL = [
+  /\bUPDATE\s+"?cdr_records"?\b/i,
+  /\bcdr_call_(category|status|type)\b/i,
+];
+
+function migrationFolders(): string[] {
+  return readdirSync(MIGRATIONS_DIR, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && /^\d{14}_/.test(entry.name))
+    .map((entry) => entry.name)
+    .filter((name) => name > CLASSIFIED_FROM)
+    .sort();
+}
+
+describe("migration classification guard", () => {
+  it("classifies every migration newer than the last reviewed one", () => {
+    const unclassified = migrationFolders().filter(
+      (name) =>
+        !LABEL_FREE_MIGRATIONS.has(name) &&
+        !TARIFF_BLOCKING_MIGRATIONS.has(name) &&
+        !LABEL_REWRITING_MIGRATIONS.has(name),
+    );
+    expect(unclassified).toEqual([]);
+  });
+
+  it("never lists a label-free migration that rewrites CDR labels", () => {
+    const rewriting = migrationFolders()
+      .filter((name) => LABEL_FREE_MIGRATIONS.has(name))
+      .filter((name) => {
+        const sql = readFileSync(`${MIGRATIONS_DIR}/${name}/migration.sql`, "utf8")
+          .split("\n")
+          .filter((line) => !line.trimStart().startsWith("--"))
+          .join("\n");
+        return LABEL_REWRITE_SQL.some((pattern) => pattern.test(sql));
+      });
+    expect(rewriting).toEqual([]);
   });
 });

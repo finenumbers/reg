@@ -17,12 +17,28 @@ export const LABEL_FREE_MIGRATIONS = new Set([
   "20261020190000_closed_dial_prefixes",
   "20261020220000_dial_exceptions",
   "20261021021000_smg_trace_labels",
+  "20261021140000_radius_calls",
+  "20261021160000_radius_ingest_age",
+  "20261021170000_parking_target",
+  "20261022120000_smg_cdr_af_labels",
+  "20261022180000_smg_af_charts",
+  "20261022190000_smg_node_antifraud",
+  "20261031120000_number_geography_refresh",
   "20261031180000_drop_enrich_jobs",
+  "20261101130000_did_api",
+  "20261102140000_rtu_soap_credentials",
+  "20261102150000_rtu_soap_ca",
+  "20261105020000_reg_user_agent",
+  "20261106180000_cdr_tariff_abc",
   "20261107123000_tariff_numbering",
   "20261107161000_tariff_region",
   "20261107170000_geography_mobile_abc",
   "20261107190000_geography_did_source",
+  "20261108020000_rtu_screen",
   "20261109120000_number_masks",
+  "20261109150000_vats_boss",
+  "20261111180000_zabbix_settings",
+  "20261111193000_zabbix_graph_titles",
   "20261113003000_number_masks_column_order",
   "20261113043000_rtu_screen_masks",
   "20261113120000_mask_hyphen",
@@ -38,10 +54,27 @@ export const LABEL_FREE_MIGRATIONS = new Set([
   "20261115140000_uis_source",
   "20261116010000_catalog_sale_columns",
   "20261116020000_catalog_decorate_epoch",
+  "20261116040000_geography_abc_text",
+  "20261116060000_aurora_source",
+  "20261116070000_aurora_file_links",
+  "20261116080000_exolve_source",
+  "20261116170000_voximplant_source",
+  "20261116191000_mcn_source",
+  "20261117010000_catalog_decorate_cursor",
+  "20261117020000_sync_card_counts",
+  "20261117150000_finenumbers_source",
+  "20261117180000_pstn_range_span",
   "20261117210000_drop_catalog_category",
   "20261118160000_rtp_leg_index",
   "20261118210000_purchased_provider_prices",
 ]);
+
+/**
+ * Migrations that rewrite stored CDR labels. None today. A migration that is
+ * neither here nor in LABEL_FREE_MIGRATIONS still runs the label pass, so this
+ * list only records the decision for the migration guard test.
+ */
+export const LABEL_REWRITING_MIGRATIONS = new Set();
 
 /**
  * Migrations whose SQL says stored CDR rows are rewritten by
