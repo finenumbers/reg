@@ -52,7 +52,7 @@ const CANCELLED = "Загрузка отменена. Каталог не изм
 const SHORT = "Ответ площадки обрезан. Каталог не изменён.";
 const CHANGED = "Список изменился во время чтения. Каталог не изменён.";
 const LOST = "Загрузка прервана. Каталог не изменён.";
-const CODE_READS = 3;
+const CODE_READS = 7;
 const STAGE_CHUNK = 500;
 
 function changedError(previous: number, next: number): string {
@@ -230,7 +230,7 @@ async function readSlice(
   slice: CodeSlice,
   draftBefore: number,
 ): Promise<{ done: WalkResult | null; draft: number }> {
-  let draft = draftBefore;
+  const draft = draftBefore;
   for (let attempt = 1; attempt <= CODE_READS; attempt += 1) {
     if (attempt > 1) await deps.progress("showcase", 0, 0, draft);
     const pass = await readPass(deps, slice, draft, attempt);

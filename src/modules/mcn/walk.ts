@@ -1,8 +1,9 @@
 /**
  * Purchased numbers and free numbers are separate walks.
  * One request at a time. A short free page is not kept and does not advance.
- * A free country gets five attempts. A moved total, a recount mismatch, or a
- * repeated number discards that attempt. A missed answer asks the same page again.
+ * A purchased list and each free country get seven attempts. A moved total, a
+ * recount mismatch, or a repeated free number discards that attempt. A missed
+ * answer asks the same page again.
  * The service publishes after a successful walk.
  */
 
@@ -39,8 +40,7 @@ export type WalkResult =
   | { ok: true; inserted: number }
   | { ok: false; error: string; reason: FailReason };
 
-const PURCHASED_ATTEMPTS = 2;
-const FREE_ATTEMPTS = 5;
+const LIST_ATTEMPTS = 7;
 
 type ReadOk<T> = { kind: "ok"; total: number; rows: T[] };
 type ReadShift = { kind: "shift"; error: string };
@@ -215,7 +215,7 @@ export async function runMcnPurchasedWalk(deps: {
       beat: deps.beat,
       log: deps.log,
     },
-    PURCHASED_ATTEMPTS,
+    LIST_ATTEMPTS,
   );
   if (purchased.kind !== "ok") {
     return failed(
@@ -270,7 +270,7 @@ export async function runMcnFreeWalk(deps: {
         beat: deps.beat,
         log: deps.log,
       },
-      FREE_ATTEMPTS,
+      LIST_ATTEMPTS,
     );
     if (read.kind !== "ok") {
       return failed(

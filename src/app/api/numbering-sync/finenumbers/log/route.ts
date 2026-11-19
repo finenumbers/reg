@@ -8,11 +8,11 @@ import { numberingSyncActor, numberingSyncJson } from "@/modules/numbering-sync/
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** GET /api/numbering-sync/finenumbers/log/free — the free stage log. Session only. */
+/** GET /api/numbering-sync/finenumbers/log — the stage log. Session only. */
 export async function GET(request: Request) {
   const actor = await numberingSyncActor(request);
   if (!actor.ok) return actor.response;
-  const file = await snapshotFinenumbersLog("free");
+  const file = await snapshotFinenumbersLog();
   if (!file) return numberingSyncJson({ error: "Журнал ещё не создан." }, 404);
   const nodeStream = createReadStream(file);
   nodeStream.on("close", () => {
@@ -25,7 +25,7 @@ export async function GET(request: Request) {
   return new Response(body, {
     headers: {
       "Content-Type": "text/plain; charset=utf-8",
-      "Content-Disposition": 'attachment; filename="finenumbers-free.txt"',
+      "Content-Disposition": 'attachment; filename="finenumbers.txt"',
       "Cache-Control": "private, no-store",
     },
   });

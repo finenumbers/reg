@@ -1,31 +1,27 @@
 /**
- * Two text files for one Finenumbers stage. The next stage truncates both.
+ * One text file for the Finenumbers stage. The next stage truncates it.
  * A phone number, a range bound, a price, and a URL never land in the file.
  */
 
 import { randomUUID } from "node:crypto";
-import { copyFile, mkdir, open, stat } from "node:fs/promises";
+import { copyFile, mkdir, open, stat, unlink } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-export type FinenumbersLogSide = "purchased" | "free";
-
-const FILE_NAME: Record<FinenumbersLogSide, string> = {
-  purchased: "finenumbers-purchased.txt",
-  free: "finenumbers-free.txt",
-};
+const FILE_NAME = "finenumbers.txt";
+const OLD_FILES = ["finenumbers-purchased.txt", "finenumbers-free.txt"];
 const FLUSH_AT = 64_000;
 const REJECTED = "Площадка отклонила запрос.";
 
 let chain: Promise<void> = Promise.resolve();
-const pending: Record<FinenumbersLogSide, string> = { purchased: "", free: "" };
+let pending = "";
 
 function directory(): string {
   return path.join(process.cwd(), "data", "numbering-sync");
 }
 
-function filePath(side: FinenumbersLogSide): string {
-  return path.join(directory(), FILE_NAME[side]);
+function filePath(): string {
+  return path.join(directory(), FILE_NAME);
 }
 
 function enqueue<T>(task: () => Promise<T>): Promise<T> {
@@ -61,13 +57,9 @@ export function sanitizeLogBlock(block: string): string {
     .join("\n");
 }
 
-async function writeHandle(
-  side: FinenumbersLogSide,
-  flags: "w" | "a",
-  text: string,
-): Promise<void> {
+async function writeHandle(flags: "w" | "a", text: string): Promise<void> {
   await mkdir(directory(), { recursive: true, mode: 0o750 });
-  const handle = await open(filePath(side), flags, 0o640);
+  const handle = await open(filePath(), flags, 0o640);
   try {
     await handle.write(text);
     await handle.sync();
@@ -76,9 +68,10 @@ async function writeHandle(
   }
 }
 
-async function writeBoth(flags: "w" | "a", text: string): Promise<void> {
-  await writeHandle("purchased", flags, text);
-  await writeHandle("free", flags, text);
+async function removeOldLogs(): Promise<void> {
+  for (const name of OLD_FILES) {
+    await unlink(path.join(directory(), name)).catch(() => undefined);
+  }
 }
 
 export async function beginFinenumbersLog(): Promise<void> {
@@ -92,65 +85,51 @@ export async function beginFinenumbersLog(): Promise<void> {
   );
   const body = header.endsWith("\n") ? header : `${header}\n`;
   await enqueue(async () => {
-    pending.purchased = "";
-    pending.free = "";
-    await writeBoth("w", body);
+    pending = "";
+    await removeOldLogs();
+    await writeHandle("w", body);
   });
 }
 
-function queueBlock(side: FinenumbersLogSide | "both", block: string): Promise<void> {
+function queueBlock(block: string): Promise<void> {
   const text = sanitizeLogBlock(block);
   const body = text.endsWith("\n") ? text : `${text}\n`;
   return enqueue(async () => {
-    const sides: FinenumbersLogSide[] = side === "both" ? ["purchased", "free"] : [side];
-    for (const item of sides) {
-      pending[item] += body;
-      if (pending[item].length < FLUSH_AT) continue;
-      const chunk = pending[item];
-      pending[item] = "";
-      await writeHandle(item, "a", chunk);
-    }
+    pending += body;
+    if (pending.length < FLUSH_AT) return;
+    const chunk = pending;
+    pending = "";
+    await writeHandle("a", chunk);
   });
 }
 
-/** Page lines go to both logs. A side total uses appendFinenumbersSide. */
+/** Page lines and both catalog totals share this file. */
 export async function appendFinenumbersLog(block: string): Promise<void> {
-  await queueBlock("both", block);
-}
-
-export async function appendFinenumbersSide(
-  side: FinenumbersLogSide,
-  block: string,
-): Promise<void> {
-  await queueBlock(side, block);
+  await queueBlock(block);
 }
 
 export async function flushFinenumbersLog(): Promise<void> {
   await enqueue(async () => {
-    for (const side of ["purchased", "free"] as const) {
-      if (!pending[side]) continue;
-      const body = pending[side];
-      pending[side] = "";
-      await writeHandle(side, "a", body);
-    }
+    if (!pending) return;
+    const body = pending;
+    pending = "";
+    await writeHandle("a", body);
   });
 }
 
-export async function finenumbersLogExists(side: FinenumbersLogSide): Promise<boolean> {
+export async function finenumbersLogExists(): Promise<boolean> {
   try {
-    const info = await stat(filePath(side));
+    const info = await stat(filePath());
     return info.isFile() && info.size > 0;
   } catch {
     return false;
   }
 }
 
-export async function snapshotFinenumbersLog(
-  side: FinenumbersLogSide,
-): Promise<string | null> {
+export async function snapshotFinenumbersLog(): Promise<string | null> {
   await flushFinenumbersLog();
-  if (!(await finenumbersLogExists(side))) return null;
-  const dest = path.join(os.tmpdir(), `finenumbers-${side}-log-${randomUUID()}.txt`);
-  await enqueue(() => copyFile(filePath(side), dest));
+  if (!(await finenumbersLogExists())) return null;
+  const dest = path.join(os.tmpdir(), `finenumbers-log-${randomUUID()}.txt`);
+  await enqueue(() => copyFile(filePath(), dest));
   return dest;
 }

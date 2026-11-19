@@ -21,18 +21,20 @@ export type SourceLog = {
   hasLog: boolean;
 };
 
+function countClass(label: string): string {
+  const weight = "text-right font-bold tabular-nums";
+  if (label === "Купленные") return `${weight} text-blue-600 dark:text-blue-400`;
+  if (label === "Свободные") return `${weight} text-green-600 dark:text-green-400`;
+  if (label === "Разобрано") return weight;
+  return "text-right tabular-nums";
+}
+
 type ButtonRowItem =
   | (SourceLoad & { kind: "load" })
   | (SourceLog & { kind: "log" });
 
-/** Two paired rows for a split source. One load with two logs stacks the logs underneath. */
+/** One load sits beside its log. A further log starts the next row. */
 function buttonRows(loads: SourceLoad[], logs: SourceLog[]): ButtonRowItem[][] {
-  if (loads.length === 1 && logs.length === 2) {
-    return [
-      [{ ...loads[0]!, kind: "load" }],
-      logs.map((log) => ({ ...log, kind: "log" as const })),
-    ];
-  }
   const count = Math.max(loads.length, logs.length);
   const rows: ButtonRowItem[][] = [];
   for (let index = 0; index < count; index += 1) {
@@ -66,17 +68,19 @@ export function SourceCard({
   return (
     <div className="max-w-xl space-y-4" onKeyDown={onKeyDown}>
       <h2 className="text-base font-semibold">{name}</h2>
-      {times.map((time) => (
-        <p key={time.label} className="text-sm">
-          {time.label}: <span className="font-semibold">{time.value}</span>
-        </p>
-      ))}
+      <div>
+        {times.map((time) => (
+          <p key={time.label} className="py-0.5 text-sm">
+            {time.label}: <span className="font-semibold">{time.value}</span>
+          </p>
+        ))}
+      </div>
       <table className="text-sm">
         <tbody>
           {rows.map((row) => (
             <tr key={row.label}>
               <td className="w-36 py-0.5 pr-8">{row.label}</td>
-              <td className="text-right tabular-nums">{formatCount(row.value)}</td>
+              <td className={countClass(row.label)}>{formatCount(row.value)}</td>
             </tr>
           ))}
         </tbody>

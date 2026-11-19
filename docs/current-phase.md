@@ -1,7 +1,17 @@
-# Current Phase — production (v1.332.0)
+# Current Phase — production (v1.333.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, purchased numbers, numbering sync, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-19
+
+## v1.333.0 — Seven reads when a numbering list moves
+
+This release does not migrate and does not rewrite catalog rows, the CDR journal, or settings. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before the new one starts, then start one new app. Do not deploy while a numbering chain or a manual load is running. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged.
+
+A changed total on MCN Telecom, Voximplant, Finenumbers, and a Runexis free code is read again from the start, up to seven attempts. The seventh shift leaves the previous catalog. A short page, a timeout, and a transport failure still retry that same request once. UIS, MTS Exolve, SipOut, Aurora Telecom, and purchased Runexis still stop on the first change.
+
+Finenumbers keeps one «Загрузить», which still replaces both catalogs. «Скачать лог» sits beside it at the same widths as the other cards. The log is `data/numbering-sync/finenumbers.txt`. The next load removes `finenumbers-purchased.txt` and `finenumbers-free.txt`. A page line names the attempt. The file then records the free total and the purchased total.
+
+On «Синхронизация», «Купленные загружены» and «Свободные загружены» use the same spacing as the count rows. The purchased count is blue, the free count is green, and «Купленные», «Свободные», and «Разобрано» are bold.
 
 ## v1.332.0 — Decorate only the loaded side
 

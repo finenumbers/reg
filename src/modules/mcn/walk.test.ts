@@ -126,15 +126,20 @@ describe("MCN Telecom purchased walk", () => {
     expect(pass).toBe(2);
     expect(staged).toBe(1);
 
+    let recounts = 0;
     const twice = await runMcnPurchasedWalk({
       beat,
       purchasedPage: async (offset) => purchased([did(1)], 1, offset),
-      purchasedRecount: async () => ({ ok: true, total: 2, meta }),
+      purchasedRecount: async () => {
+        recounts += 1;
+        return { ok: true, total: 2, meta };
+      },
       stagePurchased: async () => undefined,
       log: async () => undefined,
     });
     expect(twice.ok).toBe(false);
     if (!twice.ok) expect(twice.error).toBe(TOTAL_MOVED);
+    expect(recounts).toBe(7);
   });
 
   it("stops a purchased duplicate on the first page", async () => {
@@ -346,10 +351,10 @@ describe("MCN Telecom free walk", () => {
     expect(staged[0]?.e164).toBe(did(200_000));
     expect(staged.some((item) => item.e164 === did(100_000))).toBe(false);
     expect(staged.some((item) => item.e164 === did(1))).toBe(false);
-    expect(lines).toContain("Попытка 1 из 5");
+    expect(lines).toContain("Попытка 1 из 7");
   });
 
-  it("leaves the catalog after five free total moves", async () => {
+  it("leaves the catalog after seven free total moves", async () => {
     let pageTwo = 0;
     let staged = 0;
     const lines: string[] = [];
@@ -377,14 +382,16 @@ describe("MCN Telecom free walk", () => {
     });
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error).toBe(TOTAL_MOVED);
-    expect(pageTwo).toBe(5);
+    expect(pageTwo).toBe(7);
     expect(staged).toBe(0);
     expect(lines.filter((text) => text.startsWith("Попытка"))).toEqual([
-      "Попытка 1 из 5",
-      "Попытка 2 из 5",
-      "Попытка 3 из 5",
-      "Попытка 4 из 5",
-      "Попытка 5 из 5",
+      "Попытка 1 из 7",
+      "Попытка 2 из 7",
+      "Попытка 3 из 7",
+      "Попытка 4 из 7",
+      "Попытка 5 из 7",
+      "Попытка 6 из 7",
+      "Попытка 7 из 7",
     ]);
   });
 
@@ -415,10 +422,10 @@ describe("MCN Telecom free walk", () => {
     expect(result).toEqual({ ok: true, inserted: 2 });
     expect(calls).toBe(2);
     expect(staged).toEqual([row(3), row(4)]);
-    expect(lines).toContain("Попытка 1 из 5");
+    expect(lines).toContain("Попытка 1 из 7");
   });
 
-  it("stops after five repeated free numbers", async () => {
+  it("stops after seven repeated free numbers", async () => {
     let calls = 0;
     let staged = 0;
     const result = await runMcnFreeWalk({
@@ -440,7 +447,7 @@ describe("MCN Telecom free walk", () => {
     });
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error).toBe(DUPLICATE_NUMBER);
-    expect(calls).toBe(5);
+    expect(calls).toBe(7);
     expect(staged).toBe(0);
   });
 

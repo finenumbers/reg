@@ -102,14 +102,9 @@ export function FinenumbersSyncForm({ initial }: { initial: FinenumbersSyncView 
       ]}
       logs={[
         {
-          label: "Скачать лог купленных",
-          href: "/api/numbering-sync/finenumbers/log/purchased",
-          hasLog: view.hasPurchasedLog,
-        },
-        {
-          label: "Скачать лог свободных",
-          href: "/api/numbering-sync/finenumbers/log/free",
-          hasLog: view.hasFreeLog,
+          label: "Скачать лог",
+          href: "/api/numbering-sync/finenumbers/log",
+          hasLog: view.hasLog,
         },
       ]}
       onKeyDown={onKeyDown}

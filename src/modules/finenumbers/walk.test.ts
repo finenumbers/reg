@@ -93,7 +93,7 @@ describe("Finenumbers range read", () => {
       summary: async () => summary(1, 10),
     });
     expect(read.ok).toBe(false);
-    expect(calls).toBe(2);
+    expect(calls).toBe(7);
   });
 
   it("publishes an empty slice only when the page and the summary are both empty", async () => {
@@ -228,6 +228,7 @@ describe("Finenumbers range read", () => {
 
   it("reads the list once more when the locked total moves", async () => {
     let shifted = false;
+    const attempts: number[] = [];
     const read = await readInnRanges({
       list: async (cursor) => {
         if (!shifted && cursor == null) {
@@ -255,7 +256,11 @@ describe("Finenumbers range read", () => {
         };
       },
       summary: async () => summary(1, 1),
+      onProgress: async (_seen, _total, attempt) => {
+        attempts.push(attempt);
+      },
     });
+    expect(attempts).toEqual([1, 2]);
     expect(read.ok).toBe(true);
     if (!read.ok) return;
     expect(read.capacity).toBe(1);

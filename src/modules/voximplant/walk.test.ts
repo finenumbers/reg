@@ -374,7 +374,7 @@ describe("Voximplant walk", () => {
       freeRecount: async () => total(4),
     });
     expect(result).toEqual({ ok: false, error: TOTAL_MOVED, reason: "fail" });
-    expect(offsets).toEqual([0, 2, 0, 2]);
+    expect(offsets).toEqual([0, 2, 0, 2, 0, 2, 0, 2, 0, 2, 0, 2, 0, 2]);
     expect(stageFree).not.toHaveBeenCalled();
   });
 
@@ -504,7 +504,7 @@ describe("Voximplant walk", () => {
       },
       freeRecount: async () => total(2),
     });
-    expect(calls).toBe(4);
+    expect(calls).toBe(14);
     expect(result).toEqual({ ok: false, error: DUPLICATE_NUMBER, reason: "fail" });
     expect(stageFree).not.toHaveBeenCalled();
   });
@@ -521,7 +521,7 @@ describe("Voximplant walk", () => {
       },
     });
     expect(result).toEqual({ ok: false, error: TOTAL_MOVED, reason: "fail" });
-    expect(offsets).toEqual([0, 1, 0, 1]);
+    expect(offsets).toEqual([0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1]);
     expect(dropPurchased).toHaveBeenCalled();
   });
 

@@ -23,7 +23,6 @@ import {
 import { endFinenumbers, isFinenumbersActive, isFinenumbersStopping, tryBeginFinenumbers } from "@/modules/finenumbers/lease";
 import {
   appendFinenumbersLog,
-  appendFinenumbersSide,
   beginFinenumbersLog,
   finenumbersLogExists,
   flushFinenumbersLog,
@@ -61,8 +60,7 @@ export type FinenumbersSyncView = {
   purchasedShown: number | null;
   purchasedLoadedAtLabel: string;
   freeLoadedAtLabel: string;
-  hasPurchasedLog: boolean;
-  hasFreeLog: boolean;
+  hasLog: boolean;
 };
 
 type Actor = { userId: string | null; ip?: string | null };
@@ -89,7 +87,7 @@ function operatorError(error: unknown): string {
   return line;
 }
 
-function emptySync(hasPurchasedLog: boolean, hasFreeLog: boolean): FinenumbersSyncView {
+function emptySync(hasLog: boolean): FinenumbersSyncView {
   return {
     busy: false,
     phase: "",
@@ -103,13 +101,12 @@ function emptySync(hasPurchasedLog: boolean, hasFreeLog: boolean): FinenumbersSy
     purchasedShown: null,
     purchasedLoadedAtLabel: "—",
     freeLoadedAtLabel: "—",
-    hasPurchasedLog,
-    hasFreeLog,
+    hasLog,
   };
 }
 
 export async function getFinenumbersSyncView(): Promise<FinenumbersSyncView> {
-  const [rows, hasPurchasedLog, hasFreeLog, timeZone] = await Promise.all([
+  const [rows, hasLog, timeZone] = await Promise.all([
     prisma.$queryRaw<StateRow[]>`
       SELECT phase, list, page_done, page_total, last_error,
         last_free_written, last_purchased_written,
@@ -138,12 +135,11 @@ export async function getFinenumbersSyncView(): Promise<FinenumbersSyncView> {
       FROM finenumbers_sync_state
       WHERE id = 1
     `,
-    finenumbersLogExists("purchased"),
-    finenumbersLogExists("free"),
+    finenumbersLogExists(),
     getDisplayTimezone(),
   ]);
   const state = rows[0];
-  if (!state) return emptySync(hasPurchasedLog, hasFreeLog);
+  if (!state) return emptySync(hasLog);
   const busy = Boolean(state.busy) || isFinenumbersActive();
   return {
     busy,
@@ -168,8 +164,7 @@ export async function getFinenumbersSyncView(): Promise<FinenumbersSyncView> {
       freeLoadedAt: state.free_loaded_at,
       timeZone,
     }),
-    hasPurchasedLog,
-    hasFreeLog,
+    hasLog,
   };
 }
 
@@ -315,12 +310,12 @@ export async function startFinenumbersSync(
       const phoneKeys = await loadPhoneKeys();
       const started = Date.now();
       const ranges = await readInnRanges({
-        onProgress: async (seen, total) => {
+        onProgress: async (seen, total, attempt) => {
           seenDone = seen;
           seenTotal = total;
           await keep();
           await appendFinenumbersLog(
-            `Страница: ${seen} из ${total}, статус: прочитано, попытка: 1\n`,
+            `Страница: ${seen} из ${total}, статус: прочитано, попытка: ${attempt}\n`,
           );
         },
       });
@@ -358,12 +353,8 @@ export async function startFinenumbersSync(
           throw error;
         }
       }
-      await appendFinenumbersSide("free", `Итог: свободных ${published.free}\n`).catch(
-        () => undefined,
-      );
-      await appendFinenumbersSide(
-        "purchased",
-        `Итог: купленных ${published.purchased}\n`,
+      await appendFinenumbersLog(
+        `Итог: свободных ${published.free}\nИтог: купленных ${published.purchased}\n`,
       ).catch(() => undefined);
       await flushFinenumbersLog().catch(() => undefined);
       await auditService

@@ -1,8 +1,8 @@
 /**
  * One list at a time. Purchased reads GetPhoneNumbers. Free reads the RU
- * directory and GetNewPhoneNumbers. A moved total is read again once.
- * A free page that fills the locked total is kept. A free page that equals
- * its own larger total raises the lock. The second move does not publish.
+ * directory and GetNewPhoneNumbers. A moved total is read again, up to seven
+ * attempts. A free page that fills the locked total is kept. A free page that
+ * equals its own larger total raises the lock. The seventh move does not publish.
  * The next offset is the number of accepted rows, not the response `count`.
  * A region's phone_count is not compared with the list total.
  */
@@ -26,6 +26,8 @@ export const SHORT_LIST = "Список прочитан не полностью
 export const TOTAL_MOVED = "Количество номеров изменилось. Каталог не изменён.";
 export const OFFSET_TOO_FAR = "Смещение больше допустимого. Каталог не изменён.";
 export const OVER_TOTAL = "Список длиннее объявленного количества. Каталог не изменён.";
+
+const LIST_ATTEMPTS = 7;
 
 export type Gate = "run" | "cancel" | "lost";
 export type FailReason = "lost" | "cancel" | "fail";
@@ -139,12 +141,12 @@ async function readPages<T>(input: Selection<T>): Promise<ReadResult<T>> {
 }
 
 async function readStable<T>(input: Selection<T>): Promise<ReadResult<T>> {
-  for (let attempt = 0; attempt < 2; attempt += 1) {
+  for (let attempt = 0; attempt < LIST_ATTEMPTS; attempt += 1) {
     if (attempt > 0) await input.drop();
     const read = await readPages(input);
     if (read.kind === "fail") {
       if (
-        attempt === 0 &&
+        attempt + 1 < LIST_ATTEMPTS &&
         input.completeLockedTotal === true &&
         read.error === DUPLICATE_NUMBER
       ) {

@@ -208,14 +208,14 @@ describe("runexis walk", () => {
   });
 
   it("leaves both catalogs when the showcase ends early", async () => {
-    const walk = harness(repeat(okPage([row(1)], 40, 1), 3));
+    const walk = harness(repeat(okPage([row(1)], 40, 1), 7));
     const result = await runRunexisFreeWalk(walk.deps);
     expect(result.ok).toBe(false);
     expect(walk.published()).toBe(0);
     expect(walk.dropped()).toBe(1);
     expect(walk.free).toEqual([]);
     expect(walk.askedManagement()).toBe(0);
-    expect(walk.askedShowcase()).toBe(3);
+    expect(walk.askedShowcase()).toBe(7);
   });
 
   it("leaves both catalogs when a status is missing", async () => {
@@ -261,7 +261,7 @@ describe("runexis walk", () => {
     expect(walk.askedShowcase()).toBe(3);
   });
 
-  it("leaves both catalogs when the total changes three times", async () => {
+  it("leaves both catalogs when the total changes seven times", async () => {
     const written: string[] = [];
     const shifted = [
       okPage(
@@ -275,11 +275,15 @@ describe("runexis walk", () => {
         2,
       ),
     ];
-    const walk = harness([...shifted, ...shifted, ...shifted], [emptyBought()], {
-      log: async (block) => {
-        written.push(block);
+    const walk = harness(
+      [shifted, shifted, shifted, shifted, shifted, shifted, shifted].flat(),
+      [emptyBought()],
+      {
+        log: async (block) => {
+          written.push(block);
+        },
       },
-    });
+    );
     const result = await runRunexisFreeWalk(walk.deps);
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -289,11 +293,11 @@ describe("runexis walk", () => {
     expect(walk.published()).toBe(0);
     expect(walk.dropped()).toBe(1);
     expect(walk.free).toEqual([]);
-    expect(walk.askedShowcase()).toBe(6);
+    expect(walk.askedShowcase()).toBe(14);
     const text = written.join("\n");
     expect(text).toContain(`Всего было: ${SHOWCASE_LIMIT * 2}`);
     expect(text).toContain(`Всего стало: ${SHOWCASE_LIMIT * 2 + 1}`);
-    expect(text).toContain("попытка 3");
+    expect(text).toContain("попытка 7");
     expect(text).not.toContain("79010000000");
   });
 
@@ -396,24 +400,24 @@ describe("runexis walk", () => {
   });
 
   it("does not publish when a showcase row belongs to another code", async () => {
-    const walk = harness(repeat(okPage([["495", "3084480"]], 1, 1), 3));
+    const walk = harness(repeat(okPage([["495", "3084480"]], 1, 1), 7));
     const result = await runRunexisFreeWalk(walk.deps);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error).toContain("другого кода");
     expect(walk.published()).toBe(0);
     expect(walk.dropped()).toBe(1);
     expect(walk.free).toEqual([]);
-    expect(walk.askedShowcase()).toBe(3);
+    expect(walk.askedShowcase()).toBe(7);
   });
 
   it("rejects a repeated number on one page", async () => {
-    const walk = harness(repeat(okPage([row(1), row(1)], 2, 1), 3));
+    const walk = harness(repeat(okPage([row(1), row(1)], 2, 1), 7));
     const result = await runRunexisFreeWalk(walk.deps);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error).toContain("повторяется номер");
     expect(walk.published()).toBe(0);
     expect(walk.free).toEqual([]);
-    expect(walk.askedShowcase()).toBe(3);
+    expect(walk.askedShowcase()).toBe(7);
   });
 
   it("rereads a later duplicate and stores only the complete pass", async () => {

@@ -69,10 +69,12 @@ function summaryAgrees(summary: NumberingSummary, ranges: readonly AcceptedRange
   return summary.filtered.totalCapacity === capacity;
 }
 
+const LIST_ATTEMPTS = 7;
+
 export async function readInnRanges(input: {
   list?: (cursor: string | null) => Promise<ListPage>;
   summary?: () => Promise<NumberingSummary>;
-  onProgress?: (seen: number, total: number) => Promise<void>;
+  onProgress?: (seen: number, total: number, attempt: number) => Promise<void>;
 }): Promise<InnRead> {
   const list =
     input.list ??
@@ -94,11 +96,15 @@ export async function readInnRanges(input: {
         }),
       ));
 
-  const attempt = async (): Promise<PageRead<NumberingRow> & { capacity?: number }> => {
+  const attempt = async (
+    attemptNo: number,
+  ): Promise<PageRead<NumberingRow> & { capacity?: number }> => {
     const pages = await readAllPages({
       page: list,
       accept,
-      onProgress: input.onProgress,
+      onProgress: input.onProgress
+        ? (seen, total) => input.onProgress?.(seen, total, attemptNo)
+        : undefined,
     });
     if (!pages.ok) return pages;
     let recounted: NumberingSummary;
@@ -113,10 +119,12 @@ export async function readInnRanges(input: {
     return pages;
   };
 
-  const first = await attempt();
-  const second = first.ok || !first.again ? first : await attempt();
-  if (!second.ok) return { ok: false, error: second.error };
-  const ranges = second.items.map(keptRange);
+  let read = await attempt(1);
+  for (let n = 1; !read.ok && read.again && n < LIST_ATTEMPTS; n += 1) {
+    read = await attempt(n + 1);
+  }
+  if (!read.ok) return { ok: false, error: read.error };
+  const ranges = read.items.map(keptRange);
   let capacity = 0;
   for (const range of ranges) capacity = addCapacity(capacity, range.capacity);
   return { ok: true, ranges, capacity };
