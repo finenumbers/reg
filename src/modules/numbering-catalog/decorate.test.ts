@@ -3,14 +3,8 @@ import path from "node:path";
 import { Prisma } from "@/generated/prisma/client";
 import { describe, expect, it } from "vitest";
 import {
-  AURORA_EPOCH_SQL,
-  EXOLVE_EPOCH_SQL,
-  FINENUMBERS_EPOCH_SQL,
-  MCN_EPOCH_SQL,
-  VOXIMPLANT_EPOCH_SQL,
-  SIPOUT_EPOCH_SQL,
-  UIS_EPOCH_SQL,
-  RUNEXIS_EPOCH_SQL,
+  catalogEpochSql,
+  decorateSides,
   fillStageSplitSql,
   MASK_BATCH,
   MASK_BATCH_TX_MS,
@@ -195,17 +189,17 @@ describe("catalog decorate", () => {
       oneSide.indexOf('"COMMIT"'),
     );
     const files = [
-      ["src/modules/numbering-sync/publish.ts", "SIPOUT_EPOCH_SQL", SIPOUT_EPOCH_SQL],
-      ["src/modules/runexis/publish.ts", "RUNEXIS_EPOCH_SQL", RUNEXIS_EPOCH_SQL],
-      ["src/modules/uis/publish.ts", "UIS_EPOCH_SQL", UIS_EPOCH_SQL],
-      ["src/modules/aurora/publish.ts", "AURORA_EPOCH_SQL", AURORA_EPOCH_SQL],
-      ["src/modules/exolve/publish.ts", "EXOLVE_EPOCH_SQL", EXOLVE_EPOCH_SQL],
-      ["src/modules/voximplant/publish.ts", "VOXIMPLANT_EPOCH_SQL", VOXIMPLANT_EPOCH_SQL],
-      ["src/modules/mcn/publish.ts", "MCN_EPOCH_SQL", MCN_EPOCH_SQL],
+      ["src/modules/numbering-sync/publish.ts", 'catalogEpochSql("sipout", "purchased")', catalogEpochSql("sipout", "purchased")],
+      ["src/modules/runexis/publish.ts", 'catalogEpochSql("runexis", "purchased")', catalogEpochSql("runexis", "purchased")],
+      ["src/modules/uis/publish.ts", 'catalogEpochSql("uis", "purchased")', catalogEpochSql("uis", "purchased")],
+      ["src/modules/aurora/publish.ts", 'catalogEpochSql("aurora", "both")', catalogEpochSql("aurora", "both")],
+      ["src/modules/exolve/publish.ts", 'catalogEpochSql("exolve", "purchased")', catalogEpochSql("exolve", "purchased")],
+      ["src/modules/voximplant/publish.ts", 'catalogEpochSql("voximplant", "purchased")', catalogEpochSql("voximplant", "purchased")],
+      ["src/modules/mcn/publish.ts", 'catalogEpochSql("mcn", "purchased")', catalogEpochSql("mcn", "purchased")],
       [
         "src/modules/finenumbers/publish.ts",
-        "FINENUMBERS_EPOCH_SQL",
-        FINENUMBERS_EPOCH_SQL,
+        'catalogEpochSql("finenumbers", "both")',
+        catalogEpochSql("finenumbers", "both"),
       ],
     ] as const;
     for (const [file, symbol, sql] of files) {
@@ -278,8 +272,19 @@ describe("catalog decorate", () => {
     expect(flattenSql(purchasedFullBatchSql("", null))).toContain("n.provider");
     expect(flattenSql(purchasedClientBatchSql(""))).not.toContain("n.provider");
     expect(flattenSql(bumpMaskDebtSql())).toContain("parsed_pass");
-    expect(SIPOUT_EPOCH_SQL).toContain("sipout_parsed = 0");
-    expect(SIPOUT_EPOCH_SQL).not.toContain("runexis_parsed");
+    const sipoutEpoch = catalogEpochSql("sipout", "purchased");
+    expect(sipoutEpoch).toContain("sipout_parsed = 0");
+    expect(sipoutEpoch).toContain("sipout_scope");
+    expect(sipoutEpoch).not.toContain("runexis_parsed");
+    expect(decorateSides("purchased")).toEqual(["purchased"]);
+    expect(decorateSides("free")).toEqual(["free"]);
+    expect(decorateSides("")).toEqual(["free", "purchased"]);
+    expect(decorateSides("both")).toEqual(["free", "purchased"]);
+    expect(decorateSides("other")).toEqual(["free", "purchased"]);
+    const openPurchased = catalogEpochSql("runexis", "purchased");
+    expect(openPurchased).toContain("runexis_epoch <> runexis_done");
+    expect(openPurchased).toContain("IS DISTINCT FROM 'purchased'");
+    expect(catalogEpochSql("aurora", "both")).toContain("aurora_scope = 'both'");
 
     const source = readFileSync(
       path.join(process.cwd(), "src/modules/numbering-catalog/decorate.ts"),

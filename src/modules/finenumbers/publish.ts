@@ -6,7 +6,7 @@
 import pg from "pg";
 import { prisma } from "@/lib/db";
 import {
-  FINENUMBERS_EPOCH_SQL,
+  catalogEpochSql,
   requestDecorateCatchUp,
 } from "@/modules/numbering-catalog/decorate";
 import { withDbRetry } from "@/modules/numbering-sync/db-retry";
@@ -256,7 +256,7 @@ export async function replaceFinenumbersCatalogs(
       [runId, free, purchased],
     );
     if ((finished.rowCount ?? 0) !== 1) throw new SyncLost();
-    const epoch = await client.query(FINENUMBERS_EPOCH_SQL);
+    const epoch = await client.query(catalogEpochSql("finenumbers", "both"));
     if ((epoch.rowCount ?? 0) !== 1) throw new Error("Не удалось отметить каталог.");
     await client.query("COMMIT");
     committed = true;

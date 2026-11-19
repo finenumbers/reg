@@ -57,23 +57,36 @@ const PROVIDERS = [
 ] as const;
 export type CatalogProvider = (typeof PROVIDERS)[number];
 export type DecorateScope = "full" | "client";
+export type CatalogEpochPrefix =
+  | "sipout"
+  | "runexis"
+  | "uis"
+  | "aurora"
+  | "exolve"
+  | "voximplant"
+  | "mcn"
+  | "finenumbers";
+export type CatalogSideScope = "free" | "purchased" | "both";
 
-export const SIPOUT_EPOCH_SQL =
-  "UPDATE numbering_catalog_state SET sipout_epoch = sipout_epoch + 1, sipout_parsed = 0 WHERE id = 1";
-export const RUNEXIS_EPOCH_SQL =
-  "UPDATE numbering_catalog_state SET runexis_epoch = runexis_epoch + 1, runexis_parsed = 0 WHERE id = 1";
-export const UIS_EPOCH_SQL =
-  "UPDATE numbering_catalog_state SET uis_epoch = uis_epoch + 1, uis_parsed = 0 WHERE id = 1";
-export const AURORA_EPOCH_SQL =
-  "UPDATE numbering_catalog_state SET aurora_epoch = aurora_epoch + 1, aurora_parsed = 0 WHERE id = 1";
-export const EXOLVE_EPOCH_SQL =
-  "UPDATE numbering_catalog_state SET exolve_epoch = exolve_epoch + 1, exolve_parsed = 0 WHERE id = 1";
-export const VOXIMPLANT_EPOCH_SQL =
-  "UPDATE numbering_catalog_state SET voximplant_epoch = voximplant_epoch + 1, voximplant_parsed = 0 WHERE id = 1";
-export const MCN_EPOCH_SQL =
-  "UPDATE numbering_catalog_state SET mcn_epoch = mcn_epoch + 1, mcn_parsed = 0 WHERE id = 1";
-export const FINENUMBERS_EPOCH_SQL =
-  "UPDATE numbering_catalog_state SET finenumbers_epoch = finenumbers_epoch + 1, finenumbers_parsed = 0 WHERE id = 1";
+/** One epoch bump. The CASE reads the row before the increment. */
+export function catalogEpochSql(prefix: CatalogEpochPrefix, side: CatalogSideScope): string {
+  const epoch = `${prefix}_epoch`;
+  const done = `${prefix}_done`;
+  const parsed = `${prefix}_parsed`;
+  const scope = `${prefix}_scope`;
+  const assignment =
+    side === "both"
+      ? `${scope} = 'both'`
+      : `${scope} = CASE WHEN ${epoch} <> ${done} AND ${scope} IS DISTINCT FROM '${side}' THEN 'both' ELSE '${side}' END`;
+  return `UPDATE numbering_catalog_state SET ${epoch} = ${epoch} + 1, ${parsed} = 0, ${assignment} WHERE id = 1`;
+}
+
+/** Empty or unknown keeps both sides, so a pass already open is not narrowed. */
+export function decorateSides(scope: string): readonly ("free" | "purchased")[] {
+  if (scope === "free") return ["free"];
+  if (scope === "purchased") return ["purchased"];
+  return ["free", "purchased"];
+}
 
 type EpochRow = {
   sipout_epoch: number;
@@ -137,24 +150,24 @@ export function providerLiteral(provider: string): Prisma.Sql {
   }
 }
 
-function epochNames(provider: CatalogProvider): { epoch: string; done: string } {
+function epochNames(provider: CatalogProvider): { epoch: string; done: string; scope: string } {
   switch (provider) {
     case "SipOut":
-      return { epoch: "sipout_epoch", done: "sipout_done" };
+      return { epoch: "sipout_epoch", done: "sipout_done", scope: "sipout_scope" };
     case "Runexis":
-      return { epoch: "runexis_epoch", done: "runexis_done" };
+      return { epoch: "runexis_epoch", done: "runexis_done", scope: "runexis_scope" };
     case "UIS":
-      return { epoch: "uis_epoch", done: "uis_done" };
+      return { epoch: "uis_epoch", done: "uis_done", scope: "uis_scope" };
     case "Aurora Telecom":
-      return { epoch: "aurora_epoch", done: "aurora_done" };
+      return { epoch: "aurora_epoch", done: "aurora_done", scope: "aurora_scope" };
     case "MTS Exolve":
-      return { epoch: "exolve_epoch", done: "exolve_done" };
+      return { epoch: "exolve_epoch", done: "exolve_done", scope: "exolve_scope" };
     case "Voximplant":
-      return { epoch: "voximplant_epoch", done: "voximplant_done" };
+      return { epoch: "voximplant_epoch", done: "voximplant_done", scope: "voximplant_scope" };
     case "MCN Telecom":
-      return { epoch: "mcn_epoch", done: "mcn_done" };
+      return { epoch: "mcn_epoch", done: "mcn_done", scope: "mcn_scope" };
     case "Finenumbers":
-      return { epoch: "finenumbers_epoch", done: "finenumbers_done" };
+      return { epoch: "finenumbers_epoch", done: "finenumbers_done", scope: "finenumbers_scope" };
   }
 }
 
@@ -632,6 +645,14 @@ type Debt = EpochRow & {
   cursor_after: string;
   cursor_epoch: number;
   cursor_provider: string;
+  sipout_scope: string;
+  runexis_scope: string;
+  uis_scope: string;
+  aurora_scope: string;
+  exolve_scope: string;
+  voximplant_scope: string;
+  mcn_scope: string;
+  finenumbers_scope: string;
 };
 
 class EpochMoved extends Error {
@@ -660,6 +681,8 @@ const DEBT_SQL = Prisma.sql`
     voximplant_epoch, voximplant_done,
     mcn_epoch, mcn_done,
     finenumbers_epoch, finenumbers_done,
+    sipout_scope, runexis_scope, uis_scope, aurora_scope,
+    exolve_scope, voximplant_scope, mcn_scope, finenumbers_scope,
     pstn_range_epoch, pstn_range_done,
     decorate_generation,
     resplit_epoch, resplit_done,
@@ -701,7 +724,40 @@ function readDebtRow(row: Record<string, unknown>): Debt {
     cursor_after: typeof row.cursor_after === "string" ? row.cursor_after : "",
     cursor_epoch: asCount(row.cursor_epoch),
     cursor_provider: typeof row.cursor_provider === "string" ? row.cursor_provider : "",
+    sipout_scope: scopeText(row.sipout_scope),
+    runexis_scope: scopeText(row.runexis_scope),
+    uis_scope: scopeText(row.uis_scope),
+    aurora_scope: scopeText(row.aurora_scope),
+    exolve_scope: scopeText(row.exolve_scope),
+    voximplant_scope: scopeText(row.voximplant_scope),
+    mcn_scope: scopeText(row.mcn_scope),
+    finenumbers_scope: scopeText(row.finenumbers_scope),
   };
+}
+
+function scopeText(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
+function providerScope(debt: Debt, provider: CatalogProvider): string {
+  switch (provider) {
+    case "SipOut":
+      return debt.sipout_scope;
+    case "Runexis":
+      return debt.runexis_scope;
+    case "UIS":
+      return debt.uis_scope;
+    case "Aurora Telecom":
+      return debt.aurora_scope;
+    case "MTS Exolve":
+      return debt.exolve_scope;
+    case "Voximplant":
+      return debt.voximplant_scope;
+    case "MCN Telecom":
+      return debt.mcn_scope;
+    case "Finenumbers":
+      return debt.finenumbers_scope;
+  }
 }
 
 async function readDebt(): Promise<Debt | null> {
@@ -1183,20 +1239,25 @@ async function settleDebt(): Promise<void> {
     if (step.kind === "provider") {
       const behind = step.provider;
       const seen = pair(debt, behind);
-      const free = await walkPhase({
-        phase: "provider-free",
-        epoch: seen.epoch,
-        provider: behind,
-        kind: "free",
-      });
-      if (free === "moved") continue;
-      const purchased = await walkPhase({
-        phase: "provider-purchased",
-        epoch: seen.epoch,
-        provider: behind,
-        kind: "purchased",
-      });
-      if (purchased === "moved") continue;
+      const sides = decorateSides(providerScope(debt, behind));
+      if (sides.includes("free")) {
+        const free = await walkPhase({
+          phase: "provider-free",
+          epoch: seen.epoch,
+          provider: behind,
+          kind: "free",
+        });
+        if (free === "moved") continue;
+      }
+      if (sides.includes("purchased")) {
+        const purchased = await walkPhase({
+          phase: "provider-purchased",
+          epoch: seen.epoch,
+          provider: behind,
+          kind: "purchased",
+        });
+        if (purchased === "moved") continue;
+      }
       await markProviderDone(behind, seen.epoch);
       continue;
     }

@@ -2,7 +2,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { MCN_EPOCH_SQL } from "@/modules/numbering-catalog/decorate";
+import { catalogEpochSql } from "@/modules/numbering-catalog/decorate";
 import { sanitizeLogLine } from "@/modules/mcn/log";
 import { RECLAIM_STAGE_SQL, RECLAIM_STATE_SQL } from "@/modules/mcn/reclaim";
 import {
@@ -73,13 +73,14 @@ describe("MCN Telecom catalog SQL", () => {
     expect(publish).toContain('finishSql("last_free_written", "free_loaded_at")');
     expect(publish).toContain("${stamp} = CURRENT_TIMESTAMP");
     expect(publish).toContain("last_finished_at = CURRENT_TIMESTAMP");
-    expect(publish.lastIndexOf("MCN_EPOCH_SQL")).toBeGreaterThan(0);
+    expect(publish).toContain('catalogEpochSql("mcn", "purchased")');
+    expect(publish).toContain('catalogEpochSql("mcn", "free")');
     const oneSide = readFileSync(
       path.join(process.cwd(), "src/modules/numbering-sync/one-side.ts"),
       "utf8",
     );
     expect(oneSide.indexOf("input.epochSql")).toBeLessThan(oneSide.indexOf('"COMMIT"'));
-    expect(MCN_EPOCH_SQL).toContain("mcn_epoch");
+    expect(catalogEpochSql("mcn", "purchased")).toContain("mcn_epoch");
     const client = readFileSync(
       path.join(process.cwd(), "src/modules/mcn/client.ts"),
       "utf8",

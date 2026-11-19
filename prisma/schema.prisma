@@ -1077,6 +1077,15 @@ model NumberingCatalogState {
   mcnDone            Int @default(0) @map("mcn_done")
   finenumbersEpoch   Int @default(0) @map("finenumbers_epoch")
   finenumbersDone    Int @default(0) @map("finenumbers_done")
+  /// Empty means both sides. A one-sided publish narrows this only when its epoch is already caught up.
+  sipoutScope        String @default("") @map("sipout_scope")
+  runexisScope       String @default("") @map("runexis_scope")
+  uisScope           String @default("") @map("uis_scope")
+  auroraScope        String @default("") @map("aurora_scope")
+  exolveScope        String @default("") @map("exolve_scope")
+  voximplantScope    String @default("") @map("voximplant_scope")
+  mcnScope           String @default("") @map("mcn_scope")
+  finenumbersScope   String @default("") @map("finenumbers_scope")
   /// PSTN range dataset. A full operator pass sets done only while this value is unchanged.
   pstnRangeEpoch     Int @default(0) @map("pstn_range_epoch")
   pstnRangeDone      Int @default(0) @map("pstn_range_done")

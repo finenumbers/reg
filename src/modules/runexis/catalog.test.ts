@@ -165,6 +165,29 @@ describe("runexis showcase", () => {
       incomingPurchase: "",
       incomingPeriod: "",
     });
+    const handbook = parseManagementPage({
+      success: true,
+      data: [
+        {
+          code: "999",
+          number: "1234567",
+          status: { mnemonic: "allocated" },
+          installationCost: 10,
+          subscriptionFee: 99.99,
+          meraPrice: 50.5,
+        },
+      ],
+      meta: { total: 1, page: 1, limit: 30 },
+    });
+    expect(handbook.ok).toBe(true);
+    if (handbook.ok) {
+      expect(handbook.page.rows).toEqual([
+        { e164: "79991234567", incomingPurchase: "10", incomingPeriod: "99.99" },
+      ]);
+    }
+    expect(PURCHASED_COPY_SQL).toContain("purchase, subscription");
+    expect(PURCHASED_COPY_SQL).toContain("incoming_purchase,\n    incoming_period");
+    expect(PURCHASED_COPY_SQL).not.toContain("mera");
     expect(bought.page.skippedFree).toBe(1);
     expect(bought.page.read).toBe(2);
     expect(

@@ -6,7 +6,7 @@
 import { prisma } from "@/lib/db";
 import { withDbRetry } from "@/modules/numbering-sync/db-retry";
 import { publishOneSide, PublishMismatch, type SideWrite } from "@/modules/numbering-sync/one-side";
-import { SIPOUT_EPOCH_SQL } from "@/modules/numbering-catalog/decorate";
+import { catalogEpochSql } from "@/modules/numbering-catalog/decorate";
 import {
   FREE_COPY_SQL,
   PURCHASED_COPY_SQL,
@@ -177,7 +177,7 @@ export function replaceSipoutPurchased(runId: string): Promise<SideWrite> {
     copySql: PURCHASED_COPY_SQL,
     clearStageSql: CLEAR_STAGE_SQL,
     finishSql: FINISH_PURCHASED_SQL,
-    epochSql: SIPOUT_EPOCH_SQL,
+    epochSql: catalogEpochSql("sipout", "purchased"),
   });
 }
 
@@ -192,6 +192,6 @@ export function replaceSipoutFree(runId: string): Promise<SideWrite> {
     copySql: FREE_COPY_SQL,
     clearStageSql: CLEAR_STAGE_SQL,
     finishSql: FINISH_FREE_SQL,
-    epochSql: SIPOUT_EPOCH_SQL,
+    epochSql: catalogEpochSql("sipout", "free"),
   });
 }

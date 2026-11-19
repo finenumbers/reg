@@ -8,7 +8,7 @@ import { prisma } from "@/lib/db";
 import { withDbRetry } from "@/modules/numbering-sync/db-retry";
 import { SyncLost as LeaseLost } from "@/modules/numbering-sync/errors";
 import { publishOneSide, type SideWrite } from "@/modules/numbering-sync/one-side";
-import { VOXIMPLANT_EPOCH_SQL } from "@/modules/numbering-catalog/decorate";
+import { catalogEpochSql } from "@/modules/numbering-catalog/decorate";
 import { DUPLICATE_NUMBER, type FreeRow } from "@/modules/voximplant/parse";
 import {
   DELETE_VOXIMPLANT_FREE_SQL,
@@ -229,7 +229,7 @@ export function replaceVoximplantPurchased(runId: string): Promise<SideWrite> {
     copySql: PURCHASED_COPY_SQL,
     clearStageSql: CLEAR_STAGE_SQL,
     finishSql: finishSql("last_purchased_written", "purchased_loaded_at"),
-    epochSql: VOXIMPLANT_EPOCH_SQL,
+    epochSql: catalogEpochSql("voximplant", "purchased"),
   });
 }
 
@@ -244,6 +244,6 @@ export function replaceVoximplantFree(runId: string): Promise<SideWrite> {
     copySql: FREE_COPY_SQL,
     clearStageSql: CLEAR_STAGE_SQL,
     finishSql: finishSql("last_free_written", "free_loaded_at"),
-    epochSql: VOXIMPLANT_EPOCH_SQL,
+    epochSql: catalogEpochSql("voximplant", "free"),
   });
 }

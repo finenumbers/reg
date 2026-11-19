@@ -4,8 +4,10 @@ import type { KeyboardEvent, ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { formatCount } from "@/modules/numbering-sync/card-numbers";
 
-export const loadButtonClass = "bg-black text-white hover:bg-neutral-800";
-const logButtonClass = "border-black bg-white text-black hover:bg-neutral-100";
+export const loadButtonClass =
+  "w-56 shrink-0 justify-center whitespace-nowrap bg-black text-white hover:bg-neutral-800";
+const logButtonClass =
+  "w-64 shrink-0 justify-center whitespace-nowrap border-black bg-white text-black hover:bg-neutral-100";
 
 export type SourceLoad = {
   label: string;
@@ -18,6 +20,31 @@ export type SourceLog = {
   href: string;
   hasLog: boolean;
 };
+
+type ButtonRowItem =
+  | (SourceLoad & { kind: "load" })
+  | (SourceLog & { kind: "log" });
+
+/** Two paired rows for a split source. One load with two logs stacks the logs underneath. */
+function buttonRows(loads: SourceLoad[], logs: SourceLog[]): ButtonRowItem[][] {
+  if (loads.length === 1 && logs.length === 2) {
+    return [
+      [{ ...loads[0]!, kind: "load" }],
+      logs.map((log) => ({ ...log, kind: "log" as const })),
+    ];
+  }
+  const count = Math.max(loads.length, logs.length);
+  const rows: ButtonRowItem[][] = [];
+  for (let index = 0; index < count; index += 1) {
+    const row: ButtonRowItem[] = [];
+    const load = loads[index];
+    const log = logs[index];
+    if (load) row.push({ ...load, kind: "load" });
+    if (log) row.push({ ...log, kind: "log" });
+    if (row.length > 0) rows.push(row);
+  }
+  return rows;
+}
 
 export function SourceCard({
   name,
@@ -54,29 +81,44 @@ export function SourceCard({
           ))}
         </tbody>
       </table>
-      <div className="flex flex-wrap gap-2">
-        {loads.map((load) => (
-          <Button
-            key={load.label}
-            type="button"
-            className={loadButtonClass}
-            disabled={load.disabled}
-            onClick={load.onClick}
-          >
-            {load.label}
-          </Button>
+      <div className="space-y-2">
+        {buttonRows(loads, logs).map((row) => (
+          <div key={row.map((item) => item.label).join("|")} className="flex flex-wrap gap-2">
+            {row.map((item) =>
+              item.kind === "load" ? (
+                <Button
+                  key={item.label}
+                  type="button"
+                  className={loadButtonClass}
+                  disabled={item.disabled}
+                  onClick={item.onClick}
+                >
+                  {item.label}
+                </Button>
+              ) : item.hasLog ? (
+                <Button
+                  key={item.label}
+                  type="button"
+                  variant="outline"
+                  className={logButtonClass}
+                  asChild
+                >
+                  <a href={item.href}>{item.label}</a>
+                </Button>
+              ) : (
+                <Button
+                  key={item.label}
+                  type="button"
+                  variant="outline"
+                  className={logButtonClass}
+                  disabled
+                >
+                  {item.label}
+                </Button>
+              ),
+            )}
+          </div>
         ))}
-        {logs.map((log) =>
-          log.hasLog ? (
-            <Button key={log.label} type="button" variant="outline" className={logButtonClass} asChild>
-              <a href={log.href}>{log.label}</a>
-            </Button>
-          ) : (
-            <Button key={log.label} type="button" variant="outline" className={logButtonClass} disabled>
-              {log.label}
-            </Button>
-          ),
-        )}
       </div>
       {children}
     </div>

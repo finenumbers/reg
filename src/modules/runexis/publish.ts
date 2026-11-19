@@ -5,7 +5,7 @@
 
 import { prisma } from "@/lib/db";
 import { withDbRetry } from "@/modules/numbering-sync/db-retry";
-import { RUNEXIS_EPOCH_SQL } from "@/modules/numbering-catalog/decorate";
+import { catalogEpochSql } from "@/modules/numbering-catalog/decorate";
 import { publishOneSide, type SideWrite } from "@/modules/numbering-sync/one-side";
 
 export { PublishMismatch } from "@/modules/numbering-sync/one-side";
@@ -160,7 +160,7 @@ export function replaceRunexisPurchased(runId: string): Promise<SideWrite> {
     copySql: PURCHASED_COPY_SQL,
     clearStageSql: CLEAR_STAGE_SQL,
     finishSql: finishSql("last_purchased_written", "purchased_loaded_at"),
-    epochSql: RUNEXIS_EPOCH_SQL,
+    epochSql: catalogEpochSql("runexis", "purchased"),
   });
 }
 
@@ -175,6 +175,6 @@ export function replaceRunexisFree(runId: string): Promise<SideWrite> {
     copySql: FREE_COPY_SQL,
     clearStageSql: CLEAR_STAGE_SQL,
     finishSql: finishSql("last_free_written", "free_loaded_at"),
-    epochSql: RUNEXIS_EPOCH_SQL,
+    epochSql: catalogEpochSql("runexis", "free"),
   });
 }

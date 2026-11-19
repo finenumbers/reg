@@ -6,7 +6,7 @@
 import { prisma } from "@/lib/db";
 import { withDbRetry } from "@/modules/numbering-sync/db-retry";
 import { publishOneSide, type SideWrite } from "@/modules/numbering-sync/one-side";
-import { EXOLVE_EPOCH_SQL } from "@/modules/numbering-catalog/decorate";
+import { catalogEpochSql } from "@/modules/numbering-catalog/decorate";
 
 export { PublishMismatch } from "@/modules/numbering-sync/one-side";
 import { DUPLICATE_NUMBER, type ExolveFreeRow } from "@/modules/exolve/parse";
@@ -218,7 +218,7 @@ export function replaceExolvePurchased(runId: string): Promise<SideWrite> {
     copySql: PURCHASED_COPY_SQL,
     clearStageSql: CLEAR_STAGE_SQL,
     finishSql: finishSql("last_purchased_written", "purchased_loaded_at"),
-    epochSql: EXOLVE_EPOCH_SQL,
+    epochSql: catalogEpochSql("exolve", "purchased"),
   });
 }
 
@@ -233,6 +233,6 @@ export function replaceExolveFree(runId: string): Promise<SideWrite> {
     copySql: FREE_COPY_SQL,
     clearStageSql: CLEAR_STAGE_SQL,
     finishSql: finishSql("last_free_written", "free_loaded_at"),
-    epochSql: EXOLVE_EPOCH_SQL,
+    epochSql: catalogEpochSql("exolve", "free"),
   });
 }

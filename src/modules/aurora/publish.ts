@@ -5,7 +5,7 @@
 
 import pg from "pg";
 import { prisma } from "@/lib/db";
-import { AURORA_EPOCH_SQL } from "@/modules/numbering-catalog/decorate";
+import { catalogEpochSql } from "@/modules/numbering-catalog/decorate";
 import { withDbRetry } from "@/modules/numbering-sync/db-retry";
 import { noteCatalogReplaced } from "@/modules/numbering-sync/lease";
 import { requestDecorateCatchUp } from "@/modules/numbering-catalog/decorate";
@@ -184,7 +184,7 @@ export async function replaceAuroraCatalogs(runId: string): Promise<PublishedCou
       [runId, free, purchased],
     );
     if ((finished.rowCount ?? 0) !== 1) throw new SyncLost();
-    const epoch = await client.query(AURORA_EPOCH_SQL);
+    const epoch = await client.query(catalogEpochSql("aurora", "both"));
     if ((epoch.rowCount ?? 0) !== 1) throw new Error("Не удалось отметить каталог.");
     await client.query("COMMIT");
     committed = true;

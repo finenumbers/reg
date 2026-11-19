@@ -15,7 +15,7 @@ import {
   dropOverlapSql,
   fillSplitSql,
 } from "@/modules/voximplant/sql";
-import { VOXIMPLANT_EPOCH_SQL } from "@/modules/numbering-catalog/decorate";
+import { catalogEpochSql } from "@/modules/numbering-catalog/decorate";
 
 function flattenSql(sql: Prisma.Sql): string {
   const text: string[] = [];
@@ -71,7 +71,8 @@ describe("Voximplant catalog SQL", () => {
       path.join(process.cwd(), "src/modules/voximplant/publish.ts"),
       "utf8",
     );
-    expect(publish).toContain("VOXIMPLANT_EPOCH_SQL");
+    expect(publish).toContain('catalogEpochSql("voximplant", "purchased")');
+    expect(publish).toContain('catalogEpochSql("voximplant", "free")');
     expect(publish).toContain("replaceVoximplantPurchased");
     expect(publish).toContain("replaceVoximplantFree");
     expect(publish).not.toContain("replaceVoximplantCatalogs");
@@ -97,7 +98,7 @@ describe("Voximplant catalog SQL", () => {
     );
     expect(oneSide.lastIndexOf("input.epochSql")).toBeGreaterThan(0);
     expect(oneSide.lastIndexOf("input.epochSql")).toBeLessThan(oneSide.indexOf('"COMMIT"'));
-    expect(VOXIMPLANT_EPOCH_SQL).toContain("voximplant_epoch");
+    expect(catalogEpochSql("voximplant", "free")).toContain("voximplant_epoch");
   });
 
   it("drops the lease without touching catalogs", () => {

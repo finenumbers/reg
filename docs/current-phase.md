@@ -1,7 +1,15 @@
-# Current Phase — production (v1.331.0)
+# Current Phase — production (v1.332.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, purchased numbers, numbering sync, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-19
+
+## v1.332.0 — Decorate only the loaded side
+
+The migration `20261119110000_decorate_side_scope` adds an empty scope column for each numbering source on `numbering_catalog_state`. Empty means both sides, so a pass already open keeps walking both. It does not read `cdr_records` and does not rewrite catalog rows. The migration is label-free. `lock_timeout` is 15 seconds. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before migrate. Let the migrator exit 0, then start one new app. If migrate stops, do not start the new app. Do not deploy while a numbering chain or a manual load is running. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged.
+
+A purchased load now decorates only that provider's purchased rows. A free load decorates only its free rows. Aurora Telecom and Finenumbers still decorate both, because one publish changes both catalogs. A mask file, a tariff file, the PSTN pass, and clients still walk both catalogs. «Покупка» and «Абонплата» on purchased Runexis numbers still come from `installationCost` and `subscriptionFee` at publish. `meraPrice` is not stored there. «Продажа» is still the mask price, written by the decorate pass of that side.
+
+On «Синхронизация», «Загрузить купленные» sits beside «Скачать лог купленных», and «Загрузить свободные» sits beside «Скачать лог свободных». Every load button has one width. Every log button has one width.
 
 ## v1.331.0 — Separate purchased and free loads
 

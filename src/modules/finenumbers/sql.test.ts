@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { FINENUMBERS_EPOCH_SQL } from "@/modules/numbering-catalog/decorate";
+import { catalogEpochSql } from "@/modules/numbering-catalog/decorate";
 import {
   decidePublish,
   DELETE_FREE_CHUNK_SQL,
@@ -45,8 +45,10 @@ describe("Finenumbers publish SQL", () => {
   it("deletes only the Finenumbers slice of both catalogs", () => {
     expect(DELETE_FREE_CHUNK_SQL).toContain("provider = 'Finenumbers'");
     expect(DELETE_PURCHASED_CHUNK_SQL).toContain("provider = 'Finenumbers'");
-    expect(FINENUMBERS_EPOCH_SQL).toContain("finenumbers_epoch = finenumbers_epoch + 1");
-    expect(FINENUMBERS_EPOCH_SQL).toContain("finenumbers_parsed = 0");
+    const epoch = catalogEpochSql("finenumbers", "both");
+    expect(epoch).toContain("finenumbers_epoch = finenumbers_epoch + 1");
+    expect(epoch).toContain("finenumbers_parsed = 0");
+    expect(epoch).toContain("finenumbers_scope = 'both'");
   });
 
   it("commits only when the staged counts match and the catalogs do not share a number", () => {
