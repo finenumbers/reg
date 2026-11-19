@@ -88,17 +88,39 @@ export function NumberingSyncForm({ initial }: { initial: NumberingSyncView }) {
   return (
     <SourceCard
       name="SipOut"
-      loadedAtLabel={view.loadedAtLabel}
+      times={[
+        { label: "Купленные загружены", value: view.purchasedLoadedAtLabel },
+        { label: "Свободные загружены", value: view.freeLoadedAtLabel },
+      ]}
       rows={[
         { label: "Купленные", value: view.purchasedShown },
         { label: "Свободные", value: view.freeShown },
-        { label: "Дубликаты", value: view.duplicates },
         { label: "Разобрано", value: parsed },
       ]}
-      loadDisabled={pending || view.busy || !view.hasKey || chainRunning}
-      onLoad={() => void send("/api/numbering-sync/sipout")}
-      hasLog={view.hasLog}
-      logHref="/api/numbering-sync/sipout/log"
+      loads={[
+        {
+          label: "Загрузить купленные",
+          disabled: pending || view.busy || !view.hasKey || chainRunning,
+          onClick: () => void send("/api/numbering-sync/sipout/purchased"),
+        },
+        {
+          label: "Загрузить свободные",
+          disabled: pending || view.busy || !view.hasKey || chainRunning,
+          onClick: () => void send("/api/numbering-sync/sipout/free"),
+        },
+      ]}
+      logs={[
+        {
+          label: "Скачать лог купленных",
+          href: "/api/numbering-sync/sipout/log/purchased",
+          hasLog: view.hasPurchasedLog,
+        },
+        {
+          label: "Скачать лог свободных",
+          href: "/api/numbering-sync/sipout/log/free",
+          hasLog: view.hasFreeLog,
+        },
+      ]}
       onKeyDown={onKeyDown}
     >
       {progress ? <p className="text-sm">{progress}</p> : null}

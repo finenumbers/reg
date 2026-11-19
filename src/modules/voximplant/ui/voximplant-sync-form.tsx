@@ -71,33 +71,54 @@ export function VoximplantSyncForm({ initial }: { initial: VoximplantSyncView })
     if (event.key === "Enter") event.preventDefault();
   }
 
+  const listName =
+    view.list === "purchased" ? "Купленные" : view.list === "free" ? "Свободные" : "";
   const progress = !view.busy
     ? null
     : view.phase === "publishing"
       ? "Запись номеров"
-      : view.list === "free" && view.pageTotal > 0
-        ? `Свободные: ${view.pageDone} из ${view.pageTotal}`
-        : view.list === "purchased" && view.pageTotal > 0
-          ? `Купленные: ${view.pageDone} из ${view.pageTotal}`
-          : "Загрузка";
+      : view.pageTotal > 0
+        ? `${listName || "Список"}: ${view.pageDone} из ${view.pageTotal}`
+        : "Загрузка";
 
   return (
     <SourceCard
       name="Voximplant"
-      loadedAtLabel={view.loadedAtLabel}
+      times={[
+        { label: "Купленные загружены", value: view.purchasedLoadedAtLabel },
+        { label: "Свободные загружены", value: view.freeLoadedAtLabel },
+      ]}
       rows={[
         { label: "Купленные", value: view.purchasedShown },
         { label: "Свободные", value: view.freeShown },
-        { label: "Дубликаты", value: view.duplicates },
         { label: "Разобрано", value: parsed },
       ]}
-      loadDisabled={pending || view.busy || !view.hasKey || chainRunning}
-      onLoad={() => void send("/api/numbering-sync/voximplant")}
-      hasLog={view.hasLog}
-      logHref="/api/numbering-sync/voximplant/log"
+      loads={[
+        {
+          label: "Загрузить купленные",
+          disabled: pending || view.busy || !view.hasKey || chainRunning,
+          onClick: () => void send("/api/numbering-sync/voximplant/purchased"),
+        },
+        {
+          label: "Загрузить свободные",
+          disabled: pending || view.busy || !view.hasKey || chainRunning,
+          onClick: () => void send("/api/numbering-sync/voximplant/free"),
+        },
+      ]}
+      logs={[
+        {
+          label: "Скачать лог купленных",
+          href: "/api/numbering-sync/voximplant/log/purchased",
+          hasLog: view.hasPurchasedLog,
+        },
+        {
+          label: "Скачать лог свободных",
+          href: "/api/numbering-sync/voximplant/log/free",
+          hasLog: view.hasFreeLog,
+        },
+      ]}
       onKeyDown={onKeyDown}
     >
-      
       {progress ? <p className="text-sm">{progress}</p> : null}
       <ChainCardNote source="voximplant" />
       {view.busy && view.phase === "running" ? (

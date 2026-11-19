@@ -1,8 +1,9 @@
 /**
- * Purchased numbers, then free numbers for every country whose prefix is 7.
+ * Purchased numbers and free numbers are separate walks.
  * One request at a time. A short free page is not kept and does not advance.
  * A free country gets five attempts. A moved total, a recount mismatch, or a
  * repeated number discards that attempt. A missed answer asks the same page again.
+ * The service publishes after a successful walk.
  */
 
 import { NO_ANSWER } from "@/modules/mcn/client";
@@ -34,7 +35,9 @@ export const OFFSET_ECHO = "Смещение в ответе не совпало
 
 export type Gate = "run" | "cancel" | "lost";
 export type FailReason = "lost" | "cancel" | "fail";
-export type WalkResult = { ok: true } | { ok: false; error: string; reason: FailReason };
+export type WalkResult =
+  | { ok: true; inserted: number }
+  | { ok: false; error: string; reason: FailReason };
 
 const PURCHASED_ATTEMPTS = 2;
 const FREE_ATTEMPTS = 5;
@@ -192,17 +195,13 @@ async function readStable<T>(
   return { kind: "fail", error: discarded, reason: "fail" };
 }
 
-export async function runMcnWalk(deps: {
-  beat: (list: "purchased" | "free", done: number, total: number) => Promise<Gate>;
+/** Purchased composite-dids pages and one recount. */
+export async function runMcnPurchasedWalk(deps: {
+  beat: (done: number, total: number) => Promise<Gate>;
   purchasedPage: (offset: number) => Promise<NumberPage<string>>;
   purchasedRecount: () => Promise<TotalPage>;
-  countries: () => Promise<CountriesPage>;
-  freePage: (countryCode: number, pageNumber: number) => Promise<NumberPage<FreeRow>>;
-  freeRecount: (countryCode: number) => Promise<TotalPage>;
   stagePurchased: (rows: readonly string[]) => Promise<void>;
-  stageFree: (rows: readonly FreeRow[]) => Promise<void>;
   log: (text: string) => Promise<void>;
-  addDuplicates?: (count: number) => void;
 }): Promise<WalkResult> {
   const purchased = await readStable(
     {
@@ -213,7 +212,7 @@ export async function runMcnWalk(deps: {
       fetchPage: deps.purchasedPage,
       recount: deps.purchasedRecount,
       key: (row) => row,
-      beat: (done, total) => deps.beat("purchased", done, total),
+      beat: deps.beat,
       log: deps.log,
     },
     PURCHASED_ATTEMPTS,
@@ -225,10 +224,21 @@ export async function runMcnWalk(deps: {
     );
   }
   if (purchased.rows.length > 0) await deps.stagePurchased(purchased.rows);
+  return { ok: true, inserted: purchased.rows.length };
+}
 
+/** Showcase pages for prefix 7. */
+export async function runMcnFreeWalk(deps: {
+  beat: (done: number, total: number) => Promise<Gate>;
+  countries: () => Promise<CountriesPage>;
+  freePage: (countryCode: number, pageNumber: number) => Promise<NumberPage<FreeRow>>;
+  freeRecount: (countryCode: number) => Promise<TotalPage>;
+  stageFree: (rows: readonly FreeRow[]) => Promise<void>;
+  log: (text: string) => Promise<void>;
+}): Promise<WalkResult> {
   let countries: CountriesPage;
   for (;;) {
-    const gate = await deps.beat("free", 0, 0);
+    const gate = await deps.beat(0, 0);
     if (gate === "cancel") return failed(CANCELLED, "cancel");
     if (gate === "lost") return failed(LOST, "lost");
     countries = await deps.countries();
@@ -246,6 +256,7 @@ export async function runMcnWalk(deps: {
   if (codes.length === 0) return failed(EMPTY_COUNTRIES);
 
   const freeSeen = new Set<string>();
+  let inserted = 0;
   for (const code of codes) {
     const read = await readStable(
       {
@@ -256,7 +267,7 @@ export async function runMcnWalk(deps: {
         fetchPage: (pageNumber) => deps.freePage(code, pageNumber),
         recount: () => deps.freeRecount(code),
         key: (row) => row.e164,
-        beat: (done, total) => deps.beat("free", done, total),
+        beat: deps.beat,
         log: deps.log,
       },
       FREE_ATTEMPTS,
@@ -268,12 +279,11 @@ export async function runMcnWalk(deps: {
       );
     }
     const fresh = read.rows.filter((row) => !freeSeen.has(row.e164));
-    const skipped = read.rows.length - fresh.length;
-    if (skipped > 0) deps.addDuplicates?.(skipped);
     if (fresh.length > 0) await deps.stageFree(fresh);
+    inserted += fresh.length;
     for (const row of fresh) freeSeen.add(row.e164);
   }
-  return { ok: true };
+  return { ok: true, inserted };
 }
 
 export async function runAccessProbe(client: {

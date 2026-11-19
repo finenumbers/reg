@@ -9,6 +9,7 @@ import {
   DELETE_VOXIMPLANT_PURCHASED_SQL,
   FREE_COPY_SQL,
   PURCHASED_COPY_SQL,
+  STAGED_COUNT_SQL,
   VOXIMPLANT_PROVIDER,
   decidePublish,
   dropOverlapSql,
@@ -53,6 +54,8 @@ describe("Voximplant catalog SQL", () => {
     expect(FREE_COPY_SQL).not.toContain("rtu_mask_lookup");
     expect(PURCHASED_COPY_SQL).not.toContain("cdr_tariff_geo");
     expect(flattenSql(fillSplitSql("run", 2000))).toContain("voximplant_sync_stage");
+    expect(STAGED_COUNT_SQL).toContain("catalog = $2");
+    expect(STAGED_COUNT_SQL).toContain("ready = true");
     expect(flattenSql(dropOverlapSql("run"))).toContain("catalog = 'free'");
     expect(flattenSql(dropOverlapSql("run"))).toContain("catalog = 'purchased'");
     expect(
@@ -68,10 +71,32 @@ describe("Voximplant catalog SQL", () => {
       path.join(process.cwd(), "src/modules/voximplant/publish.ts"),
       "utf8",
     );
-    expect(publish.lastIndexOf("VOXIMPLANT_EPOCH_SQL")).toBeGreaterThan(0);
-    expect(publish.lastIndexOf("VOXIMPLANT_EPOCH_SQL")).toBeLessThan(
-      publish.indexOf('"COMMIT"'),
+    expect(publish).toContain("VOXIMPLANT_EPOCH_SQL");
+    expect(publish).toContain("replaceVoximplantPurchased");
+    expect(publish).toContain("replaceVoximplantFree");
+    expect(publish).not.toContain("replaceVoximplantCatalogs");
+    expect(publish).not.toContain("dropPurchasedOverlap");
+    expect(publish).not.toMatch(/\bduplicates_dropped\b/);
+    expect(publish).not.toMatch(/\bloaded_at\b/);
+    expect(publish).toContain('finishSql("last_purchased_written", "purchased_loaded_at")');
+    expect(publish).toContain('finishSql("last_free_written", "free_loaded_at")');
+    expect(publish).toContain("${stamp} = CURRENT_TIMESTAMP");
+    expect(publish).toContain("last_finished_at = CURRENT_TIMESTAMP");
+    const purchased = publish.slice(
+      publish.indexOf("export function replaceVoximplantPurchased"),
+      publish.indexOf("export function replaceVoximplantFree"),
     );
+    const free = publish.slice(publish.indexOf("export function replaceVoximplantFree"));
+    expect(purchased).toContain("DELETE_VOXIMPLANT_PURCHASED_SQL");
+    expect(purchased).not.toContain("DELETE_VOXIMPLANT_FREE_SQL");
+    expect(free).toContain("DELETE_VOXIMPLANT_FREE_SQL");
+    expect(free).not.toContain("DELETE_VOXIMPLANT_PURCHASED_SQL");
+    const oneSide = readFileSync(
+      path.join(process.cwd(), "src/modules/numbering-sync/one-side.ts"),
+      "utf8",
+    );
+    expect(oneSide.lastIndexOf("input.epochSql")).toBeGreaterThan(0);
+    expect(oneSide.lastIndexOf("input.epochSql")).toBeLessThan(oneSide.indexOf('"COMMIT"'));
     expect(VOXIMPLANT_EPOCH_SQL).toContain("voximplant_epoch");
   });
 
@@ -93,6 +118,28 @@ describe("Voximplant catalog SQL", () => {
     expect(sanitizeLogLine("GetPhoneNumbers offset=0 status=200 attempts=1")).toBe(
       "GetPhoneNumbers offset=0 status=200 attempts=1",
     );
+  });
+
+  it("keeps each walk on its own methods", () => {
+    const text = readFileSync(
+      path.join(process.cwd(), "src/modules/voximplant/walk.ts"),
+      "utf8",
+    );
+    const purchased = text.slice(
+      text.indexOf("export async function runVoximplantPurchasedWalk"),
+      text.indexOf("export async function runVoximplantFreeWalk"),
+    );
+    const free = text.slice(
+      text.indexOf("export async function runVoximplantFreeWalk"),
+      text.indexOf("export async function runAccessProbe"),
+    );
+    expect(purchased).toContain("GetPhoneNumbers");
+    expect(purchased).not.toContain("GetPhoneNumberCategories");
+    expect(purchased).not.toContain("GetPhoneNumberRegions");
+    expect(purchased).not.toContain("GetNewPhoneNumbers");
+    expect(free).toContain("GetNewPhoneNumbers");
+    expect(free).toContain("GetPhoneNumberCategories");
+    expect(free).not.toContain("GetPhoneNumbers");
   });
 
   it("does not name a write or another method", () => {

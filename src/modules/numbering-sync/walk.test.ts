@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { SyncLost } from "@/modules/numbering-sync/errors";
-import { runSourceWalk, uniqueDids, type WalkDeps } from "@/modules/numbering-sync/walk";
+import {
+  runSipoutFreeWalk,
+  runSipoutPurchasedWalk,
+  uniqueDids,
+  type WalkDeps,
+} from "@/modules/numbering-sync/walk";
 import type { SipoutPage } from "@/modules/sipout/client";
 
 const META = { status: 200, attempts: 1, durationMs: 4 };
@@ -13,12 +18,7 @@ function failed(error: string): SipoutPage {
   return { ok: false, error, meta: META };
 }
 
-const COUNTS = {
-  deletedFree: 0,
-  insertedFree: 0,
-  deletedPurchased: 0,
-  insertedPurchased: 0,
-};
+const COUNTS = { deleted: 0, inserted: 0 };
 
 function deps(over: Partial<WalkDeps> = {}): WalkDeps {
   return {
@@ -42,7 +42,7 @@ describe("sipout source walk", () => {
     let dropped = false;
     let cities = false;
     let listed = false;
-    const result = await runSourceWalk(
+    const result = await runSipoutPurchasedWalk(
       deps({
         getCities: async () => {
           cities = true;
@@ -70,10 +70,10 @@ describe("sipout source walk", () => {
     expect(dropped).toBe(true);
   });
 
-  it("publishes once when both lists are complete and empty", async () => {
+  it("publishes an empty free list after the cities are read", async () => {
     let published = 0;
     let listed = 0;
-    const result = await runSourceWalk(
+    const result = await runSipoutFreeWalk(
       deps({
         getCities: async () => page({ cities: [{ id: "41" }] }),
         freeList: async () => {
@@ -92,11 +92,11 @@ describe("sipout source walk", () => {
     expect(published).toBe(1);
   });
 
-  it("reads purchased numbers before an empty city list and does not call free_list", async () => {
+  it("does not publish when the city list is empty", async () => {
     let listed = false;
     let connected = false;
     let published = false;
-    const result = await runSourceWalk(
+    const result = await runSipoutFreeWalk(
       deps({
         getCities: async () => page({ cities: [] }),
         freeList: async () => {
@@ -114,14 +114,14 @@ describe("sipout source walk", () => {
       }),
     );
     expect(result.ok).toBe(false);
-    expect(connected).toBe(true);
+    expect(connected).toBe(false);
     expect(listed).toBe(false);
     expect(published).toBe(false);
   });
 
   it("stages one value when one response repeats a number", async () => {
     const staged: { e164: string; incomingPeriod: string }[][] = [];
-    await runSourceWalk(
+    await runSipoutFreeWalk(
       deps({
         freeList: async () =>
           page({
@@ -143,7 +143,7 @@ describe("sipout source walk", () => {
 
   it("does not publish after the lease is lost", async () => {
     let published = false;
-    const result = await runSourceWalk(
+    const result = await runSipoutPurchasedWalk(
       deps({
         stillMine: async () => "lost",
         publish: async () => {
@@ -158,7 +158,7 @@ describe("sipout source walk", () => {
 
   it("treats a lost publish as unpublished", async () => {
     let dropped = false;
-    const result = await runSourceWalk(
+    const result = await runSipoutPurchasedWalk(
       deps({
         publish: async () => {
           throw new SyncLost();

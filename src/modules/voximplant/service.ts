@@ -1,6 +1,7 @@
 /**
  * One Voximplant stage. The key save, the access check, and the walk share one holder.
  * The key save and the access check do not take the database lease.
+ * Purchased and free each replace only their own catalog.
  */
 
 import { randomUUID } from "node:crypto";
@@ -28,21 +29,27 @@ import {
   flushVoximplantLog,
   sanitizeLogLine,
   voximplantLogExists,
+  type VoximplantLogSide,
 } from "@/modules/voximplant/log";
 import {
-  dropPurchasedOverlap,
   dropPurchasedStage,
   dropStage,
   fillDraftSplit,
   markPublishing,
   PublishMismatch,
-  replaceVoximplantCatalogs,
+  replaceVoximplantFree,
+  replaceVoximplantPurchased,
   stageFreeNumbers,
   stagePurchasedNumbers,
   SyncLost,
 } from "@/modules/voximplant/publish";
 import { FREE_COUNT, PURCHASED_COUNT, VOXIMPLANT_ORIGIN } from "@/modules/voximplant/url";
-import { runAccessProbe, runVoximplantWalk, type Gate } from "@/modules/voximplant/walk";
+import {
+  runAccessProbe,
+  runVoximplantFreeWalk,
+  runVoximplantPurchasedWalk,
+  type Gate,
+} from "@/modules/voximplant/walk";
 import {
   isLockTimeout,
   isStatementTimeout,
@@ -78,9 +85,10 @@ export type VoximplantSyncView = VoximplantAccessView & {
   lastPurchased: number | null;
   freeShown: number | null;
   purchasedShown: number | null;
-  duplicates: number;
-  loadedAtLabel: string;
-  hasLog: boolean;
+  purchasedLoadedAtLabel: string;
+  freeLoadedAtLabel: string;
+  hasPurchasedLog: boolean;
+  hasFreeLog: boolean;
 };
 
 type Actor = { userId: string | null; ip?: string | null };
@@ -94,14 +102,18 @@ type StateRow = {
   last_error: string | null;
   last_free_written: number | null;
   last_purchased_written: number | null;
-  duplicates_dropped: number;
-  loaded_at: Date | null;
+  purchased_loaded_at: Date | null;
+  free_loaded_at: Date | null;
   staged_free: number;
   staged_purchased: number;
   busy: boolean;
 };
 
-function emptySync(access: VoximplantAccessView, hasLog: boolean): VoximplantSyncView {
+function emptySync(
+  access: VoximplantAccessView,
+  hasPurchasedLog: boolean,
+  hasFreeLog: boolean,
+): VoximplantSyncView {
   return {
     ...access,
     busy: false,
@@ -114,9 +126,10 @@ function emptySync(access: VoximplantAccessView, hasLog: boolean): VoximplantSyn
     lastPurchased: null,
     freeShown: null,
     purchasedShown: null,
-    duplicates: 0,
-    loadedAtLabel: "—",
-    hasLog,
+    purchasedLoadedAtLabel: "—",
+    freeLoadedAtLabel: "—",
+    hasPurchasedLog,
+    hasFreeLog,
   };
 }
 
@@ -134,12 +147,12 @@ export async function getVoximplantAccessView(): Promise<VoximplantAccessView> {
 }
 
 export async function getVoximplantSyncView(): Promise<VoximplantSyncView> {
-  const [access, rows, hasLog, timeZone] = await Promise.all([
+  const [access, rows, hasPurchasedLog, hasFreeLog, timeZone] = await Promise.all([
     readAccess(),
     prisma.$queryRaw<StateRow[]>`
       SELECT phase, list, page_done, page_total, last_error,
         last_free_written, last_purchased_written,
-        duplicates_dropped, loaded_at,
+        purchased_loaded_at, free_loaded_at,
         (
           SELECT count(*)::int FROM voximplant_sync_stage AS stage
           WHERE stage.run_id = voximplant_sync_state.run_id
@@ -164,11 +177,12 @@ export async function getVoximplantSyncView(): Promise<VoximplantSyncView> {
       FROM voximplant_sync_state
       WHERE id = 1
     `,
-    voximplantLogExists(),
+    voximplantLogExists("purchased"),
+    voximplantLogExists("free"),
     getDisplayTimezone(),
   ]);
   const state = rows[0];
-  if (!state) return emptySync(access, hasLog);
+  if (!state) return emptySync(access, hasPurchasedLog, hasFreeLog);
   const busy = Boolean(state.busy) || isVoximplantActive();
   return {
     ...access,
@@ -190,11 +204,12 @@ export async function getVoximplantSyncView(): Promise<VoximplantSyncView> {
       lastPurchased: state.last_purchased_written,
       stagedFree: state.staged_free,
       stagedPurchased: state.staged_purchased,
-      duplicates: state.duplicates_dropped,
-      loadedAt: state.loaded_at,
+      purchasedLoadedAt: state.purchased_loaded_at,
+      freeLoadedAt: state.free_loaded_at,
       timeZone,
     }),
-    hasLog,
+    hasPurchasedLog,
+    hasFreeLog,
   };
 }
 
@@ -218,13 +233,13 @@ async function loadCredentials(): Promise<VoximplantCredentials> {
   return creds;
 }
 
-async function claim(runId: string): Promise<boolean> {
+async function claim(runId: string, list: VoximplantLogSide): Promise<boolean> {
   try {
     const rows = await prisma.$queryRaw<{ run_id: string }[]>`
       UPDATE voximplant_sync_state
       SET run_id = ${runId},
           phase = 'running',
-          list = '',
+          list = ${list},
           page_done = 0,
           page_total = 0,
           error = NULL,
@@ -380,9 +395,24 @@ export async function testVoximplantAccess(
   }
 }
 
-export async function startVoximplantSync(
+export function startVoximplantPurchased(
   actor: Actor,
   options?: { fromChain?: boolean },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  return startVoximplantSide(actor, options, "purchased");
+}
+
+export function startVoximplantFree(
+  actor: Actor,
+  options?: { fromChain?: boolean },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  return startVoximplantSide(actor, options, "free");
+}
+
+async function startVoximplantSide(
+  actor: Actor,
+  options: { fromChain?: boolean } | undefined,
+  side: VoximplantLogSide,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   armNumberingSyncStop();
   if (isDatabaseVacuumActive()) return { ok: false, error: CDR_VACUUM_BUSY_MESSAGE };
@@ -403,7 +433,7 @@ export async function startVoximplantSync(
   const runId = randomUUID();
   let claimed = false;
   try {
-    claimed = await claim(runId);
+    claimed = await claim(runId, side);
     if (!claimed) {
       endVoximplant(holder);
       return { ok: false, error: BUSY };
@@ -418,63 +448,56 @@ export async function startVoximplantSync(
     return { ok: false, error: START_FAILED };
   }
   try {
-    await beginVoximplantLog();
+    await beginVoximplantLog(runId, side);
   } catch {
     await release(runId).catch(() => undefined);
     endVoximplant(holder);
     return { ok: false, error: LOG_OPEN_FAILED };
   }
 
-  let seenList: ListName = "purchased";
   let seenDone = 0;
   let seenTotal = 0;
-  const walkBeat = async (
-    list: "purchased" | "free",
-    pageDone: number,
-    pageTotal: number,
-  ): Promise<Gate> => {
-    seenList = list;
+  const walkBeat = async (pageDone: number, pageTotal: number): Promise<Gate> => {
     seenDone = pageDone;
     seenTotal = pageTotal;
     if (isVoximplantStopping()) return "cancel";
-    const state = await beat(runId, seenDone, seenTotal, seenList);
+    const state = await beat(runId, seenDone, seenTotal, side);
     if (state === "ok") return "run";
     return state;
   };
   const keep = async () => {
-    const state = await walkBeat(
-      seenList === "free" ? "free" : "purchased",
-      seenDone,
-      seenTotal,
-    );
+    const state = await walkBeat(seenDone, seenTotal);
     if (state === "cancel") throw new Error(CANCELLED);
     if (state === "lost") throw new SyncLost();
   };
   const client = createVoximplantClient(creds);
+  const replace = side === "purchased" ? replaceVoximplantPurchased : replaceVoximplantFree;
+  const outcome = side === "purchased" ? "купленных" : "свободных";
 
-  let duplicates = 0;
   void (async () => {
     try {
-      const result = await runVoximplantWalk({
-        beat: walkBeat,
-        purchasedPage: (offset) => client.purchased(offset, PURCHASED_COUNT),
-        purchasedRecount: () => client.purchasedRecount(),
-        categories: () => client.categories(),
-        regions: (category) => client.regions(category),
-        freePage: (category, regionId, offset) =>
-          client.free(category, regionId, offset, FREE_COUNT),
-        freeRecount: (category, regionId) => client.freeRecount(category, regionId),
-        stagePurchased: (dids) => stagePurchasedNumbers(runId, dids, keep),
-        dropPurchased: () => dropPurchasedStage(runId),
-        stageFree: async (rows) => {
-          const wrote = await stageFreeNumbers(runId, rows, keep);
-          duplicates += wrote.skipped;
-        },
-        addDuplicates: (count) => {
-          duplicates += count;
-        },
-        log: (text) => appendVoximplantLog(`${text}\n`),
-      });
+      const result =
+        side === "purchased"
+          ? await runVoximplantPurchasedWalk({
+              beat: walkBeat,
+              purchasedPage: (offset) => client.purchased(offset, PURCHASED_COUNT),
+              purchasedRecount: () => client.purchasedRecount(),
+              stagePurchased: (rows) => stagePurchasedNumbers(runId, rows, keep),
+              dropPurchased: () => dropPurchasedStage(runId),
+              log: (text) => appendVoximplantLog(`${text}\n`),
+            })
+          : await runVoximplantFreeWalk({
+              beat: walkBeat,
+              categories: () => client.categories(),
+              regions: (category) => client.regions(category),
+              freePage: (category, regionId, offset) =>
+                client.free(category, regionId, offset, FREE_COUNT),
+              freeRecount: (category, regionId) => client.freeRecount(category, regionId),
+              stageFree: async (rows) => {
+                await stageFreeNumbers(runId, rows, keep);
+              },
+              log: (text) => appendVoximplantLog(`${text}\n`),
+            });
       if (!result.ok) {
         await dropStage(runId).catch(() => undefined);
         const message =
@@ -492,20 +515,13 @@ export async function startVoximplantSync(
               entityType: "voximplant",
               entityId: "voximplant",
               ip: actor.ip,
-              meta: auditMeta(creds.accountId, { failed: true }),
+              meta: auditMeta(creds.accountId, { side, failed: true }),
             })
             .catch(() => undefined);
         }
         return;
       }
 
-      const removed = await dropPurchasedOverlap(runId);
-      duplicates += removed;
-      if (removed > 0) {
-        await appendVoximplantLog(
-          `Совпадение: ${removed} номеров убраны из свободных, они куплены.\n`,
-        );
-      }
       await flushVoximplantLog();
       await fillDraftSplit(runId, keep);
       if (isVoximplantStopping()) throw new Error(CANCELLED);
@@ -513,9 +529,9 @@ export async function startVoximplantSync(
       const marked = await markPublishing(runId);
       if (!marked) throw new SyncLost();
       if (isVoximplantStopping()) throw new Error(CANCELLED);
-      let published: { free: number; purchased: number };
+      let published: { inserted: number };
       try {
-        published = await replaceVoximplantCatalogs(runId, duplicates);
+        published = await replace(runId);
       } catch (error) {
         if (
           isLockTimeout(error) &&
@@ -525,14 +541,14 @@ export async function startVoximplantSync(
         ) {
           await keep();
           if (isVoximplantStopping()) throw new Error(CANCELLED);
-          published = await replaceVoximplantCatalogs(runId, duplicates);
+          published = await replace(runId);
         } else {
           throw error;
         }
       }
-      await appendVoximplantLog(
-        `Итог: свободных ${published.free}, купленных ${published.purchased}\n`,
-      ).catch(() => undefined);
+      await appendVoximplantLog(`Итог: ${outcome} ${published.inserted}\n`).catch(
+        () => undefined,
+      );
       await flushVoximplantLog().catch(() => undefined);
       await auditService
         .append({
@@ -541,10 +557,7 @@ export async function startVoximplantSync(
           entityType: "voximplant",
           entityId: "voximplant",
           ip: actor.ip,
-          meta: auditMeta(creds.accountId, {
-            free: published.free,
-            purchased: published.purchased,
-          }),
+          meta: auditMeta(creds.accountId, { side, inserted: published.inserted }),
         })
         .catch(() => undefined);
     } catch (error) {
@@ -565,7 +578,7 @@ export async function startVoximplantSync(
             entityType: "voximplant",
             entityId: "voximplant",
             ip: actor.ip,
-            meta: auditMeta(creds.accountId, { failed: true }),
+            meta: auditMeta(creds.accountId, { side, failed: true }),
           })
           .catch(() => undefined);
       }

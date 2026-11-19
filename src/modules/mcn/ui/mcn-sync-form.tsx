@@ -7,8 +7,8 @@ import {
   useChainRunning,
   useParsedCount,
 } from "@/modules/numbering-chain/ui/chain-context";
-import { SourceCard } from "@/modules/numbering-sync/ui/source-card";
 import type { McnSyncView } from "@/modules/mcn/service";
+import { SourceCard } from "@/modules/numbering-sync/ui/source-card";
 
 export function McnSyncForm({ initial }: { initial: McnSyncView }) {
   const [view, setView] = useState(initial);
@@ -71,33 +71,54 @@ export function McnSyncForm({ initial }: { initial: McnSyncView }) {
     if (event.key === "Enter") event.preventDefault();
   }
 
+  const listName =
+    view.list === "purchased" ? "Купленные" : view.list === "free" ? "Свободные" : "";
   const progress = !view.busy
     ? null
     : view.phase === "publishing"
       ? "Запись номеров"
-      : view.list === "free" && view.pageTotal > 0
-        ? `Свободные: ${view.pageDone} из ${view.pageTotal}`
-        : view.list === "purchased" && view.pageTotal > 0
-          ? `Купленные: ${view.pageDone} из ${view.pageTotal}`
-          : "Загрузка";
+      : view.pageTotal > 0
+        ? `${listName || "Список"}: ${view.pageDone} из ${view.pageTotal}`
+        : "Загрузка";
 
   return (
     <SourceCard
       name="MCN Telecom"
-      loadedAtLabel={view.loadedAtLabel}
+      times={[
+        { label: "Купленные загружены", value: view.purchasedLoadedAtLabel },
+        { label: "Свободные загружены", value: view.freeLoadedAtLabel },
+      ]}
       rows={[
         { label: "Купленные", value: view.purchasedShown },
         { label: "Свободные", value: view.freeShown },
-        { label: "Дубликаты", value: view.duplicates },
         { label: "Разобрано", value: parsed },
       ]}
-      loadDisabled={pending || view.busy || !view.hasKey || chainRunning}
-      onLoad={() => void send("/api/numbering-sync/mcn")}
-      hasLog={view.hasLog}
-      logHref="/api/numbering-sync/mcn/log"
+      loads={[
+        {
+          label: "Загрузить купленные",
+          disabled: pending || view.busy || !view.hasKey || chainRunning,
+          onClick: () => void send("/api/numbering-sync/mcn/purchased"),
+        },
+        {
+          label: "Загрузить свободные",
+          disabled: pending || view.busy || !view.hasKey || chainRunning,
+          onClick: () => void send("/api/numbering-sync/mcn/free"),
+        },
+      ]}
+      logs={[
+        {
+          label: "Скачать лог купленных",
+          href: "/api/numbering-sync/mcn/log/purchased",
+          hasLog: view.hasPurchasedLog,
+        },
+        {
+          label: "Скачать лог свободных",
+          href: "/api/numbering-sync/mcn/log/free",
+          hasLog: view.hasFreeLog,
+        },
+      ]}
       onKeyDown={onKeyDown}
     >
-      
       {progress ? <p className="text-sm">{progress}</p> : null}
       <ChainCardNote source="mcn" />
       {view.busy && view.phase === "running" ? (

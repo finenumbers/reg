@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const requireApiPermission = vi.fn();
-const startUisSync = vi.fn();
+const startUisPurchased = vi.fn();
 const getUisSyncView = vi.fn();
 
 vi.mock("@/modules/auth/guards", () => ({
@@ -29,13 +29,13 @@ vi.mock("@/lib/request-ip", () => ({
 }));
 
 vi.mock("@/modules/uis/service", () => ({
-  startUisSync: (...args: unknown[]) => startUisSync(...args),
+  startUisPurchased: (...args: unknown[]) => startUisPurchased(...args),
   getUisSyncView: (...args: unknown[]) => getUisSyncView(...args),
 }));
 
-import { POST } from "@/app/api/numbering-sync/uis/route";
+import { POST } from "@/app/api/numbering-sync/uis/purchased/route";
 
-describe("POST /api/numbering-sync/uis", () => {
+describe("POST /api/numbering-sync/uis/purchased", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -46,9 +46,9 @@ describe("POST /api/numbering-sync/uis", () => {
       ctx: { authKind: "apiKey" },
     });
     const response = await POST(
-      new Request("http://localhost/api/numbering-sync/uis", { method: "POST" }),
+      new Request("http://localhost/api/numbering-sync/uis/purchased", { method: "POST" }),
     );
     expect(response.status).toBe(403);
-    expect(startUisSync).not.toHaveBeenCalled();
+    expect(startUisPurchased).not.toHaveBeenCalled();
   });
 });

@@ -28,21 +28,22 @@ import {
   flushUisLog,
   sanitizeLogLine,
   uisLogExists,
+  type UisLogSide,
 } from "@/modules/uis/log";
 import { accessPageOk } from "@/modules/uis/parse";
 import {
-  dropPurchasedOverlap,
   dropStage,
   fillDraftSplit,
   markPublishing,
   PublishMismatch,
-  replaceUisCatalogs,
+  replaceUisFree,
+  replaceUisPurchased,
   stageFreeNumbers,
   stagePurchasedNumbers,
   SyncLost,
 } from "@/modules/uis/publish";
 import { UIS_ORIGIN, type UisList } from "@/modules/uis/url";
-import { runUisWalk, type LeaseBeat } from "@/modules/uis/walk";
+import { runUisFreeWalk, runUisPurchasedWalk, type LeaseBeat } from "@/modules/uis/walk";
 
 const BUSY = "Уже выполняется.";
 const STOPPING = "Сервер останавливается. Каталог не изменён.";
@@ -68,9 +69,10 @@ export type UisSyncView = UisAccessView & {
   lastPurchased: number | null;
   freeShown: number | null;
   purchasedShown: number | null;
-  duplicates: number;
-  loadedAtLabel: string;
-  hasLog: boolean;
+  purchasedLoadedAtLabel: string;
+  freeLoadedAtLabel: string;
+  hasPurchasedLog: boolean;
+  hasFreeLog: boolean;
 };
 
 type Actor = { userId: string | null; ip?: string | null };
@@ -83,14 +85,18 @@ type StateRow = {
   last_error: string | null;
   last_free_written: number | null;
   last_purchased_written: number | null;
-  duplicates_dropped: number;
-  loaded_at: Date | null;
+  purchased_loaded_at: Date | null;
+  free_loaded_at: Date | null;
   staged_free: number;
   staged_purchased: number;
   busy: boolean;
 };
 
-function emptySync(access: UisAccessView, hasLog: boolean): UisSyncView {
+function emptySync(
+  access: UisAccessView,
+  hasPurchasedLog: boolean,
+  hasFreeLog: boolean,
+): UisSyncView {
   return {
     ...access,
     busy: false,
@@ -103,9 +109,10 @@ function emptySync(access: UisAccessView, hasLog: boolean): UisSyncView {
     lastPurchased: null,
     freeShown: null,
     purchasedShown: null,
-    duplicates: 0,
-    loadedAtLabel: "—",
-    hasLog,
+    purchasedLoadedAtLabel: "—",
+    freeLoadedAtLabel: "—",
+    hasPurchasedLog,
+    hasFreeLog,
   };
 }
 
@@ -123,12 +130,12 @@ export async function getUisAccessView(): Promise<UisAccessView> {
 }
 
 export async function getUisSyncView(): Promise<UisSyncView> {
-  const [access, rows, hasLog, timeZone] = await Promise.all([
+  const [access, rows, hasPurchasedLog, hasFreeLog, timeZone] = await Promise.all([
     readAccess(),
     prisma.$queryRaw<StateRow[]>`
       SELECT phase, list, page_done, page_total, last_error,
         last_free_written, last_purchased_written,
-        duplicates_dropped, loaded_at,
+        purchased_loaded_at, free_loaded_at,
         (
           SELECT count(*)::int FROM uis_sync_stage AS stage
           WHERE stage.run_id = uis_sync_state.run_id
@@ -153,11 +160,12 @@ export async function getUisSyncView(): Promise<UisSyncView> {
       FROM uis_sync_state
       WHERE id = 1
     `,
-    uisLogExists(),
+    uisLogExists("purchased"),
+    uisLogExists("free"),
     getDisplayTimezone(),
   ]);
   const state = rows[0];
-  if (!state) return emptySync(access, hasLog);
+  if (!state) return emptySync(access, hasPurchasedLog, hasFreeLog);
   const busy = Boolean(state.busy) || isUisActive();
   return {
     ...access,
@@ -179,11 +187,12 @@ export async function getUisSyncView(): Promise<UisSyncView> {
       lastPurchased: state.last_purchased_written,
       stagedFree: state.staged_free,
       stagedPurchased: state.staged_purchased,
-      duplicates: state.duplicates_dropped,
-      loadedAt: state.loaded_at,
+      purchasedLoadedAt: state.purchased_loaded_at,
+      freeLoadedAt: state.free_loaded_at,
       timeZone,
     }),
-    hasLog,
+    hasPurchasedLog,
+    hasFreeLog,
   };
 }
 
@@ -393,9 +402,24 @@ export async function testUisAccess(
   }
 }
 
-export async function startUisSync(
+export function startUisPurchased(
   actor: Actor,
   options?: { fromChain?: boolean },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  return startUisSide(actor, options, "purchased");
+}
+
+export function startUisFree(
+  actor: Actor,
+  options?: { fromChain?: boolean },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  return startUisSide(actor, options, "free");
+}
+
+async function startUisSide(
+  actor: Actor,
+  options: { fromChain?: boolean } | undefined,
+  side: UisLogSide,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   armNumberingSyncStop();
   if (isDatabaseVacuumActive()) return { ok: false, error: CDR_VACUUM_BUSY_MESSAGE };
@@ -430,13 +454,13 @@ export async function startUisSync(
     return { ok: false, error: START_FAILED };
   }
   try {
-    await beginUisLog(runId);
+    await beginUisLog(runId, side);
   } catch {
     await release(runId).catch(() => undefined);
     endUis(holder);
     return { ok: false, error: LOG_OPEN_FAILED };
   }
-  let seenList: UisList = "purchased";
+  let seenList: UisList = side;
   let seenAccepted = 0;
   let seenTotal = 0;
   const keep = async () => {
@@ -444,10 +468,11 @@ export async function startUisSync(
     if (state === "cancel") throw new Error("Загрузка отменена. Каталог не изменён.");
     if (state === "lost") throw new SyncLost();
   };
-  let duplicates = 0;
+  const walk = side === "purchased" ? runUisPurchasedWalk : runUisFreeWalk;
+  const replace = side === "purchased" ? replaceUisPurchased : replaceUisFree;
   void (async () => {
     try {
-      const result = await runUisWalk({
+      const result = await walk({
         count: (list, filter) =>
           uisCall(key, list, { purpose: "count", filter }, { beat: keep }),
         page: (list, filter, offset) =>
@@ -460,14 +485,6 @@ export async function startUisSync(
         stageFree: (rows) => stageFreeNumbers(runId, rows),
         stagePurchased: (dids) => stagePurchasedNumbers(runId, dids),
         prepare: async () => {
-          const removed = await dropPurchasedOverlap(runId);
-          duplicates += removed;
-          if (removed > 0) {
-            await appendUisLog(
-              `Совпадение: ${removed} номеров убраны из свободных, они куплены.\n`,
-            ).catch(() => undefined);
-          }
-          await flushUisLog().catch(() => undefined);
           await fillDraftSplit(runId, async () => {
             const state = await beat(runId, seenAccepted, seenTotal, seenList);
             if (state === "cancel")
@@ -482,7 +499,7 @@ export async function startUisSync(
           if (!marked) throw new SyncLost();
           if (isUisStopping()) throw new Error("Загрузка отменена. Каталог не изменён.");
           try {
-            return await replaceUisCatalogs(runId, duplicates);
+            return await replace(runId);
           } catch (error) {
             if (
               isLockTimeout(error) &&
@@ -494,7 +511,7 @@ export async function startUisSync(
               if (state !== "ok") throw new SyncLost();
               if (isUisStopping())
                 throw new Error("Загрузка отменена. Каталог не изменён.");
-              return replaceUisCatalogs(runId, duplicates);
+              return replace(runId);
             }
             throw error;
           }
@@ -527,7 +544,7 @@ export async function startUisSync(
             entityId: "uis",
             ip: actor.ip,
             meta: result.ok
-              ? { source: "uis", free: result.free, purchased: result.purchased }
+              ? { source: "uis", side, inserted: result.inserted }
               : { source: "uis", failed: true },
           })
           .catch(() => undefined);

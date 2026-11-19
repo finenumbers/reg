@@ -683,10 +683,10 @@ model NumberingSyncState {
   /// Purchased numbers inserted by the last committed SipOut stage.
   lastPurchasedWritten Int? @map("last_purchased_written")
   lastFinishedAt DateTime? @map("last_finished_at")
-  /// Copies dropped because a number was already kept. Written only on a successful publish.
-  duplicatesDropped Int @default(0) @map("duplicates_dropped")
-  /// Wall time of the last successful publish. A failed walk does not change it.
-  loadedAt DateTime? @map("loaded_at")
+  /// Wall time of the last successful purchased publish. A failed walk does not change it.
+  purchasedLoadedAt DateTime? @map("purchased_loaded_at")
+  /// Wall time of the last successful free publish. A failed walk does not change it.
+  freeLoadedAt DateTime? @map("free_loaded_at")
 
   @@map("numbering_sync_state")
 }
@@ -733,8 +733,8 @@ model RunexisSyncState {
   /// Purchased numbers inserted by the last committed Runexis stage.
   lastPurchasedWritten Int?      @map("last_purchased_written")
   lastFinishedAt       DateTime? @map("last_finished_at")
-  duplicatesDropped    Int       @default(0) @map("duplicates_dropped")
-  loadedAt             DateTime? @map("loaded_at")
+  purchasedLoadedAt    DateTime? @map("purchased_loaded_at")
+  freeLoadedAt         DateTime? @map("free_loaded_at")
 
   @@map("runexis_sync_state")
 }
@@ -781,8 +781,8 @@ model UisSyncState {
   /// Purchased numbers inserted by the last committed UIS stage.
   lastPurchasedWritten Int?      @map("last_purchased_written")
   lastFinishedAt       DateTime? @map("last_finished_at")
-  duplicatesDropped    Int       @default(0) @map("duplicates_dropped")
-  loadedAt             DateTime? @map("loaded_at")
+  purchasedLoadedAt    DateTime? @map("purchased_loaded_at")
+  freeLoadedAt         DateTime? @map("free_loaded_at")
 
   @@map("uis_sync_state")
 }
@@ -827,8 +827,8 @@ model AuroraSyncState {
   lastFreeWritten      Int?      @map("last_free_written")
   lastPurchasedWritten Int?      @map("last_purchased_written")
   lastFinishedAt       DateTime? @map("last_finished_at")
-  duplicatesDropped    Int       @default(0) @map("duplicates_dropped")
-  loadedAt             DateTime? @map("loaded_at")
+  purchasedLoadedAt    DateTime? @map("purchased_loaded_at")
+  freeLoadedAt         DateTime? @map("free_loaded_at")
 
   @@map("aurora_sync_state")
 }
@@ -878,8 +878,8 @@ model ExolveSyncState {
   lastFreeWritten      Int?      @map("last_free_written")
   lastPurchasedWritten Int?      @map("last_purchased_written")
   lastFinishedAt       DateTime? @map("last_finished_at")
-  duplicatesDropped    Int       @default(0) @map("duplicates_dropped")
-  loadedAt             DateTime? @map("loaded_at")
+  purchasedLoadedAt    DateTime? @map("purchased_loaded_at")
+  freeLoadedAt         DateTime? @map("free_loaded_at")
 
   @@map("exolve_sync_state")
 }
@@ -918,8 +918,8 @@ model VoximplantSyncState {
   lastFreeWritten      Int?      @map("last_free_written")
   lastPurchasedWritten Int?      @map("last_purchased_written")
   lastFinishedAt       DateTime? @map("last_finished_at")
-  duplicatesDropped    Int       @default(0) @map("duplicates_dropped")
-  loadedAt             DateTime? @map("loaded_at")
+  purchasedLoadedAt    DateTime? @map("purchased_loaded_at")
+  freeLoadedAt         DateTime? @map("free_loaded_at")
 
   @@map("voximplant_sync_state")
 }
@@ -958,8 +958,8 @@ model McnSyncState {
   lastFreeWritten      Int?      @map("last_free_written")
   lastPurchasedWritten Int?      @map("last_purchased_written")
   lastFinishedAt       DateTime? @map("last_finished_at")
-  duplicatesDropped    Int       @default(0) @map("duplicates_dropped")
-  loadedAt             DateTime? @map("loaded_at")
+  purchasedLoadedAt    DateTime? @map("purchased_loaded_at")
+  freeLoadedAt         DateTime? @map("free_loaded_at")
 
   @@map("mcn_sync_state")
 }
@@ -998,8 +998,8 @@ model FinenumbersSyncState {
   lastFreeWritten      Int?      @map("last_free_written")
   lastPurchasedWritten Int?      @map("last_purchased_written")
   lastFinishedAt       DateTime? @map("last_finished_at")
-  duplicatesDropped    Int       @default(0) @map("duplicates_dropped")
-  loadedAt             DateTime? @map("loaded_at")
+  purchasedLoadedAt    DateTime? @map("purchased_loaded_at")
+  freeLoadedAt         DateTime? @map("free_loaded_at")
 
   @@map("finenumbers_sync_state")
 }

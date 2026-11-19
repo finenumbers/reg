@@ -2,12 +2,10 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
-  droppedCopies,
   formatCount,
   formatSyncStamp,
   nextChainLabel,
   parsedShown,
-  safeDropped,
   shownNumbers,
   type ParsedSnapshot,
 } from "@/modules/numbering-sync/card-numbers";
@@ -23,7 +21,9 @@ function functionBody(source: string, signature: string): string {
   expect(start).toBeGreaterThanOrEqual(0);
   const rest = source.slice(start + signature.length);
   const next = rest.search(/\n(?:export )?(?:async )?function /);
-  return next < 0 ? source.slice(start) : source.slice(start, start + signature.length + next);
+  return next < 0
+    ? source.slice(start)
+    : source.slice(start, start + signature.length + next);
 }
 
 function snapshot(patch: Partial<ParsedSnapshot> = {}): ParsedSnapshot {
@@ -87,7 +87,7 @@ describe("sync card numbers", () => {
         stagedPurchased: 0,
         stagedFree: 0,
       }),
-    ).toEqual({ purchasedShown: 0, freeShown: 10 });
+    ).toEqual({ purchasedShown: 20, freeShown: 10 });
     expect(shownNumbers({ ...previous, kind: "sipout", step: "cities" })).toEqual({
       purchasedShown: 20,
       freeShown: 10,
@@ -111,7 +111,7 @@ describe("sync card numbers", () => {
         stagedPurchased: 0,
         stagedFree: 3,
       }),
-    ).toEqual({ purchasedShown: 0, freeShown: 3 });
+    ).toEqual({ purchasedShown: 20, freeShown: 3 });
     expect(shownNumbers({ ...previous, kind: "list", step: null, list: "" })).toEqual({
       purchasedShown: 20,
       freeShown: 10,
@@ -170,12 +170,7 @@ describe("sync card numbers", () => {
     expect(parsedShown(snapshot(), "aurora", null, 9)).toBeNull();
   });
 
-  it("counts copies that were not stored", () => {
-    expect(droppedCopies(5, 3, 2)).toBe(3);
-    expect(droppedCopies(3, 3, 3)).toBe(0);
-    expect(safeDropped(-1)).toBe(0);
-    expect(safeDropped(1.5)).toBe(0);
-    expect(safeDropped(4)).toBe(4);
+  it("formats a count", () => {
     expect(formatCount(null)).toBe("—");
     expect(formatCount(37652).replace(/\s/g, " ")).toBe("37 652");
   });
@@ -207,8 +202,25 @@ describe("sync card numbers", () => {
     }
     for (const file of publishes) {
       const source = read(file);
-      expect(source).toContain("loaded_at = CURRENT_TIMESTAMP");
-      expect(source).toContain("duplicates_dropped = $4");
+      expect(source).not.toContain("duplicates_dropped");
+      expect(source.includes("purchased_loaded_at") || source.includes("free_loaded_at")).toBe(
+        true,
+      );
+    }
+    const sides = [
+      ["src/modules/numbering-sync/publish.ts", "replaceSipoutPurchased", "replaceSipoutFree"],
+      ["src/modules/runexis/publish.ts", "replaceRunexisPurchased", "replaceRunexisFree"],
+      ["src/modules/uis/publish.ts", "replaceUisPurchased", "replaceUisFree"],
+      ["src/modules/exolve/publish.ts", "replaceExolvePurchased", "replaceExolveFree"],
+      ["src/modules/voximplant/publish.ts", "replaceVoximplantPurchased", "replaceVoximplantFree"],
+      ["src/modules/mcn/publish.ts", "replaceMcnPurchased", "replaceMcnFree"],
+    ] as const;
+    for (const [file, purchased, free] of sides) {
+      const source = read(file);
+      const purchasedBody = functionBody(source, `function ${purchased}`);
+      const freeBody = functionBody(source, `function ${free}`);
+      expect(purchasedBody).not.toContain("free_numbers");
+      expect(freeBody).not.toContain("purchased_numbers");
     }
     const runexis = read("src/modules/runexis/walk.ts");
     expect(runexis).toContain("chunk.length - inserted");

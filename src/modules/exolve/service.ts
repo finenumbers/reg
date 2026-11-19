@@ -23,16 +23,17 @@ import {
   exolveLogExists,
   flushExolveLog,
   sanitizeLogLine,
+  type ExolveLogSide,
 } from "@/modules/exolve/log";
 import { planFreeCells } from "@/modules/exolve/parse";
 import {
-  dropPurchasedOverlap,
   dropPurchasedStage,
   dropStage,
   fillDraftSplit,
   markPublishing,
   PublishMismatch,
-  replaceExolveCatalogs,
+  replaceExolveFree,
+  replaceExolvePurchased,
   stageFreeNumbers,
   stagePurchasedNumbers,
   SyncLost,
@@ -40,7 +41,8 @@ import {
 import { EXOLVE_ORIGIN } from "@/modules/exolve/url";
 import {
   LOST,
-  runExolveWalk,
+  runExolveFreeWalk,
+  runExolvePurchasedWalk,
   type ExolveProgress,
   type WalkBeat,
 } from "@/modules/exolve/walk";
@@ -79,9 +81,10 @@ export type ExolveSyncView = ExolveAccessView & {
   lastPurchased: number | null;
   freeShown: number | null;
   purchasedShown: number | null;
-  duplicates: number;
-  loadedAtLabel: string;
-  hasLog: boolean;
+  purchasedLoadedAtLabel: string;
+  freeLoadedAtLabel: string;
+  hasPurchasedLog: boolean;
+  hasFreeLog: boolean;
 };
 
 type Actor = { userId: string | null; ip?: string | null };
@@ -95,14 +98,18 @@ type StateRow = {
   last_error: string | null;
   last_free_written: number | null;
   last_purchased_written: number | null;
-  duplicates_dropped: number;
-  loaded_at: Date | null;
+  purchased_loaded_at: Date | null;
+  free_loaded_at: Date | null;
   staged_free: number;
   staged_purchased: number;
   busy: boolean;
 };
 
-function emptySync(access: ExolveAccessView, hasLog: boolean): ExolveSyncView {
+function emptySync(
+  access: ExolveAccessView,
+  hasPurchasedLog: boolean,
+  hasFreeLog: boolean,
+): ExolveSyncView {
   return {
     ...access,
     busy: false,
@@ -115,9 +122,10 @@ function emptySync(access: ExolveAccessView, hasLog: boolean): ExolveSyncView {
     lastPurchased: null,
     freeShown: null,
     purchasedShown: null,
-    duplicates: 0,
-    loadedAtLabel: "—",
-    hasLog,
+    purchasedLoadedAtLabel: "—",
+    freeLoadedAtLabel: "—",
+    hasPurchasedLog,
+    hasFreeLog,
   };
 }
 
@@ -135,12 +143,12 @@ export async function getExolveAccessView(): Promise<ExolveAccessView> {
 }
 
 export async function getExolveSyncView(): Promise<ExolveSyncView> {
-  const [access, rows, hasLog, timeZone] = await Promise.all([
+  const [access, rows, hasPurchasedLog, hasFreeLog, timeZone] = await Promise.all([
     readAccess(),
     prisma.$queryRaw<StateRow[]>`
       SELECT phase, list, page_done, page_total, last_error,
         last_free_written, last_purchased_written,
-        duplicates_dropped, loaded_at,
+        purchased_loaded_at, free_loaded_at,
         (
           SELECT count(*)::int FROM exolve_sync_stage AS stage
           WHERE stage.run_id = exolve_sync_state.run_id
@@ -165,11 +173,12 @@ export async function getExolveSyncView(): Promise<ExolveSyncView> {
       FROM exolve_sync_state
       WHERE id = 1
     `,
-    exolveLogExists(),
+    exolveLogExists("purchased"),
+    exolveLogExists("free"),
     getDisplayTimezone(),
   ]);
   const state = rows[0];
-  if (!state) return emptySync(access, hasLog);
+  if (!state) return emptySync(access, hasPurchasedLog, hasFreeLog);
   const busy = Boolean(state.busy) || isExolveActive();
   return {
     ...access,
@@ -191,11 +200,12 @@ export async function getExolveSyncView(): Promise<ExolveSyncView> {
       lastPurchased: state.last_purchased_written,
       stagedFree: state.staged_free,
       stagedPurchased: state.staged_purchased,
-      duplicates: state.duplicates_dropped,
-      loadedAt: state.loaded_at,
+      purchasedLoadedAt: state.purchased_loaded_at,
+      freeLoadedAt: state.free_loaded_at,
       timeZone,
     }),
-    hasLog,
+    hasPurchasedLog,
+    hasFreeLog,
   };
 }
 
@@ -417,9 +427,28 @@ export async function testExolveAccess(
   }
 }
 
-export async function startExolveSync(
+function lostLease(error: unknown): boolean {
+  return error instanceof SyncLost || (error instanceof Error && error.name === "SyncLost");
+}
+
+export function startExolvePurchased(
   actor: Actor,
   options?: { fromChain?: boolean },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  return startExolveSide(actor, options, "purchased");
+}
+
+export function startExolveFree(
+  actor: Actor,
+  options?: { fromChain?: boolean },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  return startExolveSide(actor, options, "free");
+}
+
+async function startExolveSide(
+  actor: Actor,
+  options: { fromChain?: boolean } | undefined,
+  side: ExolveLogSide,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   armNumberingSyncStop();
   if (isDatabaseVacuumActive()) return { ok: false, error: CDR_VACUUM_BUSY_MESSAGE };
@@ -455,14 +484,14 @@ export async function startExolveSync(
     return { ok: false, error: START_FAILED };
   }
   try {
-    await beginExolveLog(runId);
+    await beginExolveLog(runId, side);
   } catch {
     await release(runId).catch(() => undefined);
     endExolve(holder);
     return { ok: false, error: LOG_OPEN_FAILED };
   }
 
-  let seenList: ListName = "purchased";
+  let seenList: ListName = side;
   let seenDone = 0;
   let seenTotal = 0;
   const walkBeat: WalkBeat = async (patch: ExolveProgress) => {
@@ -483,29 +512,34 @@ export async function startExolveSync(
     beat: keep,
     note: (line) => appendExolveLog(`${line}\n`),
   });
+  const readDirectory = async () => {
+    const page = await client.directory();
+    if (!page.ok) return page;
+    return { ok: true as const, directory: page.directory };
+  };
+  const replace = side === "purchased" ? replaceExolvePurchased : replaceExolveFree;
+  const walk =
+    side === "purchased"
+      ? runExolvePurchasedWalk({
+          beat: walkBeat,
+          purchased: (filter, offset) => client.purchased(filter, offset),
+          recount: () => client.recount(),
+          directory: readDirectory,
+          stagePurchased: (rows) => stagePurchasedNumbers(runId, rows, keep),
+          dropPurchased: () => dropPurchasedStage(runId),
+          log: (line) => appendExolveLog(`${line}\n`),
+        })
+      : runExolveFreeWalk({
+          beat: walkBeat,
+          directory: readDirectory,
+          free: (cell, offset, mode) => client.free(cell, offset, mode),
+          stageFree: (rows) => stageFreeNumbers(runId, rows, keep),
+          log: (line) => appendExolveLog(`${line}\n`),
+        });
 
-  let duplicates = 0;
   void (async () => {
     try {
-      const result = await runExolveWalk({
-        beat: walkBeat,
-        purchased: (filter, offset) => client.purchased(filter, offset),
-        recount: () => client.recount(),
-        directory: async () => {
-          const page = await client.directory();
-          if (!page.ok) return page;
-          return { ok: true, directory: page.directory };
-        },
-        free: (cell, offset, mode) => client.free(cell, offset, mode),
-        stagePurchased: (dids) => stagePurchasedNumbers(runId, dids, keep),
-        dropPurchased: () => dropPurchasedStage(runId),
-        stageFree: async (rows) => {
-          const wrote = await stageFreeNumbers(runId, rows, keep);
-          duplicates += wrote.skipped;
-          return wrote;
-        },
-        log: (line) => appendExolveLog(`${line}\n`),
-      });
+      const result = await walk;
       if (!result.ok) {
         await dropStage(runId).catch(() => undefined);
         const message = sanitizeLogLine(result.error) || LOST;
@@ -522,20 +556,13 @@ export async function startExolveSync(
               entityType: "exolve",
               entityId: "exolve",
               ip: actor.ip,
-              meta: { source: "exolve", failed: true },
+              meta: { source: "exolve", side, failed: true },
             })
             .catch(() => undefined);
         }
         return;
       }
 
-      const removed = await dropPurchasedOverlap(runId);
-      duplicates += removed;
-      if (removed > 0) {
-        await appendExolveLog(
-          `Совпадение: ${removed} номеров убраны из свободных, они куплены.\n`,
-        );
-      }
       await flushExolveLog();
       await fillDraftSplit(runId, keep);
       if (isExolveStopping()) throw new Error(CANCELLED);
@@ -543,26 +570,25 @@ export async function startExolveSync(
       const marked = await markPublishing(runId);
       if (!marked) throw new SyncLost();
       if (isExolveStopping()) throw new Error(CANCELLED);
-      let published: { free: number; purchased: number };
+      let published: { deleted: number; inserted: number };
       try {
-        published = await replaceExolveCatalogs(runId, duplicates);
+        published = await replace(runId);
       } catch (error) {
         if (
           isLockTimeout(error) &&
-          !(error instanceof SyncLost) &&
+          !lostLease(error) &&
           !(error instanceof PublishMismatch) &&
           !isStatementTimeout(error)
         ) {
           await keep();
           if (isExolveStopping()) throw new Error(CANCELLED);
-          published = await replaceExolveCatalogs(runId, duplicates);
+          published = await replace(runId);
         } else {
           throw error;
         }
       }
-      await appendExolveLog(
-        `Итог: свободных ${published.free}, купленных ${published.purchased}\n`,
-      ).catch(() => undefined);
+      const title = side === "purchased" ? "куплено" : "свободно";
+      await appendExolveLog(`Итог: ${title} ${published.inserted}\n`).catch(() => undefined);
       await flushExolveLog().catch(() => undefined);
       await auditService
         .append({
@@ -571,24 +597,21 @@ export async function startExolveSync(
           entityType: "exolve",
           entityId: "exolve",
           ip: actor.ip,
-          meta: {
-            source: "exolve",
-            free: published.free,
-            purchased: published.purchased,
-          },
+          meta: { source: "exolve", side, inserted: published.inserted },
         })
         .catch(() => undefined);
     } catch (error) {
       await dropStage(runId).catch(() => undefined);
-      const message =
-        (error instanceof Error ? sanitizeLogLine(error.message) : "") ||
-        "Не удалось записать номера.";
+      const message = lostLease(error)
+        ? LOST
+        : (error instanceof Error ? sanitizeLogLine(error.message) : "") ||
+          "Не удалось записать номера.";
       await appendExolveLog(`Итог: каталог не изменён\nОшибка: ${message}\n`).catch(
         () => undefined,
       );
       await flushExolveLog().catch(() => undefined);
       await finishError(runId, message).catch(() => undefined);
-      if (!(error instanceof SyncLost)) {
+      if (!lostLease(error)) {
         await auditService
           .append({
             actorUserId: actor.userId,
@@ -596,7 +619,7 @@ export async function startExolveSync(
             entityType: "exolve",
             entityId: "exolve",
             ip: actor.ip,
-            meta: { source: "exolve", failed: true },
+            meta: { source: "exolve", side, failed: true },
           })
           .catch(() => undefined);
       }

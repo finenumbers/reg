@@ -3,15 +3,12 @@
  * One transaction. Free numbers are written before purchased numbers.
  */
 
-import pg from "pg";
 import { prisma } from "@/lib/db";
-import { safeDropped } from "@/modules/numbering-sync/card-numbers";
 import { withDbRetry } from "@/modules/numbering-sync/db-retry";
-import { noteCatalogReplaced } from "@/modules/numbering-sync/lease";
-import {
-  UIS_EPOCH_SQL,
-  requestDecorateCatchUp,
-} from "@/modules/numbering-catalog/decorate";
+import { UIS_EPOCH_SQL } from "@/modules/numbering-catalog/decorate";
+import { publishOneSide, type SideWrite } from "@/modules/numbering-sync/one-side";
+
+export { PublishMismatch } from "@/modules/numbering-sync/one-side";
 import type { UisRow } from "@/modules/uis/parse";
 import {
   DELETE_UIS_FREE_SQL,
@@ -19,22 +16,12 @@ import {
   FREE_COPY_SQL,
   PURCHASED_COPY_SQL,
   SPLIT_BATCH,
-  STAGED_COUNT_SQL,
-  decidePublish,
-  dropOverlapSql,
   fillSplitSql,
   stageFreeSql,
   stagePurchasedSql,
 } from "@/modules/uis/sql";
 
 const STAGE_CHUNK = 500;
-
-export class PublishMismatch extends Error {
-  constructor() {
-    super("Число номеров не сошлось. Каталог не изменён.");
-    this.name = "PublishMismatch";
-  }
-}
 
 export class SyncLost extends Error {
   constructor() {
@@ -93,11 +80,6 @@ export async function stagePurchasedNumbers(
   await stageChunks(dids, (chunk) => prisma.$executeRaw(stagePurchasedSql(runId, chunk)));
 }
 
-/** Free rows that are already purchased in this run. They leave the free draft. */
-export async function dropPurchasedOverlap(runId: string): Promise<number> {
-  return withDbRetry(() => prisma.$executeRaw(dropOverlapSql(runId)));
-}
-
 export async function dropStage(runId: string): Promise<void> {
   await withDbRetry(
     () => prisma.$executeRaw`
@@ -142,57 +124,21 @@ export async function markPublishing(runId: string): Promise<boolean> {
   return rows.length === 1;
 }
 
-export type PublishedCounts = { free: number; purchased: number };
+const SIDE_COUNT_SQL = `
+  SELECT count(*)::int AS count
+  FROM uis_sync_stage
+  WHERE run_id = $1 AND catalog = $2 AND ready = true
+`;
 
-function stagedCount(
-  rows: { catalog: string; count: number }[],
-  catalog: string,
-): number {
-  return rows.find((row) => row.catalog === catalog)?.count ?? 0;
-}
-
-/** One transaction. Deletes and inserts only provider UIS in both catalogs. */
-export async function replaceUisCatalogs(
-  runId: string,
-  duplicates: number,
-): Promise<PublishedCounts> {
-  const connectionString = process.env.DATABASE_URL;
-  if (!connectionString) throw new Error("DATABASE_URL is required");
-  const client = new pg.Client({ connectionString });
-  await client.connect();
-  let committed = false;
-  try {
-    await client.query("BEGIN");
-    await client.query("SET LOCAL statement_timeout = '600s'");
-    await client.query("SET LOCAL lock_timeout = '15s'");
-    const held = await client.query<{ run_id: string }>(
-      `SELECT run_id
+const LOCK_SQL = `SELECT run_id
        FROM uis_sync_state
        WHERE id = 1 AND run_id = $1 AND phase = 'publishing'
-       FOR UPDATE`,
-      [runId],
-    );
-    const staged = await client.query<{ catalog: string; count: number }>(
-      STAGED_COUNT_SQL,
-      [runId],
-    );
-    await client.query(DELETE_UIS_FREE_SQL);
-    const free = (await client.query(FREE_COPY_SQL, [runId])).rowCount ?? 0;
-    await client.query(DELETE_UIS_PURCHASED_SQL);
-    const purchased = (await client.query(PURCHASED_COPY_SQL, [runId])).rowCount ?? 0;
-    const decision = decidePublish({
-      held: held.rows.length === 1,
-      stagedFree: stagedCount(staged.rows, "free"),
-      insertedFree: free,
-      stagedPurchased: stagedCount(staged.rows, "purchased"),
-      insertedPurchased: purchased,
-    });
-    if (decision !== "commit") {
-      throw held.rows.length === 1 ? new PublishMismatch() : new SyncLost();
-    }
-    await client.query(`DELETE FROM uis_sync_stage WHERE run_id = $1`, [runId]);
-    const finished = await client.query(
-      `UPDATE uis_sync_state
+       FOR UPDATE`;
+
+const CLEAR_STAGE_SQL = `DELETE FROM uis_sync_stage WHERE run_id = $1`;
+
+function finishSql(column: "last_purchased_written" | "last_free_written", stamp: "purchased_loaded_at" | "free_loaded_at"): string {
+  return `UPDATE uis_sync_state
        SET run_id = NULL,
            phase = '',
            list = '',
@@ -201,34 +147,38 @@ export async function replaceUisCatalogs(
            error = NULL,
            heartbeat_at = NULL,
            last_error = NULL,
-           last_free_written = $2,
-           last_purchased_written = $3,
-           duplicates_dropped = $4,
-           last_finished_at = CURRENT_TIMESTAMP,
-           loaded_at = CURRENT_TIMESTAMP
-       WHERE id = 1 AND run_id = $1 AND phase = 'publishing'`,
-      [runId, free, purchased, safeDropped(duplicates)],
-    );
-    if ((finished.rowCount ?? 0) !== 1) throw new SyncLost();
-    const epoch = await client.query(UIS_EPOCH_SQL);
-    if ((epoch.rowCount ?? 0) !== 1) throw new Error("Не удалось отметить каталог.");
-    await client.query("COMMIT");
-    committed = true;
-    try {
-      noteCatalogReplaced();
-    } catch {
-      /* The catalogs are already replaced. The export generation catches up. */
-    }
-    try {
-      requestDecorateCatchUp();
-    } catch {
-      /* The epoch stays ahead. The next start fills the cells. */
-    }
-    return { free, purchased };
-  } catch (error) {
-    if (!committed) await client.query("ROLLBACK").catch(() => undefined);
-    throw error;
-  } finally {
-    await client.end().catch(() => undefined);
-  }
+           ${column} = $2,
+           ${stamp} = CURRENT_TIMESTAMP,
+           last_finished_at = CURRENT_TIMESTAMP
+       WHERE id = 1 AND run_id = $1 AND phase = 'publishing'`;
+}
+
+/** One transaction. Deletes and inserts only UIS purchased rows. */
+export function replaceUisPurchased(runId: string): Promise<SideWrite> {
+  return publishOneSide({
+    runId,
+    lockSql: LOCK_SQL,
+    countSql: SIDE_COUNT_SQL,
+    countParams: [runId, "purchased"],
+    deleteSql: DELETE_UIS_PURCHASED_SQL,
+    copySql: PURCHASED_COPY_SQL,
+    clearStageSql: CLEAR_STAGE_SQL,
+    finishSql: finishSql("last_purchased_written", "purchased_loaded_at"),
+    epochSql: UIS_EPOCH_SQL,
+  });
+}
+
+/** One transaction. Deletes and inserts only UIS free rows. */
+export function replaceUisFree(runId: string): Promise<SideWrite> {
+  return publishOneSide({
+    runId,
+    lockSql: LOCK_SQL,
+    countSql: SIDE_COUNT_SQL,
+    countParams: [runId, "free"],
+    deleteSql: DELETE_UIS_FREE_SQL,
+    copySql: FREE_COPY_SQL,
+    clearStageSql: CLEAR_STAGE_SQL,
+    finishSql: finishSql("last_free_written", "free_loaded_at"),
+    epochSql: UIS_EPOCH_SQL,
+  });
 }

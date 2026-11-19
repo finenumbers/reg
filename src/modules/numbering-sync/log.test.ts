@@ -18,11 +18,11 @@ describe("sipout stage log", () => {
   it("replaces the previous run and keeps the key and the URL out", async () => {
     const dir = await mkdtemp(path.join(os.tmpdir(), "sipout-log-"));
     setNumberingSyncLogDirForTests(dir);
-    await beginSipoutLog("run-1");
-    await appendSipoutLog(`Ошибка: key=${KEY} https://lk.sipout.net/userapi/?key=${KEY}\n`);
-    await beginSipoutLog("run-2");
-    await appendSipoutLog("Городов: 1\n");
-    const text = await readFile(path.join(dir, "sipout.txt"), "utf8");
+    await beginSipoutLog("run-1", "free");
+    await appendSipoutLog("free", `Ошибка: key=${KEY} https://lk.sipout.net/userapi/?key=${KEY}\n`);
+    await beginSipoutLog("run-2", "free");
+    await appendSipoutLog("free", "Городов: 1\n");
+    const text = await readFile(path.join(dir, "sipout-free.txt"), "utf8");
     expect(text).toContain("Идентификатор: run-2");
     expect(text).toContain("Городов: 1");
     expect(text).not.toContain("run-1");

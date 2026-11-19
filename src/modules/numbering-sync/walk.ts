@@ -1,11 +1,10 @@
 /**
- * Read every SipOut page for one source, then publish once.
- * A failed page drops the draft and leaves both catalogs.
+ * One SipOut list, then one catalog replace.
+ * A failed page drops the draft and leaves that catalog.
  */
 
-import { droppedCopies } from "@/modules/numbering-sync/card-numbers";
 import { SyncLost } from "@/modules/numbering-sync/errors";
-import type { PublishCounts } from "@/modules/numbering-sync/publish";
+import type { SideWrite } from "@/modules/numbering-sync/one-side";
 import type { SyncCatalog } from "@/modules/numbering-sync/sql";
 import { parseCityIds, parseDidList, parseFreeList } from "@/modules/sipout/parse";
 import type { SipoutMeta, SipoutPage } from "@/modules/sipout/client";
@@ -20,15 +19,14 @@ export type WalkDeps = {
   stillMine: () => Promise<LeaseBeat>;
   stage: (catalog: SyncCatalog, rows: StagedNumber[]) => Promise<number>;
   prepare: () => Promise<void>;
-  publish: () => Promise<PublishCounts>;
+  publish: () => Promise<SideWrite>;
   dropStage: () => Promise<void>;
   progress: (step: string, done: number, total: number) => Promise<void>;
   log: (block: string) => Promise<void>;
-  addDuplicates?: (count: number) => void;
 };
 
 export type WalkResult =
-  | { ok: true; counts: PublishCounts }
+  | { ok: true; counts: SideWrite }
   | { ok: false; reason: "lost" | "cancelled" | "error"; error: string };
 
 const CANCELLED = "Загрузка отменена. Каталог не изменён.";
@@ -99,7 +97,7 @@ async function note(deps: WalkDeps, block: string): Promise<WalkResult | null> {
   }
 }
 
-async function publishOwned(deps: WalkDeps): Promise<WalkResult> {
+async function publishOwned(deps: WalkDeps, title: string): Promise<WalkResult> {
   const before = await beat(deps);
   if (before) return stop(deps, before);
   try {
@@ -108,11 +106,8 @@ async function publishOwned(deps: WalkDeps): Promise<WalkResult> {
       .log(
         [
           "--- Запись ---",
-          `Удалено свободных SipOut: ${counts.deletedFree}`,
-          `Записано свободных: ${counts.insertedFree}`,
-          `Удалено купленных SipOut: ${counts.deletedPurchased}`,
-          `Записано купленных: ${counts.insertedPurchased}`,
-          "Итог: каталоги источника заменены",
+          `${title}: удалено ${counts.deleted}, записано ${counts.inserted}`,
+          "Итог: список заменён",
           `Окончание: ${new Date().toISOString()}`,
           "",
         ].join("\n"),
@@ -131,7 +126,23 @@ async function publishOwned(deps: WalkDeps): Promise<WalkResult> {
   }
 }
 
-export async function runSourceWalk(deps: WalkDeps): Promise<WalkResult> {
+async function prepareOwned(deps: WalkDeps, step: string): Promise<WalkResult | null> {
+  const beforePrepare = await beat(deps);
+  if (beforePrepare) return stop(deps, beforePrepare);
+  await deps.progress(step, 0, 1);
+  try {
+    await deps.prepare();
+  } catch (error) {
+    if (error instanceof SyncLost) return stop(deps, { ok: false, reason: "lost", error: "" });
+    const message = error instanceof Error && error.message ? error.message : WRITE_FAILED;
+    return stop(deps, { ok: false, reason: "error", error: message });
+  }
+  await deps.progress(step, 1, 1);
+  return null;
+}
+
+/** connected_list, then the purchased catalog only. */
+export async function runSipoutPurchasedWalk(deps: WalkDeps): Promise<WalkResult> {
   const first = await beat(deps);
   if (first) return stop(deps, first);
   await deps.progress("purchased", 0, 1);
@@ -172,11 +183,16 @@ export async function runSourceWalk(deps: WalkDeps): Promise<WalkResult> {
     ]),
   );
   if (purchasedNote) return stop(deps, purchasedNote);
-  deps.addDuplicates?.(
-    droppedCopies(bought.dids.length, uniqueBought.length, insertedBought),
-  );
   await deps.progress("purchased", 1, 1);
+  const prepared = await prepareOwned(deps, "purchased");
+  if (prepared) return prepared;
+  return publishOwned(deps, "Купленные");
+}
 
+/** get_cities and free_list, then the free catalog only. */
+export async function runSipoutFreeWalk(deps: WalkDeps): Promise<WalkResult> {
+  const first = await beat(deps);
+  if (first) return stop(deps, first);
   const cities = await deps.getCities();
   if (!cities.ok) {
     const logged = await note(
@@ -246,22 +262,10 @@ export async function runSourceWalk(deps: WalkDeps): Promise<WalkResult> {
       ]),
     );
     if (logged) return stop(deps, logged);
-    deps.addDuplicates?.(droppedCopies(dids.rows.length, unique.length, inserted));
     await deps.progress("free", index + 1, ids.ids.length);
   }
 
-  const beforePrepare = await beat(deps);
-  if (beforePrepare) return stop(deps, beforePrepare);
-  await deps.progress("split", 0, 1);
-  try {
-    await deps.prepare();
-  } catch (error) {
-    if (error instanceof SyncLost)
-      return stop(deps, { ok: false, reason: "lost", error: "" });
-    const message =
-      error instanceof Error && error.message ? error.message : WRITE_FAILED;
-    return stop(deps, { ok: false, reason: "error", error: message });
-  }
-  await deps.progress("split", 1, 1);
-  return publishOwned(deps);
+  const prepared = await prepareOwned(deps, "free");
+  if (prepared) return prepared;
+  return publishOwned(deps, "Свободные");
 }

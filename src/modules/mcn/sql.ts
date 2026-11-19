@@ -1,6 +1,6 @@
 /**
  * Draft tariff fill and the catalog copy. The copy does not call tariff functions.
- * Both catalogs are MCN Telecom rows only.
+ * Each copy writes MCN Telecom rows for one catalog.
  */
 
 import { Prisma } from "@/generated/prisma/client";
@@ -12,13 +12,6 @@ export const SPLIT_BATCH = 2000;
 
 export const DELETE_MCN_FREE_SQL = `DELETE FROM free_numbers WHERE provider = 'MCN Telecom'`;
 export const DELETE_MCN_PURCHASED_SQL = `DELETE FROM purchased_numbers WHERE provider = 'MCN Telecom'`;
-
-export const STAGED_COUNT_SQL = `
-  SELECT catalog, count(*)::int AS count
-  FROM mcn_sync_stage
-  WHERE run_id = $1 AND ready = true
-  GROUP BY catalog
-`;
 
 export const FREE_COPY_SQL = `
   INSERT INTO free_numbers (
@@ -71,31 +64,6 @@ export const PURCHASED_COPY_SQL = `
   FROM mcn_sync_stage
   WHERE run_id = $1 AND catalog = 'purchased' AND ready = true
 `;
-
-export function decidePublish(input: {
-  held: boolean;
-  stagedFree: number;
-  insertedFree: number;
-  stagedPurchased: number;
-  insertedPurchased: number;
-}): "commit" | "rollback" {
-  if (!input.held) return "rollback";
-  if (input.stagedFree !== input.insertedFree) return "rollback";
-  if (input.stagedPurchased !== input.insertedPurchased) return "rollback";
-  return "commit";
-}
-
-export function dropOverlapSql(runId: string): Prisma.Sql {
-  return Prisma.sql`
-    DELETE FROM mcn_sync_stage AS free
-    USING mcn_sync_stage AS bought
-    WHERE free.run_id = ${runId}
-      AND free.catalog = 'free'
-      AND bought.run_id = free.run_id
-      AND bought.catalog = 'purchased'
-      AND bought.e164 = free.e164
-  `;
-}
 
 export function fillSplitSql(runId: string, limit: number): Prisma.Sql {
   return fillStageSplitSql("mcn_sync_stage", runId, limit);

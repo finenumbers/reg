@@ -1,6 +1,6 @@
 /**
- * One Runexis stage. Login, the showcase, and the partner list do not share SipOut's lease.
- * The token captured after login is not stored.
+ * One Runexis list. Login happens once for that list.
+ * The token captured after login is not stored. The lease is not shared with SipOut.
  */
 
 import { randomUUID } from "node:crypto";
@@ -38,6 +38,7 @@ import {
   flushRunexisLog,
   runexisLogExists,
   sanitizeLogLine,
+  type RunexisLogSide,
 } from "@/modules/runexis/log";
 import {
   parseManagementPage,
@@ -50,12 +51,12 @@ import {
   type RunexisSession,
 } from "@/modules/runexis/parse";
 import {
-  dropPurchasedOverlap,
   dropStage,
   fillDraftSplit,
   markPublishing,
   PublishMismatch,
-  replaceRunexisCatalogs,
+  replaceRunexisFree,
+  replaceRunexisPurchased,
   stageFreeNumbers,
   stagePurchasedNumbers,
   SyncLost,
@@ -65,7 +66,11 @@ import {
   RUNEXIS_ORIGIN,
   type RunexisList,
 } from "@/modules/runexis/url";
-import { runRunexisWalk, type LeaseBeat } from "@/modules/runexis/walk";
+import {
+  runRunexisFreeWalk,
+  runRunexisPurchasedWalk,
+  type LeaseBeat,
+} from "@/modules/runexis/walk";
 
 const BUSY = "Уже выполняется.";
 const STOPPING = "Сервер останавливается. Каталог не изменён.";
@@ -93,9 +98,10 @@ export type RunexisSyncView = RunexisAccessView & {
   lastPurchased: number | null;
   freeShown: number | null;
   purchasedShown: number | null;
-  duplicates: number;
-  loadedAtLabel: string;
-  hasLog: boolean;
+  purchasedLoadedAtLabel: string;
+  freeLoadedAtLabel: string;
+  hasPurchasedLog: boolean;
+  hasFreeLog: boolean;
 };
 
 type Actor = { userId: string | null; ip?: string | null };
@@ -108,14 +114,18 @@ type StateRow = {
   last_error: string | null;
   last_free_written: number | null;
   last_purchased_written: number | null;
-  duplicates_dropped: number;
-  loaded_at: Date | null;
+  purchased_loaded_at: Date | null;
+  free_loaded_at: Date | null;
   staged_free: number;
   staged_purchased: number;
   busy: boolean;
 };
 
-function emptySync(access: RunexisAccessView, hasLog: boolean): RunexisSyncView {
+function emptySync(
+  access: RunexisAccessView,
+  hasPurchasedLog: boolean,
+  hasFreeLog: boolean,
+): RunexisSyncView {
   return {
     ...access,
     busy: false,
@@ -128,9 +138,10 @@ function emptySync(access: RunexisAccessView, hasLog: boolean): RunexisSyncView 
     lastPurchased: null,
     freeShown: null,
     purchasedShown: null,
-    duplicates: 0,
-    loadedAtLabel: "—",
-    hasLog,
+    purchasedLoadedAtLabel: "—",
+    freeLoadedAtLabel: "—",
+    hasPurchasedLog,
+    hasFreeLog,
   };
 }
 
@@ -155,12 +166,12 @@ export async function getRunexisAccessView(): Promise<RunexisAccessView> {
 }
 
 export async function getRunexisSyncView(): Promise<RunexisSyncView> {
-  const [access, rows, hasLog, timeZone] = await Promise.all([
+  const [access, rows, hasPurchasedLog, hasFreeLog, timeZone] = await Promise.all([
     readAccess(),
     prisma.$queryRaw<StateRow[]>`
       SELECT phase, list, page_done, page_total, last_error,
         last_free_written, last_purchased_written,
-        duplicates_dropped, loaded_at,
+        purchased_loaded_at, free_loaded_at,
         (
           SELECT count(*)::int FROM runexis_sync_stage AS stage
           WHERE stage.run_id = runexis_sync_state.run_id
@@ -185,11 +196,12 @@ export async function getRunexisSyncView(): Promise<RunexisSyncView> {
       FROM runexis_sync_state
       WHERE id = 1
     `,
-    runexisLogExists(),
+    runexisLogExists("purchased"),
+    runexisLogExists("free"),
     getDisplayTimezone(),
   ]);
   const state = rows[0];
-  if (!state) return emptySync(access, hasLog);
+  if (!state) return emptySync(access, hasPurchasedLog, hasFreeLog);
   const busy = Boolean(state.busy) || isRunexisActive();
   return {
     ...access,
@@ -211,11 +223,12 @@ export async function getRunexisSyncView(): Promise<RunexisSyncView> {
       lastPurchased: state.last_purchased_written,
       stagedFree: state.staged_free,
       stagedPurchased: state.staged_purchased,
-      duplicates: state.duplicates_dropped,
-      loadedAt: state.loaded_at,
+      purchasedLoadedAt: state.purchased_loaded_at,
+      freeLoadedAt: state.free_loaded_at,
       timeZone,
     }),
-    hasLog,
+    hasPurchasedLog,
+    hasFreeLog,
   };
 }
 
@@ -468,9 +481,24 @@ export async function testRunexisAccess(
   }
 }
 
-export async function startRunexisSync(
+export function startRunexisPurchased(
   actor: Actor,
   options?: { fromChain?: boolean },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  return startRunexisSide(actor, options, "purchased");
+}
+
+export function startRunexisFree(
+  actor: Actor,
+  options?: { fromChain?: boolean },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  return startRunexisSide(actor, options, "free");
+}
+
+async function startRunexisSide(
+  actor: Actor,
+  options: { fromChain?: boolean } | undefined,
+  side: RunexisLogSide,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   armNumberingSyncStop();
   if (isDatabaseVacuumActive()) return { ok: false, error: CDR_VACUUM_BUSY_MESSAGE };
@@ -517,14 +545,14 @@ export async function startRunexisSync(
     return opened;
   }
   try {
-    await beginRunexisLog(runId);
+    await beginRunexisLog(runId, side);
   } catch {
     await release(runId).catch(() => undefined);
     endRunexis(holder);
     return { ok: false, error: LOG_OPEN_FAILED };
   }
   const session = opened.session;
-  let seenList: RunexisList = "management";
+  let seenList: RunexisList = side === "purchased" ? "management" : "showcase";
   let seenPage = 0;
   let seenTotal = 0;
   let seenAccepted = 0;
@@ -533,14 +561,21 @@ export async function startRunexisSync(
     if (state === "cancel") throw new Error("Загрузка отменена. Каталог не изменён.");
     if (state === "lost") throw new SyncLost();
   };
-  let duplicates = 0;
+  const walk = side === "purchased" ? runRunexisPurchasedWalk : runRunexisFreeWalk;
+  const replace = side === "purchased" ? replaceRunexisPurchased : replaceRunexisFree;
   void (async () => {
     try {
-      const result = await runRunexisWalk({
-        codes: () => runexisCodes(session, { beat: keep }),
-        showcase: (page, slice) =>
-          runexisShowcaseSlice(session, page, slice, { beat: keep }),
-        management: (page) => runexisRead(session, "management", page, { beat: keep }),
+      const refused = (): Promise<never> => Promise.reject(new SyncLost());
+      const result = await walk({
+        codes: side === "free" ? () => runexisCodes(session, { beat: keep }) : refused,
+        showcase:
+          side === "free"
+            ? (page, slice) => runexisShowcaseSlice(session, page, slice, { beat: keep })
+            : refused,
+        management:
+          side === "purchased"
+            ? (page) => runexisRead(session, "management", page, { beat: keep })
+            : refused,
         stillMine: async () => {
           if (isRunexisStopping()) return "cancel";
           return beat(runId, seenPage, seenTotal, seenList, seenAccepted);
@@ -550,26 +585,9 @@ export async function startRunexisSync(
         stagePurchased: async (dids) => {
           await stagePurchasedNumbers(runId, dids);
         },
-        addDuplicates: (count) => {
-          duplicates += count;
-        },
         prepare: async () => {
-          const removed = await dropPurchasedOverlap(runId);
-          duplicates += removed;
-          if (removed > 0) {
-            await appendRunexisLog(
-              `Совпадение: ${removed} номеров убраны из свободных, они куплены.\n`,
-            ).catch(() => undefined);
-          }
-          await flushRunexisLog().catch(() => undefined);
           await fillDraftSplit(runId, async () => {
-            const state = await beat(
-              runId,
-              seenPage,
-              seenTotal,
-              "showcase",
-              seenAccepted,
-            );
+            const state = await beat(runId, seenPage, seenTotal, seenList, seenAccepted);
             if (state === "cancel")
               throw new Error("Загрузка отменена. Каталог не изменён.");
             if (state === "lost") throw new SyncLost();
@@ -584,7 +602,7 @@ export async function startRunexisSync(
           if (isRunexisStopping())
             throw new Error("Загрузка отменена. Каталог не изменён.");
           try {
-            return await replaceRunexisCatalogs(runId, duplicates);
+            return await replace(runId);
           } catch (error) {
             if (
               isLockTimeout(error) &&
@@ -602,7 +620,7 @@ export async function startRunexisSync(
               if (state !== "ok") throw new SyncLost();
               if (isRunexisStopping())
                 throw new Error("Загрузка отменена. Каталог не изменён.");
-              return replaceRunexisCatalogs(runId, duplicates);
+              return replace(runId);
             }
             throw error;
           }
@@ -636,8 +654,8 @@ export async function startRunexisSync(
             entityId: "runexis",
             ip: actor.ip,
             meta: result.ok
-              ? { source: "runexis", free: result.free, purchased: result.purchased }
-              : { source: "runexis", failed: true },
+              ? { source: "runexis", side, inserted: result.inserted }
+              : { source: "runexis", side, failed: true },
           })
           .catch(() => undefined);
       }

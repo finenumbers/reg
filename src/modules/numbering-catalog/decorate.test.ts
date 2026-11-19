@@ -154,8 +154,12 @@ describe("catalog decorate", () => {
     expect(purchased).toContain("client = computed.client");
     expect(purchased).toContain("provider = 'UIS'");
     expect(purchased).toContain("rtu_mask_lookup");
-    expect(purchased).toContain("operator = COALESCE(computed.pstn_operator, n.operator)");
-    expect(purchased).toContain("geography = COALESCE(computed.pstn_geography, n.geography)");
+    expect(purchased).toContain(
+      "operator = COALESCE(computed.pstn_operator, n.operator)",
+    );
+    expect(purchased).toContain(
+      "geography = COALESCE(computed.pstn_geography, n.geography)",
+    );
 
     const client = flattenSql(purchasedClientBatchSql(""));
     expect(client).toContain("SET client = computed.client");
@@ -182,6 +186,14 @@ describe("catalog decorate", () => {
   });
 
   it("increments the provider epoch before the catalog commit", () => {
+    const oneSide = readFileSync(
+      path.join(process.cwd(), "src/modules/numbering-sync/one-side.ts"),
+      "utf8",
+    );
+    expect(oneSide.lastIndexOf("input.epochSql")).toBeGreaterThan(0);
+    expect(oneSide.lastIndexOf("input.epochSql")).toBeLessThan(
+      oneSide.indexOf('"COMMIT"'),
+    );
     const files = [
       ["src/modules/numbering-sync/publish.ts", "SIPOUT_EPOCH_SQL", SIPOUT_EPOCH_SQL],
       ["src/modules/runexis/publish.ts", "RUNEXIS_EPOCH_SQL", RUNEXIS_EPOCH_SQL],
@@ -190,12 +202,22 @@ describe("catalog decorate", () => {
       ["src/modules/exolve/publish.ts", "EXOLVE_EPOCH_SQL", EXOLVE_EPOCH_SQL],
       ["src/modules/voximplant/publish.ts", "VOXIMPLANT_EPOCH_SQL", VOXIMPLANT_EPOCH_SQL],
       ["src/modules/mcn/publish.ts", "MCN_EPOCH_SQL", MCN_EPOCH_SQL],
-      ["src/modules/finenumbers/publish.ts", "FINENUMBERS_EPOCH_SQL", FINENUMBERS_EPOCH_SQL],
+      [
+        "src/modules/finenumbers/publish.ts",
+        "FINENUMBERS_EPOCH_SQL",
+        FINENUMBERS_EPOCH_SQL,
+      ],
     ] as const;
     for (const [file, symbol, sql] of files) {
       const text = readFileSync(path.join(process.cwd(), file), "utf8");
       expect(text.lastIndexOf(symbol)).toBeGreaterThan(0);
-      expect(text.lastIndexOf(symbol)).toBeLessThan(text.indexOf('"COMMIT"'));
+      const commitAt = text.indexOf('"COMMIT"');
+      if (commitAt >= 0) {
+        expect(text.lastIndexOf(symbol)).toBeLessThan(commitAt);
+      } else {
+        expect(text).toContain("publishOneSide");
+        expect(text).toContain(`epochSql: ${symbol}`);
+      }
       expect(sql).toContain("numbering_catalog_state");
       expect(sql).not.toContain("cdr_records");
     }
@@ -207,7 +229,7 @@ describe("catalog decorate", () => {
     for (const sql of [free, purchased]) {
       expect(sql).toContain("cdr_tariff_geo");
       expect(sql).toContain("geography_digit_split");
-      expect(sql).toContain('SET');
+      expect(sql).toContain("SET");
       expect(sql).toContain("abc = computed.abc");
       expect(sql).not.toContain("rtu_mask_lookup");
       expect(sql).not.toContain("mask");
@@ -239,7 +261,9 @@ describe("catalog decorate", () => {
     expect(cursor).toContain("cursor_after");
     expect(cursor).toContain("resplit_epoch");
     expect(cursor).not.toContain("parsed");
-    const providerCursor = flattenSql(saveCursorSql("provider-free", 2, "MCN Telecom", "row"));
+    const providerCursor = flattenSql(
+      saveCursorSql("provider-free", 2, "MCN Telecom", "row"),
+    );
     expect(providerCursor).toContain("mcn_epoch");
     expect(providerCursor).toContain("mcn_parsed");
     expect(providerCursor).not.toContain("sipout_epoch");
@@ -337,13 +361,17 @@ describe("catalog decorate", () => {
         pstn_range_epoch: 2,
       }),
     ).toEqual({ kind: "provider", provider: "SipOut" });
-    expect(nextDecorateStep({ ...caught, pstn_range_epoch: 2 })).toEqual({ kind: "pstn" });
+    expect(nextDecorateStep({ ...caught, pstn_range_epoch: 2 })).toEqual({
+      kind: "pstn",
+    });
     expect(nextDecorateStep({ ...caught, client_epoch: 2 })).toEqual({ kind: "client" });
     expect(nextDecorateStep(caught)).toEqual({ kind: "idle" });
     expect(nextDecorateStep({ ...caught, resplit_epoch: 2, mask_epoch: 2 })).toEqual({
       kind: "resplit",
     });
-    expect(snapshotAfterDebt({ kind: "provider", provider: "Aurora Telecom" })).toBe(false);
+    expect(snapshotAfterDebt({ kind: "provider", provider: "Aurora Telecom" })).toBe(
+      false,
+    );
     expect(snapshotAfterDebt({ kind: "provider", provider: "Finenumbers" })).toBe(false);
     expect(snapshotAfterDebt({ kind: "provider", provider: "SipOut" })).toBe(false);
     expect(snapshotAfterDebt({ kind: "mask" })).toBe(false);
@@ -393,8 +421,8 @@ describe("catalog decorate", () => {
     expect(migration).toContain("CREATE EXTENSION IF NOT EXISTS btree_gist");
     expect(migration).toContain("USING gist");
     expect(migration).toContain('"abc"');
-    expect(migration).toContain("int4range(\"range_start\", \"range_end\", '[]')");
-    expect(migration).toContain("ANALYZE \"pstn_range_snapshot\"");
+    expect(migration).toContain('int4range("range_start", "range_end", \'[]\')');
+    expect(migration).toContain('ANALYZE "pstn_range_snapshot"');
     expect(migration).toContain("lock_timeout = '15s'");
     expect(migration).not.toMatch(/\b(UPDATE|INSERT INTO|DELETE FROM)\b/);
 

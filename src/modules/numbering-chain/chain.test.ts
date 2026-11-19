@@ -84,13 +84,15 @@ describe("numbering chain text", () => {
   it("puts the remainder on the matching card and names the tail", () => {
     const view = buildChainView({
       running: true,
-      index: 6,
+      index: 11,
       mode: "masks",
       progress: { provider: "MCN Telecom", kind: "free", done: 1000, total: 235150 },
     });
     expect(view.cards.mcn).toBe("Маски, свободные: осталось 234150 из 235150.");
     expect(view.banner).toBeNull();
-    expect(view.queue).toBe("Маски, MCN Telecom. Дальше: MCN Telecom, Finenumbers.");
+    expect(view.queue).toBe(
+      "Маски, MCN Telecom. Дальше: MCN Telecom, купленные, MCN Telecom, свободные, Finenumbers.",
+    );
   });
 
   it("shows a tariff remainder above the cards", () => {
@@ -103,7 +105,7 @@ describe("numbering chain text", () => {
     expect(view.banner).toBe("Тариф, свободные: осталось 3000 из 4000.");
     expect(view.cards).toEqual({});
     expect(view.queue).toBe(
-      "Тариф. Дальше: SipOut, Runexis, UIS, Aurora Telecom, MTS Exolve, Voximplant, MCN Telecom, Finenumbers.",
+      "Тариф. Дальше: SipOut, купленные, SipOut, свободные, Runexis, купленные, Runexis, свободные, UIS, купленные, UIS, свободные, Aurora Telecom, свободные, MTS Exolve, купленные, MTS Exolve, свободные, Voximplant, купленные, Voximplant, свободные, MCN Telecom, купленные, MCN Telecom, свободные, Finenumbers.",
     );
   });
 
@@ -117,7 +119,7 @@ describe("numbering chain text", () => {
     expect(view.banner).toBe("Клиенты, купленные: осталось 30 из 40.");
     expect(view.cards).toEqual({});
     expect(view.queue).toBe(
-      "Клиенты, купленные. Дальше: Runexis, UIS, Aurora Telecom, MTS Exolve, Voximplant, MCN Telecom, Finenumbers.",
+      "Клиенты, купленные. Дальше: SipOut, свободные, Runexis, купленные, Runexis, свободные, UIS, купленные, UIS, свободные, Aurora Telecom, свободные, MTS Exolve, купленные, MTS Exolve, свободные, Voximplant, купленные, Voximplant, свободные, MCN Telecom, купленные, MCN Telecom, свободные, Finenumbers.",
     );
   });
 
@@ -136,7 +138,7 @@ describe("numbering chain text", () => {
       progress: null,
     });
     expect(reading.queue).toBe(
-      "Цепочка: Runexis. Дальше: UIS, Aurora Telecom, MTS Exolve, Voximplant, MCN Telecom, Finenumbers.",
+      "Цепочка: SipOut, свободные. Дальше: Runexis, купленные, Runexis, свободные, UIS, купленные, UIS, свободные, Aurora Telecom, свободные, MTS Exolve, купленные, MTS Exolve, свободные, Voximplant, купленные, Voximplant, свободные, MCN Telecom, купленные, MCN Telecom, свободные, Finenumbers.",
     );
   });
 });

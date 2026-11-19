@@ -3,16 +3,16 @@ import { unlink } from "node:fs/promises";
 import { Readable } from "node:stream";
 
 import { numberingSyncActor, numberingSyncJson } from "@/modules/numbering-sync/http";
-import { snapshotFinenumbersLog } from "@/modules/finenumbers/log";
+import { snapshotExolveLog } from "@/modules/exolve/log";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** GET /api/numbering-sync/finenumbers/log — the current stage log. Session only. */
+/** GET /api/numbering-sync/exolve/log/purchased — the purchased stage log. Session only. */
 export async function GET(request: Request) {
   const actor = await numberingSyncActor(request);
   if (!actor.ok) return actor.response;
-  const file = await snapshotFinenumbersLog();
+  const file = await snapshotExolveLog("purchased");
   if (!file) return numberingSyncJson({ error: "Журнал ещё не создан." }, 404);
   const nodeStream = createReadStream(file);
   nodeStream.on("close", () => {
@@ -25,7 +25,7 @@ export async function GET(request: Request) {
   return new Response(body, {
     headers: {
       "Content-Type": "text/plain; charset=utf-8",
-      "Content-Disposition": 'attachment; filename="finenumbers.txt"',
+      "Content-Disposition": 'attachment; filename="exolve-purchased.txt"',
       "Cache-Control": "private, no-store",
     },
   });

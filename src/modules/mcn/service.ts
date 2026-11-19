@@ -18,20 +18,26 @@ import {
   flushMcnLog,
   mcnLogExists,
   sanitizeLogLine,
+  type McnLogSide,
 } from "@/modules/mcn/log";
 import {
-  dropPurchasedOverlap,
   dropStage,
   fillDraftSplit,
   markPublishing,
   PublishMismatch,
-  replaceMcnCatalogs,
+  replaceMcnFree,
+  replaceMcnPurchased,
   stageFreeNumbers,
   stagePurchasedNumbers,
   SyncLost,
 } from "@/modules/mcn/publish";
 import { PURCHASED_LIMIT, SHOP_HOST, VPBX_HOST } from "@/modules/mcn/url";
-import { runAccessProbe, runMcnWalk, type Gate } from "@/modules/mcn/walk";
+import {
+  runAccessProbe,
+  runMcnFreeWalk,
+  runMcnPurchasedWalk,
+  type Gate,
+} from "@/modules/mcn/walk";
 import {
   isLockTimeout,
   isStatementTimeout,
@@ -51,6 +57,7 @@ const BAD_TOKEN = "Проверьте ключ.";
 const LOG_OPEN_FAILED = "Не удалось открыть журнал стадии.";
 const START_FAILED = "Не удалось начать загрузку.";
 const CANCELLED = "Загрузка отменена. Каталог не изменён.";
+const LOST_MESSAGE = "Загрузка прервана. Каталог не изменён.";
 
 export type McnAccessView = {
   shopHost: typeof SHOP_HOST;
@@ -69,9 +76,10 @@ export type McnSyncView = McnAccessView & {
   lastPurchased: number | null;
   freeShown: number | null;
   purchasedShown: number | null;
-  duplicates: number;
-  loadedAtLabel: string;
-  hasLog: boolean;
+  purchasedLoadedAtLabel: string;
+  freeLoadedAtLabel: string;
+  hasPurchasedLog: boolean;
+  hasFreeLog: boolean;
 };
 
 type Actor = { userId: string | null; ip?: string | null };
@@ -85,12 +93,16 @@ type StateRow = {
   last_error: string | null;
   last_free_written: number | null;
   last_purchased_written: number | null;
-  duplicates_dropped: number;
-  loaded_at: Date | null;
+  purchased_loaded_at: Date | null;
+  free_loaded_at: Date | null;
   staged_free: number;
   staged_purchased: number;
   busy: boolean;
 };
+
+function lostError(error: unknown): boolean {
+  return error instanceof SyncLost || (error instanceof Error && error.name === "SyncLost");
+}
 
 function hosts(): { shopHost: typeof SHOP_HOST; vpbxHost: typeof VPBX_HOST } {
   return { shopHost: SHOP_HOST, vpbxHost: VPBX_HOST };
@@ -106,7 +118,11 @@ function tokenReadable(value: string): boolean {
   return value.length >= 1 && value.length <= 4096 && !/[\r\n]/.test(value);
 }
 
-function emptySync(access: McnAccessView, hasLog: boolean): McnSyncView {
+function emptySync(
+  access: McnAccessView,
+  hasPurchasedLog: boolean,
+  hasFreeLog: boolean,
+): McnSyncView {
   return {
     ...access,
     busy: false,
@@ -119,9 +135,10 @@ function emptySync(access: McnAccessView, hasLog: boolean): McnSyncView {
     lastPurchased: null,
     freeShown: null,
     purchasedShown: null,
-    duplicates: 0,
-    loadedAtLabel: "—",
-    hasLog,
+    purchasedLoadedAtLabel: "—",
+    freeLoadedAtLabel: "—",
+    hasPurchasedLog,
+    hasFreeLog,
   };
 }
 
@@ -139,12 +156,12 @@ export async function getMcnAccessView(): Promise<McnAccessView> {
 }
 
 export async function getMcnSyncView(): Promise<McnSyncView> {
-  const [access, rows, hasLog, timeZone] = await Promise.all([
+  const [access, rows, hasPurchasedLog, hasFreeLog, timeZone] = await Promise.all([
     readAccess(),
     prisma.$queryRaw<StateRow[]>`
       SELECT phase, list, page_done, page_total, last_error,
         last_free_written, last_purchased_written,
-        duplicates_dropped, loaded_at,
+        purchased_loaded_at, free_loaded_at,
         (
           SELECT count(*)::int FROM mcn_sync_stage AS stage
           WHERE stage.run_id = mcn_sync_state.run_id
@@ -169,11 +186,12 @@ export async function getMcnSyncView(): Promise<McnSyncView> {
       FROM mcn_sync_state
       WHERE id = 1
     `,
-    mcnLogExists(),
+    mcnLogExists("purchased"),
+    mcnLogExists("free"),
     getDisplayTimezone(),
   ]);
   const state = rows[0];
-  if (!state) return emptySync(access, hasLog);
+  if (!state) return emptySync(access, hasPurchasedLog, hasFreeLog);
   const busy = Boolean(state.busy) || isMcnActive();
   return {
     ...access,
@@ -195,11 +213,12 @@ export async function getMcnSyncView(): Promise<McnSyncView> {
       lastPurchased: state.last_purchased_written,
       stagedFree: state.staged_free,
       stagedPurchased: state.staged_purchased,
-      duplicates: state.duplicates_dropped,
-      loadedAt: state.loaded_at,
+      purchasedLoadedAt: state.purchased_loaded_at,
+      freeLoadedAt: state.free_loaded_at,
       timeZone,
     }),
-    hasLog,
+    hasPurchasedLog,
+    hasFreeLog,
   };
 }
 
@@ -381,9 +400,24 @@ export async function testMcnAccess(
   }
 }
 
-export async function startMcnSync(
+export function startMcnPurchased(
   actor: Actor,
   options?: { fromChain?: boolean },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  return startMcnSide(actor, options, "purchased");
+}
+
+export function startMcnFree(
+  actor: Actor,
+  options?: { fromChain?: boolean },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  return startMcnSide(actor, options, "free");
+}
+
+async function startMcnSide(
+  actor: Actor,
+  options: { fromChain?: boolean } | undefined,
+  side: McnLogSide,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   armNumberingSyncStop();
   if (isDatabaseVacuumActive()) return { ok: false, error: CDR_VACUUM_BUSY_MESSAGE };
@@ -419,64 +453,56 @@ export async function startMcnSync(
     return { ok: false, error: START_FAILED };
   }
   try {
-    await beginMcnLog();
+    await beginMcnLog(runId, side);
   } catch {
     await release(runId).catch(() => undefined);
     endMcn(holder);
     return { ok: false, error: LOG_OPEN_FAILED };
   }
 
-  let seenList: ListName = "purchased";
   let seenDone = 0;
   let seenTotal = 0;
-  const walkBeat = async (
-    list: "purchased" | "free",
-    pageDone: number,
-    pageTotal: number,
-  ): Promise<Gate> => {
-    seenList = list;
+  const walkBeat = async (pageDone: number, pageTotal: number): Promise<Gate> => {
     seenDone = pageDone;
     seenTotal = pageTotal;
     if (isMcnStopping()) return "cancel";
-    const state = await beat(runId, seenDone, seenTotal, seenList);
+    const state = await beat(runId, pageDone, pageTotal, side);
     if (state === "ok") return "run";
     return state;
   };
   const keep = async () => {
-    const state = await walkBeat(
-      seenList === "free" ? "free" : "purchased",
-      seenDone,
-      seenTotal,
-    );
+    const state = await walkBeat(seenDone, seenTotal);
     if (state === "cancel") throw new Error(CANCELLED);
     if (state === "lost") throw new SyncLost();
   };
   const client = createMcnClient(key, { beforeAttempt: keep });
+  const replace = side === "purchased" ? replaceMcnPurchased : replaceMcnFree;
+  const title = side === "purchased" ? "Купленные" : "Свободные";
 
-  let duplicates = 0;
   void (async () => {
     try {
-      const result = await runMcnWalk({
-        beat: walkBeat,
-        purchasedPage: (offset) => client.purchased(offset, PURCHASED_LIMIT),
-        purchasedRecount: () => client.purchasedRecount(),
-        countries: () => client.countries(),
-        freePage: (countryCode, pageNumber) => client.free(countryCode, pageNumber),
-        freeRecount: (countryCode) => client.freeRecount(countryCode),
-        stagePurchased: (dids) => stagePurchasedNumbers(runId, dids, keep),
-        stageFree: async (rows) => {
-          const wrote = await stageFreeNumbers(runId, rows, keep);
-          duplicates += wrote.skipped;
-        },
-        addDuplicates: (count) => {
-          duplicates += count;
-        },
-        log: (text) => appendMcnLog(`${text}\n`),
-      });
+      const result =
+        side === "purchased"
+          ? await runMcnPurchasedWalk({
+              beat: walkBeat,
+              purchasedPage: (offset) => client.purchased(offset, PURCHASED_LIMIT),
+              purchasedRecount: () => client.purchasedRecount(),
+              stagePurchased: (dids) => stagePurchasedNumbers(runId, dids, keep),
+              log: (text) => appendMcnLog(`${text}\n`),
+            })
+          : await runMcnFreeWalk({
+              beat: walkBeat,
+              countries: () => client.countries(),
+              freePage: (countryCode, pageNumber) => client.free(countryCode, pageNumber),
+              freeRecount: (countryCode) => client.freeRecount(countryCode),
+              stageFree: async (rows) => {
+                await stageFreeNumbers(runId, rows, keep);
+              },
+              log: (text) => appendMcnLog(`${text}\n`),
+            });
       if (!result.ok) {
         await dropStage(runId).catch(() => undefined);
-        const message =
-          sanitizeLogLine(result.error) || "Загрузка прервана. Каталог не изменён.";
+        const message = sanitizeLogLine(result.error) || LOST_MESSAGE;
         await appendMcnLog(`Итог: каталог не изменён\nОшибка: ${message}\n`).catch(
           () => undefined,
         );
@@ -490,20 +516,13 @@ export async function startMcnSync(
               entityType: "mcn",
               entityId: "mcn",
               ip: actor.ip,
-              meta: auditMeta({ failed: true }),
+              meta: auditMeta({ side, failed: true }),
             })
             .catch(() => undefined);
         }
         return;
       }
 
-      const removed = await dropPurchasedOverlap(runId);
-      duplicates += removed;
-      if (removed > 0) {
-        await appendMcnLog(
-          `Совпадение: ${removed} номеров убраны из свободных, они куплены.\n`,
-        );
-      }
       await flushMcnLog();
       await fillDraftSplit(runId, keep);
       if (isMcnStopping()) throw new Error(CANCELLED);
@@ -511,26 +530,26 @@ export async function startMcnSync(
       const marked = await markPublishing(runId);
       if (!marked) throw new SyncLost();
       if (isMcnStopping()) throw new Error(CANCELLED);
-      let published: { free: number; purchased: number };
+      let published: { inserted: number };
       try {
-        published = await replaceMcnCatalogs(runId, duplicates);
+        published = await replace(runId);
       } catch (error) {
         if (
           isLockTimeout(error) &&
-          !(error instanceof SyncLost) &&
+          !lostError(error) &&
           !(error instanceof PublishMismatch) &&
           !isStatementTimeout(error)
         ) {
           await keep();
           if (isMcnStopping()) throw new Error(CANCELLED);
-          published = await replaceMcnCatalogs(runId, duplicates);
+          published = await replace(runId);
         } else {
           throw error;
         }
       }
-      await appendMcnLog(
-        `Итог: свободных ${published.free}, купленных ${published.purchased}\n`,
-      ).catch(() => undefined);
+      await appendMcnLog(`Итог: ${title} записано ${published.inserted}\n`).catch(
+        () => undefined,
+      );
       await flushMcnLog().catch(() => undefined);
       await auditService
         .append({
@@ -539,23 +558,21 @@ export async function startMcnSync(
           entityType: "mcn",
           entityId: "mcn",
           ip: actor.ip,
-          meta: auditMeta({
-            free: published.free,
-            purchased: published.purchased,
-          }),
+          meta: auditMeta({ side, inserted: published.inserted }),
         })
         .catch(() => undefined);
     } catch (error) {
       await dropStage(runId).catch(() => undefined);
-      const message =
-        (error instanceof Error ? sanitizeLogLine(error.message) : "") ||
-        "Не удалось записать номера.";
+      const message = lostError(error)
+        ? LOST_MESSAGE
+        : (error instanceof Error ? sanitizeLogLine(error.message) : "") ||
+          "Не удалось записать номера.";
       await appendMcnLog(`Итог: каталог не изменён\nОшибка: ${message}\n`).catch(
         () => undefined,
       );
       await flushMcnLog().catch(() => undefined);
       await finishError(runId, message).catch(() => undefined);
-      if (!(error instanceof SyncLost)) {
+      if (!lostError(error)) {
         await auditService
           .append({
             actorUserId: actor.userId,
@@ -563,7 +580,7 @@ export async function startMcnSync(
             entityType: "mcn",
             entityId: "mcn",
             ip: actor.ip,
-            meta: auditMeta({ failed: true }),
+            meta: auditMeta({ side, failed: true }),
           })
           .catch(() => undefined);
       }

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { UisPage } from "@/modules/uis/client";
 import { decidePublish, dropOverlapSql, stageFreeSql } from "@/modules/uis/sql";
 import { PAGE_LIMIT, WINDOW, type UisFilter, type UisList } from "@/modules/uis/url";
-import { runUisWalk, type WalkDeps } from "@/modules/uis/walk";
+import { runUisPurchasedWalk, type WalkDeps } from "@/modules/uis/walk";
 
 function ok(total: number, length: number | null): UisPage {
   return {
@@ -29,7 +29,7 @@ function deps(over: Partial<WalkDeps> = {}): WalkDeps {
     stageFree: async () => undefined,
     stagePurchased: async () => undefined,
     prepare: async () => undefined,
-    publish: async () => ({ free: 0, purchased: 0 }),
+    publish: async () => ({ inserted: 0 }),
     dropStage: async () => undefined,
     progress: async () => undefined,
     log: async () => undefined,
@@ -47,9 +47,9 @@ describe("UIS walk", () => {
         return ok(0, null);
       },
     });
-    const result = await runUisWalk(empty);
-    expect(result).toEqual({ ok: true, free: 0, purchased: 0 });
-    expect(free).toBe(true);
+    const result = await runUisPurchasedWalk(empty);
+    expect(result).toEqual({ ok: true, inserted: 0 });
+    expect(free).toBe(false);
 
     const lists: UisList[] = [];
     const failed = deps({
@@ -63,11 +63,11 @@ describe("UIS walk", () => {
       },
     });
     let published = false;
-    const stopped = await runUisWalk({
+    const stopped = await runUisPurchasedWalk({
       ...failed,
       publish: async () => {
         published = true;
-        return { free: 0, purchased: 0 };
+        return { inserted: 0 };
       },
     });
     expect(stopped.ok).toBe(false);
@@ -79,7 +79,7 @@ describe("UIS walk", () => {
     const offsets: number[] = [];
     const filters = new Set<string>();
     const root = WINDOW + 10_000;
-    const result = await runUisWalk(
+    const result = await runUisPurchasedWalk(
       deps({
         count: async (_list, filter) => {
           filters.add(filter.kind === "all" ? "all" : filter.kind);
@@ -102,7 +102,7 @@ describe("UIS walk", () => {
 
   it("uses offset 100000 for a window that still fits in one slice", async () => {
     const offsets: number[] = [];
-    await runUisWalk(
+    await runUisPurchasedWalk(
       deps({
         count: async (_list, filter: UisFilter) => {
           expect(filter.kind).toBe("all");

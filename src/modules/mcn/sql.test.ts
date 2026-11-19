@@ -11,8 +11,6 @@ import {
   FREE_COPY_SQL,
   MCN_PROVIDER,
   PURCHASED_COPY_SQL,
-  decidePublish,
-  dropOverlapSql,
   fillSplitSql,
 } from "@/modules/mcn/sql";
 
@@ -53,25 +51,34 @@ describe("MCN Telecom catalog SQL", () => {
     expect(FREE_COPY_SQL).not.toContain("rtu_mask_lookup");
     expect(PURCHASED_COPY_SQL).not.toContain("cdr_tariff_geo");
     expect(flattenSql(fillSplitSql("run", 2000))).toContain("mcn_sync_stage");
-    expect(flattenSql(dropOverlapSql("run"))).toContain("catalog = 'free'");
-    expect(flattenSql(dropOverlapSql("run"))).toContain("catalog = 'purchased'");
-    expect(
-      decidePublish({
-        held: true,
-        stagedFree: 0,
-        insertedFree: 0,
-        stagedPurchased: 1,
-        insertedPurchased: 1,
-      }),
-    ).toBe("commit");
     const publish = readFileSync(
       path.join(process.cwd(), "src/modules/mcn/publish.ts"),
       "utf8",
     );
+    const purchasedAt = publish.indexOf("export function replaceMcnPurchased");
+    const freeAt = publish.indexOf("export function replaceMcnFree");
+    expect(purchasedAt).toBeGreaterThan(0);
+    expect(freeAt).toBeGreaterThan(purchasedAt);
+    const purchasedFn = publish.slice(purchasedAt, freeAt);
+    const freeFn = publish.slice(freeAt);
+    expect(purchasedFn).toContain("DELETE_MCN_PURCHASED_SQL");
+    expect(purchasedFn).not.toContain("DELETE_MCN_FREE_SQL");
+    expect(freeFn).toContain("DELETE_MCN_FREE_SQL");
+    expect(freeFn).not.toContain("DELETE_MCN_PURCHASED_SQL");
+    expect(publish).toContain("publishOneSide");
+    expect(publish).not.toContain("replaceMcnCatalogs");
+    expect(publish).not.toContain("dropPurchasedOverlap");
+    expect(publish).not.toContain("duplicates_dropped");
+    expect(publish).toContain('finishSql("last_purchased_written", "purchased_loaded_at")');
+    expect(publish).toContain('finishSql("last_free_written", "free_loaded_at")');
+    expect(publish).toContain("${stamp} = CURRENT_TIMESTAMP");
+    expect(publish).toContain("last_finished_at = CURRENT_TIMESTAMP");
     expect(publish.lastIndexOf("MCN_EPOCH_SQL")).toBeGreaterThan(0);
-    expect(publish.lastIndexOf("MCN_EPOCH_SQL")).toBeLessThan(
-      publish.indexOf('"COMMIT"'),
+    const oneSide = readFileSync(
+      path.join(process.cwd(), "src/modules/numbering-sync/one-side.ts"),
+      "utf8",
     );
+    expect(oneSide.indexOf("input.epochSql")).toBeLessThan(oneSide.indexOf('"COMMIT"'));
     expect(MCN_EPOCH_SQL).toContain("mcn_epoch");
     const client = readFileSync(
       path.join(process.cwd(), "src/modules/mcn/client.ts"),

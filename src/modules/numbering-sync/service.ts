@@ -28,19 +28,23 @@ import {
   beginSipoutLog,
   sanitizeLogLine,
   sipoutLogExists,
+  type SipoutLogSide,
 } from "@/modules/numbering-sync/log";
 import {
-  draftSummary,
   dropForeignStage,
   dropStage,
   fillDraftSplit,
   markPublishing,
   PublishMismatch,
-  replaceSipoutCatalogs,
+  replaceSipoutFree,
+  replaceSipoutPurchased,
   stageNumbers,
-  type PublishCounts,
 } from "@/modules/numbering-sync/publish";
-import { runSourceWalk, type LeaseBeat } from "@/modules/numbering-sync/walk";
+import {
+  runSipoutFreeWalk,
+  runSipoutPurchasedWalk,
+  type LeaseBeat,
+} from "@/modules/numbering-sync/walk";
 import { sipoutGet } from "@/modules/sipout/client";
 import { SIPOUT_ORIGIN } from "@/modules/sipout/url";
 import {
@@ -68,9 +72,10 @@ export type NumberingSyncView = {
   lastPurchased: number | null;
   freeShown: number | null;
   purchasedShown: number | null;
-  duplicates: number;
-  loadedAtLabel: string;
-  hasLog: boolean;
+  purchasedLoadedAtLabel: string;
+  freeLoadedAtLabel: string;
+  hasPurchasedLog: boolean;
+  hasFreeLog: boolean;
 };
 
 type Actor = { userId: string | null; ip?: string | null };
@@ -83,14 +88,18 @@ type StateRow = {
   last_error: string | null;
   last_free_written: number | null;
   last_purchased_written: number | null;
-  duplicates_dropped: number;
-  loaded_at: Date | null;
+  purchased_loaded_at: Date | null;
+  free_loaded_at: Date | null;
   staged_free: number;
   staged_purchased: number;
   busy: boolean;
 };
 
-function emptyView(hasKey: boolean, hasLog: boolean): NumberingSyncView {
+function emptyView(
+  hasKey: boolean,
+  hasPurchasedLog: boolean,
+  hasFreeLog: boolean,
+): NumberingSyncView {
   return {
     host: SIPOUT_ORIGIN,
     hasKey,
@@ -104,14 +113,15 @@ function emptyView(hasKey: boolean, hasLog: boolean): NumberingSyncView {
     lastPurchased: null,
     freeShown: null,
     purchasedShown: null,
-    duplicates: 0,
-    loadedAtLabel: "—",
-    hasLog,
+    purchasedLoadedAtLabel: "—",
+    freeLoadedAtLabel: "—",
+    hasPurchasedLog,
+    hasFreeLog,
   };
 }
 
 export async function getNumberingSyncView(): Promise<NumberingSyncView> {
-  const [settings, rows, hasLog, timeZone] = await Promise.all([
+  const [settings, rows, hasPurchasedLog, hasFreeLog, timeZone] = await Promise.all([
     prisma.appSetting.findUnique({
       where: { id: 1 },
       select: { sipoutApiKeyCiphertext: true },
@@ -119,7 +129,7 @@ export async function getNumberingSyncView(): Promise<NumberingSyncView> {
     prisma.$queryRaw<StateRow[]>`
       SELECT phase, catalog, cities_done, cities_total, last_error,
         last_free_written, last_purchased_written,
-        duplicates_dropped, loaded_at,
+        purchased_loaded_at, free_loaded_at,
         (
           SELECT count(*)::int FROM numbering_sync_stage AS stage
           WHERE stage.run_id = numbering_sync_state.run_id
@@ -144,12 +154,13 @@ export async function getNumberingSyncView(): Promise<NumberingSyncView> {
       FROM numbering_sync_state
       WHERE id = 1
     `,
-    sipoutLogExists(),
+    sipoutLogExists("purchased"),
+    sipoutLogExists("free"),
     getDisplayTimezone(),
   ]);
   const state = rows[0];
   const hasKey = Boolean(settings?.sipoutApiKeyCiphertext);
-  if (!state) return emptyView(hasKey, hasLog);
+  if (!state) return emptyView(hasKey, hasPurchasedLog, hasFreeLog);
   const busy = Boolean(state.busy) || isNumberingSyncActive();
   const phase = busy ? state.phase : "";
   const step = busy ? state.catalog : null;
@@ -174,11 +185,12 @@ export async function getNumberingSyncView(): Promise<NumberingSyncView> {
       lastPurchased: state.last_purchased_written,
       stagedFree: state.staged_free,
       stagedPurchased: state.staged_purchased,
-      duplicates: state.duplicates_dropped,
-      loadedAt: state.loaded_at,
+      purchasedLoadedAt: state.purchased_loaded_at,
+      freeLoadedAt: state.free_loaded_at,
       timeZone,
     }),
-    hasLog,
+    hasPurchasedLog,
+    hasFreeLog,
   };
 }
 
@@ -290,15 +302,16 @@ async function publishWithRetry(
   runId: string,
   done: number,
   total: number,
-  duplicates: number,
-): Promise<PublishCounts> {
+  side: SipoutLogSide,
+) {
   if (isDatabaseVacuumActive()) throw new Error(CDR_VACUUM_BUSY_MESSAGE);
   const marked = await markPublishing(runId);
   if (!marked) throw new SyncLost();
+  const replace = side === "purchased" ? replaceSipoutPurchased : replaceSipoutFree;
   let last: unknown;
   for (let attempt = 1; attempt <= 3; attempt += 1) {
     try {
-      return await replaceSipoutCatalogs(runId, duplicates);
+      return await replace(runId);
     } catch (error) {
       last = error;
       const retry =
@@ -315,9 +328,24 @@ async function publishWithRetry(
   throw last;
 }
 
-export async function startSipoutSync(
+export function startSipoutPurchased(
   actor: Actor,
   options?: { fromChain?: boolean },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  return startSipoutSide(actor, options, "purchased");
+}
+
+export function startSipoutFree(
+  actor: Actor,
+  options?: { fromChain?: boolean },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  return startSipoutSide(actor, options, "free");
+}
+
+async function startSipoutSide(
+  actor: Actor,
+  options: { fromChain?: boolean } | undefined,
+  side: SipoutLogSide,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   armNumberingSyncStop();
   if (isDatabaseVacuumActive()) return { ok: false, error: CDR_VACUUM_BUSY_MESSAGE };
@@ -337,7 +365,7 @@ export async function startSipoutSync(
   const runId = randomUUID();
   let claimed = false;
   try {
-    claimed = await claim(runId, "cities");
+    claimed = await claim(runId, side);
     if (!claimed) {
       endNumberingSync(token);
       return { ok: false, error: BUSY };
@@ -350,7 +378,7 @@ export async function startSipoutSync(
     return { ok: false, error: START_FAILED };
   }
   try {
-    await beginSipoutLog(runId);
+    await beginSipoutLog(runId, side);
   } catch {
     await release(runId).catch(() => undefined);
     endNumberingSync(token);
@@ -358,11 +386,11 @@ export async function startSipoutSync(
   }
   let done = 0;
   let total = 0;
-  let step = "cities";
+  let step: string = side;
+  const walk = side === "purchased" ? runSipoutPurchasedWalk : runSipoutFreeWalk;
   void (async () => {
-    let duplicates = 0;
     try {
-      const result = await runSourceWalk({
+      const result = await walk({
         getCities: () => sipoutGet(key, { action: "get_cities" }),
         freeList: (cityId) => sipoutGet(key, { action: "free_list", cityId }),
         connectedList: () => sipoutGet(key, { action: "connected_list" }),
@@ -373,26 +401,13 @@ export async function startSipoutSync(
         stage: (catalog, dids) => stageNumbers(runId, catalog, dids),
         prepare: async () => {
           await fillDraftSplit(runId, async () => {
-            const state = await beat(runId, "split", done, total);
+            const state = await beat(runId, side, done, total);
             if (state === "cancel")
               throw new Error("Загрузка отменена. Каталог не изменён.");
             if (state === "lost") throw new SyncLost();
           });
-          const summary = await draftSummary(runId);
-          await appendSipoutLog(
-            [
-              "--- Черновик ---",
-              `Свободных: ${summary.free}`,
-              `Купленных: ${summary.purchased}`,
-              `Номеров в обоих списках: ${summary.overlap}`,
-              "",
-            ].join("\n"),
-          );
         },
-        publish: () => publishWithRetry(runId, done, total, duplicates),
-        addDuplicates: (count) => {
-          duplicates += count;
-        },
+        publish: () => publishWithRetry(runId, done, total, side),
         dropStage: () => dropStage(runId),
         progress: async (nextStep, nextDone, nextTotal) => {
           step = nextStep;
@@ -400,7 +415,7 @@ export async function startSipoutSync(
           total = nextTotal;
           await beat(runId, step, done, total);
         },
-        log: (block) => appendSipoutLog(block),
+        log: (block) => appendSipoutLog(side, block),
       });
       if (!result.ok) {
         const message =
@@ -418,12 +433,8 @@ export async function startSipoutSync(
             entityId: "sipout",
             ip: actor.ip,
             meta: result.ok
-              ? {
-                  source: "sipout",
-                  free: result.counts.insertedFree,
-                  purchased: result.counts.insertedPurchased,
-                }
-              : { source: "sipout", failed: true },
+              ? { source: "sipout", side, inserted: result.counts.inserted }
+              : { source: "sipout", side, failed: true },
           })
           .catch(() => undefined);
       }
@@ -432,7 +443,7 @@ export async function startSipoutSync(
       const message =
         (error instanceof Error ? sanitizeLogLine(error.message) : "") ||
         "Не удалось записать номера.";
-      await appendSipoutLog(`Итог: каталоги не изменены\nОшибка: ${message}\n`).catch(
+      await appendSipoutLog(side, `Итог: каталог не изменён\nОшибка: ${message}\n`).catch(
         () => undefined,
       );
       await finishError(runId, message).catch(() => undefined);
@@ -443,7 +454,7 @@ export async function startSipoutSync(
           entityType: "numbering_sync",
           entityId: "sipout",
           ip: actor.ip,
-          meta: { source: "sipout", failed: true },
+          meta: { source: "sipout", side, failed: true },
         })
         .catch(() => undefined);
     } finally {

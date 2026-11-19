@@ -26,7 +26,7 @@ export type WalkDeps = {
   stageFree: (rows: UisRow[]) => Promise<void>;
   stagePurchased: (dids: string[]) => Promise<void>;
   prepare: () => Promise<void>;
-  publish: () => Promise<{ free: number; purchased: number }>;
+  publish: () => Promise<{ inserted: number }>;
   dropStage: () => Promise<void>;
   progress: (list: UisList, accepted: number, total: number) => Promise<void>;
   log: (block: string) => Promise<void>;
@@ -34,7 +34,7 @@ export type WalkDeps = {
 };
 
 export type WalkResult =
-  | { ok: true; free: number; purchased: number }
+  | { ok: true; inserted: number }
   | { ok: false; reason: "lost" | "cancelled" | "error"; error: string };
 
 const CANCELLED = "Загрузка отменена. Каталог не изменён.";
@@ -230,24 +230,17 @@ async function readList(deps: WalkDeps, list: UisList): Promise<WalkResult | nul
   return null;
 }
 
-/** Purchased pages, then free pages. Both lists are read in full. */
-export async function runUisWalk(deps: WalkDeps): Promise<WalkResult> {
-  const purchased = await readList(deps, "purchased");
-  if (purchased) return purchased;
-  const free = await readList(deps, "free");
-  if (free) return free;
+async function finishList(deps: WalkDeps, title: string): Promise<WalkResult> {
   const ready = await gate(deps);
   if (ready) return stop(deps, ready);
   try {
     await deps.prepare();
     const published = await deps.publish();
     await deps
-      .log(
-        `Итог: записано свободных ${published.free}, купленных ${published.purchased}\n`,
-      )
+      .log(`Итог: ${title} записано ${published.inserted}\n`)
       .catch(() => undefined);
     await deps.flushLog().catch(() => undefined);
-    return { ok: true, free: published.free, purchased: published.purchased };
+    return { ok: true, inserted: published.inserted };
   } catch (error) {
     if (error instanceof SyncLost)
       return stop(deps, { ok: false, reason: "lost", error: LOST });
@@ -255,4 +248,18 @@ export async function runUisWalk(deps: WalkDeps): Promise<WalkResult> {
       error instanceof Error ? error.message : "Не удалось записать номера.";
     return stop(deps, { ok: false, reason: "error", error: message });
   }
+}
+
+/** Purchased pages, then the purchased catalog only. */
+export async function runUisPurchasedWalk(deps: WalkDeps): Promise<WalkResult> {
+  const purchased = await readList(deps, "purchased");
+  if (purchased) return purchased;
+  return finishList(deps, "куплено");
+}
+
+/** Free pages, then the free catalog only. */
+export async function runUisFreeWalk(deps: WalkDeps): Promise<WalkResult> {
+  const free = await readList(deps, "free");
+  if (free) return free;
+  return finishList(deps, "свободно");
 }

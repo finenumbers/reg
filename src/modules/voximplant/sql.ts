@@ -14,10 +14,9 @@ export const DELETE_VOXIMPLANT_FREE_SQL = `DELETE FROM free_numbers WHERE provid
 export const DELETE_VOXIMPLANT_PURCHASED_SQL = `DELETE FROM purchased_numbers WHERE provider = 'Voximplant'`;
 
 export const STAGED_COUNT_SQL = `
-  SELECT catalog, count(*)::int AS count
+  SELECT count(*)::int AS count
   FROM voximplant_sync_stage
-  WHERE run_id = $1 AND ready = true
-  GROUP BY catalog
+  WHERE run_id = $1 AND catalog = $2 AND ready = true
 `;
 
 export const FREE_COPY_SQL = `

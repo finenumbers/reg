@@ -1,5 +1,5 @@
 /**
- * One text file for the Voximplant stage. The next stage truncates it.
+ * One text file for each Voximplant list. The next run of that list truncates it.
  * The key, a phone number, a price, and the URL never land in the file.
  */
 
@@ -8,19 +8,25 @@ import { copyFile, mkdir, open, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-const FILE_NAME = "voximplant.txt";
+export type VoximplantLogSide = "purchased" | "free";
+
+const FILE_NAME: Record<VoximplantLogSide, string> = {
+  purchased: "voximplant-purchased.txt",
+  free: "voximplant-free.txt",
+};
 const FLUSH_AT = 64_000;
 const REJECTED = "Площадка отклонила запрос.";
 
 let chain: Promise<void> = Promise.resolve();
 let pending = "";
+let active: VoximplantLogSide = "purchased";
 
 function directory(): string {
   return path.join(process.cwd(), "data", "numbering-sync");
 }
 
-function filePath(): string {
-  return path.join(directory(), FILE_NAME);
+function filePath(side: VoximplantLogSide): string {
+  return path.join(directory(), FILE_NAME[side]);
 }
 
 function enqueue<T>(task: () => Promise<T>): Promise<T> {
@@ -56,9 +62,13 @@ export function sanitizeLogBlock(block: string): string {
     .join("\n");
 }
 
-async function writeHandle(flags: "w" | "a", text: string): Promise<void> {
+async function writeHandle(
+  side: VoximplantLogSide,
+  flags: "w" | "a",
+  text: string,
+): Promise<void> {
   await mkdir(directory(), { recursive: true, mode: 0o750 });
-  const handle = await open(filePath(), flags, 0o640);
+  const handle = await open(filePath(side), flags, 0o640);
   try {
     await handle.write(text);
     await handle.sync();
@@ -67,19 +77,30 @@ async function writeHandle(flags: "w" | "a", text: string): Promise<void> {
   }
 }
 
-export async function beginVoximplantLog(): Promise<void> {
+export async function beginVoximplantLog(
+  runId: string,
+  side: VoximplantLogSide,
+): Promise<void> {
+  const title = side === "purchased" ? "Купленные" : "Свободные";
   const header = sanitizeLogBlock(
     [
       "Источник: Voximplant",
-      "Список: купленные, затем свободные",
+      `Список: ${title}`,
       `Запуск: ${new Date().toISOString()}`,
+      `Идентификатор: ${runId}`,
       "",
     ].join("\n"),
   );
   const body = header.endsWith("\n") ? header : `${header}\n`;
   await enqueue(async () => {
+    if (pending) {
+      const tail = pending;
+      pending = "";
+      await writeHandle(active, "a", tail);
+    }
+    active = side;
     pending = "";
-    await writeHandle("w", body);
+    await writeHandle(side, "w", body);
   });
 }
 
@@ -91,7 +112,7 @@ export async function appendVoximplantLog(block: string): Promise<void> {
     if (pending.length < FLUSH_AT) return;
     const chunk = pending;
     pending = "";
-    await writeHandle("a", chunk);
+    await writeHandle(active, "a", chunk);
   });
 }
 
@@ -100,22 +121,25 @@ export async function flushVoximplantLog(): Promise<void> {
     if (!pending) return;
     const body = pending;
     pending = "";
-    await writeHandle("a", body);
+    await writeHandle(active, "a", body);
   });
 }
 
-export async function voximplantLogExists(): Promise<boolean> {
+export async function voximplantLogExists(side: VoximplantLogSide): Promise<boolean> {
   try {
-    const info = await stat(filePath());
+    const info = await stat(filePath(side));
     return info.isFile() && info.size > 0;
   } catch {
     return false;
   }
 }
 
-export async function snapshotVoximplantLog(): Promise<string | null> {
-  if (!(await voximplantLogExists())) return null;
-  const dest = path.join(os.tmpdir(), `voximplant-log-${randomUUID()}.txt`);
-  await enqueue(() => copyFile(filePath(), dest));
+export async function snapshotVoximplantLog(
+  side: VoximplantLogSide,
+): Promise<string | null> {
+  if (side === active) await flushVoximplantLog();
+  if (!(await voximplantLogExists(side))) return null;
+  const dest = path.join(os.tmpdir(), `voximplant-${side}-log-${randomUUID()}.txt`);
+  await enqueue(() => copyFile(filePath(side), dest));
   return dest;
 }

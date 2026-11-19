@@ -1,5 +1,5 @@
 /**
- * One text file for the Runexis stage. The next stage truncates it.
+ * One text file for each Runexis list. The next run of that list truncates it.
  * The password, the token, and the URL never land in the file.
  */
 
@@ -8,15 +8,22 @@ import { copyFile, mkdir, open, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-const FILE_NAME = "runexis.txt";
+export type RunexisLogSide = "purchased" | "free";
+
+const FILE_NAME: Record<RunexisLogSide, string> = {
+  purchased: "runexis-purchased.txt",
+  free: "runexis-free.txt",
+};
 
 let dirOverride: string | null = null;
 let chain: Promise<void> = Promise.resolve();
 let pending = "";
+let active: RunexisLogSide = "purchased";
 
 export function setRunexisLogDirForTests(dir: string | null): void {
   dirOverride = dir;
   pending = "";
+  active = "purchased";
   chain = Promise.resolve();
 }
 
@@ -24,8 +31,8 @@ function directory(): string {
   return dirOverride ?? path.join(process.cwd(), "data", "numbering-sync");
 }
 
-function filePath(): string {
-  return path.join(directory(), FILE_NAME);
+function filePath(side: RunexisLogSide): string {
+  return path.join(directory(), FILE_NAME[side]);
 }
 
 function enqueue<T>(task: () => Promise<T>): Promise<T> {
@@ -40,7 +47,12 @@ function enqueue<T>(task: () => Promise<T>): Promise<T> {
 export function sanitizeLogLine(text: string): string {
   const flat = text.replace(/[\r\n]+/g, " ").trim();
   if (!flat) return "";
-  if (/bearer\s+/i.test(flat) || /password/i.test(flat) || flat.includes("://")) {
+  if (
+    /bearer\s+/i.test(flat) ||
+    /password/i.test(flat) ||
+    /token/i.test(flat) ||
+    flat.includes("://")
+  ) {
     return "Площадка отклонила запрос.";
   }
   return flat.slice(0, 300);
@@ -53,9 +65,13 @@ export function sanitizeLogBlock(block: string): string {
     .join("\n");
 }
 
-async function writeHandle(flags: "w" | "a", text: string): Promise<void> {
+async function writeHandle(
+  side: RunexisLogSide,
+  flags: "w" | "a",
+  text: string,
+): Promise<void> {
   await mkdir(directory(), { recursive: true, mode: 0o750 });
-  const handle = await open(filePath(), flags, 0o640);
+  const handle = await open(filePath(side), flags, 0o640);
   try {
     await handle.write(text);
     await handle.sync();
@@ -64,11 +80,15 @@ async function writeHandle(flags: "w" | "a", text: string): Promise<void> {
   }
 }
 
-export async function beginRunexisLog(runId: string): Promise<void> {
+export async function beginRunexisLog(
+  runId: string,
+  side: RunexisLogSide,
+): Promise<void> {
+  const title = side === "purchased" ? "Купленные" : "Свободные";
   const header = sanitizeLogBlock(
     [
       "Источник: Runexis",
-      "Список: купленные, затем свободные по кодам",
+      `Список: ${title}`,
       `Запуск: ${new Date().toISOString()}`,
       `Идентификатор: ${runId}`,
       "",
@@ -76,8 +96,9 @@ export async function beginRunexisLog(runId: string): Promise<void> {
   );
   const body = header.endsWith("\n") ? header : `${header}\n`;
   await enqueue(async () => {
+    active = side;
     pending = "";
-    await writeHandle("w", body);
+    await writeHandle(side, "w", body);
   });
 }
 
@@ -95,22 +116,23 @@ export async function flushRunexisLog(): Promise<void> {
     if (!pending) return;
     const body = pending;
     pending = "";
-    await writeHandle("a", body);
+    await writeHandle(active, "a", body);
   });
 }
 
-export async function runexisLogExists(): Promise<boolean> {
+export async function runexisLogExists(side: RunexisLogSide): Promise<boolean> {
   try {
-    const info = await stat(filePath());
+    const info = await stat(filePath(side));
     return info.isFile() && info.size > 0;
   } catch {
     return false;
   }
 }
 
-export async function snapshotRunexisLog(): Promise<string | null> {
-  if (!(await runexisLogExists())) return null;
-  const dest = path.join(os.tmpdir(), `runexis-log-${randomUUID()}.txt`);
-  await enqueue(() => copyFile(filePath(), dest));
+export async function snapshotRunexisLog(side: RunexisLogSide): Promise<string | null> {
+  if (side === active) await flushRunexisLog();
+  if (!(await runexisLogExists(side))) return null;
+  const dest = path.join(os.tmpdir(), `runexis-${side}-log-${randomUUID()}.txt`);
+  await enqueue(() => copyFile(filePath(side), dest));
   return dest;
 }

@@ -64,19 +64,6 @@ function asCardDate(value: unknown): Date | null {
   return null;
 }
 
-/** Copies that were not stored. A negative or unsafe input is zero. */
-export function safeDropped(value: number): number {
-  if (!Number.isSafeInteger(value) || value < 0) return 0;
-  return value;
-}
-
-/** Duplicates inside one response, plus copies the draft did not insert. */
-export function droppedCopies(received: number, unique: number, inserted: number): number {
-  const inResponse = received > unique ? received - unique : 0;
-  const already = unique > inserted ? unique - inserted : 0;
-  return inResponse + already;
-}
-
 function liveCount(
   busy: boolean,
   phase: SidePhase,
@@ -88,16 +75,18 @@ function liveCount(
   return staged;
 }
 
-/** SipOut. `check` and `cities` keep both previous numbers. */
+/** SipOut. `check` and `cities` keep both previous numbers. One stage leaves the other side idle. */
 function sipoutPhases(
   step: string | null,
   phase: string,
 ): { purchased: SidePhase; free: SidePhase } {
-  if (phase === "publishing" || step === "publishing" || step === "split") {
-    return { purchased: "done", free: "done" };
+  if (step === "free") {
+    return { purchased: "idle", free: phase === "publishing" ? "done" : "reading" };
   }
-  if (step === "free") return { purchased: "done", free: "reading" };
-  if (step === "purchased") return { purchased: "reading", free: "idle" };
+  if (step === "purchased") {
+    return { purchased: phase === "publishing" ? "done" : "reading", free: "idle" };
+  }
+  if (phase === "publishing") return { purchased: "done", free: "done" };
   return { purchased: "idle", free: "idle" };
 }
 
@@ -109,13 +98,14 @@ function listPhases(
   list: string,
   phase: string,
 ): { purchased: SidePhase; free: SidePhase } {
-  if (phase === "publishing") return { purchased: "done", free: "done" };
+  const publishing = phase === "publishing";
   if (list === "free" || list === "showcase") {
-    return { purchased: "done", free: "reading" };
+    return { purchased: "idle", free: publishing ? "done" : "reading" };
   }
   if (list === "purchased" || list === "management") {
-    return { purchased: "reading", free: "idle" };
+    return { purchased: publishing ? "done" : "reading", free: "idle" };
   }
+  if (publishing) return { purchased: "done", free: "done" };
   return { purchased: "idle", free: "idle" };
 }
 
@@ -225,14 +215,14 @@ export function cardLabels(input: {
   lastPurchased: number | null;
   stagedFree: unknown;
   stagedPurchased: unknown;
-  duplicates: unknown;
-  loadedAt: unknown;
+  purchasedLoadedAt: unknown;
+  freeLoadedAt: unknown;
   timeZone: string;
 }): {
   freeShown: number | null;
   purchasedShown: number | null;
-  duplicates: number;
-  loadedAtLabel: string;
+  purchasedLoadedAtLabel: string;
+  freeLoadedAtLabel: string;
 } {
   const shown = shownNumbers({
     kind: input.kind,
@@ -247,7 +237,7 @@ export function cardLabels(input: {
   });
   return {
     ...shown,
-    duplicates: asCardInt(input.duplicates),
-    loadedAtLabel: formatSyncStamp(asCardDate(input.loadedAt), input.timeZone),
+    purchasedLoadedAtLabel: formatSyncStamp(asCardDate(input.purchasedLoadedAt), input.timeZone),
+    freeLoadedAtLabel: formatSyncStamp(asCardDate(input.freeLoadedAt), input.timeZone),
   };
 }

@@ -84,17 +84,34 @@ export function FinenumbersSyncForm({ initial }: { initial: FinenumbersSyncView 
   return (
     <SourceCard
       name="Finenumbers"
-      loadedAtLabel={view.loadedAtLabel}
+      times={[
+        { label: "Купленные загружены", value: view.purchasedLoadedAtLabel },
+        { label: "Свободные загружены", value: view.freeLoadedAtLabel },
+      ]}
       rows={[
         { label: "Купленные", value: view.purchasedShown },
         { label: "Свободные", value: view.freeShown },
-        { label: "Дубликаты", value: view.duplicates },
         { label: "Разобрано", value: parsed },
       ]}
-      loadDisabled={pending || view.busy || chainRunning}
-      onLoad={() => void send("/api/numbering-sync/finenumbers")}
-      hasLog={view.hasLog}
-      logHref="/api/numbering-sync/finenumbers/log"
+      loads={[
+        {
+          label: "Загрузить",
+          disabled: pending || view.busy || chainRunning,
+          onClick: () => void send("/api/numbering-sync/finenumbers"),
+        },
+      ]}
+      logs={[
+        {
+          label: "Скачать лог купленных",
+          href: "/api/numbering-sync/finenumbers/log/purchased",
+          hasLog: view.hasPurchasedLog,
+        },
+        {
+          label: "Скачать лог свободных",
+          href: "/api/numbering-sync/finenumbers/log/free",
+          hasLog: view.hasFreeLog,
+        },
+      ]}
       onKeyDown={onKeyDown}
     >
       {progress ? <p className="text-sm">{progress}</p> : null}

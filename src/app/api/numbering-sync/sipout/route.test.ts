@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const requireApiPermission = vi.fn();
-const startSipoutSync = vi.fn();
+const startSipoutPurchased = vi.fn();
 const getNumberingSyncView = vi.fn();
 
 vi.mock("@/modules/auth/guards", () => ({
@@ -29,13 +29,13 @@ vi.mock("@/lib/request-ip", () => ({
 }));
 
 vi.mock("@/modules/numbering-sync/service", () => ({
-  startSipoutSync: (...args: unknown[]) => startSipoutSync(...args),
+  startSipoutPurchased: (...args: unknown[]) => startSipoutPurchased(...args),
   getNumberingSyncView: (...args: unknown[]) => getNumberingSyncView(...args),
 }));
 
-import { POST } from "@/app/api/numbering-sync/sipout/route";
+import { POST } from "@/app/api/numbering-sync/sipout/purchased/route";
 
-describe("POST /api/numbering-sync/sipout", () => {
+describe("POST /api/numbering-sync/sipout/purchased", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getNumberingSyncView.mockResolvedValue({
@@ -56,7 +56,7 @@ describe("POST /api/numbering-sync/sipout", () => {
       }),
     );
     expect(response.status).toBe(403);
-    expect(startSipoutSync).not.toHaveBeenCalled();
+    expect(startSipoutPurchased).not.toHaveBeenCalled();
   });
 
   it("starts one SipOut stage for a session", async () => {
@@ -64,14 +64,14 @@ describe("POST /api/numbering-sync/sipout", () => {
       ok: true,
       ctx: { authKind: "session", session: { user: { id: "user-1" } } },
     });
-    startSipoutSync.mockResolvedValue({ ok: true });
+    startSipoutPurchased.mockResolvedValue({ ok: true });
     const response = await POST(
-      new Request("http://localhost/api/numbering-sync/sipout", {
+      new Request("http://localhost/api/numbering-sync/sipout/purchased", {
         method: "POST",
         body: "{}",
       }),
     );
     expect(response.status).toBe(200);
-    expect(startSipoutSync).toHaveBeenCalledWith({ userId: "user-1", ip: null });
+    expect(startSipoutPurchased).toHaveBeenCalledWith({ userId: "user-1", ip: null });
   });
 });

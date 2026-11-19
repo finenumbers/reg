@@ -1,9 +1,10 @@
 /**
- * Purchased numbers, then every RU region. One request at a time.
- * A moved total is read again once. A free page that fills the locked total
- * is kept. A free page that equals its own larger total raises the lock.
- * The second move does not publish.
+ * One list at a time. Purchased reads GetPhoneNumbers. Free reads the RU
+ * directory and GetNewPhoneNumbers. A moved total is read again once.
+ * A free page that fills the locked total is kept. A free page that equals
+ * its own larger total raises the lock. The second move does not publish.
  * The next offset is the number of accepted rows, not the response `count`.
+ * A region's phone_count is not compared with the list total.
  */
 
 import {
@@ -37,7 +38,9 @@ export type TotalPage =
   | { ok: true; total: number; meta: CallMeta }
   | { ok: false; error: string; meta: CallMeta };
 
-export type WalkResult = { ok: true } | { ok: false; error: string; reason: FailReason };
+export type WalkResult =
+  | { ok: true; inserted: number }
+  | { ok: false; error: string; reason: FailReason };
 
 type ReadOk<T> = { kind: "ok"; total: number; firstTotal: number; rows: T[] };
 type ReadShift = { kind: "shift" };
@@ -174,10 +177,45 @@ async function readStable<T>(input: Selection<T>): Promise<ReadResult<T>> {
   return { kind: "fail", error: TOTAL_MOVED, reason: "fail" };
 }
 
-export async function runVoximplantWalk(deps: {
-  beat: (list: "purchased" | "free", done: number, total: number) => Promise<Gate>;
+type WalkBeat = (done: number, total: number) => Promise<Gate>;
+
+/** GetPhoneNumbers and its recount. The service publishes after this returns. */
+export async function runVoximplantPurchasedWalk(deps: {
+  beat: WalkBeat;
   purchasedPage: (offset: number) => Promise<NumberPage<FreeRow>>;
   purchasedRecount: () => Promise<TotalPage>;
+  stagePurchased: (rows: readonly FreeRow[]) => Promise<void>;
+  dropPurchased: () => Promise<void>;
+  log: (text: string) => Promise<void>;
+}): Promise<WalkResult> {
+  const purchased = await readStable({
+    method: "GetPhoneNumbers",
+    detail: (offset) => `offset=${offset}`,
+    limit: PURCHASED_COUNT,
+    fetchPage: deps.purchasedPage,
+    recount: deps.purchasedRecount,
+    key: (row) => row.e164,
+    stage: deps.stagePurchased,
+    drop: deps.dropPurchased,
+    beat: deps.beat,
+    log: deps.log,
+  });
+  if (purchased.kind !== "ok") {
+    return failed(
+      purchased.kind === "fail" ? purchased.error : TOTAL_MOVED,
+      purchased.kind === "fail" ? purchased.reason : "fail",
+    );
+  }
+  return { ok: true, inserted: purchased.rows.length };
+}
+
+/**
+ * RU categories, then each region's free numbers.
+ * No RU categories or an empty region list fails.
+ * Every requested region returning 0 is an empty free list.
+ */
+export async function runVoximplantFreeWalk(deps: {
+  beat: WalkBeat;
   categories: () => Promise<
     | { ok: true; categories: PhoneCategory[]; meta: CallMeta }
     | { ok: false; error: string; meta: CallMeta }
@@ -194,32 +232,10 @@ export async function runVoximplantWalk(deps: {
     offset: number,
   ) => Promise<NumberPage<FreeRow>>;
   freeRecount: (category: string, regionId: number) => Promise<TotalPage>;
-  stagePurchased: (rows: readonly FreeRow[]) => Promise<void>;
-  dropPurchased: () => Promise<void>;
   stageFree: (rows: readonly FreeRow[]) => Promise<void>;
   log: (text: string) => Promise<void>;
-  addDuplicates?: (count: number) => void;
 }): Promise<WalkResult> {
-  const purchased = await readStable({
-    method: "GetPhoneNumbers",
-    detail: (offset) => `offset=${offset}`,
-    limit: PURCHASED_COUNT,
-    fetchPage: deps.purchasedPage,
-    recount: deps.purchasedRecount,
-    key: (row) => row.e164,
-    stage: deps.stagePurchased,
-    drop: deps.dropPurchased,
-    beat: (done, total) => deps.beat("purchased", done, total),
-    log: deps.log,
-  });
-  if (purchased.kind !== "ok") {
-    return failed(
-      purchased.kind === "fail" ? purchased.error : TOTAL_MOVED,
-      purchased.kind === "fail" ? purchased.reason : "fail",
-    );
-  }
-
-  const gate = await deps.beat("free", 0, 0);
+  const gate = await deps.beat(0, 0);
   if (gate === "cancel") return failed(CANCELLED, "cancel");
   if (gate === "lost") return failed(LOST, "lost");
   const categories = await deps.categories();
@@ -228,6 +244,7 @@ export async function runVoximplantWalk(deps: {
   if (categories.categories.length === 0) return failed(EMPTY_DIRECTORY);
 
   let anyRegion = false;
+  let inserted = 0;
   const freeSeen = new Set<string>();
   for (const category of categories.categories) {
     const regions = await deps.regions(category.name);
@@ -251,7 +268,7 @@ export async function runVoximplantWalk(deps: {
         recount: () => deps.freeRecount(category.name, region.id),
         key: (row) => row.e164,
         drop: async () => undefined,
-        beat: (done, total) => deps.beat("free", done, total),
+        beat: deps.beat,
         log: deps.log,
         completeLockedTotal: true,
       });
@@ -266,13 +283,13 @@ export async function runVoximplantWalk(deps: {
         freeSeen.add(row.e164);
         return true;
       });
-      const skipped = read.rows.length - fresh.length;
-      if (skipped > 0) deps.addDuplicates?.(skipped);
-      if (fresh.length > 0) await deps.stageFree(fresh);
+      if (fresh.length === 0) continue;
+      await deps.stageFree(fresh);
+      inserted += fresh.length;
     }
   }
   if (!anyRegion) return failed(NO_REGIONS);
-  return { ok: true };
+  return { ok: true, inserted };
 }
 
 /** One purchased page, RU categories, regions of the first category, then one free page. */

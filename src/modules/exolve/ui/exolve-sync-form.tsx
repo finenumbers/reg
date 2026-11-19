@@ -7,8 +7,8 @@ import {
   useChainRunning,
   useParsedCount,
 } from "@/modules/numbering-chain/ui/chain-context";
-import { SourceCard } from "@/modules/numbering-sync/ui/source-card";
 import type { ExolveSyncView } from "@/modules/exolve/service";
+import { SourceCard } from "@/modules/numbering-sync/ui/source-card";
 
 export function ExolveSyncForm({ initial }: { initial: ExolveSyncView }) {
   const [view, setView] = useState(initial);
@@ -84,17 +84,39 @@ export function ExolveSyncForm({ initial }: { initial: ExolveSyncView }) {
   return (
     <SourceCard
       name="MTS Exolve"
-      loadedAtLabel={view.loadedAtLabel}
+      times={[
+        { label: "Купленные загружены", value: view.purchasedLoadedAtLabel },
+        { label: "Свободные загружены", value: view.freeLoadedAtLabel },
+      ]}
       rows={[
         { label: "Купленные", value: view.purchasedShown },
         { label: "Свободные", value: view.freeShown },
-        { label: "Дубликаты", value: view.duplicates },
         { label: "Разобрано", value: parsed },
       ]}
-      loadDisabled={pending || view.busy || !view.hasKey || chainRunning}
-      onLoad={() => void send("/api/numbering-sync/exolve")}
-      hasLog={view.hasLog}
-      logHref="/api/numbering-sync/exolve/log"
+      loads={[
+        {
+          label: "Загрузить купленные",
+          disabled: pending || view.busy || !view.hasKey || chainRunning,
+          onClick: () => void send("/api/numbering-sync/exolve/purchased"),
+        },
+        {
+          label: "Загрузить свободные",
+          disabled: pending || view.busy || !view.hasKey || chainRunning,
+          onClick: () => void send("/api/numbering-sync/exolve/free"),
+        },
+      ]}
+      logs={[
+        {
+          label: "Скачать лог купленных",
+          href: "/api/numbering-sync/exolve/log/purchased",
+          hasLog: view.hasPurchasedLog,
+        },
+        {
+          label: "Скачать лог свободных",
+          href: "/api/numbering-sync/exolve/log/free",
+          hasLog: view.hasFreeLog,
+        },
+      ]}
       onKeyDown={onKeyDown}
     >
       

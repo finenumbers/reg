@@ -4,14 +4,18 @@ import { AUDIT_ACTIONS, auditService } from "@/modules/audit";
 import { whenDecorateIdle } from "@/modules/numbering-catalog/decorate";
 import { cancelAuroraSync, startAuroraSync } from "@/modules/aurora/service";
 import { isAuroraActive } from "@/modules/aurora/lease";
-import { cancelExolveSync, startExolveSync } from "@/modules/exolve/service";
+import { cancelExolveSync, startExolveFree, startExolvePurchased } from "@/modules/exolve/service";
 import { isExolveActive } from "@/modules/exolve/lease";
 import { cancelFinenumbersSync, startFinenumbersSync } from "@/modules/finenumbers/service";
 import { isFinenumbersActive } from "@/modules/finenumbers/lease";
-import { cancelMcnSync, startMcnSync } from "@/modules/mcn/service";
+import { cancelMcnSync, startMcnFree, startMcnPurchased } from "@/modules/mcn/service";
 import { isMcnActive } from "@/modules/mcn/lease";
 import { chainSlot } from "@/modules/numbering-chain/gate";
-import { CHAIN_SOURCES, type ChainSourceId } from "@/modules/numbering-chain/order";
+import {
+  CHAIN_SOURCES,
+  type ChainSide,
+  type ChainSourceId,
+} from "@/modules/numbering-chain/order";
 import {
   CHAIN_STOPPING,
   classifyFinish,
@@ -21,12 +25,16 @@ import {
   isNumberingSyncActive,
   isNumberingSyncStopping,
 } from "@/modules/numbering-sync/lease";
-import { cancelSipoutSync, startSipoutSync } from "@/modules/numbering-sync/service";
-import { cancelRunexisSync, startRunexisSync } from "@/modules/runexis/service";
+import { cancelSipoutSync, startSipoutFree, startSipoutPurchased } from "@/modules/numbering-sync/service";
+import { cancelRunexisSync, startRunexisFree, startRunexisPurchased } from "@/modules/runexis/service";
 import { isRunexisActive } from "@/modules/runexis/lease";
-import { cancelUisSync, startUisSync } from "@/modules/uis/service";
+import { cancelUisSync, startUisFree, startUisPurchased } from "@/modules/uis/service";
 import { isUisActive } from "@/modules/uis/lease";
-import { cancelVoximplantSync, startVoximplantSync } from "@/modules/voximplant/service";
+import {
+  cancelVoximplantSync,
+  startVoximplantFree,
+  startVoximplantPurchased,
+} from "@/modules/voximplant/service";
 import { isVoximplantActive } from "@/modules/voximplant/lease";
 
 const RETRY_MS = 2_000;
@@ -35,62 +43,29 @@ const ALREADY = "Цепочка уже идёт.";
 type Actor = { userId: string | null; ip?: string | null };
 type StartResult = { ok: true } | { ok: false; error: string };
 
-type SourceRun = {
+type StepRun = {
   id: ChainSourceId;
+  side: ChainSide;
   active: () => boolean;
   start: (actor: Actor) => Promise<StartResult>;
   cancel: () => Promise<{ ok: true } | { ok: false; error: string }>;
 };
 
-const RUNNERS: SourceRun[] = [
-  {
-    id: "sipout",
-    active: isNumberingSyncActive,
-    start: (actor) => startSipoutSync(actor, { fromChain: true }),
-    cancel: () => cancelSipoutSync(),
-  },
-  {
-    id: "runexis",
-    active: isRunexisActive,
-    start: (actor) => startRunexisSync(actor, { fromChain: true }),
-    cancel: () => cancelRunexisSync(),
-  },
-  {
-    id: "uis",
-    active: isUisActive,
-    start: (actor) => startUisSync(actor, { fromChain: true }),
-    cancel: () => cancelUisSync(),
-  },
-  {
-    id: "aurora",
-    active: isAuroraActive,
-    start: (actor) => startAuroraSync(actor, { fromChain: true }),
-    cancel: () => cancelAuroraSync(),
-  },
-  {
-    id: "exolve",
-    active: isExolveActive,
-    start: (actor) => startExolveSync(actor, { fromChain: true }),
-    cancel: () => cancelExolveSync(),
-  },
-  {
-    id: "voximplant",
-    active: isVoximplantActive,
-    start: (actor) => startVoximplantSync(actor, { fromChain: true }),
-    cancel: () => cancelVoximplantSync(),
-  },
-  {
-    id: "mcn",
-    active: isMcnActive,
-    start: (actor) => startMcnSync(actor, { fromChain: true }),
-    cancel: () => cancelMcnSync(),
-  },
-  {
-    id: "finenumbers",
-    active: isFinenumbersActive,
-    start: (actor) => startFinenumbersSync(actor, { fromChain: true }),
-    cancel: () => cancelFinenumbersSync(),
-  },
+const STEPS: StepRun[] = [
+  { id: "sipout", side: "purchased", active: isNumberingSyncActive, start: (actor) => startSipoutPurchased(actor, { fromChain: true }), cancel: () => cancelSipoutSync() },
+  { id: "sipout", side: "free", active: isNumberingSyncActive, start: (actor) => startSipoutFree(actor, { fromChain: true }), cancel: () => cancelSipoutSync() },
+  { id: "runexis", side: "purchased", active: isRunexisActive, start: (actor) => startRunexisPurchased(actor, { fromChain: true }), cancel: () => cancelRunexisSync() },
+  { id: "runexis", side: "free", active: isRunexisActive, start: (actor) => startRunexisFree(actor, { fromChain: true }), cancel: () => cancelRunexisSync() },
+  { id: "uis", side: "purchased", active: isUisActive, start: (actor) => startUisPurchased(actor, { fromChain: true }), cancel: () => cancelUisSync() },
+  { id: "uis", side: "free", active: isUisActive, start: (actor) => startUisFree(actor, { fromChain: true }), cancel: () => cancelUisSync() },
+  { id: "aurora", side: "free", active: isAuroraActive, start: (actor) => startAuroraSync(actor, { fromChain: true }), cancel: () => cancelAuroraSync() },
+  { id: "exolve", side: "purchased", active: isExolveActive, start: (actor) => startExolvePurchased(actor, { fromChain: true }), cancel: () => cancelExolveSync() },
+  { id: "exolve", side: "free", active: isExolveActive, start: (actor) => startExolveFree(actor, { fromChain: true }), cancel: () => cancelExolveSync() },
+  { id: "voximplant", side: "purchased", active: isVoximplantActive, start: (actor) => startVoximplantPurchased(actor, { fromChain: true }), cancel: () => cancelVoximplantSync() },
+  { id: "voximplant", side: "free", active: isVoximplantActive, start: (actor) => startVoximplantFree(actor, { fromChain: true }), cancel: () => cancelVoximplantSync() },
+  { id: "mcn", side: "purchased", active: isMcnActive, start: (actor) => startMcnPurchased(actor, { fromChain: true }), cancel: () => cancelMcnSync() },
+  { id: "mcn", side: "free", active: isMcnActive, start: (actor) => startMcnFree(actor, { fromChain: true }), cancel: () => cancelMcnSync() },
+  { id: "finenumbers", side: "both", active: isFinenumbersActive, start: (actor) => startFinenumbersSync(actor, { fromChain: true }), cancel: () => cancelFinenumbersSync() },
 ];
 
 function sleep(ms: number): Promise<void> {
@@ -130,9 +105,7 @@ function stampQuery(id: ChainSourceId): Prisma.Sql {
 async function readStamp(
   id: ChainSourceId,
 ): Promise<{ at: number | null; error: string | null }> {
-  const rows = await prisma.$queryRaw<{ at: unknown; error: string | null }[]>(
-    stampQuery(id),
-  );
+  const rows = await prisma.$queryRaw<{ at: unknown; error: string | null }[]>(stampQuery(id));
   const row = rows[0];
   return { at: stampMs(row?.at), error: row?.error ?? null };
 }
@@ -146,16 +119,16 @@ async function waitQuiet(): Promise<void> {
     if (shouldStop()) return;
     await whenDecorateIdle();
     if (shouldStop()) return;
-    if (RUNNERS.every((source) => !source.active())) return;
+    if (STEPS.every((step) => !step.active())) return;
     await sleep(1_000);
   }
 }
 
-async function waitWalk(source: SourceRun): Promise<boolean> {
+async function waitWalk(step: StepRun): Promise<boolean> {
   let landed = false;
-  while (source.active()) {
+  while (step.active()) {
     if (shouldStop() && !landed) {
-      const cancelled = await source.cancel();
+      const cancelled = await step.cancel();
       if (cancelled.ok) landed = true;
     }
     await sleep(1_000);
@@ -176,16 +149,17 @@ async function runChain(actor: Actor): Promise<void> {
         meta: { started: true },
       })
       .catch(() => undefined);
-    for (let index = 0; index < RUNNERS.length; index += 1) {
+    let index = 0;
+    while (index < STEPS.length) {
       if (shouldStop()) break;
-      const source = RUNNERS[index];
-      if (!source) break;
+      const step = STEPS[index];
+      if (!step) break;
       slot.index = index;
       slot.mode = "masks";
       await waitQuiet();
       if (shouldStop()) break;
       slot.mode = "read";
-      const before = await readStamp(source.id);
+      const before = await readStamp(step.id);
       let started = false;
       for (;;) {
         if (isNumberingSyncStopping()) {
@@ -193,7 +167,7 @@ async function runChain(actor: Actor): Promise<void> {
           break;
         }
         if (slot.stopTail) break;
-        const result = await source.start(actor);
+        const result = await step.start(actor);
         if (result.ok) {
           started = true;
           break;
@@ -207,27 +181,28 @@ async function runChain(actor: Actor): Promise<void> {
         break;
       }
       if (slot.stopTail) break;
-      if (!started) continue;
-      const cancelLanded = await waitWalk(source);
-      const after = await readStamp(source.id);
+      if (!started) {
+        index += step.side === "purchased" ? 2 : 1;
+        continue;
+      }
+      const cancelLanded = await waitWalk(step);
+      const after = await readStamp(step.id);
       const finish = classifyFinish({
         beforeFinishedAt: before.at,
         afterFinishedAt: after.at,
         lastError: after.error,
         stopping: isNumberingSyncStopping(),
       });
-      if (
-        slot.stopTail &&
-        finish === "ok" &&
-        !cancelLanded &&
-        !isNumberingSyncStopping()
-      ) {
+      if (slot.stopTail && finish === "ok" && !cancelLanded && !isNumberingSyncStopping()) {
         slot.stopTail = false;
       }
       if (finish === "stop" || slot.stopTail || isNumberingSyncStopping()) {
         slot.stopTail = true;
         break;
       }
+      const skipFree = step.side === "purchased" && finish !== "ok";
+      index += 1;
+      if (skipFree && STEPS[index]?.id === step.id && STEPS[index]?.side === "free") index += 1;
     }
   } finally {
     slot.running = false;

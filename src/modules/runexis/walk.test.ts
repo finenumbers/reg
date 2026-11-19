@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { RunexisPage } from "@/modules/runexis/client";
 import { SHOWCASE_LIMIT } from "@/modules/runexis/url";
-import { runRunexisWalk, type WalkDeps } from "@/modules/runexis/walk";
+import {
+  runRunexisFreeWalk,
+  runRunexisPurchasedWalk,
+  type WalkDeps,
+} from "@/modules/runexis/walk";
 
 function row(index: number): [string, string] {
   return ["901", String(index).padStart(7, "0")];
@@ -83,7 +87,7 @@ function harness(
     prepare: async () => undefined,
     publish: async () => {
       published += 1;
-      return { free: free.flat().length, purchased: purchased.flat().length };
+      return { inserted: free.flat().length + purchased.flat().length };
     },
     dropStage: async () => {
       dropped += 1;
@@ -106,9 +110,9 @@ function harness(
 }
 
 describe("runexis walk", () => {
-  it("does not publish when no free number was staged", async () => {
+  it("publishes purchased numbers without reading codes or the showcase", async () => {
     const walk = harness(
-      [okPage([], 0, 1)],
+      [okPage([row(1)], 1, 1)],
       [
         {
           ok: true,
@@ -121,14 +125,54 @@ describe("runexis walk", () => {
         },
       ],
     );
-    const result = await runRunexisWalk(walk.deps);
+    const result = await runRunexisPurchasedWalk(walk.deps);
+    expect(result).toEqual({ ok: true, inserted: 1 });
+    expect(walk.published()).toBe(1);
+    expect(walk.dropped()).toBe(0);
+    expect(walk.purchased.flat()).toEqual(["74953084480"]);
+    expect(walk.free).toEqual([]);
+    expect(walk.askedManagement()).toBe(1);
+    expect(walk.askedCodes()).toBe(0);
+    expect(walk.askedShowcase()).toBe(0);
+  });
+
+  it("publishes an empty purchased list without reading the showcase", async () => {
+    const walk = harness([]);
+    const result = await runRunexisPurchasedWalk(walk.deps);
+    expect(result).toEqual({ ok: true, inserted: 0 });
+    expect(walk.published()).toBe(1);
+    expect(walk.dropped()).toBe(0);
+    expect(walk.askedManagement()).toBe(1);
+    expect(walk.askedCodes()).toBe(0);
+    expect(walk.askedShowcase()).toBe(0);
+  });
+
+  it("publishes an empty free list when every code returns no numbers", async () => {
+    const walk = harness([okPage([], 0, 1)]);
+    const result = await runRunexisFreeWalk(walk.deps);
+    expect(result).toEqual({ ok: true, inserted: 0 });
+    expect(walk.published()).toBe(1);
+    expect(walk.dropped()).toBe(0);
+    expect(walk.askedManagement()).toBe(0);
+    expect(walk.askedCodes()).toBe(1);
+    expect(walk.askedShowcase()).toBe(1);
+  });
+
+  it("does not publish an empty code directory", async () => {
+    const walk = harness([okPage([row(1)], 1, 1)], [emptyBought()], {
+      codes: async () => ({
+        ok: true,
+        data: { success: true, data: [] },
+        meta: { status: 200, attempts: 1, durationMs: 1 },
+      }),
+    });
+    const result = await runRunexisFreeWalk(walk.deps);
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error).toContain("Свободных номеров нет");
+    if (!result.ok) expect(result.error).toContain("Справочник кодов не принят");
     expect(walk.published()).toBe(0);
     expect(walk.dropped()).toBe(1);
-    expect(walk.purchased.flat()).toEqual(["74953084480"]);
-    expect(walk.askedManagement()).toBe(1);
-    expect(walk.askedShowcase()).toBe(1);
+    expect(walk.askedShowcase()).toBe(0);
+    expect(walk.askedManagement()).toBe(0);
   });
 
   it("publishes a short last page when the count matches", async () => {
@@ -156,21 +200,21 @@ describe("runexis walk", () => {
         },
       ],
     );
-    const result = await runRunexisWalk(walk.deps);
-    expect(result).toEqual({ ok: true, free: SHOWCASE_LIMIT + 1, purchased: 1 });
+    const result = await runRunexisFreeWalk(walk.deps);
+    expect(result).toEqual({ ok: true, inserted: SHOWCASE_LIMIT + 1 });
     expect(walk.free.flat()[0]).toBe("79010000000");
-    expect(walk.purchased.flat()).toEqual(["74953084480"]);
+    expect(walk.askedManagement()).toBe(0);
     expect(walk.askedShowcase()).toBe(2);
   });
 
   it("leaves both catalogs when the showcase ends early", async () => {
     const walk = harness(repeat(okPage([row(1)], 40, 1), 3));
-    const result = await runRunexisWalk(walk.deps);
+    const result = await runRunexisFreeWalk(walk.deps);
     expect(result.ok).toBe(false);
     expect(walk.published()).toBe(0);
     expect(walk.dropped()).toBe(1);
     expect(walk.free).toEqual([]);
-    expect(walk.askedManagement()).toBe(1);
+    expect(walk.askedManagement()).toBe(0);
     expect(walk.askedShowcase()).toBe(3);
   });
 
@@ -189,11 +233,12 @@ describe("runexis walk", () => {
         },
       ],
     );
-    const result = await runRunexisWalk(walk.deps);
+    const result = await runRunexisPurchasedWalk(walk.deps);
     expect(result.ok).toBe(false);
     expect(walk.published()).toBe(0);
     expect(walk.dropped()).toBe(1);
     expect(walk.askedShowcase()).toBe(0);
+    expect(walk.askedCodes()).toBe(0);
   });
 
   it("stores the second complete pass and drops the shifted one", async () => {
@@ -210,8 +255,8 @@ describe("runexis walk", () => {
       ),
     ];
     const walk = harness([...shifted, okPage([row(1), row(2)], 2, 1)]);
-    const result = await runRunexisWalk(walk.deps);
-    expect(result).toEqual({ ok: true, free: 2, purchased: 0 });
+    const result = await runRunexisFreeWalk(walk.deps);
+    expect(result).toEqual({ ok: true, inserted: 2 });
     expect(walk.free).toEqual([["79010000001", "79010000002"]]);
     expect(walk.askedShowcase()).toBe(3);
   });
@@ -235,7 +280,7 @@ describe("runexis walk", () => {
         written.push(block);
       },
     });
-    const result = await runRunexisWalk(walk.deps);
+    const result = await runRunexisFreeWalk(walk.deps);
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error).toContain(`Было ${SHOWCASE_LIMIT * 2}`);
@@ -260,7 +305,7 @@ describe("runexis walk", () => {
       },
       stopping: () => stop,
     });
-    const result = await runRunexisWalk(walk.deps);
+    const result = await runRunexisFreeWalk(walk.deps);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.reason).toBe("cancelled");
     expect(walk.published()).toBe(0);
@@ -285,7 +330,7 @@ describe("runexis walk", () => {
       },
       [{ city_id: 58, codes: ["901"] }],
     );
-    const result = await runRunexisWalk(walk.deps);
+    const result = await runRunexisFreeWalk(walk.deps);
     expect(result.ok).toBe(false);
     expect(walk.published()).toBe(0);
     expect(walk.dropped()).toBe(1);
@@ -311,12 +356,12 @@ describe("runexis walk", () => {
         return okPage([row(1)], 1, 1);
       },
     });
-    const result = await runRunexisWalk(walk.deps);
+    const result = await runRunexisFreeWalk(walk.deps);
     expect(result.ok).toBe(false);
     expect(walk.published()).toBe(0);
     expect(walk.dropped()).toBe(1);
     expect(asked).toBe(0);
-    expect(walk.askedManagement()).toBe(1);
+    expect(walk.askedManagement()).toBe(0);
   });
 
   it("keeps one draft row when the same number is already staged", async () => {
@@ -344,7 +389,7 @@ describe("runexis walk", () => {
         { city_id: null, codes: ["901"] },
       ],
     );
-    const result = await runRunexisWalk(walk.deps);
+    const result = await runRunexisFreeWalk(walk.deps);
     expect(result.ok).toBe(true);
     expect(walk.askedShowcase()).toBe(2);
     expect(accepted.at(-1)).toBe(1);
@@ -352,7 +397,7 @@ describe("runexis walk", () => {
 
   it("does not publish when a showcase row belongs to another code", async () => {
     const walk = harness(repeat(okPage([["495", "3084480"]], 1, 1), 3));
-    const result = await runRunexisWalk(walk.deps);
+    const result = await runRunexisFreeWalk(walk.deps);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error).toContain("другого кода");
     expect(walk.published()).toBe(0);
@@ -363,7 +408,7 @@ describe("runexis walk", () => {
 
   it("rejects a repeated number on one page", async () => {
     const walk = harness(repeat(okPage([row(1), row(1)], 2, 1), 3));
-    const result = await runRunexisWalk(walk.deps);
+    const result = await runRunexisFreeWalk(walk.deps);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error).toContain("повторяется номер");
     expect(walk.published()).toBe(0);
@@ -380,8 +425,8 @@ describe("runexis walk", () => {
     const repeated = okPage([row(0)], SHOWCASE_LIMIT + 1, 2);
     const tail = okPage([row(SHOWCASE_LIMIT)], SHOWCASE_LIMIT + 1, 2);
     const walk = harness([full, repeated, full, tail]);
-    const result = await runRunexisWalk(walk.deps);
-    expect(result).toEqual({ ok: true, free: SHOWCASE_LIMIT + 1, purchased: 0 });
+    const result = await runRunexisFreeWalk(walk.deps);
+    expect(result).toEqual({ ok: true, inserted: SHOWCASE_LIMIT + 1 });
     expect(walk.free.flat()).toHaveLength(SHOWCASE_LIMIT + 1);
     expect(walk.askedShowcase()).toBe(4);
   });
@@ -392,7 +437,7 @@ describe("runexis walk", () => {
       (page.data as { meta: { limit: number } }).meta.limit = 30;
     }
     const walk = harness([page]);
-    const result = await runRunexisWalk(walk.deps);
+    const result = await runRunexisFreeWalk(walk.deps);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error).toContain("другой размер");
     expect(walk.published()).toBe(0);

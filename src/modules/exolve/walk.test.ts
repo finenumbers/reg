@@ -12,7 +12,8 @@ import {
   FREE_OFFSET_TOO_FAR,
   PURCHASED_CHANGED,
   SUM_MISMATCH,
-  runExolveWalk,
+  runExolveFreeWalk,
+  runExolvePurchasedWalk,
   type Directory,
   type ExolveFreeRow,
   type ExolveWalkDeps,
@@ -175,11 +176,15 @@ describe("Exolve walk", () => {
       recount: () => 3,
       free: () => [],
     });
-    const result = await runExolveWalk(run.deps);
-    expect(result).toEqual({ ok: true, free: 0, purchased: 3 });
+    const purchased = await runExolvePurchasedWalk(run.deps);
+    expect(purchased).toEqual({ ok: true, inserted: 3 });
     expect(run.purchasedOffsets).toEqual([0, 2]);
     expect(run.dropped.count).toBe(0);
     expect(run.recounts.count).toBe(1);
+    expect(run.freeCalls).toHaveLength(0);
+    expect(run.bought).toEqual([did(1), did(2), did(3)]);
+    const free = await runExolveFreeWalk(run.deps);
+    expect(free).toEqual({ ok: true, inserted: 0 });
     expect(run.freeCalls.slice(0, 2).map((call) => call.randomMode)).toEqual([
       "false",
       "omit",
@@ -203,10 +208,13 @@ describe("Exolve walk", () => {
       },
       recount: () => 0,
     });
-    const result = await runExolveWalk(run.deps);
-    expect(result.ok).toBe(true);
+    const purchased = await runExolvePurchasedWalk(run.deps);
+    expect(purchased.ok).toBe(true);
     expect(run.purchasedKeys).toEqual(["all"]);
     expect(run.dropped.count).toBe(0);
+    expect(run.freeCalls).toHaveLength(0);
+    const free = await runExolveFreeWalk(run.deps);
+    expect(free.ok).toBe(true);
     expect(run.freeCalls).toHaveLength(17);
   });
 
@@ -219,7 +227,7 @@ describe("Exolve walk", () => {
       directories += 1;
       return { ok: true, directory };
     };
-    const result = await runExolveWalk(run.deps);
+    const result = await runExolvePurchasedWalk(run.deps);
     expect(result.ok).toBe(false);
     expect(directories).toBe(0);
     expect(run.freeCalls).toHaveLength(0);
@@ -241,11 +249,12 @@ describe("Exolve walk", () => {
       },
       recount: () => 2,
     });
-    const result = await runExolveWalk(run.deps);
-    expect(result).toEqual({ ok: true, free: 0, purchased: 2 });
+    const result = await runExolvePurchasedWalk(run.deps);
+    expect(result).toEqual({ ok: true, inserted: 2 });
     expect(run.dropped.count).toBe(1);
     expect(run.bought).toEqual([did(1), did(2)]);
     expect(run.regionCalls).toEqual([]);
+    expect(run.freeCalls).toHaveLength(0);
   });
 
   it("does not read leaves when the region sum is below the parent", async () => {
@@ -266,7 +275,7 @@ describe("Exolve walk", () => {
         throw new Error(keyOf(filter));
       },
     });
-    const result = await runExolveWalk(run.deps);
+    const result = await runExolvePurchasedWalk(run.deps);
     expect(result).toEqual({ ok: false, reason: "error", error: SUM_MISMATCH });
     expect(run.regionCalls).toEqual(["10084", "10230"]);
     expect(run.freeCalls).toHaveLength(0);
@@ -292,8 +301,8 @@ describe("Exolve walk", () => {
       },
       recount: () => 1,
     });
-    const result = await runExolveWalk(run.deps);
-    expect(result).toEqual({ ok: true, free: 0, purchased: 1 });
+    const result = await runExolvePurchasedWalk(run.deps);
+    expect(result).toEqual({ ok: true, inserted: 1 });
     expect(run.bought).toEqual([did(2)]);
     expect(run.regionCalls.filter((id) => id === "10084")).toHaveLength(1);
     expect(run.regionCalls.filter((id) => id === "10230")).toHaveLength(2);
@@ -316,7 +325,7 @@ describe("Exolve walk", () => {
       },
       recount: () => 1,
     });
-    const result = await runExolveWalk(run.deps);
+    const result = await runExolvePurchasedWalk(run.deps);
     expect(result.ok).toBe(true);
     expect(run.regionCalls).toEqual(["10084"]);
     expect(run.bought).toEqual([did(8)]);
@@ -330,7 +339,7 @@ describe("Exolve walk", () => {
         throw new Error(keyOf(filter));
       },
     });
-    const result = await runExolveWalk(run.deps);
+    const result = await runExolvePurchasedWalk(run.deps);
     expect(result).toEqual({ ok: false, reason: "error", error: DUPLICATE_NUMBER });
     expect(run.freeCalls).toHaveLength(0);
   });
@@ -340,7 +349,7 @@ describe("Exolve walk", () => {
       purchased: () => ({ total: 1, rows: [did(1)] }),
       recount: () => 2,
     });
-    const result = await runExolveWalk(run.deps);
+    const result = await runExolvePurchasedWalk(run.deps);
     expect(result).toEqual({ ok: false, reason: "error", error: PURCHASED_CHANGED });
     expect(run.recounts.count).toBe(1);
     expect(run.freeCalls).toHaveLength(0);
@@ -372,8 +381,9 @@ describe("Exolve walk", () => {
         ];
       },
     });
-    const result = await runExolveWalk(run.deps);
-    expect(result).toEqual({ ok: true, free: 1, purchased: 0 });
+    const result = await runExolveFreeWalk(run.deps);
+    expect(result).toEqual({ ok: true, inserted: 1 });
+    expect(run.purchasedKeys).toEqual([]);
     expect(run.freeCalls[0]).toMatchObject({
       typeId: 1104,
       regionId: 10230,
@@ -419,8 +429,9 @@ describe("Exolve walk", () => {
         return [{ e164: did(1), incomingPurchase: "5", incomingPeriod: "" }];
       },
     });
-    const result = await runExolveWalk(run.deps);
-    expect(result).toEqual({ ok: true, free: 1, purchased: 0 });
+    const result = await runExolveFreeWalk(run.deps);
+    expect(result).toEqual({ ok: true, inserted: 1 });
+    expect(run.purchasedKeys).toEqual([]);
     expect(run.freeCalls[0]?.randomMode).toBe("false");
     expect(run.freeCalls[1]?.randomMode).toBe("omit");
     expect(run.freeCalls.slice(2).every((call) => call.randomMode === "omit")).toBe(true);
@@ -446,8 +457,9 @@ describe("Exolve walk", () => {
         return [{ e164: did(1), incomingPurchase: "", incomingPeriod: "" }];
       },
     });
-    const result = await runExolveWalk(run.deps);
+    const result = await runExolveFreeWalk(run.deps);
     expect(result).toEqual({ ok: false, reason: "error", error: DUPLICATE_NUMBER });
+    expect(run.purchasedKeys).toEqual([]);
   });
 
   it("stops a free cell that would pass the offset ceiling", async () => {
@@ -465,7 +477,7 @@ describe("Exolve walk", () => {
           return { e164: did(serial), incomingPurchase: "", incomingPeriod: "" };
         }),
     });
-    const result = await runExolveWalk(run.deps);
+    const result = await runExolveFreeWalk(run.deps);
     expect(result).toEqual({ ok: false, reason: "error", error: FREE_OFFSET_TOO_FAR });
     expect(run.freeCalls.map((call) => call.offset)).toEqual([0, 10, 20]);
   });
@@ -475,10 +487,11 @@ describe("Exolve walk", () => {
       purchased: () => ({ total: 0, rows: [] }),
       directory: { types: [], regions: [] },
     });
-    const result = await runExolveWalk(run.deps);
+    const result = await runExolveFreeWalk(run.deps);
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.error).toContain("нет ячеек");
+    expect(run.purchasedKeys).toEqual([]);
     expect(run.freeCalls).toHaveLength(0);
   });
 
@@ -491,7 +504,7 @@ describe("Exolve walk", () => {
       beats += 1;
       return beats > 2 ? "cancel" : "run";
     };
-    const result = await runExolveWalk(run.deps);
+    const result = await runExolvePurchasedWalk(run.deps);
     expect(result).toEqual({ ok: false, reason: "cancelled", error: CANCELLED });
   });
 });

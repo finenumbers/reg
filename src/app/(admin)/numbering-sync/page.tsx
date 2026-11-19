@@ -43,7 +43,7 @@ export default async function NumberingSyncPage() {
             Синхронизация
           </h1>
           <p className="text-muted-foreground text-sm">
-            Каждый источник читает свои номера отдельно и заменяет только свои строки.
+            Кнопка заменяет только свою сторону источника: старый список этой стороны удаляется и записывается заново.
           </p>
         </div>
         <ChainBar />

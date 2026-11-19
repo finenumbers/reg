@@ -249,9 +249,9 @@ export async function replaceFinenumbersCatalogs(
            last_error = NULL,
            last_free_written = $2,
            last_purchased_written = $3,
-           duplicates_dropped = 0,
-           last_finished_at = CURRENT_TIMESTAMP,
-           loaded_at = CURRENT_TIMESTAMP
+           purchased_loaded_at = CURRENT_TIMESTAMP,
+           free_loaded_at = CURRENT_TIMESTAMP,
+           last_finished_at = CURRENT_TIMESTAMP
        WHERE id = 1 AND run_id = $1 AND phase = 'publishing'`,
       [runId, free, purchased],
     );

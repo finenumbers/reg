@@ -1,5 +1,5 @@
 /**
- * One text file for the SipOut stage. The next stage truncates it.
+ * One text file for each SipOut list. The next run of that list truncates it.
  * The key, the query, and the URL never land in the file.
  */
 
@@ -8,7 +8,12 @@ import { copyFile, mkdir, open, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-const FILE_NAME = "sipout.txt";
+export type SipoutLogSide = "purchased" | "free";
+
+const FILE_NAME: Record<SipoutLogSide, string> = {
+  purchased: "sipout-purchased.txt",
+  free: "sipout-free.txt",
+};
 
 let dirOverride: string | null = null;
 let chain: Promise<void> = Promise.resolve();
@@ -22,8 +27,8 @@ function directory(): string {
   return dirOverride ?? path.join(process.cwd(), "data", "numbering-sync");
 }
 
-function filePath(): string {
-  return path.join(directory(), FILE_NAME);
+function filePath(side: SipoutLogSide): string {
+  return path.join(directory(), FILE_NAME[side]);
 }
 
 function enqueue<T>(task: () => Promise<T>): Promise<T> {
@@ -50,9 +55,9 @@ export function sanitizeLogBlock(block: string): string {
     .join("\n");
 }
 
-async function writeHandle(flags: "w" | "a", text: string): Promise<void> {
+async function writeHandle(side: SipoutLogSide, flags: "w" | "a", text: string): Promise<void> {
   await mkdir(directory(), { recursive: true, mode: 0o750 });
-  const handle = await open(filePath(), flags, 0o640);
+  const handle = await open(filePath(side), flags, 0o640);
   try {
     await handle.write(text);
     await handle.sync();
@@ -61,25 +66,32 @@ async function writeHandle(flags: "w" | "a", text: string): Promise<void> {
   }
 }
 
-/** Truncate and write the header before the first SipOut request. */
-export async function beginSipoutLog(runId: string): Promise<void> {
+/** Truncate and write the header before the first request of this list. */
+export async function beginSipoutLog(runId: string, side: SipoutLogSide): Promise<void> {
+  const title = side === "purchased" ? "Купленные" : "Свободные";
   const header = sanitizeLogBlock(
-    ["Источник: SipOut", `Запуск: ${new Date().toISOString()}`, `Идентификатор: ${runId}`, ""].join(
-      "\n",
-    ),
+    [
+      "Источник: SipOut",
+      `Список: ${title}`,
+      `Запуск: ${new Date().toISOString()}`,
+      `Идентификатор: ${runId}`,
+      "",
+    ].join("\n"),
   );
-  await enqueue(() => writeHandle("w", header.endsWith("\n") ? header : `${header}\n`));
+  await enqueue(() =>
+    writeHandle(side, "w", header.endsWith("\n") ? header : `${header}\n`),
+  );
 }
 
-export async function appendSipoutLog(block: string): Promise<void> {
+export async function appendSipoutLog(side: SipoutLogSide, block: string): Promise<void> {
   const text = sanitizeLogBlock(block);
   const body = text.endsWith("\n") ? text : `${text}\n`;
-  await enqueue(() => writeHandle("a", body));
+  await enqueue(() => writeHandle(side, "a", body));
 }
 
-export async function sipoutLogExists(): Promise<boolean> {
+export async function sipoutLogExists(side: SipoutLogSide): Promise<boolean> {
   try {
-    const info = await stat(filePath());
+    const info = await stat(filePath(side));
     return info.isFile() && info.size > 0;
   } catch {
     return false;
@@ -87,9 +99,9 @@ export async function sipoutLogExists(): Promise<boolean> {
 }
 
 /** A copy taken after the writer queue, so the reader sees whole lines. */
-export async function snapshotSipoutLog(): Promise<string | null> {
-  if (!(await sipoutLogExists())) return null;
-  const dest = path.join(os.tmpdir(), `sipout-log-${randomUUID()}.txt`);
-  await enqueue(() => copyFile(filePath(), dest));
+export async function snapshotSipoutLog(side: SipoutLogSide): Promise<string | null> {
+  if (!(await sipoutLogExists(side))) return null;
+  const dest = path.join(os.tmpdir(), `sipout-${side}-log-${randomUUID()}.txt`);
+  await enqueue(() => copyFile(filePath(side), dest));
   return dest;
 }

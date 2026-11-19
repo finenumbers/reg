@@ -1,7 +1,15 @@
-# Current Phase — production (v1.330.0)
+# Current Phase — production (v1.331.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, purchased numbers, numbering sync, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-19
+
+## v1.331.0 — Separate purchased and free loads
+
+The migration `20261119090000_sync_side_loads` adds `purchased_loaded_at` and `free_loaded_at` on the eight sync-state rows, copies the old `loaded_at` into both, then drops `loaded_at` and `duplicates_dropped`. It does not read `cdr_records` and does not rewrite catalog rows. The migration is label-free. `lock_timeout` is 15 seconds. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before migrate. Let the migrator exit 0, then start one new app. If migrate stops, do not start the new app. Do not deploy while a numbering chain or a manual load is running. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged.
+
+«Синхронизация» no longer shows «Дубликаты». SipOut, Runexis, UIS, MTS Exolve, Voximplant, and MCN Telecom each have «Загрузить купленные» and «Загрузить свободные». A successful button deletes that provider's old rows of that side and writes the new set. The other side stays, so the same number can be in both catalogs. Aurora Telecom has «Загрузить свободные»; that load still writes free rows and clears purchased Aurora rows. Finenumbers keeps one «Загрузить» and still writes both catalogs together. Each of those six sources, and Finenumbers, has two logs. Aurora keeps one log. Enter does not start a load.
+
+«Загрузить все» runs SipOut purchased, SipOut free, Runexis purchased, Runexis free, UIS purchased, UIS free, Aurora Telecom free, MTS Exolve purchased, MTS Exolve free, Voximplant purchased, Voximplant free, MCN Telecom purchased, MCN Telecom free, then Finenumbers. A failed purchased stage does not start that source's free stage. Cancel and process stop do not open the tail. The chain still waits for decorate between stages and still runs at 17:00 UTC. A process start does not catch a window that has already begun.
 
 ## v1.330.0 — Request gate runs as the Node.js proxy
 

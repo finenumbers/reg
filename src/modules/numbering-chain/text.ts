@@ -1,6 +1,7 @@
 import type { MaskProgress } from "@/modules/numbering-catalog/decorate";
 import {
   CHAIN_SOURCES,
+  CHAIN_STEPS,
   type ChainMode,
   type ChainSourceId,
   type ChainView,
@@ -59,8 +60,8 @@ function queueLine(
   progress: MaskProgress | null,
 ): string {
   const masking = mode === "wait" || mode === "masks";
-  const rest = CHAIN_SOURCES.slice(masking ? index : index + 1)
-    .map((source) => source.label)
+  const rest = CHAIN_STEPS.slice(masking ? index : index + 1)
+    .map((step) => step.label)
     .join(", ");
   const tail = rest ? ` Дальше: ${rest}.` : "";
   if (masking && progress?.kind === "client") return `Клиенты, купленные.${tail}`;
@@ -69,7 +70,7 @@ function queueLine(
   }
   if (masking && progress?.provider) return `Маски, ${progress.provider}.${tail}`;
   if (masking) return `Маски.${tail}`;
-  const current = CHAIN_SOURCES[index];
+  const current = CHAIN_STEPS[index];
   if (!current) return "Цепочка загрузок.";
   return `Цепочка: ${current.label}.${tail}`;
 }

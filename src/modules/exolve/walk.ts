@@ -1,7 +1,8 @@
 /**
- * Purchased numbers first, then every free cell from the directory.
+ * Purchased GetList and free GetFree are separate walks.
  * A gap in the unfiltered purchased list is re-read by type, then category, then region.
- * A child is staged only after that child is complete. Catalogs stay until publish.
+ * That path may read the reference directory. It does not call GetFree.
+ * A child is staged only after that child is complete. The service publishes.
  */
 
 import {
@@ -52,24 +53,33 @@ export type ExolveProgress = {
 
 export type WalkBeat = (patch: ExolveProgress) => Promise<"run" | "cancel" | "lost">;
 
-export type ExolveWalkDeps = {
+type WalkLog = {
   beat: WalkBeat;
+  log?: (line: string) => Promise<void> | void;
+};
+
+export type ExolvePurchasedDeps = WalkLog & {
   purchased: (filter: PurchasedFilter, offset: number) => Promise<PurchasedRead>;
   recount: () => Promise<TotalRead>;
   directory: () => Promise<DirectoryRead>;
-  free: (cell: FreeCell, offset: number, randomMode: FreeRandomMode) => Promise<FreeRead>;
   stagePurchased: (rows: readonly ExolveFreeRow[]) => Promise<void>;
   dropPurchased: () => Promise<void>;
+};
+
+export type ExolveFreeDeps = WalkLog & {
+  directory: () => Promise<DirectoryRead>;
+  free: (cell: FreeCell, offset: number, randomMode: FreeRandomMode) => Promise<FreeRead>;
   stageFree: (
     rows: readonly ExolveFreeRow[],
   ) => Promise<{ inserted: number; skipped: number }>;
-  log?: (line: string) => Promise<void> | void;
   /** Tests only. The service leaves this unset, so the ceiling stays 5000000. */
   freeOffsetMax?: number;
 };
 
-type ExolveWalkResult =
-  | { ok: true; free: number; purchased: number }
+export type ExolveWalkDeps = ExolvePurchasedDeps & ExolveFreeDeps;
+
+export type ExolveWalkResult =
+  | { ok: true; inserted: number }
   | { ok: false; reason: "lost" | "cancelled" | "error"; error: string };
 
 type PageStream =
@@ -88,7 +98,7 @@ function failed(error: string): ExolveWalkResult {
 }
 
 async function readPurchasedList(
-  deps: ExolveWalkDeps,
+  deps: ExolvePurchasedDeps,
   filter: PurchasedFilter,
   mode: "stage" | "buffer",
 ): Promise<PageStream> {
@@ -169,7 +179,7 @@ async function readPurchasedList(
 }
 
 async function stageBuffer(
-  deps: ExolveWalkDeps,
+  deps: ExolvePurchasedDeps,
   rows: readonly ExolveFreeRow[],
 ): Promise<Extract<PageStream, { status: "fail" }> | null> {
   if (rows.length === 0) return null;
@@ -183,7 +193,7 @@ async function stageBuffer(
 }
 
 async function readRegions(
-  deps: ExolveWalkDeps,
+  deps: ExolvePurchasedDeps,
   typeName: string,
   categoryId: number,
   regionIds: readonly number[],
@@ -213,7 +223,7 @@ async function readRegions(
 }
 
 async function splitCategory(
-  deps: ExolveWalkDeps,
+  deps: ExolvePurchasedDeps,
   directory: Directory,
   typeName: string,
   typeId: number,
@@ -271,7 +281,7 @@ async function splitCategory(
 }
 
 async function splitType(
-  deps: ExolveWalkDeps,
+  deps: ExolvePurchasedDeps,
   directory: Directory,
   type: Directory["types"][number],
   parentTotal: number,
@@ -318,7 +328,7 @@ async function splitType(
 }
 
 async function readByLayers(
-  deps: ExolveWalkDeps,
+  deps: ExolvePurchasedDeps,
   directory: Directory,
   parentTotal: number,
 ): Promise<ExolveWalkResult | null> {
@@ -361,11 +371,10 @@ async function readByLayers(
 }
 
 async function loadDirectory(
-  deps: ExolveWalkDeps,
-  cached: Directory | null,
+  deps: { beat: WalkBeat; directory: () => Promise<DirectoryRead> },
+  list: "purchased" | "free",
 ): Promise<{ ok: true; directory: Directory } | ExolveWalkResult> {
-  if (cached) return { ok: true, directory: cached };
-  const gate = await deps.beat({ list: "purchased" });
+  const gate = await deps.beat({ list });
   if (gate !== "run") return stopped(gate);
   const page = await deps.directory();
   if (!page.ok) return failed(page.error);
@@ -384,7 +393,7 @@ function probeCategory(directory: Directory): number {
 
 /** Two Moscow reads choose the random field. Their rows are not staged. */
 async function chooseFreeRandom(
-  deps: ExolveWalkDeps,
+  deps: ExolveFreeDeps,
   directory: Directory,
   pageTotal: number,
 ): Promise<{ ok: true; mode: FreeRandomMode } | ExolveWalkResult> {
@@ -417,7 +426,7 @@ async function chooseFreeRandom(
 }
 
 async function readFree(
-  deps: ExolveWalkDeps,
+  deps: ExolveFreeDeps,
   cells: readonly FreeCell[],
   mode: FreeRandomMode,
 ): Promise<ExolveWalkResult | { count: number }> {
@@ -469,20 +478,21 @@ async function readFree(
   return { count: staged };
 }
 
-export async function runExolveWalk(deps: ExolveWalkDeps): Promise<ExolveWalkResult> {
+/** Purchased GetList, including a layered re-read when a page is missing. Does not publish. */
+export async function runExolvePurchasedWalk(
+  deps: ExolvePurchasedDeps,
+): Promise<ExolveWalkResult> {
   const purchased = await readPurchasedList(deps, { kind: "all" }, "stage");
   if (purchased.status === "fail") {
     return { ok: false, reason: purchased.reason, error: purchased.error };
   }
 
-  let directory: Directory | null = null;
   if (purchased.status === "gap") {
     await deps.dropPurchased();
     await deps.log?.("purchased split");
-    const loaded = await loadDirectory(deps, null);
+    const loaded = await loadDirectory(deps, "purchased");
     if (!("directory" in loaded)) return loaded;
-    directory = loaded.directory;
-    const layers = await readByLayers(deps, directory, purchased.total);
+    const layers = await readByLayers(deps, loaded.directory, purchased.total);
     if (layers) return layers;
   }
 
@@ -496,8 +506,12 @@ export async function runExolveWalk(deps: ExolveWalkDeps): Promise<ExolveWalkRes
   if (!recounted.ok) return failed(recounted.error);
   if (recounted.total !== purchased.total) return failed(PURCHASED_CHANGED);
   await deps.log?.(`purchased total=${purchased.total}`);
+  return { ok: true, inserted: purchased.total };
+}
 
-  const loaded = await loadDirectory(deps, directory);
+/** Reference directory, Moscow probes, then every GetFree cell. Does not publish. */
+export async function runExolveFreeWalk(deps: ExolveFreeDeps): Promise<ExolveWalkResult> {
+  const loaded = await loadDirectory(deps, "free");
   if (!("directory" in loaded)) return loaded;
   const cells = planFreeCells(loaded.directory);
   if (!cells.ok) return failed(cells.error);
@@ -505,5 +519,5 @@ export async function runExolveWalk(deps: ExolveWalkDeps): Promise<ExolveWalkRes
   if (!("mode" in chosen)) return chosen;
   const free = await readFree(deps, cells.cells, chosen.mode);
   if ("ok" in free) return free;
-  return { ok: true, free: free.count, purchased: purchased.total };
+  return { ok: true, inserted: free.count };
 }

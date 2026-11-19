@@ -1,5 +1,5 @@
 /**
- * One text file for the UIS stage. The next stage truncates it.
+ * One text file for each UIS list. The next run of that list truncates it.
  * The key, the token, and the URL never land in the file.
  */
 
@@ -8,17 +8,23 @@ import { copyFile, mkdir, open, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-const FILE_NAME = "uis.txt";
+export type UisLogSide = "purchased" | "free";
+
+const FILE_NAME: Record<UisLogSide, string> = {
+  purchased: "uis-purchased.txt",
+  free: "uis-free.txt",
+};
 
 let chain: Promise<void> = Promise.resolve();
 let pending = "";
+let active: UisLogSide = "purchased";
 
 function directory(): string {
   return path.join(process.cwd(), "data", "numbering-sync");
 }
 
-function filePath(): string {
-  return path.join(directory(), FILE_NAME);
+function filePath(side: UisLogSide): string {
+  return path.join(directory(), FILE_NAME[side]);
 }
 
 function enqueue<T>(task: () => Promise<T>): Promise<T> {
@@ -53,9 +59,9 @@ export function sanitizeLogBlock(block: string): string {
     .join("\n");
 }
 
-async function writeHandle(flags: "w" | "a", text: string): Promise<void> {
+async function writeHandle(side: UisLogSide, flags: "w" | "a", text: string): Promise<void> {
   await mkdir(directory(), { recursive: true, mode: 0o750 });
-  const handle = await open(filePath(), flags, 0o640);
+  const handle = await open(filePath(side), flags, 0o640);
   try {
     await handle.write(text);
     await handle.sync();
@@ -64,11 +70,12 @@ async function writeHandle(flags: "w" | "a", text: string): Promise<void> {
   }
 }
 
-export async function beginUisLog(runId: string): Promise<void> {
+export async function beginUisLog(runId: string, side: UisLogSide): Promise<void> {
+  const title = side === "purchased" ? "Купленные" : "Свободные";
   const header = sanitizeLogBlock(
     [
       "Источник: UIS",
-      "Список: купленные, затем свободные",
+      `Список: ${title}`,
       `Запуск: ${new Date().toISOString()}`,
       `Идентификатор: ${runId}`,
       "",
@@ -76,8 +83,9 @@ export async function beginUisLog(runId: string): Promise<void> {
   );
   const body = header.endsWith("\n") ? header : `${header}\n`;
   await enqueue(async () => {
+    active = side;
     pending = "";
-    await writeHandle("w", body);
+    await writeHandle(side, "w", body);
   });
 }
 
@@ -95,22 +103,23 @@ export async function flushUisLog(): Promise<void> {
     if (!pending) return;
     const body = pending;
     pending = "";
-    await writeHandle("a", body);
+    await writeHandle(active, "a", body);
   });
 }
 
-export async function uisLogExists(): Promise<boolean> {
+export async function uisLogExists(side: UisLogSide): Promise<boolean> {
   try {
-    const info = await stat(filePath());
+    const info = await stat(filePath(side));
     return info.isFile() && info.size > 0;
   } catch {
     return false;
   }
 }
 
-export async function snapshotUisLog(): Promise<string | null> {
-  if (!(await uisLogExists())) return null;
-  const dest = path.join(os.tmpdir(), `uis-log-${randomUUID()}.txt`);
-  await enqueue(() => copyFile(filePath(), dest));
+export async function snapshotUisLog(side: UisLogSide): Promise<string | null> {
+  if (side === active) await flushUisLog();
+  if (!(await uisLogExists(side))) return null;
+  const dest = path.join(os.tmpdir(), `uis-${side}-log-${randomUUID()}.txt`);
+  await enqueue(() => copyFile(filePath(side), dest));
   return dest;
 }

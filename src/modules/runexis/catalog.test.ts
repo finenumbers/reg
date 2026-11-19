@@ -334,6 +334,7 @@ describe("runexis showcase", () => {
     expect(sanitizeLogLine("https://didapi.runexis.ru/api")).toBe(
       "Площадка отклонила запрос.",
     );
+    expect(sanitizeLogLine("refresh token")).toBe("Площадка отклонила запрос.");
     expect(sanitizeLogLine("Страница 2")).toBe("Страница 2");
   });
 });

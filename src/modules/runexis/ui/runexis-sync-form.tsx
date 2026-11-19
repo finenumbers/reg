@@ -82,24 +82,47 @@ export function RunexisSyncForm({ initial }: { initial: RunexisSyncView }) {
         : view.pageTotal > 0
           ? `${listName ? `${listName}, страница` : "Страница"} ${view.pageDone} из ${view.pageTotal}`
           : "Загрузка";
+  const loadDisabled =
+    pending || view.busy || !view.hasPassword || !view.email || chainRunning;
 
   return (
     <SourceCard
       name="Runexis"
-      loadedAtLabel={view.loadedAtLabel}
+      times={[
+        { label: "Купленные загружены", value: view.purchasedLoadedAtLabel },
+        { label: "Свободные загружены", value: view.freeLoadedAtLabel },
+      ]}
       rows={[
         { label: "Купленные", value: view.purchasedShown },
         { label: "Свободные", value: view.freeShown },
-        { label: "Дубликаты", value: view.duplicates },
         { label: "Разобрано", value: parsed },
       ]}
-      loadDisabled={pending || view.busy || !view.hasPassword || !view.email || chainRunning}
-      onLoad={() => void send("/api/numbering-sync/runexis")}
-      hasLog={view.hasLog}
-      logHref="/api/numbering-sync/runexis/log"
+      loads={[
+        {
+          label: "Загрузить купленные",
+          disabled: loadDisabled,
+          onClick: () => void send("/api/numbering-sync/runexis/purchased"),
+        },
+        {
+          label: "Загрузить свободные",
+          disabled: loadDisabled,
+          onClick: () => void send("/api/numbering-sync/runexis/free"),
+        },
+      ]}
+      logs={[
+        {
+          label: "Скачать лог купленных",
+          href: "/api/numbering-sync/runexis/log/purchased",
+          hasLog: view.hasPurchasedLog,
+        },
+        {
+          label: "Скачать лог свободных",
+          href: "/api/numbering-sync/runexis/log/free",
+          hasLog: view.hasFreeLog,
+        },
+      ]}
       onKeyDown={onKeyDown}
     >
-      
       {progress ? <p className="text-sm">{progress}</p> : null}
       <ChainCardNote source="runexis" />
       {view.busy && view.phase === "running" ? (

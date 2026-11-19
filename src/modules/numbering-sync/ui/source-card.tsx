@@ -7,33 +7,43 @@ import { formatCount } from "@/modules/numbering-sync/card-numbers";
 export const loadButtonClass = "bg-black text-white hover:bg-neutral-800";
 const logButtonClass = "border-black bg-white text-black hover:bg-neutral-100";
 
+export type SourceLoad = {
+  label: string;
+  disabled: boolean;
+  onClick: () => void;
+};
+
+export type SourceLog = {
+  label: string;
+  href: string;
+  hasLog: boolean;
+};
+
 export function SourceCard({
   name,
-  loadedAtLabel,
+  times,
   rows,
-  loadDisabled,
-  onLoad,
-  hasLog,
-  logHref,
+  loads,
+  logs,
   onKeyDown,
   children,
 }: {
   name: string;
-  loadedAtLabel: string;
+  times: { label: string; value: string }[];
   rows: { label: string; value: number | null }[];
-  loadDisabled: boolean;
-  onLoad: () => void;
-  hasLog: boolean;
-  logHref: string;
+  loads: SourceLoad[];
+  logs: SourceLog[];
   onKeyDown: (event: KeyboardEvent) => void;
   children: ReactNode;
 }) {
   return (
     <div className="max-w-xl space-y-4" onKeyDown={onKeyDown}>
       <h2 className="text-base font-semibold">{name}</h2>
-      <p className="text-sm">
-        Загрузка: <span className="font-semibold">{loadedAtLabel}</span>
-      </p>
+      {times.map((time) => (
+        <p key={time.label} className="text-sm">
+          {time.label}: <span className="font-semibold">{time.value}</span>
+        </p>
+      ))}
       <table className="text-sm">
         <tbody>
           {rows.map((row) => (
@@ -45,22 +55,27 @@ export function SourceCard({
         </tbody>
       </table>
       <div className="flex flex-wrap gap-2">
-        <Button
-          type="button"
-          className={loadButtonClass}
-          disabled={loadDisabled}
-          onClick={onLoad}
-        >
-          Загрузить
-        </Button>
-        {hasLog ? (
-          <Button type="button" variant="outline" className={logButtonClass} asChild>
-            <a href={logHref}>Скачать лог</a>
+        {loads.map((load) => (
+          <Button
+            key={load.label}
+            type="button"
+            className={loadButtonClass}
+            disabled={load.disabled}
+            onClick={load.onClick}
+          >
+            {load.label}
           </Button>
-        ) : (
-          <Button type="button" variant="outline" className={logButtonClass} disabled>
-            Скачать лог
-          </Button>
+        ))}
+        {logs.map((log) =>
+          log.hasLog ? (
+            <Button key={log.label} type="button" variant="outline" className={logButtonClass} asChild>
+              <a href={log.href}>{log.label}</a>
+            </Button>
+          ) : (
+            <Button key={log.label} type="button" variant="outline" className={logButtonClass} disabled>
+              {log.label}
+            </Button>
+          ),
         )}
       </div>
       {children}

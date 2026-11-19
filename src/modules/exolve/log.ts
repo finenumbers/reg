@@ -1,5 +1,5 @@
 /**
- * One text file for the MTS Exolve stage. The next stage truncates it.
+ * One text file for each MTS Exolve list. The next run of that list truncates it.
  * The key, a phone number, a price, and the URL never land in the file.
  */
 
@@ -8,18 +8,24 @@ import { copyFile, mkdir, open, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-const FILE_NAME = "exolve.txt";
+export type ExolveLogSide = "purchased" | "free";
+
+const FILE_NAME: Record<ExolveLogSide, string> = {
+  purchased: "exolve-purchased.txt",
+  free: "exolve-free.txt",
+};
 const FLUSH_AT = 64_000;
 
 let chain: Promise<void> = Promise.resolve();
 let pending = "";
+let active: ExolveLogSide = "purchased";
 
 function directory(): string {
   return path.join(process.cwd(), "data", "numbering-sync");
 }
 
-function filePath(): string {
-  return path.join(directory(), FILE_NAME);
+function filePath(side: ExolveLogSide): string {
+  return path.join(directory(), FILE_NAME[side]);
 }
 
 function enqueue<T>(task: () => Promise<T>): Promise<T> {
@@ -53,9 +59,9 @@ export function sanitizeLogBlock(block: string): string {
     .join("\n");
 }
 
-async function writeHandle(flags: "w" | "a", text: string): Promise<void> {
+async function writeHandle(side: ExolveLogSide, flags: "w" | "a", text: string): Promise<void> {
   await mkdir(directory(), { recursive: true, mode: 0o750 });
-  const handle = await open(filePath(), flags, 0o640);
+  const handle = await open(filePath(side), flags, 0o640);
   try {
     await handle.write(text);
     await handle.sync();
@@ -64,11 +70,12 @@ async function writeHandle(flags: "w" | "a", text: string): Promise<void> {
   }
 }
 
-export async function beginExolveLog(runId: string): Promise<void> {
+export async function beginExolveLog(runId: string, side: ExolveLogSide): Promise<void> {
+  const title = side === "purchased" ? "Купленные" : "Свободные";
   const header = sanitizeLogBlock(
     [
       "Источник: MTS Exolve",
-      "Список: купленные, затем свободные",
+      `Список: ${title}`,
       `Запуск: ${new Date().toISOString()}`,
       `Идентификатор: ${runId}`,
       "",
@@ -76,8 +83,9 @@ export async function beginExolveLog(runId: string): Promise<void> {
   );
   const body = header.endsWith("\n") ? header : `${header}\n`;
   await enqueue(async () => {
+    active = side;
     pending = "";
-    await writeHandle("w", body);
+    await writeHandle(side, "w", body);
   });
 }
 
@@ -90,7 +98,7 @@ export async function appendExolveLog(block: string): Promise<void> {
     if (pending.length < FLUSH_AT) return;
     const chunk = pending;
     pending = "";
-    await writeHandle("a", chunk);
+    await writeHandle(active, "a", chunk);
   });
 }
 
@@ -99,22 +107,23 @@ export async function flushExolveLog(): Promise<void> {
     if (!pending) return;
     const body = pending;
     pending = "";
-    await writeHandle("a", body);
+    await writeHandle(active, "a", body);
   });
 }
 
-export async function exolveLogExists(): Promise<boolean> {
+export async function exolveLogExists(side: ExolveLogSide): Promise<boolean> {
   try {
-    const info = await stat(filePath());
+    const info = await stat(filePath(side));
     return info.isFile() && info.size > 0;
   } catch {
     return false;
   }
 }
 
-export async function snapshotExolveLog(): Promise<string | null> {
-  if (!(await exolveLogExists())) return null;
-  const dest = path.join(os.tmpdir(), `exolve-log-${randomUUID()}.txt`);
-  await enqueue(() => copyFile(filePath(), dest));
+export async function snapshotExolveLog(side: ExolveLogSide): Promise<string | null> {
+  if (side === active) await flushExolveLog();
+  if (!(await exolveLogExists(side))) return null;
+  const dest = path.join(os.tmpdir(), `exolve-${side}-log-${randomUUID()}.txt`);
+  await enqueue(() => copyFile(filePath(side), dest));
   return dest;
 }

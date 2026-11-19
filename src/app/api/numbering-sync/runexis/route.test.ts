@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const requireApiPermission = vi.fn();
-const startRunexisSync = vi.fn();
+const startRunexisPurchased = vi.fn();
+const startRunexisFree = vi.fn();
 const getRunexisSyncView = vi.fn();
 
 vi.mock("@/modules/auth/guards", () => ({
@@ -29,13 +30,20 @@ vi.mock("@/lib/request-ip", () => ({
 }));
 
 vi.mock("@/modules/runexis/service", () => ({
-  startRunexisSync: (...args: unknown[]) => startRunexisSync(...args),
+  startRunexisPurchased: (...args: unknown[]) => startRunexisPurchased(...args),
+  startRunexisFree: (...args: unknown[]) => startRunexisFree(...args),
   getRunexisSyncView: (...args: unknown[]) => getRunexisSyncView(...args),
 }));
 
-import { POST } from "@/app/api/numbering-sync/runexis/route";
+import { POST as postPurchased } from "@/app/api/numbering-sync/runexis/purchased/route";
+import { POST as postFree } from "@/app/api/numbering-sync/runexis/free/route";
 
-describe("POST /api/numbering-sync/runexis", () => {
+const session = {
+  ok: true,
+  ctx: { authKind: "session", session: { user: { id: "user-1" } } },
+};
+
+describe("POST /api/numbering-sync/runexis/purchased", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getRunexisSyncView.mockResolvedValue({
@@ -50,29 +58,69 @@ describe("POST /api/numbering-sync/runexis", () => {
       ok: true,
       ctx: { authKind: "apiKey" },
     });
-    const response = await POST(
-      new Request("http://localhost/api/numbering-sync/runexis", {
+    const response = await postPurchased(
+      new Request("http://localhost/api/numbering-sync/runexis/purchased", {
         method: "POST",
         body: "{}",
       }),
     );
     expect(response.status).toBe(403);
-    expect(startRunexisSync).not.toHaveBeenCalled();
+    expect(startRunexisPurchased).not.toHaveBeenCalled();
+    expect(startRunexisFree).not.toHaveBeenCalled();
   });
 
-  it("starts one Runexis stage for a session", async () => {
-    requireApiPermission.mockResolvedValue({
-      ok: true,
-      ctx: { authKind: "session", session: { user: { id: "user-1" } } },
-    });
-    startRunexisSync.mockResolvedValue({ ok: true });
-    const response = await POST(
-      new Request("http://localhost/api/numbering-sync/runexis", {
+  it("starts the purchased list for a session and ignores the body", async () => {
+    requireApiPermission.mockResolvedValue(session);
+    startRunexisPurchased.mockResolvedValue({ ok: true });
+    const response = await postPurchased(
+      new Request("http://localhost/api/numbering-sync/runexis/purchased", {
         method: "POST",
         body: JSON.stringify({ provider: "SipOut" }),
       }),
     );
     expect(response.status).toBe(200);
-    expect(startRunexisSync).toHaveBeenCalledWith({ userId: "user-1", ip: null });
+    expect(startRunexisPurchased).toHaveBeenCalledWith({ userId: "user-1", ip: null });
+    expect(startRunexisFree).not.toHaveBeenCalled();
+  });
+});
+
+describe("POST /api/numbering-sync/runexis/free", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    getRunexisSyncView.mockResolvedValue({
+      host: "https://didapi.runexis.ru",
+      email: "a@b.c",
+      hasPassword: true,
+    });
+  });
+
+  it("rejects an API key before the stage starts", async () => {
+    requireApiPermission.mockResolvedValue({
+      ok: true,
+      ctx: { authKind: "apiKey" },
+    });
+    const response = await postFree(
+      new Request("http://localhost/api/numbering-sync/runexis/free", {
+        method: "POST",
+        body: "{}",
+      }),
+    );
+    expect(response.status).toBe(403);
+    expect(startRunexisFree).not.toHaveBeenCalled();
+    expect(startRunexisPurchased).not.toHaveBeenCalled();
+  });
+
+  it("starts the free list for a session and ignores the body", async () => {
+    requireApiPermission.mockResolvedValue(session);
+    startRunexisFree.mockResolvedValue({ ok: true });
+    const response = await postFree(
+      new Request("http://localhost/api/numbering-sync/runexis/free", {
+        method: "POST",
+        body: JSON.stringify({ provider: "SipOut" }),
+      }),
+    );
+    expect(response.status).toBe(200);
+    expect(startRunexisFree).toHaveBeenCalledWith({ userId: "user-1", ip: null });
+    expect(startRunexisPurchased).not.toHaveBeenCalled();
   });
 });

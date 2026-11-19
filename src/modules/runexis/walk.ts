@@ -1,6 +1,5 @@
 /**
- * Read every partner page, then the code directory, then one showcase per code.
- * A failed page drops the draft and leaves both catalogs.
+ * One list per walk. A failed page drops that draft and leaves both catalogs.
  */
 
 import type { RunexisMeta, RunexisPage } from "@/modules/runexis/client";
@@ -23,8 +22,6 @@ import {
 
 export type LeaseBeat = "ok" | "cancel" | "lost";
 
-export type Published = { free: number; purchased: number };
-
 export type WalkDeps = {
   codes: () => Promise<RunexisPage>;
   showcase: (page: number, slice: CodeSlice) => Promise<RunexisPage>;
@@ -34,7 +31,7 @@ export type WalkDeps = {
   stageFree: (rows: FreeDraft[]) => Promise<number>;
   stagePurchased: (rows: FreeDraft[]) => Promise<void>;
   prepare: () => Promise<void>;
-  publish: () => Promise<Published>;
+  publish: () => Promise<{ inserted: number }>;
   dropStage: () => Promise<void>;
   progress: (
     list: RunexisList,
@@ -48,11 +45,10 @@ export type WalkDeps = {
 };
 
 export type WalkResult =
-  | { ok: true; free: number; purchased: number }
+  | { ok: true; inserted: number }
   | { ok: false; reason: "lost" | "cancelled" | "error"; error: string };
 
 const CANCELLED = "Загрузка отменена. Каталог не изменён.";
-const NO_FREE = "Свободных номеров нет. Каталог не изменён.";
 const SHORT = "Ответ площадки обрезан. Каталог не изменён.";
 const CHANGED = "Список изменился во время чтения. Каталог не изменён.";
 const LOST = "Загрузка прервана. Каталог не изменён.";
@@ -293,9 +289,6 @@ async function readFreeByCode(deps: WalkDeps): Promise<WalkResult | null> {
     draft = read.draft;
     await deps.flushLog().catch(() => undefined);
   }
-  if (draft === 0) {
-    return stop(deps, { ok: false, reason: "error", error: NO_FREE });
-  }
   return null;
 }
 
@@ -377,24 +370,17 @@ async function readManagement(deps: WalkDeps): Promise<WalkResult | null> {
   }
 }
 
-/** Purchased pages, then the code directory, then one showcase per code. */
-export async function runRunexisWalk(deps: WalkDeps): Promise<WalkResult> {
-  const management = await readManagement(deps);
-  if (management) return management;
-  const showcase = await readFreeByCode(deps);
-  if (showcase) return showcase;
+async function finishList(deps: WalkDeps, title: string): Promise<WalkResult> {
   const ready = await gate(deps);
   if (ready) return stop(deps, ready);
   try {
     await deps.prepare();
     const published = await deps.publish();
     await deps
-      .log(
-        `Итог: записано свободных ${published.free}, купленных ${published.purchased}\n`,
-      )
+      .log(`Итог: ${title} записано ${published.inserted}\n`)
       .catch(() => undefined);
     await deps.flushLog().catch(() => undefined);
-    return { ok: true, free: published.free, purchased: published.purchased };
+    return { ok: true, inserted: published.inserted };
   } catch (error) {
     if (error instanceof SyncLost)
       return stop(deps, { ok: false, reason: "lost", error: LOST });
@@ -402,4 +388,18 @@ export async function runRunexisWalk(deps: WalkDeps): Promise<WalkResult> {
       error instanceof Error ? error.message : "Не удалось записать номера.";
     return stop(deps, { ok: false, reason: "error", error: message });
   }
+}
+
+/** Partner pages, then the purchased catalog only. */
+export async function runRunexisPurchasedWalk(deps: WalkDeps): Promise<WalkResult> {
+  const management = await readManagement(deps);
+  if (management) return management;
+  return finishList(deps, "куплено");
+}
+
+/** The code directory and one showcase per code, then the free catalog only. */
+export async function runRunexisFreeWalk(deps: WalkDeps): Promise<WalkResult> {
+  const showcase = await readFreeByCode(deps);
+  if (showcase) return showcase;
+  return finishList(deps, "свободно");
 }

@@ -29,7 +29,8 @@ import {
   SHORT_LIST,
   TOTAL_MOVED,
   runAccessProbe,
-  runVoximplantWalk,
+  runVoximplantFreeWalk,
+  runVoximplantPurchasedWalk,
   type NumberPage,
   type TotalPage,
 } from "@/modules/voximplant/walk";
@@ -63,26 +64,38 @@ function row(e164: string, purchase = "100", period = "20"): FreeRow {
   return { e164, incomingPurchase: purchase, incomingPeriod: period };
 }
 
-async function run(overrides: Partial<Parameters<typeof runVoximplantWalk>[0]> = {}) {
+async function runPurchased(
+  overrides: Partial<Parameters<typeof runVoximplantPurchasedWalk>[0]> = {},
+) {
   const stagePurchased = vi.fn(async () => undefined);
   const dropPurchased = vi.fn(async () => undefined);
-  const stageFree = vi.fn(async () => undefined);
   const log = vi.fn(async () => undefined);
-  const result = await runVoximplantWalk({
+  const result = await runVoximplantPurchasedWalk({
     beat: async () => "run",
     purchasedPage: async () => purchased([], 0),
     purchasedRecount: async () => total(0),
+    stagePurchased,
+    dropPurchased,
+    log,
+    ...overrides,
+  });
+  return { result, stagePurchased, dropPurchased, log };
+}
+
+async function runFree(overrides: Partial<Parameters<typeof runVoximplantFreeWalk>[0]> = {}) {
+  const stageFree = vi.fn(async () => undefined);
+  const log = vi.fn(async () => undefined);
+  const result = await runVoximplantFreeWalk({
+    beat: async () => "run",
     categories: async () => ({ ok: true, categories: [], meta: meta() }),
     regions: async () => ({ ok: true, regions: [], meta: meta() }),
     freePage: async () => free([], 0),
     freeRecount: async () => total(0),
-    stagePurchased,
-    dropPurchased,
     stageFree,
     log,
     ...overrides,
   });
-  return { result, stagePurchased, dropPurchased, stageFree, log };
+  return { result, stageFree, log };
 }
 
 describe("Voximplant pages", () => {
@@ -254,7 +267,7 @@ describe("Voximplant pages", () => {
 describe("Voximplant walk", () => {
   it("advances the offset by the accepted rows and does not stop on a short page", async () => {
     const offsets: number[] = [];
-    const { result } = await run({
+    const { result, stagePurchased } = await runPurchased({
       purchasedPage: async (offset) => {
         offsets.push(offset);
         if (offset === 0) return purchased([A], 3);
@@ -262,10 +275,10 @@ describe("Voximplant walk", () => {
         return purchased([C], 3);
       },
       purchasedRecount: async () => total(3),
-      categories: async () => ({ ok: false, error: EMPTY_DIRECTORY, meta: meta() }),
     });
     expect(offsets).toEqual([0, 1, 2]);
-    expect(result).toEqual({ ok: false, error: EMPTY_DIRECTORY, reason: "fail" });
+    expect(result).toEqual({ ok: true, inserted: 3 });
+    expect(stagePurchased).toHaveBeenCalledTimes(3);
   });
 
   it("rejects a page longer than the purchased page size", async () => {
@@ -273,7 +286,7 @@ describe("Voximplant walk", () => {
       { length: PURCHASED_COUNT + 1 },
       (_, index) => `7495${String(index).padStart(7, "0")}`,
     );
-    const { result, stagePurchased } = await run({
+    const { result, stagePurchased } = await runPurchased({
       purchasedPage: async () => purchased(rows, rows.length),
     });
     expect(result.ok).toBe(false);
@@ -283,7 +296,7 @@ describe("Voximplant walk", () => {
 
   it("keeps a free tail that fills the locked total when that page reports another total", async () => {
     const offsets: number[] = [];
-    const { result, stageFree, log } = await run({
+    const { result, stageFree, log } = await runFree({
       categories: async () => ({
         ok: true,
         categories: [{ name: "GEO_CATEGORY2" }],
@@ -302,7 +315,7 @@ describe("Voximplant walk", () => {
       },
       freeRecount: async () => total(3),
     });
-    expect(result).toEqual({ ok: true });
+    expect(result).toEqual({ ok: true, inserted: 3 });
     expect(offsets).toEqual([0, 1, 2]);
     expect(stageFree).toHaveBeenCalledTimes(1);
     expect(stageFree).toHaveBeenCalledWith([row(A), row(B), row(C)]);
@@ -312,7 +325,7 @@ describe("Voximplant walk", () => {
   it("raises the locked total when the free tail rows equal that larger total", async () => {
     const third = "74950000001";
     const fourth = "74950000002";
-    const { result, stageFree } = await run({
+    const { result, stageFree } = await runFree({
       categories: async () => ({
         ok: true,
         categories: [{ name: "GEO_CATEGORY2" }],
@@ -329,7 +342,7 @@ describe("Voximplant walk", () => {
       },
       freeRecount: async () => total(4),
     });
-    expect(result).toEqual({ ok: true });
+    expect(result).toEqual({ ok: true, inserted: 5 });
     expect(stageFree).toHaveBeenCalledTimes(1);
     expect(stageFree).toHaveBeenCalledWith([
       row(A),
@@ -342,7 +355,7 @@ describe("Voximplant walk", () => {
 
   it("does not raise the locked total when the larger total is not the row sum", async () => {
     const offsets: number[] = [];
-    const { result, stageFree } = await run({
+    const { result, stageFree } = await runFree({
       categories: async () => ({
         ok: true,
         categories: [{ name: "GEO_CATEGORY2" }],
@@ -366,7 +379,7 @@ describe("Voximplant walk", () => {
   });
 
   it("does not publish a raised free total when the recount matches neither total", async () => {
-    const { result, stageFree } = await run({
+    const { result, stageFree } = await runFree({
       categories: async () => ({
         ok: true,
         categories: [{ name: "GEO_CATEGORY2" }],
@@ -388,7 +401,7 @@ describe("Voximplant walk", () => {
   });
 
   it("does not keep a free page that passes or falls short of the locked total", async () => {
-    const longer = await run({
+    const longer = await runFree({
       categories: async () => ({
         ok: true,
         categories: [{ name: "GEO_CATEGORY2" }],
@@ -409,7 +422,7 @@ describe("Voximplant walk", () => {
     expect(longer.result).toEqual({ ok: false, error: TOTAL_MOVED, reason: "fail" });
     expect(longer.stageFree).not.toHaveBeenCalled();
 
-    const shorter = await run({
+    const shorter = await runFree({
       categories: async () => ({
         ok: true,
         categories: [{ name: "GEO_CATEGORY2" }],
@@ -427,7 +440,7 @@ describe("Voximplant walk", () => {
     expect(shorter.result).toEqual({ ok: false, error: TOTAL_MOVED, reason: "fail" });
     expect(shorter.stageFree).not.toHaveBeenCalled();
 
-    const emptyTail = await run({
+    const emptyTail = await runFree({
       categories: async () => ({
         ok: true,
         categories: [{ name: "GEO_CATEGORY2" }],
@@ -450,7 +463,7 @@ describe("Voximplant walk", () => {
   });
 
   it("does not publish a completed free tail when the recount disagrees", async () => {
-    const { result, stageFree } = await run({
+    const { result, stageFree } = await runFree({
       categories: async () => ({
         ok: true,
         categories: [{ name: "GEO_CATEGORY2" }],
@@ -474,7 +487,7 @@ describe("Voximplant walk", () => {
 
   it("reads a repeated free number once more and then stops", async () => {
     let calls = 0;
-    const { result, stageFree } = await run({
+    const { result, stageFree } = await runFree({
       categories: async () => ({
         ok: true,
         categories: [{ name: "GEO_CATEGORY2" }],
@@ -499,7 +512,7 @@ describe("Voximplant walk", () => {
   it("reads a selection again when the total moves, and stops on the second move", async () => {
     const offsets: number[] = [];
     let attempt = 0;
-    const { result, dropPurchased, stageFree } = await run({
+    const { result, dropPurchased } = await runPurchased({
       purchasedPage: async (offset) => {
         offsets.push(offset);
         if (offset === 0) return purchased([A], 2);
@@ -510,13 +523,12 @@ describe("Voximplant walk", () => {
     expect(result).toEqual({ ok: false, error: TOTAL_MOVED, reason: "fail" });
     expect(offsets).toEqual([0, 1, 0, 1]);
     expect(dropPurchased).toHaveBeenCalled();
-    expect(stageFree).not.toHaveBeenCalled();
   });
 
   it("does not stage the recount page", async () => {
     const pages: number[] = [];
     const recounts: number[] = [];
-    const { stagePurchased, result } = await run({
+    const { stagePurchased, result } = await runPurchased({
       purchasedPage: async (offset) => {
         pages.push(offset);
         return purchased([A], 1);
@@ -525,6 +537,18 @@ describe("Voximplant walk", () => {
         recounts.push(1);
         return total(1);
       },
+    });
+    expect(result).toEqual({ ok: true, inserted: 1 });
+    expect(pages).toEqual([0]);
+    expect(recounts).toEqual([1]);
+    expect(stagePurchased).toHaveBeenCalledTimes(1);
+    expect(stagePurchased).toHaveBeenCalledWith([
+      { e164: A, incomingPurchase: "", incomingPeriod: "" },
+    ]);
+
+    const freePages: number[] = [];
+    const freeRecounts: number[] = [];
+    const freeRun = await runFree({
       categories: async () => ({
         ok: true,
         categories: [{ name: "GEOGRAPHIC" }],
@@ -535,24 +559,28 @@ describe("Voximplant walk", () => {
         regions: [{ id: 7, phoneCount: 1 }],
         meta: meta(),
       }),
-      freePage: async () => free([row(B, "10", "3")], 1),
-      freeRecount: async () => total(1),
+      freePage: async () => {
+        freePages.push(0);
+        return free([row(B, "10", "3")], 1);
+      },
+      freeRecount: async () => {
+        freeRecounts.push(1);
+        return total(1);
+      },
     });
-    expect(result).toEqual({ ok: true });
-    expect(pages).toEqual([0]);
-    expect(recounts).toEqual([1]);
-    expect(stagePurchased).toHaveBeenCalledTimes(1);
-    expect(stagePurchased).toHaveBeenCalledWith([
-      { e164: A, incomingPurchase: "", incomingPeriod: "" },
-    ]);
+    expect(freeRun.result).toEqual({ ok: true, inserted: 1 });
+    expect(freePages).toEqual([0]);
+    expect(freeRecounts).toEqual([1]);
+    expect(freeRun.stageFree).toHaveBeenCalledTimes(1);
+    expect(freeRun.stageFree).toHaveBeenCalledWith([row(B, "10", "3")]);
   });
 
   it("does not publish when Russia has no categories or no regions", async () => {
-    const empty = await run();
+    const empty = await runFree();
     expect(empty.result).toEqual({ ok: false, error: EMPTY_DIRECTORY, reason: "fail" });
     expect(empty.stageFree).not.toHaveBeenCalled();
 
-    const noRegions = await run({
+    const noRegions = await runFree({
       categories: async () => ({
         ok: true,
         categories: [{ name: "GEOGRAPHIC" }] satisfies PhoneCategory[],
@@ -569,7 +597,7 @@ describe("Voximplant walk", () => {
   });
 
   it("publishes an empty free slice when every readable selection is empty", async () => {
-    const { result, stageFree } = await run({
+    const { result, stageFree } = await runFree({
       categories: async () => ({
         ok: true,
         categories: [{ name: "GEOGRAPHIC" }],
@@ -577,19 +605,19 @@ describe("Voximplant walk", () => {
       }),
       regions: async () => ({
         ok: true,
-        regions: [{ id: 4, phoneCount: 2 }],
+        regions: [{ id: 4, phoneCount: 50 }],
         meta: meta(),
       }),
       freePage: async () => free([], 0),
       freeRecount: async () => total(0),
     });
-    expect(result).toEqual({ ok: true });
+    expect(result).toEqual({ ok: true, inserted: 0 });
     expect(stageFree).not.toHaveBeenCalled();
   });
 
   it("skips a region with no stock and keeps the first free price", async () => {
     const calls: number[] = [];
-    const { result, stageFree } = await run({
+    const { result, stageFree } = await runFree({
       categories: async () => ({
         ok: true,
         categories: [{ name: "GEOGRAPHIC" }],
@@ -610,7 +638,7 @@ describe("Voximplant walk", () => {
       },
       freeRecount: async () => total(1),
     });
-    expect(result).toEqual({ ok: true });
+    expect(result).toEqual({ ok: true, inserted: 1 });
     expect(calls).toEqual([2, 3]);
     expect(stageFree).toHaveBeenCalledTimes(1);
     expect(stageFree).toHaveBeenCalledWith([row(A, "10", "4")]);
@@ -618,7 +646,7 @@ describe("Voximplant walk", () => {
 
   it("retries one empty page and then fails a second empty page", async () => {
     let calls = 0;
-    const { result } = await run({
+    const { result } = await runPurchased({
       purchasedPage: async () => {
         calls += 1;
         return purchased([], 5);
@@ -629,7 +657,7 @@ describe("Voximplant walk", () => {
   });
 
   it("fails when a page is longer than the locked total", async () => {
-    const { result, stagePurchased } = await run({
+    const { result, stagePurchased } = await runPurchased({
       purchasedPage: async () => purchased([A, B], 1),
     });
     expect(result).toEqual({ ok: false, error: OVER_TOTAL, reason: "fail" });
@@ -637,7 +665,7 @@ describe("Voximplant walk", () => {
   });
 
   it("fails a repeated number on the next page", async () => {
-    const { result } = await run({
+    const { result } = await runPurchased({
       purchasedPage: async (offset) =>
         offset === 0 ? purchased([A], 2) : purchased([A], 2),
     });
@@ -651,9 +679,9 @@ describe("Voximplant walk", () => {
     expect(offsetTooFar(OFFSET_MAX + 1)).toBe(true);
   });
 
-  it("cancels before the next page and does not open free numbers", async () => {
+  it("cancels before the next purchased page", async () => {
     let beats = 0;
-    const { result, stageFree } = await run({
+    const { result, stagePurchased } = await runPurchased({
       beat: async () => {
         beats += 1;
         return beats === 1 ? "run" : "cancel";
@@ -661,6 +689,38 @@ describe("Voximplant walk", () => {
       purchasedPage: async () => purchased([A], 2),
     });
     expect(result).toEqual({ ok: false, error: CANCELLED, reason: "cancel" });
+    expect(stagePurchased).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns an empty purchased list", async () => {
+    const { result, stagePurchased } = await runPurchased();
+    expect(result).toEqual({ ok: true, inserted: 0 });
+    expect(stagePurchased).not.toHaveBeenCalled();
+  });
+
+  it("returns an empty free list when every region is below one number", async () => {
+    const calls: number[] = [];
+    const { result, stageFree } = await runFree({
+      categories: async () => ({
+        ok: true,
+        categories: [{ name: "GEOGRAPHIC" }],
+        meta: meta(),
+      }),
+      regions: async () => ({
+        ok: true,
+        regions: [
+          { id: 1, phoneCount: 0 },
+          { id: 2, phoneCount: 0 },
+        ],
+        meta: meta(),
+      }),
+      freePage: async (_category, regionId) => {
+        calls.push(regionId);
+        return free([row(A)], 1);
+      },
+    });
+    expect(calls).toEqual([]);
+    expect(result).toEqual({ ok: true, inserted: 0 });
     expect(stageFree).not.toHaveBeenCalled();
   });
 });

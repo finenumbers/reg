@@ -82,16 +82,25 @@ export function AuroraSyncForm({ initial }: { initial: AuroraSyncView }) {
   return (
     <SourceCard
       name="Aurora Telecom"
-      loadedAtLabel={view.loadedAtLabel}
+      times={[{ label: "Свободные загружены", value: view.freeLoadedAtLabel }]}
       rows={[
         { label: "Свободные", value: view.freeShown },
-        { label: "Дубликаты", value: view.duplicates },
         { label: "Разобрано", value: parsed },
       ]}
-      loadDisabled={pending || view.busy || !view.hasFiles || chainRunning}
-      onLoad={() => void send("/api/numbering-sync/aurora")}
-      hasLog={view.hasLog}
-      logHref="/api/numbering-sync/aurora/log"
+      loads={[
+        {
+          label: "Загрузить свободные",
+          disabled: pending || view.busy || !view.hasFiles || chainRunning,
+          onClick: () => void send("/api/numbering-sync/aurora"),
+        },
+      ]}
+      logs={[
+        {
+          label: "Скачать лог",
+          href: "/api/numbering-sync/aurora/log",
+          hasLog: view.hasLog,
+        },
+      ]}
       onKeyDown={onKeyDown}
     >
       

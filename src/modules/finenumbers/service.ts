@@ -23,6 +23,7 @@ import {
 import { endFinenumbers, isFinenumbersActive, isFinenumbersStopping, tryBeginFinenumbers } from "@/modules/finenumbers/lease";
 import {
   appendFinenumbersLog,
+  appendFinenumbersSide,
   beginFinenumbersLog,
   finenumbersLogExists,
   flushFinenumbersLog,
@@ -58,9 +59,10 @@ export type FinenumbersSyncView = {
   lastPurchased: number | null;
   freeShown: number | null;
   purchasedShown: number | null;
-  duplicates: number;
-  loadedAtLabel: string;
-  hasLog: boolean;
+  purchasedLoadedAtLabel: string;
+  freeLoadedAtLabel: string;
+  hasPurchasedLog: boolean;
+  hasFreeLog: boolean;
 };
 
 type Actor = { userId: string | null; ip?: string | null };
@@ -73,8 +75,8 @@ type StateRow = {
   last_error: string | null;
   last_free_written: number | null;
   last_purchased_written: number | null;
-  duplicates_dropped: number;
-  loaded_at: Date | null;
+  purchased_loaded_at: Date | null;
+  free_loaded_at: Date | null;
   staged_free: number;
   staged_purchased: number;
   busy: boolean;
@@ -87,7 +89,7 @@ function operatorError(error: unknown): string {
   return line;
 }
 
-function emptySync(hasLog: boolean): FinenumbersSyncView {
+function emptySync(hasPurchasedLog: boolean, hasFreeLog: boolean): FinenumbersSyncView {
   return {
     busy: false,
     phase: "",
@@ -99,18 +101,19 @@ function emptySync(hasLog: boolean): FinenumbersSyncView {
     lastPurchased: null,
     freeShown: null,
     purchasedShown: null,
-    duplicates: 0,
-    loadedAtLabel: "—",
-    hasLog,
+    purchasedLoadedAtLabel: "—",
+    freeLoadedAtLabel: "—",
+    hasPurchasedLog,
+    hasFreeLog,
   };
 }
 
 export async function getFinenumbersSyncView(): Promise<FinenumbersSyncView> {
-  const [rows, hasLog, timeZone] = await Promise.all([
+  const [rows, hasPurchasedLog, hasFreeLog, timeZone] = await Promise.all([
     prisma.$queryRaw<StateRow[]>`
       SELECT phase, list, page_done, page_total, last_error,
         last_free_written, last_purchased_written,
-        duplicates_dropped, loaded_at,
+        purchased_loaded_at, free_loaded_at,
         (
           SELECT count(*)::int FROM finenumbers_sync_stage AS stage
           WHERE stage.run_id = finenumbers_sync_state.run_id
@@ -135,11 +138,12 @@ export async function getFinenumbersSyncView(): Promise<FinenumbersSyncView> {
       FROM finenumbers_sync_state
       WHERE id = 1
     `,
-    finenumbersLogExists(),
+    finenumbersLogExists("purchased"),
+    finenumbersLogExists("free"),
     getDisplayTimezone(),
   ]);
   const state = rows[0];
-  if (!state) return emptySync(hasLog);
+  if (!state) return emptySync(hasPurchasedLog, hasFreeLog);
   const busy = Boolean(state.busy) || isFinenumbersActive();
   return {
     busy,
@@ -160,11 +164,12 @@ export async function getFinenumbersSyncView(): Promise<FinenumbersSyncView> {
       lastPurchased: state.last_purchased_written,
       stagedFree: state.staged_free,
       stagedPurchased: state.staged_purchased,
-      duplicates: state.duplicates_dropped,
-      loadedAt: state.loaded_at,
+      purchasedLoadedAt: state.purchased_loaded_at,
+      freeLoadedAt: state.free_loaded_at,
       timeZone,
     }),
-    hasLog,
+    hasPurchasedLog,
+    hasFreeLog,
   };
 }
 
@@ -353,8 +358,12 @@ export async function startFinenumbersSync(
           throw error;
         }
       }
-      await appendFinenumbersLog(
-        `Итог: свободных ${published.free}, купленных ${published.purchased}\n`,
+      await appendFinenumbersSide("free", `Итог: свободных ${published.free}\n`).catch(
+        () => undefined,
+      );
+      await appendFinenumbersSide(
+        "purchased",
+        `Итог: купленных ${published.purchased}\n`,
       ).catch(() => undefined);
       await flushFinenumbersLog().catch(() => undefined);
       await auditService
