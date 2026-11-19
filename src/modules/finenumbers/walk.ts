@@ -99,11 +99,14 @@ export async function readInnRanges(input: {
   const attempt = async (
     attemptNo: number,
   ): Promise<PageRead<NumberingRow> & { capacity?: number }> => {
+    const report = input.onProgress;
     const pages = await readAllPages({
       page: list,
       accept,
-      onProgress: input.onProgress
-        ? (seen, total) => input.onProgress?.(seen, total, attemptNo)
+      onProgress: report
+        ? async (seen, total) => {
+            await report(seen, total, attemptNo);
+          }
         : undefined,
     });
     if (!pages.ok) return pages;

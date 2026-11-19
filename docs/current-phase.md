@@ -1,7 +1,11 @@
-# Current Phase — production (v1.333.0)
+# Current Phase — production (v1.333.1)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, purchased numbers, numbering sync, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
 **Date:** 2026-11-19
+
+## v1.333.1 — The v1.333.0 image did not publish
+
+v1.333.0 did not publish an image. The Finenumbers progress callback could return no promise, and the production type check rejected the build. This release keeps the v1.333.0 behavior below. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before the new one starts, then start one new app. Do not deploy while a numbering chain or a manual load is running. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged.
 
 ## v1.333.0 — Seven reads when a numbering list moves
 
