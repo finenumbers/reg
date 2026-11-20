@@ -70,6 +70,7 @@ export const LABEL_FREE_MIGRATIONS = new Set([
   "20261119090000_sync_side_loads",
   "20261119110000_decorate_side_scope",
   "20261121030000_smtp_outbound",
+  "20261121050000_numbering_summary",
 ]);
 
 /**

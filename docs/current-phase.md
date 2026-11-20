@@ -1,7 +1,13 @@
-# Current Phase — production (v1.334.0)
+# Current Phase — production (v1.335.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, purchased numbers, numbering sync, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs, outbound mail.
 **Date:** 2026-11-21
+
+## v1.335.0 — Numbering summary mail
+
+The migration `20261121050000_numbering_summary` adds nullable `pstn_hits` on `free_numbers` and `purchased_numbers`, and an empty `numbering_load_snapshot`. It does not rewrite catalog rows and does not read `cdr_records`. The migration is label-free. `lock_timeout` is 15 seconds. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before migrate. Let the migrator exit 0, then start one new app. If migrate stops, do not start the new app. Do not deploy while a numbering chain or a manual load is running. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged.
+
+A finished group load on «Синхронизация» sends one letter, «Загрузка телефонной нумерации», to the saved mail addresses. That is the 17:00 UTC run and «Загрузить все». A single source button does not send. A chain that stops before the end does not send. «Управление РТУ» shows «Вручную» for an equipment number that is not in the purchased catalog. The label appears on the next screen publish. The mail password stays ciphertext. An unconfigured mailbox skips the letter and does not fail the chain.
 
 ## v1.334.0 — Outbound mail
 

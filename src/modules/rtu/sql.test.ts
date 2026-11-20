@@ -313,7 +313,8 @@ describe("city sql phrase", () => {
     expect(page.text).toContain("reg_current");
     expect(page.text).toContain('::"RegStatus"');
     expect(page.text).not.toContain("geography_did_sources");
-    expect(page.text).not.toContain("Вручную");
+    expect(page.text).toContain("p.match_key IS NULL");
+    expect(page.values).toContain("Вручную");
     expect(page.values).toContain("Unregistered");
     expect(page.values).toContain("Нет в РТУ");
     const sourceFacet = flattenSql(pageFacetSql("source", Prisma.sql`TRUE`));

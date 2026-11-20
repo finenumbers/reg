@@ -55,6 +55,7 @@ export type ProbeMessage = {
   subject: string;
   text: string;
   messageId: string;
+  html?: string;
   envelope: { from: string; to: string[] };
   disableFileAccess: true;
   disableUrlAccess: true;
@@ -186,6 +187,9 @@ export async function deliverProbe(
     recipients: string[];
     signal: AbortSignal;
     now: Date;
+    subject?: string;
+    text?: string;
+    html?: string;
   },
   factory: (options: SmtpOptions) => MailTransport = (options) =>
     nodemailer.createTransport(options),
@@ -211,8 +215,9 @@ export async function deliverProbe(
     const info = await transport.sendMail({
       from: input.from,
       to: input.recipients,
-      subject: PROBE_SUBJECT,
-      text: probeText(input.now),
+      subject: input.subject ?? PROBE_SUBJECT,
+      text: input.text ?? probeText(input.now),
+      html: input.html,
       messageId: messageId(input.from, input.now),
       envelope: { from: input.from, to: input.recipients },
       disableFileAccess: true,

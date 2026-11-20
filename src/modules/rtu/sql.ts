@@ -249,7 +249,7 @@ export function expensiveWhere(
 }
 
 /** Same branches as geographyMatchKey. The number expression is already trimmed. */
-function geographyMatchKeySql(numberExpr: Prisma.Sql): Prisma.Sql {
+export function geographyMatchKeySql(numberExpr: Prisma.Sql): Prisma.Sql {
   const digits = Prisma.sql`regexp_replace(${numberExpr}, '[^0-9]', '', 'g')`;
   return Prisma.sql`(
     CASE
@@ -319,7 +319,10 @@ const baseCte = Prisma.sql`
       e.category,
       e.activation,
       e.title,
-      btrim(COALESCE(p.provider, '')) AS source,
+      CASE
+        WHEN p.match_key IS NULL THEN ${"Вручную"}
+        ELSE btrim(COALESCE(p.provider, ''))
+      END AS source,
       FALSE AS missing
     FROM endpoint_keys e
     LEFT JOIN purchased_keys p ON p.match_key = e.match_key

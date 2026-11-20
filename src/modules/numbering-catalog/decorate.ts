@@ -69,7 +69,10 @@ export type CatalogEpochPrefix =
 export type CatalogSideScope = "free" | "purchased" | "both";
 
 /** One epoch bump. The CASE reads the row before the increment. */
-export function catalogEpochSql(prefix: CatalogEpochPrefix, side: CatalogSideScope): string {
+export function catalogEpochSql(
+  prefix: CatalogEpochPrefix,
+  side: CatalogSideScope,
+): string {
   const epoch = `${prefix}_epoch`;
   const done = `${prefix}_done`;
   const parsed = `${prefix}_parsed`;
@@ -150,7 +153,11 @@ export function providerLiteral(provider: string): Prisma.Sql {
   }
 }
 
-function epochNames(provider: CatalogProvider): { epoch: string; done: string; scope: string } {
+function epochNames(provider: CatalogProvider): {
+  epoch: string;
+  done: string;
+  scope: string;
+} {
   switch (provider) {
     case "SipOut":
       return { epoch: "sipout_epoch", done: "sipout_done", scope: "sipout_scope" };
@@ -163,11 +170,19 @@ function epochNames(provider: CatalogProvider): { epoch: string; done: string; s
     case "MTS Exolve":
       return { epoch: "exolve_epoch", done: "exolve_done", scope: "exolve_scope" };
     case "Voximplant":
-      return { epoch: "voximplant_epoch", done: "voximplant_done", scope: "voximplant_scope" };
+      return {
+        epoch: "voximplant_epoch",
+        done: "voximplant_done",
+        scope: "voximplant_scope",
+      };
     case "MCN Telecom":
       return { epoch: "mcn_epoch", done: "mcn_done", scope: "mcn_scope" };
     case "Finenumbers":
-      return { epoch: "finenumbers_epoch", done: "finenumbers_done", scope: "finenumbers_scope" };
+      return {
+        epoch: "finenumbers_epoch",
+        done: "finenumbers_done",
+        scope: "finenumbers_scope",
+      };
   }
 }
 
@@ -378,12 +393,18 @@ function pstnLateral(e164: Prisma.Sql): Prisma.Sql {
 
 const PSTN_COLUMNS = Prisma.sql`
   CASE WHEN pstn.hits = 1 THEN btrim(pstn.operator) ELSE NULL END AS pstn_operator,
-  CASE WHEN pstn.hits = 1 THEN btrim(pstn.geography) ELSE NULL END AS pstn_geography
+  CASE WHEN pstn.hits = 1 THEN btrim(pstn.geography) ELSE NULL END AS pstn_geography,
+  CASE
+    WHEN pstn.hits > 1 THEN 2
+    WHEN pstn.hits = 1 THEN 1
+    ELSE 0
+  END AS pstn_hit_count
 `;
 
 const PSTN_ASSIGN = Prisma.sql`
   operator = COALESCE(computed.pstn_operator, n.operator),
-  geography = COALESCE(computed.pstn_geography, n.geography)
+  geography = COALESCE(computed.pstn_geography, n.geography),
+  pstn_hits = computed.pstn_hit_count
 `;
 
 /** Tariff split for one draft batch. Mask and client stay empty until the pass. */
@@ -805,7 +826,11 @@ function workSql(
   if (phase === "free" || phase === "bootstrap-free" || phase === "provider-free") {
     return freeMaskBatchSql(afterId, provider);
   }
-  if (phase === "purchased" || phase === "bootstrap-purchased" || phase === "provider-purchased") {
+  if (
+    phase === "purchased" ||
+    phase === "bootstrap-purchased" ||
+    phase === "provider-purchased"
+  ) {
     return purchasedFullBatchSql(afterId, provider);
   }
   if (phase === "pstn-free") return pstnBatchSql("free_numbers", afterId);
@@ -912,7 +937,9 @@ async function saveCursor(
   afterId: string,
   adds: Partial<Record<CatalogProvider, number>>,
 ): Promise<void> {
-  const saved = await tx.$executeRaw(saveCursorSql(phase, epoch, provider, afterId, adds));
+  const saved = await tx.$executeRaw(
+    saveCursorSql(phase, epoch, provider, afterId, adds),
+  );
   if (Number(saved) !== 1) throw new EpochMoved();
 }
 
@@ -1016,7 +1043,8 @@ async function walkPhase(run: PhaseRun): Promise<"done" | "moved"> {
     if (batch.outcome === "moved") return "moved";
     if (batch.ids.length === 0) return "done";
     after = batch.ids[batch.ids.length - 1] ?? after;
-    if (maskProgress) maskProgress = { ...maskProgress, done: maskProgress.done + batch.ids.length };
+    if (maskProgress)
+      maskProgress = { ...maskProgress, done: maskProgress.done + batch.ids.length };
     await new Promise((resolve) => setTimeout(resolve, PAUSE_MS));
   }
 }
@@ -1337,7 +1365,9 @@ async function settleUntilClear(): Promise<void> {
         const now = Date.now();
         if (now - lastRetryLog >= 60_000) {
           lastRetryLog = now;
-          logger.error("numbering.decorate.retry", { message: "Каталог занят загрузкой." });
+          logger.error("numbering.decorate.retry", {
+            message: "Каталог занят загрузкой.",
+          });
         }
       } else {
         const now = Date.now();

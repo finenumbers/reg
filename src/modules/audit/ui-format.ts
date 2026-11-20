@@ -80,6 +80,7 @@ const ACTION_LABELS: Record<string, string> = {
   "zabbix.test": "Проверка доступа Zabbix",
   "mail.settings_save": "Сохранение исходящей почты",
   "mail.test": "Проверка исходящей почты",
+  "mail.numbering_summary": "Сводка загрузки нумерации",
   "numbering_sync.key_save": "Сохранение ключа SipOut",
   "numbering_sync.test": "Проверка доступа SipOut",
   "numbering_sync.free": "Загрузка свободных номеров SipOut",

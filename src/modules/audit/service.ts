@@ -109,6 +109,7 @@ export const AUDIT_ACTIONS = {
   ZABBIX_TEST: "zabbix.test",
   MAIL_SAVE: "mail.settings_save",
   MAIL_TEST: "mail.test",
+  MAIL_SUMMARY: "mail.numbering_summary",
 } as const;
 
 type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS] | (string & {});

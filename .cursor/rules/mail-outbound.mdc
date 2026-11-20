@@ -13,8 +13,8 @@ SMTP ports are only 465 and 587. 465 is implicit TLS. 587 requires STARTTLS. `ig
 
 The probe letter subject and text are fixed in the mail module. A request cannot supply them. `POST /api/settings/mail/test` has an empty body. Saving settings does not send.
 
-The password is AES-256-GCM ciphertext. An empty password field does not replace it. Do not log the password, the AUTH exchange, or a nodemailer error object. Operator text is one of the fixed phrases.
+The numbering summary is the one composed letter sent after a finished group chain on «Синхронизация». It is not a request body. A single-source load does not send it. A chain that stops before the end does not send it.
 
-One send is in flight. The database connection is not held across that send. There is no second SIGTERM listener. A restart does not repeat a probe.
+The password is AES-256-GCM ciphertext. An empty password field does not replace it. Do not log the password, the AUTH exchange, a phone number, or a nodemailer error object. Operator text for the probe is one of the fixed phrases.
 
-Do not add a digest, a schedule, or a second mail transport in this release.
+One send is in flight. The database connection is not held across that send. There is no second SIGTERM listener. A restart does not repeat a probe or a summary.

@@ -630,6 +630,8 @@ model FreeNumber {
   geography    String @default("")
   /// National digits, no plus. Empty until a numbering source writes the row.
   e164         String @default("")
+  /// 1 — one PSTN range, 0 — none, 2 — several. Null until that pass writes the row.
+  pstnHits     Int?   @map("pstn_hits")
 
   @@index([abc, number, id], map: "free_numbers_order_idx")
   @@index([provider], map: "free_numbers_provider_idx")
@@ -671,10 +673,24 @@ model PurchasedNumber {
   operator  String @default("")
   /// «География».
   geography String @default("")
+  /// 1 — one PSTN range, 0 — none, 2 — several. Null until that pass writes the row.
+  pstnHits  Int?   @map("pstn_hits")
 
   @@index([abc, number, id], map: "purchased_numbers_order_idx")
   @@index([provider], map: "purchased_numbers_provider_idx")
   @@map("purchased_numbers")
+}
+
+/// Last successful numbering-summary counts. A failed side keeps its previous row.
+model NumberingLoadSnapshot {
+  provider String
+  side     String
+  count    Int
+  asOf     DateTime @map("as_of") @db.Date
+  loadedAt DateTime? @map("loaded_at")
+
+  @@id([provider, side])
+  @@map("numbering_load_snapshot")
 }
 
 /// One SipOut walk. A fresh heartbeat keeps the lease.
