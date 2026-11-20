@@ -1,7 +1,13 @@
-# Current Phase — production (v1.333.1)
+# Current Phase — production (v1.334.0)
 
-**Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, purchased numbers, numbering sync, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs.  
-**Date:** 2026-11-19
+**Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, purchased numbers, numbering sync, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs, outbound mail.
+**Date:** 2026-11-21
+
+## v1.334.0 — Outbound mail
+
+The migration `20261121030000_smtp_outbound` adds empty SMTP columns on `app_settings`: host, port, username, password ciphertext, From, and recipients. It does not rewrite a row and does not read `cdr_records`. The migration is label-free. `lock_timeout` is 15 seconds. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before migrate. Let the migrator exit 0, then start one new app. If migrate stops, do not start the new app. Do not deploy while a numbering chain or a manual load is running. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged.
+
+«Настройки» has «Почта». It only sends. There is no inbox and no IMAP. The port is 465 or 587. The password stays ciphertext and an empty field leaves it. «Сохранить» does not send. «Проверить» sends one fixed letter to the saved addresses. Enter does not send. An API key cannot call these routes. The `app` container must reach the mail host on the chosen port. No new port is published.
 
 ## v1.333.1 — The v1.333.0 image did not publish
 

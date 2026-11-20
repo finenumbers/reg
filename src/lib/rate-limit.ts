@@ -99,3 +99,6 @@ export const vatsCabinetRateLimiter = new SlidingWindowRateLimiter(20, 60 * 1000
 /** Manual BDPN checks per signed-in user: 30 / minute. One process. */
 export const bdpnLookupRateLimiter = new SlidingWindowRateLimiter(30, 60 * 1000);
 export const zabbixTestRateLimiter = new SlidingWindowRateLimiter(10, 60 * 1000);
+
+/** Outbound mail probe per administrator: 5 / 10 minutes. One process. */
+export const mailProbeRateLimiter = new SlidingWindowRateLimiter(5, 10 * 60 * 1000);

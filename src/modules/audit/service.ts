@@ -107,10 +107,11 @@ export const AUDIT_ACTIONS = {
   VATS_DOMAIN_OPEN: "vats.domain_open",
   ZABBIX_PASSWORD_REPLACE: "zabbix.password_replace",
   ZABBIX_TEST: "zabbix.test",
+  MAIL_SAVE: "mail.settings_save",
+  MAIL_TEST: "mail.test",
 } as const;
 
-type AuditAction =
-  (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS] | (string & {});
+type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS] | (string & {});
 
 type AuditAppendInput = {
   actorUserId?: string | null;

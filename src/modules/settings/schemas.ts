@@ -5,10 +5,7 @@
 import { z } from "zod";
 import { isAcceptedDisplayTimezone } from "@/lib/display-timezone";
 import { DEFAULT_GEOIP_BASE_URL } from "@/modules/geoip/types";
-import {
-  DEFAULT_PSTN_BASE_URL,
-  SAME_HOST_PSTN_BASE_URL,
-} from "@/modules/pstn/types";
+import { DEFAULT_PSTN_BASE_URL, SAME_HOST_PSTN_BASE_URL } from "@/modules/pstn/types";
 import { parseRtuCaPem, rtuCaPemMessage } from "@/modules/rtu-soap/ca";
 import { parseRtuSoapOrigin } from "@/modules/rtu-soap/origin";
 import { parseZabbixApiUrl } from "@/modules/zabbix/url";
@@ -50,8 +47,7 @@ const rtuSoapCaPemSchema = z
     ctx.addIssue({ code: "custom", message: rtuCaPemMessage(parsed.reason) });
   });
 
-const IPV4_RE =
-  /^(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)$/;
+const IPV4_RE = /^(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)$/;
 
 /** Empty clears PASV. A hostname would be split on dots in the 227 reply. */
 const ftpPasvAddressSchema = z
@@ -86,62 +82,59 @@ function zabbixSlotPair(
   }
 }
 
-export const settingsUpdateSchema = z.object({
-  host: z.string().min(1).max(255).optional(),
-  port: z.number().int().min(1).max(65535).optional(),
-  username: z.string().min(1).max(255).optional(),
-  regsPollEnabled: z.boolean().optional(),
-  exportSyncEnabled: z.boolean().optional(),
-  cdrSidesRefreshEnabled: z.boolean().optional(),
-  cdrSidesRefreshIntervalSec: z.number().int().min(30).max(86400).optional(),
-  numberGeographyRefreshEnabled: z.boolean().optional(),
-  numberGeographyRefreshIntervalSec: z
-    .number()
-    .int()
-    .min(30)
-    .max(86400)
-    .optional(),
-  artifactRetentionDays: z.number().int().min(1).max(365).optional(),
-  artifactKeepLastRuns: z.number().int().min(1).max(1000).optional(),
-  artifactMaxBytes: z.number().int().min(1024).max(50_000_000).optional(),
-  geoipBaseUrl: geoipBaseUrlSchema.optional(),
-  pstnBaseUrl: pstnBaseUrlSchema.optional(),
-  displayTimezone: z
-    .string()
-    .refine(isAcceptedDisplayTimezone, "Unsupported display timezone")
-    .optional(),
-  ftpEnabled: z.boolean().optional(),
-  ftpUsername: z.string().min(1).max(128).optional(),
-  ftpListenPort: z.number().int().min(1).max(65535).optional(),
-  ftpPasvMinPort: z.number().int().min(1024).max(65535).optional(),
-  ftpPasvMaxPort: z.number().int().min(1024).max(65535).optional(),
-  ftpPasvAddress: ftpPasvAddressSchema.optional(),
-  voipmonitorEnabled: z.boolean().optional(),
-  voipmonitorApiUrl: httpOriginSchema("VoIPmonitor API").optional(),
-  voipmonitorUser: z.string().max(255).optional(),
-  voipmonitorGuiUrl: httpOriginSchema("VoIPmonitor GUI").optional(),
-  rtuSoapBaseUrl: rtuSoapBaseUrlSchema.optional(),
-  rtuSoapLogin: z.string().max(255).optional(),
-  rtuSoapCaPem: rtuSoapCaPemSchema.optional(),
-  zabbixApiUrl: z
-    .string()
-    .max(2048)
-    .refine((value) => {
-      const trimmed = value.trim();
-      return trimmed.length === 0 || parseZabbixApiUrl(trimmed) !== null;
-    }, "Адрес Zabbix должен быть https без учётных данных и query")
-    .optional(),
-  zabbixUser: z.string().max(128).optional(),
-  zabbixGraph1Host: z.string().max(128).optional(),
-  zabbixGraph1Name: z.string().max(128).optional(),
-  zabbixGraph1Title: z.string().max(128).optional(),
-  zabbixGraph2Host: z.string().max(128).optional(),
-  zabbixGraph2Name: z.string().max(128).optional(),
-  zabbixGraph2Title: z.string().max(128).optional(),
-}).superRefine((value, ctx) => {
-  zabbixSlotPair(value.zabbixGraph1Host, value.zabbixGraph1Name, "1", ctx);
-  zabbixSlotPair(value.zabbixGraph2Host, value.zabbixGraph2Name, "2", ctx);
-});
+export const settingsUpdateSchema = z
+  .object({
+    host: z.string().min(1).max(255).optional(),
+    port: z.number().int().min(1).max(65535).optional(),
+    username: z.string().min(1).max(255).optional(),
+    regsPollEnabled: z.boolean().optional(),
+    exportSyncEnabled: z.boolean().optional(),
+    cdrSidesRefreshEnabled: z.boolean().optional(),
+    cdrSidesRefreshIntervalSec: z.number().int().min(30).max(86400).optional(),
+    numberGeographyRefreshEnabled: z.boolean().optional(),
+    numberGeographyRefreshIntervalSec: z.number().int().min(30).max(86400).optional(),
+    artifactRetentionDays: z.number().int().min(1).max(365).optional(),
+    artifactKeepLastRuns: z.number().int().min(1).max(1000).optional(),
+    artifactMaxBytes: z.number().int().min(1024).max(50_000_000).optional(),
+    geoipBaseUrl: geoipBaseUrlSchema.optional(),
+    pstnBaseUrl: pstnBaseUrlSchema.optional(),
+    displayTimezone: z
+      .string()
+      .refine(isAcceptedDisplayTimezone, "Unsupported display timezone")
+      .optional(),
+    ftpEnabled: z.boolean().optional(),
+    ftpUsername: z.string().min(1).max(128).optional(),
+    ftpListenPort: z.number().int().min(1).max(65535).optional(),
+    ftpPasvMinPort: z.number().int().min(1024).max(65535).optional(),
+    ftpPasvMaxPort: z.number().int().min(1024).max(65535).optional(),
+    ftpPasvAddress: ftpPasvAddressSchema.optional(),
+    voipmonitorEnabled: z.boolean().optional(),
+    voipmonitorApiUrl: httpOriginSchema("VoIPmonitor API").optional(),
+    voipmonitorUser: z.string().max(255).optional(),
+    voipmonitorGuiUrl: httpOriginSchema("VoIPmonitor GUI").optional(),
+    rtuSoapBaseUrl: rtuSoapBaseUrlSchema.optional(),
+    rtuSoapLogin: z.string().max(255).optional(),
+    rtuSoapCaPem: rtuSoapCaPemSchema.optional(),
+    zabbixApiUrl: z
+      .string()
+      .max(2048)
+      .refine((value) => {
+        const trimmed = value.trim();
+        return trimmed.length === 0 || parseZabbixApiUrl(trimmed) !== null;
+      }, "Адрес Zabbix должен быть https без учётных данных и query")
+      .optional(),
+    zabbixUser: z.string().max(128).optional(),
+    zabbixGraph1Host: z.string().max(128).optional(),
+    zabbixGraph1Name: z.string().max(128).optional(),
+    zabbixGraph1Title: z.string().max(128).optional(),
+    zabbixGraph2Host: z.string().max(128).optional(),
+    zabbixGraph2Name: z.string().max(128).optional(),
+    zabbixGraph2Title: z.string().max(128).optional(),
+  })
+  .superRefine((value, ctx) => {
+    zabbixSlotPair(value.zabbixGraph1Host, value.zabbixGraph1Name, "1", ctx);
+    zabbixSlotPair(value.zabbixGraph2Host, value.zabbixGraph2Name, "2", ctx);
+  });
 
 export type SettingsUpdateInput = z.infer<typeof settingsUpdateSchema>;
 
@@ -180,9 +173,7 @@ export const zabbixPasswordReplaceSchema = z.object({
   password: z.string().min(1).max(1024),
 });
 
-export type RtuSoapPasswordReplaceInput = z.infer<
-  typeof rtuSoapPasswordReplaceSchema
->;
+export type RtuSoapPasswordReplaceInput = z.infer<typeof rtuSoapPasswordReplaceSchema>;
 
 export type ZabbixPasswordReplaceInput = z.infer<typeof zabbixPasswordReplaceSchema>;
 
@@ -260,9 +251,44 @@ export type SettingsUpdateResult = {
   createdProfile: boolean;
 };
 
+/** Rejected on PUT /api/settings. Mail has its own routes. */
+export const SETTINGS_UPDATE_BANNED_KEYS = [
+  "command",
+  "scriptPath",
+  "remoteArgs",
+  "privateKey",
+  "privateKeyCiphertext",
+  "rawKeyMaterial",
+  "passphrase",
+  "geoipApiKey",
+  "geoipApiKeyCiphertext",
+  "pstnApiKey",
+  "pstnApiKeyCiphertext",
+  "didApiToken",
+  "didApiTokenCiphertext",
+  "didApiKey",
+  "apiKey",
+  "ftpPassword",
+  "ftpPasswordCiphertext",
+  "smgFtpPassword",
+  "smgFtpPasswordCiphertext",
+  "voipmonitorPassword",
+  "voipmonitorPasswordCiphertext",
+  "rtuSoapPassword",
+  "rtuSoapPasswordCiphertext",
+  "vatsBossPassword",
+  "vatsBossPasswordCiphertext",
+  "vatsPassword",
+  "zabbixPassword",
+  "zabbixPasswordCiphertext",
+  "smtpHost",
+  "smtpPort",
+  "smtpUsername",
+  "smtpPassword",
+  "smtpPasswordCiphertext",
+  "smtpFrom",
+  "smtpRecipients",
+] as const;
+
 export const DEFAULT_SSH_PROFILE_NAME = "softswitch";
-export {
-  DEFAULT_GEOIP_BASE_URL,
-  DEFAULT_PSTN_BASE_URL,
-  SAME_HOST_PSTN_BASE_URL,
-};
+export { DEFAULT_GEOIP_BASE_URL, DEFAULT_PSTN_BASE_URL, SAME_HOST_PSTN_BASE_URL };

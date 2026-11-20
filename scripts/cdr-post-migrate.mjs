@@ -69,6 +69,7 @@ export const LABEL_FREE_MIGRATIONS = new Set([
   "20261118210000_purchased_provider_prices",
   "20261119090000_sync_side_loads",
   "20261119110000_decorate_side_scope",
+  "20261121030000_smtp_outbound",
 ]);
 
 /**

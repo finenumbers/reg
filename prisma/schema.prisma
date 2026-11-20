@@ -190,6 +190,18 @@ model AppSetting {
   voximplantCredentialsCiphertext String?
   /// AES-256-GCM ciphertext of the MCN Telecom token. Never plaintext.
   mcnApiKeyCiphertext             String?
+  /// Outbound SMTP host. No scheme, path, or userinfo.
+  smtpHost                        String?
+  /// 465 implicit TLS or 587 STARTTLS.
+  smtpPort                        Int?
+  /// Optional SMTP username. AUTH is skipped when this is empty.
+  smtpUsername                    String?
+  /// AES-256-GCM ciphertext of the mailbox password. Never plaintext.
+  smtpPasswordCiphertext          String?
+  /// Header and envelope From. The mailbox address.
+  smtpFrom                        String?
+  /// JSON array of up to 20 recipient addresses.
+  smtpRecipients                  Json?
   updatedAt             DateTime    @updatedAt
 
   @@map("app_settings")

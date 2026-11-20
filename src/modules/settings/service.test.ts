@@ -3,6 +3,7 @@ import {
   geoipKeyReplaceSchema,
   keyReplaceSchema,
   pstnKeyReplaceSchema,
+  SETTINGS_UPDATE_BANNED_KEYS,
   settingsUpdateSchema,
   type SettingsView,
 } from "@/modules/settings/schemas";
@@ -103,9 +104,9 @@ describe("settings schemas and masked view contract", () => {
     expect(settingsUpdateSchema.parse({ ftpPasvAddress: "" })).toMatchObject({
       ftpPasvAddress: "",
     });
-    expect(
-      settingsUpdateSchema.parse({ ftpPasvAddress: "5.227.161.190" }),
-    ).toMatchObject({ ftpPasvAddress: "5.227.161.190" });
+    expect(settingsUpdateSchema.parse({ ftpPasvAddress: "5.227.161.190" })).toMatchObject(
+      { ftpPasvAddress: "5.227.161.190" },
+    );
     expect(() =>
       settingsUpdateSchema.parse({ ftpPasvAddress: "reg.finenumbers.com" }),
     ).toThrow();
@@ -143,10 +144,12 @@ describe("settings schemas and masked view contract", () => {
   });
 
   it("rejects an RTU URL with credentials or a path", () => {
-    expect(settingsUpdateSchema.parse({ didBaseUrl: "http://did-frontend:3000/free-numbers" })).toEqual(
-      {},
-    );
-    expect(settingsUpdateSchema.parse({ rtuSoapBaseUrl: "https://rtu.example" })).toMatchObject({
+    expect(
+      settingsUpdateSchema.parse({ didBaseUrl: "http://did-frontend:3000/free-numbers" }),
+    ).toEqual({});
+    expect(
+      settingsUpdateSchema.parse({ rtuSoapBaseUrl: "https://rtu.example" }),
+    ).toMatchObject({
       rtuSoapBaseUrl: "https://rtu.example",
     });
     expect(settingsUpdateSchema.parse({ rtuSoapBaseUrl: "" })).toMatchObject({
@@ -189,7 +192,9 @@ describe("settings schemas and masked view contract", () => {
       zabbixApiUrl: "https://zabbix.example/zabbix",
       zabbixGraph1Name: "SIP",
     });
-    expect(() => settingsUpdateSchema.parse({ zabbixApiUrl: "http://zabbix.example" })).toThrow();
+    expect(() =>
+      settingsUpdateSchema.parse({ zabbixApiUrl: "http://zabbix.example" }),
+    ).toThrow();
     expect(() =>
       settingsUpdateSchema.parse({ zabbixApiUrl: "https://user:pw@zabbix.example" }),
     ).toThrow();
@@ -293,6 +298,30 @@ describe("SSH connection test authorization mapping", () => {
     ];
     expect(mapPermission(admin, "ssh:test")).toBe(200);
     expect(mapPermission(admin, "settings:write")).toBe(200);
+  });
+
+  it("keeps mail fields off the shared settings update", () => {
+    expect(SETTINGS_UPDATE_BANNED_KEYS).toEqual(
+      expect.arrayContaining([
+        "smtpHost",
+        "smtpPort",
+        "smtpUsername",
+        "smtpPassword",
+        "smtpPasswordCiphertext",
+        "smtpFrom",
+        "smtpRecipients",
+      ]),
+    );
+    const parsed = settingsUpdateSchema.parse({
+      smtpHost: "smtp.example",
+      smtpPassword: "secret",
+      smtpPasswordCiphertext: "v1:a:b:c",
+      regsPollEnabled: false,
+    });
+    expect(parsed).not.toHaveProperty("smtpHost");
+    expect(parsed).not.toHaveProperty("smtpPassword");
+    expect(parsed).not.toHaveProperty("smtpPasswordCiphertext");
+    expect(JSON.stringify(parsed)).not.toMatch(/secret/);
   });
 });
 

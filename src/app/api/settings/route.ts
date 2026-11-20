@@ -5,6 +5,7 @@ import { assertSameOrigin } from "@/lib/csrf";
 import { getRequestIp } from "@/lib/request-ip";
 import {
   getSettingsView,
+  SETTINGS_UPDATE_BANNED_KEYS,
   settingsUpdateSchema,
   updateSettings,
 } from "@/modules/settings";
@@ -33,10 +34,7 @@ export async function PUT(request: Request) {
   try {
     userId = requireSessionUserId(gate.ctx);
   } catch {
-    return NextResponse.json(
-      { error: "Forbidden", code: "FORBIDDEN" },
-      { status: 403 },
-    );
+    return NextResponse.json({ error: "Forbidden", code: "FORBIDDEN" }, { status: 403 });
   }
 
   let body: unknown;
@@ -51,37 +49,7 @@ export async function PUT(request: Request) {
 
   // Reject any attempt to smuggle key/command fields through settings update.
   if (body && typeof body === "object") {
-    const banned = [
-      "command",
-      "scriptPath",
-      "remoteArgs",
-      "privateKey",
-      "privateKeyCiphertext",
-      "rawKeyMaterial",
-      "passphrase",
-      "geoipApiKey",
-      "geoipApiKeyCiphertext",
-      "pstnApiKey",
-      "pstnApiKeyCiphertext",
-      "didApiToken",
-      "didApiTokenCiphertext",
-      "didApiKey",
-      "apiKey",
-      "ftpPassword",
-      "ftpPasswordCiphertext",
-      "smgFtpPassword",
-      "smgFtpPasswordCiphertext",
-      "voipmonitorPassword",
-      "voipmonitorPasswordCiphertext",
-      "rtuSoapPassword",
-      "rtuSoapPasswordCiphertext",
-      "vatsBossPassword",
-      "vatsBossPasswordCiphertext",
-      "vatsPassword",
-      "zabbixPassword",
-      "zabbixPasswordCiphertext",
-    ] as const;
-    for (const key of banned) {
+    for (const key of SETTINGS_UPDATE_BANNED_KEYS) {
       if (key in (body as Record<string, unknown>)) {
         return NextResponse.json(
           {
