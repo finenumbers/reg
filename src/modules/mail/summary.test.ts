@@ -5,6 +5,7 @@ import { applyChainStep, emptyChainMarks } from "@/modules/mail/summary-marks";
 import {
   formatDelta,
   numberNoun,
+  problemsForSide,
   renderSummary,
   scheduledAsOf,
   weekdayAccusative,
@@ -82,9 +83,9 @@ describe("numbering summary letter", () => {
       previousAsOf: "2026-11-19",
       timeZone: "Asia/Novosibirsk",
       freeTotal: 3,
-      freeErrors: 1,
+      freeErrors: 2,
       purchasedTotal: 1,
-      purchasedErrors: 0,
+      purchasedErrors: 1,
       freeRows: [
         {
           provider: "UIS",
@@ -93,9 +94,20 @@ describe("numbering summary letter", () => {
           at: Date.parse("2026-11-20T17:02:00.000Z"),
           error: true,
           dateOnly: false,
+          errors: 2,
         },
       ],
-      purchasedRows: [],
+      purchasedRows: [
+        {
+          provider: "Вручную",
+          count: 1,
+          previous: 1,
+          at: Date.parse("2026-11-20T17:00:00.000Z"),
+          error: false,
+          dateOnly: true,
+          errors: 0,
+        },
+      ],
       problems: [
         {
           provider: "Runexis <x>",
@@ -128,12 +140,14 @@ describe("numbering summary letter", () => {
           problem: "rtu",
         },
       ],
-      problemTotal: 1,
+      problemTotal: 3,
     };
     const letter = renderSummary(input);
     expect(letter.subject).toContain("на пятницу, на 20.11.2026");
     expect(letter.text).toContain("Ошибка загрузки");
     expect(letter.text).toContain("30 976");
+    expect(letter.text).toContain("Ошибки");
+    expect(letter.html).toContain("Ошибки");
     expect(letter.html).toContain("Runexis &lt;x&gt;");
     expect(letter.html).not.toContain("Runexis <x>");
     expect(letter.text).toContain("7 (499)");
@@ -141,6 +155,10 @@ describe("numbering summary letter", () => {
     expect(letter.text).toContain("\t380\t");
     expect(letter.text).not.toContain("7 (380)");
     expect(letter.text).toContain("Нет маски и типа");
+    expect(letter.text).not.toContain("Категория");
+    expect(letter.html).not.toContain(">Категория<");
+    expect(letter.text).toContain("Свободные");
+    expect(letter.text).toContain("Купленные");
     expect(letter.html).toContain("border:1px solid #000");
     expect(letter.html).toContain("#16a34a");
     expect(letter.html).toContain("#2563eb");
@@ -152,6 +170,10 @@ describe("numbering summary letter", () => {
     expect(letter.html).toContain('align="right"');
     expect(letter.text).toContain("3 номера");
     expect(letter.text).toContain("1 номер");
+    const freeOrder = problemsForSide(input.problems, "free").map((row) => row.full);
+    expect(freeOrder).toEqual(["3804412345", "74993507666"]);
+    expect(letter.text.indexOf("4412345")).toBeLessThan(letter.text.indexOf("3507666"));
+    expect(letter.html).toContain("color:#dc2626");
   });
 
   it("paints the manual row and declines 553", () => {
@@ -175,6 +197,7 @@ describe("numbering summary letter", () => {
           at: Date.parse("2026-11-20T17:00:00.000Z"),
           error: false,
           dateOnly: true,
+          errors: 0,
         },
       ],
       problems: [],
@@ -194,5 +217,7 @@ describe("numbering summary letter", () => {
     );
     expect(source).not.toContain("maskType");
     expect(source).toContain("btrim(${column}) = ''");
+    expect(source).toContain("ORDER BY n.e164");
+    expect(source).toContain("GROUP BY btrim(n.provider)");
   });
 });

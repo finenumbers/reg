@@ -31,6 +31,8 @@ export type SummaryRow = {
   at: number | null;
   error: boolean;
   dateOnly: boolean;
+  /** Parse / RTU / PSTN problems for this provider on this side. */
+  errors: number;
 };
 
 export type ProblemRow = {
@@ -180,6 +182,22 @@ export function shownProblemRegion(city: string, region: string): string {
   return collapseShownRegion(region);
 }
 
+/** Number order: whole e164, then the local part. */
+export function compareProblemRows(a: ProblemRow, b: ProblemRow): number {
+  return a.full.localeCompare(b.full, "en") || a.number.localeCompare(b.number, "en");
+}
+
+export function problemsForSide(
+  rows: readonly ProblemRow[],
+  side: SummarySide,
+): ProblemRow[] {
+  return rows
+    .filter((row) => row.side === side)
+    .slice()
+    .sort(compareProblemRows)
+    .slice(0, PROBLEM_LIMIT);
+}
+
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, "&amp;")
@@ -215,6 +233,10 @@ function previousCell(row: SummaryRow): string {
   return groupDigits(row.previous);
 }
 
+function errorsCell(row: SummaryRow): string {
+  return groupDigits(row.errors);
+}
+
 export function summarySubject(asOf: string): string {
   return `Последняя загрузка телефонной нумерации (по состоянию на ${weekdayAccusative(asOf)}, на ${formatAsOf(asOf)})`;
 }
@@ -244,12 +266,22 @@ function paintedCount(text: string, color: string): { color?: string; bold?: boo
   return { color, bold: true };
 }
 
+function paintedErrors(errors: number): { color?: string; bold?: boolean } {
+  if (errors <= 0) return {};
+  return { color: RED, bold: true };
+}
+
 function registryFigure(value: number, color: string): string {
   return `<span style="color:${color};font-weight:bold;text-decoration:underline">${escapeHtml(groupDigits(value))}</span>`;
 }
 
 function registryLine(text: string): string {
   return `<p style="${FONT};font-size:14px;font-weight:bold;margin:16px 0 8px">${text}</p>`;
+}
+
+function moreLine(shown: number, total: number): string {
+  if (total <= shown) return "";
+  return `Показаны первые ${shown} из ${groupDigits(total)}.`;
 }
 
 function htmlRegistry(
@@ -264,6 +296,7 @@ function htmlRegistry(
     `На ${today}`,
     previous ? `На ${previous}` : "—",
     "Изменение",
+    "Ошибки",
     "Время загрузки",
   ];
   const head = headers.map((cell) => htmlCell("th", cell, "center")).join("");
@@ -274,6 +307,7 @@ function htmlRegistry(
       const current = countCell(row);
       const prior = previousCell(row);
       const delta = deltaCell(row);
+      const errors = errorsCell(row);
       const stamp = formatLoadStamp(row.at, timeZone, row.dateOnly);
       const currentPaint = row.error
         ? { color: "#ffffff", bold: true, bg: RED }
@@ -286,6 +320,7 @@ function htmlRegistry(
         htmlCell("td", current, "right", currentPaint),
         htmlCell("td", prior, "right", paintedCount(prior, tone)),
         htmlCell("td", delta, "right", deltaPaint),
+        htmlCell("td", errors, "right", paintedErrors(row.errors)),
         htmlCell("td", stamp, "right"),
       ];
       return `<tr>${cells.join("")}</tr>`;
@@ -295,22 +330,13 @@ function htmlRegistry(
 }
 
 function htmlProblems(rows: ProblemRow[]): string {
-  const headers = [
-    "Провайдер",
-    "Категория",
-    "ABC",
-    "Номер",
-    "Город",
-    "Регион",
-    "Проблема",
-  ];
-  const aligns = ["left", "left", "left", "right", "left", "left", "left"] as const;
+  const headers = ["Провайдер", "ABC", "Номер", "Город", "Регион", "Проблема"];
+  const aligns = ["left", "left", "right", "left", "left", "left"] as const;
   const head = headers.map((cell) => htmlCell("th", cell, "center")).join("");
   const body = rows
     .map((row) => {
       const values = [
         row.provider,
-        sideLabel(row.side),
         shownAbc(row),
         row.number,
         row.city,
@@ -334,6 +360,7 @@ function textTable(
     `На ${today}`,
     previous ? `На ${previous}` : "—",
     "Изменение",
+    "Ошибки",
     "Время загрузки",
   ];
   const lines = [header.join("\t")];
@@ -344,7 +371,27 @@ function textTable(
         countCell(row),
         previousCell(row),
         deltaCell(row),
+        errorsCell(row),
         formatLoadStamp(row.at, timeZone, row.dateOnly),
+      ].join("\t"),
+    );
+  }
+  return lines.join("\n");
+}
+
+function textProblems(rows: ProblemRow[]): string {
+  const lines = [
+    ["Провайдер", "ABC", "Номер", "Город", "Регион", "Проблема"].join("\t"),
+  ];
+  for (const row of rows) {
+    lines.push(
+      [
+        row.provider,
+        shownAbc(row),
+        row.number,
+        row.city,
+        shownProblemRegion(row.city, row.region),
+        problemLabel(row.problem),
       ].join("\t"),
     );
   }
@@ -359,11 +406,10 @@ export function renderSummary(input: SummaryLetterInput): {
   const subject = summarySubject(input.asOf);
   const today = formatAsOf(input.asOf);
   const previous = input.previousAsOf ? formatAsOf(input.previousAsOf) : "";
-  const shown = input.problems.slice(0, PROBLEM_LIMIT);
-  const more =
-    input.problemTotal > shown.length
-      ? `Показаны первые ${shown.length} из ${groupDigits(input.problemTotal)}.`
-      : "";
+  const freeShown = problemsForSide(input.problems, "free");
+  const purchasedShown = problemsForSide(input.problems, "purchased");
+  const freeMore = moreLine(freeShown.length, input.freeErrors);
+  const purchasedMore = moreLine(purchasedShown.length, input.purchasedErrors);
   const text = [
     subject,
     "",
@@ -376,19 +422,14 @@ export function renderSummary(input: SummaryLetterInput): {
     textTable(input.purchasedRows, input.timeZone, today, previous),
     "",
     `Проблемные номера: ${groupDigits(input.problemTotal)} ${numberNoun(input.problemTotal)}`,
-    more,
-    ["Провайдер", "Категория", "ABC", "Номер", "Город", "Регион", "Проблема"].join("\t"),
-    ...shown.map((row) =>
-      [
-        row.provider,
-        sideLabel(row.side),
-        shownAbc(row),
-        row.number,
-        row.city,
-        shownProblemRegion(row.city, row.region),
-        problemLabel(row.problem),
-      ].join("\t"),
-    ),
+    "",
+    sideLabel("free"),
+    freeMore,
+    textProblems(freeShown),
+    "",
+    sideLabel("purchased"),
+    purchasedMore,
+    textProblems(purchasedShown),
   ]
     .filter((line) => line !== "")
     .join("\n");
@@ -405,10 +446,16 @@ export function renderSummary(input: SummaryLetterInput): {
     registryLine(
       `Проблемные номера: ${registryFigure(input.problemTotal, VIOLET)} ${numberNoun(input.problemTotal)}`,
     ),
-    more
-      ? `<p style="${FONT};font-size:14px;margin:0 0 8px">${escapeHtml(more)}</p>`
+    registryLine(sideLabel("free")),
+    freeMore
+      ? `<p style="${FONT};font-size:14px;margin:0 0 8px">${escapeHtml(freeMore)}</p>`
       : "",
-    htmlProblems(shown),
+    htmlProblems(freeShown),
+    registryLine(sideLabel("purchased")),
+    purchasedMore
+      ? `<p style="${FONT};font-size:14px;margin:0 0 8px">${escapeHtml(purchasedMore)}</p>`
+      : "",
+    htmlProblems(purchasedShown),
   ].join("");
   return { subject, text, html };
 }

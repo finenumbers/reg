@@ -7,6 +7,8 @@ import { prisma } from "@/lib/db";
 import type { ProviderMarks, SideMark } from "@/modules/mail/summary-marks";
 import {
   MANUAL_SOURCE,
+  PROBLEM_LIMIT,
+  compareProblemRows,
   localAsOf,
   scheduledAsOf,
   type ProblemRow,
@@ -72,6 +74,7 @@ function sideRows(
   marks: ProviderMarks[],
   counts: Map<string, number>,
   snaps: SnapRow[],
+  errors: Map<string, number>,
 ): SummaryRow[] {
   const rows: SummaryRow[] = [];
   for (const mark of marks) {
@@ -92,9 +95,25 @@ function sideRows(
           : null,
       error,
       dateOnly: false,
+      errors: errors.get(mark.provider) ?? 0,
     });
   }
   return rows;
+}
+
+function mapProblem(row: ProblemSql, side: SummarySide): ProblemRow | null {
+  if (row.problem !== "mask" && row.problem !== "pstn" && row.problem !== "rtu")
+    return null;
+  return {
+    provider: row.provider,
+    side,
+    full: row.full,
+    abc: row.abc,
+    number: row.local,
+    city: row.city,
+    region: row.region,
+    problem: row.problem,
+  };
 }
 
 async function counts(
@@ -144,6 +163,7 @@ async function catalogProblems(
   side: SummarySide,
 ): Promise<{
   count: number;
+  byProvider: Map<string, number>;
   rows: ProblemRow[];
 }> {
   const missing =
@@ -181,11 +201,15 @@ async function catalogProblems(
     ${maskMissing(Prisma.sql`n.mask`)} OR n.pstn_hits IN (0, 2) ${missing}
   `;
   const relation = Prisma.raw(table);
-  const counted = await prisma.$queryRaw<{ count: number }[]>`
-    SELECT count(*)::int AS count
+  const grouped = await prisma.$queryRaw<CountRow[]>`
+    SELECT btrim(n.provider) AS provider, count(*)::int AS count
     FROM ${relation} n
     WHERE ${where}
+    GROUP BY btrim(n.provider)
   `;
+  const byProvider = new Map(grouped.map((row) => [row.provider, asCount(row.count)]));
+  let count = 0;
+  for (const value of byProvider.values()) count += value;
   const listed = await prisma.$queryRaw<ProblemSql[]>`
     SELECT
       btrim(n.provider) AS provider,
@@ -198,26 +222,15 @@ async function catalogProblems(
       ${problem} AS problem
     FROM ${relation} n
     WHERE ${where}
-    ORDER BY provider, n.e164
-    LIMIT 100
+    ORDER BY n.e164
+    LIMIT ${PROBLEM_LIMIT}
   `;
   return {
-    count: asCount(counted[0]?.count),
+    count,
+    byProvider,
     rows: listed.flatMap((row) => {
-      if (row.problem !== "mask" && row.problem !== "pstn" && row.problem !== "rtu")
-        return [];
-      return [
-        {
-          provider: row.provider,
-          side,
-          full: row.full,
-          abc: row.abc,
-          number: row.local,
-          city: row.city,
-          region: row.region,
-          problem: row.problem,
-        },
-      ];
+      const mapped = mapProblem(row, side);
+      return mapped ? [mapped] : [];
     }),
   };
 }
@@ -260,25 +273,14 @@ async function manualProblems(): Promise<{ count: number; rows: ProblemRow[] }> 
       s.region AS region,
       ${problem} AS problem
     ${from}
-    ORDER BY s.abc, s.telephone
-    LIMIT 100
+    ORDER BY s.number
+    LIMIT ${PROBLEM_LIMIT}
   `;
   return {
     count: asCount(counted[0]?.count),
     rows: listed.flatMap((row) => {
-      if (row.problem !== "mask" && row.problem !== "pstn") return [];
-      return [
-        {
-          provider: MANUAL_SOURCE,
-          side: "purchased" as const,
-          full: row.full,
-          abc: row.abc,
-          number: row.local,
-          city: row.city,
-          region: row.region,
-          problem: row.problem,
-        },
-      ];
+      const mapped = mapProblem(row, "purchased");
+      return mapped ? [mapped] : [];
     }),
   };
 }
@@ -319,8 +321,25 @@ export async function composeNumberingSummary(input: {
     count: row.count,
     asOf: row.asOf,
   }));
-  const freeRows = sideRows("free", input.marks, freeCounts, previous);
-  const purchasedRows = sideRows("purchased", input.marks, purchasedCounts, previous);
+  const freeRows = sideRows(
+    "free",
+    input.marks,
+    freeCounts,
+    previous,
+    freeProblems.byProvider,
+  );
+  const purchasedErrorsByProvider = new Map(purchasedProblems.byProvider);
+  purchasedErrorsByProvider.set(
+    MANUAL_SOURCE,
+    (purchasedErrorsByProvider.get(MANUAL_SOURCE) ?? 0) + handProblems.count,
+  );
+  const purchasedRows = sideRows(
+    "purchased",
+    input.marks,
+    purchasedCounts,
+    previous,
+    purchasedErrorsByProvider,
+  );
   purchasedRows.push({
     provider: MANUAL_SOURCE,
     count: manual,
@@ -328,14 +347,16 @@ export async function composeNumberingSummary(input: {
     at: input.startedAt.getTime(),
     error: false,
     dateOnly: true,
+    errors: handProblems.count,
   });
-  const problems = [...freeProblems.rows, ...purchasedProblems.rows, ...handProblems.rows]
-    .sort(
-      (a, b) =>
-        a.provider.localeCompare(b.provider, "ru") ||
-        a.number.localeCompare(b.number, "ru"),
-    )
-    .slice(0, 100);
+  const freeListed = freeProblems.rows
+    .slice()
+    .sort(compareProblemRows)
+    .slice(0, PROBLEM_LIMIT);
+  const purchasedListed = [...purchasedProblems.rows, ...handProblems.rows]
+    .sort(compareProblemRows)
+    .slice(0, PROBLEM_LIMIT);
+  const problems = [...freeListed, ...purchasedListed];
   const asOfDate = new Date(`${asOf}T00:00:00.000Z`);
   const writes: {
     provider: string;
