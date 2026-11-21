@@ -21,6 +21,7 @@ import {
   pstnBatchSql,
   purchasedFullBatchSql,
 } from "@/modules/numbering-catalog/decorate";
+import { parsedProviderNames } from "@/modules/numbering-catalog/parsed-pass";
 import { FREE_COPY_SQL, PURCHASED_COPY_SQL } from "@/modules/numbering-sync/sql";
 import {
   FREE_COPY_SQL as RUNEXIS_FREE,
@@ -189,13 +190,41 @@ describe("catalog decorate", () => {
       oneSide.indexOf('"COMMIT"'),
     );
     const files = [
-      ["src/modules/numbering-sync/publish.ts", 'catalogEpochSql("sipout", "purchased")', catalogEpochSql("sipout", "purchased")],
-      ["src/modules/runexis/publish.ts", 'catalogEpochSql("runexis", "purchased")', catalogEpochSql("runexis", "purchased")],
-      ["src/modules/uis/publish.ts", 'catalogEpochSql("uis", "purchased")', catalogEpochSql("uis", "purchased")],
-      ["src/modules/aurora/publish.ts", 'catalogEpochSql("aurora", "both")', catalogEpochSql("aurora", "both")],
-      ["src/modules/exolve/publish.ts", 'catalogEpochSql("exolve", "purchased")', catalogEpochSql("exolve", "purchased")],
-      ["src/modules/voximplant/publish.ts", 'catalogEpochSql("voximplant", "purchased")', catalogEpochSql("voximplant", "purchased")],
-      ["src/modules/mcn/publish.ts", 'catalogEpochSql("mcn", "purchased")', catalogEpochSql("mcn", "purchased")],
+      [
+        "src/modules/numbering-sync/publish.ts",
+        'catalogEpochSql("sipout", "purchased")',
+        catalogEpochSql("sipout", "purchased"),
+      ],
+      [
+        "src/modules/runexis/publish.ts",
+        'catalogEpochSql("runexis", "purchased")',
+        catalogEpochSql("runexis", "purchased"),
+      ],
+      [
+        "src/modules/uis/publish.ts",
+        'catalogEpochSql("uis", "purchased")',
+        catalogEpochSql("uis", "purchased"),
+      ],
+      [
+        "src/modules/aurora/publish.ts",
+        'catalogEpochSql("aurora", "both")',
+        catalogEpochSql("aurora", "both"),
+      ],
+      [
+        "src/modules/exolve/publish.ts",
+        'catalogEpochSql("exolve", "purchased")',
+        catalogEpochSql("exolve", "purchased"),
+      ],
+      [
+        "src/modules/voximplant/publish.ts",
+        'catalogEpochSql("voximplant", "purchased")',
+        catalogEpochSql("voximplant", "purchased"),
+      ],
+      [
+        "src/modules/mcn/publish.ts",
+        'catalogEpochSql("mcn", "purchased")',
+        catalogEpochSql("mcn", "purchased"),
+      ],
       [
         "src/modules/finenumbers/publish.ts",
         'catalogEpochSql("finenumbers", "both")',
@@ -255,19 +284,32 @@ describe("catalog decorate", () => {
     expect(cursor).toContain("cursor_after");
     expect(cursor).toContain("resplit_epoch");
     expect(cursor).not.toContain("parsed");
-    const providerCursor = flattenSql(
-      saveCursorSql("provider-free", 2, "MCN Telecom", "row"),
-    );
+    const providerCursorSql = saveCursorSql("provider-free", 2, "MCN Telecom", "row");
+    const providerCursor = flattenSql(providerCursorSql);
     expect(providerCursor).toContain("mcn_epoch");
     expect(providerCursor).toContain("mcn_parsed");
     expect(providerCursor).not.toContain("sipout_epoch");
     expect(providerCursor).not.toContain("sipout_parsed");
+    expect(sqlValues(providerCursorSql)).toContain("provider:MCN Telecom:free:2");
+    const providerPurchased = saveCursorSql(
+      "provider-purchased",
+      2,
+      "MCN Telecom",
+      "row",
+    );
+    expect(sqlValues(providerPurchased)).toContain("provider:MCN Telecom:purchased:2");
     const maskCursor = flattenSql(
       saveCursorSql("free", 3, "", "row", { SipOut: 2, "MCN Telecom": 4 }),
     );
     expect(maskCursor).toContain("sipout_parsed");
     expect(maskCursor).toContain("mcn_parsed");
     expect(maskCursor).toContain("parsed_pass");
+    expect(
+      sqlValues(saveCursorSql("free", 3, "", "row", { SipOut: 2, "MCN Telecom": 4 })),
+    ).toContain("mask:free:3");
+    expect(
+      sqlValues(saveCursorSql("purchased", 3, "", "row", { "MCN Telecom": 4 })),
+    ).toContain("mask:purchased:3");
     expect(flattenSql(freeMaskBatchSql("", null))).toContain("n.provider");
     expect(flattenSql(purchasedFullBatchSql("", null))).toContain("n.provider");
     expect(flattenSql(purchasedClientBatchSql(""))).not.toContain("n.provider");
@@ -295,6 +337,16 @@ describe("catalog decorate", () => {
     expect(source).toContain("WHERE id = 1 AND client_epoch =");
     expect(source).toContain("RETRY_MS = 5_000");
     expect(source).not.toContain("resplitShouldWait");
+    const providers = source.slice(
+      source.indexOf("const PROVIDERS = ["),
+      source.indexOf("] as const;"),
+    );
+    let at = 0;
+    for (const name of parsedProviderNames()) {
+      const found = providers.indexOf(`"${name}"`, at);
+      expect(found).toBeGreaterThanOrEqual(at);
+      at = found + name.length;
+    }
 
     const tariffApply = readFileSync(
       path.join(process.cwd(), "src/modules/tariffs/apply.ts"),

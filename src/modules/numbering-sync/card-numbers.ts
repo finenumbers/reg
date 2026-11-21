@@ -1,7 +1,8 @@
 /**
  * Numbers on one sync card. The catalog is not counted here.
  * A live purchased or free cell comes from the stage of the current run.
- * «Разобрано» comes from the counters stored with the mask cursor.
+ * «Разобрано» comes from the counters stored with the decorate cursor.
+ * An old pass name is replaced before this module sees the snapshot.
  */
 
 import { msUntilNextUtcHour } from "@/modules/numbering-chain/cadence";
@@ -156,7 +157,8 @@ export function shownNumbers(input: {
 
 /**
  * Settled cards use the last written totals, so a fresh zero column does not wipe them.
- * An open mask debt shows the counters, including zero through the tariff pass.
+ * An open mask or provider debt shows that source's cursor counter.
+ * The tariff pass is already zeroed on the snapshot.
  */
 export function parsedShown(
   snapshot: ParsedSnapshot,
@@ -237,7 +239,10 @@ export function cardLabels(input: {
   });
   return {
     ...shown,
-    purchasedLoadedAtLabel: formatSyncStamp(asCardDate(input.purchasedLoadedAt), input.timeZone),
+    purchasedLoadedAtLabel: formatSyncStamp(
+      asCardDate(input.purchasedLoadedAt),
+      input.timeZone,
+    ),
     freeLoadedAtLabel: formatSyncStamp(asCardDate(input.freeLoadedAt), input.timeZone),
   };
 }

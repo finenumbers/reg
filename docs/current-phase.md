@@ -1,7 +1,13 @@
-# Current Phase — production (v1.335.0)
+# Current Phase — production (v1.336.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, purchased numbers, numbering sync, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs, outbound mail.
 **Date:** 2026-11-21
+
+## v1.336.0 — Parsed count on sync cards
+
+This release does not migrate and does not rewrite catalog rows, the CDR journal, or settings. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before the new one starts, then start one new app. Do not deploy while a numbering chain or a manual load is running. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged.
+
+«Разобрано» on «Синхронизация» is the rows of that source at or before the decorate cursor. A refresh during an open mask or provider pass no longer keeps a count carried over from an earlier pass. While the tariff pass is running the cell is 0. A finished pass still shows the last free and purchased totals. Aurora still shows its free total. After the pass name includes the side, the page poll reads one state row and does not scan the catalogs.
 
 ## v1.335.0 — Numbering summary mail
 

@@ -10,6 +10,11 @@ import { prisma } from "@/lib/db";
 import { isLockTimeout } from "@/modules/numbering-sync/db-retry";
 import { SyncBusy } from "@/modules/numbering-sync/errors";
 import { RESPLIT_LOCKS } from "@/modules/numbering-sync/locks";
+import {
+  parsedAlignAction,
+  parsedAlignSql,
+  parsedPassName,
+} from "@/modules/numbering-catalog/parsed-pass";
 import { refreshPstnRangeSnapshot } from "@/modules/numbering-catalog/pstn-ranges";
 import { cityAlertSql, cityLabelSql } from "@/modules/rtu/sql";
 
@@ -666,6 +671,7 @@ type Debt = EpochRow & {
   cursor_after: string;
   cursor_epoch: number;
   cursor_provider: string;
+  parsed_pass: string;
   sipout_scope: string;
   runexis_scope: string;
   uis_scope: string;
@@ -709,7 +715,7 @@ const DEBT_SQL = Prisma.sql`
     resplit_epoch, resplit_done,
     mask_epoch, mask_done,
     client_epoch, client_done,
-    cursor_phase, cursor_after, cursor_epoch, cursor_provider
+    cursor_phase, cursor_after, cursor_epoch, cursor_provider, parsed_pass
   FROM numbering_catalog_state
   WHERE id = 1
 `;
@@ -745,6 +751,7 @@ function readDebtRow(row: Record<string, unknown>): Debt {
     cursor_after: typeof row.cursor_after === "string" ? row.cursor_after : "",
     cursor_epoch: asCount(row.cursor_epoch),
     cursor_provider: typeof row.cursor_provider === "string" ? row.cursor_provider : "",
+    parsed_pass: typeof row.parsed_pass === "string" ? row.parsed_pass : "",
     sipout_scope: scopeText(row.sipout_scope),
     runexis_scope: scopeText(row.runexis_scope),
     uis_scope: scopeText(row.uis_scope),
@@ -876,19 +883,16 @@ function parsedCursorSql(
   provider: string,
   adds: Partial<Record<CatalogProvider, number>>,
 ): Prisma.Sql {
+  const pass = parsedPassName(phase, epoch, provider);
+  if (!pass) return Prisma.empty;
   if (phase === "free" || phase === "purchased") {
-    const pass = `mask:${epoch}`;
     const assigns = PROVIDERS.map((name) =>
       counterAssign(PARSED_COLUMN[name], pass, adds[name] ?? 0),
     );
     return Prisma.sql`, ${Prisma.join(assigns, ", ")}, parsed_pass = ${pass}`;
   }
-  if (phase === "provider-free" || phase === "provider-purchased") {
-    if (!isProvider(provider)) throw new Error("Некорректный источник.");
-    const pass = `provider:${provider}:${epoch}`;
-    return Prisma.sql`, ${counterAssign(PARSED_COLUMN[provider], pass, adds[provider] ?? 0)}, parsed_pass = ${pass}`;
-  }
-  return Prisma.empty;
+  if (!isProvider(provider)) throw new Error("Некорректный источник.");
+  return Prisma.sql`, ${counterAssign(PARSED_COLUMN[provider], pass, adds[provider] ?? 0)}, parsed_pass = ${pass}`;
 }
 
 /** Cursor write. The row update and this statement share one transaction. */
@@ -1024,12 +1028,71 @@ async function openPhase(run: PhaseRun): Promise<string> {
   return after;
 }
 
+async function rewindProgress(run: PhaseRun): Promise<void> {
+  if (!maskProgress) return;
+  const where = countWhere(run.phase, run.provider);
+  const totals = await prisma.$queryRaw<{ total: number; remain: number }[]>(Prisma.sql`
+    SELECT count(*)::int AS total,
+           count(*) FILTER (WHERE id > ${""})::int AS remain
+    ${where}
+  `);
+  const total = asCount(totals[0]?.total);
+  const remain = asCount(totals[0]?.remain);
+  maskProgress = {
+    ...maskProgress,
+    done: Math.max(0, total - remain),
+    total,
+  };
+}
+
+/** Writes the side baseline before a batch can add. A jump home clears that baseline. */
+async function alignWalk(
+  run: PhaseRun,
+  afterId: string,
+  forceZero: boolean,
+): Promise<"ok" | "moved"> {
+  const provider = run.provider ?? "";
+  if (!parsedPassName(run.phase, run.epoch, provider)) return "ok";
+  const debt = await readDebt();
+  if (!debt) return "moved";
+  const purchasedOnly =
+    run.phase === "provider-purchased" &&
+    run.provider !== null &&
+    providerScope(debt, run.provider) === "purchased";
+  const action = parsedAlignAction({
+    phase: run.phase,
+    epoch: run.epoch,
+    provider,
+    afterId,
+    parsedPass: debt.parsed_pass,
+    cursorPhase: debt.cursor_phase,
+    cursorEpoch: debt.cursor_epoch,
+    cursorProvider: debt.cursor_provider,
+    purchasedOnly,
+    forceZero,
+  });
+  if (action.kind === "keep") return "ok";
+  const sql = parsedAlignSql(action, {
+    phase: run.phase,
+    epoch: run.epoch,
+    provider,
+    seenPass: debt.parsed_pass,
+  });
+  if (!sql) return "moved";
+  const updated = await prisma.$executeRaw(sql);
+  if (Number(updated) !== 1) return "moved";
+  return "ok";
+}
+
 async function walkPhase(run: PhaseRun): Promise<"done" | "moved"> {
   if (pstnPhase(run.phase)) {
     const gate = await readDebt();
     if (!gate || nextDecorateStep(gate).kind !== "pstn") return "moved";
   }
   let after = await openPhase(run);
+  const startedAt = after;
+  if ((await alignWalk(run, after, false)) === "moved") return "moved";
+  let walked = false;
   for (;;) {
     const fresh = await readDebt();
     if (!fresh) return "moved";
@@ -1039,12 +1102,22 @@ async function walkPhase(run: PhaseRun): Promise<"done" | "moved"> {
       fresh.cursor_epoch === run.epoch &&
       fresh.cursor_provider === (run.provider ?? "");
     after = same ? fresh.cursor_after : "";
+    if (!same) {
+      if (walked || startedAt !== "") {
+        await rewindProgress(run);
+        if ((await alignWalk(run, "", true)) === "moved") return "moved";
+      } else if (maskProgress) {
+        maskProgress = { ...maskProgress, done: 0 };
+      }
+    }
     const batch = await runWorkBatch(run.phase, after, run.epoch, run.provider);
     if (batch.outcome === "moved") return "moved";
     if (batch.ids.length === 0) return "done";
     after = batch.ids[batch.ids.length - 1] ?? after;
-    if (maskProgress)
+    walked = true;
+    if (maskProgress) {
       maskProgress = { ...maskProgress, done: maskProgress.done + batch.ids.length };
+    }
     await new Promise((resolve) => setTimeout(resolve, PAUSE_MS));
   }
 }
