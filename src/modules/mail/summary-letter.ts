@@ -2,6 +2,7 @@
  * The numbering summary letter. Pure: no database and no SMTP.
  */
 
+import { geographyAbcText } from "@/modules/rtu/abc-display";
 import { collapseShownRegion, MOBILE_RF_DIRECTION } from "@/modules/rtu/columns";
 
 export const SUMMARY_ERROR = "Ошибка загрузки";
@@ -35,6 +36,8 @@ export type SummaryRow = {
 export type ProblemRow = {
   provider: string;
   side: SummarySide;
+  /** Whole number the screen uses to place the leading 7. */
+  full: string;
   abc: string;
   number: string;
   city: string;
@@ -157,10 +160,9 @@ export function formatDelta(today: number, previous: number | null): string {
   return "0";
 }
 
-export function formatAbc(abc: string): string {
-  const digits = abc.trim();
-  if (/^\d{3}$/.test(digits)) return `7 (${digits})`;
-  return digits;
+/** Same «ABC» text as the number tables. */
+export function shownAbc(row: Pick<ProblemRow, "full" | "abc" | "number">): string {
+  return geographyAbcText(row.full, row.abc, row.number);
 }
 
 export function shownProblemRegion(city: string, region: string): string {
@@ -296,7 +298,7 @@ export function renderSummary(input: SummaryLetterInput): {
       [
         row.provider,
         sideLabel(row.side),
-        formatAbc(row.abc),
+        shownAbc(row),
         row.number,
         row.city,
         shownProblemRegion(row.city, row.region),
@@ -311,7 +313,7 @@ export function renderSummary(input: SummaryLetterInput): {
       const cells = [
         row.provider,
         sideLabel(row.side),
-        formatAbc(row.abc),
+        shownAbc(row),
         row.number,
         row.city,
         shownProblemRegion(row.city, row.region),

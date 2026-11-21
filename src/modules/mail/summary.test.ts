@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { applyChainStep, emptyChainMarks } from "@/modules/mail/summary-marks";
 import {
@@ -97,11 +99,32 @@ describe("numbering summary letter", () => {
         {
           provider: "Runexis <x>",
           side: "free",
+          full: "74993507666",
           abc: "499",
           number: "3507666",
           city: "Москва",
           region: "Москва",
           problem: "mask",
+        },
+        {
+          provider: "Вручную",
+          side: "purchased",
+          full: "73832003553",
+          abc: "7383",
+          number: "2003553",
+          city: "Новосибирск",
+          region: "Новосибирская область",
+          problem: "pstn",
+        },
+        {
+          provider: "UIS",
+          side: "free",
+          full: "3804412345",
+          abc: "380",
+          number: "4412345",
+          city: "",
+          region: "",
+          problem: "rtu",
         },
       ],
       problemTotal: 1,
@@ -113,6 +136,18 @@ describe("numbering summary letter", () => {
     expect(letter.html).toContain("Runexis &lt;x&gt;");
     expect(letter.html).not.toContain("Runexis <x>");
     expect(letter.text).toContain("7 (499)");
+    expect(letter.text).toContain("7 (383)");
+    expect(letter.text).toContain("\t380\t");
+    expect(letter.text).not.toContain("7 (380)");
     expect(letter.text).toContain("Нет маски и типа");
+  });
+
+  it("treats a found mask as resolved", () => {
+    const source = readFileSync(
+      path.join(process.cwd(), "src/modules/mail/summary-data.ts"),
+      "utf8",
+    );
+    expect(source).not.toContain("maskType");
+    expect(source).toContain("btrim(${column}) = ''");
   });
 });

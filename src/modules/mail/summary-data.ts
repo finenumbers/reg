@@ -25,12 +25,18 @@ type SnapRow = { provider: string; side: string; count: number; asOf: Date };
 type ProblemSql = {
   provider: string;
   side: string;
+  full: string;
   abc: string;
   local: string;
   city: string;
   region: string;
   problem: string;
 };
+
+/** A found mask is a resolved row. An empty type is not an error. */
+function maskMissing(column: Prisma.Sql): Prisma.Sql {
+  return Prisma.sql`btrim(${column}) = ''`;
+}
 
 const MATCH = geographyMatchKeySql(Prisma.sql`number`);
 
@@ -166,13 +172,13 @@ async function catalogProblems(
       )`
           : Prisma.sql`FALSE`
       } THEN 'rtu'
-      WHEN btrim(n.mask) = '' OR btrim(n."maskType") = '' THEN 'mask'
+      WHEN ${maskMissing(Prisma.sql`n.mask`)} THEN 'mask'
       WHEN n.pstn_hits IN (0, 2) THEN 'pstn'
       ELSE NULL
     END
   `;
   const where = Prisma.sql`
-    btrim(n.mask) = '' OR btrim(n."maskType") = '' OR n.pstn_hits IN (0, 2) ${missing}
+    ${maskMissing(Prisma.sql`n.mask`)} OR n.pstn_hits IN (0, 2) ${missing}
   `;
   const relation = Prisma.raw(table);
   const counted = await prisma.$queryRaw<{ count: number }[]>`
@@ -184,6 +190,7 @@ async function catalogProblems(
     SELECT
       btrim(n.provider) AS provider,
       ${side} AS side,
+      n.e164 AS full,
       n.abc AS abc,
       n."number" AS local,
       n.city AS city,
@@ -203,6 +210,7 @@ async function catalogProblems(
         {
           provider: row.provider,
           side,
+          full: row.full,
           abc: row.abc,
           number: row.local,
           city: row.city,
@@ -225,7 +233,7 @@ async function manualProblems(): Promise<{ count: number; rows: ProblemRow[] }> 
   )`;
   const problem = Prisma.sql`
     CASE
-      WHEN btrim(s.mask) = '' OR btrim(s."maskType") = '' THEN 'mask'
+      WHEN ${maskMissing(Prisma.sql`s.mask`)} THEN 'mask'
       WHEN c.phone IS NULL OR c.found IS NOT TRUE OR c.operator IS NULL OR btrim(c.operator) = '' THEN 'pstn'
       ELSE NULL
     END
@@ -245,6 +253,7 @@ async function manualProblems(): Promise<{ count: number; rows: ProblemRow[] }> 
     SELECT
       ${MANUAL_SOURCE} AS provider,
       'purchased' AS side,
+      s.number AS full,
       s.abc AS abc,
       s.telephone AS local,
       s.city AS city,
@@ -262,6 +271,7 @@ async function manualProblems(): Promise<{ count: number; rows: ProblemRow[] }> 
         {
           provider: MANUAL_SOURCE,
           side: "purchased" as const,
+          full: row.full,
           abc: row.abc,
           number: row.local,
           city: row.city,
