@@ -152,6 +152,16 @@ export function groupDigits(value: number): string {
   return new Intl.NumberFormat("ru-RU").format(value).replace(/[\u00a0\u202f]/g, " ");
 }
 
+/** 1 номер, 2 номера, 5 номеров, 11 номеров, 21 номер. */
+export function numberNoun(value: number): string {
+  const tail = Math.abs(value) % 100;
+  const last = tail % 10;
+  if (tail > 10 && tail < 15) return "номеров";
+  if (last === 1) return "номер";
+  if (last >= 2 && last <= 4) return "номера";
+  return "номеров";
+}
+
 export function formatDelta(today: number, previous: number | null): string {
   if (previous == null) return "—";
   const diff = today - previous;
@@ -209,6 +219,110 @@ export function summarySubject(asOf: string): string {
   return `Последняя загрузка телефонной нумерации (по состоянию на ${weekdayAccusative(asOf)}, на ${formatAsOf(asOf)})`;
 }
 
+const GREEN = "#16a34a";
+const BLUE = "#2563eb";
+const RED = "#dc2626";
+const VIOLET = "#7c3aed";
+const FONT = "font-family:Arial,Helvetica,sans-serif";
+const CELL = `border:1px solid #000;padding:4px 8px;${FONT};font-size:13px`;
+
+function htmlCell(
+  tag: "td" | "th",
+  text: string,
+  align: "left" | "center" | "right",
+  paint?: { color?: string; bold?: boolean; bg?: string },
+): string {
+  const bg = paint?.bg ?? "#ffffff";
+  const weight = paint?.bold || tag === "th" ? "font-weight:bold;" : "";
+  const color = paint?.color ? `color:${paint.color};` : "";
+  const style = `${CELL};text-align:${align};${weight}${color}background-color:${bg}`;
+  return `<${tag} bgcolor="${bg}" align="${align}" style="${style}">${escapeHtml(text)}</${tag}>`;
+}
+
+function paintedCount(text: string, color: string): { color?: string; bold?: boolean } {
+  if (text === "—" || text === "") return {};
+  return { color, bold: true };
+}
+
+function registryFigure(value: number, color: string): string {
+  return `<span style="color:${color};font-weight:bold;text-decoration:underline">${escapeHtml(groupDigits(value))}</span>`;
+}
+
+function registryLine(text: string): string {
+  return `<p style="${FONT};font-size:14px;font-weight:bold;margin:16px 0 8px">${text}</p>`;
+}
+
+function htmlRegistry(
+  rows: SummaryRow[],
+  timeZone: string,
+  today: string,
+  previous: string,
+  side: SummarySide,
+): string {
+  const headers = [
+    "Провайдер",
+    `На ${today}`,
+    previous ? `На ${previous}` : "—",
+    "Изменение",
+    "Время загрузки",
+  ];
+  const head = headers.map((cell) => htmlCell("th", cell, "center")).join("");
+  const body = rows
+    .map((row) => {
+      const manual = row.provider === MANUAL_SOURCE;
+      const tone = manual ? VIOLET : side === "free" ? GREEN : BLUE;
+      const current = countCell(row);
+      const prior = previousCell(row);
+      const delta = deltaCell(row);
+      const stamp = formatLoadStamp(row.at, timeZone, row.dateOnly);
+      const currentPaint = row.error
+        ? { color: "#ffffff", bold: true, bg: RED }
+        : paintedCount(current, tone);
+      const deltaPaint = manual
+        ? paintedCount(delta, VIOLET)
+        : paintedCount(delta, "#000000");
+      const cells = [
+        htmlCell("td", row.provider, "left"),
+        htmlCell("td", current, "right", currentPaint),
+        htmlCell("td", prior, "right", paintedCount(prior, tone)),
+        htmlCell("td", delta, "right", deltaPaint),
+        htmlCell("td", stamp, "right"),
+      ];
+      return `<tr>${cells.join("")}</tr>`;
+    })
+    .join("");
+  return `<table cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;${FONT};font-size:13px"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+}
+
+function htmlProblems(rows: ProblemRow[]): string {
+  const headers = [
+    "Провайдер",
+    "Категория",
+    "ABC",
+    "Номер",
+    "Город",
+    "Регион",
+    "Проблема",
+  ];
+  const aligns = ["left", "left", "left", "right", "left", "left", "left"] as const;
+  const head = headers.map((cell) => htmlCell("th", cell, "center")).join("");
+  const body = rows
+    .map((row) => {
+      const values = [
+        row.provider,
+        sideLabel(row.side),
+        shownAbc(row),
+        row.number,
+        row.city,
+        shownProblemRegion(row.city, row.region),
+        problemLabel(row.problem),
+      ];
+      return `<tr>${values.map((value, index) => htmlCell("td", value, aligns[index] ?? "left")).join("")}</tr>`;
+    })
+    .join("");
+  return `<table cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;${FONT};font-size:13px"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+}
+
 function textTable(
   rows: SummaryRow[],
   timeZone: string,
@@ -237,36 +351,6 @@ function textTable(
   return lines.join("\n");
 }
 
-function htmlTable(
-  rows: SummaryRow[],
-  timeZone: string,
-  today: string,
-  previous: string,
-): string {
-  const head = [
-    "Провайдер",
-    `На ${today}`,
-    previous ? `На ${previous}` : "—",
-    "Изменение",
-    "Время загрузки",
-  ]
-    .map((cell) => `<th>${escapeHtml(cell)}</th>`)
-    .join("");
-  const body = rows
-    .map((row) => {
-      const cells = [
-        row.provider,
-        countCell(row),
-        previousCell(row),
-        deltaCell(row),
-        formatLoadStamp(row.at, timeZone, row.dateOnly),
-      ];
-      return `<tr>${cells.map((cell) => `<td>${escapeHtml(cell)}</td>`).join("")}</tr>`;
-    })
-    .join("");
-  return `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
-}
-
 export function renderSummary(input: SummaryLetterInput): {
   subject: string;
   text: string;
@@ -283,15 +367,15 @@ export function renderSummary(input: SummaryLetterInput): {
   const text = [
     subject,
     "",
-    `Реестр «Свободные номера» с подтверждением: ${groupDigits(input.freeTotal)} номеров (${groupDigits(input.freeErrors)} с ошибками)`,
+    `Реестр «Свободные номера» с подтверждением: ${groupDigits(input.freeTotal)} ${numberNoun(input.freeTotal)} (${groupDigits(input.freeErrors)} с ошибками)`,
     "",
     textTable(input.freeRows, input.timeZone, today, previous),
     "",
-    `Реестр «Купленные номера» с подтверждением: ${groupDigits(input.purchasedTotal)} номеров (${groupDigits(input.purchasedErrors)} с ошибками)`,
+    `Реестр «Купленные номера» с подтверждением: ${groupDigits(input.purchasedTotal)} ${numberNoun(input.purchasedTotal)} (${groupDigits(input.purchasedErrors)} с ошибками)`,
     "",
     textTable(input.purchasedRows, input.timeZone, today, previous),
     "",
-    `Проблемные номера: ${groupDigits(input.problemTotal)} номеров`,
+    `Проблемные номера: ${groupDigits(input.problemTotal)} ${numberNoun(input.problemTotal)}`,
     more,
     ["Провайдер", "Категория", "ABC", "Номер", "Город", "Регион", "Проблема"].join("\t"),
     ...shown.map((row) =>
@@ -308,29 +392,23 @@ export function renderSummary(input: SummaryLetterInput): {
   ]
     .filter((line) => line !== "")
     .join("\n");
-  const problemRows = shown
-    .map((row) => {
-      const cells = [
-        row.provider,
-        sideLabel(row.side),
-        shownAbc(row),
-        row.number,
-        row.city,
-        shownProblemRegion(row.city, row.region),
-        problemLabel(row.problem),
-      ];
-      return `<tr>${cells.map((cell) => `<td>${escapeHtml(cell)}</td>`).join("")}</tr>`;
-    })
-    .join("");
   const html = [
-    `<p>${escapeHtml(subject)}</p>`,
-    `<p>Реестр «Свободные номера» с подтверждением: ${escapeHtml(groupDigits(input.freeTotal))} номеров (${escapeHtml(groupDigits(input.freeErrors))} с ошибками)</p>`,
-    htmlTable(input.freeRows, input.timeZone, today, previous),
-    `<p>Реестр «Купленные номера» с подтверждением: ${escapeHtml(groupDigits(input.purchasedTotal))} номеров (${escapeHtml(groupDigits(input.purchasedErrors))} с ошибками)</p>`,
-    htmlTable(input.purchasedRows, input.timeZone, today, previous),
-    `<p>Проблемные номера: ${escapeHtml(groupDigits(input.problemTotal))} номеров</p>`,
-    more ? `<p>${escapeHtml(more)}</p>` : "",
-    `<table><thead><tr><th>Провайдер</th><th>Категория</th><th>ABC</th><th>Номер</th><th>Город</th><th>Регион</th><th>Проблема</th></tr></thead><tbody>${problemRows}</tbody></table>`,
+    `<p style="${FONT};font-size:18px;font-weight:bold;margin:0 0 16px">${escapeHtml(subject)}</p>`,
+    registryLine(
+      `Реестр «Свободные номера» с подтверждением: ${registryFigure(input.freeTotal, GREEN)} ${numberNoun(input.freeTotal)} (${registryFigure(input.freeErrors, RED)} с ошибками)`,
+    ),
+    htmlRegistry(input.freeRows, input.timeZone, today, previous, "free"),
+    registryLine(
+      `Реестр «Купленные номера» с подтверждением: ${registryFigure(input.purchasedTotal, BLUE)} ${numberNoun(input.purchasedTotal)} (${registryFigure(input.purchasedErrors, RED)} с ошибками)`,
+    ),
+    htmlRegistry(input.purchasedRows, input.timeZone, today, previous, "purchased"),
+    registryLine(
+      `Проблемные номера: ${registryFigure(input.problemTotal, VIOLET)} ${numberNoun(input.problemTotal)}`,
+    ),
+    more
+      ? `<p style="${FONT};font-size:14px;margin:0 0 8px">${escapeHtml(more)}</p>`
+      : "",
+    htmlProblems(shown),
   ].join("");
   return { subject, text, html };
 }

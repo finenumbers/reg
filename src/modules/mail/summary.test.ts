@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { applyChainStep, emptyChainMarks } from "@/modules/mail/summary-marks";
 import {
   formatDelta,
+  numberNoun,
   renderSummary,
   scheduledAsOf,
   weekdayAccusative,
@@ -140,6 +141,50 @@ describe("numbering summary letter", () => {
     expect(letter.text).toContain("\t380\t");
     expect(letter.text).not.toContain("7 (380)");
     expect(letter.text).toContain("Нет маски и типа");
+    expect(letter.html).toContain("border:1px solid #000");
+    expect(letter.html).toContain("#16a34a");
+    expect(letter.html).toContain("#2563eb");
+    expect(letter.html).toContain('bgcolor="#dc2626"');
+    expect(letter.html).toContain("color:#ffffff");
+    expect(letter.html).toContain("#7c3aed");
+    expect(letter.html).toContain('align="center"');
+    expect(letter.html).toContain('align="left"');
+    expect(letter.html).toContain('align="right"');
+    expect(letter.text).toContain("3 номера");
+    expect(letter.text).toContain("1 номер");
+  });
+
+  it("paints the manual row and declines 553", () => {
+    expect(numberNoun(553)).toBe("номера");
+    expect(numberNoun(11)).toBe("номеров");
+    expect(numberNoun(22)).toBe("номера");
+    const letter = renderSummary({
+      asOf: "2026-11-20",
+      previousAsOf: "2026-11-19",
+      timeZone: "Asia/Novosibirsk",
+      freeTotal: 817000,
+      freeErrors: 22,
+      purchasedTotal: 553,
+      purchasedErrors: 0,
+      freeRows: [],
+      purchasedRows: [
+        {
+          provider: "Вручную",
+          count: 53,
+          previous: 53,
+          at: Date.parse("2026-11-20T17:00:00.000Z"),
+          error: false,
+          dateOnly: true,
+        },
+      ],
+      problems: [],
+      problemTotal: 5,
+    });
+    expect(letter.text).toContain("553 номера");
+    expect(letter.text).toContain("817 000 номеров");
+    expect(letter.text).toContain("5 номеров");
+    expect(letter.html).toContain("#7c3aed");
+    expect(letter.html).toContain("Вручную");
   });
 
   it("treats a found mask as resolved", () => {

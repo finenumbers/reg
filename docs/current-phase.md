@@ -1,7 +1,13 @@
-# Current Phase — production (v1.337.0)
+# Current Phase — production (v1.338.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, purchased numbers, numbering sync, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs, outbound mail.
 **Date:** 2026-11-21
+
+## v1.338.0 — Numbering summary layout
+
+This release does not migrate and does not rewrite catalog rows, the CDR journal, or settings. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before the new one starts, then start one new app. Do not deploy while a numbering chain or a manual load is running. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged.
+
+The numbering summary letter uses bordered tables. Free counts are green, purchased counts are blue, errors are red, and «Вручную» with the problem total is violet. Headers are centered. Names and places stay left. Numbers and the load time stay right. The already sent letter is not sent again.
 
 ## v1.337.0 — Summary letter mask and ABC
 
