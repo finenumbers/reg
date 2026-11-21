@@ -54,6 +54,8 @@ Optional publish ports: `APP_PUBLISH_PORT`, `POSTGRES_PUBLISH_PORT`.
 
 ## 3. Database
 
+v1.341.0 does not migrate and does not rewrite catalog rows, the CDR journal, or settings. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before the new one starts, then start one new app. Do not deploy while a numbering chain or a manual load is running. Refresh the browser. Decorate and resplit pause 500 ms between batches of 1000. On «Синхронизация», global masks name the side and keep the remainder for that phase. Runexis purchased loads audit as `runexis.purchased`. Nothing is written to the switch. RTU activation is unchanged.
+
 v1.340.1 did not change runtime behavior. v1.340.0 did not publish an image. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before the new one starts, then start one new app. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged.
 
 v1.340.0 does not migrate and does not rewrite catalog rows, the CDR journal, or settings. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before the new one starts, then start one new app. Refresh the browser. «Кому» accepts Enter for a new line. «Статистика маркировки» counts two events when the A-number has MAV for that network; other calls stay one. After an import, open a month again and confirm the weights moved. Non-empty MAV cells on the catalog are saturated blue. Nothing is written to the switch. RTU activation is unchanged.

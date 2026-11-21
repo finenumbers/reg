@@ -649,7 +649,10 @@ async function startRunexisSide(
         await auditService
           .append({
             actorUserId: actor.userId,
-            action: AUDIT_ACTIONS.RUNEXIS_FREE,
+            action:
+              side === "purchased"
+                ? AUDIT_ACTIONS.RUNEXIS_PURCHASED
+                : AUDIT_ACTIONS.RUNEXIS_FREE,
             entityType: "runexis",
             entityId: "runexis",
             ip: actor.ip,

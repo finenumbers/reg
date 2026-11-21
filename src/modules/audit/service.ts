@@ -86,6 +86,7 @@ export const AUDIT_ACTIONS = {
   RUNEXIS_SAVE: "runexis.settings_save",
   RUNEXIS_TEST: "runexis.test",
   RUNEXIS_FREE: "runexis.free",
+  RUNEXIS_PURCHASED: "runexis.purchased",
   UIS_SAVE: "uis.settings_save",
   UIS_TEST: "uis.test",
   UIS_SYNC: "uis.sync",

@@ -95,6 +95,20 @@ describe("numbering chain text", () => {
     );
   });
 
+  it("names the global mask side in the queue and banner", () => {
+    const view = buildChainView({
+      running: true,
+      index: 0,
+      mode: "masks",
+      progress: { provider: null, kind: "free", done: 29497, total: 30272 },
+    });
+    expect(view.banner).toBe("Маски, свободные: осталось 775 из 30272.");
+    expect(view.cards).toEqual({});
+    expect(view.queue).toBe(
+      "Маски, свободные. Дальше: SipOut, купленные, SipOut, свободные, Runexis, купленные, Runexis, свободные, UIS, купленные, UIS, свободные, Aurora Telecom, свободные, MTS Exolve, купленные, MTS Exolve, свободные, Voximplant, купленные, Voximplant, свободные, MCN Telecom, купленные, MCN Telecom, свободные, Finenumbers.",
+    );
+  });
+
   it("shows a tariff remainder above the cards", () => {
     const view = buildChainView({
       running: true,

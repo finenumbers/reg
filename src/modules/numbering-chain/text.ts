@@ -69,6 +69,10 @@ function queueLine(
     return `Тариф.${tail}`;
   }
   if (masking && progress?.provider) return `Маски, ${progress.provider}.${tail}`;
+  if (masking && (progress?.kind === "free" || progress?.kind === "purchased")) {
+    const side = progress.kind === "purchased" ? "купленные" : "свободные";
+    return `Маски, ${side}.${tail}`;
+  }
   if (masking) return `Маски.${tail}`;
   const current = CHAIN_STEPS[index];
   if (!current) return "Цепочка загрузок.";

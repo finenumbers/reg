@@ -21,8 +21,9 @@ import { cityAlertSql, cityLabelSql } from "@/modules/rtu/sql";
 const ELEVEN = "^[78][0-9]{10}$";
 export const MASK_BATCH = 1000;
 export const MASK_BATCH_TX_MS = 60_000;
+/** Yield between successful decorate batches. Not tied to lease freshness. */
+export const PAUSE_MS = 500;
 const BATCH = MASK_BATCH;
-const PAUSE_MS = 1000;
 const RETRY_MS = 5_000;
 const BATCH_TX = { maxWait: 10_000, timeout: MASK_BATCH_TX_MS } as const;
 
@@ -1262,8 +1263,10 @@ async function settleDebt(): Promise<void> {
   let snapshotChecked = false;
   for (;;) {
     const debt = await readDebt();
-    if (!debt) return;
-    maskProgress = null;
+    if (!debt) {
+      maskProgress = null;
+      return;
+    }
     const step = nextDecorateStep(debt);
     if (
       step.kind === "bootstrap" ||
@@ -1298,6 +1301,7 @@ async function settleDebt(): Promise<void> {
         WHERE id = 1 AND decorate_generation = 0
       `;
       await markSeen(debt);
+      maskProgress = null;
       continue;
     }
     if (step.kind === "resplit") {
@@ -1316,6 +1320,7 @@ async function settleDebt(): Promise<void> {
       });
       if (purchased === "moved") continue;
       await markResplitDone(debt.resplit_epoch);
+      maskProgress = null;
       continue;
     }
     if (step.kind === "mask") {
@@ -1335,6 +1340,7 @@ async function settleDebt(): Promise<void> {
       if (purchased === "moved") continue;
       await markMaskDone(debt.mask_epoch);
       await markSeen(debt);
+      maskProgress = null;
       continue;
     }
     if (step.kind === "provider") {
@@ -1360,6 +1366,7 @@ async function settleDebt(): Promise<void> {
         if (purchased === "moved") continue;
       }
       await markProviderDone(behind, seen.epoch);
+      maskProgress = null;
       continue;
     }
     if (step.kind === "client") {
@@ -1371,6 +1378,7 @@ async function settleDebt(): Promise<void> {
       });
       if (clients === "moved") continue;
       await markClientDone(debt.client_epoch);
+      maskProgress = null;
       continue;
     }
     if (!snapshotChecked) {
@@ -1401,8 +1409,10 @@ async function settleDebt(): Promise<void> {
         continue;
       }
       await markPstnDone(debt.pstn_range_epoch);
+      maskProgress = null;
       continue;
     }
+    maskProgress = null;
     return;
   }
 }

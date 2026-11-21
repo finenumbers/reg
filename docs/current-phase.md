@@ -1,7 +1,17 @@
-# Current Phase — production (v1.340.1)
+# Current Phase — production (v1.341.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, purchased numbers, numbering sync, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs, outbound mail.
-**Date:** 2026-11-21
+**Date:** 2026-11-22
+
+## v1.341.0 — Faster decorate pause and clearer sync status
+
+This release does not migrate and does not rewrite catalog rows, the CDR journal, or settings. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before the new one starts, then start one new app. Do not deploy while a numbering chain or a manual load is running. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged.
+
+Decorate and tariff resplit keep batches of 1000 and a 60-second batch transaction. The pause between successful batches is 500 ms instead of one second. Lease freshness stays two minutes. A live numbering load still blocks decorate with a five-second retry.
+
+On «Синхронизация», a global mask pass names the side in the queue (`Маски, свободные.` / `Маски, купленные.`) and keeps the remainder banner between batches of one phase. The remainder clears when that phase finishes, so it does not stick on the next step. «Разобрано» is unchanged.
+
+A Runexis purchased load audits as `runexis.purchased`. A free load stays `runexis.free`. The audit labels name free and purchased separately.
 
 ## v1.340.1 — Marking stats test typecheck
 
