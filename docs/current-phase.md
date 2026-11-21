@@ -1,7 +1,11 @@
-# Current Phase — production (v1.340.0)
+# Current Phase — production (v1.340.1)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, purchased numbers, numbering sync, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs, outbound mail.
 **Date:** 2026-11-21
+
+## v1.340.1 — Marking stats test typecheck
+
+v1.340.0 did not publish an image. The marking stats purge test mocked `$queryRaw` with a zero-argument callback, and the production type check rejected the build. This release keeps the v1.340.0 behavior below. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before the new one starts, then start one new app. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged.
 
 ## v1.340.0 — Mail Enter, MAV weight in marking stats
 

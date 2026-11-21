@@ -12,7 +12,7 @@ const listCachedMonthCounts = vi.fn();
 const cdrDataGeneration = vi.fn(() => 4);
 const readRtuScreenGate = vi.fn();
 const queryRaw = vi.fn();
-const importGenerationRaw = vi.fn(async () => [{ generation: 7 }]);
+const importGenerationRaw = vi.fn(async (_sql?: unknown) => [{ generation: 7 }]);
 
 vi.mock("@/lib/db", () => ({
   prisma: {
