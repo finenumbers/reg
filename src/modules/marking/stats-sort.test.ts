@@ -100,6 +100,8 @@ describe("marking stats rows", () => {
         generationAtEnd: 4,
         revisionAtStart: 2,
         revisionAtEnd: 2,
+        importGenerationAtStart: 7,
+        importGenerationAtEnd: 7,
       }),
     ).toBe(true);
     expect(
@@ -108,6 +110,18 @@ describe("marking stats rows", () => {
         generationAtEnd: 5,
         revisionAtStart: 2,
         revisionAtEnd: 2,
+        importGenerationAtStart: 7,
+        importGenerationAtEnd: 7,
+      }),
+    ).toBe(false);
+    expect(
+      statsCacheAccepted({
+        generationAtStart: 4,
+        generationAtEnd: 4,
+        revisionAtStart: 2,
+        revisionAtEnd: 2,
+        importGenerationAtStart: 7,
+        importGenerationAtEnd: 8,
       }),
     ).toBe(false);
     expect(toneToken({ Бета: "red", Альфа: "green" })).toBe("green:Альфа\nred:Бета");

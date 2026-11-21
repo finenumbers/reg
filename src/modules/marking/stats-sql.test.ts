@@ -30,7 +30,7 @@ function flattenSql(sql: Prisma.Sql): { text: string; values: unknown[] } {
 }
 
 describe("marking stats sql", () => {
-  it("counts one month of OPRS calls by the marking client", () => {
+  it("counts one month of OPRS calls by the marking client with MAV weight", () => {
     const flat = flattenSql(
       markingStatsSql({
         year: 2026,
@@ -44,8 +44,15 @@ describe("marking stats sql", () => {
     expect(flat.text).not.toContain("LIKE");
     expect(flat.text).not.toContain("phone_endpoints");
     expect(flat.text).not.toContain("cdr_day");
-    expect(flat.text).toContain("COALESCE(client, '')");
+    expect(flat.text).toContain('COALESCE(w.client, \'\')');
     expect(flat.text).toContain("btrim(c.bill_ani)");
+    expect(flat.text).toContain("marking_rows");
+    expect(flat.text).toContain("mav_mts");
+    expect(flat.text).toContain("NULLIF(btrim(COALESCE(");
+    expect(flat.text).toContain("SUM(");
+    expect(flat.text).toContain("THEN 2");
+    expect(flat.text).toContain("ELSE 1");
+    expect(flat.text).toContain("import_generation");
     expect(flat.text).toContain("GROUP BY 1, 2");
     expect(flat.values).toContain("2026-11-01");
     expect(flat.values).toContain("2026-12-01");

@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/table";
 import { formatCount } from "@/lib/format-count";
 import { formatDisplayTimestamp } from "@/lib/format-display-time";
+import { cn } from "@/lib/utils";
 import { geographyAppendAllowed } from "@/modules/rtu/paging";
 import { TABLE_PAGE_SIZE } from "@/lib/table-pagination";
 import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
@@ -63,10 +64,17 @@ import {
 import { MarkingStatsTable } from "@/modules/marking/ui/marking-stats-table";
 import { markingStatsFailureClearsRows } from "@/modules/marking/stats-hold";
 import { formatMonthOption } from "@/modules/traffic/month-labels";
+import { OPRS_MAV_FILL } from "@/modules/traffic/rtp-row";
 
 const PAGE_SIZE = TABLE_PAGE_SIZE;
 const PHONE_SEARCH_DEBOUNCE_MS = 300;
 const PHONE_CELL = "font-mono font-bold text-black dark:text-white";
+const MAV_COLUMNS = new Set<MarkingColumnId>([
+  "mavMts",
+  "mavMegafon",
+  "mavBeeline",
+  "mavT2",
+]);
 
 type ImportError = { error: string; details: string[] };
 
@@ -595,21 +603,28 @@ export function MarkingView({
                   ) : (
                     items.map((row) => (
                       <TableRow key={row.id}>
-                        {MARKING_COLUMN_ORDER.map((id) => (
-                          <TableCell
-                            key={id}
-                            className={id === "phoneNumber" ? PHONE_CELL : undefined}
-                          >
-                            {id === "phoneNumber" ? (
-                              <HighlightText
-                                text={markingCellText(row, id)}
-                                query={phoneQ}
-                              />
-                            ) : (
-                              markingCellText(row, id)
-                            )}
-                          </TableCell>
-                        ))}
+                        {MARKING_COLUMN_ORDER.map((id) => {
+                          const text = markingCellText(row, id);
+                          const mavFill =
+                            MAV_COLUMNS.has(id) && text.trim().length > 0
+                              ? OPRS_MAV_FILL
+                              : undefined;
+                          return (
+                            <TableCell
+                              key={id}
+                              className={cn(
+                                id === "phoneNumber" && PHONE_CELL,
+                                mavFill,
+                              )}
+                            >
+                              {id === "phoneNumber" ? (
+                                <HighlightText text={text} query={phoneQ} />
+                              ) : (
+                                text
+                              )}
+                            </TableCell>
+                          );
+                        })}
                       </TableRow>
                     ))
                   )}

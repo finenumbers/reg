@@ -1226,7 +1226,7 @@ model MarkingImportState {
   id         Int       @id @default(1)
   rowCount   Int       @default(0)
   /// Incremented in the same statement as a successful label write.
-  /// No screen reads this counter.
+  /// Marking statistics cache keys include this counter.
   generation Int       @default(0)
   filename   String?
   loadedAt   DateTime?

@@ -16,6 +16,7 @@ import {
   markingSetDetails,
 } from "@/modules/marking/payload";
 import { markingApplySql, markingLockSql } from "@/modules/marking/sql";
+import { forgetAllMarkingStats } from "@/modules/marking/stats";
 import {
   isMarkingLockTimeout,
   isMarkingStatementTimeout,
@@ -112,6 +113,7 @@ export async function applyMarkingLabels(
     return outcome;
   });
 
+  forgetAllMarkingStats();
   return { rowCount: row.rowCount, loadedAt };
 }
 

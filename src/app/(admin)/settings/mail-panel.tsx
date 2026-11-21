@@ -106,7 +106,9 @@ export function MailPanel({ initial }: { initial: MailView }) {
   }
 
   function onKeyDown(event: KeyboardEvent) {
-    if (event.key === "Enter") event.preventDefault();
+    if (event.key === "Enter" && !(event.target instanceof HTMLTextAreaElement)) {
+      event.preventDefault();
+    }
     if (event.key === "Escape" && confirm && !pending) {
       event.preventDefault();
       setConfirm(null);

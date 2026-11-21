@@ -12,6 +12,13 @@ const listCachedMonthCounts = vi.fn();
 const cdrDataGeneration = vi.fn(() => 4);
 const readRtuScreenGate = vi.fn();
 const queryRaw = vi.fn();
+const importGenerationRaw = vi.fn(async () => [{ generation: 7 }]);
+
+vi.mock("@/lib/db", () => ({
+  prisma: {
+    $queryRaw: (sql: unknown) => importGenerationRaw(sql),
+  },
+}));
 
 vi.mock("@/modules/storage/vacuum/gate", () => ({
   isDatabaseVacuumActive: () => false,
@@ -72,6 +79,7 @@ function countedRow() {
     external: 1,
     catalog_revision: 3,
     loaded_at: null,
+    import_generation: 7,
   };
 }
 
@@ -100,6 +108,7 @@ describe("marking stats during a month purge", () => {
     resetPurgeTargetForTests();
     resetMarkingStatsForTests();
     cdrDataGeneration.mockReturnValue(4);
+    importGenerationRaw.mockResolvedValue([{ generation: 7 }]);
     readRtuScreenGate.mockResolvedValue({
       published: true,
       needsPublish: false,
@@ -107,6 +116,14 @@ describe("marking stats during a month purge", () => {
     });
     listCachedMonthCounts.mockResolvedValue([NOVEMBER, AUGUST]);
     queryRaw.mockResolvedValue([countedRow()]);
+  });
+
+  it("misses the cache when the marking import generation moves", async () => {
+    await listMarkingStats("2026-08", NOW);
+    expect(queryRaw).toHaveBeenCalledTimes(1);
+    importGenerationRaw.mockResolvedValue([{ generation: 8 }]);
+    await listMarkingStats("2026-08", NOW);
+    expect(queryRaw).toHaveBeenCalledTimes(2);
   });
 
   it("does not read or serve a cached month while that month is held", async () => {

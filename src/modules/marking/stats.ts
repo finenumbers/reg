@@ -1,9 +1,12 @@
 /**
  * Marking statistics for one calendar month.
  * One CDR aggregate is in flight per data key. A key that changes during the
- * read is returned to that caller and is not stored.
+ * read is returned to that caller and is not stored. The marking import
+ * generation is part of that key so a new MAV file does not keep old weights.
  */
 
+import { Prisma } from "@/generated/prisma/client";
+import { prisma } from "@/lib/db";
 import {
   CDR_VACUUM_BUSY_MESSAGE,
   isDatabaseVacuumActive,
@@ -69,6 +72,7 @@ type QueryRow = {
   external: number | bigint | null;
   catalog_revision: number | bigint | null;
   loaded_at: Date | null;
+  import_generation: number | bigint | null;
 };
 
 type Slot = { key: string; snapshot: MarkingStatsSnapshot };
@@ -83,11 +87,25 @@ export function statsCacheAccepted(input: {
   generationAtEnd: number;
   revisionAtStart: number;
   revisionAtEnd: number;
+  importGenerationAtStart: number;
+  importGenerationAtEnd: number;
 }): boolean {
   return (
     input.generationAtStart === input.generationAtEnd &&
-    input.revisionAtStart === input.revisionAtEnd
+    input.revisionAtStart === input.revisionAtEnd &&
+    input.importGenerationAtStart === input.importGenerationAtEnd
   );
+}
+
+/** Label/MAV import counter. Missing row is 0. */
+export async function readMarkingImportGeneration(): Promise<number> {
+  const rows = await prisma.$queryRaw<Array<{ generation: number | bigint | null }>>(
+    Prisma.sql`SELECT generation FROM marking_import_state WHERE id = 1`,
+  );
+  const value = rows[0]?.generation ?? 0;
+  const n = typeof value === "bigint" ? Number(value) : Number(value);
+  if (!Number.isSafeInteger(n) || n < 0) return 0;
+  return n;
 }
 
 export function markingStatsMonth(
@@ -147,6 +165,11 @@ function cacheStore(): Store {
 /** Drop one month's aggregate. An in-flight read still finishes for its caller. */
 export function forgetMarkingStatsMonth(monthKey: string): void {
   cacheStore().slots.delete(monthKey);
+}
+
+/** Drop every cached month after a marking/MAV import. */
+export function forgetAllMarkingStats(): void {
+  cacheStore().slots.clear();
 }
 
 /** Test helper. */
@@ -216,10 +239,12 @@ function mapQuery(rows: QueryRow[]): {
   rows: MarkingStatsRow[];
   catalogRevision: number;
   loadedAt: string | null;
+  importGeneration: number;
   rowCount: number;
 } {
   const head = rows[0];
   const catalogRevision = asCount(head?.catalog_revision ?? 0);
+  const importGeneration = asCount(head?.import_generation ?? 0);
   const loadedAt = head?.loaded_at ? new Date(head.loaded_at).toISOString() : null;
   const items: MarkingStatsRow[] = [];
   let rowCount = 0;
@@ -238,7 +263,7 @@ function mapQuery(rows: QueryRow[]): {
     if (!Number.isSafeInteger(rowCount)) throw new MarkingStatsError(500, COUNT_ERROR);
     items.push(item);
   }
-  return { rows: items, catalogRevision, loadedAt, rowCount };
+  return { rows: items, catalogRevision, loadedAt, importGeneration, rowCount };
 }
 
 function preparingSnapshot(month: CdrMonth, months: CdrMonth[]): MarkingStatsSnapshot {
@@ -258,6 +283,7 @@ async function readSnapshot(
   blocked: { stamp: string; index: BlockedNumberIndex },
   generationAtStart: number,
   revisionAtStart: number,
+  importGenerationAtStart: number,
   now: Date,
 ): Promise<MarkingStatsSnapshot> {
   const months = monthsWithoutCounts(await listCachedMonthCounts());
@@ -303,9 +329,18 @@ async function readSnapshot(
       generationAtEnd,
       revisionAtStart,
       revisionAtEnd: after.catalogRevision,
+      importGenerationAtStart,
+      importGenerationAtEnd: mapped.importGeneration,
     });
   if (accepted) {
-    const key = statsKey(month.key, generationAtStart, revisionAtStart, tone, blocked);
+    const key = statsKey(
+      month.key,
+      generationAtStart,
+      revisionAtStart,
+      importGenerationAtStart,
+      tone,
+      blocked,
+    );
     cacheStore().slots.set(month.key, { key, snapshot });
   }
   return snapshot;
@@ -315,6 +350,7 @@ function statsKey(
   month: string,
   generation: number,
   revision: number,
+  importGeneration: number,
   tone: OprsToneLoad,
   blocked: { stamp: string; index: BlockedNumberIndex },
 ): string {
@@ -322,6 +358,7 @@ function statsKey(
     month,
     String(generation),
     String(revision),
+    String(importGeneration),
     tone.labelUnpainted ? "1" : "0",
     toneToken(tone.map),
     blockedToken(blocked.stamp, blocked.index),
@@ -364,7 +401,15 @@ export async function listMarkingStats(
   if (purgeHolds(month.key)) throw purgeBusy();
 
   const generation = cdrDataGeneration();
-  const key = statsKey(month.key, generation, gate.catalogRevision, tone, blocked);
+  const importGeneration = await readMarkingImportGeneration();
+  const key = statsKey(
+    month.key,
+    generation,
+    gate.catalogRevision,
+    importGeneration,
+    tone,
+    blocked,
+  );
   const store = cacheStore();
   const slot = store.slots.get(month.key);
   if (slot?.key === key) return withoutClearedMonth(slot.snapshot);
@@ -377,6 +422,7 @@ export async function listMarkingStats(
     blocked,
     generation,
     gate.catalogRevision,
+    importGeneration,
     now,
   ).finally(() => {
     if (store.inflight.get(key) === promise) store.inflight.delete(key);
