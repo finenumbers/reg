@@ -12,6 +12,7 @@ import {
   localAsOf,
   scheduledAsOf,
   type ProblemRow,
+  type ProblemSection,
   type SummaryLetterInput,
   type SummaryRow,
   type SummarySide,
@@ -102,7 +103,7 @@ function sideRows(
   return rows;
 }
 
-function mapProblem(row: ProblemSql, side: SummarySide): ProblemRow | null {
+function mapProblem(row: ProblemSql, side: ProblemSection): ProblemRow | null {
   if (row.problem !== "mask" && row.problem !== "pstn" && row.problem !== "rtu")
     return null;
   return {
@@ -115,6 +116,15 @@ function mapProblem(row: ProblemSql, side: SummarySide): ProblemRow | null {
     region: row.region,
     problem: row.problem,
   };
+}
+
+function addCounts(
+  into: Map<string, number>,
+  from: Map<string, number>,
+): void {
+  for (const [provider, count] of from) {
+    into.set(provider, (into.get(provider) ?? 0) + count);
+  }
 }
 
 async function counts(
@@ -159,52 +169,15 @@ async function manualCount(): Promise<number> {
   return asCount(rows[0]?.count);
 }
 
-async function catalogProblems(
-  table: "free_numbers" | "purchased_numbers",
-  side: SummarySide,
-): Promise<{
+async function freeMaskProblems(): Promise<{
   count: number;
   byProvider: Map<string, number>;
   rows: ProblemRow[];
 }> {
-  const missing =
-    side === "purchased"
-      ? Prisma.sql`
-          OR NOT EXISTS (
-            SELECT 1
-            FROM phone_endpoints e
-            WHERE e."endpointNumber" IS NOT NULL
-              AND btrim(e."endpointNumber") <> ''
-              AND ${geographyMatchKeySql(Prisma.sql`btrim(e."endpointNumber")`)}
-                = ${geographyMatchKeySql(Prisma.sql`n.e164`)}
-          )`
-      : Prisma.empty;
-  const problem = Prisma.sql`
-    CASE
-      WHEN ${
-        side === "purchased"
-          ? Prisma.sql`NOT EXISTS (
-        SELECT 1
-        FROM phone_endpoints e
-        WHERE e."endpointNumber" IS NOT NULL
-          AND btrim(e."endpointNumber") <> ''
-          AND ${geographyMatchKeySql(Prisma.sql`btrim(e."endpointNumber")`)}
-            = ${geographyMatchKeySql(Prisma.sql`n.e164`)}
-      )`
-          : Prisma.sql`FALSE`
-      } THEN 'rtu'
-      WHEN ${maskMissing(Prisma.sql`n.mask`)} THEN 'mask'
-      WHEN n.pstn_hits IN (0, 2) THEN 'pstn'
-      ELSE NULL
-    END
-  `;
-  const where = Prisma.sql`
-    ${maskMissing(Prisma.sql`n.mask`)} OR n.pstn_hits IN (0, 2) ${missing}
-  `;
-  const relation = Prisma.raw(table);
+  const where = maskMissing(Prisma.sql`n.mask`);
   const grouped = await prisma.$queryRaw<CountRow[]>`
     SELECT btrim(n.provider) AS provider, count(*)::int AS count
-    FROM ${relation} n
+    FROM free_numbers n
     WHERE ${where}
     GROUP BY btrim(n.provider)
   `;
@@ -214,14 +187,14 @@ async function catalogProblems(
   const listed = await prisma.$queryRaw<ProblemSql[]>`
     SELECT
       btrim(n.provider) AS provider,
-      ${side} AS side,
+      'free' AS side,
       n.e164 AS full,
       n.abc AS abc,
       n."number" AS local,
       n.city AS city,
       n.region AS region,
-      ${problem} AS problem
-    FROM ${relation} n
+      'mask' AS problem
+    FROM free_numbers n
     WHERE ${where}
     ORDER BY n.e164
     LIMIT ${PROBLEM_LIMIT}
@@ -230,7 +203,160 @@ async function catalogProblems(
     count,
     byProvider,
     rows: listed.flatMap((row) => {
-      const mapped = mapProblem(row, side);
+      const mapped = mapProblem(row, "free");
+      return mapped ? [mapped] : [];
+    }),
+  };
+}
+
+/** Free rows still in the catalog with no unique PSTN hit (purge pending or empty snapshot). */
+async function freeInCatalogPstn(): Promise<{
+  count: number;
+  byProvider: Map<string, number>;
+  rows: ProblemRow[];
+}> {
+  const where = Prisma.sql`n.pstn_hits IN (0, 2)`;
+  const grouped = await prisma.$queryRaw<CountRow[]>`
+    SELECT btrim(n.provider) AS provider, count(*)::int AS count
+    FROM free_numbers n
+    WHERE ${where}
+    GROUP BY btrim(n.provider)
+  `;
+  const byProvider = new Map(grouped.map((row) => [row.provider, asCount(row.count)]));
+  let count = 0;
+  for (const value of byProvider.values()) count += value;
+  const listed = await prisma.$queryRaw<ProblemSql[]>`
+    SELECT
+      btrim(n.provider) AS provider,
+      'excluded' AS side,
+      n.e164 AS full,
+      n.abc AS abc,
+      n."number" AS local,
+      n.city AS city,
+      n.region AS region,
+      'pstn' AS problem
+    FROM free_numbers n
+    WHERE ${where}
+    ORDER BY n.e164
+    LIMIT ${PROBLEM_LIMIT}
+  `;
+  return {
+    count,
+    byProvider,
+    rows: listed.flatMap((row) => {
+      const mapped = mapProblem(row, "excluded");
+      return mapped ? [mapped] : [];
+    }),
+  };
+}
+
+async function freeExcludedArchive(
+  okProviders: ReadonlySet<string>,
+): Promise<{
+  count: number;
+  byProvider: Map<string, number>;
+  rows: ProblemRow[];
+}> {
+  if (okProviders.size === 0) {
+    return { count: 0, byProvider: new Map(), rows: [] };
+  }
+  const providers = [...okProviders];
+  const grouped = await prisma.$queryRaw<CountRow[]>`
+    SELECT btrim(e.provider) AS provider, count(*)::int AS count
+    FROM numbering_free_pstn_excluded e
+    WHERE btrim(e.provider) IN (${Prisma.join(providers)})
+    GROUP BY btrim(e.provider)
+  `;
+  const byProvider = new Map(grouped.map((row) => [row.provider, asCount(row.count)]));
+  let count = 0;
+  for (const value of byProvider.values()) count += value;
+  const listed = await prisma.$queryRaw<ProblemSql[]>`
+    SELECT
+      btrim(e.provider) AS provider,
+      'excluded' AS side,
+      e.e164 AS full,
+      e.abc AS abc,
+      e."number" AS local,
+      e.city AS city,
+      e.region AS region,
+      'pstn' AS problem
+    FROM numbering_free_pstn_excluded e
+    WHERE btrim(e.provider) IN (${Prisma.join(providers)})
+    ORDER BY e.e164
+    LIMIT ${PROBLEM_LIMIT}
+  `;
+  return {
+    count,
+    byProvider,
+    rows: listed.flatMap((row) => {
+      const mapped = mapProblem(row, "excluded");
+      return mapped ? [mapped] : [];
+    }),
+  };
+}
+
+async function purchasedProblems(): Promise<{
+  count: number;
+  byProvider: Map<string, number>;
+  rows: ProblemRow[];
+}> {
+  const missing = Prisma.sql`
+    OR NOT EXISTS (
+      SELECT 1
+      FROM phone_endpoints e
+      WHERE e."endpointNumber" IS NOT NULL
+        AND btrim(e."endpointNumber") <> ''
+        AND ${geographyMatchKeySql(Prisma.sql`btrim(e."endpointNumber")`)}
+          = ${geographyMatchKeySql(Prisma.sql`n.e164`)}
+    )
+  `;
+  const problem = Prisma.sql`
+    CASE
+      WHEN NOT EXISTS (
+        SELECT 1
+        FROM phone_endpoints e
+        WHERE e."endpointNumber" IS NOT NULL
+          AND btrim(e."endpointNumber") <> ''
+          AND ${geographyMatchKeySql(Prisma.sql`btrim(e."endpointNumber")`)}
+            = ${geographyMatchKeySql(Prisma.sql`n.e164`)}
+      ) THEN 'rtu'
+      WHEN ${maskMissing(Prisma.sql`n.mask`)} THEN 'mask'
+      WHEN n.pstn_hits IN (0, 2) THEN 'pstn'
+      ELSE NULL
+    END
+  `;
+  const where = Prisma.sql`
+    ${maskMissing(Prisma.sql`n.mask`)} OR n.pstn_hits IN (0, 2) ${missing}
+  `;
+  const grouped = await prisma.$queryRaw<CountRow[]>`
+    SELECT btrim(n.provider) AS provider, count(*)::int AS count
+    FROM purchased_numbers n
+    WHERE ${where}
+    GROUP BY btrim(n.provider)
+  `;
+  const byProvider = new Map(grouped.map((row) => [row.provider, asCount(row.count)]));
+  let count = 0;
+  for (const value of byProvider.values()) count += value;
+  const listed = await prisma.$queryRaw<ProblemSql[]>`
+    SELECT
+      btrim(n.provider) AS provider,
+      'purchased' AS side,
+      n.e164 AS full,
+      n.abc AS abc,
+      n."number" AS local,
+      n.city AS city,
+      n.region AS region,
+      ${problem} AS problem
+    FROM purchased_numbers n
+    WHERE ${where}
+    ORDER BY n.e164
+    LIMIT ${PROBLEM_LIMIT}
+  `;
+  return {
+    count,
+    byProvider,
+    rows: listed.flatMap((row) => {
+      const mapped = mapProblem(row, "purchased");
       return mapped ? [mapped] : [];
     }),
   };
@@ -292,14 +418,19 @@ export async function composeNumberingSummary(input: {
   const asOf = input.scheduled
     ? scheduledAsOf(input.startedAt, input.timeZone)
     : localAsOf(input.startedAt, input.timeZone);
+  const okFree = new Set(
+    input.marks.filter((mark) => mark.free === "ok").map((mark) => mark.provider),
+  );
   const [
     freeCounts,
     purchasedCounts,
     freeTotal,
     purchasedCatalog,
     manual,
-    freeProblems,
-    purchasedProblems,
+    freeMask,
+    freePstnLive,
+    freeExcluded,
+    boughtProblems,
     handProblems,
     snaps,
   ] = await Promise.all([
@@ -308,8 +439,10 @@ export async function composeNumberingSummary(input: {
     total("free_numbers"),
     total("purchased_numbers"),
     manualCount(),
-    catalogProblems("free_numbers", "free"),
-    catalogProblems("purchased_numbers", "purchased"),
+    freeMaskProblems(),
+    freeInCatalogPstn(),
+    freeExcludedArchive(okFree),
+    purchasedProblems(),
     manualProblems(),
     prisma.numberingLoadSnapshot.findMany(),
   ]);
@@ -319,14 +452,17 @@ export async function composeNumberingSummary(input: {
     count: row.count,
     asOf: row.asOf,
   }));
+  const freeErrorsByProvider = new Map(freeMask.byProvider);
+  addCounts(freeErrorsByProvider, freePstnLive.byProvider);
+  addCounts(freeErrorsByProvider, freeExcluded.byProvider);
   const freeRows = sideRows(
     "free",
     input.marks,
     freeCounts,
     previous,
-    freeProblems.byProvider,
+    freeErrorsByProvider,
   );
-  const purchasedErrorsByProvider = new Map(purchasedProblems.byProvider);
+  const purchasedErrorsByProvider = new Map(boughtProblems.byProvider);
   purchasedErrorsByProvider.set(
     MANUAL_SOURCE,
     (purchasedErrorsByProvider.get(MANUAL_SOURCE) ?? 0) + handProblems.count,
@@ -347,14 +483,18 @@ export async function composeNumberingSummary(input: {
     dateOnly: true,
     errors: handProblems.count,
   });
-  const freeListed = freeProblems.rows
-    .slice()
+  const excludedListed = [...freeExcluded.rows, ...freePstnLive.rows]
     .sort(compareProblemRows)
     .slice(0, PROBLEM_LIMIT);
-  const purchasedListed = [...purchasedProblems.rows, ...handProblems.rows]
+  const freeListed = freeMask.rows.slice().sort(compareProblemRows).slice(0, PROBLEM_LIMIT);
+  const purchasedListed = [...boughtProblems.rows, ...handProblems.rows]
     .sort(compareProblemRows)
     .slice(0, PROBLEM_LIMIT);
-  const problems = [...freeListed, ...purchasedListed];
+  const excludedTotal = freeExcluded.count + freePstnLive.count;
+  const freeProblemTotal = freeMask.count;
+  const purchasedProblemTotal = boughtProblems.count + handProblems.count;
+  const freeErrors = freeMask.count + freePstnLive.count + freeExcluded.count;
+  const problems = [...excludedListed, ...freeListed, ...purchasedListed];
   const asOfDate = new Date(`${asOf}T00:00:00.000Z`);
   const writes: {
     provider: string;
@@ -410,12 +550,15 @@ export async function composeNumberingSummary(input: {
     previousAsOf: previousDate(previous),
     timeZone: input.timeZone,
     freeTotal,
-    freeErrors: freeProblems.count,
+    freeErrors,
     purchasedTotal: purchasedCatalog + manual,
-    purchasedErrors: purchasedProblems.count + handProblems.count,
+    purchasedErrors: purchasedProblemTotal,
     freeRows,
     purchasedRows,
     problems,
-    problemTotal: freeProblems.count + purchasedProblems.count + handProblems.count,
+    excludedTotal,
+    freeProblemTotal,
+    purchasedProblemTotal,
+    problemTotal: excludedTotal + freeProblemTotal + purchasedProblemTotal,
   };
 }

@@ -9,6 +9,7 @@ import { withDbRetry } from "@/modules/numbering-sync/db-retry";
 import { SyncLost as LeaseLost } from "@/modules/numbering-sync/errors";
 import { publishOneSide, type SideWrite } from "@/modules/numbering-sync/one-side";
 import { catalogEpochSql } from "@/modules/numbering-catalog/decorate";
+import { clearFreePstnExcludedSql } from "@/modules/numbering-catalog/free-pstn-excluded";
 import { DUPLICATE_NUMBER, type FreeRow } from "@/modules/voximplant/parse";
 import {
   DELETE_VOXIMPLANT_FREE_SQL,
@@ -241,6 +242,7 @@ export function replaceVoximplantFree(runId: string): Promise<SideWrite> {
     countSql: STAGED_COUNT_SQL,
     countParams: [runId, "free"],
     deleteSql: DELETE_VOXIMPLANT_FREE_SQL,
+    clearExcludedSql: clearFreePstnExcludedSql("Voximplant"),
     copySql: FREE_COPY_SQL,
     clearStageSql: CLEAR_STAGE_SQL,
     finishSql: finishSql("last_free_written", "free_loaded_at"),

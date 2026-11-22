@@ -28,6 +28,8 @@ export async function publishOneSide(input: {
   clearStageSql: string;
   finishSql: string;
   epochSql: string;
+  /** Free publish only: drop prior PSTN exclusions for that provider. */
+  clearExcludedSql?: string;
 }): Promise<SideWrite> {
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) throw new Error("DATABASE_URL is required");
@@ -42,6 +44,9 @@ export async function publishOneSide(input: {
     const staged = await client.query<{ count: number }>(input.countSql, input.countParams);
     const stagedCount = staged.rows[0]?.count ?? 0;
     const deleted = (await client.query(input.deleteSql)).rowCount ?? 0;
+    if (input.clearExcludedSql) {
+      await client.query(input.clearExcludedSql);
+    }
     const inserted = (await client.query(input.copySql, [input.runId])).rowCount ?? 0;
     if (held.rows.length !== 1) throw new SyncLost();
     if (stagedCount !== inserted) throw new PublishMismatch();

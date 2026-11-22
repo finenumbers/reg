@@ -6,6 +6,7 @@
 import pg from "pg";
 import { prisma } from "@/lib/db";
 import { catalogEpochSql } from "@/modules/numbering-catalog/decorate";
+import { clearFreePstnExcludedSql } from "@/modules/numbering-catalog/free-pstn-excluded";
 import { withDbRetry } from "@/modules/numbering-sync/db-retry";
 import { noteCatalogReplaced } from "@/modules/numbering-sync/lease";
 import { requestDecorateCatchUp } from "@/modules/numbering-catalog/decorate";
@@ -152,6 +153,7 @@ export async function replaceAuroraCatalogs(runId: string): Promise<PublishedCou
       [runId],
     );
     await client.query(DELETE_AURORA_FREE_SQL);
+    await client.query(clearFreePstnExcludedSql("Aurora Telecom"));
     const free = (await client.query(FREE_COPY_SQL, [runId])).rowCount ?? 0;
     await client.query(DELETE_AURORA_PURCHASED_SQL);
     const purchased = (await client.query(PURCHASED_COPY_SQL, [runId])).rowCount ?? 0;

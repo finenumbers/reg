@@ -635,7 +635,23 @@ model FreeNumber {
 
   @@index([abc, number, id], map: "free_numbers_order_idx")
   @@index([provider], map: "free_numbers_provider_idx")
+  /// Partial index free_numbers_pstn_miss_idx (id) WHERE pstn_hits IN (0, 2) is in SQL.
   @@map("free_numbers")
+}
+
+/// Free numbers dropped after decorate when PSTN coverage is not exactly one range.
+/// The summary letter lists them; «Свободные номера» does not.
+model NumberingFreePstnExcluded {
+  provider String
+  e164     String
+  abc      String @default("")
+  number   String @default("")
+  city     String @default("")
+  region   String @default("")
+
+  @@id([provider, e164])
+  @@index([provider], map: "numbering_free_pstn_excluded_provider_idx")
+  @@map("numbering_free_pstn_excluded")
 }
 
 /// Rows of «Купленные номера». The screen and its XLSX read this table.

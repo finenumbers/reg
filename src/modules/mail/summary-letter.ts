@@ -24,6 +24,9 @@ const WEEKDAY_ACCUSATIVE: Record<string, string> = {
 
 export type SummarySide = "free" | "purchased";
 
+/** Bottom problem tables: excluded free PSTN misses, other free, purchased. */
+export type ProblemSection = "excluded" | SummarySide;
+
 export type SummaryRow = {
   provider: string;
   count: number | null;
@@ -37,7 +40,7 @@ export type SummaryRow = {
 
 export type ProblemRow = {
   provider: string;
-  side: SummarySide;
+  side: ProblemSection;
   /** Whole number the screen uses to place the leading 7. */
   full: string;
   abc: string;
@@ -58,6 +61,9 @@ export type SummaryLetterInput = {
   freeRows: SummaryRow[];
   purchasedRows: SummaryRow[];
   problems: ProblemRow[];
+  excludedTotal: number;
+  freeProblemTotal: number;
+  purchasedProblemTotal: number;
   problemTotal: number;
 };
 
@@ -189,7 +195,7 @@ export function compareProblemRows(a: ProblemRow, b: ProblemRow): number {
 
 export function problemsForSide(
   rows: readonly ProblemRow[],
-  side: SummarySide,
+  side: ProblemSection,
 ): ProblemRow[] {
   return rows
     .filter((row) => row.side === side)
@@ -212,8 +218,10 @@ function problemLabel(problem: ProblemRow["problem"]): string {
   return PROBLEM_RTU;
 }
 
-function sideLabel(side: SummarySide): string {
-  return side === "free" ? "Свободные" : "Купленные";
+export function sectionLabel(side: ProblemSection): string {
+  if (side === "excluded") return "Исключенные";
+  if (side === "free") return "Свободные";
+  return "Купленные";
 }
 
 function countCell(row: SummaryRow): string {
@@ -398,6 +406,27 @@ function textProblems(rows: ProblemRow[]): string {
   return lines.join("\n");
 }
 
+function problemSection(
+  side: ProblemSection,
+  rows: ProblemRow[],
+  total: number,
+): { text: string[]; html: string[] } {
+  if (total <= 0) return { text: [], html: [] };
+  const shown = problemsForSide(rows, side);
+  const more = moreLine(shown.length, total);
+  const text = [sectionLabel(side), more, textProblems(shown)].filter(
+    (line) => line !== "",
+  );
+  const html = [
+    registryLine(sectionLabel(side)),
+    more
+      ? `<p style="${FONT};font-size:14px;margin:0 0 8px">${escapeHtml(more)}</p>`
+      : "",
+    htmlProblems(shown),
+  ].filter((part) => part !== "");
+  return { text, html };
+}
+
 export function renderSummary(input: SummaryLetterInput): {
   subject: string;
   text: string;
@@ -406,10 +435,17 @@ export function renderSummary(input: SummaryLetterInput): {
   const subject = summarySubject(input.asOf);
   const today = formatAsOf(input.asOf);
   const previous = input.previousAsOf ? formatAsOf(input.previousAsOf) : "";
-  const freeShown = problemsForSide(input.problems, "free");
-  const purchasedShown = problemsForSide(input.problems, "purchased");
-  const freeMore = moreLine(freeShown.length, input.freeErrors);
-  const purchasedMore = moreLine(purchasedShown.length, input.purchasedErrors);
+  const excluded = problemSection(
+    "excluded",
+    input.problems,
+    input.excludedTotal,
+  );
+  const free = problemSection("free", input.problems, input.freeProblemTotal);
+  const purchased = problemSection(
+    "purchased",
+    input.problems,
+    input.purchasedProblemTotal,
+  );
   const text = [
     subject,
     "",
@@ -423,13 +459,9 @@ export function renderSummary(input: SummaryLetterInput): {
     "",
     `Проблемные номера: ${groupDigits(input.problemTotal)} ${numberNoun(input.problemTotal)}`,
     "",
-    sideLabel("free"),
-    freeMore,
-    textProblems(freeShown),
-    "",
-    sideLabel("purchased"),
-    purchasedMore,
-    textProblems(purchasedShown),
+    ...excluded.text,
+    ...free.text,
+    ...purchased.text,
   ]
     .filter((line) => line !== "")
     .join("\n");
@@ -446,16 +478,9 @@ export function renderSummary(input: SummaryLetterInput): {
     registryLine(
       `Проблемные номера: ${registryFigure(input.problemTotal, VIOLET)} ${numberNoun(input.problemTotal)}`,
     ),
-    registryLine(sideLabel("free")),
-    freeMore
-      ? `<p style="${FONT};font-size:14px;margin:0 0 8px">${escapeHtml(freeMore)}</p>`
-      : "",
-    htmlProblems(freeShown),
-    registryLine(sideLabel("purchased")),
-    purchasedMore
-      ? `<p style="${FONT};font-size:14px;margin:0 0 8px">${escapeHtml(purchasedMore)}</p>`
-      : "",
-    htmlProblems(purchasedShown),
+    ...excluded.html,
+    ...free.html,
+    ...purchased.html,
   ].join("");
   return { subject, text, html };
 }

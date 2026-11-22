@@ -20,6 +20,7 @@ import {
   pstnHitLateral,
   PSTN_HIT_COLUMNS,
 } from "@/modules/numbering-catalog/pstn-hit-sql";
+import { purgeFreePstnMisses } from "@/modules/numbering-catalog/free-pstn-purge";
 import { refreshPstnRangeSnapshot } from "@/modules/numbering-catalog/pstn-ranges";
 import { cityAlertSql, cityLabelSql } from "@/modules/rtu/sql";
 
@@ -1386,6 +1387,8 @@ async function settleDebt(): Promise<void> {
       continue;
     }
     maskProgress = null;
+    // Idle and snapshot already refreshed. Drop free PSTN misses before idle resolves.
+    await purgeFreePstnMisses();
     return;
   }
 }

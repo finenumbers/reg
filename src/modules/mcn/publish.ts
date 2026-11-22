@@ -5,6 +5,7 @@
 
 import { prisma } from "@/lib/db";
 import { catalogEpochSql } from "@/modules/numbering-catalog/decorate";
+import { clearFreePstnExcludedSql } from "@/modules/numbering-catalog/free-pstn-excluded";
 import { withDbRetry } from "@/modules/numbering-sync/db-retry";
 import { publishOneSide, type SideWrite } from "@/modules/numbering-sync/one-side";
 import { DUPLICATE_NUMBER, type FreeRow } from "@/modules/mcn/parse";
@@ -228,6 +229,7 @@ export function replaceMcnFree(runId: string): Promise<SideWrite> {
     countSql: SIDE_COUNT_SQL,
     countParams: [runId, "free"],
     deleteSql: DELETE_MCN_FREE_SQL,
+    clearExcludedSql: clearFreePstnExcludedSql("MCN Telecom"),
     copySql: FREE_COPY_SQL,
     clearStageSql: CLEAR_STAGE_SQL,
     finishSql: finishSql("last_free_written", "free_loaded_at"),

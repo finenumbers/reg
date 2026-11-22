@@ -9,6 +9,7 @@ import {
   catalogEpochSql,
   requestDecorateCatchUp,
 } from "@/modules/numbering-catalog/decorate";
+import { clearFreePstnExcludedSql } from "@/modules/numbering-catalog/free-pstn-excluded";
 import { withDbRetry } from "@/modules/numbering-sync/db-retry";
 import { noteCatalogReplaced } from "@/modules/numbering-sync/lease";
 import {
@@ -221,6 +222,7 @@ export async function replaceFinenumbersCatalogs(
       runId,
     ]);
     await deleteProvider(client, DELETE_FREE_CHUNK_SQL);
+    await client.query(clearFreePstnExcludedSql("Finenumbers"));
     const free = await copyCatalog(client, FREE_COPY_SQL, runId);
     await deleteProvider(client, DELETE_PURCHASED_CHUNK_SQL);
     const purchased = await copyCatalog(client, PURCHASED_COPY_SQL, runId);

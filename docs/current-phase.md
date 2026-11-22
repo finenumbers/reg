@@ -1,7 +1,13 @@
-# Current Phase — production (v1.342.0)
+# Current Phase — production (v1.343.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, purchased numbers, numbering sync, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs, outbound mail.
 **Date:** 2026-11-22
+
+## v1.343.0 — Drop free numbers without a unique PSTN operator
+
+This release migrates: it creates `numbering_free_pstn_excluded` and a partial index on `free_numbers(pstn_hits)`. It does not rewrite the CDR journal or settings. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before the new one starts, then start one new app. Do not deploy while a numbering chain or a manual load is running. After migrate, let decorate catch up once so free PSTN misses leave the catalog. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged.
+
+When decorate is idle and `pstn_range_snapshot` is non-empty, free rows with `pstn_hits` 0 or 2 move in chunks of 1000 into `numbering_free_pstn_excluded` and leave «Свободные номера». Purchased rows stay. An empty snapshot does not purge. A free publish clears that provider's excluded rows in the same transaction. The summary letter adds «Исключенные» for those free PSTN misses, keeps «Свободные» for other free problems, and keeps «Купленные» unchanged; empty sections are omitted. Registry «Ошибки» for free still count excluded and any in-catalog PSTN misses.
 
 ## v1.342.0 — Summary PSTN from range snapshot for «Вручную»
 

@@ -6,6 +6,7 @@
 import { prisma } from "@/lib/db";
 import { withDbRetry } from "@/modules/numbering-sync/db-retry";
 import { catalogEpochSql } from "@/modules/numbering-catalog/decorate";
+import { clearFreePstnExcludedSql } from "@/modules/numbering-catalog/free-pstn-excluded";
 import { publishOneSide, type SideWrite } from "@/modules/numbering-sync/one-side";
 
 export { PublishMismatch } from "@/modules/numbering-sync/one-side";
@@ -176,6 +177,7 @@ export function replaceUisFree(runId: string): Promise<SideWrite> {
     countSql: SIDE_COUNT_SQL,
     countParams: [runId, "free"],
     deleteSql: DELETE_UIS_FREE_SQL,
+    clearExcludedSql: clearFreePstnExcludedSql("UIS"),
     copySql: FREE_COPY_SQL,
     clearStageSql: CLEAR_STAGE_SQL,
     finishSql: finishSql("last_free_written", "free_loaded_at"),

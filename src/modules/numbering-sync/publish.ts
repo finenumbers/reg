@@ -5,6 +5,7 @@
 
 import { prisma } from "@/lib/db";
 import { withDbRetry } from "@/modules/numbering-sync/db-retry";
+import { clearFreePstnExcludedSql } from "@/modules/numbering-catalog/free-pstn-excluded";
 import { publishOneSide, PublishMismatch, type SideWrite } from "@/modules/numbering-sync/one-side";
 import { catalogEpochSql } from "@/modules/numbering-catalog/decorate";
 import {
@@ -189,6 +190,7 @@ export function replaceSipoutFree(runId: string): Promise<SideWrite> {
     countSql: STAGED_COUNT_SQL,
     countParams: [runId, "free"],
     deleteSql: DELETE_SIPOUT_FREE_SQL,
+    clearExcludedSql: clearFreePstnExcludedSql("SipOut"),
     copySql: FREE_COPY_SQL,
     clearStageSql: CLEAR_STAGE_SQL,
     finishSql: FINISH_FREE_SQL,
