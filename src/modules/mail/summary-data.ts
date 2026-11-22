@@ -17,10 +17,11 @@ import {
   type SummarySide,
 } from "@/modules/mail/summary-letter";
 import {
-  geographyMatchKeySql,
-  PSTN_ELEVEN_DIGIT,
-  PSTN_TEN_DIGIT,
-} from "@/modules/rtu/sql";
+  matchE164Sql,
+  pstnHitLateral,
+  pstnMissSql,
+} from "@/modules/numbering-catalog/pstn-hit-sql";
+import { geographyMatchKeySql } from "@/modules/rtu/sql";
 
 type CountRow = { provider: string; count: number };
 type SnapRow = { provider: string; side: string; count: number; asOf: Date };
@@ -235,26 +236,23 @@ async function catalogProblems(
   };
 }
 
+/**
+ * Manual «Вручную» problems use the same PSTN range snapshot as catalog
+ * decorate. The RTU screen operator column still reads pstn_phone_cache.
+ */
 async function manualProblems(): Promise<{ count: number; rows: ProblemRow[] }> {
-  const digits = Prisma.sql`regexp_replace(s.number, '[^0-9]', '', 'g')`;
-  const key = Prisma.sql`(
-    CASE
-      WHEN ${digits} ~ ${PSTN_ELEVEN_DIGIT} THEN substring(${digits} FROM 2)
-      WHEN ${digits} ~ ${PSTN_TEN_DIGIT} THEN ${digits}
-      ELSE NULL
-    END
-  )`;
+  const e164 = matchE164Sql(Prisma.sql`s.number`);
   const problem = Prisma.sql`
     CASE
       WHEN ${maskMissing(Prisma.sql`s.mask`)} THEN 'mask'
-      WHEN c.phone IS NULL OR c.found IS NOT TRUE OR c.operator IS NULL OR btrim(c.operator) = '' THEN 'pstn'
+      WHEN ${pstnMissSql(e164)} THEN 'pstn'
       ELSE NULL
     END
   `;
   const where = Prisma.sql`${problem} IS NOT NULL`;
   const from = Prisma.sql`
     FROM rtu_screen s
-    LEFT JOIN pstn_phone_cache c ON c.phone = ${key}
+    ${pstnHitLateral(e164)}
     WHERE s.missing = false
       AND s.source = ${MANUAL_SOURCE}
       AND ${where}

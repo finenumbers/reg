@@ -450,11 +450,14 @@ describe("catalog decorate", () => {
       expect(sql).toContain("int4range(s.range_start, s.range_end, '[]') @>");
       expect(sql).toContain("digits.local_key IS NOT NULL");
       expect(sql).toContain("s.abc = digits.abc_key");
+      expect(sql).toContain("regexp_replace(");
+      expect(sql).toContain("'7' || substring");
       expect(sql).not.toContain("BETWEEN");
       const castAt = sql.indexOf("from 5)::int");
       expect(castAt).toBeGreaterThan(0);
-      const before = sql.slice(0, castAt);
-      expect(before.lastIndexOf("CASE")).toBeGreaterThan(before.lastIndexOf("END"));
+      // Cast sits in the local_key CASE; matchE164 nests earlier CASE/END pairs.
+      expect(sql).toContain("from 5)::int");
+      expect(sql).toMatch(/CASE[\s\S]*from 5\)::int[\s\S]*END AS local_key/);
     }
     const free = batches[0] ?? "";
     expect(free).toContain("abc = computed.abc");

@@ -15,6 +15,11 @@ import {
   parsedAlignSql,
   parsedPassName,
 } from "@/modules/numbering-catalog/parsed-pass";
+import {
+  matchE164Sql,
+  pstnHitLateral,
+  PSTN_HIT_COLUMNS,
+} from "@/modules/numbering-catalog/pstn-hit-sql";
 import { refreshPstnRangeSnapshot } from "@/modules/numbering-catalog/pstn-ranges";
 import { cityAlertSql, cityLabelSql } from "@/modules/rtu/sql";
 
@@ -369,49 +374,17 @@ function providerWhere(provider: CatalogProvider | null): Prisma.Sql {
   return Prisma.sql`AND provider = ${providerLiteral(provider)}`;
 }
 
-/**
- * Exactly one covering range writes the cells. Zero or several leave them.
- * The cast stays inside CASE. The span comparison is the GiST index expression.
- */
-function pstnLateral(e164: Prisma.Sql): Prisma.Sql {
-  return Prisma.sql`
-    LEFT JOIN LATERAL (
-      SELECT
-        CASE
-          WHEN ${e164} ~ '^7[0-9]{10}$' THEN substring(${e164} from 2 for 3)
-        END AS abc_key,
-        CASE
-          WHEN ${e164} ~ '^7[0-9]{10}$' THEN substring(${e164} from 5)::int
-        END AS local_key
-    ) digits ON TRUE
-    LEFT JOIN LATERAL (
-      SELECT
-        count(*)::int AS hits,
-        min(s.operator) AS operator,
-        min(s.gar_territory) AS geography
-      FROM pstn_range_snapshot s
-      WHERE digits.local_key IS NOT NULL
-        AND s.abc = digits.abc_key
-        AND int4range(s.range_start, s.range_end, '[]') @> digits.local_key
-    ) pstn ON TRUE
-  `;
-}
-
-const PSTN_COLUMNS = Prisma.sql`
-  CASE WHEN pstn.hits = 1 THEN btrim(pstn.operator) ELSE NULL END AS pstn_operator,
-  CASE WHEN pstn.hits = 1 THEN btrim(pstn.geography) ELSE NULL END AS pstn_geography,
-  CASE
-    WHEN pstn.hits > 1 THEN 2
-    WHEN pstn.hits = 1 THEN 1
-    ELSE 0
-  END AS pstn_hit_count
-`;
+const PSTN_COLUMNS = PSTN_HIT_COLUMNS;
 
 const PSTN_ASSIGN = Prisma.sql`
   operator = COALESCE(computed.pstn_operator, n.operator),
   geography = COALESCE(computed.pstn_geography, n.geography),
   pstn_hits = computed.pstn_hit_count
 `;
+
+function pstnLateral(e164: Prisma.Sql): Prisma.Sql {
+  return pstnHitLateral(matchE164Sql(e164));
+}
 
 /** Tariff split for one draft batch. Mask and client stay empty until the pass. */
 export function fillStageSplitSql(

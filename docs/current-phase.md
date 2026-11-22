@@ -1,7 +1,13 @@
-# Current Phase — production (v1.341.0)
+# Current Phase — production (v1.342.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, purchased numbers, numbering sync, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs, outbound mail.
 **Date:** 2026-11-22
+
+## v1.342.0 — Summary PSTN from range snapshot for «Вручную»
+
+This release does not migrate and does not rewrite catalog rows, the CDR journal, or settings. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before the new one starts, then start one new app. Do not deploy while a numbering chain or a manual load is running. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged.
+
+The numbering summary letter scores «Вручную» «Нет оператора связи» from `pstn_range_snapshot`, the same covering-range rule as catalog decorate. An empty `pstn_phone_cache` row is no longer a problem by itself. Decorate and the letter match `8…`, `7…`, and bare 10-digit forms to `7`+national for that lookup only; stored catalog `e164` is not rewritten. The operator column on «Управление РТУ» still reads the phone cache.
 
 ## v1.341.0 — Faster decorate pause and clearer sync status
 

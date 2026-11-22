@@ -220,4 +220,20 @@ describe("numbering summary letter", () => {
     expect(source).toContain("ORDER BY n.e164");
     expect(source).toContain("GROUP BY btrim(n.provider)");
   });
+
+  it("scores manual PSTN problems from the range snapshot", () => {
+    const source = readFileSync(
+      path.join(process.cwd(), "src/modules/mail/summary-data.ts"),
+      "utf8",
+    );
+    expect(source).toContain(
+      "The RTU screen operator column still reads pstn_phone_cache",
+    );
+    const manual = source.slice(source.indexOf("async function manualProblems"));
+    expect(manual).toContain("matchE164Sql");
+    expect(manual).toContain("pstnHitLateral");
+    expect(manual).toContain("pstnMissSql");
+    expect(manual).not.toContain("pstn_phone_cache");
+    expect(manual).not.toContain("LEFT JOIN pstn_phone_cache");
+  });
 });
