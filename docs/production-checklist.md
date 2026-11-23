@@ -54,6 +54,8 @@ Optional publish ports: `APP_PUBLISH_PORT`, `POSTGRES_PUBLISH_PORT`.
 
 ## 3. Database
 
+v1.344.0 does not migrate and does not rewrite catalog rows, the CDR journal, or settings. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before the new one starts, then start one new app. Do not deploy while a numbering chain or a manual load is running. Refresh the browser. The numbering summary letter no longer lists «Исключенные»; registry «Ошибки» for free still count excluded PSTN misses. Nothing is written to the switch. RTU activation is unchanged.
+
 v1.343.0 migrates: it creates `numbering_free_pstn_excluded` and a partial index on free PSTN misses. It does not rewrite the CDR journal or settings. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before the new one starts, then start one new app. Do not deploy while a numbering chain or a manual load is running. After migrate, let decorate catch up so free rows without a unique PSTN operator leave «Свободные номера». Refresh the browser. The summary letter adds «Исключенные»; purchased rows stay. Nothing is written to the switch. RTU activation is unchanged.
 
 v1.342.0 does not migrate and does not rewrite catalog rows, the CDR journal, or settings. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before the new one starts, then start one new app. Do not deploy while a numbering chain or a manual load is running. Refresh the browser. The numbering summary scores «Вручную» PSTN problems from the range snapshot, not from an empty phone cache. Decorate uses the same 7/8 match key for ranges. «Управление РТУ» still reads the phone cache. Nothing is written to the switch. RTU activation is unchanged.

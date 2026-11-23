@@ -111,16 +111,6 @@ describe("numbering summary letter", () => {
       problems: [
         {
           provider: "Runexis <x>",
-          side: "excluded",
-          full: "74991234567",
-          abc: "499",
-          number: "1234567",
-          city: "Москва",
-          region: "Москва",
-          problem: "pstn",
-        },
-        {
-          provider: "Runexis <x>",
           side: "free",
           full: "74993507666",
           abc: "499",
@@ -140,10 +130,9 @@ describe("numbering summary letter", () => {
           problem: "pstn",
         },
       ],
-      excludedTotal: 1,
       freeProblemTotal: 1,
       purchasedProblemTotal: 1,
-      problemTotal: 3,
+      problemTotal: 2,
     };
     const letter = renderSummary(input);
     expect(letter.subject).toContain("на пятницу, на 20.11.2026");
@@ -159,7 +148,8 @@ describe("numbering summary letter", () => {
     expect(letter.text).toContain("Нет оператора связи");
     expect(letter.text).not.toContain("Категория");
     expect(letter.html).not.toContain(">Категория<");
-    expect(letter.text).toContain("Исключенные");
+    expect(letter.text).not.toContain("Исключенные");
+    expect(letter.html).not.toContain(">Исключенные<");
     expect(letter.text).toContain("Свободные");
     expect(letter.text).toContain("Купленные");
     expect(letter.html).toContain("border:1px solid #000");
@@ -171,17 +161,17 @@ describe("numbering summary letter", () => {
     expect(letter.html).toContain('align="center"');
     expect(letter.html).toContain('align="left"');
     expect(letter.html).toContain('align="right"');
-    expect(letter.text).toContain("3 номера");
+    expect(letter.text).toContain("2 номера");
     expect(letter.text).toContain("1 номер");
-    expect(problemsForSide(input.problems, "excluded").map((row) => row.full)).toEqual([
-      "74991234567",
-    ]);
     expect(problemsForSide(input.problems, "free").map((row) => row.full)).toEqual([
       "74993507666",
     ]);
+    expect(problemsForSide(input.problems, "purchased").map((row) => row.full)).toEqual([
+      "73832003553",
+    ]);
     const problemsAt = letter.text.indexOf("Проблемные номера:");
-    expect(letter.text.indexOf("Исключенные", problemsAt)).toBeLessThan(
-      letter.text.indexOf("\nСвободные\n", problemsAt),
+    expect(letter.text.indexOf("\nСвободные\n", problemsAt)).toBeLessThan(
+      letter.text.indexOf("\nКупленные\n", problemsAt),
     );
     expect(letter.html).toContain("color:#dc2626");
   });
@@ -209,7 +199,6 @@ describe("numbering summary letter", () => {
           problem: "mask",
         },
       ],
-      excludedTotal: 0,
       freeProblemTotal: 0,
       purchasedProblemTotal: 1,
       problemTotal: 1,
@@ -217,6 +206,40 @@ describe("numbering summary letter", () => {
     expect(letter.text).not.toContain("Исключенные");
     expect(letter.text).not.toMatch(/^Свободные$/m);
     expect(letter.text).toContain("Купленные");
+    expect(letter.html).not.toContain(">Исключенные<");
+  });
+
+  it("keeps registry free errors when only PSTN-excluded counts remain", () => {
+    const letter = renderSummary({
+      asOf: "2026-11-20",
+      previousAsOf: null,
+      timeZone: "Asia/Novosibirsk",
+      freeTotal: 100,
+      freeErrors: 40,
+      purchasedTotal: 10,
+      purchasedErrors: 0,
+      freeRows: [
+        {
+          provider: "SipOut",
+          count: 100,
+          previous: 100,
+          at: Date.parse("2026-11-20T17:00:00.000Z"),
+          error: false,
+          dateOnly: false,
+          errors: 40,
+        },
+      ],
+      purchasedRows: [],
+      problems: [],
+      freeProblemTotal: 0,
+      purchasedProblemTotal: 0,
+      problemTotal: 0,
+    });
+    expect(letter.text).toContain("40 с ошибками");
+    expect(letter.text).toContain("Проблемные номера: 0 номеров");
+    expect(letter.text).not.toContain("Исключенные");
+    expect(letter.text).not.toMatch(/^Свободные$/m);
+    expect(letter.text).not.toMatch(/^Купленные$/m);
     expect(letter.html).not.toContain(">Исключенные<");
   });
 
@@ -245,14 +268,13 @@ describe("numbering summary letter", () => {
         },
       ],
       problems: [],
-      excludedTotal: 0,
       freeProblemTotal: 0,
       purchasedProblemTotal: 0,
-      problemTotal: 5,
+      problemTotal: 0,
     });
     expect(letter.text).toContain("553 номера");
     expect(letter.text).toContain("817 000 номеров");
-    expect(letter.text).toContain("5 номеров");
+    expect(letter.text).toContain("0 номеров");
     expect(letter.html).toContain("#7c3aed");
     expect(letter.html).toContain("Вручную");
   });
@@ -268,7 +290,7 @@ describe("numbering summary letter", () => {
     expect(source).toContain("GROUP BY btrim(n.provider)");
   });
 
-  it("splits free PSTN into excluded and keeps mask-only free problems", () => {
+  it("counts free PSTN for registry errors and lists only mask free problems", () => {
     const source = readFileSync(
       path.join(process.cwd(), "src/modules/mail/summary-data.ts"),
       "utf8",
@@ -277,8 +299,8 @@ describe("numbering summary letter", () => {
     expect(source).toContain("freeInCatalogPstn");
     expect(source).toContain("freeExcludedArchive");
     expect(source).toContain("numbering_free_pstn_excluded");
-    expect(source).toContain("excludedTotal");
-    expect(source).toContain("'excluded' AS side");
+    expect(source).not.toContain("excludedTotal");
+    expect(source).not.toContain("'excluded' AS side");
   });
 
   it("scores manual PSTN problems from the range snapshot", () => {

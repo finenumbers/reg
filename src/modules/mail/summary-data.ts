@@ -209,11 +209,10 @@ async function freeMaskProblems(): Promise<{
   };
 }
 
-/** Free rows still in the catalog with no unique PSTN hit (purge pending or empty snapshot). */
+/** Free rows still in the catalog with no unique PSTN hit (purge pending or empty snapshot). Counts only for registry «Ошибки». */
 async function freeInCatalogPstn(): Promise<{
   count: number;
   byProvider: Map<string, number>;
-  rows: ProblemRow[];
 }> {
   const where = Prisma.sql`n.pstn_hits IN (0, 2)`;
   const grouped = await prisma.$queryRaw<CountRow[]>`
@@ -225,40 +224,18 @@ async function freeInCatalogPstn(): Promise<{
   const byProvider = new Map(grouped.map((row) => [row.provider, asCount(row.count)]));
   let count = 0;
   for (const value of byProvider.values()) count += value;
-  const listed = await prisma.$queryRaw<ProblemSql[]>`
-    SELECT
-      btrim(n.provider) AS provider,
-      'excluded' AS side,
-      n.e164 AS full,
-      n.abc AS abc,
-      n."number" AS local,
-      n.city AS city,
-      n.region AS region,
-      'pstn' AS problem
-    FROM free_numbers n
-    WHERE ${where}
-    ORDER BY n.e164
-    LIMIT ${PROBLEM_LIMIT}
-  `;
-  return {
-    count,
-    byProvider,
-    rows: listed.flatMap((row) => {
-      const mapped = mapProblem(row, "excluded");
-      return mapped ? [mapped] : [];
-    }),
-  };
+  return { count, byProvider };
 }
 
+/** Archived free PSTN misses for successful free loads. Counts only for registry «Ошибки». */
 async function freeExcludedArchive(
   okProviders: ReadonlySet<string>,
 ): Promise<{
   count: number;
   byProvider: Map<string, number>;
-  rows: ProblemRow[];
 }> {
   if (okProviders.size === 0) {
-    return { count: 0, byProvider: new Map(), rows: [] };
+    return { count: 0, byProvider: new Map() };
   }
   const providers = [...okProviders];
   const grouped = await prisma.$queryRaw<CountRow[]>`
@@ -270,29 +247,7 @@ async function freeExcludedArchive(
   const byProvider = new Map(grouped.map((row) => [row.provider, asCount(row.count)]));
   let count = 0;
   for (const value of byProvider.values()) count += value;
-  const listed = await prisma.$queryRaw<ProblemSql[]>`
-    SELECT
-      btrim(e.provider) AS provider,
-      'excluded' AS side,
-      e.e164 AS full,
-      e.abc AS abc,
-      e."number" AS local,
-      e.city AS city,
-      e.region AS region,
-      'pstn' AS problem
-    FROM numbering_free_pstn_excluded e
-    WHERE btrim(e.provider) IN (${Prisma.join(providers)})
-    ORDER BY e.e164
-    LIMIT ${PROBLEM_LIMIT}
-  `;
-  return {
-    count,
-    byProvider,
-    rows: listed.flatMap((row) => {
-      const mapped = mapProblem(row, "excluded");
-      return mapped ? [mapped] : [];
-    }),
-  };
+  return { count, byProvider };
 }
 
 async function purchasedProblems(): Promise<{
@@ -483,18 +438,14 @@ export async function composeNumberingSummary(input: {
     dateOnly: true,
     errors: handProblems.count,
   });
-  const excludedListed = [...freeExcluded.rows, ...freePstnLive.rows]
-    .sort(compareProblemRows)
-    .slice(0, PROBLEM_LIMIT);
   const freeListed = freeMask.rows.slice().sort(compareProblemRows).slice(0, PROBLEM_LIMIT);
   const purchasedListed = [...boughtProblems.rows, ...handProblems.rows]
     .sort(compareProblemRows)
     .slice(0, PROBLEM_LIMIT);
-  const excludedTotal = freeExcluded.count + freePstnLive.count;
   const freeProblemTotal = freeMask.count;
   const purchasedProblemTotal = boughtProblems.count + handProblems.count;
   const freeErrors = freeMask.count + freePstnLive.count + freeExcluded.count;
-  const problems = [...excludedListed, ...freeListed, ...purchasedListed];
+  const problems = [...freeListed, ...purchasedListed];
   const asOfDate = new Date(`${asOf}T00:00:00.000Z`);
   const writes: {
     provider: string;
@@ -556,9 +507,8 @@ export async function composeNumberingSummary(input: {
     freeRows,
     purchasedRows,
     problems,
-    excludedTotal,
     freeProblemTotal,
     purchasedProblemTotal,
-    problemTotal: excludedTotal + freeProblemTotal + purchasedProblemTotal,
+    problemTotal: freeProblemTotal + purchasedProblemTotal,
   };
 }

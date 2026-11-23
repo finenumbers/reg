@@ -24,8 +24,8 @@ const WEEKDAY_ACCUSATIVE: Record<string, string> = {
 
 export type SummarySide = "free" | "purchased";
 
-/** Bottom problem tables: excluded free PSTN misses, other free, purchased. */
-export type ProblemSection = "excluded" | SummarySide;
+/** Bottom problem tables: free (mask) and purchased. PSTN-excluded free counts stay in registry «Ошибки» only. */
+export type ProblemSection = SummarySide;
 
 export type SummaryRow = {
   provider: string;
@@ -61,7 +61,6 @@ export type SummaryLetterInput = {
   freeRows: SummaryRow[];
   purchasedRows: SummaryRow[];
   problems: ProblemRow[];
-  excludedTotal: number;
   freeProblemTotal: number;
   purchasedProblemTotal: number;
   problemTotal: number;
@@ -219,7 +218,6 @@ function problemLabel(problem: ProblemRow["problem"]): string {
 }
 
 export function sectionLabel(side: ProblemSection): string {
-  if (side === "excluded") return "Исключенные";
   if (side === "free") return "Свободные";
   return "Купленные";
 }
@@ -435,11 +433,6 @@ export function renderSummary(input: SummaryLetterInput): {
   const subject = summarySubject(input.asOf);
   const today = formatAsOf(input.asOf);
   const previous = input.previousAsOf ? formatAsOf(input.previousAsOf) : "";
-  const excluded = problemSection(
-    "excluded",
-    input.problems,
-    input.excludedTotal,
-  );
   const free = problemSection("free", input.problems, input.freeProblemTotal);
   const purchased = problemSection(
     "purchased",
@@ -459,7 +452,6 @@ export function renderSummary(input: SummaryLetterInput): {
     "",
     `Проблемные номера: ${groupDigits(input.problemTotal)} ${numberNoun(input.problemTotal)}`,
     "",
-    ...excluded.text,
     ...free.text,
     ...purchased.text,
   ]
@@ -478,7 +470,6 @@ export function renderSummary(input: SummaryLetterInput): {
     registryLine(
       `Проблемные номера: ${registryFigure(input.problemTotal, VIOLET)} ${numberNoun(input.problemTotal)}`,
     ),
-    ...excluded.html,
     ...free.html,
     ...purchased.html,
   ].join("");

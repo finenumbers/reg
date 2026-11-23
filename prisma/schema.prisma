@@ -640,7 +640,7 @@ model FreeNumber {
 }
 
 /// Free numbers dropped after decorate when PSTN coverage is not exactly one range.
-/// The summary letter lists them; «Свободные номера» does not.
+/// Summary registry «Ошибки» counts them; the letter does not list them. «Свободные номера» does not show them.
 model NumberingFreePstnExcluded {
   provider String
   e164     String
