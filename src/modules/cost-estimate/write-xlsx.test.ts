@@ -73,16 +73,24 @@ describe("writeCostEstimateXlsx", () => {
     expect(sheet.getRow(1).getCell(COST_ESTIMATE_COL.charge + 1).text).toBe(
       "Стоимость",
     );
+    expect(sheet.getRow(1).getCell(9).text).toBe("Сеть ОПРС");
+    expect(sheet.getRow(1).getCell(10).text).toBe(
+      "Оператор связи (реестр МинЦифры)",
+    );
+    expect(sheet.getRow(1).getCell(2).alignment?.horizontal).toBe("center");
 
     expect(sheet.getRow(2).getCell(2).text).toBe("");
     expect(sheet.getRow(3).getCell(2).text).toBe("73831234567");
+    expect(sheet.getRow(3).getCell(2).alignment?.horizontal).toBe("left");
 
     const chargeCell = sheet.getRow(2).getCell(COST_ESTIMATE_COL.charge + 1);
     expect(chargeCell.value).toBe(1000);
     expect(chargeCell.numFmt).toBe("0.00");
+    expect(chargeCell.alignment?.horizontal).toBe("right");
 
     const localCharge = sheet.getRow(3).getCell(COST_ESTIMATE_COL.charge + 1);
     expect(localCharge.value).toBe(COST_ESTIMATE_LOCAL_CHARGE);
+    expect(localCharge.alignment?.horizontal).toBe("right");
 
     const mobileType = sheet.getRow(2).getCell(4);
     expect(mobileType.font?.bold).toBe(true);
@@ -98,6 +106,7 @@ describe("writeCostEstimateXlsx", () => {
     const totalCell = totalRow.getCell(COST_ESTIMATE_COL.charge + 1);
     expect(totalCell.value).toBe("10 000,33");
     expect(totalCell.font?.bold).toBe(true);
+    expect(totalCell.alignment?.horizontal).toBe("right");
 
     const filter = sheet.autoFilter;
     expect(filter).toBeTruthy();

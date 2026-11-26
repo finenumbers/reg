@@ -5,6 +5,7 @@
 
 import type ExcelJS from "exceljs";
 import {
+  columnWidthForValues,
   createSimpleWorkbook,
   workbookToBuffer,
 } from "@/lib/xlsx-export";
@@ -38,6 +39,24 @@ const BODY_FONT: Partial<ExcelJS.Font> = {
   color: { argb: "FF000000" },
 };
 
+const HEADER_ALIGN: Partial<ExcelJS.Alignment> = {
+  horizontal: "center",
+  vertical: "middle",
+};
+
+function costEstimateDataAlign(
+  colIndex: number,
+): Partial<ExcelJS.Alignment> {
+  const right =
+    colIndex === COST_ESTIMATE_COL.seconds ||
+    colIndex === COST_ESTIMATE_COL.minutes ||
+    colIndex === COST_ESTIMATE_COL.charge;
+  return {
+    horizontal: right ? "right" : "left",
+    vertical: "middle",
+  };
+}
+
 export async function writeCostEstimateXlsx(
   rows: readonly CostEstimateOutputRow[],
 ): Promise<{ buffer: Buffer; filename: string }> {
@@ -62,6 +81,7 @@ export async function writeCostEstimateXlsx(
     styleCell: ({ rowIndex, colIndex, cell }) => {
       if (rowIndex < 0) {
         cell.numFmt = "@";
+        cell.alignment = { ...HEADER_ALIGN };
         return;
       }
       const row = rows[rowIndex];
@@ -78,6 +98,7 @@ export async function writeCostEstimateXlsx(
           argb: row.registryMissing ? "FFFFFFFF" : "FF000000",
         },
       };
+      cell.alignment = costEstimateDataAlign(colIndex);
 
       if (colIndex === COST_ESTIMATE_COL.seconds) {
         cell.value = row.seconds;
@@ -124,6 +145,7 @@ export async function writeCostEstimateXlsx(
     const cell = totalExcelRow.getCell(c);
     cell.border = { ...THIN_BORDER };
     cell.numFmt = "@";
+    cell.alignment = costEstimateDataAlign(c - 1);
     if (c - 1 === COST_ESTIMATE_COL.charge) {
       cell.value = totalText;
       cell.font = {
@@ -137,6 +159,14 @@ export async function writeCostEstimateXlsx(
       cell.font = { ...BODY_FONT };
     }
   }
+
+  const chargeHeader = COST_ESTIMATE_OUTPUT_HEADERS[COST_ESTIMATE_COL.charge]!;
+  const chargeCol = sheet.getColumn(COST_ESTIMATE_COL.charge + 1);
+  const chargeWidth = columnWidthForValues(chargeHeader, [
+    ...rows.map((row) => row.charge),
+    totalText,
+  ]);
+  chargeCol.width = Math.max(Number(chargeCol.width) || 0, chargeWidth);
 
   // Keep autoFilter on data only (header + data rows). Total stays outside.
   sheet.autoFilter = {
