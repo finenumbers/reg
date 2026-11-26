@@ -17,12 +17,17 @@ export function shownCostEstimateRegion(input: {
   pstnGeography: string;
   registryMissing: boolean;
 }): string {
+  const direction = input.direction.trim();
+  let shown: string;
   if (input.registryMissing) {
-    return collapseShownRegion(input.tariffRegion.trim());
+    shown = collapseShownRegion(input.tariffRegion.trim());
+  } else {
+    const mobile =
+      input.callType === CALL_TYPE.mobile ||
+      direction === MOBILE_RF_DIRECTION;
+    const source = mobile ? input.pstnGeography : input.tariffRegion;
+    shown = collapseShownRegion(source.trim());
   }
-  const mobile =
-    input.callType === CALL_TYPE.mobile ||
-    input.direction.trim() === MOBILE_RF_DIRECTION;
-  const source = mobile ? input.pstnGeography : input.tariffRegion;
-  return collapseShownRegion(source.trim());
+  if (!shown && direction) return direction;
+  return shown;
 }

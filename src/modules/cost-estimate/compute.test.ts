@@ -219,7 +219,7 @@ describe("buildCostEstimateRows", () => {
       geography: MISSING_PSTN_LABEL,
       registryMissing: true,
       direction: "Мобильные РФ",
-      region: "",
+      region: "Мобильные РФ",
       minutes: 1,
     });
 

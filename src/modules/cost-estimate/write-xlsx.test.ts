@@ -122,6 +122,10 @@ describe("writeCostEstimateXlsx", () => {
     expect(mobileType.font?.bold).toBe(true);
     const localType = sheet.getRow(3).getCell(4);
     expect(localType.font?.bold).not.toBe(true);
+    const localB = sheet
+      .getRow(3)
+      .getCell(COST_ESTIMATE_COL.bNumber + 1);
+    expect(localB.font?.bold).toBe(true);
 
     const mtsFill = sheet.getRow(2).getCell(1).fill as ExcelJS.FillPattern;
     expect(mtsFill.fgColor?.argb).toBe(

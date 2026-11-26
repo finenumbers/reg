@@ -1,7 +1,13 @@
-# Current Phase — production (v1.349.1)
+# Current Phase — production (v1.349.2)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, cost estimate, RTU management, free numbers, purchased numbers, numbering sync, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs, outbound mail.
 **Date:** 2026-11-26
+
+## v1.349.2 — Shown region Crimea collapse, cost-estimate region fallback, bold B
+
+This release does not migrate and does not rewrite catalog rows, the CDR journal, or settings. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before the new one starts, then start one new app. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged.
+
+Shown «Регион» collapses «Город Севастополь, Республика Крым» and «Республика Крым, Город Севастополь» to «Республика Крым» everywhere the shared helper runs (RTU, free/purchased catalogs, cost estimate, mail). «Расчет затрат» copies «Направление» into an empty «Регион» and makes «B-номер» bold.
 
 ## v1.349.1 — Cost estimate per-minute price column
 

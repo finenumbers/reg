@@ -99,6 +99,8 @@ export const SHOWN_REGION_REPLACEMENTS = [
   ["Город Москва, Московская область", "Московская область"],
   ["Ленинградская область, Город Санкт-Петербург", "Ленинградская область"],
   ["Город Санкт-Петербург, Ленинградская область", "Ленинградская область"],
+  ["Город Севастополь, Республика Крым", "Республика Крым"],
+  ["Республика Крым, Город Севастополь", "Республика Крым"],
 ] as const;
 
 /** Bound pairs, source then replacement, in CASE order. */
@@ -115,7 +117,7 @@ function trimAsciiSpace(value: string): string {
   return start === 0 && end === value.length ? value : value.slice(start, end);
 }
 
-/** Short oblast for the four compound labels. Any other text is returned unchanged. */
+/** Short oblast for the compound labels. Any other text is returned unchanged. */
 export function collapseShownRegion(value: string): string {
   const trimmed = trimAsciiSpace(value);
   for (const [from, to] of SHOWN_REGION_REPLACEMENTS) {

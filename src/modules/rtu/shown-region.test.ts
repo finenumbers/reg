@@ -4,7 +4,7 @@ import { collapseShownRegion } from "@/modules/rtu/columns";
 const NBSP = "\u00a0";
 
 describe("collapseShownRegion", () => {
-  it("replaces the four compound labels and keeps every other string", () => {
+  it("replaces the compound labels and keeps every other string", () => {
     expect(collapseShownRegion("Московская область, Город Москва")).toBe(
       "Московская область",
     );
@@ -16,6 +16,12 @@ describe("collapseShownRegion", () => {
     );
     expect(collapseShownRegion("Город Санкт-Петербург, Ленинградская область")).toBe(
       "Ленинградская область",
+    );
+    expect(collapseShownRegion("Город Севастополь, Республика Крым")).toBe(
+      "Республика Крым",
+    );
+    expect(collapseShownRegion("Республика Крым, Город Севастополь")).toBe(
+      "Республика Крым",
     );
     expect(collapseShownRegion("  Московская область, Город Москва  ")).toBe(
       "Московская область",

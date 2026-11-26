@@ -38,4 +38,28 @@ describe("shownCostEstimateRegion", () => {
       }),
     ).toBe("Московская область");
   });
+
+  it("copies direction when region is empty", () => {
+    expect(
+      shownCostEstimateRegion({
+        callType: CALL_TYPE.mobile,
+        direction: "Мобильные РФ",
+        tariffRegion: "",
+        pstnGeography: "",
+        registryMissing: false,
+      }),
+    ).toBe("Мобильные РФ");
+  });
+
+  it("collapses Crimea geography for mobile", () => {
+    expect(
+      shownCostEstimateRegion({
+        callType: CALL_TYPE.mobile,
+        direction: "Мобильные РФ",
+        tariffRegion: "",
+        pstnGeography: "Город Севастополь, Республика Крым",
+        registryMissing: false,
+      }),
+    ).toBe("Республика Крым");
+  });
 });

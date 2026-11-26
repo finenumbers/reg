@@ -123,7 +123,9 @@ export async function writeCostEstimateXlsx(
       cell.font = {
         name: "Calibri",
         size: 11,
-        bold: row.callType === CALL_TYPE.mobile,
+        bold:
+          row.callType === CALL_TYPE.mobile ||
+          colIndex === COST_ESTIMATE_COL.bNumber,
         color: {
           argb: row.registryMissing ? "FFFFFFFF" : "FF000000",
         },
