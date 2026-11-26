@@ -41,6 +41,13 @@ export const XLSX_REGISTRY_MISSING_FILL: ExcelJS.Fill = {
   fgColor: { argb: "FF000000" },
 };
 
+/** Excel green — «Стоимость» total cell only. */
+export const XLSX_COST_ESTIMATE_TOTAL_FILL: ExcelJS.Fill = {
+  type: "pattern",
+  pattern: "solid",
+  fgColor: { argb: "FF00B050" },
+};
+
 export function costEstimateFillForTone(
   tone: OprsOperatorTone | null,
 ): ExcelJS.Fill | undefined {

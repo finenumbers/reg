@@ -28,6 +28,8 @@ export const COST_ESTIMATE_OUTPUT_HEADERS = [
 
 /** 0-based column indexes in COST_ESTIMATE_OUTPUT_HEADERS. */
 export const COST_ESTIMATE_COL = {
+  aNumber: 1,
+  bNumber: 2,
   seconds: 5,
   minutes: 6,
   charge: 7,

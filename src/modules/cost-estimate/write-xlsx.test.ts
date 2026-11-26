@@ -1,6 +1,7 @@
 import ExcelJS from "exceljs";
 import { describe, expect, it } from "vitest";
 import {
+  XLSX_COST_ESTIMATE_TOTAL_FILL,
   XLSX_OPRS_MTS_FILL,
   XLSX_REGISTRY_MISSING_FILL,
 } from "@/modules/cost-estimate/fills";
@@ -14,7 +15,7 @@ import { CALL_TYPE } from "@/modules/traffic/call-class";
 import { MISSING_PSTN_LABEL } from "@/modules/enrich/types";
 
 describe("writeCostEstimateXlsx", () => {
-  it("writes A-номер, numeric charge cols, and a bold total outside autoFilter", async () => {
+  it("writes numeric phones, formats, and a green total outside autoFilter", async () => {
     const { buffer } = await writeCostEstimateXlsx([
       {
         dateDisplay: "2026-01-01",
@@ -79,13 +80,26 @@ describe("writeCostEstimateXlsx", () => {
     );
     expect(sheet.getRow(1).getCell(2).alignment?.horizontal).toBe("center");
 
-    expect(sheet.getRow(2).getCell(2).text).toBe("");
-    expect(sheet.getRow(3).getCell(2).text).toBe("73831234567");
-    expect(sheet.getRow(3).getCell(2).alignment?.horizontal).toBe("left");
+    const emptyA = sheet.getRow(2).getCell(COST_ESTIMATE_COL.aNumber + 1);
+    expect(emptyA.value === null || emptyA.value === "").toBe(true);
+
+    const bPlus = sheet.getRow(2).getCell(COST_ESTIMATE_COL.bNumber + 1);
+    expect(bPlus.value).toBe(79031234567);
+    expect(bPlus.numFmt).toBe("0");
+    expect(bPlus.alignment?.horizontal).toBe("left");
+
+    const aDigits = sheet.getRow(3).getCell(COST_ESTIMATE_COL.aNumber + 1);
+    expect(aDigits.value).toBe(73831234567);
+    expect(aDigits.numFmt).toBe("0");
+    expect(aDigits.alignment?.horizontal).toBe("left");
+
+    const secondsCell = sheet.getRow(2).getCell(COST_ESTIMATE_COL.seconds + 1);
+    expect(secondsCell.value).toBe(4);
+    expect(secondsCell.numFmt).toBe("#,##0");
 
     const chargeCell = sheet.getRow(2).getCell(COST_ESTIMATE_COL.charge + 1);
     expect(chargeCell.value).toBe(1000);
-    expect(chargeCell.numFmt).toBe("0.00");
+    expect(chargeCell.numFmt).toBe("#,##0.00");
     expect(chargeCell.alignment?.horizontal).toBe("right");
 
     const localCharge = sheet.getRow(3).getCell(COST_ESTIMATE_COL.charge + 1);
@@ -104,9 +118,23 @@ describe("writeCostEstimateXlsx", () => {
 
     const totalRow = sheet.getRow(5);
     const totalCell = totalRow.getCell(COST_ESTIMATE_COL.charge + 1);
-    expect(totalCell.value).toBe("10 000,33");
+    expect(totalCell.value).toBe(10000.33);
+    expect(totalCell.numFmt).toBe("#,##0.00");
     expect(totalCell.font?.bold).toBe(true);
     expect(totalCell.alignment?.horizontal).toBe("right");
+    const totalFill = totalCell.fill as ExcelJS.FillPattern;
+    expect(totalFill.fgColor?.argb).toBe(
+      (XLSX_COST_ESTIMATE_TOTAL_FILL as ExcelJS.FillPattern).fgColor?.argb,
+    );
+    expect(totalCell.border?.top?.style).toBe("medium");
+    expect(totalCell.border?.left?.style).toBe("medium");
+
+    const emptyFooter = totalRow.getCell(1);
+    const emptyFill = emptyFooter.fill as ExcelJS.FillPattern | undefined;
+    expect(emptyFill?.fgColor?.argb).not.toBe(
+      (XLSX_COST_ESTIMATE_TOTAL_FILL as ExcelJS.FillPattern).fgColor?.argb,
+    );
+    expect(emptyFooter.border?.top).toBeUndefined();
 
     const filter = sheet.autoFilter;
     expect(filter).toBeTruthy();
@@ -177,6 +205,7 @@ describe("writeCostEstimateXlsx", () => {
     expect(sheet.getRow(3).getCell(4).font?.bold).not.toBe(true);
 
     const totalCell = sheet.getRow(4).getCell(COST_ESTIMATE_COL.charge + 1);
-    expect(totalCell.value).toBe("1,50");
+    expect(totalCell.value).toBe(1.5);
+    expect(totalCell.numFmt).toBe("#,##0.00");
   });
 });

@@ -146,7 +146,8 @@ describe("parseCostEstimateXlsx", () => {
     expect(fill.fgColor?.argb).toBe(
       (XLSX_OPRS_MTS_FILL as ExcelJS.FillPattern).fgColor?.argb,
     );
-    expect(sheet.getRow(3).getCell(8).value).toBe("3,00");
+    expect(sheet.getRow(3).getCell(8).value).toBe(3);
+    expect(sheet.getRow(3).getCell(8).numFmt).toBe("#,##0.00");
   });
 });
 

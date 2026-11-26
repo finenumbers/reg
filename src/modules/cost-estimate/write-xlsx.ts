@@ -1,6 +1,6 @@
 /**
  * Cost-estimate result workbook.
- * Data rows: numeric seconds/minutes/charge. Footer total is bold text outside autoFilter.
+ * Data rows: numeric phones/seconds/minutes/charge. Footer total is a green numeric charge cell.
  */
 
 import type ExcelJS from "exceljs";
@@ -9,7 +9,11 @@ import {
   createSimpleWorkbook,
   workbookToBuffer,
 } from "@/lib/xlsx-export";
-import { costEstimateRowFill } from "@/modules/cost-estimate/fills";
+import {
+  XLSX_COST_ESTIMATE_TOTAL_FILL,
+  costEstimateRowFill,
+} from "@/modules/cost-estimate/fills";
+import { digitsFromE164 } from "@/modules/cost-estimate/normalize";
 import {
   chargeToExcelNumber,
   formatCostEstimateTotal,
@@ -25,13 +29,6 @@ import {
 } from "@/modules/cost-estimate/types";
 import { CALL_TYPE } from "@/modules/traffic/call-class";
 
-const THIN_BORDER: Partial<ExcelJS.Borders> = {
-  top: { style: "thin" },
-  left: { style: "thin" },
-  bottom: { style: "thin" },
-  right: { style: "thin" },
-};
-
 const BODY_FONT: Partial<ExcelJS.Font> = {
   name: "Calibri",
   size: 11,
@@ -44,6 +41,15 @@ const HEADER_ALIGN: Partial<ExcelJS.Alignment> = {
   vertical: "middle",
 };
 
+const TOTAL_BORDER: Partial<ExcelJS.Borders> = {
+  top: { style: "medium", color: { argb: "FF000000" } },
+  left: { style: "medium", color: { argb: "FF000000" } },
+  bottom: { style: "medium", color: { argb: "FF000000" } },
+  right: { style: "medium", color: { argb: "FF000000" } },
+};
+
+const PHONE_DIGITS_RE = /^\d{10,15}$/;
+
 function costEstimateDataAlign(
   colIndex: number,
 ): Partial<ExcelJS.Alignment> {
@@ -55,6 +61,27 @@ function costEstimateDataAlign(
     horizontal: right ? "right" : "left",
     vertical: "middle",
   };
+}
+
+/** Digits as Excel number with numFmt 0, or text/@ when empty/unusable. */
+export function writePhoneCell(cell: ExcelJS.Cell, raw: string): void {
+  const trimmed = raw.trim();
+  if (!trimmed) {
+    cell.value = "";
+    cell.numFmt = "@";
+    return;
+  }
+  const digits = digitsFromE164(trimmed);
+  if (PHONE_DIGITS_RE.test(digits)) {
+    const n = Number(digits);
+    if (Number.isSafeInteger(n)) {
+      cell.value = n;
+      cell.numFmt = "0";
+      return;
+    }
+  }
+  cell.value = raw;
+  cell.numFmt = "@";
 }
 
 export async function writeCostEstimateXlsx(
@@ -100,14 +127,22 @@ export async function writeCostEstimateXlsx(
       };
       cell.alignment = costEstimateDataAlign(colIndex);
 
+      if (colIndex === COST_ESTIMATE_COL.aNumber) {
+        writePhoneCell(cell, row.aNumberRaw);
+        return;
+      }
+      if (colIndex === COST_ESTIMATE_COL.bNumber) {
+        writePhoneCell(cell, row.bNumberRaw);
+        return;
+      }
       if (colIndex === COST_ESTIMATE_COL.seconds) {
         cell.value = row.seconds;
-        cell.numFmt = "0";
+        cell.numFmt = "#,##0";
         return;
       }
       if (colIndex === COST_ESTIMATE_COL.minutes) {
         cell.value = row.minutes;
-        cell.numFmt = "0";
+        cell.numFmt = "#,##0";
         return;
       }
       if (colIndex === COST_ESTIMATE_COL.charge) {
@@ -123,7 +158,7 @@ export async function writeCostEstimateXlsx(
           return;
         }
         cell.value = n;
-        cell.numFmt = "0.00";
+        cell.numFmt = "#,##0.00";
         return;
       }
       cell.numFmt = "@";
@@ -135,19 +170,20 @@ export async function writeCostEstimateXlsx(
     throw new Error("cost-estimate sheet missing");
   }
 
-  const totalText = formatCostEstimateTotal(
-    sumChargeKopecks(rows.map((row) => row.charge)),
-  );
+  const sumKopecks = sumChargeKopecks(rows.map((row) => row.charge));
+  const totalNumber = Number(sumKopecks) / 100;
+  const totalDisplay = formatCostEstimateTotal(sumKopecks);
   const totalPlaceholders = COST_ESTIMATE_OUTPUT_HEADERS.map(() => "");
-  totalPlaceholders[COST_ESTIMATE_COL.charge] = totalText;
   const totalExcelRow = sheet.addRow(totalPlaceholders);
   for (let c = 1; c <= COST_ESTIMATE_OUTPUT_HEADERS.length; c++) {
     const cell = totalExcelRow.getCell(c);
-    cell.border = { ...THIN_BORDER };
     cell.numFmt = "@";
     cell.alignment = costEstimateDataAlign(c - 1);
     if (c - 1 === COST_ESTIMATE_COL.charge) {
-      cell.value = totalText;
+      cell.value = totalNumber;
+      cell.numFmt = "#,##0.00";
+      cell.fill = XLSX_COST_ESTIMATE_TOTAL_FILL;
+      cell.border = { ...TOTAL_BORDER };
       cell.font = {
         name: "Calibri",
         size: 11,
@@ -164,7 +200,7 @@ export async function writeCostEstimateXlsx(
   const chargeCol = sheet.getColumn(COST_ESTIMATE_COL.charge + 1);
   const chargeWidth = columnWidthForValues(chargeHeader, [
     ...rows.map((row) => row.charge),
-    totalText,
+    totalDisplay,
   ]);
   chargeCol.width = Math.max(Number(chargeCol.width) || 0, chargeWidth);
 
