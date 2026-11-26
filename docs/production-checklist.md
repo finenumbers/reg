@@ -54,6 +54,8 @@ Optional publish ports: `APP_PUBLISH_PORT`, `POSTGRES_PUBLISH_PORT`.
 
 ## 3. Database
 
+v1.348.1 does not migrate and does not rewrite catalog rows, the CDR journal, or settings. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before the new one starts, then start one new app. Refresh the browser. «Расчет затрат» registry-miss rows are black with white text; «Местный» shows `-` in «Стоимость». Nothing is written to the switch. RTU activation is unchanged.
+
 v1.348.0 does not migrate and does not rewrite catalog rows, the CDR journal, or settings. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before the new one starts, then start one new app. Refresh the browser. «Расчет затрат» writes date+time without GMT; bold «Мобильный» rows; domestic rows without a PSTN operator get red fill, «Нет в реестре МинЦифры», and no charge. Nothing is written to the switch. RTU activation is unchanged.
 
 v1.347.0 does not migrate and does not rewrite catalog rows, the CDR journal, or settings. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before the new one starts, then start one new app. Refresh the browser. «Расчет затрат» requires «A-номер» in the upload (may be empty); «Местный» follows traffic geography; Excel dates lose the GMT suffix. Old three-column uploads fail. Nothing is written to the switch. RTU activation is unchanged.

@@ -43,6 +43,9 @@ export const COST_ESTIMATE_TONE_ERROR =
 
 export const COST_ESTIMATE_PARSE_ERROR = "Файл XLSX не подходит для расчёта затрат";
 
+/** «Стоимость» for Тип = Местный (not billed; excluded from the total). */
+export const COST_ESTIMATE_LOCAL_CHARGE = "-";
+
 export type CostEstimateInputRow = {
   /** 1-based worksheet row (header is 1). */
   rowNumber: number;
@@ -75,7 +78,7 @@ export type CostEstimateOutputRow = {
   geography: string;
   /** OPRS tone for mobile fill; null → no fill (including «Внешние сети»). */
   fillTone: OprsOperatorTone | null;
-  /** Domestic type with no PSTN operator → red row, empty charge, МинЦифры label. */
+  /** Domestic type with no PSTN operator → black row, white font, МинЦифры label. */
   registryMissing: boolean;
 };
 

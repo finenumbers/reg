@@ -8,10 +8,11 @@ import { oprsOperatorTone } from "@/modules/oprs/operator-tone";
 import type { OprsOperatorToneMap } from "@/modules/oprs/operator-tone";
 import { classifyCostEstimateType } from "@/modules/cost-estimate/classify";
 import { secondsToElapsedMsString } from "@/modules/cost-estimate/normalize";
-import type {
-  CostEstimateInputRow,
-  CostEstimateOutputRow,
-  CostEstimatePstnFields,
+import {
+  COST_ESTIMATE_LOCAL_CHARGE,
+  type CostEstimateInputRow,
+  type CostEstimateOutputRow,
+  type CostEstimatePstnFields,
 } from "@/modules/cost-estimate/types";
 import {
   CALL_CATEGORY,
@@ -36,6 +37,11 @@ export function isCostEstimateRegistryMissing(
   if (!DOMESTIC_REGISTRY_TYPES.has(callType)) return false;
   const trimmed = operator.trim();
   return !trimmed || trimmed === MISSING_PSTN_LABEL;
+}
+
+function chargeForRow(callType: string, tariffCharge: string): string {
+  if (callType === CALL_TYPE.local) return COST_ESTIMATE_LOCAL_CHARGE;
+  return tariffCharge;
 }
 
 export function buildCostEstimateRows(input: {
@@ -77,7 +83,7 @@ export function buildCostEstimateRows(input: {
         direction: tariff.direction,
         seconds: row.seconds,
         minutes: billableMinutes(row.seconds),
-        charge: "",
+        charge: chargeForRow(callType, ""),
         network: "",
         operator: MISSING_PSTN_LABEL,
         geography: MISSING_PSTN_LABEL,
@@ -104,7 +110,7 @@ export function buildCostEstimateRows(input: {
       direction: tariff.direction,
       seconds: row.seconds,
       minutes: billableMinutes(row.seconds),
-      charge: tariff.charge,
+      charge: chargeForRow(callType, tariff.charge),
       network,
       operator: pstn.operator,
       geography: pstn.geography,

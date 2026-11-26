@@ -34,11 +34,11 @@ export const XLSX_OPRS_T2_FILL: ExcelJS.Fill = {
   fgColor: { argb: "FFE5E7EB" },
 };
 
-/** Tailwind red-500 — domestic row with no PSTN operator. */
+/** Black fill — domestic row with no PSTN operator (white font in write-xlsx). */
 export const XLSX_REGISTRY_MISSING_FILL: ExcelJS.Fill = {
   type: "pattern",
   pattern: "solid",
-  fgColor: { argb: "FFEF4444" },
+  fgColor: { argb: "FF000000" },
 };
 
 export function costEstimateFillForTone(

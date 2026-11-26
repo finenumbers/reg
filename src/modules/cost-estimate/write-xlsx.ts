@@ -17,6 +17,7 @@ import {
 import {
   COST_ESTIMATE_COL,
   COST_ESTIMATE_FILENAME,
+  COST_ESTIMATE_LOCAL_CHARGE,
   COST_ESTIMATE_OUTPUT_HEADERS,
   COST_ESTIMATE_SHEET_NAME,
   type CostEstimateOutputRow,
@@ -34,13 +35,6 @@ const BODY_FONT: Partial<ExcelJS.Font> = {
   name: "Calibri",
   size: 11,
   bold: false,
-  color: { argb: "FF000000" },
-};
-
-const MOBILE_BOLD_FONT: Partial<ExcelJS.Font> = {
-  name: "Calibri",
-  size: 11,
-  bold: true,
   color: { argb: "FF000000" },
 };
 
@@ -76,9 +70,14 @@ export async function writeCostEstimateXlsx(
       const fill = costEstimateRowFill(row);
       if (fill) cell.fill = fill;
 
-      if (row.callType === CALL_TYPE.mobile) {
-        cell.font = { ...MOBILE_BOLD_FONT };
-      }
+      cell.font = {
+        name: "Calibri",
+        size: 11,
+        bold: row.callType === CALL_TYPE.mobile,
+        color: {
+          argb: row.registryMissing ? "FFFFFFFF" : "FF000000",
+        },
+      };
 
       if (colIndex === COST_ESTIMATE_COL.seconds) {
         cell.value = row.seconds;
@@ -91,6 +90,11 @@ export async function writeCostEstimateXlsx(
         return;
       }
       if (colIndex === COST_ESTIMATE_COL.charge) {
+        if (row.charge === COST_ESTIMATE_LOCAL_CHARGE) {
+          cell.value = COST_ESTIMATE_LOCAL_CHARGE;
+          cell.numFmt = "@";
+          return;
+        }
         const n = chargeToExcelNumber(row.charge);
         if (n == null) {
           cell.value = "";

@@ -7,6 +7,7 @@ import {
 import { writeCostEstimateXlsx } from "@/modules/cost-estimate/write-xlsx";
 import {
   COST_ESTIMATE_COL,
+  COST_ESTIMATE_LOCAL_CHARGE,
   COST_ESTIMATE_OUTPUT_HEADERS,
 } from "@/modules/cost-estimate/types";
 import { CALL_TYPE } from "@/modules/traffic/call-class";
@@ -38,7 +39,7 @@ describe("writeCostEstimateXlsx", () => {
         direction: "г. Новосибирск",
         seconds: 60,
         minutes: 1,
-        charge: "",
+        charge: COST_ESTIMATE_LOCAL_CHARGE,
         network: "",
         operator: "Ростелеком",
         geography: "НСК",
@@ -80,8 +81,8 @@ describe("writeCostEstimateXlsx", () => {
     expect(chargeCell.value).toBe(1000);
     expect(chargeCell.numFmt).toBe("0.00");
 
-    const emptyCharge = sheet.getRow(3).getCell(COST_ESTIMATE_COL.charge + 1);
-    expect(emptyCharge.value === null || emptyCharge.value === "").toBe(true);
+    const localCharge = sheet.getRow(3).getCell(COST_ESTIMATE_COL.charge + 1);
+    expect(localCharge.value).toBe(COST_ESTIMATE_LOCAL_CHARGE);
 
     const mobileType = sheet.getRow(2).getCell(4);
     expect(mobileType.font?.bold).toBe(true);
@@ -110,7 +111,7 @@ describe("writeCostEstimateXlsx", () => {
     }
   });
 
-  it("paints registry-missing rows red, bolds mobile, and excludes empty charge from the total", async () => {
+  it("paints registry-missing rows black with white font and excludes empty charge from the total", async () => {
     const { buffer } = await writeCostEstimateXlsx([
       {
         dateDisplay: "2026-01-01 10:00:00",
@@ -148,10 +149,13 @@ describe("writeCostEstimateXlsx", () => {
     await book.xlsx.load(buffer as unknown as ExcelJS.Buffer);
     const sheet = book.worksheets[0]!;
 
-    const redFill = sheet.getRow(2).getCell(1).fill as ExcelJS.FillPattern;
-    expect(redFill.fgColor?.argb).toBe(
+    const missCell = sheet.getRow(2).getCell(1);
+    const blackFill = missCell.fill as ExcelJS.FillPattern;
+    expect(blackFill.fgColor?.argb).toBe(
       (XLSX_REGISTRY_MISSING_FILL as ExcelJS.FillPattern).fgColor?.argb,
     );
+    expect(blackFill.fgColor?.argb).toBe("FF000000");
+    expect(missCell.font?.color?.argb).toBe("FFFFFFFF");
     expect(sheet.getRow(2).getCell(4).font?.bold).toBe(true);
     expect(sheet.getRow(2).getCell(COST_ESTIMATE_COL.charge + 1).value).toBe(
       "",
@@ -160,9 +164,7 @@ describe("writeCostEstimateXlsx", () => {
     const intercityFill = sheet.getRow(3).getCell(1).fill as
       | ExcelJS.FillPattern
       | undefined;
-    expect(intercityFill?.fgColor?.argb).not.toBe(
-      (XLSX_REGISTRY_MISSING_FILL as ExcelJS.FillPattern).fgColor?.argb,
-    );
+    expect(intercityFill?.fgColor?.argb).not.toBe("FF000000");
     expect(sheet.getRow(3).getCell(4).font?.bold).not.toBe(true);
 
     const totalCell = sheet.getRow(4).getCell(COST_ESTIMATE_COL.charge + 1);

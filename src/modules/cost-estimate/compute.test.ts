@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildCostEstimateRows } from "@/modules/cost-estimate/compute";
+import { COST_ESTIMATE_LOCAL_CHARGE } from "@/modules/cost-estimate/types";
 import { MISSING_PSTN_LABEL } from "@/modules/enrich/types";
 import { CALL_TYPE } from "@/modules/traffic/call-class";
 import type { TariffRateLookup } from "@/modules/traffic/cdr-tariff";
@@ -106,7 +107,7 @@ describe("buildCostEstimateRows", () => {
       callType: CALL_TYPE.local,
       aNumberRaw: "+73831234567",
       direction: "г. Новосибирск",
-      charge: "",
+      charge: COST_ESTIMATE_LOCAL_CHARGE,
       network: "",
       fillTone: null,
       minutes: 1,
@@ -248,7 +249,7 @@ describe("buildCostEstimateRows", () => {
     });
     expect(local[0]).toMatchObject({
       callType: CALL_TYPE.local,
-      charge: "",
+      charge: COST_ESTIMATE_LOCAL_CHARGE,
       operator: MISSING_PSTN_LABEL,
       geography: MISSING_PSTN_LABEL,
       registryMissing: true,
