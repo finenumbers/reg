@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { buildCostEstimateRows } from "@/modules/cost-estimate/compute";
-import { COST_ESTIMATE_LOCAL_CHARGE } from "@/modules/cost-estimate/types";
+import {
+  COST_ESTIMATE_EMPTY_NETWORK,
+  COST_ESTIMATE_LOCAL_CHARGE,
+} from "@/modules/cost-estimate/types";
 import { MISSING_PSTN_LABEL } from "@/modules/enrich/types";
 import { CALL_TYPE } from "@/modules/traffic/call-class";
 import type { TariffRateLookup } from "@/modules/traffic/cdr-tariff";
@@ -13,6 +16,7 @@ const RATES: TariffRateLookup[] = [
     digitLengths: [11],
     price: "3",
     sortIndex: 0,
+    region: null,
   },
   {
     direction: "г. Новосибирск",
@@ -20,6 +24,7 @@ const RATES: TariffRateLookup[] = [
     digitLengths: [11],
     price: "1.5",
     sortIndex: 1,
+    region: "Московская область, Город Москва",
   },
 ];
 
@@ -28,7 +33,13 @@ describe("buildCostEstimateRows", () => {
     const base = {
       rates: RATES,
       pstn: new Map([
-        ["79031234567", { operator: "ПАО МТС", geography: "Москва" }],
+        [
+          "79031234567",
+          {
+            operator: "ПАО МТС",
+            geography: "Московская область, Город Москва",
+          },
+        ],
       ]),
       toneMap: { "ПАО МТС": "red" as const },
       labelUnpainted: true,
@@ -51,13 +62,14 @@ describe("buildCostEstimateRows", () => {
     expect(grace[0]).toMatchObject({
       callType: CALL_TYPE.mobile,
       direction: "Мобильные РФ",
+      region: "Московская область",
       seconds: 3,
       minutes: 0,
       charge: "0.00",
       network: "МТС",
       fillTone: "red",
       operator: "ПАО МТС",
-      geography: "Москва",
+      geography: "Московская область, Город Москва",
       registryMissing: false,
     });
 
@@ -107,15 +119,16 @@ describe("buildCostEstimateRows", () => {
       callType: CALL_TYPE.local,
       aNumberRaw: "+73831234567",
       direction: "г. Новосибирск",
+      region: "Московская область",
       charge: COST_ESTIMATE_LOCAL_CHARGE,
-      network: "",
+      network: COST_ESTIMATE_EMPTY_NETWORK,
       fillTone: null,
       minutes: 1,
       registryMissing: false,
     });
   });
 
-  it("leaves network and fill empty for non-mobile rows", () => {
+  it("writes - in Сеть ОПРС for non-mobile rows", () => {
     const rows = buildCostEstimateRows({
       rows: [
         {
@@ -139,10 +152,11 @@ describe("buildCostEstimateRows", () => {
       callType: CALL_TYPE.intercity,
       seconds: 60,
       minutes: 1,
-      network: "",
+      network: COST_ESTIMATE_EMPTY_NETWORK,
       fillTone: null,
       operator: "Ростелеком",
       geography: "НСК",
+      region: "Московская область",
       charge: "1.50",
       registryMissing: false,
     });
@@ -200,6 +214,7 @@ describe("buildCostEstimateRows", () => {
       geography: MISSING_PSTN_LABEL,
       registryMissing: true,
       direction: "Мобильные РФ",
+      region: "",
       minutes: 1,
     });
 
@@ -223,8 +238,10 @@ describe("buildCostEstimateRows", () => {
     expect(intercity[0]).toMatchObject({
       callType: CALL_TYPE.intercity,
       charge: "",
+      network: "",
       operator: MISSING_PSTN_LABEL,
       geography: MISSING_PSTN_LABEL,
+      region: "Московская область",
       registryMissing: true,
     });
 
@@ -250,8 +267,10 @@ describe("buildCostEstimateRows", () => {
     expect(local[0]).toMatchObject({
       callType: CALL_TYPE.local,
       charge: COST_ESTIMATE_LOCAL_CHARGE,
+      network: "",
       operator: MISSING_PSTN_LABEL,
       geography: MISSING_PSTN_LABEL,
+      region: "Московская область",
       registryMissing: true,
     });
   });
@@ -279,6 +298,7 @@ describe("buildCostEstimateRows", () => {
       registryMissing: false,
       operator: "",
       geography: "",
+      network: COST_ESTIMATE_EMPTY_NETWORK,
     });
     expect(rows[0]?.charge).not.toBeUndefined();
   });
@@ -307,6 +327,7 @@ describe("buildCostEstimateRows", () => {
       registryMissing: false,
       operator: "Ростелеком",
       geography: "",
+      network: COST_ESTIMATE_EMPTY_NETWORK,
       charge: "1.50",
     });
   });

@@ -16,23 +16,24 @@ export const COST_ESTIMATE_OUTPUT_HEADERS = [
   "Дата",
   "A-номер",
   "B-номер",
-  "Тип",
+  "Тип звонка",
   "Направление",
+  "Регион",
   "Секунды",
   "Минуты",
   "Стоимость",
   "Сеть ОПРС",
   "Оператор связи (реестр МинЦифры)",
-  "География нумерации",
+  "География нумерации (реестр МинЦифры)",
 ] as const;
 
 /** 0-based column indexes in COST_ESTIMATE_OUTPUT_HEADERS. */
 export const COST_ESTIMATE_COL = {
   aNumber: 1,
   bNumber: 2,
-  seconds: 5,
-  minutes: 6,
-  charge: 7,
+  seconds: 6,
+  minutes: 7,
+  charge: 8,
 } as const;
 
 export const COST_ESTIMATE_MAX_ROWS = 50_000;
@@ -47,6 +48,9 @@ export const COST_ESTIMATE_PARSE_ERROR = "Файл XLSX не подходит д
 
 /** «Стоимость» for Тип = Местный (not billed; excluded from the total). */
 export const COST_ESTIMATE_LOCAL_CHARGE = "-";
+
+/** Empty «Сеть ОПРС» for non-mobile rows (not registry-missing). */
+export const COST_ESTIMATE_EMPTY_NETWORK = "-";
 
 export type CostEstimateInputRow = {
   /** 1-based worksheet row (header is 1). */
@@ -71,6 +75,7 @@ export type CostEstimateOutputRow = {
   bNumberRaw: string;
   callType: string;
   direction: string;
+  region: string;
   seconds: number;
   minutes: number;
   /** Rater text with `.` decimals; empty when not charged. */

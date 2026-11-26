@@ -39,6 +39,7 @@ export async function loadTariffRateLookup(): Promise<TariffRateLookup[]> {
       digitLengths: true,
       price: true,
       sortIndex: true,
+      region: true,
     },
   });
   return rows.map((row) => ({
@@ -47,6 +48,7 @@ export async function loadTariffRateLookup(): Promise<TariffRateLookup[]> {
     digitLengths: parseStoredDigitLengths(row.digitLengths),
     price: formatTariffDecimal(row.price.toString()),
     sortIndex: row.sortIndex,
+    region: row.region,
   }));
 }
 

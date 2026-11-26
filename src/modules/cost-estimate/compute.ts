@@ -8,7 +8,9 @@ import { oprsOperatorTone } from "@/modules/oprs/operator-tone";
 import type { OprsOperatorToneMap } from "@/modules/oprs/operator-tone";
 import { classifyCostEstimateType } from "@/modules/cost-estimate/classify";
 import { secondsToElapsedMsString } from "@/modules/cost-estimate/normalize";
+import { shownCostEstimateRegion } from "@/modules/cost-estimate/region";
 import {
+  COST_ESTIMATE_EMPTY_NETWORK,
   COST_ESTIMATE_LOCAL_CHARGE,
   type CostEstimateInputRow,
   type CostEstimateOutputRow,
@@ -23,6 +25,7 @@ import {
   rateCdrCall,
   type TariffRateLookup,
 } from "@/modules/traffic/cdr-tariff";
+import { matchTariffAbc } from "@/modules/traffic/tariff-match";
 
 const DOMESTIC_REGISTRY_TYPES = new Set<string>([
   CALL_TYPE.local,
@@ -65,6 +68,8 @@ export function buildCostEstimateRows(input: {
       elapsedTime: secondsToElapsedMsString(row.seconds),
       rates: input.rates,
     });
+    const matched = matchTariffAbc(row.bDigits, input.rates);
+    const tariffRegion = matched?.region?.trim() ?? "";
     const pstn = input.pstn.get(row.bDigits) ?? {
       operator: "",
       geography: "",
@@ -74,6 +79,14 @@ export function buildCostEstimateRows(input: {
       callType,
       pstn.operator,
     );
+    const region = shownCostEstimateRegion({
+      callType,
+      direction: tariff.direction,
+      tariffRegion,
+      pstnGeography: pstn.geography,
+      registryMissing,
+    });
+
     if (registryMissing) {
       return {
         dateDisplay: row.dateDisplay,
@@ -81,6 +94,7 @@ export function buildCostEstimateRows(input: {
         bNumberRaw: row.bNumberRaw,
         callType,
         direction: tariff.direction,
+        region,
         seconds: row.seconds,
         minutes: billableMinutes(row.seconds),
         charge: chargeForRow(callType, ""),
@@ -100,6 +114,8 @@ export function buildCostEstimateRows(input: {
       network =
         brand || (input.labelUnpainted ? OPRS_EXTERNAL_NETWORK : "");
       fillTone = tone;
+    } else if (!network) {
+      network = COST_ESTIMATE_EMPTY_NETWORK;
     }
 
     return {
@@ -108,6 +124,7 @@ export function buildCostEstimateRows(input: {
       bNumberRaw: row.bNumberRaw,
       callType,
       direction: tariff.direction,
+      region,
       seconds: row.seconds,
       minutes: billableMinutes(row.seconds),
       charge: chargeForRow(callType, tariff.charge),

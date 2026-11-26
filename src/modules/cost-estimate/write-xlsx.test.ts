@@ -23,6 +23,7 @@ describe("writeCostEstimateXlsx", () => {
         bNumberRaw: "+79031234567",
         callType: CALL_TYPE.mobile,
         direction: "Мобильные РФ",
+        region: "",
         seconds: 4,
         minutes: 1,
         charge: "1000.00",
@@ -38,10 +39,11 @@ describe("writeCostEstimateXlsx", () => {
         bNumberRaw: "73839999999",
         callType: CALL_TYPE.local,
         direction: "г. Новосибирск",
+        region: "Московская область",
         seconds: 60,
         minutes: 1,
         charge: COST_ESTIMATE_LOCAL_CHARGE,
-        network: "",
+        network: "-",
         operator: "Ростелеком",
         geography: "НСК",
         fillTone: null,
@@ -53,10 +55,11 @@ describe("writeCostEstimateXlsx", () => {
         bNumberRaw: "73831234567",
         callType: CALL_TYPE.intercity,
         direction: "г. Новосибирск",
+        region: "Московская область",
         seconds: 60,
         minutes: 1,
         charge: "9000.33",
-        network: "",
+        network: "-",
         operator: "Ростелеком",
         geography: "НСК",
         fillTone: null,
@@ -74,8 +77,8 @@ describe("writeCostEstimateXlsx", () => {
     expect(sheet.getRow(1).getCell(COST_ESTIMATE_COL.charge + 1).text).toBe(
       "Стоимость",
     );
-    expect(sheet.getRow(1).getCell(9).text).toBe("Сеть ОПРС");
-    expect(sheet.getRow(1).getCell(10).text).toBe(
+    expect(sheet.getRow(1).getCell(10).text).toBe("Сеть ОПРС");
+    expect(sheet.getRow(1).getCell(11).text).toBe(
       "Оператор связи (реестр МинЦифры)",
     );
     expect(sheet.getRow(1).getCell(2).alignment?.horizontal).toBe("center");
@@ -139,7 +142,7 @@ describe("writeCostEstimateXlsx", () => {
     const filter = sheet.autoFilter;
     expect(filter).toBeTruthy();
     if (typeof filter === "string") {
-      expect(filter.replace(/\$/g, "").toUpperCase()).toBe("A1:K4");
+      expect(filter.replace(/\$/g, "").toUpperCase()).toBe("A1:L4");
     } else if (filter && typeof filter === "object" && "to" in filter) {
       expect(filter.to).toEqual({
         row: 4,
@@ -156,6 +159,7 @@ describe("writeCostEstimateXlsx", () => {
         bNumberRaw: "79031234567",
         callType: CALL_TYPE.mobile,
         direction: "Мобильные РФ",
+        region: "",
         seconds: 10,
         minutes: 1,
         charge: "",
@@ -171,10 +175,11 @@ describe("writeCostEstimateXlsx", () => {
         bNumberRaw: "73831234567",
         callType: CALL_TYPE.intercity,
         direction: "г. Новосибирск",
+        region: "Московская область",
         seconds: 60,
         minutes: 1,
         charge: "1.50",
-        network: "",
+        network: "-",
         operator: "Ростелеком",
         geography: "НСК",
         fillTone: null,

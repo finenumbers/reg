@@ -57,6 +57,8 @@ export type TariffRateLookup = {
   sortIndex: number;
   /** Null: any admitted length. Ignored when the ABC starts with 7. */
   digitLengths: number[] | null;
+  /** Tariff «Регион»; omitted/null → empty in cost-estimate. */
+  region?: string | null;
 };
 
 /** CEIL(ms/1000). Non-numeric and negative durations are 0 seconds. */

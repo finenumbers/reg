@@ -54,6 +54,8 @@ Optional publish ports: `APP_PUBLISH_PORT`, `POSTGRES_PUBLISH_PORT`.
 
 ## 3. Database
 
+v1.349.0 does not migrate and does not rewrite catalog rows, the CDR journal, or settings. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before the new one starts, then start one new app. Refresh the browser. «Расчет затрат» adds «Регион», renames call-type and geography headers, and writes «-» for empty non-mobile «Сеть ОПРС». Nothing is written to the switch. RTU activation is unchanged.
+
 v1.348.3 does not migrate and does not rewrite catalog rows, the CDR journal, or settings. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before the new one starts, then start one new app. Refresh the browser. «Расчет затрат» writes A/B/seconds/minutes/charge as Excel numbers with grouping formats; the total is a green charge cell with a medium border. Nothing is written to the switch. RTU activation is unchanged.
 
 v1.348.2 does not migrate and does not rewrite catalog rows, the CDR journal, or settings. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before the new one starts, then start one new app. Refresh the browser. «Расчет затрат» renames «Сеть ОПРС» and «Оператор связи (реестр МинЦифры)»; centers headers; left-aligns text columns and right-aligns seconds/minutes/charge. Nothing is written to the switch. RTU activation is unchanged.

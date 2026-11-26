@@ -124,6 +124,7 @@ describe("parseCostEstimateXlsx", () => {
         bNumberRaw: parsed.rows[0]!.bNumberRaw,
         callType: CALL_TYPE.mobile,
         direction: "Мобильные РФ",
+        region: "",
         seconds: 4,
         minutes: 1,
         charge: "3.00",
@@ -146,8 +147,8 @@ describe("parseCostEstimateXlsx", () => {
     expect(fill.fgColor?.argb).toBe(
       (XLSX_OPRS_MTS_FILL as ExcelJS.FillPattern).fgColor?.argb,
     );
-    expect(sheet.getRow(3).getCell(8).value).toBe(3);
-    expect(sheet.getRow(3).getCell(8).numFmt).toBe("#,##0.00");
+    expect(sheet.getRow(3).getCell(9).value).toBe(3);
+    expect(sheet.getRow(3).getCell(9).numFmt).toBe("#,##0.00");
   });
 });
 

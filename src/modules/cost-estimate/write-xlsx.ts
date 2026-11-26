@@ -93,6 +93,7 @@ export async function writeCostEstimateXlsx(
     row.bNumberRaw,
     row.callType,
     row.direction,
+    row.region,
     String(row.seconds),
     String(row.minutes),
     row.charge,
