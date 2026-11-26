@@ -1,47 +1,34 @@
 /**
- * Supplier workbook. Two accepted header shapes.
- * The legacy file starts with «Категория», «Поставщик», «Город», «Номер».
- * A geography export names the phone column «Телефонный номер».
- * «Город» is not stored. A legacy prefix wins over a later phone header.
+ * Supplier workbook. One accepted header shape:
+ * «Категория», «Поставщик», «ABC», «Номер».
+ * ABC and «Номер» only identify the endpoint. They are not stored.
+ * Display ABC like «7 (383)» is accepted; digits are matched later.
  */
 
 import ExcelJS from "exceljs";
 import { CATEGORY_FIELD, CATEGORY_MAX_LENGTH } from "@/modules/phones/category";
 import { SUPPLIER_FIELD, SUPPLIER_MAX_LENGTH } from "@/modules/phones/supplier";
 
+const SUPPLIER_ABC_HEADER = "ABC";
 const SUPPLIER_NUMBER_HEADER = "Номер";
-const SUPPLIER_TELEPHONE_HEADER = "Телефонный номер";
-const SUPPLIER_CITY_HEADER = "Город";
 
 const FILE_HEADERS = [
   CATEGORY_FIELD,
   SUPPLIER_FIELD,
-  SUPPLIER_CITY_HEADER,
+  SUPPLIER_ABC_HEADER,
   SUPPLIER_NUMBER_HEADER,
 ] as const;
 
-const NAMED_HEADERS = [
-  CATEGORY_FIELD,
-  SUPPLIER_FIELD,
-  SUPPLIER_CITY_HEADER,
-  SUPPLIER_TELEPHONE_HEADER,
-] as const;
-
 const HEADER_DETAIL =
-  "Первая строка должна начинаться со столбцов «Категория», «Поставщик», «Город», «Номер» или содержать по одному столбцу «Категория», «Поставщик», «Город» и «Телефонный номер»";
-
-type SheetColumns = {
-  category: number;
-  supplier: number;
-  city: number;
-  number: number;
-  numberHeader: string;
-};
+  "Первая строка должна начинаться со столбцов «Категория», «Поставщик», «ABC», «Номер»";
 
 export type SupplierFileRow = {
   /** 1-based worksheet row, header is 1. */
   rowNumber: number;
-  number: string;
+  /** Trimmed screen ABC text, e.g. «7 (383)». Empty when the full number is in «Номер». */
+  abc: string;
+  /** Trimmed local part or full number when ABC is empty. */
+  telephone: string;
   /** Trimmed. Empty clears the supplier. */
   supplier: string;
   /** Trimmed. Empty clears the category. */
@@ -94,23 +81,27 @@ export async function parseSupplierXlsx(buffer: Buffer): Promise<SupplierXlsxRes
     };
   }
 
-  const headerRow = sheet.getRow(1);
-  const located = locateColumns(headerRow);
-  if (!located.ok) return located;
+  const headers = headerTexts(sheet.getRow(1));
+  if (!FILE_HEADERS.every((header, index) => headers[index] === header)) {
+    return {
+      ok: false,
+      error: "В файле нет нужных столбцов",
+      details: [HEADER_DETAIL],
+    };
+  }
 
   const rows: SupplierFileRow[] = [];
   const details: string[] = [];
   const last = sheet.rowCount;
-  const columns = located.columns;
   for (let rowNumber = 2; rowNumber <= last; rowNumber++) {
     const row = sheet.getRow(rowNumber);
-    const category = cellText(row.getCell(columns.category).value);
-    const supplier = cellText(row.getCell(columns.supplier).value);
-    const city = cellText(row.getCell(columns.city).value);
-    const number = cellText(row.getCell(columns.number).value);
-    if (!category && !supplier && !city && !number) continue;
-    if (!number) {
-      details.push(`Строка ${rowNumber}: пустой «${columns.numberHeader}»`);
+    const category = cellText(row.getCell(1).value);
+    const supplier = cellText(row.getCell(2).value);
+    const abc = cellText(row.getCell(3).value);
+    const telephone = cellText(row.getCell(4).value);
+    if (!category && !supplier && !abc && !telephone) continue;
+    if (!telephone) {
+      details.push(`Строка ${rowNumber}: пустой «${SUPPLIER_NUMBER_HEADER}»`);
       continue;
     }
     if (category.length > CATEGORY_MAX_LENGTH) {
@@ -126,7 +117,7 @@ export async function parseSupplierXlsx(buffer: Buffer): Promise<SupplierXlsxRes
     if (category.length > CATEGORY_MAX_LENGTH || supplier.length > SUPPLIER_MAX_LENGTH) {
       continue;
     }
-    rows.push({ rowNumber, number, supplier, category });
+    rows.push({ rowNumber, abc, telephone, supplier, category });
   }
 
   if (details.length > 0) {
@@ -153,56 +144,4 @@ function headerTexts(row: ExcelJS.Row): string[] {
     headers.push(cellText(row.getCell(index).value));
   }
   return headers;
-}
-
-function isLegacyHeader(headers: readonly string[]): boolean {
-  return FILE_HEADERS.every((header, index) => headers[index] === header);
-}
-
-function locateColumns(
-  row: ExcelJS.Row,
-): { ok: true; columns: SheetColumns } | { ok: false; error: string; details: string[] } {
-  const headers = headerTexts(row);
-  if (isLegacyHeader(headers)) {
-    return {
-      ok: true,
-      columns: {
-        category: 1,
-        supplier: 2,
-        city: 3,
-        number: 4,
-        numberHeader: SUPPLIER_NUMBER_HEADER,
-      },
-    };
-  }
-
-  const named = new Set<string>(NAMED_HEADERS);
-  const hits = new Map<string, number[]>();
-  headers.forEach((header, index) => {
-    if (!named.has(header)) return;
-    const columns = hits.get(header) ?? [];
-    columns.push(index + 1);
-    hits.set(header, columns);
-  });
-  const details = [HEADER_DETAIL];
-  const indexes = {} as Record<(typeof NAMED_HEADERS)[number], number>;
-  for (const header of NAMED_HEADERS) {
-    const columns = hits.get(header) ?? [];
-    if (columns.length === 0) details.push(`Нет столбца «${header}»`);
-    if (columns.length > 1) details.push(`Столбец «${header}» повторяется`);
-    if (columns.length === 1) indexes[header] = columns[0]!;
-  }
-  if (details.length > 1) {
-    return { ok: false, error: "В файле нет нужных столбцов", details };
-  }
-  return {
-    ok: true,
-    columns: {
-      category: indexes[CATEGORY_FIELD],
-      supplier: indexes[SUPPLIER_FIELD],
-      city: indexes[SUPPLIER_CITY_HEADER],
-      number: indexes[SUPPLIER_TELEPHONE_HEADER],
-      numberHeader: SUPPLIER_TELEPHONE_HEADER,
-    },
-  };
 }

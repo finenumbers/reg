@@ -2,6 +2,7 @@
  * Write supplier and category onto phone_endpoints by number.
  * The XLSX is parsed before the catalog lock. A file that matches nothing
  * does not open a transaction. One row writes both keys together.
+ * ABC and «Номер» only identify the endpoint.
  */
 
 import type { Prisma } from "@/generated/prisma/client";
@@ -9,7 +10,7 @@ import { prisma } from "@/lib/db";
 import { applyPhoneAnnotation } from "@/modules/phones/annotation";
 import {
   indexSupplierCatalog,
-  matchSupplierNumber,
+  matchSupplierFileRow,
 } from "@/modules/phones/supplier-match";
 import { PHONE_CATALOG_LOCK_SQL } from "@/modules/phones/supplier";
 import { patchRtuScreenSuppliers } from "@/modules/rtu/screen-publish";
@@ -25,19 +26,23 @@ type SupplierImportResult = {
   unmatched: number;
 };
 
+const SCREEN_SELECT = { id: true, abc: true, telephone: true } as const;
+
 export async function importPhoneSuppliers(
   fileRows: readonly SupplierFileRow[],
 ): Promise<SupplierImportResult> {
-  const preview = await prisma.phoneEndpoint.findMany({
-    select: { id: true, endpointNumber: true },
-  });
-  const previewIndex = indexSupplierCatalog(
-    preview.flatMap((row) =>
-      row.endpointNumber ? [{ id: row.id, endpointNumber: row.endpointNumber }] : [],
-    ),
+  const [preview, previewScreen] = await Promise.all([
+    prisma.phoneEndpoint.findMany({
+      select: { id: true, endpointNumber: true },
+    }),
+    prisma.rtuScreen.findMany({ select: SCREEN_SELECT }),
+  ]);
+  const previewCatalog = preview.flatMap((row) =>
+    row.endpointNumber ? [{ id: row.id, endpointNumber: row.endpointNumber }] : [],
   );
+  const previewIndex = indexSupplierCatalog(previewCatalog, previewScreen);
   const previewHits = fileRows.some(
-    (row) => matchSupplierNumber(row.number, previewIndex).length > 0,
+    (row) => matchSupplierFileRow(row, previewIndex).length > 0,
   );
   if (!previewHits) {
     return {
@@ -51,19 +56,21 @@ export async function importPhoneSuppliers(
 
   return prisma.$transaction(async (tx) => {
     await tx.$executeRawUnsafe(PHONE_CATALOG_LOCK_SQL);
-    const endpoints = await tx.phoneEndpoint.findMany({
-      select: { id: true, endpointNumber: true, data: true },
-    });
-    const index = indexSupplierCatalog(
-      endpoints.flatMap((row) =>
-        row.endpointNumber ? [{ id: row.id, endpointNumber: row.endpointNumber }] : [],
-      ),
+    const [endpoints, screen] = await Promise.all([
+      tx.phoneEndpoint.findMany({
+        select: { id: true, endpointNumber: true, data: true },
+      }),
+      tx.rtuScreen.findMany({ select: SCREEN_SELECT }),
+    ]);
+    const catalog = endpoints.flatMap((row) =>
+      row.endpointNumber ? [{ id: row.id, endpointNumber: row.endpointNumber }] : [],
     );
+    const index = indexSupplierCatalog(catalog, screen);
     const byId = new Map(endpoints.map((row) => [row.id, row]));
     const pending = new Map<string, { supplier: string; category: string }>();
     let unmatched = 0;
     for (const row of fileRows) {
-      const hits = matchSupplierNumber(row.number, index);
+      const hits = matchSupplierFileRow(row, index);
       if (hits.length === 0) {
         unmatched += 1;
         continue;

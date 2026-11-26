@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import ExcelJS from "exceljs";
 import { parseSupplierXlsx } from "@/modules/phones/supplier-xlsx";
 
-const HEAD = ["Категория", "Поставщик", "Город", "Номер"];
+const HEAD = ["Категория", "Поставщик", "ABC", "Номер"];
 
-async function workbook(rows: string[][]): Promise<Buffer> {
+async function workbook(rows: (string | number)[][]): Promise<Buffer> {
   const book = new ExcelJS.Workbook();
   const sheet = book.addWorksheet("Поставщики");
   for (const row of rows) sheet.addRow(row);
@@ -16,9 +16,9 @@ describe("parseSupplierXlsx", () => {
     const parsed = await parseSupplierXlsx(
       await workbook([
         [...HEAD, "Клиент"],
-        ["VIP", "Ростелеком", "Москва", "74951234567", "игнор"],
+        ["VIP", "Ростелеком", "7 (383)", "3999999", "игнор"],
         ["", "", "", ""],
-        ["", "", "Казань", "1234"],
+        ["", "", "7 (913)", "3999999"],
       ]),
     );
     expect(parsed).toEqual({
@@ -26,28 +26,33 @@ describe("parseSupplierXlsx", () => {
       rows: [
         {
           rowNumber: 2,
-          number: "74951234567",
+          abc: "7 (383)",
+          telephone: "3999999",
           supplier: "Ростелеком",
           category: "VIP",
         },
-        { rowNumber: 4, number: "1234", supplier: "", category: "" },
+        {
+          rowNumber: 4,
+          abc: "7 (913)",
+          telephone: "3999999",
+          supplier: "",
+          category: "",
+        },
       ],
     });
   });
 
-  it("reads a geography export when Источник sits after Поставщик", async () => {
+  it("allows an empty ABC when «Номер» holds the full number", async () => {
     const parsed = await parseSupplierXlsx(
-      await workbook([
-        ["Категория", "Поставщик", "Источник", "Город", "Телефонный номер"],
-        ["VIP", "Ростелеком", "MCN Telecom", "Москва", "74951234567"],
-      ]),
+      await workbook([HEAD, ["VIP", "Ростелеком", "", "74951234567"]]),
     );
     expect(parsed).toEqual({
       ok: true,
       rows: [
         {
           rowNumber: 2,
-          number: "74951234567",
+          abc: "",
+          telephone: "74951234567",
           supplier: "Ростелеком",
           category: "VIP",
         },
@@ -55,155 +60,61 @@ describe("parseSupplierXlsx", () => {
     });
   });
 
-  it("reads a geography export from the telephone header, not the client column", async () => {
-    const parsed = await parseSupplierXlsx(
-      await workbook([
-        [
-          "Категория",
-          "Поставщик",
-          "Город",
-          "Клиент",
-          "Канальность",
-          "Оператор связи",
-          "География",
-          "Телефонный номер",
-          "Название",
-          "Статус",
-        ],
-        [
-          "VIP",
-          "Ростелеком",
-          "Москва",
-          "Клиент",
-          "10",
-          "МТС",
-          "Край",
-          "74951234567",
-          "Имя",
-          "Активно",
-        ],
-      ]),
+  it("rejects ABC-only rows and the old Город header", async () => {
+    const abcOnly = await parseSupplierXlsx(
+      await workbook([HEAD, ["VIP", "Ростелеком", "7 (383)", ""]]),
     );
-    expect(parsed).toEqual({
-      ok: true,
-      rows: [
-        {
-          rowNumber: 2,
-          number: "74951234567",
-          supplier: "Ростелеком",
-          category: "VIP",
-        },
-      ],
-    });
+    expect(abcOnly.ok).toBe(false);
+    if (!abcOnly.ok) expect(abcOnly.details[0]).toContain("«Номер»");
 
-    const emptyPhone = await parseSupplierXlsx(
+    const oldCity = await parseSupplierXlsx(
       await workbook([
-        ["Категория", "Поставщик", "Город", "Клиент", "Телефонный номер"],
-        ["", "", "Казань", "Клиент", ""],
+        ["Категория", "Поставщик", "Город", "Номер"],
+        ["VIP", "Ростелеком", "Москва", "74951234567"],
       ]),
     );
-    expect(emptyPhone.ok).toBe(false);
-    if (!emptyPhone.ok) expect(emptyPhone.details[0]).toContain("«Телефонный номер»");
+    expect(oldCity.ok).toBe(false);
+
+    const namedPhone = await parseSupplierXlsx(
+      await workbook([
+        ["Категория", "Поставщик", "Город", "Телефонный номер"],
+        ["VIP", "Ростелеком", "Москва", "74951234567"],
+      ]),
+    );
+    expect(namedPhone.ok).toBe(false);
   });
 
-  it("reads a geography export from the telephone header when ABC and Номер sit beside the city", async () => {
-    const parsed = await parseSupplierXlsx(
-      await workbook([
-        [
-          "Категория",
-          "Поставщик",
-          "Город",
-          "ABC",
-          "Номер",
-          "Клиент",
-          "Канальность",
-          "Оператор связи",
-          "География",
-          "Телефонный номер",
-          "Название",
-          "Статус",
-        ],
-        [
-          "VIP",
-          "Ростелеком",
-          "Москва",
-          "7495",
-          "1234567",
-          "Клиент",
-          "10",
-          "МТС",
-          "Край",
-          "74951234567",
-          "Имя",
-          "Активно",
-        ],
-      ]),
-    );
-    expect(parsed).toEqual({
-      ok: true,
-      rows: [
-        {
-          rowNumber: 2,
-          number: "74951234567",
-          supplier: "Ростелеком",
-          category: "VIP",
-        },
-      ],
-    });
-  });
-
-  it("keeps the legacy fourth column when a telephone header is also present", async () => {
-    const parsed = await parseSupplierXlsx(
-      await workbook([
-        [...HEAD, "Телефонный номер"],
-        ["VIP", "Ростелеком", "Москва", "111", "222"],
-      ]),
-    );
-    expect(parsed).toEqual({
-      ok: true,
-      rows: [{ rowNumber: 2, number: "111", supplier: "Ростелеком", category: "VIP" }],
-    });
-  });
-
-  it("rejects a repeated telephone header", async () => {
-    const parsed = await parseSupplierXlsx(
-      await workbook([
-        ["Категория", "Поставщик", "Город", "Телефонный номер", "Телефонный номер"],
-        ["VIP", "Ростелеком", "Москва", "1", "2"],
-      ]),
-    );
-    expect(parsed.ok).toBe(false);
-  });
-
-  it("rejects a file that is not in column order", async () => {
-    const oldFile = await parseSupplierXlsx(
-      await workbook([
-        ["Поставщик", "Номер"],
-        ["Ростелеком", "1"],
-      ]),
-    );
-    expect(oldFile.ok).toBe(false);
-
+  it("rejects a shifted header and an overlong category", async () => {
     const shifted = await parseSupplierXlsx(
       await workbook([
-        ["Номер", "Поставщик", "Категория", "Город"],
-        ["1", "Ростелеком", "VIP", "Москва"],
+        ["Номер", "Поставщик", "Категория", "ABC"],
+        ["3999999", "Ростелеком", "VIP", "7 (383)"],
       ]),
     );
     expect(shifted.ok).toBe(false);
-  });
-
-  it("rejects an empty number when another cell is filled, and an overlong category", async () => {
-    const cityOnly = await parseSupplierXlsx(
-      await workbook([HEAD, ["VIP", "", "Москва", ""]]),
-    );
-    expect(cityOnly.ok).toBe(false);
-    if (!cityOnly.ok) expect(cityOnly.details[0]).toContain("Строка 2");
 
     const long = await parseSupplierXlsx(
-      await workbook([HEAD, ["я".repeat(201), "Ростелеком", "", "1"]]),
+      await workbook([HEAD, ["я".repeat(201), "Ростелеком", "7 (383)", "3999999"]]),
     );
     expect(long.ok).toBe(false);
     if (!long.ok) expect(long.details[0]).toContain("«Категория»");
+  });
+
+  it("keeps a numeric local part without restoring leading zeros", async () => {
+    const parsed = await parseSupplierXlsx(
+      await workbook([HEAD, ["VIP", "Ростелеком", "7 (9)", 1234567]]),
+    );
+    expect(parsed).toEqual({
+      ok: true,
+      rows: [
+        {
+          rowNumber: 2,
+          abc: "7 (9)",
+          telephone: "1234567",
+          supplier: "Ростелеком",
+          category: "VIP",
+        },
+      ],
+    });
   });
 });

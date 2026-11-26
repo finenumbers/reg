@@ -1,7 +1,13 @@
-# Current Phase — production (v1.344.0)
+# Current Phase — production (v1.345.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, purchased numbers, numbering sync, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs, outbound mail.
-**Date:** 2026-11-23
+**Date:** 2026-11-26
+
+## v1.345.0 — Supplier upload uses ABC and «Номер»
+
+This release does not migrate and does not rewrite catalog rows, the CDR journal, or settings. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before the new one starts, then start one new app. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged.
+
+«Загрузить поставщиков» accepts only the first four headers «Категория», «Поставщик», «ABC», «Номер». «ABC» and «Номер» identify the endpoint and are not stored. Display values from «Управление РТУ» work, for example `7 (383)` with `3999999` and `7 (913)` with the local part. A raw screen pair such as `903` with `9039900` also matches. An empty «ABC» with the full number in «Номер» is allowed. A row with «ABC» and an empty «Номер» is rejected. Old files with «Город» or «Телефонный номер» are rejected. The full RTU export is still not a supplier file. Keep «ABC» and «Номер» as text in Excel.
 
 ## v1.344.0 — Summary letter without «Исключенные»
 
