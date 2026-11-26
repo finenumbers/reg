@@ -14,6 +14,7 @@ type FeatureModuleId =
   | "registrations"
   | "phones"
   | "groups"
+  | "cost-estimate"
   | "rtu"
   | "free-numbers"
   | "purchased-numbers"
@@ -83,6 +84,13 @@ export const FEATURE_MODULES: FeatureModuleDefinition[] = [
     title: "Входящие группы",
     description: "Справочник routing groups с softswitch (только просмотр)",
     href: "/groups",
+    navPermission: "phones:read",
+  },
+  {
+    id: "cost-estimate",
+    title: "Расчет затрат",
+    description: "Оценка стоимости звонков по тарифу из XLSX",
+    href: "/cost-estimate",
     navPermission: "phones:read",
   },
   {

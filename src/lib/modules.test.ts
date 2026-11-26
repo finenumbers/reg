@@ -32,6 +32,14 @@ describe("FEATURE_MODULES nav groups", () => {
     });
     expect(FEATURE_MODULES[1]?.navGroup).toBeUndefined();
     expect(FEATURE_MODULES[2]?.id).toBe("registrations");
+    const groupsIndex = FEATURE_MODULES.findIndex((module) => module.id === "groups");
+    expect(FEATURE_MODULES[groupsIndex + 1]).toMatchObject({
+      id: "cost-estimate",
+      title: "Расчет затрат",
+      href: "/cost-estimate",
+      navPermission: "phones:read",
+    });
+    expect(FEATURE_MODULES[groupsIndex + 1]?.navGroup).toBeUndefined();
     expect(FEATURE_MODULES.map((module) => module.id)).not.toContain("number-geography");
   });
 

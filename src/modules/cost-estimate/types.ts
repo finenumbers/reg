@@ -1,0 +1,82 @@
+/**
+ * Ephemeral cost-estimate workbook: input rows and rated output cells.
+ */
+
+import type { OprsOperatorTone } from "@/modules/oprs/operator-tone";
+import type ExcelJS from "exceljs";
+
+export const COST_ESTIMATE_INPUT_HEADERS = [
+  "Дата",
+  "B-номер",
+  "Продолжительность",
+] as const;
+
+export const COST_ESTIMATE_OUTPUT_HEADERS = [
+  "Дата",
+  "B-номер",
+  "Тип",
+  "Направление",
+  "Стоимость",
+  "Сеть",
+  "Оператор связи",
+  "География нумерации",
+] as const;
+
+export const COST_ESTIMATE_MAX_ROWS = 50_000;
+export const COST_ESTIMATE_MAX_DETAILS = 30;
+export const COST_ESTIMATE_SHEET_NAME = "Расчет затрат";
+export const COST_ESTIMATE_FILENAME = "Расчет затрат.xlsx";
+
+export const COST_ESTIMATE_TONE_ERROR =
+  "Карта операторов ОПРС неполная, расчёт не выполнен.";
+
+export const COST_ESTIMATE_PARSE_ERROR = "Файл XLSX не подходит для расчёта затрат";
+
+export type CostEstimateInputRow = {
+  /** 1-based worksheet row (header is 1). */
+  rowNumber: number;
+  /** Display text preserved for the output Дата column. */
+  dateDisplay: string;
+  /** Original B-номер cell text for the output. */
+  bNumberRaw: string;
+  /** Digits-only B for rating and PSTN. */
+  bDigits: string;
+  /** Non-negative integer seconds. */
+  seconds: number;
+};
+
+export type CostEstimateOutputRow = {
+  dateDisplay: string;
+  bNumberRaw: string;
+  callType: string;
+  direction: string;
+  charge: string;
+  network: string;
+  operator: string;
+  geography: string;
+  /** OPRS tone for mobile fill; null → no fill (including «Внешние сети»). */
+  fillTone: OprsOperatorTone | null;
+};
+
+export type CostEstimatePstnFields = {
+  operator: string;
+  geography: string;
+};
+
+export type CostEstimateRunOk = {
+  ok: true;
+  buffer: Buffer;
+  filename: string;
+  pstnSnapshotEmpty: boolean;
+};
+
+export type CostEstimateRunErr = {
+  ok: false;
+  status: 400 | 503;
+  error: string;
+  details: string[];
+};
+
+export type CostEstimateRunResult = CostEstimateRunOk | CostEstimateRunErr;
+
+export type CostEstimateFill = ExcelJS.Fill;
