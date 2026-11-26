@@ -29,7 +29,7 @@ function pad2(n: number): string {
   return String(n).padStart(2, "0");
 }
 
-/** Local civil clock: YYYY-MM-DD HH:mm:ss (always includes time). */
+/** Local civil clock: DD.MM.YYYY, HH:mm:ss (always includes time). */
 export function formatDateTimeLocal(value: Date): string {
   const y = value.getFullYear();
   const m = pad2(value.getMonth() + 1);
@@ -37,7 +37,25 @@ export function formatDateTimeLocal(value: Date): string {
   const hh = pad2(value.getHours());
   const mm = pad2(value.getMinutes());
   const ss = pad2(value.getSeconds());
-  return `${y}-${m}-${d} ${hh}:${mm}:${ss}`;
+  return `${d}.${m}.${y}, ${hh}:${mm}:${ss}`;
+}
+
+const ISO_DATE_TIME_RE =
+  /^(\d{4})-(\d{2})-(\d{2})(?: (\d{2}):(\d{2}):(\d{2}))?$/;
+
+/** YYYY-MM-DD[ HH:mm:ss] → formatDateTimeLocal; else null. */
+export function normalizeIsoDateTimeText(raw: string): string | null {
+  const match = ISO_DATE_TIME_RE.exec(raw.trim());
+  if (!match) return null;
+  const y = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const hh = match[4] != null ? Number(match[4]) : 0;
+  const mm = match[5] != null ? Number(match[5]) : 0;
+  const ss = match[6] != null ? Number(match[6]) : 0;
+  const date = new Date(y, month - 1, day, hh, mm, ss);
+  if (!Number.isFinite(date.getTime())) return null;
+  return formatDateTimeLocal(date);
 }
 
 /**
@@ -74,8 +92,8 @@ export function dateCellDisplay(cell: ExcelJS.Cell): string {
       if (fromSerial) return formatDateTimeLocal(fromSerial);
     }
   }
-  const text = cellDisplayText(cell);
-  return stripTimezoneSuffix(text);
+  const text = stripTimezoneSuffix(cellDisplayText(cell));
+  return normalizeIsoDateTimeText(text) ?? text;
 }
 
 function cellDisplayText(cell: ExcelJS.Cell): string {

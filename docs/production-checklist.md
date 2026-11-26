@@ -54,6 +54,8 @@ Optional publish ports: `APP_PUBLISH_PORT`, `POSTGRES_PUBLISH_PORT`.
 
 ## 3. Database
 
+v1.349.3 does not migrate and does not rewrite catalog rows, the CDR journal, or settings. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before the new one starts, then start one new app. Refresh the browser. «Расчет затрат» formats «Дата» as `ДД.ММ.ГГГГ, ЧЧ:ММ:СС`. Nothing is written to the switch. RTU activation is unchanged.
+
 v1.349.2 does not migrate and does not rewrite catalog rows, the CDR journal, or settings. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before the new one starts, then start one new app. Refresh the browser. Shown «Регион» adds the two Crimea/Sevastopol collapses. «Расчет затрат» fills empty «Регион» from «Направление» and bolds «B-номер». Nothing is written to the switch. RTU activation is unchanged.
 
 v1.349.1 does not migrate and does not rewrite catalog rows, the CDR journal, or settings. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before the new one starts, then start one new app. Refresh the browser. «Расчет затрат» adds «Цена» (tariff per-minute) before «Стоимость». Nothing is written to the switch. RTU activation is unchanged.

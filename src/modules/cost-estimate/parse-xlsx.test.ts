@@ -26,10 +26,10 @@ async function workbookBuffer(
 describe("formatDateTimeLocal", () => {
   it("formats local date and time with zero-padding", () => {
     expect(formatDateTimeLocal(new Date(2026, 0, 15, 14, 30, 5))).toBe(
-      "2026-01-15 14:30:05",
+      "15.01.2026, 14:30:05",
     );
     expect(formatDateTimeLocal(new Date(2026, 0, 15))).toBe(
-      "2026-01-15 00:00:00",
+      "15.01.2026, 00:00:00",
     );
   });
 });
@@ -39,7 +39,7 @@ describe("excelSerialToDate", () => {
     // 2026-01-15 00:00:00 UTC from Excel 1900 system ≈ 46037
     const d = excelSerialToDate(46037);
     expect(d).not.toBeNull();
-    expect(formatDateTimeLocal(d!)).toMatch(/^2026-01-1[45] /);
+    expect(formatDateTimeLocal(d!)).toMatch(/^1[45]\.01\.2026, \d{2}:\d{2}:\d{2}$/);
   });
 
   it("rejects non-serial numbers", () => {
@@ -60,7 +60,7 @@ describe("parseCostEstimateXlsx", () => {
     expect(parsed.rows).toEqual([
       {
         rowNumber: 2,
-        dateDisplay: "2026-01-02",
+        dateDisplay: "02.01.2026, 00:00:00",
         aNumberRaw: "",
         aDigits: "",
         bNumberRaw: "+79031234567",
@@ -70,14 +70,14 @@ describe("parseCostEstimateXlsx", () => {
     ]);
   });
 
-  it("strips a GMT suffix from a text date without inventing time", async () => {
+  it("strips a GMT suffix and normalizes ISO date-time text", async () => {
     const buffer = await workbookBuffer([
       ["2026-01-02 14:30:05 GMT+0700 (Indochina Time)", "", "79031234567", 4],
     ]);
     const parsed = await parseCostEstimateXlsx(buffer);
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) return;
-    expect(parsed.rows[0]?.dateDisplay).toBe("2026-01-02 14:30:05");
+    expect(parsed.rows[0]?.dateDisplay).toBe("02.01.2026, 14:30:05");
     expect(parsed.rows[0]?.dateDisplay).not.toMatch(/GMT/i);
   });
 
@@ -114,7 +114,7 @@ describe("parseCostEstimateXlsx", () => {
     const parsed = await parseCostEstimateXlsx(buffer);
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) return;
-    expect(parsed.rows[0]?.dateDisplay).toBe("2026-01-15 14:30:05");
+    expect(parsed.rows[0]?.dateDisplay).toBe("15.01.2026, 14:30:05");
     expect(parsed.rows[0]?.dateDisplay).not.toMatch(/GMT/i);
 
     const out = await writeCostEstimateXlsx([
@@ -141,7 +141,7 @@ describe("parseCostEstimateXlsx", () => {
     const sheet = reload.worksheets[0]!;
     expect(sheet.getRow(1).getCell(1).text).toBe("Дата");
     expect(sheet.getRow(1).getCell(2).text).toBe("A-номер");
-    expect(sheet.getRow(2).getCell(1).text).toBe("2026-01-15 14:30:05");
+    expect(sheet.getRow(2).getCell(1).text).toBe("15.01.2026, 14:30:05");
     expect(sheet.getRow(2).getCell(1).text).not.toMatch(/GMT/i);
     expect(sheet.getRow(2).getCell(4).font?.bold).toBe(true);
     const fill = sheet.getRow(2).getCell(1).fill as ExcelJS.FillPattern;
@@ -159,6 +159,6 @@ describe("dateCellDisplay", () => {
     const sheet = book.addWorksheet("in");
     const cell = sheet.getRow(1).getCell(1);
     cell.value = 46037.604224537; // ~2026-01-15 14:30
-    expect(dateCellDisplay(cell)).toMatch(/^2026-01-1[45] \d{2}:\d{2}:\d{2}$/);
+    expect(dateCellDisplay(cell)).toMatch(/^1[45]\.01\.2026, \d{2}:\d{2}:\d{2}$/);
   });
 });
