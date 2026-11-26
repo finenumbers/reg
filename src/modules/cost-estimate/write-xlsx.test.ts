@@ -26,6 +26,7 @@ describe("writeCostEstimateXlsx", () => {
         region: "",
         seconds: 4,
         minutes: 1,
+        price: "3",
         charge: "1000.00",
         network: "МТС",
         operator: "ПАО МТС",
@@ -42,6 +43,7 @@ describe("writeCostEstimateXlsx", () => {
         region: "Московская область",
         seconds: 60,
         minutes: 1,
+        price: "1.5",
         charge: COST_ESTIMATE_LOCAL_CHARGE,
         network: "-",
         operator: "Ростелеком",
@@ -58,6 +60,7 @@ describe("writeCostEstimateXlsx", () => {
         region: "Московская область",
         seconds: 60,
         minutes: 1,
+        price: "1.5",
         charge: "9000.33",
         network: "-",
         operator: "Ростелеком",
@@ -74,11 +77,12 @@ describe("writeCostEstimateXlsx", () => {
     expect(sheet.getRow(1).getCell(COST_ESTIMATE_COL.seconds + 1).text).toBe(
       "Секунды",
     );
+    expect(sheet.getRow(1).getCell(COST_ESTIMATE_COL.price + 1).text).toBe("Цена");
     expect(sheet.getRow(1).getCell(COST_ESTIMATE_COL.charge + 1).text).toBe(
       "Стоимость",
     );
-    expect(sheet.getRow(1).getCell(10).text).toBe("Сеть ОПРС");
-    expect(sheet.getRow(1).getCell(11).text).toBe(
+    expect(sheet.getRow(1).getCell(11).text).toBe("Сеть ОПРС");
+    expect(sheet.getRow(1).getCell(12).text).toBe(
       "Оператор связи (реестр МинЦифры)",
     );
     expect(sheet.getRow(1).getCell(2).alignment?.horizontal).toBe("center");
@@ -99,6 +103,11 @@ describe("writeCostEstimateXlsx", () => {
     const secondsCell = sheet.getRow(2).getCell(COST_ESTIMATE_COL.seconds + 1);
     expect(secondsCell.value).toBe(4);
     expect(secondsCell.numFmt).toBe("#,##0");
+
+    const priceCell = sheet.getRow(2).getCell(COST_ESTIMATE_COL.price + 1);
+    expect(priceCell.value).toBe(3);
+    expect(priceCell.numFmt).toBe("#,##0.00");
+    expect(priceCell.alignment?.horizontal).toBe("right");
 
     const chargeCell = sheet.getRow(2).getCell(COST_ESTIMATE_COL.charge + 1);
     expect(chargeCell.value).toBe(1000);
@@ -142,7 +151,7 @@ describe("writeCostEstimateXlsx", () => {
     const filter = sheet.autoFilter;
     expect(filter).toBeTruthy();
     if (typeof filter === "string") {
-      expect(filter.replace(/\$/g, "").toUpperCase()).toBe("A1:L4");
+      expect(filter.replace(/\$/g, "").toUpperCase()).toBe("A1:M4");
     } else if (filter && typeof filter === "object" && "to" in filter) {
       expect(filter.to).toEqual({
         row: 4,
@@ -162,6 +171,7 @@ describe("writeCostEstimateXlsx", () => {
         region: "",
         seconds: 10,
         minutes: 1,
+        price: "3",
         charge: "",
         network: "",
         operator: MISSING_PSTN_LABEL,
@@ -178,6 +188,7 @@ describe("writeCostEstimateXlsx", () => {
         region: "Московская область",
         seconds: 60,
         minutes: 1,
+        price: "1.5",
         charge: "1.50",
         network: "-",
         operator: "Ростелеком",

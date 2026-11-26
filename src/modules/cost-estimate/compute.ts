@@ -16,6 +16,7 @@ import {
   type CostEstimateOutputRow,
   type CostEstimatePstnFields,
 } from "@/modules/cost-estimate/types";
+import { formatTariffDecimal } from "@/modules/tariffs/parse-xlsx";
 import {
   CALL_CATEGORY,
   CALL_STATUS,
@@ -47,6 +48,12 @@ function chargeForRow(callType: string, tariffCharge: string): string {
   return tariffCharge;
 }
 
+function catalogUnitPrice(matched: TariffRateLookup | null): string {
+  const raw = matched?.price?.trim() ?? "";
+  if (!raw) return "";
+  return formatTariffDecimal(raw);
+}
+
 export function buildCostEstimateRows(input: {
   rows: readonly CostEstimateInputRow[];
   rates: readonly TariffRateLookup[];
@@ -69,6 +76,7 @@ export function buildCostEstimateRows(input: {
       rates: input.rates,
     });
     const matched = matchTariffAbc(row.bDigits, input.rates);
+    const price = catalogUnitPrice(matched);
     const tariffRegion = matched?.region?.trim() ?? "";
     const pstn = input.pstn.get(row.bDigits) ?? {
       operator: "",
@@ -97,6 +105,7 @@ export function buildCostEstimateRows(input: {
         region,
         seconds: row.seconds,
         minutes: billableMinutes(row.seconds),
+        price,
         charge: chargeForRow(callType, ""),
         network: "",
         operator: MISSING_PSTN_LABEL,
@@ -127,6 +136,7 @@ export function buildCostEstimateRows(input: {
       region,
       seconds: row.seconds,
       minutes: billableMinutes(row.seconds),
+      price,
       charge: chargeForRow(callType, tariff.charge),
       network,
       operator: pstn.operator,

@@ -65,6 +65,7 @@ describe("buildCostEstimateRows", () => {
       region: "Московская область",
       seconds: 3,
       minutes: 0,
+      price: "3",
       charge: "0.00",
       network: "МТС",
       fillTone: "red",
@@ -90,6 +91,7 @@ describe("buildCostEstimateRows", () => {
     expect(billed[0]).toMatchObject({
       seconds: 4,
       minutes: 1,
+      price: "3",
       charge: "3.00",
       registryMissing: false,
     });
@@ -120,6 +122,7 @@ describe("buildCostEstimateRows", () => {
       aNumberRaw: "+73831234567",
       direction: "г. Новосибирск",
       region: "Московская область",
+      price: "1.5",
       charge: COST_ESTIMATE_LOCAL_CHARGE,
       network: COST_ESTIMATE_EMPTY_NETWORK,
       fillTone: null,
@@ -157,6 +160,7 @@ describe("buildCostEstimateRows", () => {
       operator: "Ростелеком",
       geography: "НСК",
       region: "Московская область",
+      price: "1.5",
       charge: "1.50",
       registryMissing: false,
     });
@@ -207,6 +211,7 @@ describe("buildCostEstimateRows", () => {
     });
     expect(mobile[0]).toMatchObject({
       callType: CALL_TYPE.mobile,
+      price: "3",
       charge: "",
       network: "",
       fillTone: null,
@@ -237,6 +242,7 @@ describe("buildCostEstimateRows", () => {
     });
     expect(intercity[0]).toMatchObject({
       callType: CALL_TYPE.intercity,
+      price: "1.5",
       charge: "",
       network: "",
       operator: MISSING_PSTN_LABEL,
@@ -266,6 +272,7 @@ describe("buildCostEstimateRows", () => {
     });
     expect(local[0]).toMatchObject({
       callType: CALL_TYPE.local,
+      price: "1.5",
       charge: COST_ESTIMATE_LOCAL_CHARGE,
       network: "",
       operator: MISSING_PSTN_LABEL,
@@ -299,6 +306,7 @@ describe("buildCostEstimateRows", () => {
       operator: "",
       geography: "",
       network: COST_ESTIMATE_EMPTY_NETWORK,
+      price: "",
     });
     expect(rows[0]?.charge).not.toBeUndefined();
   });
@@ -328,6 +336,7 @@ describe("buildCostEstimateRows", () => {
       operator: "Ростелеком",
       geography: "",
       network: COST_ESTIMATE_EMPTY_NETWORK,
+      price: "1.5",
       charge: "1.50",
     });
   });

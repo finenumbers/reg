@@ -127,6 +127,7 @@ describe("parseCostEstimateXlsx", () => {
         region: "",
         seconds: 4,
         minutes: 1,
+        price: "3",
         charge: "3.00",
         network: "МТС",
         operator: "ПАО МТС",
@@ -147,8 +148,8 @@ describe("parseCostEstimateXlsx", () => {
     expect(fill.fgColor?.argb).toBe(
       (XLSX_OPRS_MTS_FILL as ExcelJS.FillPattern).fgColor?.argb,
     );
-    expect(sheet.getRow(3).getCell(9).value).toBe(3);
-    expect(sheet.getRow(3).getCell(9).numFmt).toBe("#,##0.00");
+    expect(sheet.getRow(3).getCell(10).value).toBe(3);
+    expect(sheet.getRow(3).getCell(10).numFmt).toBe("#,##0.00");
   });
 });
 

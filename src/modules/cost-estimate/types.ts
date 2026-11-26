@@ -21,6 +21,7 @@ export const COST_ESTIMATE_OUTPUT_HEADERS = [
   "Регион",
   "Секунды",
   "Минуты",
+  "Цена",
   "Стоимость",
   "Сеть ОПРС",
   "Оператор связи (реестр МинЦифры)",
@@ -33,7 +34,8 @@ export const COST_ESTIMATE_COL = {
   bNumber: 2,
   seconds: 6,
   minutes: 7,
-  charge: 8,
+  price: 8,
+  charge: 9,
 } as const;
 
 export const COST_ESTIMATE_MAX_ROWS = 50_000;
@@ -78,6 +80,8 @@ export type CostEstimateOutputRow = {
   region: string;
   seconds: number;
   minutes: number;
+  /** Catalog per-minute price (formatTariffDecimal); empty when no match. */
+  price: string;
   /** Rater text with `.` decimals; empty when not charged. */
   charge: string;
   network: string;

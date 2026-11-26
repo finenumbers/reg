@@ -56,6 +56,7 @@ function costEstimateDataAlign(
   const right =
     colIndex === COST_ESTIMATE_COL.seconds ||
     colIndex === COST_ESTIMATE_COL.minutes ||
+    colIndex === COST_ESTIMATE_COL.price ||
     colIndex === COST_ESTIMATE_COL.charge;
   return {
     horizontal: right ? "right" : "left",
@@ -96,6 +97,7 @@ export async function writeCostEstimateXlsx(
     row.region,
     String(row.seconds),
     String(row.minutes),
+    row.price,
     row.charge,
     row.network,
     row.operator,
@@ -144,6 +146,23 @@ export async function writeCostEstimateXlsx(
       if (colIndex === COST_ESTIMATE_COL.minutes) {
         cell.value = row.minutes;
         cell.numFmt = "#,##0";
+        return;
+      }
+      if (colIndex === COST_ESTIMATE_COL.price) {
+        const trimmed = row.price.trim();
+        if (!trimmed) {
+          cell.value = "";
+          cell.numFmt = "@";
+          return;
+        }
+        const n = Number(trimmed);
+        if (!Number.isFinite(n)) {
+          cell.value = "";
+          cell.numFmt = "@";
+          return;
+        }
+        cell.value = n;
+        cell.numFmt = "#,##0.00";
         return;
       }
       if (colIndex === COST_ESTIMATE_COL.charge) {
@@ -196,6 +215,14 @@ export async function writeCostEstimateXlsx(
       cell.font = { ...BODY_FONT };
     }
   }
+
+  const priceHeader = COST_ESTIMATE_OUTPUT_HEADERS[COST_ESTIMATE_COL.price]!;
+  const priceCol = sheet.getColumn(COST_ESTIMATE_COL.price + 1);
+  const priceWidth = columnWidthForValues(
+    priceHeader,
+    rows.map((row) => row.price),
+  );
+  priceCol.width = Math.max(Number(priceCol.width) || 0, priceWidth);
 
   const chargeHeader = COST_ESTIMATE_OUTPUT_HEADERS[COST_ESTIMATE_COL.charge]!;
   const chargeCol = sheet.getColumn(COST_ESTIMATE_COL.charge + 1);
