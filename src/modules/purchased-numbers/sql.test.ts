@@ -141,10 +141,11 @@ describe("purchased-number SQL", () => {
     expect(facet.text).toContain("FROM purchased_numbers");
     expect(facet.text).toContain(`SELECT ${screen} AS value, count(*)::int AS count`);
     expect(facet.text).toContain(`${screen} ILIKE ?`);
+    expect(facet.text).toContain("regexp_replace(");
     expect(facet.text).toContain("client IN");
     expect(facet.text).not.toContain("abc ILIKE");
     expect(facet.text).not.toContain("abc IN");
-    expect(facet.values).toEqual(["Секрет", "%3012%", 201]);
+    expect(facet.values).toEqual(["Секрет", "%3012%", "%3012%", 201]);
 
     const list = flattenSql(
       purchasedNumberListSql(purchasedNumberWhere({ abc: ["7 (3012)"] }, ""), 10, 0),

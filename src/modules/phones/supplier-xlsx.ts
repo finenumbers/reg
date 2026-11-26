@@ -10,6 +10,8 @@ import { CATEGORY_FIELD, CATEGORY_MAX_LENGTH } from "@/modules/phones/category";
 import { SUPPLIER_FIELD, SUPPLIER_MAX_LENGTH } from "@/modules/phones/supplier";
 
 const SUPPLIER_ABC_HEADER = "ABC";
+/** Cyrillic lookalike typed on a Russian keyboard. */
+const SUPPLIER_ABC_HEADER_CYRILLIC = "АВС";
 const SUPPLIER_NUMBER_HEADER = "Номер";
 
 const FILE_HEADERS = [
@@ -21,6 +23,13 @@ const FILE_HEADERS = [
 
 const HEADER_DETAIL =
   "Первая строка должна начинаться со столбцов «Категория», «Поставщик», «ABC», «Номер»";
+
+/** Strip BOM and map Cyrillic «АВС» to Latin ABC. */
+function normalizeSupplierHeader(raw: string): string {
+  const trimmed = raw.replace(/\uFEFF/g, "").trim();
+  if (trimmed === SUPPLIER_ABC_HEADER_CYRILLIC) return SUPPLIER_ABC_HEADER;
+  return trimmed;
+}
 
 export type SupplierFileRow = {
   /** 1-based worksheet row, header is 1. */
@@ -40,7 +49,7 @@ type SupplierXlsxResult =
 
 function cellText(value: ExcelJS.CellValue): string {
   if (value == null) return "";
-  if (typeof value === "string") return value.trim();
+  if (typeof value === "string") return value.replace(/\uFEFF/g, "").trim();
   if (typeof value === "number") {
     if (!Number.isFinite(value)) return "";
     return String(value);
@@ -52,9 +61,12 @@ function cellText(value: ExcelJS.CellValue): string {
       return value.richText
         .map((part) => part.text ?? "")
         .join("")
+        .replace(/\uFEFF/g, "")
         .trim();
     }
-    if ("text" in value && typeof value.text === "string") return value.text.trim();
+    if ("text" in value && typeof value.text === "string") {
+      return value.text.replace(/\uFEFF/g, "").trim();
+    }
     if ("result" in value) return cellText(value.result as ExcelJS.CellValue);
   }
   return "";
@@ -81,7 +93,7 @@ export async function parseSupplierXlsx(buffer: Buffer): Promise<SupplierXlsxRes
     };
   }
 
-  const headers = headerTexts(sheet.getRow(1));
+  const headers = headerTexts(sheet.getRow(1)).map(normalizeSupplierHeader);
   if (!FILE_HEADERS.every((header, index) => headers[index] === header)) {
     return {
       ok: false,

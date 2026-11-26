@@ -117,4 +117,42 @@ describe("parseSupplierXlsx", () => {
       ],
     });
   });
+
+  it("accepts Cyrillic АВС and a BOM on Категория", async () => {
+    const cyrillic = await parseSupplierXlsx(
+      await workbook([
+        ["Категория", "Поставщик", "АВС", "Номер"],
+        ["VIP", "Ростелеком", "7 (383)", "3999999"],
+      ]),
+    );
+    expect(cyrillic).toEqual({
+      ok: true,
+      rows: [
+        {
+          rowNumber: 2,
+          abc: "7 (383)",
+          telephone: "3999999",
+          supplier: "Ростелеком",
+          category: "VIP",
+        },
+      ],
+    });
+
+    const bom = await parseSupplierXlsx(
+      await workbook([
+        ["\uFEFFКатегория", "Поставщик", "ABC", "Номер"],
+        ["VIP", "Ростелеком", "7 (913)", "3999999"],
+      ]),
+    );
+    expect(bom.ok).toBe(true);
+    if (bom.ok) {
+      expect(bom.rows[0]).toEqual({
+        rowNumber: 2,
+        abc: "7 (913)",
+        telephone: "3999999",
+        supplier: "Ростелеком",
+        category: "VIP",
+      });
+    }
+  });
 });

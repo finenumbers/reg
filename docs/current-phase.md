@@ -1,7 +1,13 @@
-# Current Phase — production (v1.345.0)
+# Current Phase — production (v1.345.1)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, RTU management, free numbers, purchased numbers, numbering sync, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs, outbound mail.
 **Date:** 2026-11-26
+
+## v1.345.1 — ABC digit facet search and supplier header aliases
+
+This release does not migrate and does not rewrite catalog rows, the CDR journal, or settings. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before the new one starts, then start one new app. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged.
+
+On «Управление РТУ», «Свободные номера», and «Купленные номера», the ABC column menu finds a full digit code such as `739155` for the screen text `7 (39155)`. Substring search on that screen text stays. «Загрузить поставщиков» still needs the four headers «Категория», «Поставщик», «ABC», «Номер». A Cyrillic «АВС» header and a BOM on the first row are accepted. The full RTU export is still not a supplier file.
 
 ## v1.345.0 — Supplier upload uses ABC and «Номер»
 

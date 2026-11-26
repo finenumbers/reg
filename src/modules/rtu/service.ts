@@ -10,6 +10,7 @@ import {
   type FacetResponse,
 } from "@/components/column-filters/types";
 import { Prisma } from "@/generated/prisma/client";
+import { abcFacetQueryHits } from "@/lib/abc-facet-search";
 import { amountFacetQueryHits } from "@/lib/amount-format";
 import { prisma } from "@/lib/db";
 import { EXCEL_MAX_ROWS } from "@/modules/enrich/types";
@@ -317,10 +318,16 @@ export async function listRtuFacets(opts: {
   );
   // ABC values are already the screen text. q drops other groups and keeps each count.
   const amount = column === "sale" || column === "premium";
+  const matches =
+    column === "abc"
+      ? abcFacetQueryHits
+      : amount
+        ? amountFacetQueryHits
+        : undefined;
   return facetsFromGroups(rows, {
     q: opts.q,
     limit: opts.limit,
-    matches: amount ? amountFacetQueryHits : undefined,
+    matches,
   });
 }
 

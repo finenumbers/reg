@@ -54,6 +54,8 @@ Optional publish ports: `APP_PUBLISH_PORT`, `POSTGRES_PUBLISH_PORT`.
 
 ## 3. Database
 
+v1.345.1 does not migrate and does not rewrite catalog rows, the CDR journal, or settings. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before the new one starts, then start one new app. Refresh the browser. The ABC column menu finds `739155` for `7 (39155)` on «Управление РТУ», «Свободные номера», and «Купленные номера». Supplier upload accepts Cyrillic «АВС» and a BOM on the header row. Nothing is written to the switch. RTU activation is unchanged.
+
 v1.345.0 does not migrate and does not rewrite catalog rows, the CDR journal, or settings. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before the new one starts, then start one new app. Refresh the browser. «Загрузить поставщиков» requires «Категория», «Поставщик», «ABC», «Номер». Display ABC such as `7 (383)` with the local «Номер» matches. Old «Город» / «Телефонный номер» supplier files are rejected. Keep those two columns as text in Excel. Nothing is written to the switch. RTU activation is unchanged.
 
 v1.344.0 does not migrate and does not rewrite catalog rows, the CDR journal, or settings. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before the new one starts, then start one new app. Do not deploy while a numbering chain or a manual load is running. Refresh the browser. The numbering summary letter no longer lists «Исключенные»; registry «Ошибки» for free still count excluded PSTN misses. Nothing is written to the switch. RTU activation is unchanged.

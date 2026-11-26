@@ -134,17 +134,33 @@ describe("free-number SQL", () => {
     );
     expect(facet.text).toContain(`SELECT ${screen} AS value, count(*)::int AS count`);
     expect(facet.text).toContain(`${screen} ILIKE ?`);
+    expect(facet.text).toContain("regexp_replace(");
     expect(facet.text).toContain("GROUP BY 1");
     expect(facet.text).toContain("city IN");
     expect(facet.text).not.toContain("abc ILIKE");
     expect(facet.text).not.toContain("abc IN");
-    expect(facet.values).toEqual(["Казань", "%495%", "%495%", "%7 (383)%", 201]);
+    expect(facet.values).toEqual([
+      "Казань",
+      "%495%",
+      "%495%",
+      "%7 (383)%",
+      "%7383%",
+      201,
+    ]);
+
+    const digits = flattenSql(
+      freeNumberFacetSql("abc", freeNumberWhere({}, "", "abc"), "739155", 201),
+    );
+    expect(digits.text).toContain(`${screen} ILIKE ?`);
+    expect(digits.text).toContain("regexp_replace(");
+    expect(digits.values).toEqual(["%739155%", "%739155%", 201]);
 
     const empty = flattenSql(
       freeNumberFacetSql("abc", freeNumberWhere({}, "", "abc"), "пусто", 201),
     );
     expect(empty.text).toContain(`${screen} ILIKE ?`);
     expect(empty.text).toContain("abc = ''");
+    expect(empty.text).not.toContain("regexp_replace(");
     expect(empty.text).not.toContain("abc ILIKE");
     expect(empty.values).toEqual(["%пусто%", 201]);
 

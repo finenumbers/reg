@@ -126,6 +126,12 @@ function abcFacetWhere(trimmed: string): Prisma.Sql {
   const parts: Prisma.Sql[] = [
     Prisma.sql`${abcScreenSql()} ILIKE ${likePattern(trimmed)} ESCAPE '\\'`,
   ];
+  const digits = trimmed.replace(/\D/g, "");
+  if (digits) {
+    parts.push(
+      Prisma.sql`regexp_replace(${abcScreenSql()}, '[^0-9]', '', 'g') ILIKE ${likePattern(digits)} ESCAPE '\\'`,
+    );
+  }
   if (facetQueryMatchesEmptyLabel(trimmed)) {
     parts.push(Prisma.sql`abc = ''`);
   }
