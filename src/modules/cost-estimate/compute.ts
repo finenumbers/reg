@@ -12,6 +12,7 @@ import type {
   CostEstimateOutputRow,
   CostEstimatePstnFields,
 } from "@/modules/cost-estimate/types";
+import { billableMinutes } from "@/modules/enrich/types";
 import {
   CALL_CATEGORY,
   CALL_STATUS,
@@ -59,6 +60,8 @@ export function buildCostEstimateRows(input: {
       bNumberRaw: row.bNumberRaw,
       callType,
       direction: tariff.direction,
+      seconds: row.seconds,
+      minutes: billableMinutes(row.seconds),
       charge: tariff.charge,
       network,
       operator: pstn.operator,

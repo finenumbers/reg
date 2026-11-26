@@ -54,6 +54,8 @@ Optional publish ports: `APP_PUBLISH_PORT`, `POSTGRES_PUBLISH_PORT`.
 
 ## 3. Database
 
+v1.346.1 does not migrate and does not rewrite catalog rows, the CDR journal, or settings. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before the new one starts, then start one new app. Refresh the browser. «Расчет затрат» adds «Секунды» and «Минуты», numeric «Стоимость» cells, and a bold `10 000,33` total outside the filter. Nothing is written to the switch. RTU activation is unchanged.
+
 v1.346.0 does not migrate and does not rewrite catalog rows, the CDR journal, or settings. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before the new one starts, then start one new app. Refresh the browser. «Расчет затрат» rates an uploaded XLSX with the traffic tariff rater and PSTN snapshot fields; mobile rows use OPRS network fills. An API key cannot call it. Nothing is written to the switch. RTU activation is unchanged.
 
 v1.345.1 does not migrate and does not rewrite catalog rows, the CDR journal, or settings. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before the new one starts, then start one new app. Refresh the browser. The ABC column menu finds `739155` for `7 (39155)` on «Управление РТУ», «Свободные номера», and «Купленные номера». Supplier upload accepts Cyrillic «АВС» and a BOM on the header row. Nothing is written to the switch. RTU activation is unchanged.

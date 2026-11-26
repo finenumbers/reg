@@ -47,6 +47,8 @@ describe("buildCostEstimateRows", () => {
     expect(grace[0]).toMatchObject({
       callType: CALL_TYPE.mobile,
       direction: "Мобильные РФ",
+      seconds: 3,
+      minutes: 0,
       charge: "0.00",
       network: "МТС",
       fillTone: "red",
@@ -66,7 +68,11 @@ describe("buildCostEstimateRows", () => {
         },
       ],
     });
-    expect(billed[0]?.charge).toBe("3.00");
+    expect(billed[0]).toMatchObject({
+      seconds: 4,
+      minutes: 1,
+      charge: "3.00",
+    });
   });
 
   it("leaves network and fill empty for non-mobile rows", () => {
@@ -89,6 +95,8 @@ describe("buildCostEstimateRows", () => {
     });
     expect(rows[0]).toMatchObject({
       callType: CALL_TYPE.intercity,
+      seconds: 60,
+      minutes: 1,
       network: "",
       fillTone: null,
       operator: "Ростелеком",

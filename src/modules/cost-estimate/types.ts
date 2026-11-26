@@ -16,11 +16,20 @@ export const COST_ESTIMATE_OUTPUT_HEADERS = [
   "B-номер",
   "Тип",
   "Направление",
+  "Секунды",
+  "Минуты",
   "Стоимость",
   "Сеть",
   "Оператор связи",
   "География нумерации",
 ] as const;
+
+/** 0-based column indexes in COST_ESTIMATE_OUTPUT_HEADERS. */
+export const COST_ESTIMATE_COL = {
+  seconds: 4,
+  minutes: 5,
+  charge: 6,
+} as const;
 
 export const COST_ESTIMATE_MAX_ROWS = 50_000;
 export const COST_ESTIMATE_MAX_DETAILS = 30;
@@ -50,6 +59,9 @@ export type CostEstimateOutputRow = {
   bNumberRaw: string;
   callType: string;
   direction: string;
+  seconds: number;
+  minutes: number;
+  /** Rater text with `.` decimals; empty when not charged. */
   charge: string;
   network: string;
   operator: string;

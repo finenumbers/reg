@@ -71,6 +71,8 @@ describe("parseCostEstimateXlsx", () => {
         bNumberRaw: parsed.rows[0]!.bNumberRaw,
         callType: CALL_TYPE.mobile,
         direction: "Мобильные РФ",
+        seconds: 4,
+        minutes: 1,
         charge: "3.00",
         network: "МТС",
         operator: "ПАО МТС",
@@ -87,5 +89,6 @@ describe("parseCostEstimateXlsx", () => {
     expect(fill.fgColor?.argb).toBe(
       (XLSX_OPRS_MTS_FILL as ExcelJS.FillPattern).fgColor?.argb,
     );
+    expect(sheet.getRow(3).getCell(7).value).toBe("3,00");
   });
 });
