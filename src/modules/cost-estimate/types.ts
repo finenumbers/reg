@@ -7,12 +7,14 @@ import type ExcelJS from "exceljs";
 
 export const COST_ESTIMATE_INPUT_HEADERS = [
   "Дата",
+  "A-номер",
   "B-номер",
   "Продолжительность",
 ] as const;
 
 export const COST_ESTIMATE_OUTPUT_HEADERS = [
   "Дата",
+  "A-номер",
   "B-номер",
   "Тип",
   "Направление",
@@ -26,9 +28,9 @@ export const COST_ESTIMATE_OUTPUT_HEADERS = [
 
 /** 0-based column indexes in COST_ESTIMATE_OUTPUT_HEADERS. */
 export const COST_ESTIMATE_COL = {
-  seconds: 4,
-  minutes: 5,
-  charge: 6,
+  seconds: 5,
+  minutes: 6,
+  charge: 7,
 } as const;
 
 export const COST_ESTIMATE_MAX_ROWS = 50_000;
@@ -44,8 +46,12 @@ export const COST_ESTIMATE_PARSE_ERROR = "Файл XLSX не подходит д
 export type CostEstimateInputRow = {
   /** 1-based worksheet row (header is 1). */
   rowNumber: number;
-  /** Display text preserved for the output Дата column. */
+  /** Display text preserved for the output Дата column (no GMT*). */
   dateDisplay: string;
+  /** Original A-номер cell text; empty when the cell is blank. */
+  aNumberRaw: string;
+  /** Digits-only A for geography; empty when A is blank. */
+  aDigits: string;
   /** Original B-номер cell text for the output. */
   bNumberRaw: string;
   /** Digits-only B for rating and PSTN. */
@@ -56,6 +62,7 @@ export type CostEstimateInputRow = {
 
 export type CostEstimateOutputRow = {
   dateDisplay: string;
+  aNumberRaw: string;
   bNumberRaw: string;
   callType: string;
   direction: string;

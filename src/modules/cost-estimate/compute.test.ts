@@ -38,6 +38,8 @@ describe("buildCostEstimateRows", () => {
         {
           rowNumber: 2,
           dateDisplay: "2026-01-01",
+          aNumberRaw: "",
+          aDigits: "",
           bNumberRaw: "+79031234567",
           bDigits: "79031234567",
           seconds: 3,
@@ -62,6 +64,8 @@ describe("buildCostEstimateRows", () => {
         {
           rowNumber: 2,
           dateDisplay: "2026-01-01",
+          aNumberRaw: "",
+          aDigits: "",
           bNumberRaw: "+79031234567",
           bDigits: "79031234567",
           seconds: 4,
@@ -75,12 +79,45 @@ describe("buildCostEstimateRows", () => {
     });
   });
 
+  it("rates a local outgoing call with direction and no money", () => {
+    const rows = buildCostEstimateRows({
+      rows: [
+        {
+          rowNumber: 2,
+          dateDisplay: "d",
+          aNumberRaw: "+73831234567",
+          aDigits: "73831234567",
+          bNumberRaw: "73839999999",
+          bDigits: "73839999999",
+          seconds: 60,
+        },
+      ],
+      rates: RATES,
+      pstn: new Map([
+        ["73839999999", { operator: "Ростелеком", geography: "НСК" }],
+      ]),
+      toneMap: {},
+      labelUnpainted: true,
+    });
+    expect(rows[0]).toMatchObject({
+      callType: CALL_TYPE.local,
+      aNumberRaw: "+73831234567",
+      direction: "г. Новосибирск",
+      charge: "",
+      network: "",
+      fillTone: null,
+      minutes: 1,
+    });
+  });
+
   it("leaves network and fill empty for non-mobile rows", () => {
     const rows = buildCostEstimateRows({
       rows: [
         {
           rowNumber: 2,
           dateDisplay: "d",
+          aNumberRaw: "",
+          aDigits: "",
           bNumberRaw: "73831234567",
           bDigits: "73831234567",
           seconds: 60,
@@ -111,6 +148,8 @@ describe("buildCostEstimateRows", () => {
         {
           rowNumber: 2,
           dateDisplay: "d",
+          aNumberRaw: "",
+          aDigits: "",
           bNumberRaw: "79031234567",
           bDigits: "79031234567",
           seconds: 10,

@@ -31,7 +31,11 @@ export function buildCostEstimateRows(input: {
   labelUnpainted: boolean;
 }): CostEstimateOutputRow[] {
   return input.rows.map((row) => {
-    const callType = classifyCostEstimateType(row.bDigits, input.rates);
+    const callType = classifyCostEstimateType(
+      row.aDigits,
+      row.bDigits,
+      input.rates,
+    );
     const tariff = rateCdrCall({
       category: CALL_CATEGORY.outgoing,
       callType,
@@ -57,6 +61,7 @@ export function buildCostEstimateRows(input: {
 
     return {
       dateDisplay: row.dateDisplay,
+      aNumberRaw: row.aNumberRaw,
       bNumberRaw: row.bNumberRaw,
       callType,
       direction: tariff.direction,

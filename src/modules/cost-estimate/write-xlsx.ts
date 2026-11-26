@@ -34,6 +34,7 @@ export async function writeCostEstimateXlsx(
 ): Promise<{ buffer: Buffer; filename: string }> {
   const values = rows.map((row) => [
     row.dateDisplay,
+    row.aNumberRaw,
     row.bNumberRaw,
     row.callType,
     row.direction,

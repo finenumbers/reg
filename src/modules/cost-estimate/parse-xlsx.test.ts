@@ -3,25 +3,25 @@ import { describe, expect, it } from "vitest";
 import { parseCostEstimateXlsx } from "@/modules/cost-estimate/parse-xlsx";
 import { writeCostEstimateXlsx } from "@/modules/cost-estimate/write-xlsx";
 import { CALL_TYPE } from "@/modules/traffic/call-class";
-import {
-  XLSX_OPRS_MTS_FILL,
-} from "@/modules/cost-estimate/fills";
+import { XLSX_OPRS_MTS_FILL } from "@/modules/cost-estimate/fills";
 
 async function workbookBuffer(
-  rows: Array<[string | number | Date, string, string | number]>,
+  rows: Array<
+    [string | number | Date, string, string, string | number]
+  >,
 ): Promise<Buffer> {
   const book = new ExcelJS.Workbook();
   const sheet = book.addWorksheet("in");
-  sheet.addRow(["Дата", "B-номер", "Продолжительность"]);
+  sheet.addRow(["Дата", "A-номер", "B-номер", "Продолжительность"]);
   for (const row of rows) sheet.addRow(row);
   const buf = await book.xlsx.writeBuffer();
   return Buffer.from(buf);
 }
 
 describe("parseCostEstimateXlsx", () => {
-  it("parses E.164 and integer seconds", async () => {
+  it("parses E.164 A/B and integer seconds", async () => {
     const buffer = await workbookBuffer([
-      ["2026-01-02", "+79031234567", 125],
+      ["2026-01-02", "", "+79031234567", 125],
     ]);
     const parsed = await parseCostEstimateXlsx(buffer);
     expect(parsed.ok).toBe(true);
@@ -30,6 +30,8 @@ describe("parseCostEstimateXlsx", () => {
       {
         rowNumber: 2,
         dateDisplay: "2026-01-02",
+        aNumberRaw: "",
+        aDigits: "",
         bNumberRaw: "+79031234567",
         bDigits: "79031234567",
         seconds: 125,
@@ -37,37 +39,46 @@ describe("parseCostEstimateXlsx", () => {
     ]);
   });
 
-  it("rejects a bad header and a non-admitted B without echoing the number", async () => {
-    const badHeader = await workbookBuffer([["a", "b", "c"]]);
-    // Force wrong headers by rebuilding
+  it("rejects a bad header and a non-admitted A/B without echoing the number", async () => {
     const book = new ExcelJS.Workbook();
-    book.addWorksheet("in").addRow(["Дата", "Номер", "Сек"]);
+    book.addWorksheet("in").addRow(["Дата", "B-номер", "Продолжительность"]);
     const headerBuf = Buffer.from(await book.xlsx.writeBuffer());
     const header = await parseCostEstimateXlsx(headerBuf);
     expect(header.ok).toBe(false);
     if (header.ok) return;
-    expect(header.details.join(" ")).not.toMatch(/\d{10}/);
+    expect(header.details.join(" ")).toContain("A-номер");
 
-    const badB = await workbookBuffer([["d", "+7495123456", 10]]);
-    const parsed = await parseCostEstimateXlsx(badB);
-    expect(parsed.ok).toBe(false);
-    if (parsed.ok) return;
-    expect(parsed.details[0]).toContain("B-номер");
-    expect(parsed.details.join(" ")).not.toContain("7495123456");
+    const badA = await workbookBuffer([
+      ["d", "+7495123456", "79031234567", 10],
+    ]);
+    const parsedA = await parseCostEstimateXlsx(badA);
+    expect(parsedA.ok).toBe(false);
+    if (parsedA.ok) return;
+    expect(parsedA.details[0]).toContain("A-номер");
+    expect(parsedA.details.join(" ")).not.toContain("7495123456");
+
+    const badB = await workbookBuffer([["d", "", "+7495123456", 10]]);
+    const parsedB = await parseCostEstimateXlsx(badB);
+    expect(parsedB.ok).toBe(false);
+    if (parsedB.ok) return;
+    expect(parsedB.details[0]).toContain("B-номер");
+    expect(parsedB.details.join(" ")).not.toContain("7495123456");
   });
 
-  it("preserves a Date cell as a display string round-trip", async () => {
+  it("formats a Date cell without GMT and round-trips the display", async () => {
     const buffer = await workbookBuffer([
-      [new Date(2026, 0, 15), "79031234567", 4],
+      [new Date(2026, 0, 15), "", "79031234567", 4],
     ]);
     const parsed = await parseCostEstimateXlsx(buffer);
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) return;
-    expect(parsed.rows[0]?.dateDisplay).toMatch(/2026/);
+    expect(parsed.rows[0]?.dateDisplay).toBe("2026-01-15");
+    expect(parsed.rows[0]?.dateDisplay).not.toMatch(/GMT/i);
 
     const out = await writeCostEstimateXlsx([
       {
         dateDisplay: parsed.rows[0]!.dateDisplay,
+        aNumberRaw: "",
         bNumberRaw: parsed.rows[0]!.bNumberRaw,
         callType: CALL_TYPE.mobile,
         direction: "Мобильные РФ",
@@ -84,11 +95,13 @@ describe("parseCostEstimateXlsx", () => {
     await reload.xlsx.load(out.buffer as unknown as ExcelJS.Buffer);
     const sheet = reload.worksheets[0]!;
     expect(sheet.getRow(1).getCell(1).text).toBe("Дата");
-    expect(sheet.getRow(2).getCell(1).text).toBe(parsed.rows[0]!.dateDisplay);
+    expect(sheet.getRow(1).getCell(2).text).toBe("A-номер");
+    expect(sheet.getRow(2).getCell(1).text).toBe("2026-01-15");
+    expect(sheet.getRow(2).getCell(1).text).not.toMatch(/GMT/i);
     const fill = sheet.getRow(2).getCell(1).fill as ExcelJS.FillPattern;
     expect(fill.fgColor?.argb).toBe(
       (XLSX_OPRS_MTS_FILL as ExcelJS.FillPattern).fgColor?.argb,
     );
-    expect(sheet.getRow(3).getCell(7).value).toBe("3,00");
+    expect(sheet.getRow(3).getCell(8).value).toBe("3,00");
   });
 });

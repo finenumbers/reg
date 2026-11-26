@@ -1,6 +1,6 @@
 /**
  * Parse the cost-estimate input workbook.
- * Headers: Дата, B-номер, Продолжительность (integer seconds).
+ * Headers: Дата, A-номер, B-номер, Продолжительность (integer seconds).
  */
 
 import ExcelJS from "exceljs";
@@ -18,11 +18,38 @@ type ParseErr = { ok: false; error: string; details: string[] };
 export type ParseCostEstimateXlsxResult = ParseOk | ParseErr;
 
 const HEADER_DETAIL =
-  "Первая строка должна содержать столбцы «Дата», «B-номер», «Продолжительность»";
+  "Первая строка должна содержать столбцы «Дата», «A-номер», «B-номер», «Продолжительность»";
 
 function pushDetail(details: string[], line: string): void {
   if (details.length >= COST_ESTIMATE_MAX_DETAILS) return;
   details.push(line);
+}
+
+function formatDateYmd(value: Date): string {
+  const y = value.getFullYear();
+  const m = String(value.getMonth() + 1).padStart(2, "0");
+  const d = String(value.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+/** Strip Excel/JS timezone tails like « GMT+0700 (… )». */
+function stripTimezoneSuffix(raw: string): string {
+  return raw
+    .replace(/\s+GMT[^\n]*$/i, "")
+    .replace(/\s+UTC[^\n]*$/i, "")
+    .trim();
+}
+
+/** Дата column only: Date value first, never keep GMT* from cell.text. */
+export function dateCellDisplay(cell: ExcelJS.Cell): string {
+  const value = cell.value;
+  if (value instanceof Date) return formatDateYmd(value);
+  if (value && typeof value === "object" && "result" in value) {
+    const result = value.result;
+    if (result instanceof Date) return formatDateYmd(result);
+  }
+  const text = cellDisplayText(cell);
+  return stripTimezoneSuffix(text);
 }
 
 function cellDisplayText(cell: ExcelJS.Cell): string {
@@ -39,12 +66,7 @@ function cellValueFallback(value: ExcelJS.CellValue): string {
     return String(value);
   }
   if (typeof value === "boolean") return value ? "true" : "false";
-  if (value instanceof Date) {
-    const y = value.getFullYear();
-    const m = String(value.getMonth() + 1).padStart(2, "0");
-    const d = String(value.getDate()).padStart(2, "0");
-    return `${y}-${m}-${d}`;
-  }
+  if (value instanceof Date) return formatDateYmd(value);
   if (typeof value === "object") {
     if ("richText" in value && Array.isArray(value.richText)) {
       return value.richText
@@ -158,8 +180,19 @@ export async function parseCostEstimateXlsx(
       };
     }
 
-    const dateDisplay = cellDisplayText(row.getCell(1));
-    const bNumberRaw = cellDisplayText(row.getCell(2));
+    const dateDisplay = dateCellDisplay(row.getCell(1));
+    const aNumberRaw = cellDisplayText(row.getCell(2));
+    let aDigits = "";
+    if (aNumberRaw) {
+      const normalizedA = normalizeCostEstimateBNumber(aNumberRaw);
+      if (!normalizedA) {
+        pushDetail(details, `Строка ${r}: «A-номер» не подходит для тарификации`);
+        continue;
+      }
+      aDigits = normalizedA;
+    }
+
+    const bNumberRaw = cellDisplayText(row.getCell(3));
     if (!bNumberRaw) {
       pushDetail(details, `Строка ${r}: пустой «B-номер»`);
       continue;
@@ -170,7 +203,7 @@ export async function parseCostEstimateXlsx(
       continue;
     }
 
-    const secondsOrErr = parseSeconds(row.getCell(3), r);
+    const secondsOrErr = parseSeconds(row.getCell(4), r);
     if (typeof secondsOrErr === "string") {
       pushDetail(details, secondsOrErr);
       continue;
@@ -179,6 +212,8 @@ export async function parseCostEstimateXlsx(
     rows.push({
       rowNumber: r,
       dateDisplay,
+      aNumberRaw,
+      aDigits,
       bNumberRaw,
       bDigits,
       seconds: secondsOrErr,
