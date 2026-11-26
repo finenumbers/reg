@@ -34,6 +34,13 @@ export const XLSX_OPRS_T2_FILL: ExcelJS.Fill = {
   fgColor: { argb: "FFE5E7EB" },
 };
 
+/** Tailwind red-500 — domestic row with no PSTN operator. */
+export const XLSX_REGISTRY_MISSING_FILL: ExcelJS.Fill = {
+  type: "pattern",
+  pattern: "solid",
+  fgColor: { argb: "FFEF4444" },
+};
+
 export function costEstimateFillForTone(
   tone: OprsOperatorTone | null,
 ): ExcelJS.Fill | undefined {
@@ -49,4 +56,12 @@ export function costEstimateFillForTone(
     default:
       return undefined;
   }
+}
+
+export function costEstimateRowFill(row: {
+  registryMissing: boolean;
+  fillTone: OprsOperatorTone | null;
+}): ExcelJS.Fill | undefined {
+  if (row.registryMissing) return XLSX_REGISTRY_MISSING_FILL;
+  return costEstimateFillForTone(row.fillTone);
 }

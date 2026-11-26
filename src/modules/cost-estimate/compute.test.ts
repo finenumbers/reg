@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildCostEstimateRows } from "@/modules/cost-estimate/compute";
+import { MISSING_PSTN_LABEL } from "@/modules/enrich/types";
 import { CALL_TYPE } from "@/modules/traffic/call-class";
 import type { TariffRateLookup } from "@/modules/traffic/cdr-tariff";
 import { OPRS_EXTERNAL_NETWORK } from "@/modules/oprs/derived";
@@ -56,6 +57,7 @@ describe("buildCostEstimateRows", () => {
       fillTone: "red",
       operator: "ПАО МТС",
       geography: "Москва",
+      registryMissing: false,
     });
 
     const billed = buildCostEstimateRows({
@@ -76,6 +78,7 @@ describe("buildCostEstimateRows", () => {
       seconds: 4,
       minutes: 1,
       charge: "3.00",
+      registryMissing: false,
     });
   });
 
@@ -107,6 +110,7 @@ describe("buildCostEstimateRows", () => {
       network: "",
       fillTone: null,
       minutes: 1,
+      registryMissing: false,
     });
   });
 
@@ -139,6 +143,7 @@ describe("buildCostEstimateRows", () => {
       operator: "Ростелеком",
       geography: "НСК",
       charge: "1.50",
+      registryMissing: false,
     });
   });
 
@@ -164,5 +169,144 @@ describe("buildCostEstimateRows", () => {
     });
     expect(rows[0]?.network).toBe(OPRS_EXTERNAL_NETWORK);
     expect(rows[0]?.fillTone).toBeNull();
+    expect(rows[0]?.registryMissing).toBe(false);
+  });
+
+  it("marks domestic rows without an operator as registry missing and clears charge", () => {
+    const mobile = buildCostEstimateRows({
+      rows: [
+        {
+          rowNumber: 2,
+          dateDisplay: "d",
+          aNumberRaw: "",
+          aDigits: "",
+          bNumberRaw: "79031234567",
+          bDigits: "79031234567",
+          seconds: 10,
+        },
+      ],
+      rates: RATES,
+      pstn: new Map([["79031234567", { operator: "", geography: "" }]]),
+      toneMap: {},
+      labelUnpainted: true,
+    });
+    expect(mobile[0]).toMatchObject({
+      callType: CALL_TYPE.mobile,
+      charge: "",
+      network: "",
+      fillTone: null,
+      operator: MISSING_PSTN_LABEL,
+      geography: MISSING_PSTN_LABEL,
+      registryMissing: true,
+      direction: "Мобильные РФ",
+      minutes: 1,
+    });
+
+    const intercity = buildCostEstimateRows({
+      rows: [
+        {
+          rowNumber: 2,
+          dateDisplay: "d",
+          aNumberRaw: "",
+          aDigits: "",
+          bNumberRaw: "73831234567",
+          bDigits: "73831234567",
+          seconds: 60,
+        },
+      ],
+      rates: RATES,
+      pstn: new Map(),
+      toneMap: {},
+      labelUnpainted: true,
+    });
+    expect(intercity[0]).toMatchObject({
+      callType: CALL_TYPE.intercity,
+      charge: "",
+      operator: MISSING_PSTN_LABEL,
+      geography: MISSING_PSTN_LABEL,
+      registryMissing: true,
+    });
+
+    const local = buildCostEstimateRows({
+      rows: [
+        {
+          rowNumber: 2,
+          dateDisplay: "d",
+          aNumberRaw: "73831234567",
+          aDigits: "73831234567",
+          bNumberRaw: "73839999999",
+          bDigits: "73839999999",
+          seconds: 60,
+        },
+      ],
+      rates: RATES,
+      pstn: new Map([
+        ["73839999999", { operator: MISSING_PSTN_LABEL, geography: "X" }],
+      ]),
+      toneMap: {},
+      labelUnpainted: true,
+    });
+    expect(local[0]).toMatchObject({
+      callType: CALL_TYPE.local,
+      charge: "",
+      operator: MISSING_PSTN_LABEL,
+      geography: MISSING_PSTN_LABEL,
+      registryMissing: true,
+    });
+  });
+
+  it("does not mark international rows without an operator", () => {
+    const rows = buildCostEstimateRows({
+      rows: [
+        {
+          rowNumber: 2,
+          dateDisplay: "d",
+          aNumberRaw: "",
+          aDigits: "",
+          bNumberRaw: "442071234567",
+          bDigits: "442071234567",
+          seconds: 60,
+        },
+      ],
+      rates: RATES,
+      pstn: new Map(),
+      toneMap: {},
+      labelUnpainted: true,
+    });
+    expect(rows[0]).toMatchObject({
+      callType: CALL_TYPE.international,
+      registryMissing: false,
+      operator: "",
+      geography: "",
+    });
+    expect(rows[0]?.charge).not.toBeUndefined();
+  });
+
+  it("keeps geography empty when the operator is present", () => {
+    const rows = buildCostEstimateRows({
+      rows: [
+        {
+          rowNumber: 2,
+          dateDisplay: "d",
+          aNumberRaw: "",
+          aDigits: "",
+          bNumberRaw: "73831234567",
+          bDigits: "73831234567",
+          seconds: 60,
+        },
+      ],
+      rates: RATES,
+      pstn: new Map([
+        ["73831234567", { operator: "Ростелеком", geography: "" }],
+      ]),
+      toneMap: {},
+      labelUnpainted: true,
+    });
+    expect(rows[0]).toMatchObject({
+      registryMissing: false,
+      operator: "Ростелеком",
+      geography: "",
+      charge: "1.50",
+    });
   });
 });

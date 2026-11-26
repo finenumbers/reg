@@ -1,6 +1,11 @@
 import ExcelJS from "exceljs";
 import { describe, expect, it } from "vitest";
-import { parseCostEstimateXlsx } from "@/modules/cost-estimate/parse-xlsx";
+import {
+  dateCellDisplay,
+  excelSerialToDate,
+  formatDateTimeLocal,
+  parseCostEstimateXlsx,
+} from "@/modules/cost-estimate/parse-xlsx";
 import { writeCostEstimateXlsx } from "@/modules/cost-estimate/write-xlsx";
 import { CALL_TYPE } from "@/modules/traffic/call-class";
 import { XLSX_OPRS_MTS_FILL } from "@/modules/cost-estimate/fills";
@@ -17,6 +22,32 @@ async function workbookBuffer(
   const buf = await book.xlsx.writeBuffer();
   return Buffer.from(buf);
 }
+
+describe("formatDateTimeLocal", () => {
+  it("formats local date and time with zero-padding", () => {
+    expect(formatDateTimeLocal(new Date(2026, 0, 15, 14, 30, 5))).toBe(
+      "2026-01-15 14:30:05",
+    );
+    expect(formatDateTimeLocal(new Date(2026, 0, 15))).toBe(
+      "2026-01-15 00:00:00",
+    );
+  });
+});
+
+describe("excelSerialToDate", () => {
+  it("converts a known Excel serial day", () => {
+    // 2026-01-15 00:00:00 UTC from Excel 1900 system ≈ 46037
+    const d = excelSerialToDate(46037);
+    expect(d).not.toBeNull();
+    expect(formatDateTimeLocal(d!)).toMatch(/^2026-01-1[45] /);
+  });
+
+  it("rejects non-serial numbers", () => {
+    expect(excelSerialToDate(0)).toBeNull();
+    expect(excelSerialToDate(100000)).toBeNull();
+    expect(excelSerialToDate(Number.NaN)).toBeNull();
+  });
+});
 
 describe("parseCostEstimateXlsx", () => {
   it("parses E.164 A/B and integer seconds", async () => {
@@ -37,6 +68,17 @@ describe("parseCostEstimateXlsx", () => {
         seconds: 125,
       },
     ]);
+  });
+
+  it("strips a GMT suffix from a text date without inventing time", async () => {
+    const buffer = await workbookBuffer([
+      ["2026-01-02 14:30:05 GMT+0700 (Indochina Time)", "", "79031234567", 4],
+    ]);
+    const parsed = await parseCostEstimateXlsx(buffer);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.rows[0]?.dateDisplay).toBe("2026-01-02 14:30:05");
+    expect(parsed.rows[0]?.dateDisplay).not.toMatch(/GMT/i);
   });
 
   it("rejects a bad header and a non-admitted A/B without echoing the number", async () => {
@@ -65,14 +107,14 @@ describe("parseCostEstimateXlsx", () => {
     expect(parsedB.details.join(" ")).not.toContain("7495123456");
   });
 
-  it("formats a Date cell without GMT and round-trips the display", async () => {
+  it("formats a Date cell with time without GMT and round-trips the display", async () => {
     const buffer = await workbookBuffer([
-      [new Date(2026, 0, 15), "", "79031234567", 4],
+      [new Date(2026, 0, 15, 14, 30, 5), "", "79031234567", 4],
     ]);
     const parsed = await parseCostEstimateXlsx(buffer);
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) return;
-    expect(parsed.rows[0]?.dateDisplay).toBe("2026-01-15");
+    expect(parsed.rows[0]?.dateDisplay).toBe("2026-01-15 14:30:05");
     expect(parsed.rows[0]?.dateDisplay).not.toMatch(/GMT/i);
 
     const out = await writeCostEstimateXlsx([
@@ -89,6 +131,7 @@ describe("parseCostEstimateXlsx", () => {
         operator: "ПАО МТС",
         geography: "Москва",
         fillTone: "red",
+        registryMissing: false,
       },
     ]);
     const reload = new ExcelJS.Workbook();
@@ -96,12 +139,23 @@ describe("parseCostEstimateXlsx", () => {
     const sheet = reload.worksheets[0]!;
     expect(sheet.getRow(1).getCell(1).text).toBe("Дата");
     expect(sheet.getRow(1).getCell(2).text).toBe("A-номер");
-    expect(sheet.getRow(2).getCell(1).text).toBe("2026-01-15");
+    expect(sheet.getRow(2).getCell(1).text).toBe("2026-01-15 14:30:05");
     expect(sheet.getRow(2).getCell(1).text).not.toMatch(/GMT/i);
+    expect(sheet.getRow(2).getCell(4).font?.bold).toBe(true);
     const fill = sheet.getRow(2).getCell(1).fill as ExcelJS.FillPattern;
     expect(fill.fgColor?.argb).toBe(
       (XLSX_OPRS_MTS_FILL as ExcelJS.FillPattern).fgColor?.argb,
     );
     expect(sheet.getRow(3).getCell(8).value).toBe("3,00");
+  });
+});
+
+describe("dateCellDisplay", () => {
+  it("formats an Excel serial number as local date-time", async () => {
+    const book = new ExcelJS.Workbook();
+    const sheet = book.addWorksheet("in");
+    const cell = sheet.getRow(1).getCell(1);
+    cell.value = 46037.604224537; // ~2026-01-15 14:30
+    expect(dateCellDisplay(cell)).toMatch(/^2026-01-1[45] \d{2}:\d{2}:\d{2}$/);
   });
 });

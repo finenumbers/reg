@@ -25,11 +25,29 @@ function pushDetail(details: string[], line: string): void {
   details.push(line);
 }
 
-function formatDateYmd(value: Date): string {
+function pad2(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
+/** Local civil clock: YYYY-MM-DD HH:mm:ss (always includes time). */
+export function formatDateTimeLocal(value: Date): string {
   const y = value.getFullYear();
-  const m = String(value.getMonth() + 1).padStart(2, "0");
-  const d = String(value.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
+  const m = pad2(value.getMonth() + 1);
+  const d = pad2(value.getDate());
+  const hh = pad2(value.getHours());
+  const mm = pad2(value.getMinutes());
+  const ss = pad2(value.getSeconds());
+  return `${y}-${m}-${d} ${hh}:${mm}:${ss}`;
+}
+
+/**
+ * Excel 1900 date system serial → Date (local wall time from the UTC day).
+ * Accepts day fractions for time-of-day.
+ */
+export function excelSerialToDate(serial: number): Date | null {
+  if (!Number.isFinite(serial) || serial <= 1 || serial >= 100000) return null;
+  const ms = Math.round(serial * 86400000);
+  return new Date(Date.UTC(1899, 11, 30) + ms);
 }
 
 /** Strip Excel/JS timezone tails like « GMT+0700 (… )». */
@@ -43,10 +61,18 @@ function stripTimezoneSuffix(raw: string): string {
 /** Дата column only: Date value first, never keep GMT* from cell.text. */
 export function dateCellDisplay(cell: ExcelJS.Cell): string {
   const value = cell.value;
-  if (value instanceof Date) return formatDateYmd(value);
+  if (value instanceof Date) return formatDateTimeLocal(value);
+  if (typeof value === "number") {
+    const fromSerial = excelSerialToDate(value);
+    if (fromSerial) return formatDateTimeLocal(fromSerial);
+  }
   if (value && typeof value === "object" && "result" in value) {
     const result = value.result;
-    if (result instanceof Date) return formatDateYmd(result);
+    if (result instanceof Date) return formatDateTimeLocal(result);
+    if (typeof result === "number") {
+      const fromSerial = excelSerialToDate(result);
+      if (fromSerial) return formatDateTimeLocal(fromSerial);
+    }
   }
   const text = cellDisplayText(cell);
   return stripTimezoneSuffix(text);
@@ -66,7 +92,7 @@ function cellValueFallback(value: ExcelJS.CellValue): string {
     return String(value);
   }
   if (typeof value === "boolean") return value ? "true" : "false";
-  if (value instanceof Date) return formatDateYmd(value);
+  if (value instanceof Date) return formatDateTimeLocal(value);
   if (typeof value === "object") {
     if ("richText" in value && Array.isArray(value.richText)) {
       return value.richText

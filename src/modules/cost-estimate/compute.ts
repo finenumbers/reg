@@ -2,6 +2,7 @@
  * Rate one cost-estimate input sheet into output rows.
  */
 
+import { MISSING_PSTN_LABEL, billableMinutes } from "@/modules/enrich/types";
 import { OPRS_EXTERNAL_NETWORK, oprsNetworkLabel } from "@/modules/oprs/derived";
 import { oprsOperatorTone } from "@/modules/oprs/operator-tone";
 import type { OprsOperatorToneMap } from "@/modules/oprs/operator-tone";
@@ -12,7 +13,6 @@ import type {
   CostEstimateOutputRow,
   CostEstimatePstnFields,
 } from "@/modules/cost-estimate/types";
-import { billableMinutes } from "@/modules/enrich/types";
 import {
   CALL_CATEGORY,
   CALL_STATUS,
@@ -22,6 +22,21 @@ import {
   rateCdrCall,
   type TariffRateLookup,
 } from "@/modules/traffic/cdr-tariff";
+
+const DOMESTIC_REGISTRY_TYPES = new Set<string>([
+  CALL_TYPE.local,
+  CALL_TYPE.mobile,
+  CALL_TYPE.intercity,
+]);
+
+export function isCostEstimateRegistryMissing(
+  callType: string,
+  operator: string,
+): boolean {
+  if (!DOMESTIC_REGISTRY_TYPES.has(callType)) return false;
+  const trimmed = operator.trim();
+  return !trimmed || trimmed === MISSING_PSTN_LABEL;
+}
 
 export function buildCostEstimateRows(input: {
   rows: readonly CostEstimateInputRow[];
@@ -49,6 +64,28 @@ export function buildCostEstimateRows(input: {
       geography: "",
     };
 
+    const registryMissing = isCostEstimateRegistryMissing(
+      callType,
+      pstn.operator,
+    );
+    if (registryMissing) {
+      return {
+        dateDisplay: row.dateDisplay,
+        aNumberRaw: row.aNumberRaw,
+        bNumberRaw: row.bNumberRaw,
+        callType,
+        direction: tariff.direction,
+        seconds: row.seconds,
+        minutes: billableMinutes(row.seconds),
+        charge: "",
+        network: "",
+        operator: MISSING_PSTN_LABEL,
+        geography: MISSING_PSTN_LABEL,
+        fillTone: null,
+        registryMissing: true,
+      };
+    }
+
     let network = "";
     let fillTone: CostEstimateOutputRow["fillTone"] = null;
     if (callType === CALL_TYPE.mobile) {
@@ -72,6 +109,7 @@ export function buildCostEstimateRows(input: {
       operator: pstn.operator,
       geography: pstn.geography,
       fillTone,
+      registryMissing: false,
     };
   });
 }

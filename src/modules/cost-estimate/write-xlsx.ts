@@ -8,7 +8,7 @@ import {
   createSimpleWorkbook,
   workbookToBuffer,
 } from "@/lib/xlsx-export";
-import { costEstimateFillForTone } from "@/modules/cost-estimate/fills";
+import { costEstimateRowFill } from "@/modules/cost-estimate/fills";
 import {
   chargeToExcelNumber,
   formatCostEstimateTotal,
@@ -21,12 +21,27 @@ import {
   COST_ESTIMATE_SHEET_NAME,
   type CostEstimateOutputRow,
 } from "@/modules/cost-estimate/types";
+import { CALL_TYPE } from "@/modules/traffic/call-class";
 
 const THIN_BORDER: Partial<ExcelJS.Borders> = {
   top: { style: "thin" },
   left: { style: "thin" },
   bottom: { style: "thin" },
   right: { style: "thin" },
+};
+
+const BODY_FONT: Partial<ExcelJS.Font> = {
+  name: "Calibri",
+  size: 11,
+  bold: false,
+  color: { argb: "FF000000" },
+};
+
+const MOBILE_BOLD_FONT: Partial<ExcelJS.Font> = {
+  name: "Calibri",
+  size: 11,
+  bold: true,
+  color: { argb: "FF000000" },
 };
 
 export async function writeCostEstimateXlsx(
@@ -58,8 +73,12 @@ export async function writeCostEstimateXlsx(
       const row = rows[rowIndex];
       if (!row) return;
 
-      const fill = costEstimateFillForTone(row.fillTone);
+      const fill = costEstimateRowFill(row);
       if (fill) cell.fill = fill;
+
+      if (row.callType === CALL_TYPE.mobile) {
+        cell.font = { ...MOBILE_BOLD_FONT };
+      }
 
       if (colIndex === COST_ESTIMATE_COL.seconds) {
         cell.value = row.seconds;
@@ -111,12 +130,7 @@ export async function writeCostEstimateXlsx(
       };
     } else {
       cell.value = "";
-      cell.font = {
-        name: "Calibri",
-        size: 11,
-        bold: false,
-        color: { argb: "FF000000" },
-      };
+      cell.font = { ...BODY_FONT };
     }
   }
 

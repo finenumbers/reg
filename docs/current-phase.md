@@ -1,7 +1,13 @@
-# Current Phase — production (v1.347.0)
+# Current Phase — production (v1.348.0)
 
 **Status:** in production. Modules beyond Phase 7: phones, groups, cost estimate, RTU management, free numbers, purchased numbers, numbering sync, numbering load, numbering resource, CDR/FTP, geoip/pstn, geography/operators, VoIPmonitor CDR links, month traffic XLSX export, CDR month switcher, CDR month storage/purge, CDR statistics, client traffic detail, tariffs, number masks, marking and MAV, dial exceptions, Eltex SMG CDR, Eltex SMG syslog, Parking RADIUS journal, live transit calls, OPRS calls, cloud PBX domains and numbers, Zabbix graphs, outbound mail.
 **Date:** 2026-11-26
+
+## v1.348.0 — Cost estimate datetime, bold mobile, registry miss
+
+This release does not migrate and does not rewrite catalog rows, the CDR journal, or settings. Do not stop `smg-syslog`. Keep a single `app` replica. Stop the old app before the new one starts, then start one new app. Refresh the browser. Nothing is written to the switch. RTU activation is unchanged.
+
+«Расчет затрат» writes Excel date cells as `YYYY-MM-DD HH:mm:ss` without a GMT suffix. Rows with type «Мобильный» use bold text. For «Местный», «Мобильный», or «Междугородный» without a PSTN operator the row is painted saturated red, «Оператор связи» and «География нумерации» are «Нет в реестре МинЦифры», and «Стоимость» stays empty (excluded from the total). «Международный» without an operator is unchanged. OPRS network fills for known mobile operators stay.
 
 ## v1.347.0 — Cost estimate A-number and local type
 

@@ -75,6 +75,8 @@ export type CostEstimateOutputRow = {
   geography: string;
   /** OPRS tone for mobile fill; null → no fill (including «Внешние сети»). */
   fillTone: OprsOperatorTone | null;
+  /** Domestic type with no PSTN operator → red row, empty charge, МинЦифры label. */
+  registryMissing: boolean;
 };
 
 export type CostEstimatePstnFields = {

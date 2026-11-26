@@ -1,11 +1,16 @@
 import ExcelJS from "exceljs";
 import { describe, expect, it } from "vitest";
+import {
+  XLSX_OPRS_MTS_FILL,
+  XLSX_REGISTRY_MISSING_FILL,
+} from "@/modules/cost-estimate/fills";
 import { writeCostEstimateXlsx } from "@/modules/cost-estimate/write-xlsx";
 import {
   COST_ESTIMATE_COL,
   COST_ESTIMATE_OUTPUT_HEADERS,
 } from "@/modules/cost-estimate/types";
 import { CALL_TYPE } from "@/modules/traffic/call-class";
+import { MISSING_PSTN_LABEL } from "@/modules/enrich/types";
 
 describe("writeCostEstimateXlsx", () => {
   it("writes A-номер, numeric charge cols, and a bold total outside autoFilter", async () => {
@@ -23,6 +28,7 @@ describe("writeCostEstimateXlsx", () => {
         operator: "ПАО МТС",
         geography: "Москва",
         fillTone: "red",
+        registryMissing: false,
       },
       {
         dateDisplay: "2026-01-02",
@@ -37,6 +43,7 @@ describe("writeCostEstimateXlsx", () => {
         operator: "Ростелеком",
         geography: "НСК",
         fillTone: null,
+        registryMissing: false,
       },
       {
         dateDisplay: "2026-01-03",
@@ -51,6 +58,7 @@ describe("writeCostEstimateXlsx", () => {
         operator: "Ростелеком",
         geography: "НСК",
         fillTone: null,
+        registryMissing: false,
       },
     ]);
 
@@ -75,6 +83,16 @@ describe("writeCostEstimateXlsx", () => {
     const emptyCharge = sheet.getRow(3).getCell(COST_ESTIMATE_COL.charge + 1);
     expect(emptyCharge.value === null || emptyCharge.value === "").toBe(true);
 
+    const mobileType = sheet.getRow(2).getCell(4);
+    expect(mobileType.font?.bold).toBe(true);
+    const localType = sheet.getRow(3).getCell(4);
+    expect(localType.font?.bold).not.toBe(true);
+
+    const mtsFill = sheet.getRow(2).getCell(1).fill as ExcelJS.FillPattern;
+    expect(mtsFill.fgColor?.argb).toBe(
+      (XLSX_OPRS_MTS_FILL as ExcelJS.FillPattern).fgColor?.argb,
+    );
+
     const totalRow = sheet.getRow(5);
     const totalCell = totalRow.getCell(COST_ESTIMATE_COL.charge + 1);
     expect(totalCell.value).toBe("10 000,33");
@@ -90,5 +108,64 @@ describe("writeCostEstimateXlsx", () => {
         column: COST_ESTIMATE_OUTPUT_HEADERS.length,
       });
     }
+  });
+
+  it("paints registry-missing rows red, bolds mobile, and excludes empty charge from the total", async () => {
+    const { buffer } = await writeCostEstimateXlsx([
+      {
+        dateDisplay: "2026-01-01 10:00:00",
+        aNumberRaw: "",
+        bNumberRaw: "79031234567",
+        callType: CALL_TYPE.mobile,
+        direction: "Мобильные РФ",
+        seconds: 10,
+        minutes: 1,
+        charge: "",
+        network: "",
+        operator: MISSING_PSTN_LABEL,
+        geography: MISSING_PSTN_LABEL,
+        fillTone: null,
+        registryMissing: true,
+      },
+      {
+        dateDisplay: "2026-01-02 11:00:00",
+        aNumberRaw: "",
+        bNumberRaw: "73831234567",
+        callType: CALL_TYPE.intercity,
+        direction: "г. Новосибирск",
+        seconds: 60,
+        minutes: 1,
+        charge: "1.50",
+        network: "",
+        operator: "Ростелеком",
+        geography: "НСК",
+        fillTone: null,
+        registryMissing: false,
+      },
+    ]);
+
+    const book = new ExcelJS.Workbook();
+    await book.xlsx.load(buffer as unknown as ExcelJS.Buffer);
+    const sheet = book.worksheets[0]!;
+
+    const redFill = sheet.getRow(2).getCell(1).fill as ExcelJS.FillPattern;
+    expect(redFill.fgColor?.argb).toBe(
+      (XLSX_REGISTRY_MISSING_FILL as ExcelJS.FillPattern).fgColor?.argb,
+    );
+    expect(sheet.getRow(2).getCell(4).font?.bold).toBe(true);
+    expect(sheet.getRow(2).getCell(COST_ESTIMATE_COL.charge + 1).value).toBe(
+      "",
+    );
+
+    const intercityFill = sheet.getRow(3).getCell(1).fill as
+      | ExcelJS.FillPattern
+      | undefined;
+    expect(intercityFill?.fgColor?.argb).not.toBe(
+      (XLSX_REGISTRY_MISSING_FILL as ExcelJS.FillPattern).fgColor?.argb,
+    );
+    expect(sheet.getRow(3).getCell(4).font?.bold).not.toBe(true);
+
+    const totalCell = sheet.getRow(4).getCell(COST_ESTIMATE_COL.charge + 1);
+    expect(totalCell.value).toBe("1,50");
   });
 });
